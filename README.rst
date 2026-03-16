@@ -22,12 +22,14 @@ Getting Started
 See `Getting Started <https://erf.readthedocs.io/en/latest/GettingStarted.html>`_ for instructions as to how to clone the ERF
 and AMReX codes, and for how to build and run an ERF example.  Minimum requirements for system software are also given there.
 
+Python tools for pre- and post-processing ERF can be found in the companion `erftools repository <https://github.com/erf-model/erftools/>`_.
+
 Documentation
 ~~~~~~~~~~~~~~~~~
 
-Documentation of the ERF theory and implementation is available `here <https://erf.readthedocs.io/en/latest/>`_ .
+Documentation of the ERF theory and implementation is available `here <https://erf.readthedocs.io/en/latest/>`_.
 
-In addition, there is doxygen documentation of the ERF Code available `here <https://erf-model.github.io/docs/index.html>`_
+In addition, there is doxygen documentation of the ERF Code available `here <https://erf-model.github.io/docs/index.html>`_.
 
 Development model
 ~~~~~~~~~~~~~~~~~
@@ -97,17 +99,18 @@ To cite ERF, please see the following publications:
 
 |JAMES Image|
 
-.. |JAMES Image| image:: https://zenodo.org/badge/DOI/10.48550/arXiv.2412.04395.svg
-  :target: https://doi.org/10.48550/arXiv.2412.04395
+.. |JAMES Image| image:: https://zenodo.org/badge/DOI/10.1029/2024MS004884.svg
+  :target: https://doi.org/10.1029/2024MS004884
 
 ::
 
    @article{ERF_JAMES,
-       title = {{ERF}: {Energy} {Research} and {Forecasting} {Model}},
-       shorttitle = {{ERF}},
-       doi = {10.48550/arXiv.2412.04395},
-       publisher = {arXiv},
-       author = {Lattanzi, Aaron and Almgren, Ann and Quon, Eliot and Natarajan, Mahesh and Kosovic, Branko and Mirocha, Jeff and Perry, Bruce and Wiersema, David and Willcox, Donald and Yuan, Xingqiu and Zhang, Weiqun},
-       month = dec,
-       year = {2024},
+   author = {Lattanzi, Aaron and Almgren, Ann and Quon, Eliot and Natarajan, Mahesh and Kosovic, Branko and Mirocha, Jeffrey and Perry, Bruce and Wiersema, David and Willcox, Donald and Yuan, Xingqiu and Zhang, Weiqun},
+   title = {ERF: Energy Research and Forecasting Model},
+   journal = {Journal of Advances in Modeling Earth Systems},
+   volume = {17},
+   number = {11},
+   pages = {e2024MS004884},
+   doi = {https://doi.org/10.1029/2024MS004884},
+   year = {2025}
    }

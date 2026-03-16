@@ -16,9 +16,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
+import os
 import sys
-# sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('.'))
 #sys.path.append("../breathe")
 
 # -- General configuration ------------------------------------------------
@@ -32,6 +32,11 @@ import sys
 # ones.
 extensions = [
     'sphinx.ext.mathjax',
+    "sphinx.ext.viewcode",
+    "sphinx.ext.graphviz",
+    "sphinx_copybutton",
+    "sphinx_design",
+    'remote_include',
     'sphinxcontrib.jquery',
 ]
 
@@ -87,6 +92,9 @@ language = 'en'
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+# Don't include the extra CSS from sphinx-prompt when using the copy button
+copybutton_exclude = 'style'
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.

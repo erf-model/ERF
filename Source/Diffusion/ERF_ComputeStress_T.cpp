@@ -24,6 +24,9 @@ using namespace amrex;
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
+ * @param[in,out] tau13i contribution to stress from du/dz
+ * @param[in,out] tau23i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -41,8 +44,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_vx,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
-                         const Array4<const Real>& mf_vy)
+                         const Array4<const Real>& mf_vy,
+                         Array4<Real>& tau13i,
+                         Array4<Real>& tau23i,
+                         Array4<Real>& tau33i)
 {
+    // NOTE: mu_eff includes factor of 2
+
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
     // optimized with if statements below instead of creating a new FAB,
@@ -52,12 +60,18 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     gbx.grow(IntVect(0,0,1));
     temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
-    if (cell_data) {
+
+    if (cell_data)
+    // constant alpha (stored in mu_eff)
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
-    } else {
+    }
+    else
+    // constant mu_eff
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
@@ -76,6 +90,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (1./3.);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
+
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -103,6 +119,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
+
+        if (tau33i) tau33i(i,j,k) *= -mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -136,6 +154,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
             tau13(i,j,k) *= -mu_tot;
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
         });
@@ -165,6 +184,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
             tau23(i,j,k) *= -mu_tot;
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
         });
@@ -196,6 +216,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
             tau13(i,j,k) *= -mu_tot;
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
         });
@@ -225,6 +246,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
             tau23(i,j,k) *= -mu_tot;
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
         });
@@ -254,6 +276,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
         tau13(i,j,k) *= -mu_tot;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
@@ -276,6 +299,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
         tau23(i,j,k) *= -mu_tot;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
@@ -331,6 +355,9 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
+ * @param[in,out] tau13i contribution to stress from du/dz
+ * @param[in,out] tau23i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -349,8 +376,13 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_vx,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
-                        const Array4<const Real>& mf_vy)
+                        const Array4<const Real>& mf_vy,
+                        Array4<Real>& tau13i,
+                        Array4<Real>& tau23i,
+                        Array4<Real>& tau33i)
 {
+    // NOTE: mu_eff includes factor of 2
+
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
     // optimized with if statements below instead of creating a new FAB,
@@ -360,12 +392,18 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     gbx.grow(IntVect(0,0,1));
     temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
-    if (cell_data) {
+
+    if (cell_data)
+    // constant alpha (stored in mu_eff)
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
-    } else {
+    }
+    else
+    // constant mu_eff
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
@@ -384,6 +422,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (1./3.);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
+
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -412,6 +452,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
+
+        if (tau33i) tau33i(i,j,k) *= -mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -448,6 +490,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
             tau13(i,j,k) *= -mu_tot;
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
         });
@@ -480,6 +523,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
             tau23(i,j,k) *= -mu_tot;
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
         });
@@ -514,6 +558,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
             tau13(i,j,k) *= -mu_tot;
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
         });
@@ -546,6 +591,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
             tau23(i,j,k) *= -mu_tot;
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
         });
@@ -579,6 +625,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
         tau13(i,j,k) *= -mu_tot;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot;
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
@@ -605,6 +652,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
         tau23(i,j,k) *= -mu_tot;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot;
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });

@@ -19,6 +19,7 @@ redistribute_term ( int ncomp,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
                     Real const local_dt)
 {
+    BL_PROFILE_VAR("redistribute_term1", redistribute_term1);
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************
@@ -61,12 +62,6 @@ redistribute_term ( int ncomp,
             Array4<Real> scratch = scratch_fab.array();
             Elixir eli_scratch = scratch_fab.elixir();
 
-            // This is scratch space if calling StateRedistribute
-            // ParallelFor(Box(scratch), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            // {
-            //     scratch(i,j,k) = 1.;
-            // });
-
             std::string redistribution_type = "StateRedist";
 
             // State redist acts on the state.
@@ -76,7 +71,7 @@ redistribute_term ( int ncomp,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
                                  bc, geom, local_dt, redistribution_type,
-                                 false, 2, 0.25_rt, {});
+                                 false, 2, 0.5_rt, {});
         }
         else
         {
@@ -96,8 +91,10 @@ redistribute_term ( int ncomp,
                     MultiFab const& state,
                     eb_aux_ const& ebfact,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const local_dt)
+                    Real const local_dt,
+                    int const igrid)
 {
+    BL_PROFILE_VAR("redistribute_term2", redistribute_term2);
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************
@@ -136,8 +133,18 @@ redistribute_term ( int ncomp,
 
             Box bx_cc = bx;
             bx_cc = bx_cc.convert(IntVect::TheZeroVector());
-            // bx_cc = bx_cc.setBig(0, bx_cc.bigEnd(0) + 1);
+
+            // Extend box for staggered grids
+            if (igrid == IntVars::xmom) bx_cc = bx_cc.setBig(0, bx_cc.bigEnd(0) + 1);
+            if (igrid == IntVars::ymom) bx_cc = bx_cc.setBig(1, bx_cc.bigEnd(1) + 1);
+            if (igrid == IntVars::zmom) bx_cc = bx_cc.setBig(2, bx_cc.bigEnd(2) + 1);
+
             Box gbx = bx_cc; gbx.grow(3);
+
+            // Extended geometry domain
+            Box domain_grown = geom.Domain();
+            domain_grown.grow(igrid-1, 1); // Extend geometry domain by 1 in the staggering direction
+            Geometry geom_new(domain_grown, geom.ProbDomain(), geom.Coord(), geom.isPeriodic());
 
             FArrayBox scratch_fab(gbx,ncomp);
             Array4<Real> scratch = scratch_fab.array();
@@ -153,8 +160,8 @@ redistribute_term ( int ncomp,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type,
-                                 false, 2, 0.25_rt, {});
+                                 bc, geom_new, local_dt, redistribution_type,
+                                 false, 2, 0.5_rt, {});
         }
         else
         {

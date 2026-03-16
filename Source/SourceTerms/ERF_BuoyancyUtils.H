@@ -27,6 +27,51 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
+buoyancy_dry_anelastic_eb (int& i, int& j, int& k,
+                        amrex::Real const& grav_gpu,
+                        const amrex::Array4<const amrex::Real>& r0_arr,
+                        const amrex::Array4<const amrex::Real>& th0_arr,
+                        const amrex::Array4<const amrex::Real>& cell_data,
+                        amrex::Array4<amrex::EBCellFlag const> const& flag)
+{
+    amrex::Real buoyancy = 0.0;
+    if (flag(i,j,k).isRegular()) {
+        amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
+        amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+        amrex::Real  theta_d_wface = amrex::Real(0.5) * (theta_d_lo + theta_d_hi);
+        amrex::Real theta_d0_wface = amrex::Real(0.5) * (th0_arr(i,j,k) + th0_arr(i,j,k-1));
+        amrex::Real     rho0_wface = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
+        buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+    } else if (flag(i,j,k).isSingleValued()) {
+        if (flag(i,j,k-1).isCovered()) {
+            amrex::Real theta_d_hihi = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+            amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
+            amrex::Real theta_d_wface  = amrex::Real(0.5) * (3.0*theta_d_hi - theta_d_hihi);
+            amrex::Real theta_d0_wface = amrex::Real(0.5) * (3.0*th0_arr(i,j,k) - th0_arr(i,j,k+1));
+            amrex::Real     rho0_wface = amrex::Real(0.5) * (3.0*r0_arr(i,j,k) - r0_arr(i,j,k+1));
+            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+        } else if (flag(i,j,k).isCovered()) {
+            amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+            amrex::Real theta_d_lolo = cell_data(i,j,k-2,RhoTheta_comp)/cell_data(i,j,k-2,Rho_comp);
+            amrex::Real  theta_d_wface = amrex::Real(0.5) * (3.0*theta_d_lo - theta_d_lolo);
+            amrex::Real theta_d0_wface = amrex::Real(0.5) * (3.0*th0_arr(i,j,k-1) - th0_arr(i,j,k-2));
+            amrex::Real     rho0_wface = amrex::Real(0.5) * (3.0*r0_arr(i,j,k-1) - r0_arr(i,j,k-2));
+            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+        } else {
+            amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
+            amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+            amrex::Real  theta_d_wface = amrex::Real(0.5) * (theta_d_lo + theta_d_hi);
+            amrex::Real theta_d0_wface = amrex::Real(0.5) * (th0_arr(i,j,k) + th0_arr(i,j,k-1));
+            amrex::Real     rho0_wface = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
+            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+        }
+    }
+    return buoyancy;
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
 buoyancy_moist_anelastic (int& i, int& j, int& k,
                           amrex::Real const& grav_gpu,
                           amrex::Real const& rv_over_rd,
@@ -78,6 +123,41 @@ buoyancy_rhopert (int& i, int& j, int& k,
     amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (1.0 + qt_arr(i,j,k  ))- r0_arr(i,j,k  );
     amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (1.0 + qt_arr(i,j,k-1))- r0_arr(i,j,k-1);
     return( grav_gpu * amrex::Real(0.5) * ( rhop_hi + rhop_lo ) );
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+buoyancy_rhopert_eb (int& i, int& j, int& k,
+                    amrex::Real const& grav_gpu,
+                    const amrex::Array4<const amrex::Real>& r0_arr,
+                    const amrex::Array4<const amrex::Real>& cell_data,
+                    const amrex::Array4<const amrex::Real>& qt_arr,
+                    amrex::Array4<amrex::EBCellFlag const> const& flag)
+{
+    amrex::Real buoyancy = 0.0;
+    if (flag(i,j,k).isRegular()) {
+        amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (1.0 + qt_arr(i,j,k  ))- r0_arr(i,j,k  );
+        amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (1.0 + qt_arr(i,j,k-1))- r0_arr(i,j,k-1);
+        buoyancy = grav_gpu * amrex::Real(0.5) * ( rhop_hi + rhop_lo );
+    } else if (flag(i,j,k).isSingleValued()) {
+        if (flag(i,j,k-1).isCovered()) {
+            amrex::Real rhop_hihi = cell_data(i,j,k+1,Rho_comp) * (1.0 + qt_arr(i,j,k+1))- r0_arr(i,j,k+1);
+            amrex::Real rhop_hi   = cell_data(i,j,k  ,Rho_comp) * (1.0 + qt_arr(i,j,k  ))- r0_arr(i,j,k  );
+            buoyancy = grav_gpu * 0.5 * ( 3.0 * rhop_hi - rhop_hihi );
+            // buoyancy = grav_gpu * rhop_hi;
+        } else if (flag(i,j,k).isCovered()) {
+            amrex::Real rhop_lo   = cell_data(i,j,k-1,Rho_comp) * (1.0 + qt_arr(i,j,k-1))- r0_arr(i,j,k-1);
+            amrex::Real rhop_lolo = cell_data(i,j,k-2,Rho_comp) * (1.0 + qt_arr(i,j,k-2))- r0_arr(i,j,k-2);
+            buoyancy = grav_gpu * 0.5 * ( 3.0 * rhop_lo - rhop_lolo );
+            // buoyancy = grav_gpu * rhop_lo;
+        } else {
+            amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (1.0 + qt_arr(i,j,k  ))- r0_arr(i,j,k  );
+            amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (1.0 + qt_arr(i,j,k-1))- r0_arr(i,j,k-1);
+            buoyancy = grav_gpu * amrex::Real(0.5) * ( rhop_hi + rhop_lo );
+        }
+    }
+    return buoyancy;
 }
 
 AMREX_GPU_DEVICE

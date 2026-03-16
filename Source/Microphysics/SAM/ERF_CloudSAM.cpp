@@ -11,6 +11,7 @@ using namespace amrex;
 void
 SAM::Cloud (const SolverChoice& sc)
 {
+    if (!m_do_cond) { return; }
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;
@@ -26,6 +27,12 @@ SAM::Cloud (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
+    auto domain = m_geom.Domain();
+    int i_lo = domain.smallEnd(0);
+    int i_hi = domain.bigEnd(0);
+    int j_lo = domain.smallEnd(1);
+    int j_hi = domain.bigEnd(1);
+
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto  qt_array = mic_fab_vars[MicVar::qt]->array(mfi);
         auto  qn_array = mic_fab_vars[MicVar::qn]->array(mfi);
@@ -38,9 +45,13 @@ SAM::Cloud (const SolverChoice& sc)
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
 
-        const auto& box3d = mfi.tilebox();
+        auto tbx = mfi.tilebox();
+        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Saturation moisture fractions
             Real omn;
@@ -67,7 +78,7 @@ SAM::Cloud (const SolverChoice& sc)
                     tabs_array(i,j,k) -= fac_fus * delta_qi;
                     pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                          * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                     pres_array(i,j,k) *= 0.01;
                 }
                 // Cloud water not permitted (freeze to form ice)
@@ -79,7 +90,7 @@ SAM::Cloud (const SolverChoice& sc)
                     tabs_array(i,j,k) += fac_fus * delta_qc;
                     pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                          * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                     pres_array(i,j,k) *= 0.01;
                 }
                 // Mixed cloud phase (split according to omn)
@@ -92,7 +103,7 @@ SAM::Cloud (const SolverChoice& sc)
                     tabs_array(i,j,k) += fac_fus * delta_qc;
                     pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                          * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                     pres_array(i,j,k) *= 0.01;
                 }
             }
@@ -106,7 +117,7 @@ SAM::Cloud (const SolverChoice& sc)
                 tabs_array(i,j,k) += fac_cond * delta_qc;
                 pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) *= 0.01;
             }
 
@@ -127,7 +138,7 @@ SAM::Cloud (const SolverChoice& sc)
                                                   qn_array  , qt_array);
 
                 // Update theta
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
 
             //
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv.
@@ -153,7 +164,7 @@ SAM::Cloud (const SolverChoice& sc)
                 tabs_array(i,j,k) -= fac_cond * delta_qc + fac_sub * delta_qi;
 
                 // Update theta
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
 
                 // Verify assumption that qv > qsat does not occur
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);
@@ -170,7 +181,7 @@ SAM::Cloud (const SolverChoice& sc)
                                                       qn_array  , qt_array);
 
                     // Update theta
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
 
                 }
             }

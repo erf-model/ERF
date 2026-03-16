@@ -15,7 +15,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                       int icomp, int ncomp,
-                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/,
+                                      IntVect const& nghost, const Real time, int /*bccomp*/,
                                       bool do_fb, bool do_terrain_adjustment)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
@@ -73,14 +73,11 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                if (!m_use_real_bcs)
-                {
-                    // We send a box with ghost cells in the lateral directions only
-                    impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost);
-                }
+                // We send a box with ghost cells in the lateral directions only
+                impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost,time);
 
                 // We send the full FAB box with ghost cells
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,do_terrain_adjustment);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
             }
 
         } // MFIter
@@ -148,12 +145,9 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                if (!m_use_real_bcs)
+                if (!gdomainx.contains(xbx1))
                 {
-                    if (!gdomainx.contains(xbx1))
-                    {
-                        impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp);
-                    }
+                    impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,time);
                 }
 
                 impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
@@ -163,7 +157,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real /*time*/, int bccomp,
+                                   IntVect const& nghost, const Real time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
@@ -223,12 +217,9 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                if (!m_use_real_bcs)
-                {
-                    impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp);
-                }
+                impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
 
-                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp);
+                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
             }
 
         } // MFIter
@@ -236,7 +227,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real /*time*/,
+                                   IntVect const& nghost, const Real time,
                                    const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
@@ -286,7 +277,13 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             //
             Box zbx = surroundingNodes(bx,2); zbx.grow(nghost);
             if (zbx.smallEnd(2) < domain.smallEnd(2)) zbx.setSmall(2,domain.smallEnd(2));
-            if (zbx.bigEnd(2)   > domain.bigEnd(2))   zbx.setBig(2,domain.bigEnd(2)+1);
+            if (zbx.bigEnd(2)   > domain.bigEnd(2))   {
+                zbx.setBig(2,domain.bigEnd(2)+1);
+            } else if (zbx.bigEnd(2) > xvel[mfi].box().bigEnd(2)) {
+                // We do this so if a box at level > 0 doesn't reach the top boundary, we don't go out of bounds
+                // (Note xvel is chosen arbitrarily; we could have used yvel instead)
+                zbx.setBig(2,xvel[mfi].box().bigEnd(2));
+            }
 
             Array4<const Real> z_nd_arr;
             const Array4<const Real>& mf_u = m_mapfac_u->const_array(mfi);
@@ -306,17 +303,14 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
                 Array4<      Real> const& velz_arr = mf.array(mfi);
 
-                if (!m_use_real_bcs)
+                if (!gdomainz.contains(zbx))
                 {
-                    if (!gdomainz.contains(zbx))
-                    {
-                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,
-                                                mf_u,mf_v,z_nd_arr,dxInv,m_terrain_type,bccomp_w);
-                    }
+                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,
+                                            mf_u,mf_v,z_nd_arr,dxInv,m_terrain_type,bccomp_w,time);
                 }
 
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u,mf_v,
-                                         z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
+                                         z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type, time);
             }
         } // MFIter
     } // OpenMP

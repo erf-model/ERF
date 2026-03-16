@@ -58,6 +58,7 @@ public:
     {
         m_fac_cond = lcond / sc.c_p;
         m_rdOcp    = sc.rdOcp;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -122,6 +123,9 @@ public:
         a_idx.clear();
         a_names.clear();
     }
+
+    void
+    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -198,12 +202,16 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
+    // Nudging + set width
+    int m_real_width{0};
+
     // timestep
     amrex::Real dt;
 
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_rdOcp ;
+    amrex::Real m_rdOcp;
+    bool m_do_cond;
 
     // independent variables
     amrex::Array<FabPtr, MicVar_SatAdj::NumVars> mic_fab_vars;

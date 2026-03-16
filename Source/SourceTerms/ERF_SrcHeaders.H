@@ -9,13 +9,15 @@
 #include "ERF_LargeScaleForcingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
+void make_buoyancy (int level,
+                    const amrex::Vector<amrex::MultiFab>& S_data,
                     const               amrex::MultiFab & S_prim,
                     const               amrex::MultiFab & qt,
                     amrex::MultiFab& buoyancy,
@@ -23,27 +25,36 @@ void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab& base_state,
                     const int n_qstate,
+                    const eb_& ebfact,
                     const int anelastic);
 
 void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const amrex::Geometry& geom,
                       amrex::Vector<amrex::MultiFab>& S_data,
-                      amrex::MultiFab& p0,
-                      amrex::MultiFab& z_phys_nd,
-                      amrex::MultiFab& z_phys_cc,
-                      amrex::BCRec const* bcrec_ptr,
+                      const amrex::MultiFab& p0,
+                      const amrex::MultiFab& z_phys_nd,
+                      const amrex::MultiFab& z_phys_cc,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp);
 
 void compute_gradp (const amrex::MultiFab& p,
                     const amrex::Geometry& geom,
-                    amrex::MultiFab& z_phys_nd,
-                    amrex::MultiFab& z_phys_cc,
-                    amrex::BCRec const* bcrec_ptr,
+                    const amrex::MultiFab& z_phys_nd,
+                    const amrex::MultiFab& z_phys_cc,
+                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                     const eb_& ebfact,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
+
+void compute_gradp_interpz (const amrex::MultiFab& p,
+                            const amrex::Geometry& geom,
+                            const amrex::MultiFab& z_phys_nd,
+                            const amrex::MultiFab& z_phys_cc,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                            amrex::Vector<amrex::MultiFab>& gradp,
+                            const SolverChoice& solverChoice);
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
@@ -52,24 +63,30 @@ void make_sources (int level, int nrk,
                          amrex::MultiFab& cc_source,
                    const amrex::MultiFab& base_state,
                    const amrex::MultiFab* z_phys_cc,
+                   const amrex::MultiFab& xvel,
+                   const amrex::MultiFab& yvel,
                    const amrex::MultiFab* qheating_rates,
                    amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
-                   const amrex::Real* dptr_rhotheta_src,
-                   const amrex::Real* dptr_rhoqt_src,
+                   const amrex::MultiFab* rhotheta_src,
+                   const amrex::MultiFab* rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                   const amrex::Real* sinesq_at_lev_d,
+                   const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    LargeScaleForcingData &lsf_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
 
 void make_mom_sources (amrex::Real time,
+                       amrex::Real dt,
                        const amrex::Vector<amrex::MultiFab>& S_data,
-                             amrex::MultiFab& z_phys_nd,
-                             amrex::MultiFab& z_phys_cc,
+                       const amrex::MultiFab* z_phys_nd,
+                       const amrex::MultiFab* z_phys_cc,
+                             amrex::Vector<amrex::Real>& stretched_dz_h,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
@@ -83,14 +100,18 @@ void make_mom_sources (amrex::Real time,
                              amrex::MultiFab* sinPhi_mf,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                       const amrex::Real* sinesq_at_lev_d,
+                       const amrex::Real* sinesq_stag_at_lev_d,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
-                       InputSoundingData& input_sounding_data,
-                       LargeScaleForcingData &lsf_data,
+                       const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                       const amrex::MultiFab* surface_state_at_lev,
+                             InputSoundingData& input_sounding_data,
+                             LargeScaleForcingData &lsf_data,
                        std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
                        std::unique_ptr<amrex::MultiFab>& nudge_data,
                        bool is_slow_step);
@@ -107,20 +128,23 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 
 #if defined(ERF_USE_NETCDF)
 void
-moist_set_rhs (const amrex::Box& tbx,
-               const amrex::Array4<amrex::Real const>& old_cons,
+moist_set_rhs (const amrex::Geometry& geom,
+               const amrex::Box& tbx,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
-               const amrex::Real& bdy_time_interval,
-               const amrex::Real& start_bdy_time,
-               const amrex::Real& new_stage_time,
+               const amrex::Real& time,
                const amrex::Real& dt,
-               int width, int set_width,
+               const amrex::Real& start_bdy_time,
+               const amrex::Real& final_bdy_time,
+               const amrex::Real& bdy_time_interval,
+               const amrex::Real& nudge_factor,
+               int width, bool do_upwind,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+               std::unique_ptr<ReadBndryPlanes>& m_r2d);
 #endif
 
 void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
@@ -157,4 +181,40 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
+
+void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
+                                 const amrex::Geometry geom,
+                                 const amrex::Box& tbx,
+                                 const amrex::Box& tby,
+                                 const amrex::Box& tbz,
+                                 const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                 const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_w_rhs,
+                                 const amrex::Array4<const amrex::Real>& rho_u,
+                                 const amrex::Array4<const amrex::Real>& rho_v,
+                                 const amrex::Array4<const amrex::Real>& rho_w,
+                                 const amrex::Array4<const amrex::Real>& rho_u_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_v_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_w_initial_state,
+                                 const amrex::Array4<const amrex::Real>& cons_initial_state);
+
+void
+ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Box& tbx,
+                                     const amrex::Box& tby,
+                                     const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                     const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                     const amrex::Array4<const amrex::Real>& rho_u,
+                                     const amrex::Array4<const amrex::Real>& rho_v,
+                                     const amrex::Array4<const amrex::Real>& cons_state,
+                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
+
+void
+ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Box& bx,
+                                    const amrex::Array4<amrex::Real>& cell_rhs,
+                                    const amrex::Array4<const amrex::Real>& cons_state,
+                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
+                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
+
 #endif

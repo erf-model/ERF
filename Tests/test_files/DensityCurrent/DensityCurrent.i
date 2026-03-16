@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Density Current"
+
+erf.init_type = Isentropic
+
 max_step = 10
 stop_time = 900.0
 
@@ -44,7 +48,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 
 erf.les_type         = "None"
 

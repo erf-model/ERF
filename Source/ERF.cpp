@@ -12,11 +12,18 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_WriteEBSurface.H"
+#include "AMReX_EB2_IF_Box.H"
+#include "AMReX_EB2_IF_Sphere.H"
+
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
+#include "ERF_HurricaneDiagnostics.H"
+
 #ifdef ERF_USE_NETCDF
+#include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
@@ -29,13 +36,31 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
+Real ERF::start_time    = 0.0;
+//
+// Note: stop_time is total time, NOT elapsed time
+//
+Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
+
+#ifdef ERF_USE_NETCDF
+Real ERF::start_bdy_time     =  0.0;
+Real ERF::final_bdy_time     = -1.0;
+
+Real ERF::start_low_time     =  0.0;
+Real ERF::final_low_time     = -1.0;
+
+Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
+Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+#endif
+
 // Time step control
-Real ERF::cfl           =  0.8;
-Real ERF::sub_cfl       =  1.0;
-Real ERF::init_shrink   =  1.0;
-Real ERF::change_max    =  1.1;
+Real ERF::cfl            = 0.8;
+Real ERF::sub_cfl        = 1.0;
+Real ERF::init_shrink    = 1.0;
+Real ERF::change_max     = 1.1;
 Real ERF::dt_max_initial = 2.0e100;
-Real ERF:: dt_max = 1e9;
+Real ERF:: dt_max        = 1.0e9;
+
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -43,29 +68,48 @@ int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
+// Should we check the solution for NaNs every time step?
+// 1: check state/vels after dycore, state after microphysics, and state/vels at end of full time step
+// 2: add checks of state before dycore and of slow rhs
+int ERF::check_for_nans = 0;
+
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
 
 int  ERF::pert_interval = -1;
 
+int ERF::last_plot3d_file_step_1 = -1;
+int ERF::last_plot3d_file_step_2 = -1;
+int ERF::last_plot2d_file_step_1 = -1;
+int ERF::last_plot2d_file_step_2 = -1;
+int ERF::last_check_file_step    = -1;
+
+Real ERF::last_plot3d_file_time_1 = 0.0;
+Real ERF::last_plot3d_file_time_2 = 0.0;
+Real ERF::last_plot2d_file_time_1 = 0.0;
+Real ERF::last_plot2d_file_time_2 = 0.0;
+Real ERF::last_check_file_time    = 0.0;
+
+bool ERF::plot_file_on_restart = true;
+
 // Native AMReX vs NetCDF
-PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
-PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
+PlotFileType ERF::plotfile3d_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile3d_type_2  = PlotFileType::None;
+PlotFileType ERF::plotfile2d_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile2d_type_2  = PlotFileType::None;
 
 StateInterpType ERF::interpolation_type;
 
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
+Vector<Vector<int>>         ERF::have_read_nc_init_file = {{0}};
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
 
 // NetCDF wrflow (bottom boundary) file
 std::string ERF::nc_low_file; // Must provide via input
-
-// Flag to trigger initialization from input_sounding like WRF's ideal.exe
-bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
@@ -86,6 +130,11 @@ int  ERF::input_bndry_planes             = 0;
 
 Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
+#ifdef ERF_USE_NETCDF
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Real read_start_time_from_metgrid  (int lev, const std::string& fname);
+#endif
+
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
@@ -97,7 +146,7 @@ ERF::ERF ()
     // same seed for all MPI processes for the purpose of regression testing
     if (fix_random_seed) {
         Print() << "Fixing the random seed" << std::endl;
-        InitRandom(1024UL);
+        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
     }
 
     ERF_shared();
@@ -135,6 +184,7 @@ ERF::ERF_shared ()
 #endif
 
     qheating_rates.resize(nlevs_max);
+    rad_fluxes.resize(nlevs_max);
     sw_lw_fluxes.resize(nlevs_max);
     solar_zenith.resize(nlevs_max);
 
@@ -146,6 +196,9 @@ ERF::ERF_shared ()
     nudge_data.resize(nlevs_max);
     lsf_data.resize(nlevs_max);
 
+    rhotheta_src.resize(nlevs_max);
+    rhoqt_src.resize(nlevs_max);
+
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
@@ -155,6 +208,15 @@ ERF::ERF_shared ()
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
+#endif
+
+#ifdef ERF_USE_SHOC
+    shoc_interface.resize(nlevs_max);
+    if (solverChoice.use_shoc) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+        }
+    }
 #endif
 
     rad.resize(nlevs_max);
@@ -170,8 +232,10 @@ ERF::ERF_shared ()
         }
     }
 
-    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
+    const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
+    const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables2D(pv2d_2,plot2d_var_names_2);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
@@ -206,18 +270,45 @@ ERF::ERF_shared ()
         // Redefine the problem domain here?
     }
 
+    // Get lo/hi indices for massflux calc
+    if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
+        if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
+            const Real dz = geom[0].CellSize(2);
+            if (massflux_zlo == -1e34) {
+                solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            } else {
+                solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - 0.5));
+            }
+            if (massflux_zhi ==  1e34) {
+                solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
+            } else {
+                solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - 0.5));
+            }
+        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo;
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi;
+            solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            solverChoice.massflux_khi = geom[0].Domain().bigEnd(2) + 1;
+            for (int k=0; k <= geom[0].Domain().bigEnd(2)+1; ++k) {
+                if (zlevels_stag[0][k] <= massflux_zlo) solverChoice.massflux_klo = k;
+                if (zlevels_stag[0][k] <= massflux_zhi) solverChoice.massflux_khi = k;
+            }
+        } else { // solverChoice.mesh_type == MeshType::VariableDz
+            Error("Const massflux with variable dz not supported -- planar averages are on k rather than constant-z planes");
+        }
+
+        Print() << "Constant mass flux based on k in ["
+            << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
+    }
+
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
-
-    istep.resize(nlevs_max, 0);
-    nsubsteps.resize(nlevs_max, 1);
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
-    }
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
@@ -230,6 +321,12 @@ ERF::ERF_shared ()
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
+
+    // Used in the fast substepping only
+    lagged_delta_rt.resize(nlevs_max);
+    avg_xmom.resize(nlevs_max);
+    avg_ymom.resize(nlevs_max);
+    avg_zmom.resize(nlevs_max);
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -269,7 +366,8 @@ ERF::ERF_shared ()
 
     // Stresses
     Tau.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    Tau_corr.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max);  SFS_hfx2_lev.resize(nlevs_max);  SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
@@ -280,6 +378,11 @@ ERF::ERF_shared ()
     sst_lev.resize(nlevs_max);
     tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
+
+    // Land and soil grid type and urban fractions
+    land_type_lev.resize(nlevs_max);
+    soil_type_lev.resize(nlevs_max);
+    urb_frac_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);
@@ -311,12 +414,13 @@ ERF::ERF_shared ()
     ba2d.resize(nlevs_max);
 
     // MultiFabs needed to convert WRFBdy data
-    mf_C1H.resize(nlevs_max);
-    mf_C2H.resize(nlevs_max);
-    mf_MUB.resize(nlevs_max);
+    mf_PSFC.resize(nlevs_max);
 
     // Map factors
     mapfac.resize(nlevs_max);
+
+    // Fine mask
+    fine_mask.resize(nlevs_max);
 
     // Thin immersed body
     xflux_imask.resize(nlevs_max);
@@ -360,15 +464,13 @@ ERF::ERF_shared ()
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
 
-#ifdef ERF_USE_NETCDF
-    // Size lat long arrays if using netcdf
+    // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
     }
-#endif
 
     // Variable coriolis
     sinPhi_m.resize(nlevs_max);
@@ -377,6 +479,14 @@ ERF::ERF_shared ()
         sinPhi_m[lev] = nullptr;
         cosPhi_m[lev] = nullptr;
     }
+
+    // Rayleigh damping
+    h_rayleigh_ptrs.resize(nlevs_max);
+    d_rayleigh_ptrs.resize(nlevs_max);
+    h_sinesq_ptrs.resize(nlevs_max);
+    d_sinesq_ptrs.resize(nlevs_max);
+    h_sinesq_stag_ptrs.resize(nlevs_max);
+    d_sinesq_stag_ptrs.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -400,19 +510,81 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
-        Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
-        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-        Real dummy_time = 0.0;
-        prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-        TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
-        auto gshop = EB2::makeShop(ebterrain);
-        bool build_coarse_level_by_coarsening(false);
+        std::string geometry ="terrain";
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("geometry", geometry);
+
+        constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
+                               // we want to also pass the build_coarse_level_by_coarsening argument
+        const bool build_eb_for_multigrid = (solverChoice.terrain_type == TerrainType::EB &&
+                                            ((solverChoice.project_initial_velocity[0] == 1) ||
+                                            solverChoice.anelastic[0] == 1));
         // Note this just needs to be an integer > number of V-cycles one might use
-        int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
-                                    (solverChoice.project_initial_velocity ||
-                                     solverChoice.anelastic[0] == 1) ) ? 100 : 0;
-        amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        const int max_coarsening_level = (build_eb_for_multigrid) ? 100 : 0;
+        const bool build_coarse_level_by_coarsening(false);
+
+        // Define GeometryShop using the implicit function
+        if (geometry == "terrain") {
+            Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
+            FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+            Real dummy_time = 0.0;
+            prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
+            TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(implicit_fun);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
+        } else if (geometry == "box") {
+            RealArray box_lo{0.0, 0.0, 0.0};
+            RealArray box_hi{0.0, 0.0, 0.0};
+            pp_eb2.query("box_lo", box_lo);
+            pp_eb2.query("box_hi", box_hi);
+            EB2::BoxIF implicit_fun(box_lo, box_hi, false);
+            auto gshop = EB2::makeShop(implicit_fun);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
+        } else if (geometry == "sphere") {
+            auto ProbLoArr = geom[max_level].ProbLoArray();
+            auto ProbHiArr = geom[max_level].ProbHiArray();
+            const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+            const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+            RealArray sphere_center = {xcen, ycen, 0.0};
+            EB2::SphereIF implicit_fun(0.5, sphere_center, false);
+            auto gshop = EB2::makeShop(implicit_fun);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
+        }
     }
+
+    if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        constexpr int ngrow_for_eb = 4;
+        Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
+        FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
+        Real dummy_time = 0.0;
+        prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
+        TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
+        auto gshop = EB2::makeShop(implicit_fun);
+        EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+    }
+
+    forecast_state_1.resize(nlevs_max);
+    forecast_state_2.resize(nlevs_max);
+    forecast_state_interp.resize(nlevs_max);
+
+    surface_state_1.resize(nlevs_max);
+    surface_state_2.resize(nlevs_max);
+    surface_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -423,16 +595,19 @@ ERF::Evolve ()
 {
     BL_PROFILE_VAR("ERF::Evolve()", evolve);
 
+    //
+    // cur_time = t_new is elapsed time, not total time
+    // stop_time is total time
+    //
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
-    for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
+    for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << " (" << cur_time-start_time << " s elapsed)"
-                    << std::endl;
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+                    << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
@@ -441,36 +616,95 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+            m_r2d->read_input_files(cur_time+start_time,dt[0],m_bc_extdir_vals);
         }
 
-        int lev = 0;
+#ifdef ERF_USE_PARTICLES
+        // We call this every time step with the knowledge that the particles may be
+        //    initialized at a later time than the simulation start time.
+        // The ParticleContainer carries a "start time" so the initialization will happen
+        //    only when a) time > start_time, and b) particles have not yet been initialized
+        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
+#endif
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_lateral_forcing) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_surface_bcs) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                SurfaceDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
+
+        auto dEvolveTime0 = amrex::second();
+
         int iteration = 1;
-        timeStep(lev, cur_time, iteration);
+        timeStep(0, cur_time, iteration);
 
         cur_time  += dt[0];
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
 
+        if (check_for_nans > 0) {
+            amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                check_state_for_nans(vars_new[lev][IntVars::cons]);
+                check_vels_for_nans(vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],vars_new[lev][Vars::zvel]);
+            }
+        }
+
+        if (verbose > 0)
+        {
+            auto dEvolveTime = amrex::second() - dEvolveTime0;
+            ParallelDescriptor::ReduceRealMax(dEvolveTime,ParallelDescriptor::IOProcessorNumber());
+            amrex::Print() << "Timestep time = " << dEvolveTime << " seconds." << '\n';
+        }
+
         post_timestep(step, cur_time, dt[0]);
 
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
-            last_plot_file_step_1 = step+1;
-            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
+        if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
+            last_plot3d_file_step_1 = step+1;
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+            if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
         }
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
-            last_plot_file_step_2 = step+1;
-            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
-        }
-        if (writeNow(cur_time, dt[0], step+1, m_subvol_int, m_subvol_per)) {
-            last_subvol = step+1;
-            WriteSubvolume();
+        if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
+            last_plot3d_file_step_2 = step+1;
+            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+            if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
         }
 
-        if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
+        if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
+            last_plot2d_file_step_1 = step+1;
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+            if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+        }
+
+        if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
+            last_plot2d_file_step_2 = step+1;
+            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+            if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+        }
+
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+                last_subvol_step[i] = step+1;
+                WriteSubvolume(i,subvol3d_var_names);
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
+        }
+
+        if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
             last_check_file_step = step+1;
             WriteCheckpointFile();
+            if (m_check_per > 0.) {last_check_file_time += m_check_per;}
         }
 
 #ifdef AMREX_MEM_PROFILING
@@ -481,22 +715,37 @@ ERF::Evolve ()
         }
 #endif
 
-        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
+        if (start_time+cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
     // Write plotfiles at final time
-    if ( (m_plot_int_1 > 0 || m_plot_per_1 > 0.) && istep[0] > last_plot_file_step_1 ) {
-        WritePlotFile(1,plotfile_type_1,plot_var_names_1);
+    if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.) && istep[0] > last_plot3d_file_step_1 ) {
+        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
-    if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
-        WritePlotFile(2,plotfile_type_1,plot_var_names_2);
+    if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.) && istep[0] > last_plot3d_file_step_2) {
+        Write3DPlotFile(2,plotfile3d_type_1,plot3d_var_names_2);
+        if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
-    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol) {
-        WriteSubvolume();
+    if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.) && istep[0] > last_plot2d_file_step_1 ) {
+        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+    }
+    if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.) && istep[0] > last_plot2d_file_step_2) {
+        Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
+        if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+    }
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if ( (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) && istep[0] > last_subvol_step[i]) {
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+        }
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
+        if (m_check_per > 0.) {last_check_file_time += m_check_per;}
     }
 
     BL_PROFILE_VAR_STOP(evolve);
@@ -603,9 +852,10 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.rad_type != RadiationType::None)
     {
-        if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
+        if ( rad_datalog_int > 0 &&
+             (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
             if (rad[0]->hasDatalog()) {
-                rad[0]->WriteDataLog(time);
+                rad[0]->WriteDataLog(time+start_time);
             }
         }
     }
@@ -636,14 +886,18 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
           time >= bndry_output_planes_start_time)
       {
          bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
+         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
       }
     }
 
     // Write plane/line sampler data
-    if (is_it_time_for_action(nstep+1, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
-        data_sampler->get_sample_data(geom, vars_new);
-        data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
+        line_sampler->get_sample_data(geom, vars_new);
+        line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
+        plane_sampler->get_sample_data(geom, vars_new);
+        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
 
     // Moving terrain
@@ -660,29 +914,52 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
-    bool is_hurricane_tracker_io=false;
-    ParmParse pp("erf");
-    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
+    if ( solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0) )
+    {
+        int levc=finest_level;
 
-    if(is_hurricane_tracker_io) {
-        if(nstep == 0 or (nstep+1)%m_plot_int_1 == 0){
-            std::string filename = MakeVTKFilename(nstep);
-            Real velmag_threshold = 1e10;
-            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
-            if(velmag_threshold==1e10) {
-                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
-                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
-                      " magnitude of velocity above which cells will be tagged for refinement.");
-            }
-            int levc=finest_level;
-            MultiFab& U_new = vars_new[levc][Vars::xvel];
-            MultiFab& V_new = vars_new[levc][Vars::yvel];
-            MultiFab& W_new = vars_new[levc][Vars::zvel];
+        HurricaneEyeTracker(geom[levc],
+                            vars_new[levc],
+                            solverChoice.moisture_type,
+                            solverChoice.hindcast_lateral_forcing? &forecast_state_interp[levc] : nullptr,
+                            solverChoice.hurricane_eye_latitude,
+                            solverChoice.hurricane_eye_longitude,
+                            hurricane_eye_track_xy,
+                            hurricane_eye_track_latlon,
+                            hurricane_tracker_circle);
 
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
-            if (ParallelDescriptor::IOProcessor()) {
-                WriteVTKPolyline(filename,hurricane_track_xy);
-            }
+        MultiFab& U_new = vars_new[levc][Vars::xvel];
+        MultiFab& V_new = vars_new[levc][Vars::yvel];
+        MultiFab& W_new = vars_new[levc][Vars::zvel];
+
+        MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+        average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+        HurricaneMaxVelTracker(geom[levc],
+                               mf_cc_vel,
+                               t_new[0],
+                               hurricane_eye_track_xy,
+                               hurricane_maxvel_vs_time);
+
+        HurricaneMinPressureTracker(solverChoice.moisture_type,
+                                    geom[levc],
+                                    vars_new[levc][Vars::cons],
+                                    t_new[0],
+                                    hurricane_eye_track_xy,
+                                    hurricane_minpressure_vs_time);
+
+        std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
+        std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
+        std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
+        std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+
+        if (ParallelDescriptor::IOProcessor()) {
+            WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
+            WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
+            WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
+            WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
+            WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
         }
     }
 } // post_timestep
@@ -710,91 +987,91 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    last_plot_file_step_1 = -1;
-    last_plot_file_step_2 = -1;
-    last_check_file_step  = -1;
-
     if (restart_chkfile.empty()) {
-        // start simulation from the beginning
-
-        const Real time = start_time;
-        InitFromScratch(time);
+        // Start simulation from the beginning
+        InitFromScratch(0.0);
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
     }
 
-    // Verify solver choices
-    for (int lev(0); lev <= max_level; ++lev) {
-        // BC compatibility
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)   ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::MRF)
-                   ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer ) {
-            Abort("MYNN2.5/MYNNEDMF/YSU/MRF PBL Model requires MOST at lower boundary");
-        }
-        if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
-             (solverChoice.turbChoice[lev].Ce_wall > 0) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) )
-        {
-            Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
-        }
-
-        // mesoscale diffusion
-        if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
-        {
-            if ( (solverChoice.turbChoice[lev].les_type == LESType::Smagorinsky) &&
-                 (!solverChoice.turbChoice[lev].smag2d)) {
-                Warning("Should use 2-D Smagorinsky for mesoscale resolution");
-            } else if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                Warning("Should not use Deardorff LES for mesoscale resolution");
-            }
-        }
-    }
+    solverChoice.check_params(max_level,geom,phys_bc_type);
 }
 
 void
 ERF::InitData_post ()
 {
-    if (restart_chkfile.empty()) {
-        //
-        // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-        //
+    if (solverChoice.advChoice.have_zero_flux_faces)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+            "Thin immersed body with refinement not currently supported.");
         if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+            amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
+        }
+    }
+
+    if (!restart_chkfile.empty()) {
+        restart();
+    }
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
+    //
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
             }
         }
+        for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+              detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+            z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+        }
+    }
 
+#ifdef ERF_IMPLICIT_W
+    if (SolverChoice::mesh_type == MeshType::VariableDz &&
+        (solverChoice.vert_implicit_fac[0] > 0 ||
+         solverChoice.vert_implicit_fac[1] > 0 ||
+         solverChoice.vert_implicit_fac[2] > 0  )       &&
+        solverChoice.implicit_momentum_diffusion)
+    {
+        Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    }
+#endif
+
+    //
+    // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
+    //
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = 0; lev <= finest_level; lev++) {
+            int ncomp_cons = vars_new[lev][Vars::cons].nComp();
+            MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,ncomp_cons,vars_new[lev][Vars::cons].nGrowVect());
+        }
+    }
+
+    if (restart_chkfile.empty()) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
-
-        if (solverChoice.advChoice.have_zero_flux_faces)
-        {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
-                "Thin immersed body with refinement not currently supported.");
-            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
-            }
-        }
+    }
 
 #ifdef ERF_USE_PARTICLES
+    if (restart_chkfile.empty()) {
         if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            if (solverChoice.moisture_tight_coupling) {
+                Warning("Tight coupling has not been tested with Lagrangian microphysics");
+            }
+
             for (int lev = 0; lev <= finest_level; lev++) {
                 dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
             }
         }
+    }
 #endif
 
-    } else { // Restart from a checkpoint
-
-        restart();
+    if (!restart_chkfile.empty()) { // Restart from a checkpoint
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format
@@ -813,32 +1090,83 @@ ERF::InitData_post ()
 #ifdef ERF_USE_NETCDF
         //
         // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
+        // This follows init_from_wrfinput()
         //
+        bool use_moist = (solverChoice.moisture_type != MoistureType::None);
         if (solverChoice.use_real_bcs) {
+
+            if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+                 amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+            }
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time);
-            Real dT = bdy_time_interval;
+                                                       start_bdy_time, final_bdy_time);
 
-            Real time_since_start_old = t_new[0] - start_bdy_time;
-            int n_time_old = static_cast<int>(time_since_start_old /  dT);
+            Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
-            // I don't think this works if lev > 0 ...?
-            AMREX_ALWAYS_ASSERT(finest_level == 0);
             int lev = 0;
-            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+
+            int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                  real_width);
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                         geom[lev], use_moist);
             } // itime
-        } // use_real_bcs && lev == 0
+        } // use_real_bcs
+
+        if (!nc_low_file.empty())
+        {
+            low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
+
+            int lev = 0;
+            sst_lev[lev].resize(low_data_zlo.size());
+            tsk_lev[lev].resize(low_data_zlo.size());
+
+            Real time_since_start_low = t_new[0] + start_time - start_low_time;
+            int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+
+            int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
+            {
+                amrex::Print() << "READING IN LOW " << itime << std::endl;
+                read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
+
+                // Need to read PSFC
+                FArrayBox NC_fab_var_file;
+                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
+                    int success, use_theta_m;
+                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
+                                       NC_fab_var_file, "PSFC", geom[lev],
+                                       use_theta_m, success);
+                    auto& var_fab = NC_fab_var_file;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
+                    {
+                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
+                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                    }
+                    var_fab.clear();
+                }
+
+                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                               sst_lev[lev], tsk_lev[lev],
+                               m_SurfaceLayer, low_data_zlo,
+                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
+                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+            } // itime
+        }
 #endif
     } // end restart
 
@@ -860,19 +1188,27 @@ ERF::InitData_post ()
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
-        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+        m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
     if (solverChoice.custom_rhotheta_forcing)
     {
-        h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
-        d_rhotheta_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhotheta_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhotheta_src[lev].resize(domlen, 0.0_rt);
-            d_rhotheta_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (!solverChoice.spatial_rhotheta_forcing)
+                {
+                    // source is only defined in Z
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhotheta_src[lev]->setVal(0.);
             prob->update_rhotheta_sources(t_new[0],
-                                          h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          rhotheta_src[lev].get(),
                                           geom[lev], z_phys_cc[lev]);
         }
     }
@@ -909,14 +1245,22 @@ ERF::InitData_post ()
 
     if (solverChoice.custom_moisture_forcing)
     {
-        h_rhoqt_src.resize(max_level+1, Vector<Real>(0));
-        d_rhoqt_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhoqt_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhoqt_src[lev].resize(domlen, 0.0_rt);
-            d_rhoqt_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (!solverChoice.spatial_moisture_forcing)
+                {
+                    // source is only defined in Z
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhoqt_src[lev]->setVal(0.);
             prob->update_rhoqt_sources(t_new[0],
-                                       h_rhoqt_src[lev], d_rhoqt_src[lev],
+                                       rhoqt_src[lev].get(),
                                        geom[lev], z_phys_cc[lev]);
         }
     }
@@ -930,7 +1274,7 @@ ERF::InitData_post ()
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev],
+                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_nd[lev]);
         }
     }
@@ -942,10 +1286,12 @@ ERF::InitData_post ()
         lsf.start_time = start_time;
     }
 
-    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
-        initRayleigh();
+        for (int lev = 0; lev <= finest_level; lev++) {
+            initRayleigh_at_level(lev);
+        }
         if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
@@ -978,41 +1324,17 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real time = 0.;
-        if (time >= bndry_output_planes_start_time) {
+        Real tot_time = t_new[0]+start_time;
+        if (tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, time, vars_new, is_moist);
+            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
         }
     }
 
-    //
-    // If we are starting from scratch, we have the option to project the initial velocity field
-    //    regardless of how we initialized.
-    // pp_inc is used as scratch space here; we zero it out after the projection
-    //
-    if (restart_chkfile == "")
-    {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
-                project_velocity(lev, dummy_dt);
-                pp_inc[lev].setVal(0.);
-                gradp[lev][GpVars::gpx].setVal(0.);
-                gradp[lev][GpVars::gpy].setVal(0.);
-                gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
-    }
-
-    // Copy from new into old just in case
+    // Fill boundary conditions in vars_new
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
 
         // ***************************************************************************
         // Physical bc's at domain boundary
@@ -1023,19 +1345,6 @@ ERF::InitData_post ()
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
 
-#ifdef ERF_USE_NETCDF
-        // We call this here because it is an ERF routine
-        if (solverChoice.use_real_bcs && (lev==0)) {
-            int icomp_cons = 0;
-            bool cons_only = false;
-            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
-                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                              ncomp_cons,ngvect_cons,ngvect_vels);
-            do_fb = false;
-    }
-#endif
-
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
         (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
@@ -1044,11 +1353,42 @@ ERF::InitData_post ()
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+    }
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.  Note that project_initial_velocity operates on vars_new.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
+    if (restart_chkfile == "")
+    {
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            if (solverChoice.project_initial_velocity[lev] == 1) {
+                Real dummy_dt = 1.0;
+                if (verbose > 0) {
+                    amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
+                }
+
+                project_initial_velocity(lev, t_new[lev], dummy_dt);
+
+                pp_inc[lev].setVal(0.);
+                gradp[lev][GpVars::gpx].setVal(0.);
+                gradp[lev][GpVars::gpy].setVal(0.);
+                gradp[lev][GpVars::gpz].setVal(0.);
+            } // project
+        } // lev
+    }
+
+    // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        int nc = vars_new[lev][Vars::cons].nComp();
+
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,nc,vars_new[lev][Vars::cons].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0, 1,vars_new[lev][Vars::xvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0, 1,vars_new[lev][Vars::yvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0, 1,vars_new[lev][Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -1061,7 +1401,34 @@ ERF::InitData_post ()
         }
     }
 
-    ComputeDt();
+
+    // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
+    if (restart_chkfile.empty()) {
+        ComputeDt();
+    }
+
+    // Check the viscous limit
+    DiffChoice dc = solverChoice.diffChoice;
+    if (dc.molec_diff_type == MolecDiffType::Constant ||
+        dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        Real delta = std::min({geom[finest_level].CellSize(0),
+                               geom[finest_level].CellSize(1),
+                               dz_min[finest_level]});
+        if (dc.dynamic_viscosity == 0) {
+            Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
+        } else {
+            Real nu = dc.dynamic_viscosity / dc.rho0_trans;
+            Real viscous_limit = 2.0 * delta*delta / nu;
+            Print() << "smallest grid spacing at level " << finest_level << " = " << delta << std::endl;
+            Print() << "dt at level " << finest_level << " = " << dt[finest_level] << std::endl;
+            Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
+            if (fixed_dt[finest_level] >= viscous_limit) {
+                Warning("Specified fixed_dt is above the viscous limit");
+            } else if (dt[finest_level] >= viscous_limit) {
+                Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+            }
+        }
+    }
 
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
@@ -1077,10 +1444,10 @@ ERF::InitData_post ()
         //
         bool fillset = false;
         if (lev == 0) {
-            FillPatch(lev, t_new[lev],
+            FillPatchCrseLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
         } else {
-            FillPatch(lev, t_new[lev],
+            FillPatchFineLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                       {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                       base_state[lev], base_state[lev],
@@ -1130,6 +1497,12 @@ ERF::InitData_post ()
         }
     }
 
+    // If lev > 0, we need to fill bc's by interpolation from coarser grid
+    for (int lev = 1; lev <= finest_level; ++lev)
+    {
+        Interp2DArrays(lev,grids[lev],dmap[lev]);
+    } // lev
+
 #ifdef ERF_USE_WW3_COUPLING
     int my_lev = 0;
     amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
@@ -1139,41 +1512,79 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    // Create wall distance field for RANS model
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+            // Handle bottom boundary
+            poisson_wall_dist(lev);
+
+            // Correct the wall distance for immersed bodies
+            if (solverChoice.advChoice.have_zero_flux_faces) {
+                thinbody_wall_dist(walldist[lev],
+                                   solverChoice.advChoice.zero_xflux,
+                                   solverChoice.advChoice.zero_yflux,
+                                   solverChoice.advChoice.zero_zflux,
+                                   geom[lev],
+                                   z_phys_cc[lev]);
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
+        bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                          (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
+                          (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
+                          (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
+        AMREX_ALWAYS_ASSERT(has_diff);
+
         bool rotate = solverChoice.use_rotate_surface_flux;
         if (rotate) {
             Print() << "Using surface layer model with stress rotations" << std::endl;
         }
 
         //
-        // This constructor will make the ABLMost object but not allocate the arrays at each level.
+        // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
-                                                        z_phys_nd, solverChoice.terrain_type
+                                                        z_phys_nd,
+                                                        solverChoice.mesh_type,
+                                                        solverChoice.terrain_type,
+                                                        solverChoice.turbChoice[finest_level],
 #ifdef ERF_USE_NETCDF
-                                                        ,start_bdy_time, bdy_time_interval
+                                                        start_low_time, final_low_time, low_time_interval
+#else
+                                                        0.0, 0.0
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
-        // the number of level sor just the grids at each existing level, we will call an update routine
+        // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
-        int nlevs = geom.size();
-        for (int lev = 0; lev < nlevs; lev++)
+        for (int lev = 0; lev <= finest_level; lev++)
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,finest_level+1,
                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                        Qr_prim[lev], z_phys_nd[lev],
                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev],
-                                                       tsk_lev[lev], lmask_lev[lev]);
+                                                       lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                       sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
         }
 
+        // If initializing from an input_sounding, make sure the surface layer
+        // is using the same surface conditions
+        if (solverChoice.init_type == InitType::Input_Sounding) {
+            const Real theta0 = input_sounding_data.theta_ref_inp_sound;
+            const Real qv0    = input_sounding_data.qv_ref_inp_sound;
+            for (int lev = 0; lev <= finest_level; lev++) {
+                m_SurfaceLayer->set_t_surf(lev, theta0);
+                m_SurfaceLayer->set_q_surf(lev, qv0);
+            }
+        }
 
         if (restart_chkfile != "") {
             // Update surface fields if needed (and available)
@@ -1184,7 +1595,6 @@ ERF::InitData_post ()
         // Note we don't fill ghost cells here because this is just for diagnostics
         for (int lev = 0; lev <= finest_level; ++lev)
         {
-            Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
 
             MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
@@ -1196,7 +1606,7 @@ ERF::InitData_post ()
                 MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
 
-                int rhoqr_comp = solverChoice.RhoQr_comp;
+                int rhoqr_comp = solverChoice.moisture_indices.qr;
                 if (rhoqr_comp > -1) {
                     MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
                     MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
@@ -1211,17 +1621,39 @@ ERF::InitData_post ()
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                            solverChoice.RhoQv_comp,
-                                            solverChoice.RhoQc_comp,
-                                            solverChoice.RhoQr_comp);
-                m_SurfaceLayer->update_fluxes(lev, time);
+                                            solverChoice.moisture_indices);
+#ifdef ERF_USE_NETCDF
+                Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+#else
+                Real elapsed_time_since_start_low = t_new[lev] + start_time;
+#endif
+                m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_nd[lev],
+                                              walldist[lev]);
+
+                // Initialize tke(x,y,z) as a function of u*(x,y)
+                if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
+                    Real qkefac = 1.0;
+                    if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
+                        solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
+                    {
+                        // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                        const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
+                        qkefac = 1.5 * std::pow(B1, 2.0/3.0);
+                    }
+                    m_SurfaceLayer->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
+                }
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
 
-    // Update micro vars before first plot file
+    // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
-        for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+        }
     }
 
     // Fill time averaged velocities before first plot file
@@ -1236,31 +1668,51 @@ ERF::InitData_post ()
 
     // check for additional plotting variables that are available after particle containers
     // are setup.
-    const std::string& pv1 = "plot_vars_1"; appendPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; appendPlotVariables(pv2,plot_var_names_2);
+    const std::string& pv3d_1 = "plot_vars_1"  ; appendPlotVariables(pv3d_1,plot3d_var_names_1);
+    const std::string& pv3d_2 = "plot_vars_2"  ; appendPlotVariables(pv3d_2,plot3d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; appendPlotVariables(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; appendPlotVariables(pv2d_2,plot2d_var_names_2);
 
     if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > 0.) )
     {
         WriteCheckpointFile();
         last_check_file_step = 0;
+        if (m_check_per > 0.) {last_check_file_time += m_check_per;}
     }
 
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
-        if (m_plot_int_1 > 0 || m_plot_per_1 > 0.)
+        if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.)
         {
-            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
-            last_plot_file_step_1 = istep[0];
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
+            last_plot3d_file_step_1 = istep[0];
         }
-        if (m_plot_int_2 > 0 || m_plot_per_2 > 0.)
+        if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.)
         {
-            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
-            last_plot_file_step_2 = istep[0];
+            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
+            last_plot3d_file_step_2 = istep[0];
         }
-        if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume();
-            last_subvol = istep[0];
+        if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.)
+        {
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+            if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+            last_plot2d_file_step_1 = istep[0];
+        }
+        if (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.)
+        {
+            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+            if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+            last_plot2d_file_step_2 = istep[0];
+        }
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) {
+                WriteSubvolume(i,subvol3d_var_names);
+                last_subvol_step[i] = istep[0];
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
         }
     }
 
@@ -1384,16 +1836,217 @@ ERF::InitData_post ()
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
-    if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
+    if (do_line) {
+        if (line_sampling_interval < 0 && line_sampling_per < 0) {
+            Abort("Need to specify line_sampling_interval or line_sampling_per");
+        }
+        line_sampler = std::make_unique<LineSampler>();
+        line_sampler->write_coords(z_phys_cc);
+    }
+    if (do_plane) {
+        if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
+            Abort("Need to specify plane_sampling_interval or plane_sampling_per");
+        }
+        plane_sampler = std::make_unique<PlaneSampler>();
+    }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+         solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
-        if (write_eb_surface) WriteMyEBSurface();
+        if (write_eb_surface) {
+            if (verbose > 0) {
+                amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
+            }
+            WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+        }
     }
 
+}
+
+void
+ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
+{
+    if (lon_m[lev-1] && !lon_m[lev]) {
+        auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        lon_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*lon_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *lon_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (lat_m[lev-1] && !lat_m[lev]) {
+        auto ngv = lat_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        lat_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*lat_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *lat_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (sinPhi_m[lev-1] && !sinPhi_m[lev]) {
+        auto ngv = sinPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        sinPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*sinPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *sinPhi_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (cosPhi_m[lev-1] && !cosPhi_m[lev]) {
+        auto ngv = cosPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        cosPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*cosPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *cosPhi_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
+        sst_lev[lev].resize(sst_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+            InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *sst_lev[lev-1][n], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+    if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
+        tsk_lev[lev].resize(tsk_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+            InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *tsk_lev[lev-1][n], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+
+    Real time_for_fp = 0.; // This is not actually used
+    Vector<Real> ftime    = {time_for_fp, time_for_fp};
+    Vector<Real> ctime    = {time_for_fp, time_for_fp};
+    if (lat_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {lat_m[lev  ].get(), lat_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {lat_m[lev-1].get(), lat_m[lev-1].get()};
+        IntVect ngv = lat_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*lat_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    }
+    if (lon_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {lon_m[lev  ].get(), lon_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {lon_m[lev-1].get(), lon_m[lev-1].get()};
+        IntVect ngv = lon_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*lon_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // lon_m
+    if (sinPhi_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {sinPhi_m[lev  ].get(), sinPhi_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {sinPhi_m[lev-1].get(), sinPhi_m[lev-1].get()};
+        IntVect ngv = sinPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*sinPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // sinPhi
+    if (cosPhi_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {cosPhi_m[lev  ].get(), cosPhi_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {cosPhi_m[lev-1].get(), cosPhi_m[lev-1].get()};
+        IntVect ngv = cosPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*cosPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // cosPhi
+    if (sst_lev[lev][0]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
+            Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
+            IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*sst_lev[lev][n].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // ntimes
+    } // sst_lev
+    if (tsk_lev[lev][0]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
+            Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
+            IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*tsk_lev[lev][n].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // ntimes
+    } // tsk_lev
 }
 
 // Initialize microphysics object
@@ -1406,7 +2059,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
     } else if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
 #ifdef ERF_USE_PARTICLES
-
         micro = std::make_unique<LagrangianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
         /* Lagrangian microphysics models will have a particle container; it needs to be added
            to ERF::particleData */
@@ -1435,10 +2087,9 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-    ReadCheckpointFile();
+    auto dRestartTime0 = amrex::second();
 
-    // We set this here so that we don't over-write the checkpoint file we just started from
-    last_check_file_step = istep[0];
+    ReadCheckpointFile();
 
     if (regrid_level_0_on_restart) {
         //
@@ -1464,6 +2115,31 @@ ERF::restart ()
             RemakeLevel(0,t_new[0],new_ba,new_dm);
         }
     }
+
+#ifdef ERF_USE_PARTICLES
+    // We call this here without knowing whether the particles have already been initialized or not
+    initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
+#endif
+
+    Real cur_time = t_new[0];
+    if (m_check_per    > 0.) {last_check_file_time    = cur_time;}
+    if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
+    if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
+    if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
+    if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    if (m_check_int    > 0.) {last_check_file_step    = istep[0];}
+    if (m_plot2d_int_1 > 0.) {last_plot2d_file_step_1 = istep[0];}
+    if (m_plot2d_int_2 > 0.) {last_plot2d_file_step_2 = istep[0];}
+    if (m_plot3d_int_1 > 0.) {last_plot3d_file_step_1 = istep[0];}
+    if (m_plot3d_int_2 > 0.) {last_plot3d_file_step_2 = istep[0];}
+
+    if (verbose > 0)
+    {
+        auto dRestartTime = amrex::second() - dRestartTime0;
+        ParallelDescriptor::ReduceRealMax(dRestartTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Restart time = " << dRestartTime << " seconds." << '\n';
+    }
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
@@ -1471,10 +2147,10 @@ ERF::restart ()
 // If we are restarting, the base state is read from the restart file, including
 // ghost cell data.
 void
-ERF::init_only (int lev, Real time)
+ERF::init_only (int lev, Real elapsed_time)
 {
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_new[lev] = elapsed_time;
+    t_old[lev] = elapsed_time - 1.e200;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -1487,10 +2163,6 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (solverChoice.init_type == InitType::Input_Sounding) {
-        // The base state is initialized by integrating vertically through the
-        // input sounding, if the init_sounding_ideal flag is set; otherwise
-        // it is set by initHSE()
-
         // The physbc's need the terrain but are needed for initHSE
         // We have already made the terrain in the call to init_zphys
         //    in MakeNewLevelFromScratch
@@ -1499,34 +2171,36 @@ ERF::init_only (int lev, Real time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
-        if (init_sounding_ideal) {
+        // The base state has been initialized by integrating vertically
+        // through the sounding for ideal (like WRF) or isentropic approaches
+        if (solverChoice.sounding_type == SoundingType::Ideal ||
+            solverChoice.sounding_type == SoundingType::Isentropic ||
+            solverChoice.sounding_type == SoundingType::DryIsentropic) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
-        } else {
+        } else { // SoundingType::ConstantDensity
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity || (solverChoice.anelastic[lev] == 1),
+                "Constant density probably doesn't make sense for compressible flow with gravity");
             initHSE();
         }
 
 #ifdef ERF_USE_NETCDF
     }
-    else if (solverChoice.init_type == InitType::WRFInput)
+    else if (solverChoice.init_type == InitType::WRFInput && !nc_init_file[lev].empty())
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
-        if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
-                Print() << "Ignoring specified start_time="
-                        << std::setprecision(timeprecision) << start_time
-                        << std::endl;
-            }
-            start_time = t_new[lev];
-        }
-        use_datetime = true;
+
+        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
         if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
         }
+    }
+    else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
+    {
+        amrex::Abort("This pathway is not quite implemented yet");
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
@@ -1542,26 +2216,26 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (solverChoice.init_type == InitType::Uniform) {
-        // Initialize a uniform background field and base state based on the
-        // problem-specified reference density and temperature
+    } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
+                (solverChoice.init_type == InitType::ConstantDensity) ||
+                (solverChoice.init_type == InitType::Isentropic     ) ||
+                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::MoistBaseState ) ) {
+        // Initialize a uniform density/entropy background field and base state
+        // based on the problem-specified reference density and temperature
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
 
-        init_uniform(lev);
-        initHSE(lev);
-    } else {
-        // No background flow initialization specified, initialize the
-        // background field to be equal to the base state, calculated from the
-        // problem-specific erf_init_dens_hse
-
-        // The bc's need the terrain but are needed for initHSE
-        make_physbcs(lev);
-
         // We will initialize the state from the background state so must set that first
+        // The choice between constant rho and constant theta will be made inside initHSE
         initHSE(lev);
+
+        // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+    } else {
+        Abort("Unknown init_type!");
     }
 
     // Add problem-specific flow features
@@ -1592,34 +2266,21 @@ ERF::init_only (int lev, Real time)
         turbPert_update(lev, 0.);
         turbPert_amplitude(lev);
     }
+
+    // Set initial velocity field for immersed cells to be close to 0
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        init_immersed_forcing(lev);
+    }
 }
 
 // Read in some parameters from inputs file
 void
 ERF::ReadParameters ()
 {
-    {
-        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
-        pp.query("max_step", max_step);
-
-        std::string start_datetime, stop_datetime;
-        if (pp.query("start_datetime", start_datetime)) {
-            start_time = getEpochTime(start_datetime, datetime_format);
-            if (start_time == -1.0) {
-               amrex::Abort("Invalid start_datetime string!");
-            }
-            if (pp.query("stop_datetime", stop_datetime)) {
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                if (stop_time == -1.0) {
-                    amrex::Abort("Invalid stop_datetime string!");
-                }
-            }
-            use_datetime = true;
-        } else {
-            pp.query("stop_time", stop_time);
-            pp.query("start_time", start_time); // This is optional, it defaults to 0
-        }
-    }
+    std::string prob_name = "Unknown";
+    ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
+    Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
 
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
@@ -1645,9 +2306,12 @@ ERF::ReadParameters ()
         pp.query("use_fft", use_fft);
 #ifndef ERF_USE_FFT
         if (use_fft) {
-            amrex::Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
+            Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
         }
 #endif
+
+        // Check for NaNs?
+        pp.query("check_for_nans", check_for_nans);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1669,10 +2333,39 @@ ERF::ReadParameters ()
         pp.query("fixed_dt", fixed_dt[0]);
         pp.query("fixed_fast_dt", fixed_fast_dt[0]);
 
+        int nlevs_max = max_level + 1;
+        istep.resize(nlevs_max, 0);
+        nsubsteps.resize(nlevs_max, 1);
+        // This is the default
+        for (int lev = 1; lev <= max_level; ++lev) {
+            nsubsteps[lev] = MaxRefRatio(lev-1);
+        }
+
+        if (max_level > 0) {
+            ParmParse pp_erf("erf");
+            int count = pp_erf.countval("dt_ref_ratio");
+            if (count > 0) {
+                Vector<int> nsub;
+                nsub.resize(nlevs_max, 0);
+                if (count == 1) {
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, 1);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[0];
+                    }
+                } else {
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, max_level);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[lev-1];
+                    }
+                }
+            }
+        }
+
+        // Make sure we do this after we have defined nsubsteps above
         for (int lev = 1; lev <= max_level; lev++)
         {
-            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(MaxRefRatio(lev-1));
-            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(nsubsteps[lev]);
+            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(nsubsteps[lev]);
         }
 
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
@@ -1691,6 +2384,7 @@ ERF::ReadParameters ()
 
 #ifdef ERF_USE_NETCDF
         nc_init_file.resize(max_level+1);
+        have_read_nc_init_file.resize(max_level+1);
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
@@ -1700,9 +2394,11 @@ ERF::ReadParameters ()
                 int num_files = pp.countval(nc_file_names.c_str());
                 num_files_at_level[lev] = num_files;
                 nc_init_file[lev].resize(num_files);
+                have_read_nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
                 for (int j = 0; j < num_files; j++) {
                     Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
+                    have_read_nc_init_file[lev][j] = 0;
                 } // j
             } // if pp.contains
         } // lev
@@ -1718,9 +2414,6 @@ ERF::ReadParameters ()
         }
 
 #endif
-
-        // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-        pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Options for vertical interpolation of met_em*.nc data.
         pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);
@@ -1741,59 +2434,157 @@ ERF::ReadParameters ()
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
 
-        PlotFileType plotfile_type_temp = PlotFileType::None;
-        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile_type_temp);
-        pp.query_enum_case_insensitive("plotfile_type_1",plotfile_type_1);
-        pp.query_enum_case_insensitive("plotfile_type_2",plotfile_type_2);
+        PlotFileType plotfile3d_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile3d_type_temp);
+        pp.query_enum_case_insensitive("plotfile_type_1",plotfile3d_type_1);
+        pp.query_enum_case_insensitive("plotfile_type_2",plotfile3d_type_2);
+
+        PlotFileType plotfile2d_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile2d_type"  ,plotfile2d_type_temp);
+        pp.query_enum_case_insensitive("plotfile2d_type_1",plotfile2d_type_1);
+        pp.query_enum_case_insensitive("plotfile2d_type_2",plotfile2d_type_2);
         //
         // This option is for backward consistency -- if only plotfile_type is set,
         //     then it will be used for both 1 and 2 if and only if they are not set
         //
         // Default is native amrex if no type is specified
         //
-        if (plotfile_type_temp == PlotFileType::None) {
-            if (plotfile_type_1 == PlotFileType::None) {
-                plotfile_type_1  = PlotFileType::Amrex;
+        if (plotfile3d_type_temp == PlotFileType::None) {
+            if (plotfile3d_type_1 == PlotFileType::None) {
+                plotfile3d_type_1  = PlotFileType::Amrex;
             }
-            if (plotfile_type_2 == PlotFileType::None) {
-                plotfile_type_2  = PlotFileType::Amrex;
+            if (plotfile3d_type_2 == PlotFileType::None) {
+                plotfile3d_type_2  = PlotFileType::Amrex;
             }
         } else {
-            if (plotfile_type_1 == PlotFileType::None) {
-                plotfile_type_1  = plotfile_type_temp;
+            if (plotfile3d_type_1 == PlotFileType::None) {
+                plotfile3d_type_1  = plotfile3d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile_type or plotfile_type_1, not both");
+                Abort("You must set either plotfile_type or plotfile_type_1, not both");
             }
-            if (plotfile_type_2 == PlotFileType::None) {
-                plotfile_type_2  = plotfile_type_temp;
+            if (plotfile3d_type_2 == PlotFileType::None) {
+                plotfile3d_type_2  = plotfile3d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile_type or plotfile_type_2, not both");
+                Abort("You must set either plotfile_type or plotfile_type_2, not both");
+            }
+        }
+        if (plotfile2d_type_temp == PlotFileType::None) {
+            if (plotfile2d_type_1 == PlotFileType::None) {
+                plotfile2d_type_1  = PlotFileType::Amrex;
+            }
+            if (plotfile2d_type_2 == PlotFileType::None) {
+                plotfile2d_type_2  = PlotFileType::Amrex;
+            }
+        } else {
+            if (plotfile2d_type_1 == PlotFileType::None) {
+                plotfile2d_type_1  = plotfile2d_type_temp;
+            } else {
+                Abort("You must set either plotfile2d_type or plotfile2d_type_1, not both");
+            }
+            if (plotfile2d_type_2 == PlotFileType::None) {
+                plotfile2d_type_2  = plotfile2d_type_temp;
+            } else {
+                Abort("You must set either plotfile2d_type or plotfile2d_type_2, not both");
             }
         }
 #ifndef ERF_USE_NETCDF
-        if (plotfile_type_1 == PlotFileType::Netcdf ||
-            plotfile_type_2 == PlotFileType::Netcdf) {
-            amrex::Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
+        if (plotfile3d_type_1 == PlotFileType::Netcdf ||
+            plotfile3d_type_2 == PlotFileType::Netcdf ||
+            plotfile2d_type_1 == PlotFileType::Netcdf ||
+            plotfile2d_type_2 == PlotFileType::Netcdf) {
+            Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
         }
 #endif
 
-        pp.query("plot_file_1",   plot_file_1);
-        pp.query("plot_file_2",   plot_file_2);
-        pp.query("plot_int_1" , m_plot_int_1);
-        pp.query("plot_int_2" , m_plot_int_2);
-        pp.query("plot_per_1",  m_plot_per_1);
-        pp.query("plot_per_2",  m_plot_per_2);
+        pp.query("plot_file_1"  ,   plot3d_file_1);
+        pp.query("plot_file_2"  ,   plot3d_file_2);
+        pp.query("plot2d_file_1",   plot2d_file_1);
+        pp.query("plot2d_file_2",   plot2d_file_2);
+
+        pp.query("plot_int_1"   , m_plot3d_int_1);
+        pp.query("plot_int_2"   , m_plot3d_int_2);
+        pp.query("plot_per_1"   , m_plot3d_per_1);
+        pp.query("plot_per_2"   , m_plot3d_per_2);
+
+        pp.query("plot2d_int_1" , m_plot2d_int_1);
+        pp.query("plot2d_int_2" , m_plot2d_int_2);
+        pp.query("plot2d_per_1",  m_plot2d_per_1);
+        pp.query("plot2d_per_2",  m_plot2d_per_2);
 
         pp.query("subvol_file",   subvol_file);
-        pp.query("subvol_int" , m_subvol_int);
-        pp.query("subvol_per" , m_subvol_per);
+
+        // Should we use format like plt1970-01-01_00:00:00.000000 (if true) or plt00001 (if false)
+        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+
+        // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
+        pp.query("file_name_digits", file_name_digits);
+
+        // Default if subvol_int not specified
+        m_subvol_int.resize(1); m_subvol_int[0] = -1;
+        m_subvol_per.resize(1); m_subvol_per[0] = -1.0;
+        last_subvol_step.resize(1);
+        last_subvol_time.resize(1);
+
+        int nsi = pp.countval("subvol_int");
+        int nsr = pp.countval("subvol_per");
+
+        // We must specify only subvol_int OR subvol_per
+        AMREX_ALWAYS_ASSERT (!(nsi > 0 && nsr > 0));
+
+        int nsub = -1;
+        if (nsi > 0 || nsr > 0) {
+            ParmParse pp_sv("erf.subvol");
+            int n1 = pp_sv.countval("origin"); int n2 = pp_sv.countval("nxnynz"); int n3 = pp_sv.countval("dxdydz");
+            if (n1 != n2 || n1 != n3 || n2 != n3) {
+                Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
+            }
+            if ( n1%AMREX_SPACEDIM != 0) {
+                Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
+            }
+            nsub = n1/AMREX_SPACEDIM;
+            m_subvol_int.resize(nsub);
+            last_subvol_step.resize(nsub);
+            last_subvol_time.resize(nsub);
+            m_subvol_int.resize(nsub);
+            m_subvol_per.resize(nsub);
+        }
+
+        if (nsi > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -1.0;
+            if ( nsi == 1) {
+                m_subvol_int[0] = -1;
+                pp.get("subvol_int" , m_subvol_int[0]);
+            } else if ( nsi == nsub) {
+                pp.getarr("subvol_int" , m_subvol_int);
+            } else {
+                Abort("There must either be a single value of subvol_int or one for every subdomain");
+            }
+        }
+
+        if (nsr > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -1.0;
+            if ( nsr == 1) {
+                m_subvol_per[0] = -1.0;
+                pp.get("subvol_per" , m_subvol_per[0]);
+            } else if ( nsr == nsub) {
+                pp.getarr("subvol_per" , m_subvol_per);
+            } else {
+                Abort("There must either be a single value of subvol_per or one for every subdomain");
+            }
+        }
+
+        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
         pp.query("plot_face_vels",m_plot_face_vels);
 
-        if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
-             (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
+        if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
+             (m_plot3d_int_2 > 0 && m_plot3d_per_2 > 0.) ) {
+            Abort("Must choose only one of plot_int or plot_per");
+        }
+        if ( (m_plot2d_int_1 > 0 && m_plot2d_per_1 > 0) ||
+             (m_plot2d_int_2 > 0 && m_plot2d_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
         }
 
@@ -1814,8 +2605,10 @@ ERF::ReadParameters ()
         pp.query("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("sampler_per", sampler_per);
-        pp.query("sampler_interval", sampler_interval);
+        pp.query("line_sampling_per", line_sampling_per);
+        pp.query("line_sampling_interval", line_sampling_interval);
+        pp.query("plane_sampling_per", plane_sampling_per);
+        pp.query("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);
@@ -1826,9 +2619,11 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
 
-        // Query the set and total widths for wrfbdy interior ghost cells
+        // Query the total width for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
-        pp.query("real_set_width", real_set_width);
+
+        // If using real boundaries, do we extrapolate w (or set to 0)
+        pp.query("real_extrap_w", real_extrap_w);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
@@ -1846,11 +2641,107 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level,pp_prefix);
 
+    {
+        ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.
+        pp_no_prefix.query("max_step", max_step);
+        if (max_step < 0) {
+            max_step = std::numeric_limits<int>::max();
+        }
+
+        std::string start_datetime, stop_datetime;
+        if (pp_no_prefix.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+            start_time = getEpochTime(start_datetime, datetime_format);
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_wrfinput) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from wrfinput = " <<
+                                       start_time_from_wrfinput << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_metgrid) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from metgrid = " <<
+                                       start_time_from_metgrid << std::endl;
+                    amrex::Abort();
+                }
+            }
+#endif
+            Print() << "Start datetime   : " << start_datetime << std::endl;
+
+            use_datetime = true;
+
+        } else {
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                start_time = start_time_from_wrfinput;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                start_time = start_time_from_metgrid;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
+                    amrex::Abort();
+                }
+            }
+#endif
+        }
+
+        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
+            if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                stop_datetime += ":00"; // add seconds
+            }
+            if (stop_datetime.length() != 19) {
+                Print() << "Got stop_datetime = \"" << stop_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+
+            stop_time = getEpochTime(stop_datetime, datetime_format);
+            Print() << "Stop  datetime : " << start_datetime << std::endl;
+
+        } else {
+
+            if (pp_no_prefix.query("stop_time", stop_time)) {
+                Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
+                amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
+                stop_time += start_time;
+            }
+        }
+    }
+
 #ifndef ERF_USE_NETCDF
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
                                        (solverChoice.init_type != InitType::Metgrid ) &&
                                        (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+                                     "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Query the canopy model file name
@@ -1862,17 +2753,16 @@ ERF::ReadParameters ()
         }
     }
 
-    // If init from WRFInput or Metgrid make sure a valid file name is present
+    // If init from WRFInput or Metgrid make sure a valid file name is present at level 0.
+    // We allow for the possibility that finer levels may use native refinement rather than reading from a file
     if ((solverChoice.init_type == InitType::WRFInput) ||
         (solverChoice.init_type == InitType::Metgrid)  ||
         (solverChoice.init_type == InitType::NCFile) ) {
-        for (int lev = 0; lev <= max_level; lev++) {
-            int num_files = nc_init_file[lev].size();
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput, Metgrid or NCFile.");
-            for (int j = 0; j < num_files; j++) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput, Metgrid or NCFile.");
-            } //j
-        } // lev
+        int num_files = nc_init_file[0].size();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        for (int j = 0; j < num_files; j++) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        } //j
     } // InitType
 
     // What type of land surface model to use
@@ -1883,10 +2773,10 @@ ERF::ReadParameters ()
     } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
         lsm.SetModel<MM5>();
         Print() << "MM5 land surface model!\n";
-#ifdef ERF_USE_NOAH
-    } else if (solverChoice.lsm_type == LandSurfaceType::NOAH) {
-        lsm.SetModel<NOAH>();
-        Print() << "NOAH land surface model!\n";
+#ifdef ERF_USE_NOAHMP
+    } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
+        lsm.SetModel<NOAHMP>();
+        Print() << "Noah-MP land surface model!\n";
 #endif
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
@@ -1913,8 +2803,6 @@ ERF::ParameterSanityChecks ()
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
@@ -2200,45 +3088,144 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int plot_int, const Real plot_per)
+ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+              const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;
 
-    if ( plot_int > 0 && (nstep % plot_int == 0) ) {
-        write_now = true;
+    if ( plot_int > 0) {
+
+        write_now = (nstep % plot_int == 0);
 
     } else if (plot_per > 0.0) {
 
-        // Check to see if we've crossed a plot_per interval by comparing
-        // the number of intervals that have elapsed for both the current
-        // time and the time at the beginning of this timestep.
+        amrex::Print() << "CUR NEXT PER " << cur_time << " " << next_file_time << " " << plot_per << std::endl;
 
-        const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
-
-        int num_per_old = static_cast<int>(std::floor((cur_time-eps-dt_lev) / plot_per));
-        int num_per_new = static_cast<int>(std::floor((cur_time-eps       ) / plot_per));
-
-        // Before using these, however, we must test for the case where we're
-        // within machine epsilon of the next interval. In that case, increment
-        // the counter, because we have indeed reached the next plot_per interval
-        // at this point.
-
-        const Real next_plot_time = (num_per_old + 1) * plot_per;
-
-        if ((num_per_new == num_per_old) && std::abs(cur_time - next_plot_time) <= eps)
-        {
-            num_per_new += 1;
-        }
-
-        // Similarly, we have to account for the case where the old time is within
-        // machine epsilon of the beginning of this interval, so that we don't double
-        // count that time threshold -- we already plotted at that time on the last timestep.
-
-        if ((num_per_new != num_per_old) && std::abs((cur_time - dt_lev) - next_plot_time) <= eps)
-            num_per_old += 1;
-
-        if (num_per_old != num_per_new)
-            write_now = true;
+        // Only write now if nstep newly matches the number of elapsed periods
+        write_now = (cur_time > (next_file_time - Real(0.1)*dt_0));
     }
+
     return write_now;
+}
+
+void
+ERF::check_state_for_nans(MultiFab const& S)
+{
+    int ncomp = S.nComp();
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        //
+        // Test at the end of every full timestep whether the solution data contains NaNs
+        //
+        bool any_have_nans = false;
+        for (int i = 0; i < ncomp; i++) {
+            if (S.contains_nan(i,1,0))
+            {
+                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
+                any_have_nans = true;
+            }
+        }
+        if (any_have_nans) {
+            exit(0);
+        }
+    }
+}
+
+void
+ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
+{
+    //
+    // Test at the end of every full timestep whether the solution data contains NaNs
+    //
+    bool any_have_nans = false;
+    if (xvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "x-velocity contains NaNs " << '\n';
+        any_have_nans = true;
+    }
+    if (yvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "y-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (zvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "z-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (any_have_nans) {
+        exit(0);
+    }
+}
+
+void
+ERF::check_for_low_temp(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for low temp (low is defined as beyond the microphysics range of validity)
+    // *****************************************************************************
+    //
+    // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
+    Real t_low = 273.16 - 85.;
+    //
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
+
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
+
+            if (temp < t_low) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+#else
+                printf("Temperature too low in cell: %d %d %d \n", i,j,k);
+                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
+#endif
+                Abort();
+            }
+        });
+    }
+}
+
+void
+ERF::check_for_negative_theta(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for negative (rho theta)
+    // *****************************************************************************
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+
+            if (rho <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+#else
+                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                Abort("Bad rho in check_for_negative_theta");
+#endif
+            }
+
+            if (rhotheta <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+#else
+                printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+                Abort("Bad theta in check_for_negative_theta");
+#endif
+            }
+
+            });
+    } // mfi
 }

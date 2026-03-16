@@ -8,8 +8,8 @@
 #include <ERF_SLM.H>
 #include <ERF_MM5.H>
 
-#if ERF_USE_NOAH
-#include <ERF_NOAH.H>
+#if ERF_USE_NOAHMP
+#include <ERF_NOAHMP.H>
 #endif
 
 class LandSurface {
@@ -45,7 +45,7 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance)
     {
-        m_lsm_model[lev]->Init(cons_in, geom, dt_advance);
+        m_lsm_model[lev]->Init(lev, cons_in, geom, dt_advance);
     }
 
     void
@@ -65,6 +65,12 @@ public:
     Advance (const int& lev, const amrex::Real& dt_advance)
     {
         m_lsm_model[lev]->Advance(dt_advance);
+    }
+
+    void
+    Plot(const int& lev, const int& nstep)
+    {
+        m_lsm_model[lev]->Plot_Landfile(nstep);
     }
 
     void
@@ -91,8 +97,23 @@ public:
     int
     Get_Data_Size () { return m_lsm_model[0]->Lsm_Data_Size(); }
 
+    int
+    Get_Flux_Size () { return m_lsm_model[0]->Lsm_Flux_Size(); }
+
     std::string
-    Get_VarName (const int& varIdx) { return m_lsm_model[0]->Lsm_VarName(varIdx); }
+    Get_DataName (const int& varIdx) { return m_lsm_model[0]->Lsm_DataName(varIdx); }
+
+    int
+    Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
+
+    std::string
+    Get_FluxName (const int& varIdx) { return m_lsm_model[0]->Lsm_FluxName(varIdx); }
+
+    int
+    Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
+
+    std::unordered_map<std::string,std::string>&
+    Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 
     void
     Plot_Lsm_Data (amrex::Real time,
@@ -120,7 +141,7 @@ public:
                 for (int n(0); n<nvar; ++n) {
                     mf_lsm = this->Get_Data_Ptr(lev,n);
                     amrex::MultiFab::Copy(m_lsm_data_lev[lev],*(mf_lsm),0,n,1,0);
-                    if (lev==0) varnames[n] = this->Get_VarName(n);
+                    if (lev==0) varnames[n] = this->Get_DataName(n);
                 }
             }
             WriteMultiLevelPlotfile (plotfilename, nlev, GetVecOfConstPtrs(m_lsm_data_lev),

@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
+erf.init_type = MoistBaseState
+
 max_step  = 10
 stop_time = 3600.0
 
@@ -40,7 +44,6 @@ erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocit
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
     
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
@@ -54,7 +57,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "Kessler_NoRain"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]

@@ -3,9 +3,6 @@
 # Example CMake config script for an OSX laptop with OpenMPI
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
-      -DCMAKE_CXX_COMPILER:STRING=mpicxx \
-      -DCMAKE_C_COMPILER:STRING=mpicc \
-      -DCMAKE_Fortran_COMPILER:STRING=mpifort \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
       -DERF_DIM:STRING=3 \

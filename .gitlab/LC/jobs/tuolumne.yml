@@ -1,0 +1,15 @@
+tuolumne_hip_6.4.0:
+  variables:
+    MODULE_LIST: cmake/3.29.2 ninja/1.10.2 rocm/6.4.0 rocmcc/6.4.0-cce-19.0.0d-magic cray-fftw/3.3.10.11 cray-libsci/25.09.0
+
+    ERF_ENABLE_HIP: "ON"
+    AMD_ARCH: "gfx942"
+    # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
+    BUILD_TYPE: "RelWithDebInfo"
+
+    # RRTMGP/Kokkos options:
+    #ERF_ENABLE_EKAT=ON
+    #ERF_ENABLE_KOKKOS=ON
+    #Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE=ON
+    #Kokkos_ARCH_AMD_GFX942_APU=ON
+  extends: .job_on_tuolumne

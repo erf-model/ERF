@@ -1,0 +1,122 @@
+#stop_time = 36000.
+max_step = 10000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 2247000 	2037000  20543.40975
+amr.n_cell           = 749   	679      69
+#amr.blocking_factor  = 1
+
+#amr.restart = chk12000
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
+#zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+erf.substepping_type = "Implicit"
+erf.fixed_dt = 8.0
+erf.fixed_mri_dt_ratio = 4
+
+# TIME STEP CONTROL
+#erf.fixed_dt           = 2.0  # fixed time step depending on grid resolution
+    
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1000   # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plotfile_type   = amrex  # prefix of plotfile name
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 100    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc qgraup qrain qsnow vorticity_x vorticity_y vorticity_z reflectivity max_reflectivity
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.terrain_type = StaticFittedMesh
+erf.moisture_model = "Morrison"
+
+erf.pbl_type = "MYNN25"
+erf.pbl_type         = MYJ
+prob.KE_0            = 0.4
+prob.KE_decay_height = 500.
+prob.KE_decay_order  = 3
+
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.02
+erf.use_moist_Ri_correction = false
+erf.mix_isotropic = false
+
+#erf.les_type  = "Deardorff"
+#erf.Ck        = 0.1  # Coefficient in Moeng1984, Eqn. 19
+#erf.Ce        = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
+#erf.Ce_wall   = 3.9  # To account for "wall effects"
+#erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
+
+erf.molec_diff_type  = "Constant"
+erf.dynamic_viscosity = 5.0
+erf.alpha_T = 5.0
+erf.alpha_C = 5.0
+
+erf.use_coriolis = true
+erf.coriolis_3d  = true
+erf.latitude = 99.3826
+
+# RADIATION INPUTS
+start_datetime             = "2011-05-22 06:00:00" # UTC is 6 hrs ahead of MT time
+erf.radiation_model        = "RRTMGP"
+erf.rad.datalog            = "radiation"
+erf.profile_rad_int        = 1
+erf.rad_freq_in_steps      = 1
+erf.rad_do_subcol_sampling = true
+erf.rad_write_fluxes       = false
+erf.rad_orbital_year       = 2010
+erf.rad_cons_lat           =  40.0
+erf.rad_cons_lon           = -99.0
+erf.rad_t_sfc              = 305.0
+erf.co2vmr                 = 0.00036
+erf.o3vmr                  = 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 4.0e-8 4.25e-8 4.5e-8 4.9e-8 5.4e-8 6.0e-8 6.9e-8 8.0e-8 9.25e-8 1.07e-7 1.25e-7 1.63e-7 2.7e-7 5.4e-7 1.0e-6 1.7e-6 2.6e-6 4.0e-6 5.75e-6 7.5e-6 9.0e-6 9.6e-6 9.34e-6 7.83e-6 5.4e-6 3.3e-6 1.9e-6 9.1e-7 
+erf.n2ovmr                 = 3.2e-7
+erf.covmr                  = 1.5e-7
+erf.ch4vmr                 = 1.7e-6
+erf.o2vmr                  = 0.209
+erf.n2vmr                  = 0.7906
+erf.nswbands               = 14
+erf.nlwbands               = 16
+erf.nswgpts                = 224
+erf.nlwgpts                = 256  
+erf.rrtmgp_file_path       = /global/cfs/cdirs/m4106/nataraj2/RadiationFiles
+erf.rrtmgp_coeffs_sw       = rrtmgp-data-sw-g224-2018-12-04.nc
+erf.rrtmgp_coeffs_lw       = rrtmgp-data-lw-g256-2018-12-04.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+# INITIALIZATION WITH ATM DATA
+erf.use_real_bcs = true
+erf.real_width     = 4
+erf.real_set_width = 1
+erf.init_type      = "WRFInput"
+erf.nc_init_file_0 = "wrfinput_d01"
+erf.nc_bdy_file    = "wrfbdy_d01"
+erf.nc_low_file = "wrflowinp_d01"

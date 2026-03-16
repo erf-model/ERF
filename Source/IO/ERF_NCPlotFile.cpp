@@ -86,12 +86,12 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     ncf.def_var("Geom.bigend"  , NC_INT, {ndim_name});
     ncf.def_var("CellSize"     , NC_FLOAT, {ndim_name});
 
-    ncf.def_var("x_grid", NC_FLOAT, {np_name});
-    ncf.def_var("y_grid", NC_FLOAT, {np_name});
-    ncf.def_var("z_grid", NC_FLOAT, {np_name});
+    ncf.def_var("x_grid", NC_DOUBLE, {np_name});
+    ncf.def_var("y_grid", NC_DOUBLE, {np_name});
+    ncf.def_var("z_grid", NC_DOUBLE, {np_name});
 
     for (int i = 0; i < plot_var_names.size(); i++) {
-        ncf.def_var(plot_var_names[i], NC_FLOAT, {nz_name, ny_name, nx_name});
+        ncf.def_var(plot_var_names[i], NC_DOUBLE, {nz_name, ny_name, nx_name});
     }
 
     ncf.exit_def_mode();
@@ -184,7 +184,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             }
 
             goffset += glen;
-            glen = ba.numPts();
+            glen = bx.numPts();
 
             auto nc_x_grid = ncf.var("x_grid");
             auto nc_y_grid = ncf.var("y_grid");
@@ -216,9 +216,9 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
            long unsigned local_ny = bx.length()[1];
            long unsigned local_nz = bx.length()[2];
 
-           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
-           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
-           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
+           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]-subdomain.smallEnd()[0]);
+           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]-subdomain.smallEnd()[1]);
+           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]-subdomain.smallEnd()[2]);
 
            for (int k(0); k < ncomp; ++k) {
                FArrayBox tmp;

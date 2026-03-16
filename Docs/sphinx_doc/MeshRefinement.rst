@@ -13,7 +13,7 @@ allowing refinement in one coordinate direction but not another.
 
 We utilize two-way coupling, in which the coarse solution is used to provide boundary conditions for the fine solution
 and the fine solution is averaged down onto the coarser level.  In addition, we reflux all advected scalars to ensure conservation.
-For coarse-to-fine communication we provide ``ghost cell'' data for cell-centered data and tangential momentum components to
+For coarse-to-fine communication we provide "ghost cell" data for cell-centered data and tangential momentum components to
 the fine level by interpolating in space and time outside the region covered by the fine level.
 We also interpolate the normal momentum from coarse to fine on the coarse-fine interface itself;
 this ensures mass conservation since the normal momentum is in fact the flux for the density field.
@@ -39,54 +39,45 @@ For static refinement, we can control the placement of grids by specifying
 the low and high extents (in physical space or index space) of each box.
 
 The following example demonstrates how to tag regions for static refinement.
-In this first example, all cells in the region ((.15,.25,0.)(.35,.45,1.))
-and in the region ((.65,.75,0.0)(.85,.95,1.0)) are tagged for
+In this first example, all cells in the region ((1200,1400,0.)(3000,2400,2048.))
+and in the region ((3200,3400,0.)(4000,4000,2048.)) are tagged for
 one level of refinement.
 
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2
+          amr.ref_ratio = 2 2 2
 
           erf.refinement_indicators = box1 box2
 
-          erf.box1.in_box_lo = .15 .25 0.0
-          erf.box1.in_box_hi = .35 .45 1.0
+          erf.box1.in_box_lo = 1200 1400 0
+          erf.box1.in_box_hi = 3000 2400 2048
+          erf.box1.max_level = 1
 
-          erf.box2.in_box_lo = .65 .75 0.0
-          erf.box2.in_box_hi = .85 .95 1.0
-
-In the example below, we refine the region ((.15,.25,0.)(.35,.45,.5))
-by two levels of factor 3 refinement. In this case, the refined region at level 1 will
-be sufficient to enclose the refined region at level 2.
-
-::
-
-          amr.max_level = 2
-          amr.ref_ratio = 3 3
-
-          erf.refinement_indicators = box1
-
-          erf.box1.in_box_lo = .15 .25 0.0
-          erf.box1.in_box_hi = .35 .45 1.0
-
-And in this final example, the region ((.15,.25,0.)(.35,.45,1.))
-will be refined by two levels of factor 3, but the larger region, ((.05,.05,0.)(.75,.75,1.))
-will be refined by a single factor 3 refinement.
-
-::
-
-          amr.max_level = 2
-          amr.ref_ratio = 3 3
-
-          erf.refinement_indicators = box1 box2
-
-          erf.box1.in_box_lo = .15 .25 0.0
-          erf.box1.in_box_hi = .35 .45 1.0
-
+          erf.box2.in_box_lo = 3200 3400 0
+          erf.box2.in_box_hi = 4000 4000 2048
           erf.box2.max_level = 1
-          erf.box2.in_box_lo = .05 .05 0.0
-          erf.box2.in_box_hi = .75 .75 1.0
+
+It is possible to refine the box by multiple levels, and to have different levels of refinement for different boxes. For example, if we set
+
+::
+
+          amr.max_level = 2
+          amr.ref_ratio = 2 2 2
+
+          erf.refinement_indicators = box1 box2
+
+          erf.box1.in_box_lo = 1200 1400 0
+          erf.box1.in_box_hi = 3000 2400 2048
+          erf.box1.max_level = 1
+
+          erf.box2.in_box_lo = 3200 3400 0
+          erf.box2.in_box_hi = 4000 4000 2048
+          erf.box2.max_level = 2
+
+box1 is refined up to level 1, but box2 is refined up to level 2. If no max_level is specified for a
+refinement indicator, the region is refined up to the maximum level specified in ``amr.max_level``.
+Error messages are generated to help users adjust the refinements to create a valid box at each level.
 
 
 We note that instead of specifying the physical extent enclosed, we can instead specify the indices of
@@ -99,13 +90,36 @@ factor 2 refinement, and the domain has 32x64x8 cells at level 0 covering the do
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2
+          amr.ref_ratio = 2 2 2
 
           erf.refinement_indicators = box1
 
           erf.box1.in_box_lo_indices = 16 32  4
           erf.box1.in_box_hi_indices = 47 95 11
+          erf.box1.max_level = 1
 
+There is also an option to specify the indices of the bounding box of the refined region in the index space of the coarser level, using
+``in_box_lo_indices_crse`` and ``in_box_hi_indices_crse``.  This is useful when the user has a particular region in mind that they want to refine,
+and they know the indices of that region on the coarser level but not on the finer level.  In this case, the code will automatically adjust the
+indices to create a valid box at the finer level.
+
+::
+
+          amr.max_level = 1
+          amr.ref_ratio = 2 2 2
+
+          erf.refinement_indicators = box1
+
+          erf.box1.in_box_lo_indices_crse = 16 32  4
+          erf.box1.in_box_hi_indices_crse = 47 95 11
+          erf.box1.max_level = 1
+
+
+The lo_indices should be divisible by the refinement ratio, and the hi_indices should be one less than a number divisible by the refinement ratio.
+There are no such requirements for the coarse level indices, since the code will adjust them as needed to create a valid box at the finer level.
+The PBL models compute the height of the boundary layer and require that each box goes from the bottom of the domain to the top of the domain.
+The lo/hi indices in the vertical direction should therefore be 0 and (number of cells in z direction - 1) respectively,
+and the number of cells in the z direction should be divisible by the refinement ratio in the vertical direction.
 
 Dynamic Mesh Refinement
 -----------------------

@@ -6,7 +6,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
-#include "AMReX_Interpolater.H"
+#include "AMReX_MFInterpolater.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -14,6 +14,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_MicrophysicsUtils.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -36,14 +37,18 @@ public:
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                         const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
-                         amrex::Real start_bdy_time = 0.0,
-                         amrex::Real bdy_time_interval = 0.0)
+                         const TurbChoice& a_turb_choice,
+                         amrex::Real start_low_time,
+                         amrex::Real final_low_time,
+                         amrex::Real low_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_bdy_time(start_bdy_time),
-    m_bdy_time_interval(bdy_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
+    m_start_low_time(start_low_time),
+    m_final_low_time(final_low_time),
+    m_low_time_interval(low_time_interval),
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -66,6 +71,10 @@ public:
               flux_type = FluxCalcType::DONELAN;
           } else if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
+          } else if (flux_string == "rico") {
+                flux_type = FluxCalcType::RICO;
+          } else if (flux_string == "bulk_coeff") {
+              flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
               flux_type = FluxCalcType::CUSTOM;
           } else {
@@ -106,12 +115,14 @@ public:
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
-      if (flux_type == FluxCalcType::CUSTOM) {
+      if (flux_type == FluxCalcType::CUSTOM ||
+          flux_type == FluxCalcType::RICO) {
           theta_type = ThetaCalcType::HEAT_FLUX;
           moist_type = MoistCalcType::MOISTURE_FLUX;
-          pp.query("most.ustar", custom_ustar);
-          pp.query("most.tstar", custom_tstar);
-          pp.query("most.qstar", custom_qstar);
+          pp.get("most.ustar", custom_ustar);
+          pp.get("most.tstar", custom_tstar);
+          pp.get("most.qstar", custom_qstar);
+          pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -119,6 +130,17 @@ public:
           amrex::Print() << "Using specified ustar, tstar, qstar for MOST = "
                          << custom_ustar << " " << custom_tstar << " "
                          << custom_qstar << std::endl;
+
+      // Bulk transfer coefficient (must specify coeffs and surface values)
+      } else if (flux_type == FluxCalcType::BULK_COEFF) {
+          pp.get("most.Cd", m_Cd);
+          pp.get("most.Ch", m_Ch);
+          pp.get("most.Cq", m_Cq);
+          pp.get("most.surf_temp", default_land_surf_temp);
+          pp.get("most.surf_moist", default_land_surf_moist);
+          amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
+                         << m_Cd << " " << m_Ch << " "
+                         << m_Cq << std::endl;
 
       // Specify surface temperature/moisture or surface flux
       } else {
@@ -141,7 +163,6 @@ public:
               } else {
                   theta_type = ThetaCalcType::ADIABATIC;
               }
-
           }
 
           if (erf_sq) {
@@ -155,6 +176,12 @@ public:
                   moist_type = MoistCalcType::ADIABATIC;
               }
           }
+      }
+
+      if (flux_type == FluxCalcType::RICO)
+      {
+          pp.query("most.rico.theta_z0", rico_theta_z0);
+          pp.query("most.rico.qsat_z0", rico_qsat_z0);
       }
 
       // Make sure the inputs file doesn't try to use most.roughness_type
@@ -218,6 +245,22 @@ public:
       } else {
           amrex::Abort("Undefined MOST roughness type for sea!");
       }
+
+      // use skin temperature instead of sea-surface temperature
+      // (wrfinput data may have lower resolution SST data)
+      pp.query("most.ignore_sst", m_ignore_sst);
+
+      // If we're using the RANS k model, then we need to update the dirichlet
+      // BC based on the instantaneous u* and θ*; the turbulence modeling
+      // choices can vary per level but for now, assume that if specified then
+      // all levels are using the same RANS model.
+      m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
+                         a_turb_choice.dirichlet_k == true);
+      if (m_update_k_rans) {
+          inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          theta_ref = a_turb_choice.theta_ref;
+      }
+
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -231,7 +274,9 @@ public:
                                    amrex::MultiFab* Lwave,
                                    amrex::MultiFab* eddyDiffs,
                                    amrex::Vector<amrex::MultiFab*> lsm_data,
+                                   amrex::Vector<std::string>      lsm_data_name,
                                    amrex::Vector<amrex::MultiFab*> lsm_flux,
+                                   amrex::Vector<std::string>      lsm_flux_name,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
                                    amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
@@ -261,7 +306,7 @@ public:
           }
       }
 
-      if ((lev == 0) || (lev > nlevs - 1)) {
+      if (m_eddyDiffs_lev.size() < lev+1) {
           m_Hwave_lev.resize(nlevs);
           m_Lwave_lev.resize(nlevs);
           m_eddyDiffs_lev.resize(nlevs);
@@ -291,12 +336,12 @@ public:
       for (int nt(0); nt < nt_tot_sst; ++nt) {
           m_sst_lev[lev][nt] = sst_lev[nt].get();
       }
-      int nt_tot_tsk = tsk_lev.size();
+      int nt_tot_tsk = static_cast<int>(tsk_lev.size());
       m_tsk_lev[lev].resize(nt_tot_tsk);
       for (int nt(0); nt < nt_tot_tsk; ++nt) {
           m_tsk_lev[lev][nt] = tsk_lev[nt].get();
       }
-      int nt_tot_lmask = lmask_lev.size();
+      int nt_tot_lmask = static_cast<int>(lmask_lev.size());
       m_lmask_lev[lev].resize(nt_tot_lmask);
       for (int nt(0); nt < nt_tot_lmask; ++nt) {
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
@@ -308,11 +353,22 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Get pointers to LSM data and Fluxes
-      int nvar = lsm_data.size();
-      m_lsm_data_lev[lev].resize(nvar);
-      m_lsm_flux_lev[lev].resize(nvar);
-      for (int n(0); n < nvar; ++n) {
+      int ndata = static_cast<int>(lsm_data.size());
+      int nflux = static_cast<int>(lsm_flux.size());
+      m_lsm_data_name.resize(ndata);
+      m_lsm_data_lev[lev].resize(ndata);
+      m_lsm_flux_name.resize(nflux);
+      m_lsm_flux_lev[lev].resize(nflux);
+      for (int n(0); n < ndata; ++n) {
+          m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
+          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+              m_has_lsm_tsurf  = true;
+              m_lsm_tsurf_indx = n;
+          }
+      }
+      for (int n(0); n < nflux; ++n) {
+          m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
       }
 
@@ -321,34 +377,38 @@ public:
       bool read_z0 = false;
       if ( (flux_type == FluxCalcType::MOENG) ||
            (flux_type == FluxCalcType::ROTATE)) {
-          read_z0 = pp.query("most.roughness_file_name", fname);
+          int count = pp.countval("most.roughness_file_name");
+          if (count > 1) {
+              AMREX_ALWAYS_ASSERT(count >= lev+1);
+              pp.query("most.roughness_file_name", fname, lev);
+              read_z0 = true;
+          } else if (count == 1) {
+              if (lev == 0) {
+                  pp.query("most.roughness_file_name", fname);
+              } else {
+                  // we will interpolate from the coarsest level
+                  fname = "";
+              }
+              read_z0 = true;
+          }
+          // else use z0_const
       }
 
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) {
-          b.setRange(2, 0);
-      }
+      for (auto& b : bl2d) { b.setRange(2,0); }
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-      amrex::IntVect ng = mf.nGrowVect();
-      ng[2] = 0;
+      amrex::IntVect ng{1,1,0};
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      amrex::Arena* Arena_Used = amrex::The_Arena();
-#ifdef AMREX_USE_GPU
-      Arena_Used = amrex::The_Pinned_Arena();
-#endif
-      amrex::Box bx = amrex::grow(m_geom[lev].Domain(), ng);
-      bx.setSmall(2, 0);
-      bx.setBig(2, 0);
-      z_0[lev].resize(bx, 1, Arena_Used);
-      z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
       }
@@ -379,28 +439,56 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
-      // TODO: Do we want lsm_data to have theta at 0 index always?
-      //       Do we want an external enum struct for indexing?
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+      // TODO: Do we want an enum struct for indexing?
+
+      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+
+          // Pathways in fill_tsurf_with_sst_and_tsk
+          bool use_tsk = (m_tsk_lev[lev][0]);
+          bool use_sst = (m_sst_lev[lev][0]);
+          amrex::Print() << "Using MOST with specified surface temperature ";
+          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+          //       So if we have TSK, it contains everything and has been
+          //       sanity checked for valid SST values.
+          if (use_tsk) { m_ignore_sst = true; }
+          if (use_tsk) {
+              amrex::Print() << "(land: TSK, ";
+          } else {
+              amrex::Print() << "(land: T0, ";
+          }
+          if (use_tsk && !use_sst) {
+              amrex::Print() << "sea: TSK)" << std::endl;
+          } else {
+              amrex::Print() << "sea: SST)" << std::endl;
+              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+          }
       }
-
-
   }
 
   void
   update_fluxes (const int& lev,
-                 const amrex::Real& time,
-                 int max_iters = 500);
+                 const amrex::Real& elapsed_time_since_start_low,
+                 amrex::MultiFab& cons_in,
+                 const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 const std::unique_ptr<amrex::MultiFab>& walldist,
+                 int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
+                       amrex::MultiFab& cons_in,
                        const FluxIter& most_flux,
                        bool is_land);
+
+  void init_tke_from_ustar (const int& lev,
+                            amrex::MultiFab& cons,
+                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const amrex::Real tkefac = 1.0,
+                            const amrex::Real zscale = 700.0);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
@@ -429,24 +517,24 @@ public:
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
 
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
   void get_lsm_tsurf (const int& lev);
 
   /* wrapper around compute_pblh */
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const int RhoQv_comp,
-                    const int RhoQc_comp,
-                    const int RhoQr_comp);
+                    const MoistureComponentIndices& moisture_indices);
 
   template <typename PBLHeightEstimator>
   void compute_pblh (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                      amrex::MultiFab* z_phys_cc,
                      const PBLHeightEstimator& est,
-                     const int RhoQv_comp,
-                     const int RhoQc_comp,
-                     const int RhoQr_comp);
+                     const MoistureComponentIndices& moisture_indice);
 
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
@@ -454,7 +542,7 @@ public:
   void update_surf_temp (const amrex::Real& time)
   {
       if (surf_heating_rate != 0) {
-          int nlevs = m_geom.size();
+          int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
               t_surf[lev]->setVal(surf_temp + surf_heating_rate * time);
               amrex::Print() << "Surface temp at t=" << time << ": "
@@ -490,12 +578,14 @@ public:
   }
 
   amrex::MultiFab* get_t_surf (const int& lev) { return t_surf[lev].get(); }
+  void set_t_surf(const int& lev, const amrex::Real tsurf) { t_surf[lev]->setVal(tsurf); }
 
   amrex::MultiFab* get_q_surf (const int& lev) { return q_surf[lev].get(); }
+  void set_q_surf(const int& lev, const amrex::Real qsurf) { q_surf[lev]->setVal(qsurf); }
 
-  amrex::Real get_zref () { return m_ma.get_zref(); }
+  amrex::Real get_zref (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
 
-  amrex::FArrayBox* get_z0 (const int& lev) { return &z_0[lev]; }
+  amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   bool have_variable_sea_roughness () { return m_var_z0; }
 
@@ -521,11 +611,21 @@ public:
       return lmask_min;
   }
 
+  void update_sst_ptr(const int lev, const int itime, amrex::MultiFab* sst_ptr) {
+      m_sst_lev[lev][itime] = sst_ptr;
+  }
+
+  void update_tsk_ptr(const int lev, const int itime, amrex::MultiFab* tsk_ptr) {
+      m_tsk_lev[lev][itime] = tsk_ptr;
+  }
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
     CUSTOM,    ///< Custom constant flux functional form
-    ROTATE     ///< Terrain rotation flux functional form
+    BULK_COEFF, ///< Bulk transfer coefficient functional form
+    ROTATE,     ///< Terrain rotation flux functional form
+    RICO
   };
 
   enum struct ThetaCalcType {
@@ -561,8 +661,9 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_bdy_time;
-  amrex::Real m_bdy_time_interval;
+  amrex::Real m_start_low_time;
+  amrex::Real m_final_low_time;
+  amrex::Real m_low_time_interval;
 
   bool m_include_wstar = false;
   amrex::Real z0_const{0.1};
@@ -576,13 +677,26 @@ private:
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
   amrex::Real custom_qstar{0};
+  amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
+  bool specified_rho_surf{false};
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
-  amrex::Vector<amrex::FArrayBox> z_0;
+  amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
+  amrex::Real rico_theta_z0{298.0};
+  amrex::Real rico_qsat_z0{0.001};
+
   bool use_moisture;
+  bool m_has_lsm_tsurf  = false;
+  int  m_lsm_tsurf_indx = -1;
+
+  amrex::Real m_Cd = 0.0;
+  amrex::Real m_Ch = 0.0;
+  amrex::Real m_Cq = 0.0;
+
+  bool m_ignore_sst = false;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
@@ -599,9 +713,15 @@ private:
   amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
+  amrex::Vector<std::string> m_lsm_data_name;
+  amrex::Vector<std::string> m_lsm_flux_name;
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
+
+  bool m_update_k_rans = false;
+  amrex::Real inv_Cmu2 = 0.0;
+  amrex::Real theta_ref = 0.0;
 };
 
 #endif /* SURFACELAYER_H */

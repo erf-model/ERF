@@ -1,0 +1,96 @@
+# Sets ID tokens for every job using `default:`
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+
+default:
+  interruptible: true
+
+workflow:
+  # Run this pipeline any time the parent pipeline triggers it. Need to run when
+  # triggered by a merge request event.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  # Auto-cancel redundant pipelines
+  auto_cancel:
+    on_new_commit: interruptible
+
+stages:
+  - is-machine-up
+  - allocate-resources
+  - jobs-stage-1
+  - jobs-stage-2
+  - jobs-stage-3
+  - release-resources
+
+##############################################################################
+# UTILITIES
+
+.on_tuolumne:
+  tags:
+    - shell
+    - tuolumne
+
+.job_on_tuolumne:
+  extends: .on_tuolumne
+  stage: jobs-stage-1
+  variables:
+    # Note: "flux" gets expanded to "flux run" inside build script
+    MPIEXEC_EXECUTABLE: flux
+    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -vv"
+  script:
+    # Allocation information
+    - echo -e "### Allocation name is ${ALLOC_NAME}"
+    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
+    - echo -e "### Job ID is ${JOBID}"
+    - export AMD_LOG_LEVEL=2
+    - export MPICH_GPU_SUPPORT_ENABLED=1
+    - export HSA_XNACK=1
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+
+##############################################################################
+# JOBS
+
+# Check if the machine is online
+is_machine_up:
+  stage: is-machine-up
+  tags:
+    - shell
+    - oslic
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      if [[ $(jq '.[env.CI_MACHINE].total_nodes_up' /usr/global/tools/lorenz/data/loginnodeStatus) == 0 ]]
+      then
+        echo -e "\e[31mNo nodes available on ${CI_MACHINE}!\e[0m"
+        exit 1
+      else
+        echo -e "\e[32m${CI_MACHINE} is up!\e[0m"
+      fi
+
+# Allocate resources for build and test
+allocate_resources:
+  variables:
+    GIT_STRATEGY: none
+    ALLOC_TIME: 60
+  extends: .on_tuolumne
+  stage: allocate-resources
+  script:
+    - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always
+
+# Deallocate resources for build and test
+# Note: in the rules above this is always run
+release_resources:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_tuolumne
+  stage: release-resources
+  script:
+    - echo -e "Deallocating resources for ${ALLOC_NAME}"
+    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - ([[ -n "${JOBID}" ]] && flux cancel ${JOBID} || exit 0)
+  when: always
+  interruptible: false

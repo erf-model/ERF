@@ -1,4 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Moving Terrain"
+
+erf.init_type = Isentropic
+
+prob.custom_terrain_type = "MovingSineWave"
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1
@@ -44,7 +50,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 
 erf.buoyancy_type = 1
 
@@ -63,3 +68,5 @@ erf.les_type   = "None"
 
 # PROBLEM PARAMETERS (optional)
 prob.Ampl = 0.16
+prob.wavelength = 100.0;
+prob.T_0  = 300.;

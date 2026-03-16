@@ -19,7 +19,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                                    const Array4<Real const>& xvel_arr,
                                                    const Array4<Real const>& yvel_arr,
                                                    const Box& bx, const Box& domain,
-                                                   int icomp, int ncomp, IntVect ng)
+                                                   int icomp, int ncomp, IntVect ng,
+                                                   const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -318,7 +319,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                    int icomp, int ncomp, bool do_terrain_adjustment)
+                                                    int icomp, int ncomp,
+                                                    const Real /*time*/,
+                                                    bool do_terrain_adjustment)
 {
     BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -432,12 +435,19 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,j,kflip,dest_comp);
                 } else if (l_bc_type == ERFBCType::neumann) {
-                    Real delta_z = Compute_Zrel_AtCellCenter(i,j,k,z_phys_nd);
-                    dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
-                        delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
+                    Real delta_z = Compute_Z_AtCellCenter(i,j,dom_lo.z,z_phys_nd)
+                                 - Compute_Z_AtCellCenter(i,j,k       ,z_phys_nd);
+                    if( (icomp+n) == Rho_comp ) {
+                        dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
+                            delta_z*l_bc_neumann_vals_d[bc_comp][2];
+                    } else {
+                        dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
+                            delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
+                    }
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_k = (dom_lo.z - k);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z,dest_comp) - delta_k*dest_arr(i,j,dom_lo.z+1,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
+                                                       delta_k  * dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)

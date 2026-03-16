@@ -1,0 +1,3 @@
+CEXE_headers += ERF_MaterialProperties.H
+CEXE_headers += ERF_TerminalVelocity.H
+CEXE_sources += ERF_MaterialProperties.cpp

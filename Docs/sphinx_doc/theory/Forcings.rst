@@ -30,7 +30,7 @@ If
 
       use_gravity == true
 
-then buoyancy is included in the momentum equations.  See :ref:`sec:Buoyancy` for more detail
+then buoyancy is included in the momentum equations.  See :ref:`Buoyancy` for more detail
 about the possible formulations of the buoyancy term.
 
 Coriolis Forcing
@@ -69,7 +69,6 @@ Rayleigh Damping
 
 Rayleigh damping can be imposed on any or all of :math:`u, v, w, T` and is controlled by
 setting
-
 ::
 
       rayleigh_damp_U = true
@@ -77,13 +76,14 @@ setting
       rayleigh_damp_W = true
       rayleigh_damp_T = true
 
-in the inputs file.  When one or more of those is true,
-explicit Rayleigh damping is included in the energy and/or momentum equations
-as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
+in the inputs file.  When one or more of those is true and
+the Rayleigh damping type is set to SlowExplicit or FastExplict,
+then explicit Rayleigh damping is included in the energy and/or momentum equations
+in the form described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, 0)
+  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, w - 0)
 
 and
 
@@ -96,12 +96,28 @@ defined as the initial horizontally homogeneous fields in idealized simulations,
 and :math:`\overline{\theta}` is the reference state potential temperature.
 As in the WRF model, the reference state vertical velocity is assumed to be zero.
 
+If the Rayleigh damping type is set to SlowExplicit then all the damping terms are computed once per
+RK stage; if the type is FastExplicit then the damping terms are computed once per acoustic substep.
+Either way, they are added explicitly.
+
+If the Rayleigh damping type is set to FastImplicit then the damping term for w only is included implicitly
+within the acoustic substepping algorithm; any additional Rayleigh damping (e.g. for u, v, or T) occurs
+as if the type is FastExplicit.
+
+The algorithm for FastExplicit is as described in (3.44) of the `MPAS report`_
+which is equivalent to that written in (9) of
+`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications (2008)`_.
+
+.. _`MPAS report`: https://www2.mmm.ucar.edu/projects/mpas/mpas_website_linked_files/MPAS-A_tech_note.pdf
+
+.. _`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications (2008)`: https://journals.ametsoc.org/view/journals/mwre/136/10/2008mwr2596.1.xml
+
 Sponge regions
 ----------------------
 
 ERF provides the capability to apply sponge source terms near domain boundaries to prevent spurious reflections that otherwise occur
 at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term
-in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file.
+in the governing equations, which are active in a volumetric region at the boundaries that is specified by the user in the inputs file.
 Currently the target condition to which the sponge zones should be forced towards is to be specified by the user in the inputs file.
 
 .. math::
@@ -127,7 +143,10 @@ ed in a problem-specific manner. The density and the :math:`x, y, z` velocities 
           erf.sponge_z_velocity = 0.0
 
 Another way of specifying sponge zones is by providing the sponge zone data as a text file input. This is currently implemented only for forcing :math:`x` and :math:`y` velocities in the sponge zones.
-The sponge data is input as a text file with 3 columns containing :math:`z, u, v` values. An example can be found in ``Exec/SpongeTest`` and a sample inputs list for using this feature is given below. This list specifies a sponge zone in the inlet in the x-direction. The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in from the text file -- `input_sponge_file.txt`.
+The sponge data is input as a text file with 3 columns containing :math:`z, u, v` values.
+An example can be found in ``Exec/CanonicalFlows/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
+This list specifies a sponge zone in the inlet in the x-direction.
+The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in from the text file -- `input_sponge_file.txt`.
 
 ::
 
@@ -136,6 +155,97 @@ The sponge data is input as a text file with 3 columns containing :math:`z, u, v
           erf.sponge_strength = 1000.0
           erf.use_xlo_sponge_damping = true
           erf.xlo_sponge_end = 4.0
+
+
+Immersed forcing to represent terrain
+-------------------------------------
+
+An additional option for representing terrain in ERF is to use an immersed forcing method where large body forces are applied to the momentum equations as sinks to force the velocity to near zero or to a desired value.
+This method follows the methods of `Chan and Leach (2007) <https://doi.org/10.1175/2006JAMC1321.1>`_ and `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_, but is expanded to allow the user to utilize a wall-model (based on Monin Obukhov similarity theory, :ref:`sec:surface_layer`).
+During initialization, we determine a mask (:math:`\beta_r`) over the entire domain by calculating each cell's volume fraction, which indicates how much of a cell is filled by terrain.
+Fully immersed cells have a value of 1, free cells have a value of 0, and partially immersed cells have a value between 0 and 1.
+The goal is to force interior cells to near-zero velocities using the following formulation:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} \beta_r \sqrt[3]{\Delta x \Delta y \Delta z} \rho u_i U
+
+where :math:`C_{d,m}` is a drag coefficient and :math:`U` is the wind speed magnitude.
+The drag coefficient can be specified by the user using ``erf.if_Cd_momentum``, which defaults to a value of 10.
+A larger drag coefficient results in smaller velocities for immersed cells but may require a smaller timestep due to the stiffness of the force.
+
+For partially immersed cells, the user has the option to specify whether to use MOST: ``erf.if_use_most``.
+If the user does not specify MOST, then the equation above will be applied and there is an implicit no-slip boundary condition.
+If the user does specify MOST, then the following formulation is applied to partially immersed cells:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} (1 - \beta_r) \sqrt[3]{\Delta x \Delta y \Delta z} \rho |U_s| (u_i - u_{i,target})
+
+where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` is a unit velocity scale.
+This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
+For cells that are more immersed, there is weaker forcing to the target velocity while for cells that are less immersed, there is stronger forcing to the MOST value.
+
+Temperature forcing is also available to represent the temperature of the 'surface'.
+The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.
+The temperature forcing is then formulated as follows:
+
+.. math::
+
+    F_{\rho\theta} = -C_{d,s} \beta_r \sqrt[3]{\Delta x \Delta y \Delta z} |U_s| (\rho \theta_{target} - \rho\theta)
+
+The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+The following inputs are available when representing terrain using immersed forcing:
+
+::
+
+        erf.if_Cd_scalar               = FLOAT
+        erf.if_Cd_momentum             = FLOAT
+        erf.if_z0                      = FLOAT
+        erf.if_surf_temp_flux          = FLOAT
+        erf.if_init_surf_temp          = FLOAT
+        erf.if_surf_heating_rate       = FLOAT
+        erf.if_Olen                    = FLOAT
+        erf.if_use_most                = BOOL
+        erf.immersed_forcing_substep   = BOOL
+
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
+
+.. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
+
+Immersed forcing to represent buildings
+---------------------------------------
+
+The immersed forcing capability can also be used to represent buildings.
+Currently, the implementation is similar to the formulation for fully immersed cells for terrain, but is proportional to the volume fraction :math:`V_f` thus implicitly applying a no-slip boundary condition following `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_.
+A more advanced wall-model for buildings will be added in the near future (see `Wise et al. (2025) <https://ams.confex.com/ams/25BLT/meetingapp.cgi/Paper/460715>`_ for additional details and a demonstration).
+The momentum forcing is defined as follows:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} \beta_r V_f \sqrt[3]{\Delta x \Delta y \Delta z} \rho u_i U
+
+Temperature forcing for building walls and roofs can similar be specified following the same formulation as immersed forcing for terrain; however, only the option to specify a surface temperature and heating rate is currently available.
+
+Inputs that can be used with immersed forcing for buildings are as follows:
+
+::
+
+        erf.buildings_type             = STRING #ImmersedForcing or None
+        erf.buildings_file_name        = STRING
+        erf.if_Cd_scalar               = FLOAT
+        erf.if_Cd_momentum             = FLOAT
+        erf.if_init_surf_temp          = FLOAT
+        erf.if_surf_heating_rate       = FLOAT
+        erf.immersed_forcing_substep   = BOOL
+
+Immersed forcing for buildings can be used in conjunction with the ``StaticFittedMesh`` terrain option.
+However, currently, the user must specify the z-coordinates using ``erf.terrain_z_levels``.
+In the future, this requirement will be removed.
+Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
+
+An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
+
 
 Problem-Specific Forcing
 ========================

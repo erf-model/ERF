@@ -1,3 +1,95 @@
+#26.03
+    -- Metgrid revamp (#2944)
+
+    -- Move to one executable (#2941,2939, 2936, 2934)
+
+    -- RRTMGP restart (#2938)
+
+    -- Anelastic AMR bug fix (#2933)
+
+    -- Real BCs with bndry reg (#2908)
+
+#26.02
+    -- BDY nudging revamp (#2851)
+
+    -- Refactor problem set up approach (#2848, 2846)
+
+    -- Super droplet method (#2820)
+
+    -- era5 bulk surface (#2826)
+
+    -- RRTMGP fixes (#2841, 2838)
+
+#26.01
+    -- Fixes for MLMG solver (#2814)
+
+    -- EB fixes (#2807, 2810, 2812, 2813)
+
+    -- Surface layer zref MF (#2791)
+
+    -- Poisson solve set up fix (#2802)
+
+#25.12
+    -- Corrections for projection (#2777)
+
+    -- ERA pathway with AMR (#2766)
+
+    -- Corrections for EB advection/diffusion (#2765)
+
+    -- Fixes to BDY region (#2750, 2770, 2778)
+    
+#25.11
+    -- Kokkos GPU fix (#2667)
+
+    -- AMR projection fixes( #2656)
+
+    -- SHOC integration (#2660,2642,2624)
+
+    -- Implicit vertical diffusion (#2617)
+
+    -- EB two-way coupling (#2640)
+
+#25.10
+    -- Different dt for Line and plane sampler (#2570)
+
+    -- Read wrflowinp slice as needed (#2569)
+
+    -- Acoustic substepping pressure with moisture (#2566)
+
+    -- Fix restart with StretchDz (#2568)
+
+    -- MYJ PBL scheme (#2524)
+
+#25.08
+    -- 2D plotfile capability (#2463)
+
+    -- Couple RRTMGP & NOAH-MP (#2442)
+
+    -- GMRES fixes (#2439)
+
+    -- Init from WRFInput fixes (#2436)
+
+    -- Add kokkos and remove yakl submodule (#2429)
+
+    -- Multi-level FFT (#2433)
+
+    -- Moist stratification effect on turbulence models (#2407)
+    
+#25.07
+    -- Enable initialization from netcdf file (#2390)
+
+    -- Read & interpolate weather data onto ERF mesh (#2391, 2377)
+
+    -- EB diffusion progress (#2379)
+
+    -- Fix WENO conservation (#2387)
+
+    -- Correction to Bomex (#2384)
+
+    -- Correct Poisson solve with terrain (#2371)
+
+    -- Surface layer moisture fluxes (#2360)
+
 #25.06
     -- Optimize diffusion (#2356, 2355, 2351, 2349, 2348, 2346)
 

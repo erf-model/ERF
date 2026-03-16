@@ -17,13 +17,8 @@ using namespace amrex;
  * Stores this information in both host and device vectors
  * so it is available for GPU kernels.
  */
-void ERF::init_bcs ()
+void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 {
-    bool rho_read = false;
-    bool read_prim_theta = true;
-    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
-    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
-    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
     auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
@@ -287,6 +282,30 @@ void ERF::init_bcs ()
     f("yhi", Orientation(Direction::y,Orientation::high));
     f("zlo", Orientation(Direction::z,Orientation::low));
     f("zhi", Orientation(Direction::z,Orientation::high));
+}
+
+void ERF::init_bcs ()
+{
+    bool rho_read = false;
+    bool read_prim_theta = true;
+
+    init_phys_bcs(rho_read, read_prim_theta);
+
+    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
+    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
+
+    bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
+                     solverChoice.turbChoice[max_level].dirichlet_k == true);
+    if (keqn_dir) {
+        // Need to change wall BC type, assume for now that all levels are RANS
+        for (int lev = 0; lev < max_level; ++lev) {
+            if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
+                Error("If using one-eqn RANS, all levels must be RANS for now");
+            }
+        }
+        Print() << "Using dirichlet BC for k equation" << std::endl;
+    }
 
     // *****************************************************************************
     //
@@ -641,6 +660,10 @@ void ERF::init_bcs ()
                 for (int i = 0; i < NBCVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
                 }
+                if (keqn_dir) {
+                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
+                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                }
             }
         }
     }
@@ -651,8 +674,6 @@ void ERF::init_bcs ()
 
 void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
-    const bool use_terrain = (solverChoice.terrain_type != TerrainType::None);
-
     // Read the dirichlet_input file
     Print() << "dirichlet_input file location : " << input_file << std::endl;
     std::ifstream input_reader(input_file);
@@ -669,8 +690,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     // Top and bot for domain
     const int  klo  = geom[0].Domain().smallEnd()[2];
     const int  khi  = geom[0].Domain().bigEnd()[2];
-    const Real zbot = (use_terrain) ? zlevels_stag[0][klo]   : geom[0].ProbLo(2);
-    const Real ztop = (use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
+    const Real zbot = zlevels_stag[0][klo];
+    const Real ztop = zlevels_stag[0][khi+1];
 
     // Flag if theta input
     Real th_init = -300.0;
@@ -749,7 +770,6 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     for (int lev = 0; lev <= max_level; lev++) {
 
         const int Nz  = geom[lev].Domain().size()[2];
-        const Real dz = geom[lev].CellSize()[2];
 
         // Size of Nz (domain grid)
         Vector<Real> zcc_inp(Nz  );
@@ -767,9 +787,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1])
-                                         : zbot + (k + 0.5) * dz;
-            znd_inp[k] = (use_terrain) ? zlevels_stag[lev][k+1] : zbot + (k) * dz;
+            zcc_inp[k] = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+            znd_inp[k] = zlevels_stag[lev][k+1];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

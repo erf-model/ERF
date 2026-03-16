@@ -1,5 +1,7 @@
+CEXE_headers += ERF_DampingStruct.H
 CEXE_headers += ERF_DataStruct.H
 CEXE_headers += ERF_DiffStruct.H
+CEXE_headers += ERF_EBStruct.H
 CEXE_headers += ERF_AdvStruct.H
 CEXE_headers += ERF_InputSoundingData.H
 CEXE_headers += ERF_InputSpongeData.H

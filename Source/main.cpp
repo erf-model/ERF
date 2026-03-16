@@ -55,7 +55,11 @@ void add_par () {
 int main (int argc, char* argv[])
 {
 
-#ifdef AMREX_USE_MPI
+#if defined(AMREX_MPI_THREAD_MULTIPLE)
+    int requested = MPI_THREAD_MULTIPLE;
+    int provided = -1;
+    MPI_Init_thread(&argc, &argv, requested, &provided);
+#elif defined(AMREX_USE_MPI)
     MPI_Init(&argc, &argv);
 #endif
 
@@ -103,6 +107,14 @@ int main (int argc, char* argv[])
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
 
+#ifdef ERF_USE_KOKKOS
+    // Initialize kokkos
+    if (!Kokkos::is_initialized()) {
+        Kokkos::initialize(Kokkos::InitializationSettings()
+                           .set_device_id(amrex::Gpu::Device::deviceId()));
+    }
+#endif
+
     // Save the inputs file name for later.
     if (!strchr(argv[1], '=')) {
       inputs_name = argv[1];
@@ -140,6 +152,11 @@ int main (int argc, char* argv[])
 #ifdef ERF_USE_WW3_COUPLING
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
+
+#ifdef ERF_USE_KOKKOS
+    Kokkos::finalize();
+#endif
+
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING

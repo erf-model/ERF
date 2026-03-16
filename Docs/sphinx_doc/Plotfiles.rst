@@ -9,10 +9,16 @@ Plotfiles
 .. toctree::
    :maxdepth: 1
 
-There are two types of plotfiles that can be written from ERF.   The first is the
-standard type of plotfile which includes data on all levels for those variables
-specified by the user in the inputs file.  The second type of plotfile contains
-data on one level only and in a specified region of the domain.   We refer to this
+There are three types of plotfiles that can be written from ERF.
+
+The first is the standard type of plotfile which includes 3D data on all levels for those variables
+specified by the user in the inputs file.
+
+The second is a pseudo-2D plotfile that contains data that is only defined as a function
+of horizontal position, such as map factors, latitude and longitude.
+
+The third type of plotfile contains
+3D data on one level only and in a specified region of the domain.   We refer to this
 latter capability as "Subvolumes" below.  The level at which the data is written
 out is determined by the mesh spacing specified by the user.
 
@@ -30,7 +36,8 @@ of the cost of a single timestep.
 
 If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
 format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
-the executable you can build in Exec/Tools.
+the executable you can build in Exec/Tools (using gmake, or with the ``ERF_ENABLE_TOOLS`` flag
+if using cmake).
 
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,
@@ -38,62 +45,148 @@ frequency and content of the two streams are controlled separately.
 
 .. _list-of-parameters-9:
 
-List of Parameters
-------------------
+List of Parameters for Both 2D and 3D Plotfiles
+-----------------------------------------------
 
-+-----------------------------+------------------+-----------------------+------------+
-| Parameter                   | Definition       | Acceptable            | Default    |
-|                             |                  | Values                |            |
-+=============================+==================+=======================+============+
-| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                             |                  | "netcdf / "NetCDF" or |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
-|                             | plotfiles        |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_2**         | prefix for       | String                | “*plt_2_*” |
-|                             | plotfiles        |                       |            |
-|                             | at seoncd freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_1**          | how often (by    | Integer               | -1         |
-|                             | level-0 time     | :math:`> 0`           |            |
-|                             | steps) to write  |                       |            |
-|                             | plot files       |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_2**          | how often (by    | Integer               | -1         |
-|                             | level-0 time     | :math:`> 0`           |            |
-|                             | steps) to write  |                       |            |
-|                             | plot files       |                       |            |
-|                             | at second freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_1**          | how often (in    | Real                  | -1.0       |
-|                             | simulation time) | :math:`> 0`           |            |
-|                             | to write         |                       |            |
-|                             | plot files       |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_2**          | how often (in    | Real                  | -1.0       |
-|                             | simulation time) | :math:`> 0`           |            |
-|                             | to write         |                       |            |
-|                             | plot files       |                       |            |
-|                             | at second freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_1**         | name of          | list of names         | None       |
-|                             | variables to     |                       |            |
-|                             | include in       |                       |            |
-|                             | plotfiles        |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_2**         | name of          | list of names         | None       |
-|                             | variables to     |                       |            |
-|                             | include in       |                       |            |
-|                             | plotfiles        |                       |            |
-|                             | at seoncd freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
++----------------------------------+------------------+-----------------------+------------+
+| Parameter                        | Definition       | Acceptable            | Default    |
+|                                  |                  | Values                |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plotfile_type**            | AMReX or NETCDF  | "amrex" or            | "amrex"    |
+|                                  | format           | "netcdf / "NetCDF"    |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.use_real_time_in_pltname** | Use real time    | Boolean               | false      |
+|                                  | instead of time  |                       |            |
+|                                  | step for         |                       |            |
+|                                  | plotfile names   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.file_name_digits**         | Number of digits | Integer               | 5          |
+|                                  | to be appended   | :math:`> 0`           |            |
+|                                  | to the plotfile  |                       |            |
+|                                  | and checkpoint   |                       |            |
+|                                  | file names if    |                       |            |
+|                                  | using time step  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
 
-The analogous list for subvolumes contains the following options:
+List of Parameters for 3D Plotfiles
+-----------------------------------
+
++----------------------------------+------------------+-----------------------+------------+
+| Parameter                        | Definition       | Acceptable            | Default    |
+|                                  |                  | Values                |            |
++==================================+==================+=======================+============+
+| **erf.plot_file_1**              | prefix for       | String                | “*plt_1_*” |
+|                                  | plotfiles        |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_file_2**              | prefix for       | String                | “*plt_2_*” |
+|                                  | plotfiles        |                       |            |
+|                                  | at seoncd freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_int_1**               | how often (by    | Integer               | -1         |
+|                                  | level-0 time     | :math:`> 0`           |            |
+|                                  | steps) to write  |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_int_2**               | how often (by    | Integer               | -1         |
+|                                  | level-0 time     | :math:`> 0`           |            |
+|                                  | steps) to write  |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_1**               | how often (in    | Real                  | -1.0       |
+|                                  | simulation time) | :math:`> 0`           |            |
+|                                  | to write         |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_2**               | how often (in    | Real                  | -1.0       |
+|                                  | simulation time) | :math:`> 0`           |            |
+|                                  | to write         |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_vars_1**              | name of          | list of names         | None       |
+|                                  | variables to     |                       |            |
+|                                  | include in       |                       |            |
+|                                  | plotfiles        |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_vars_2**              | name of          | list of names         | None       |
+|                                  | variables to     |                       |            |
+|                                  | include in       |                       |            |
+|                                  | plotfiles        |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_face_vels**           | output plotfiles | Boolean               | false      |
+|                                  | "{prefix}U",     |                       |            |
+|                                  | "{prefix}V", and |                       |            |
+|                                  | "{prefix}W"      |                       |            |
+|                                  | with velocity    |                       |            |
+|                                  | components on the|                       |            |
+|                                  | staggered grid.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+
+List of Parameters for 2D Plotfiles
+-----------------------------------
+
++-----------------------------+------------------+-----------------------+--------------+
+| Parameter                   | Definition       | Acceptable            | Default      |
+|                             |                  | Values                |              |
++=============================+==================+=======================+==============+
+| **erf.plot2d_file_1**       | prefix for       | String                | “*plt2d_1_*” |
+|                             | 2d plotfiles     |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_file_2**       | prefix for       | String                | “*plt2d_2_*” |
+|                             | 2d plotfiles     |                       |              |
+|                             | at seoncd freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_int_1**        | how often (by    | Integer               | -1           |
+|                             | level-0 time     | :math:`> 0`           |              |
+|                             | steps) to write  |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_int_2**        | how often (by    | Integer               | -1           |
+|                             | level-0 time     | :math:`> 0`           |              |
+|                             | steps) to write  |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_per_1**        | how often (in    | Real                  | -1.0         |
+|                             | simulation time) | :math:`> 0`           |              |
+|                             | to write         |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_per_2**        | how often (in    | Real                  | -1.0         |
+|                             | simulation time) | :math:`> 0`           |              |
+|                             | to write         |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_vars_1**       | name of          | list of names         | None         |
+|                             | variables to     |                       |              |
+|                             | include in       |                       |              |
+|                             | 2d plotfiles     |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_vars_2**       | name of          | list of names         | None         |
+|                             | variables to     |                       |              |
+|                             | include in       |                       |              |
+|                             | p2d lotfiles     |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.file_name_digits**    | Number of digits | Integer               | 5            |
+|                             | to be appended   | :math:`> 0`           |              |
+|                             | to the plot file |                       |              |
+|                             | names            |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+
+List of Parameters for Subvolumes
+-----------------------------------
 
 +-----------------------------+-------------------+-----------------------+---------------+
 | Parameter                   | Definition        | Acceptable            | Default       |
@@ -166,8 +259,8 @@ storage of the time averaged variables with ``erf.time_avg_vel = true``.
 Subvolumes current default to plotting only the three velocity components but will
 be generalized in future.
 
-Output Options
---------------
+Output Options for 3D plotfiles
+-------------------------------
 
 +-----------------------------+------------------+
 | Parameter                   | Definition       |
@@ -244,8 +337,7 @@ Output Options
 | **KE**                      | SGS turbulent    |
 |                             | kinetic energy   |
 |                             | (from Deardorff  |
-|                             |  or MYNN)        |
-|                             |                  |
+|                             | or MYNN)         |
 +-----------------------------+------------------+
 | **rhoKE**                   | Density * KE     |
 |                             |                  |
@@ -358,6 +450,176 @@ Output Options
 |                             | mixing ratio     |
 |                             |                  |
 +-----------------------------+------------------+
+
+Morrison Microphysics Output
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When using Morrison two-moment microphysics, additional diagnostic variables
+are available for output. These variables provide detailed information about
+cloud and precipitation processes. To enable Morrison output, include any of
+the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
+
+**Thermodynamic State Variables:**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_rho**               | Air density      |
+|                             | (kg/m³)          |
++-----------------------------+------------------+
+| **micro_theta**             | Potential        |
+|                             | temperature (K)  |
++-----------------------------+------------------+
+| **micro_temp**              | Absolute         |
+|                             | temperature (K)  |
++-----------------------------+------------------+
+| **micro_pres**              | Pressure (Pa)    |
+|                             |                  |
++-----------------------------+------------------+
+
+**Non-Precipitating Moisture Variables (mixing ratios in kg/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_qv**                | Water vapor      |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qc**                | Cloud liquid     |
+|                             | water mixing     |
+|                             | ratio            |
++-----------------------------+------------------+
+| **micro_qi**                | Cloud ice        |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qn**                | Total cloud      |
+|                             | condensate       |
+|                             | (qc + qi)        |
++-----------------------------+------------------+
+| **micro_qt**                | Total water      |
+|                             | mixing ratio     |
+|                             | (qv + qn)        |
++-----------------------------+------------------+
+
+**Precipitating Hydrometeor Variables (mixing ratios in kg/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_qp**                | Total            |
+|                             | precipitation    |
+|                             | (qrain + qsnow + |
+|                             | qgraup)          |
++-----------------------------+------------------+
+| **micro_qrain**             | Rain water       |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qsnow**             | Snow mixing      |
+|                             | ratio            |
++-----------------------------+------------------+
+| **micro_qgraup**            | Graupel mixing   |
+|                             | ratio            |
++-----------------------------+------------------+
+
+**Number Concentrations (1/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_nc**                | Cloud droplet    |
+|                             | number           |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_nr**                | Rain drop number |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ni**                | Cloud ice number |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ns**                | Snow number      |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ng**                | Graupel number   |
+|                             | concentration    |
++-----------------------------+------------------+
+
+**Dynamical Variables:**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_omega**             | Grid-scale       |
+|                             | vertical         |
+|                             | velocity (m/s)   |
+|                             | used as input to |
+|                             | Morrison scheme  |
++-----------------------------+------------------+
+
+**Example Usage:**
+
+To output Morrison diagnostic variables, add them to your plot variables list:
+
+.. code-block:: text
+
+   erf.plot_vars_1 = density theta qv micro_qc micro_qrain micro_nc micro_nr
+
+This will output the base ERF variables (density, theta, qv) along with Morrison
+cloud water, rain water, cloud droplet number concentration, and rain drop number
+concentration.
+
+Output Options for 2D plotfiles
+-------------------------------
+
++-------------------+----------------------------+
+| Parameter         | Definition                 |
+|                   |                            |
++===================+============================+
+| **z_surf**        | Surface elevation          |
++-------------------+----------------------------+
+| **landmask**      | Land-sea mask              |
+|                   | (land=1, sea=0)            |
++-------------------+----------------------------+
+| **mapfac**        | Map factors                |
++-------------------+----------------------------+
+| **lat_m**         | Latitude (at unstaggered   |
+|                   | "mass" points)             |
++-------------------+----------------------------+
+| **u_star**        | Friction velocity          |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **t_star**        | Temperature scale          |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **q_star**        | Humidity scale             |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **Olen**          | Obukhov length             |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **pblh**          | Diagnosed PBL height       |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **t_surf**        | Surface temperature        |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **q_surf**        | Surface humidity           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **z0**            | Roughness height           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **OLR**           | Outgoing long wavelength   |
+|                   | radiation (with RRTMGP)    |
++-------------------+----------------------------+
+| **sens_flux**     | Sensible heat flux         |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **laten_flux**    | Latent heat flux           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **surf_pres**     | Surface pressure           |
+|                   |                            |
++-------------------+----------------------------+
 
 Examples of Usage
 -----------------

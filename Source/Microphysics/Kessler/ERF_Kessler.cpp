@@ -10,20 +10,24 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
-    auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
-    if (solverChoice.moisture_type == MoistureType::Kessler){
-        auto dz = m_geom.CellSize(2);
-        auto domain = m_geom.Domain();
-        int k_lo = domain.smallEnd(2);
-        int k_hi = domain.bigEnd(2);
-
+    bool do_cond = m_do_cond;
+    auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
+    auto domain  = m_geom.Domain();
+    int i_lo = domain.smallEnd(0);
+    int i_hi = domain.bigEnd(0);
+    int j_lo = domain.smallEnd(1);
+    int j_hi = domain.bigEnd(1);
+    int k_lo = domain.smallEnd(2);
+    int k_hi = domain.bigEnd(2);
+    if (solverChoice.moisture_type == MoistureType::Kessler)
+    {
         MultiFab fz;
         auto ba    = tabs->boxArray();
         auto dm    = tabs->DistributionMap();
         fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
         Real dtn  = dt;
-        Real coef = dtn/dz;
+        Real coef = dtn/m_dzmin;
 
         // Saturation and evaporation calculations go first
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -36,7 +40,11 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
             auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
-            const auto& tbx = mfi.tilebox();
+            auto tbx = mfi.tilebox();
+            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
@@ -75,17 +83,17 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real fac = (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
-                if (qv_array(i,j,k) > qsat) {
+                if ( (qv_array(i,j,k) > qsat) && do_cond ) {
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
                 }
 
                 // If water vapor is less than the saturated value, then the cloud water can evaporate,
                 // leading to evaporative cooling and reducing temperature
-                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0) {
+                if ( (qv_array(i,j,k) < qsat) && (qc_array(i,j,k) > 0.0) && do_cond ) {
                     dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
                 }
 
-                if (qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
+                if (( qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat) ) {
                     Real C = 1.6 + 124.9*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.2046);
                     dq_rain_to_vapor = 1.0/(0.001*rho_array(i,j,k))*(1.0 - qv_array(i,j,k)/qsat)*C*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.525)/
                         (5.4e5 + 2.55e6/(pressure*qsat))*dtn;
@@ -179,7 +187,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                                        });
         wt_max = get<0>(max) + std::numeric_limits<Real>::epsilon();
         n_substep = int( std::ceil(wt_max * coef / CFL_MAX) );
-        AMREX_ALWAYS_ASSERT(n_substep >= 1);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(n_substep >= 1,
+                                         "Kessler: Number of precipitation substeps must be greater than 0!");
         coef /= Real(n_substep);
         dtn  /= Real(n_substep);
 
@@ -247,8 +256,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
     }
 
 
-    if (solverChoice.moisture_type == MoistureType::Kessler_NoRain){
-
+    if (solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
+        if (!do_cond) { return; }
         // get the temperature, density, theta, qt and qc from input
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
@@ -258,12 +267,16 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
             auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
-            const auto& box3d = mfi.tilebox();
+            auto tbx = mfi.tilebox();
+            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
 
-            ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
 

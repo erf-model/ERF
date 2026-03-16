@@ -17,6 +17,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -26,6 +27,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::MultiFab& yvel,
                          const amrex::MultiFab& zvel,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
                                amrex::MultiFab* SmnSmn,
                                amrex::MultiFab* eddyDiffs,
                          const amrex::Geometry geom,
@@ -33,7 +35,14 @@ void erf_make_tau_terms (int level, int nrk,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                          amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::MultiFab& detJ,
-                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                         const amrex::MultiFab& ax,
+                         const amrex::MultiFab& ay,
+                         const amrex::MultiFab& az,
+                         const eb_& ebfact);
+
+void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
@@ -46,7 +55,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& S_data,
                               const amrex::MultiFab & S_prim,
                               const amrex::MultiFab & qt,
-                      amrex::Vector<amrex::MultiFab>& S_scratch,
+                            amrex::MultiFab& avg_xmom,
+                            amrex::MultiFab& avg_ymom,
+                            amrex::MultiFab& avg_zmom,
                       const amrex::MultiFab& xvel,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
@@ -58,6 +69,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab& buoyancy,
                       const amrex::MultiFab* zmom_crse_rhs,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,
@@ -83,6 +95,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& gradp,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
+#ifdef ERF_USE_SHOC
+                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
 
@@ -98,7 +113,9 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::MultiFab>& S_new,
                        amrex::Vector<amrex::MultiFab>& S_data,
                        const amrex::MultiFab& S_prim,
-                       amrex::Vector<amrex::MultiFab >& S_scratch,
+                             amrex::MultiFab& avg_xmom,
+                             amrex::MultiFab& avg_ymom,
+                             amrex::MultiFab& avg_zmom,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
@@ -130,17 +147,21 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
-                       const amrex::Real& bdy_time_interval,
+                       const amrex::Real& old_stage_time_total,
                        const amrex::Real& start_bdy_time,
-                       const amrex::Real& new_stage_time,
+                       const amrex::Real& final_bdy_time,
+                       const amrex::Real& bdy_time_interval,
                        int  width,
-                       int  set_width,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
+#ifdef ERF_USE_SHOC
+                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                        amrex::YAFluxRegister* fr_as_crse,
-                       amrex::YAFluxRegister* fr_as_fine);
+                       amrex::YAFluxRegister* fr_as_fine,
+                       std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 #endif

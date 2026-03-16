@@ -25,6 +25,9 @@ using namespace amrex;
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                    const DistributionMapping& dm_in)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     BoxArray ba;
     DistributionMapping dm;
     Box domain(Geom(0).Domain());
@@ -54,19 +57,39 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     SetDistributionMap(lev, dm);
 
     if (verbose) {
-        amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+        amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+        // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
+    }
+
+    subdomains.resize(lev+1);
+    if ( (lev == 0) || (
+         (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) &&
+         (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
+        BoxArray dom(geom[lev].Domain());
+        subdomains[lev].push_back(dom);
+    } else {
+        //
+        // Create subdomains at each level within the domain such that
+        // 1) all boxes in a given subdomain are "connected"
+        // 2) no boxes in a subdomain touch any boxes in any other subdomain
+        //
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     if (lev == 0) init_bcs();
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        eb[lev]->make_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-    } else {
-        // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+        }
     }
 
     auto& lev_new = vars_new[lev];
@@ -81,9 +104,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
-    int lsm_size  = lsm.Get_Data_Size();
-    lsm_data[lev].resize(lsm_size);
-    lsm_flux[lev].resize(lsm_size);
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
@@ -91,8 +117,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
     }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
+
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -127,16 +159,22 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, start_time);
+            //
+            // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
+            //
+            init_only(lev, time);
             init_zphys(lev, time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
+            //
+            // Note that "time" here is elapsed time, and start_time = 0 when not using wrfinput/metgrid
+            //
             init_zphys(lev, time);
             update_terrain_arrays(lev);
             // Note that for init_type != InitType::WRFInput and != InitType::Metgrid,
             // make_physbcs is called inside init_only
-            init_only(lev, start_time);
+            init_only(lev, time);
         }
     } else {
         // if restarting and nudging from input sounding, load the input sounding files
@@ -158,11 +196,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
-            if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+            if (solverChoice.sounding_type == SoundingType::Ideal) {
+                input_sounding_data.calc_rho_p(0);
+            } else if (solverChoice.sounding_type == SoundingType::Isentropic ||
+                       solverChoice.sounding_type == SoundingType::DryIsentropic) {
+                input_sounding_data.assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
+                input_sounding_data.calc_rho_p_isentropic(0);
+            }
         }
 
         // We re-create terrain_blanking on restart rather than storing it in the checkpoint
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             int ngrow = ComputeGhostCells(solverChoice) + 2;
             terrain_blanking[lev]->setVal(1.0);
             MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
@@ -184,24 +229,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
             m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
-        }
-    }
-
-    //********************************************************************************************
-    // Create wall distance field for RANS model (depends upon z_phys)
-    // *******************************************************************************************
-    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
-        // Handle bottom boundary
-        poisson_wall_dist(lev);
-
-        // Correct the wall distance for immersed bodies
-        if (solverChoice.advChoice.have_zero_flux_faces) {
-            thinbody_wall_dist(walldist[lev],
-                               solverChoice.advChoice.zero_xflux,
-                               solverChoice.advChoice.zero_yflux,
-                               solverChoice.advChoice.zero_zflux,
-                               geom[lev],
-                               z_phys_cc[lev]);
         }
     }
 
@@ -240,7 +267,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 #ifdef ERF_USE_PARTICLES
     if (restart_chkfile.empty()) {
         if (lev == 0) {
-            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
+            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
         } else {
             particleData.Redistribute();
         }
@@ -256,31 +283,69 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     AMREX_ALWAYS_ASSERT(lev > 0);
 
     if (verbose) {
         amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
     }
 
+    //
+    // Grow the subdomains vector and build the subdomains vector at this level
+    //
+    subdomains.resize(lev+1);
+    //
+    // Create subdomains at each level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    if ( (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) ) {
+        BoxArray dom(geom[lev].Domain());
+        subdomains[lev].push_back(dom);
+    } else {
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
+    }
+
+    if (lev == 0) init_bcs();
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
-    //      terrain arrays, metric terms and base state.
+    //      terrain arrays, ba2d, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    //
+    // Note that t_new = time here is elapsed time
+    //
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
     // ********************************************************************************************
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
+    {
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+        }
+    }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //     *and* if there is two-way coupling
     //
-    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -293,6 +358,33 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (solverChoice.do_forest_drag) {
         m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
     }
+
+    //********************************************************************************************
+    // Radiation
+    // *******************************************************************************************
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
+    }
+
+    // *****************************************************************************************************
+    // Initialize the boundary conditions (after initializing the terrain but before calling
+    //     initHSE or FillCoarsePatch)
+    // *****************************************************************************************************
+    make_physbcs(lev);
+
+    // ********************************************************************************************
+    // Update the base state at this level by interpolation from coarser level
+    // ********************************************************************************************
+    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
+                          geom[lev-1], geom[lev],
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
+
+    // Impose bc's outside the domain
+    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
     //********************************************************************************************
     // Microphysics
@@ -310,21 +402,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
-    // *****************************************************************************************************
-    // Initialize the boundary conditions (after initializing the terrain but before calling
-    //     initHSE or FillCoarsePatch)
-    // *****************************************************************************************************
-    make_physbcs(lev);
-
-    // ********************************************************************************************
-    // Update the base state at this level by interpolation from coarser level (inside initHSE)
-    // ********************************************************************************************
-    initHSE(lev);
-
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
+
+    // ********************************************************************************************
+    // Build the data structures for holding sea surface temps and skin temps
+    // ********************************************************************************************
+    sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    tsk_lev[lev].resize(1);     tsk_lev[lev][0] = nullptr;
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level
@@ -332,7 +419,44 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //      then interpolate momentum, then convert momentum back to velocity
     // Also note that FillCoarsePatch is hard-wired to act only on lev_new at coarse and fine
     // ********************************************************************************************
+
+#ifdef ERF_USE_NETCDF
+    if ( ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) ) &&
+         !nc_init_file[lev].empty() )
+    {
+        // Just making sure that ghost cells aren't uninitialized...
+        vars_new[lev][Vars::cons].setVal(0.0); vars_old[lev][Vars::cons].setVal(0.0);
+        vars_new[lev][Vars::xvel].setVal(0.0); vars_old[lev][Vars::xvel].setVal(0.0);
+        vars_new[lev][Vars::yvel].setVal(0.0); vars_old[lev][Vars::yvel].setVal(0.0);
+        vars_new[lev][Vars::zvel].setVal(0.0); vars_old[lev][Vars::zvel].setVal(0.0);
+
+        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
+        if (solverChoice.init_type == InitType::Metgrid) {
+            init_from_metgrid(lev);
+        } else if (solverChoice.init_type == InitType::WRFInput) {
+            init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+        }
+        init_zphys(lev, time);
+        update_terrain_arrays(lev);
+        make_physbcs(lev);
+
+        dz_min[lev] = (*detJ_cc[lev]).min(0) * geom[lev].CellSize(2);
+
+    } else {
+#endif
+    //
+    // Interpolate the solution data
+    //
     FillCoarsePatch(lev, time);
+
+    //
+    // Interpolate the 2D arrays at the lower boundary
+    // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
+    // so we must explicitly pass dm.
+    Interp2DArrays(lev,ba2d[lev],dm);
+#ifdef ERF_USE_NETCDF
+    }
+#endif
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -349,17 +473,62 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
+    // For anelastic levels created from coarse (either on restart or during a run), project the
+    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev]
+    // via the pressure projection, handling both the pure-anelastic case and the hybrid case
+    // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
+    // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
+    // ********************************************************************************************
+    if (solverChoice.anelastic[lev]) {
+        Real dummy_dt = 1.0;
+        project_initial_velocity(lev, time, dummy_dt);
+        pp_inc[lev].setVal(0.0);
+    }
+
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
+    // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
     // ********************************************************************************************
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
         Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                      &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,lev+1,
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
+
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -374,6 +543,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     if (verbose) {
         amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
     }
@@ -385,6 +557,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     if (verbose) {
         amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    }
+
+    //
+    // Re-define subdomain at this level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    if (solverChoice.anelastic[lev] == 1) {
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
@@ -407,13 +588,28 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
-    remake_zphys(lev, time, temp_zphys_nd);
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
+    {
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+        }
+    }
+    remake_zphys(lev, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     // ********************************************************************************************
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Note that this shouldn't be necessary because the fine grid is created by interpolation
+    // from the coarse ... but just in case ...
     // ********************************************************************************************
-    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -460,10 +656,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // NOTE: we must create the new base state before calling FillPatch because we will
         //       interpolate perturbational quantities
         // *************************************************************************************************
-        FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                              &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                             {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                             base_state[lev], temp_base_state, false);
+        FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                           base_state[lev], temp_base_state, false);
     } else {
         temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
                                      base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
@@ -495,6 +691,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         std::swap(temp_lev_old[var_idx], vars_old[lev][var_idx]);
     }
 
+    //
+    // Note that t_new = time here is elapsed time
+    //
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -519,6 +718,14 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
+    //********************************************************************************************
+    // Radiation
+    // *******************************************************************************************
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
+    }
+
     // ********************************************************************************************
     // Initialize the integrator class
     // ********************************************************************************************
@@ -533,6 +740,51 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         }
     }
 
+    // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
+    // For a level 0 regrid we must explicitly do them here
+    if (lev == 0) {
+        // Define grids[lev] to be ba
+        SetBoxArray(lev, ba);
+
+        // Define dmap[lev] to be dm
+        SetDistributionMap(lev, dm);
+    }
+
+    // ********************************************************************************************
+    // Initialize the 2D data structures
+    // ********************************************************************************************
+    // NOTE: 2D MFs must be filled before SurfaceLayer is defined since SL class uses sst/tsk
+    // Clear the 2D arrays
+    if (sst_lev[lev][0]) {
+        for (int n = 0; n < sst_lev[lev].size(); n++) {
+            sst_lev[lev][n].reset();
+        }
+    }
+    if (tsk_lev[lev][0]) {
+        for (int n = 0; n < tsk_lev[lev].size(); n++) {
+            tsk_lev[lev][n].reset();
+        }
+    }
+    if (lat_m[lev]) {
+        lat_m[lev].reset();
+    }
+    if (lon_m[lev]) {
+        lon_m[lev].reset();
+    }
+    if (sinPhi_m[lev]) {
+        sinPhi_m[lev].reset();
+    }
+    if (cosPhi_m[lev]) {
+        cosPhi_m[lev].reset();
+    }
+
+    //
+    // Interpolate the 2D arrays at the lower boundary. We assume that since we created
+    //     them by interpolation it is ok just to recreate them by interpolation.
+    // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
+    //     so we must explicitly pass dm.
+    Interp2DArrays(lev,ba2d[lev],dm);
+
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level
     // ********************************************************************************************
@@ -544,17 +796,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
-    // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
-    // For a level 0 regrid we must explicitly do them here
-    if (lev == 0) {
-        // Define grids[lev] to be ba
-        SetBoxArray(lev, ba);
-
-        // Define dmap[lev] to be dm
-        SetDistributionMap(lev, dm);
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -564,6 +816,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
 //
 // Delete level data (overrides the pure virtual function in AmrCore)
+// NOTE: this is only called for levels that no longer exist
 //
 void
 ERF::ClearLevel (int lev)
@@ -586,9 +839,15 @@ ERF::ClearLevel (int lev)
         zmom_crse_rhs[lev].clear();
     }
 
-    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
+    if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].clear();
     }
+    if (solverChoice.anelastic[lev] == 0) {
+        lagged_delta_rt[lev].clear();
+    }
+    avg_xmom[lev].clear();
+    avg_ymom[lev].clear();
+    avg_zmom[lev].clear();
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
@@ -602,6 +861,30 @@ ERF::ClearLevel (int lev)
 
     // Clears the flux register array
     advflux_reg[lev]->reset();
+
+    // Clears the 2D arrays
+    if (sst_lev[lev][0]) {
+        for (int n = 0; n < sst_lev[lev].size(); n++) {
+            sst_lev[lev][n].reset();
+        }
+    }
+    if (tsk_lev[lev][0]) {
+        for (int n = 0; n < tsk_lev[lev].size(); n++) {
+            tsk_lev[lev][n].reset();
+        }
+    }
+    if (lat_m[lev]) {
+        lat_m[lev].reset();
+    }
+    if (lon_m[lev]) {
+        lon_m[lev].reset();
+    }
+    if (sinPhi_m[lev]) {
+        sinPhi_m[lev].reset();
+    }
+    if (cosPhi_m[lev]) {
+        cosPhi_m[lev].reset();
+    }
 }
 
 void

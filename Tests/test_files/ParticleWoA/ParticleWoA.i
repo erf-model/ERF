@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Particles Over Witch of Agnesi Hill"
+
+erf.init_type = Isentropic
+
 max_step =  10
 
 amrex.fpe_trap_invalid = 1
@@ -53,7 +57,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 erf.les_type = "None"
 
 # MULTILEVEL
@@ -86,3 +89,6 @@ erf.alpha_T           = 0.0 # [m^2/s]
 prob.T_0   = 300.0
 prob.U_0   = 10.0
 prob.rho_0 = 1.16
+
+prob.custom_terrain_type = "WoA"
+prob.hill_ampl = 0.5

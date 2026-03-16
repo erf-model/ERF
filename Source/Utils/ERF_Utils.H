@@ -8,6 +8,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_FillPatcher.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary
@@ -52,7 +53,9 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& ymom_in,
                          const amrex::MultiFab& zmom_in,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
+                        );
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces
@@ -68,7 +71,9 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
+                        );
 
 /*
  * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)
@@ -77,6 +82,15 @@ void
 ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
                       amrex::MultiFab& xmom, amrex::MultiFab& ymom, amrex::MultiFab& zmom,
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
+ * \brief Enforces solvability by scaling outflow to match with inflow.
+ *
+ */
+void enforceInOutSolvability (int lev,
+                              amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& vels_vec,
+                              amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                              const amrex::Geometry& geom);
 
 /*
  * Compute boxes for looping over interior/exterior ghost cells
@@ -89,40 +103,28 @@ void realbdy_interior_bxs_xy (const amrex::Box& bx,
                               amrex::Box& bx_xhi,
                               amrex::Box& bx_ylo,
                               amrex::Box& bx_yhi,
-                              const int& set_width=0,
                               const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0),
                               const bool get_int_ng=false);
 
 /*
- * Compute boxes for looping over set region cells
- * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
- */
-void realbdy_bc_bxs_xy (const amrex::Box& bx,
-                        const amrex::Box& domain,
-                        const int& set_width,
-                        amrex::Box& bx_xlo,
-                        amrex::Box& bx_xhi,
-                        amrex::Box& bx_ylo,
-                        amrex::Box& bx_yhi,
-                        const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0));
-
-/*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
-                                         const amrex::Real& start_bdy_time,
-                                         const amrex::Real& time,
+void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          const amrex::Real& delta_t,
+                                         const amrex::Real& start_bdy_time,
+                                         const amrex::Real& final_bdy_time,
+                                         const amrex::Real& bdy_time_interval,
+                                         const amrex::Real& nudge_factor,
                                          int width,
-                                         int set_width,
+                                         bool do_upwind,
                                          const amrex::Geometry& geom,
                                          amrex::Vector<amrex::MultiFab>& S_rhs,
-                                         amrex::Vector<amrex::MultiFab>& S_old_data,
                                          amrex::Vector<amrex::MultiFab>& S_cur_data,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
@@ -153,95 +155,12 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
                    amrex::MultiFab& zvel);
 
 /**
- * Zero RHS in the set region
- *
- * @param[in] icomp component offset
- * @param[in] num_var number of variables to loop
- * @param[in] bx_xlo box for low x relaxation
- * @param[in] bx_xhi box for high x relaxation
- * @param[in] bx_ylo box for low y relaxation
- * @param[in] bx_yhi box for high y relaxation
- * @param[out] rhs_arr RHS array
- */
-AMREX_GPU_HOST
-AMREX_FORCE_INLINE
-void
-realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
-                                const int& icomp,
-                                const int& num_var,
-                                const int& width,
-                                const int& set_width_x,
-                                const int& set_width_y,
-                                const amrex::Dim3& dom_lo,
-                                const amrex::Dim3& dom_hi,
-                                const amrex::Box& bx_xlo,
-                                const amrex::Box& bx_xhi,
-                                const amrex::Box& bx_ylo,
-                                const amrex::Box& bx_yhi,
-                                const amrex::Array4<const amrex::Real>& arr_xlo,
-                                const amrex::Array4<const amrex::Real>& arr_xhi,
-                                const amrex::Array4<const amrex::Real>& arr_ylo,
-                                const amrex::Array4<const amrex::Real>& arr_yhi,
-                                const amrex::Array4<const amrex::Real>& data_arr,
-                                const amrex::Array4<amrex::Real>& rhs_arr)
-{
-    int Spec_z_x = set_width_x;
-    int Spec_z_y = set_width_y;
-    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-    {
-        // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind_y = jj + 1;
-        int n_ind_x = i - dom_lo.x + 1;
-        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
-            rhs_arr(i,j,k,n+icomp) = tend;
-        }
-    },
-    bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-    {
-        // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind_y = jj + 1;
-        int n_ind_x = dom_hi.x - i + 1;
-        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
-            rhs_arr(i,j,k,n+icomp) = tend;
-        }
-    });
-
-    amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-    {
-        // No corners for y boxes
-        int n_ind = j - dom_lo.y + 1;
-        if (n_ind <= Spec_z_y) {
-            amrex::Real tend = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
-            rhs_arr(i,j,k,n+icomp) = tend;
-        }
-    },
-    bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-    {
-        // No corners for y boxes
-        int n_ind = dom_hi.y - j + 1;
-        if (n_ind <= Spec_z_y) {
-            amrex::Real tend = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
-            rhs_arr(i,j,k,n+icomp) = tend;
-        }
-    });
-}
-
-/**
- * Compute the Laplacian RHS in the relaxation zone
+ * Compute the nudging relaxation
  *
  * @param[in] delta_t time step
  * @param[in] icomp component offset
  * @param[in] num_var number of variables to loop
  * @param[in] width width of wrf bdy file
- * @param[in] set_width width the set region
  * @param[in] dom_lo low bound of domain
  * @param[in] dom_hi high bound of domain
  * @param[in] F1 drift relaxation parameter
@@ -260,121 +179,131 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-realbdy_compute_laplacian_relaxation (const int& icomp,
-                                      const int& num_var,
-                                      const int& width,
-                                      const int& set_width,
-                                      const amrex::Dim3& dom_lo,
-                                      const amrex::Dim3& dom_hi,
-                                      const amrex::Real& F1,
-                                      const amrex::Real& F2,
-                                      const amrex::Box& bx_xlo,
-                                      const amrex::Box& bx_xhi,
-                                      const amrex::Box& bx_ylo,
-                                      const amrex::Box& bx_yhi,
-                                      const amrex::Array4<const amrex::Real>& arr_xlo,
-                                      const amrex::Array4<const amrex::Real>& arr_xhi,
-                                      const amrex::Array4<const amrex::Real>& arr_ylo,
-                                      const amrex::Array4<const amrex::Real>& arr_yhi,
-                                      const amrex::Array4<const amrex::Real>& data_arr,
-                                      const amrex::Array4<amrex::Real>& rhs_arr)
+realbdy_compute_relaxation (const int& icomp,
+                            const int& num_var,
+                            const int& width,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
+                            const amrex::Real& F1,
+                            const amrex::Box& domain_cc,
+                            const amrex::Box& bx_xlo,
+                            const amrex::Box& bx_xhi,
+                            const amrex::Box& bx_ylo,
+                            const amrex::Box& bx_yhi,
+                            const amrex::Array4<const amrex::Real>& arr_xlo,
+                            const amrex::Array4<const amrex::Real>& arr_xhi,
+                            const amrex::Array4<const amrex::Real>& arr_ylo,
+                            const amrex::Array4<const amrex::Real>& arr_yhi,
+                            const amrex::Array4<const amrex::Real>& u_xlo,
+                            const amrex::Array4<const amrex::Real>& u_xhi,
+                            const amrex::Array4<const amrex::Real>& v_xlo,
+                            const amrex::Array4<const amrex::Real>& v_xhi,
+                            const amrex::Array4<const amrex::Real>& v_ylo,
+                            const amrex::Array4<const amrex::Real>& v_yhi,
+                            const amrex::Array4<const amrex::Real>& data_arr,
+                            const amrex::Array4<amrex::Real>& rhs_arr,
+                            const bool& do_upwind)
 {
-    // RHS computation
-    int Spec_z  = set_width;
-    int Relax_z = width - Spec_z + 1;
-    amrex::Real num     = amrex::Real(Spec_z + Relax_z);
-    amrex::Real denom   = amrex::Real(Relax_z - 1);
-    amrex::Real SpecExp = -std::log(0.1) / amrex::Real(width - Spec_z);
+    amrex::IntVect iv = bx_xlo.type();
+    amrex::Real ioff  = (iv[0]==1) ? 0.0 : 0.5;
+    amrex::Real joff  = (iv[1]==1) ? 0.0 : 0.5;
+    const auto& dom_cc_lo = lbound(domain_cc);
+    const auto& dom_cc_hi = ubound(domain_cc);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        //AMREX_ASSERT(n_ind > Spec_z);
-        amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
-        amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
-        amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
-        amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
-        amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
-        amrex::Real delta    = arr_xlo(i  ,j  ,k,n) - d;
-        amrex::Real delta_xp = arr_xlo(i+1,j  ,k,n) - d_ip1;
-        amrex::Real delta_xm = arr_xlo(i-1,j  ,k,n) - d_im1;
-        amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
-        amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
-        amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
+        amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
+        amrex::Real x_end  = ProbLo[0] + width * dx[0];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
+        amrex::Real xi     = (x_end - x) / (x_end - ProbLo[0]);
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
+        amrex::Real eta    = std::max(eta_lo,eta_hi);
+        amrex::Real Factor = std::max(xi*xi,eta*eta);
+
+        amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+        amrex::Real Temp  = Factor*F1*delta;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+            if ( (u_xlo(dom_cc_lo.x,jju,k) >= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        //AMREX_ASSERT(n_ind > Spec_z);
-        amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
-        amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
-        amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
-        amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
-        amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
-        amrex::Real delta    = arr_xhi(i  ,j  ,k,n) - d;
-        amrex::Real delta_xp = arr_xhi(i+1,j  ,k,n) - d_ip1;
-        amrex::Real delta_xm = arr_xhi(i-1,j  ,k,n) - d_im1;
-        amrex::Real delta_yp = arr_xhi(i  ,j+1,k,n) - d_jp1;
-        amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
-        amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
+        amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
+        amrex::Real x_strt = ProbHi[0] - width * dx[0];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
+        amrex::Real xi     = (x - x_strt) / (ProbHi[0] - x_strt);
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
+        amrex::Real eta    = std::max(eta_lo,eta_hi);
+        amrex::Real Factor = std::max(xi*xi,eta*eta);
+
+        amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+        amrex::Real Temp  = Factor*F1*delta;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+            if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     });
 
     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // No corners for y boxes
-        int n_ind = j - dom_lo.y + 1;
-        //AMREX_ASSERT(n_ind > Spec_z);
-        amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
-        amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
-        amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
-        amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
-        amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
-        amrex::Real delta    = arr_ylo(i  ,j  ,k,n) - d;
-        amrex::Real delta_xp = arr_ylo(i+1,j  ,k,n) - d_ip1;
-        amrex::Real delta_xm = arr_ylo(i-1,j  ,k,n) - d_im1;
-        amrex::Real delta_yp = arr_ylo(i  ,j+1,k,n) - d_jp1;
-        amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
-        amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
+        amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
+        amrex::Real Factor = eta*eta;
+
+        amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+        amrex::Real Temp  = Factor*F1*delta;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+            if (v_ylo(iiv,dom_cc_lo.y,k) >= 0.0) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // No corners for y boxes
-        int n_ind = dom_hi.y - j + 1;
-        //AMREX_ASSERT(n_ind > Spec_z);
-        amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
-        amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
-        amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
-        amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
-        amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
-        amrex::Real delta    = arr_yhi(i  ,j  ,k,n) - d;
-        amrex::Real delta_xp = arr_yhi(i+1,j  ,k,n) - d_ip1;
-        amrex::Real delta_xm = arr_yhi(i-1,j  ,k,n) - d_im1;
-        amrex::Real delta_yp = arr_yhi(i  ,j+1,k,n) - d_jp1;
-        amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
-        amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
+        amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
+        amrex::Real Factor = eta*eta;
+
+        amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+        amrex::Real Temp  = Factor*F1*delta;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+            if (v_yhi(iiv,dom_cc_hi.y+1,k) >= 0.0) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     });
 }
 
@@ -432,4 +361,21 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     amrex::Vector<amrex::IntVect>& zfaces,
                     const amrex::Geometry& geomdata,
                     std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+
+
+void WeatherDataInterpolation(const amrex::Real time);
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+quad_interp_1d(amrex::Real z,
+               amrex::Real z0, amrex::Real p0,
+               amrex::Real z1, amrex::Real p1,
+               amrex::Real z2, amrex::Real p2)
+{
+    return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
+         + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )
+         + p2 * ( (z - z0) * (z - z1) ) / ( (z2 - z0) * (z2 - z1) );
+}
+
 #endif

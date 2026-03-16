@@ -54,10 +54,8 @@ public:
     Define (SolverChoice& sc) override
     {
         m_fac_cond = lcond / sc.c_p;
-        m_fac_fus = lfus / sc.c_p;
-        m_fac_sub = lsub / sc.c_p;
-        m_gOcp = CONST_GRAV / sc.c_p;
-        m_axis = sc.ave_plane;
+        m_axis     = sc.ave_plane;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -68,6 +66,13 @@ public:
           const amrex::Real& dt_advance,
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
 
     // Copy state into micro vars
     void
@@ -115,6 +120,9 @@ public:
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
+    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+
+    void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
@@ -142,11 +150,14 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
+    // Nudging + set width
+    int m_real_width{0};
 
     // timestep
     amrex::Real dt;
+
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
 
     // number of vertical levels
     int nlev, zlo, zhi;
@@ -156,9 +167,7 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_fac_fus;
-    amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
+    bool m_do_cond;
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

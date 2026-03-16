@@ -36,7 +36,6 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         const int prim_index = cons_index - 1;
         amrex::Real interpy(0.);
         interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
-
         (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * interpy;
     });
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -76,6 +75,12 @@ AdvectionSrcForScalarsVert (const amrex::Box& bx,
                                                             flx_arr, cell_prim,
                                                             avg_xmom, avg_ymom, avg_zmom,
                                                             horiz_upw_frac, vert_upw_frac);
+        break;
+    case AdvType::Upwind_3rd_SL:
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3SL>(bx, cons_index,
+                                                              flx_arr, cell_prim,
+                                                              avg_xmom, avg_ymom, avg_zmom,
+                                                              horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Centered_4th:
         AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, cons_index,

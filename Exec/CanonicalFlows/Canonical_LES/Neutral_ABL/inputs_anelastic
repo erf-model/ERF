@@ -1,0 +1,126 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.anelastic = 1
+erf.use_fft   = true # for anelastic
+
+stop_time = 120000.0
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  2560     2560     896
+amr.n_cell           =   256      256     128
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type      = "surface_layer"
+erf.most.z0   = 0.05
+
+#erf.most.surf_temp_flux = qwall # [K-m/s]
+# --OR--
+#erf.most.surf_temp = Twall # [K]
+#erf.most.surf_heating_rate = dT/dt # [K/h]
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003 # vertical temperature gradient should be consistent with input_sounding [K/m]
+
+# TIME STEP CONTROL
+#### erf.fixed_dt        = 0.1  # fixed time step [s]
+#### erf.substepping_cfl = 0.5
+erf.cfl             = 0.5 # variable time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk       # root name of checkpoint file
+erf.check_int       = 5000      # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 5000      # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta KE
+
+# DATA COLLECTION
+erf.data_log        = surf_hist.dat mean_profiles.dat flux_profiles.dat sfs_profiles.dat
+erf.profile_int     = 100 # steps
+erf.destag_profiles = false # output quantities related to w at staggered vertical levels (optional)
+
+
+#
+# SOLVER CHOICE
+#
+##### erf.dycore_horiz_adv_type  = "Centered_6th"
+##### erf.dycore_vert_adv_type   = "Centered_6th"
+##### erf.dryscal_horiz_adv_type = "Centered_6th"
+##### erf.dryscal_vert_adv_type  = "Centered_6th"
+erf.dycore_horiz_adv_type  = "Blended_5th6th"
+erf.dycore_vert_adv_type   = "Blended_5th6th"
+erf.dryscal_horiz_adv_type = "Blended_5th6th"
+erf.dryscal_vert_adv_type  = "Blended_5th6th"
+erf.dycore_horiz_upw_frac  = 0.2
+erf.dycore_vert_upw_frac   = 0.2
+erf.dryscal_horiz_upw_frac = 0.2
+erf.dryscal_vert_upw_frac  = 0.2
+
+
+#
+# BACKGROUND CONDITIONS
+#
+
+erf.use_gravity = true
+erf.use_coriolis = true
+erf.coriolis_3d = false
+erf.latitude = 90.0  # Coriolis parameter is 1e-4
+erf.rotational_time_period = 125663.706143591729539
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 5.0 0.0 0.0
+
+erf.molec_diff_type = "None"
+
+
+#
+# TURBULENCE MODELING
+#
+
+##### erf.les_type = "Smagorinsky"
+##### erf.Cs       = 0.18
+
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 0.5
+erf.Ce        = 0.93
+erf.Ce_wall   = 3.9
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
+
+
+#
+# INITIAL CONDITIONS
+#
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+
+#
+# PROBLEM PARAMETERS
+#
+
+# divergence-free sinusoidal velocity perturbations
+prob.pert_ref_height = 50.0
+prob.pert_deltaU = 1.0
+prob.pert_deltaV = 1.0
+prob.pert_periods_U = 12.0
+prob.pert_periods_V = 12.0
+
+# random temperature perturbations
+prob.T_0_Pert_Mag = 1.0
+prob.pert_rhotheta = false  # random theta (not rho*theta) perts
+

@@ -13,8 +13,7 @@
 using namespace amrex;
 
 /**
- * Initialize density and pressure base state in
- * hydrostatic equilibrium.
+ * Initialize density and pressure base state in hydrostatic equilibrium.
  */
 void
 ERF::initHSE (int lev)
@@ -69,13 +68,41 @@ ERF::initHSE (int lev)
     if (all_boxes_touch_bottom || lev > 0) {
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
-        if (solverChoice.use_moist_background){
+        if ( (solverChoice.init_type == InitType::MoistBaseState) ||
+             (solverChoice.init_type == InitType::HindCast) )
+        {
             prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
-        } else {
+
+        }
+        else if (solverChoice.init_type == InitType::ConstantDensity)
+        {
+            // In this case we set rho from user-specified values, then integrate
+            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
+            prob->erf_init_const_dens_hse(r_hse);
+        }
+        else if (solverChoice.init_type == InitType::Uniform)
+        {
+            // In this case we set both rho and theta from user-specified values
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            prob->erf_init_const_dens_and_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,solverChoice.rdOcp);
+        }
+        else if (solverChoice.init_type == InitType::ConstantDensityLinearTheta)
+        {
+            // In this case we set both rho and theta from user-specified values
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            prob->erf_init_const_dens_and_linear_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,
+                                                        solverChoice.rdOcp,z_phys_cc[lev]);
+        }
+        else
+        {
+            // In this case we set rho from user-specified values, then integrate
+            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
-        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
+        if (solverChoice.init_type != InitType::Uniform) {
+            erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
+        }
 
         //
         // Impose physical bc's on the base state
@@ -113,8 +140,21 @@ ERF::initHSE (int lev)
         }
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
-        if (solverChoice.use_moist_background){
+        if (solverChoice.init_type == InitType::MoistBaseState) {
             prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
+
+        } else if (solverChoice.init_type == InitType::ConstantDensity) {
+
+            // In this case we set rho from user-specified values, then integrate
+            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
+            prob->erf_init_const_dens_hse(r_hse);
+
+        } else if (solverChoice.init_type == InitType::Uniform) {
+
+            // In this case we set both rho and theta from user-specified values
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            prob->erf_init_const_dens_and_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,solverChoice.rdOcp);
+
         } else {
             prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
         }
@@ -122,9 +162,13 @@ ERF::initHSE (int lev)
         erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);
 
         //
-        // Impose physical bc's on the base state
+        // Impose physical bc's on the base state (we must make new, temporary bcs object because the z_phys_nd is different)
         //
-        (*physbcs_base[lev])(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
+        ERFPhysBCFunct_base* temp_physbcs_base =
+            new ERFPhysBCFunct_base(lev, geom[lev], domain_bcs_type, domain_bcs_type_d, new_z_phys_nd,
+                                    (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+        (*temp_physbcs_base)(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
+        delete temp_physbcs_base;
 
         // Now copy back into the original arrays
         base_state[lev].ParallelCopy(new_base_state,0,0,base_state[lev].nComp(),
@@ -141,7 +185,6 @@ ERF::initHSE (int lev)
 void
 ERF::initHSE ()
 {
-    AMREX_ALWAYS_ASSERT(!init_sounding_ideal);
     for (int lev = 0; lev <= finest_level; lev++)
     {
         initHSE(lev);
