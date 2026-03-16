@@ -226,6 +226,7 @@ ERF::ERF_shared ()
 #endif
         } else if (solverChoice.rad_type == RadiationType::Simple) {
             rad[lev] = std::make_unique<RadiationSimple>(lev, solverChoice);
+            rad[lev]->setDataLogFrequency(rad_datalog_int);
         } else if (solverChoice.rad_type != RadiationType::None) {
             Abort("Don't know this radiation model!");
         }

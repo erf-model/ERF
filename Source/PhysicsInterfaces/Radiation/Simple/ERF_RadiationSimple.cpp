@@ -31,9 +31,14 @@ void RadiationSimple::Run(int& level,
                           const amrex::BoxArray& ba,
                           amrex::Geometry& geom,
                           amrex::MultiFab* cons_in,
+                          amrex::iMultiFab* lmask,
+                          amrex::MultiFab* t_surf,
                           amrex::MultiFab* lsm_fluxes,
                           amrex::MultiFab* lsm_zenith,
+                          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
+                          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
                           amrex::MultiFab* qheating_rates,
+                          amrex::MultiFab* rad_fluxes,
                           amrex::MultiFab* z_phys,
                           amrex::MultiFab* lat,
                           amrex::MultiFab* lon)
@@ -67,6 +72,8 @@ void RadiationSimple::Run(int& level,
         const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);
         const Array4<Real>& radqrlw_arr = radqrlw->array(mfi);
         const Array4<Real>& qheating_arr = qheating_rates->array(mfi);
+
+        const Array4<Real>& radfluxes_arr = rad_fluxes->array(mfi);
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -155,6 +162,9 @@ void RadiationSimple::Run(int& level,
 				qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
                 radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
+
+                // write lw dn to ERF fluxes
+                radfluxes_arr(i, j, k, 3) = flux_arr(i, j, k);  // net lw flux
             }
         });
     }
