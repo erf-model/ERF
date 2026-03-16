@@ -6,6 +6,7 @@
 
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
+#include "ERF_LargeScaleForcingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
@@ -76,6 +77,7 @@ void make_sources (int level, int nrk,
                    const amrex::Real* sinesq_at_lev_d,
                    const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
+                   LargeScaleForcingData &lsf_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
 
@@ -109,7 +111,10 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                        const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
-                             bool is_slow_step);
+                             LargeScaleForcingData &lsf_data,
+                       std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
+                       std::unique_ptr<amrex::MultiFab>& nudge_data,
+                       bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,

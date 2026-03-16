@@ -68,7 +68,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, false);
+                     input_sounding_data, lsf, turbPert, false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -106,7 +106,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                          d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                         input_sounding_data, false);
+                         input_sounding_data, lsf, lsf_data[level], nudge_data[level], false);
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;

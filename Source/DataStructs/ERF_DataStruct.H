@@ -544,6 +544,13 @@ struct SolverChoice {
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
+        pp.query("nudging_q_z1", nudging_q_z1);
+        pp.query("nudging_q_z2", nudging_q_z2);
+        pp.query("nudging_t_z1", nudging_t_z1);
+        pp.query("nudging_t_z2", nudging_t_z2);
+
+        pp.query("large_scale_forcing", large_scale_forcing);
+
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
             "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
@@ -1170,6 +1177,15 @@ struct SolverChoice {
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
+
+    amrex::Real nudging_q_z1 = 0.0;
+    amrex::Real nudging_q_z2 = 10000.0; // TODO: reasonable defaults here?
+    amrex::Real nudging_t_z1 = 0.0;
+    amrex::Real nudging_t_z2 = 10000.0;
+
+    bool large_scale_forcing = false;
+    std::string lsf_file = "";
+    amrex::Real lsf_timescale = 0.0;
 
     // MOST stress rotations
     bool use_rotate_surface_flux = false;

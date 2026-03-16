@@ -193,6 +193,9 @@ ERF::ERF_shared ()
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
 
+    nudge_data.resize(nlevs_max);
+    lsf_data.resize(nlevs_max);
+
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
 
@@ -1274,6 +1277,13 @@ ERF::InitData_post ()
                                       h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_nd[lev]);
         }
+    }
+
+    if (solverChoice.large_scale_forcing)
+    {
+        lsf.read_forcing_file();
+        lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
+        //lsf.start_time = start_time;
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
