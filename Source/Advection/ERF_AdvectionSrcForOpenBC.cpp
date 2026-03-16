@@ -251,16 +251,18 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -1.
     // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
-    int sgn = 1; if (do_lo) sgn = -1;
+    //       Therefore, momentum indexing (ivm1/2) have 1 extra cell on the high
+    //       side that should be accessed while scalar indexing (ivs1/2) does not.
+    int sgn = 1; if (do_lo) { sgn = -1; }
 
-    IntVect ivm1(i,j,k); if ( do_lo) ivm1[dir] -= sgn; // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) ivm1[dir] += sgn; // Mom indexed out  domain for do_hi
+    IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
+    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed out  domain for do_hi
 
-    IntVect ivs1(i,j,k); if ( do_lo) ivs1[dir] -= sgn; // Scalar indexed into domain for do_hi
-    IntVect ivs2(i,j,k); if (!do_lo) ivs2[dir] -= sgn; // Scalar indexed into domain for do_lo
+    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
+    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
 
     Real mom_at_cc = 0.5 * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
-    Real mom_star  =    Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
+    Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
     Real mom_grad  = ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
     Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 
