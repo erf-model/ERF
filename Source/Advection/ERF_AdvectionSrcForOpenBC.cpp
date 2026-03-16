@@ -197,7 +197,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     const int prim_index = cons_index - 1;
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         if (detJ(i,j,k) > 0.) {
             Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
