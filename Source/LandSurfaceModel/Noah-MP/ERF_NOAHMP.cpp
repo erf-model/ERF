@@ -59,7 +59,7 @@ NOAHMP::Init (const int& lev,
     BoxArray ba = cons_in.boxArray();
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
-    for (auto& b : bl_lsm) { b.setRange(2,b.smallEnd(2)); }
+    for (auto& b : bl_lsm) { b.setRange(2,0); }
     BoxArray ba_lsm(std::move(bl_lsm));
 
     // Set up lsm geometry
@@ -105,16 +105,21 @@ NOAHMP::Init (const int& lev,
     // Set noahmpio_vect to the size of local blocks (boxes)
     noahmpio_vect.resize(cons_in.local_size(), lev);
 
+    int klo = domain.smallEnd(2);
+
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
     int idb = 0;
-    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi, ++idb) {
 
         // Get bounds for the tile
-        const Box& bx = mfi.tilebox();
+        Box bx = mfi.tilebox();
 
         // Check if tile is at the lower boundary in lower z direction
-        if (bx.smallEnd(2) != domain.smallEnd(2)) { continue; }
+        if (bx.smallEnd(2) != klo) { continue; }
+
+        // Make a slab
+        bx.makeSlab(2,klo);
 
         // Get reference to the noahmpio object
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
@@ -227,19 +232,21 @@ NOAHMP::Advance_With_State (const int& lev,
 
     bool is_moist = (cons_in.nComp() > RhoQ1_comp);
 
+    int klo = domain.smallEnd(2);
+
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi, ++idb) {
 
         Box bx  = mfi.tilebox();
         Box gbx = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
 
         // Check if tile is at the lower boundary in lower z direction
-        if (bx.smallEnd(2) != domain.smallEnd(2)) { continue; }
+        if (bx.smallEnd(2) != klo) { continue; }
 
-        bx.makeSlab(2,domain.smallEnd(2));
-        gbx.makeSlab(2,domain.smallEnd(2));
+        bx.makeSlab(2,klo);
+        gbx.makeSlab(2,klo);
 
         // For limiting when populating ghost cells
         int i_lo = bx.smallEnd(0); int i_hi = bx.bigEnd(0);
@@ -272,6 +279,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Create temporary BaseFabs that will be accessible on host
         // Use The_Pinned_Arena() for host-accessible memory that can be used with GPU
+        Box bx2d = makeSlab(bx,2,0);
         FArrayBox tmp_u_phy(bx, 1, The_Pinned_Arena());
         FArrayBox tmp_v_phy(bx, 1, The_Pinned_Arena());
         FArrayBox tmp_t_phy(bx, 1, The_Pinned_Arena());
@@ -302,14 +310,14 @@ NOAHMP::Advance_With_State (const int& lev,
         auto const& tmp_coszen_arr  = tmp_coszen.array();
 
         // Copy forcing data from ERF to Noahmp.
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real qv                = (is_moist) ? CONS(i,j,0,RhoQ1_comp)/CONS(i,j,0,Rho_comp) : 0.0;
-            tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
-            tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp),qv);
+            Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : 0.0;
+            tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
+            tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
             tmp_qv_curr_arr(i,j,0) = qv;
-            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,0,RhoTheta_comp));
+            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
             tmp_swdown_arr(i,j,0)  = SWDOWN(i,j,0);
             tmp_glw_arr(i,j,0)     = GLW(i,j,0);
             tmp_coszen_arr(i,j,0)  = COSZEN(i,j,0);
@@ -386,21 +394,21 @@ NOAHMP::Advance_With_State (const int& lev,
 
 
         // Copy forcing data from Noahmp to ERF
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Limit indices to the valid box. FillBoundary will pick these up below.
             int ii = std::min(std::max(i,i_lo),i_hi);
             int jj = std::min(std::max(j,j_lo),j_hi);
 
             // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,0)    = tmp_hfx_arr(ii,jj,0)/(CONS(ii,jj,0,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,0)    = tmp_lh_arr(ii,jj,0)/(CONS(ii,jj,0,Rho_comp)*L_v);
+            t_flux_arr(i,j,k)    = tmp_hfx_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,k)    = tmp_lh_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*L_v);
 
             // NOTE: The following fluxes are nodal in xz/yz.
             //       The 2D MFs have 1 ghost cell so we can average these
             //       when using them in the surface layer class.
-            tau13_arr(i,j,0)  = tmp_tau_ew_arr(ii,jj,0)/CONS(ii,jj,0,Rho_comp);
-            tau23_arr(i,j,0)  = tmp_tau_ns_arr(ii,jj,0)/CONS(ii,jj,0,Rho_comp);
+            tau13_arr(i,j,k)  = tmp_tau_ew_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
+            tau23_arr(i,j,k)  = tmp_tau_ns_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
 
             // RRTMGP variables
             TSK(i,j,0)           = tmp_tsk_arr(ii,jj,0);

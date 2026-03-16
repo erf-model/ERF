@@ -9,6 +9,7 @@
 
 void
 read_from_metgrid (int lev,
+                   int itime,
                    const amrex::Box& domain,
                    const std::string& fname,
                    std::string& NC_dateTime,
@@ -42,10 +43,12 @@ read_from_metgrid (int lev,
 
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
-                           const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);
+                           amrex::FArrayBox& NC_hgt_fab);
 
 void
-init_state_from_metgrid (const bool use_moisture,
+init_state_from_metgrid (const int lev,
+                         const int itime,
+                         const bool use_moisture,
                          const bool interp_theta,
                          const bool metgrid_debug_quiescent,
                          const bool metgrid_debug_isothermal,
@@ -65,18 +68,15 @@ init_state_from_metgrid (const bool use_moisture,
                          amrex::FArrayBox& x_vel_fab,
                          amrex::FArrayBox& y_vel_fab,
                          amrex::FArrayBox& z_vel_fab,
-                         amrex::FArrayBox& z_phys_cc_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_ght_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_temp_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_rhum_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_pres_fab,
-                         amrex::FArrayBox& p_interp_fab,
-                         amrex::FArrayBox& t_interp_fab,
-                         amrex::FArrayBox& theta_fab,
-                         amrex::FArrayBox& mxrat_fab,
+                         amrex::FArrayBox& z_phys_nd_fab,
+                         const amrex::FArrayBox& NC_ght_fab,
+                         const amrex::FArrayBox& NC_xvel_fab,
+                         const amrex::FArrayBox& NC_yvel_fab,
+                         const amrex::FArrayBox& NC_temp_fab,
+                         const amrex::FArrayBox& NC_rhum_fab,
+                         const amrex::FArrayBox& NC_pres_fab,
+                         amrex::FArrayBox& tmp_src_fab,
+                         amrex::FArrayBox& tmp_dst_fab,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_xlo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_xhi,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_ylo,
@@ -91,16 +91,16 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& msfv_fab,
                         amrex::FArrayBox& msfm_fab,
                         const int& flag_msf,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
+                        amrex::FArrayBox& NC_MSFU_fab,
+                        amrex::FArrayBox& NC_MSFV_fab,
+                        amrex::FArrayBox& NC_MSFM_fab);
 
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
                               const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
-                              const amrex::Vector<int>& flag_psfc,
+                              const int& flag_psfc,
                               amrex::FArrayBox& state,
                               amrex::FArrayBox& r_hse_fab,
                               amrex::FArrayBox& p_hse_fab,
@@ -108,7 +108,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& th_hse_fab,
                               amrex::FArrayBox& qv_hse_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
-                              const amrex::Vector<amrex::FArrayBox>& NC_psfc_fab);
+                              const amrex::FArrayBox& NC_psfc_fab);
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
@@ -467,29 +467,22 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const int& j,
                             const int& kmax,
                             const int& src_comp,
+                            const int& dst_comp,
                             const int& itime,
                             char var_type,
                             char stag,
                             const amrex::Array4<amrex::Real const>& orig_z_full,
                             const amrex::Array4<amrex::Real const>& orig_data,
                             const amrex::Array4<amrex::Real const>& new_z_full,
-                            const amrex::Array4<amrex::Real>& new_data_full,
-                            const bool& update_bc_data,
-                            const amrex::Array4<amrex::Real>& bc_data_xlo,
-                            const amrex::Array4<amrex::Real>& bc_data_xhi,
-                            const amrex::Array4<amrex::Real>& bc_data_ylo,
-                            const amrex::Array4<amrex::Real>& bc_data_yhi,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const int>& mask)
+                            const amrex::Array4<amrex::Real>& new_data_full)
 {
     // Here we closely follow WRF's vert_interp from
     // dyn_em/module_initialize_real.F, although changes have been
     // made to accommodate interpolation relative to height instead of
     // pressure.
+    int imin_orig = amrex::lbound(amrex::Box(orig_data)).x;
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
+    int jmin_orig = amrex::lbound(amrex::Box(orig_data)).y;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
     int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
     int kmax_new  = kmax + 1;
@@ -521,17 +514,17 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         if (stag == 'M') {
             orig_z_p[k] = orig_z_full(i,j,k);
         } else if (stag == 'X') {
-            if (i == 0) {
+            if (i <= imin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (i == imax_orig) {
+            } else if (i >= imax_orig) {
                 orig_z_p[k] = orig_z_full(imax_orig-1,j,k);
             } else {
                 orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
             }
         } else if (stag == 'Y') {
-            if (j == 0) {
+            if (j <= jmin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (j == jmax_orig) {
+            } else if (j >= jmax_orig) {
                 orig_z_p[k] = orig_z_full(i,jmax_orig-1,k);
             } else {
                 orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
@@ -568,7 +561,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // Insert levels that are below the surface.
         for (int k=1; k < k_above_sfc; k++) {
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
 
@@ -588,7 +581,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
         // Insert the surface level.
         ordered_z_p[count] = orig_z_p[0];
-        ordered_data_p[count] = orig_data(i,j,0);
+        ordered_data_p[count] = orig_data(i,j,0,src_comp);
         count++;
 
         // Quoting WRF's comments, the next level to use is at,
@@ -619,7 +612,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // Insert levels that are above the surface.
         for (int k=knext; k < kmax_orig; k++) {
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
 
@@ -629,7 +622,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
         // Insert the surface.
         ordered_z_p[0] = orig_z[0];
-        ordered_data_p[0] = orig_data(i,j,0);
+        ordered_data_p[0] = orig_data(i,j,0,src_comp);
 
         // Similar to above, conditionally more strongly use the
         // surface data.
@@ -654,7 +647,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                 continue;
             }
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
         kend_order = count;
@@ -759,11 +752,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
     // Save the interpolated data.
     for (int k=0; k < kmax_new; k++) {
-        if (mask(i,j,k) && update_bc_data && bx_xlo.contains(i,j,k)) bc_data_xlo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_xhi.contains(i,j,k)) bc_data_xhi(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_ylo.contains(i,j,k)) bc_data_ylo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_yhi.contains(i,j,k)) bc_data_yhi(i,j,k,0) = new_data[k];
-        if (itime == 0) new_data_full(i,j,k,src_comp) = new_data[k];
+        if (itime == 0) new_data_full(i,j,k,dst_comp) = new_data[k];
     }
 
 }
@@ -935,6 +924,7 @@ rh_to_mxrat (int i,
              const amrex::Array4<amrex::Real const>& rhum,
              const amrex::Array4<amrex::Real const>& temp,
              const amrex::Array4<amrex::Real const>& pres,
+             int src_indx,
              const amrex::Array4<amrex::Real>& mxrat)
 {
     amrex::Real qv_max_p_safe = 10000.0; // WRF default value
@@ -953,16 +943,16 @@ rh_to_mxrat (int i,
         amrex::Real es=0.01*rhum(i,j,k)*svp1*10.0*exp(svp2*(temp(i,j,k)-svpt0)/(temp(i,j,k)-svp3));
         if (es >= pres(i,j,k)/100.0) {
             // vapor pressure exceeds total pressure
-            mxrat(i,j,k) = std::pow(10.0, -6);
+            mxrat(i,j,k,src_indx) = std::pow(10.0, -6);
         }
         else {
-            mxrat(i,j,k) = amrex::max(eps*es/(pres(i,j,k)/100.0-es), 1.0e-6);
+            mxrat(i,j,k,src_indx) = amrex::max(eps*es/(pres(i,j,k)/100.0-es), 1.0e-6);
         }
     }
     else {
         // I don't know why there's a fringe case handled in WRF where T is absolute zero...
         // Let's just deal with it here in case we also end up needing it.
-        mxrat(i,j,k) = 1.0e-6;
+        mxrat(i,j,k,src_indx) = 1.0e-6;
     }
     // See the below comment from WRF dyn_em/module_initialize_real.F rh_to_mxrat1.
     // For pressures above a defined level, reasonable Qv values should be
@@ -971,13 +961,13 @@ rh_to_mxrat (int i,
     // attempt to catch those. Also, set the minimum value for the entire
     // domain that is above the selected pressure level.
     if (pres(i,j,k) < qv_max_p_safe) {
-        if (mxrat(i,j,k) > qv_max_flag) {
-            mxrat(i,j,k) = qv_max_value;
+        if (mxrat(i,j,k,src_indx) > qv_max_flag) {
+            mxrat(i,j,k,src_indx) = qv_max_value;
         }
     }
     if (pres(i,j,k) < qv_min_p_safe) {
-        if (mxrat(i,j,k) < qv_min_flag) {
-            mxrat(i,j,k) = qv_min_value;
+        if (mxrat(i,j,k,src_indx) < qv_min_flag) {
+            mxrat(i,j,k,src_indx) = qv_min_value;
         }
     }
 }

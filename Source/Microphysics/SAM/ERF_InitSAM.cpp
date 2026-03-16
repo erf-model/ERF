@@ -42,36 +42,31 @@ SAM::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
-    // Set class data members
-    for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+    // NOTE: For multi-level not all ranks will own a box.
+    //       Furthermore, the plane average allocates space
+    //       for the entire domain. We make this consistent.
+    nlev = m_geom.Domain().length(2);
+    zlo  = m_geom.Domain().smallEnd(2);
+    zhi  = m_geom.Domain().bigEnd(2);
 
-        const auto& lo = lbound(box3d);
-        const auto& hi = ubound(box3d);
+    // parameters
+    accrrc.resize({zlo},  {zhi});
+    accrsi.resize({zlo},  {zhi});
+    accrsc.resize({zlo},  {zhi});
+    coefice.resize({zlo}, {zhi});
+    evaps1.resize({zlo},  {zhi});
+    evaps2.resize({zlo},  {zhi});
+    accrgi.resize({zlo},  {zhi});
+    accrgc.resize({zlo},  {zhi});
+    evapg1.resize({zlo},  {zhi});
+    evapg2.resize({zlo},  {zhi});
+    evapr1.resize({zlo},  {zhi});
+    evapr2.resize({zlo},  {zhi});
 
-        nlev = box3d.length(2);
-        zlo  = lo.z;
-        zhi  = hi.z;
-
-        // parameters
-        accrrc.resize({zlo},  {zhi});
-        accrsi.resize({zlo},  {zhi});
-        accrsc.resize({zlo},  {zhi});
-        coefice.resize({zlo}, {zhi});
-        evaps1.resize({zlo},  {zhi});
-        evaps2.resize({zlo},  {zhi});
-        accrgi.resize({zlo},  {zhi});
-        accrgc.resize({zlo},  {zhi});
-        evapg1.resize({zlo},  {zhi});
-        evapg2.resize({zlo},  {zhi});
-        evapr1.resize({zlo},  {zhi});
-        evapr2.resize({zlo},  {zhi});
-
-        // data (input)
-        rho1d.resize({zlo}, {zhi});
-        pres1d.resize({zlo}, {zhi});
-        tabs1d.resize({zlo}, {zhi});
-    }
+    // data (input)
+    rho1d.resize({zlo}, {zhi});
+    pres1d.resize({zlo}, {zhi});
+    tabs1d.resize({zlo}, {zhi});
 }
 
 
@@ -108,7 +103,7 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
-        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);

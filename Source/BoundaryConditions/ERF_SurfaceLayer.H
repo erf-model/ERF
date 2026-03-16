@@ -430,7 +430,7 @@ public:
       // Create a 2D ba, dm, & ghost cells
       amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
+      for (auto& b : bl2d) { b.setRange(2,0); }
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
@@ -511,6 +511,7 @@ public:
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
+                       amrex::MultiFab& cons_in,
                        const FluxIter& most_flux,
                        bool is_land);
 

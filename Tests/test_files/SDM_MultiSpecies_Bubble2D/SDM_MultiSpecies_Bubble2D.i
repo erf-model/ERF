@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "MultiSpecies Bubble"
+
 max_step  = 1
 stop_time = 3600.0
 

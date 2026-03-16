@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Supercell"
+erf.prob_name = "SuperCell"
 
 erf.init_type = MoistBaseState
 
@@ -80,3 +80,8 @@ prob.x_r = 10000.0
 prob.y_r = 10000.0
 prob.z_r = 2000.0
 prob.theta_c = 3.0
+
+prob.rayleigh_U_0 = 2.0
+prob.rayleigh_V_0 = 1.0
+prob.rayleigh_W_0 = 0.0
+prob.rayleigh_T_0 = 300.0

@@ -7,7 +7,7 @@ echo "F90FLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake
 
 Run based on inputs_moisture_SAM:
 
-cd ../../../Exec/MoistRegTests/SquallLine_2D
+cd ../../../Exec/CanonicalFlows/SquallLine_2D
 
 #echo "Appending to Make.local instead of remaking"
 #echo "FFLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local

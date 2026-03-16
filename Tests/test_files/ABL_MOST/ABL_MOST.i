@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "ABL with MOST"
+erf.prob_name = "ABL"
 
 max_step = 10
 
