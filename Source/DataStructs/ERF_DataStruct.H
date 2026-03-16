@@ -1251,7 +1251,7 @@ struct SolverChoice {
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
-    bool is_init_for_ensemble = true;
+    bool is_init_for_ensemble = false;
     amrex::Real ens_pert_correlated_radius = -1.0;
     amrex::Real ens_pert_amplitude = -1.0;
     
