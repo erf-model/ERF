@@ -179,8 +179,7 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const int& dir,
-                                    const int& icomp,
-                                    const int& ncomp,
+                                    const int& cons_index,
                                     const Array4<      Real>& cell_rhs,
                                     const Array4<const Real>& cell_prim,
                                     const Array4<const Real>& avg_xmom,
@@ -196,13 +195,11 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
     bool yopen = (dir==1);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+    const int prim_index = cons_index - 1;
 
-    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         if (detJ(i,j,k) > 0.) {
-            const int cons_index = icomp + n;
-            const int prim_index = cons_index - 1;
-
             Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
             Real prim_xhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
             Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
@@ -218,10 +215,14 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
             Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
             Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
 
-            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, prim_index, dir, cell_prim, avg_xmom, dxInv, do_lo) :
-                                              (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, prim_index, dir, cell_prim, avg_ymom, dyInv, do_lo) :
-                                              (yflux_hi - yflux_lo) * dyInv;
+            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 prim_index, dir, cell_prim,
+                                                                 avg_xmom, dxInv, do_lo) :
+                                   (xflux_hi - xflux_lo) * dxInv;
+            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 prim_index, dir, cell_prim,
+                                                                 avg_ymom, dyInv, do_lo) :
+                                   (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
             cell_rhs(i,j,k,cons_index) = -advectionSrc / detJ(i,j,k);
