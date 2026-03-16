@@ -189,7 +189,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo)
 {
-    AMREX_ALWAYS_ASSERT(dir!=2 && icomp>0);
+    AMREX_ALWAYS_ASSERT(dir!=2 && cons_index>0);
 
     bool xopen = (dir==0);
     bool yopen = (dir==1);
