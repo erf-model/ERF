@@ -6,11 +6,11 @@
         ParallelFor(bx,[=,moist_indices=solverChoice.moisture_indices] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
-            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
+            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].hi(2) == ERFBCType::ext_dir) );
             bool u_ext_dir_on_zlo = ( (bc_ptr[BCVars::xvel_bc].lo(2) == ERFBCType::ext_dir) );
-            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
+            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].hi(2) == ERFBCType::ext_dir) );
             bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
-            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
+            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir) );
 
             // This computes shear production, buoyancy production, and dissipation terms only.
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
