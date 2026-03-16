@@ -415,7 +415,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
-        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
         int k0 = bx.smallEnd()[2];
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -507,7 +507,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
         const Box& gbx    = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
         auto  Nturb_array = mf_Nturb.array(mfi);
-        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
         int k0 = gbx.smallEnd()[2];
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -516,16 +516,11 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 int lk = amrex::min(amrex::max(k, k_lo), k_hi);
 
-                Real z1 = (z_nd_arr) ? z_nd_arr(li,lj,lk) : ProbLoArr[2] + lk * dx[2];
-                Real z2 = (z_nd_arr) ? z_nd_arr(li,lj,lk+1) : ProbLoArr[2] + (lk+1) * dx[2];
+                Real z1 = z_nd_arr(li,lj,lk  );
+                Real z2 = z_nd_arr(li,lj,lk+1);
 
-                Real zturb;
-                if(z_nd_arr) {
-                    zturb = z_nd_arr(li,lj,k0) + d_hub_height;
-                } else {
-                    zturb = d_hub_height;
-                }
-                if(zturb+1e-3 > z1 and zturb+1e-3 < z2) {
+                Real zturb = z_nd_arr(li,lj,k0) + d_hub_height;
+                if (zturb+1e-3 > z1 and zturb+1e-3 < z2) {
                     SMark_array(i,j,k,0) = 1.0;
                 }
             }
@@ -577,7 +572,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
         const Box& gbx      = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi)
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -593,7 +588,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
 
             // The mesh cell centered z value
 
-            Real z = (z_cc_arr) ? z_cc_arr(ii,jj,kk) : ProbLoArr[2] + (kk+0.5) * dx[2];
+            Real z = z_cc_arr(ii,jj,kk);
 
             int turb_indices_overlap[2];
             int check_int = 0;
@@ -601,10 +596,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
                 Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
                 Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
 
-                Real z0 = 0.0;
-                if(z_cc_arr) {
-                    z0 = d_zloc_ptr[it];
-                }
+                Real z0 = d_zloc_ptr[it];
 
                 bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
                                                      nx, ny, d_hub_height+z0, d_rotor_rad, z);

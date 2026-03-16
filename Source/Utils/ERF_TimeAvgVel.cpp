@@ -38,10 +38,10 @@ Time_Avg_Vel_atCC (const Real& dt,
             Real v_cc = 0.5 * ( vely(i,j,k) + vely(i  ,j+1,k  ) );
             Real w_cc = 0.5 * ( velz(i,j,k) + velz(i  ,j  ,k+1) );
             Real umag_cc = std::sqrt(u_cc*u_cc + v_cc*v_cc + w_cc*w_cc);
-            vel_t_avg_arr(i,j,k,0) += u_cc;
-            vel_t_avg_arr(i,j,k,1) += v_cc;
-            vel_t_avg_arr(i,j,k,2) += w_cc;
-            vel_t_avg_arr(i,j,k,3) += umag_cc;
+            vel_t_avg_arr(i,j,k,0) += u_cc * dt;
+            vel_t_avg_arr(i,j,k,1) += v_cc * dt;
+            vel_t_avg_arr(i,j,k,2) += w_cc * dt;
+            vel_t_avg_arr(i,j,k,3) += umag_cc * dt;
         });
     }
 }

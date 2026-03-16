@@ -20,7 +20,7 @@ using namespace amrex;
 Real
 read_times_from_wrflow (const std::string& nc_low_file,
                         Vector<Vector<FArrayBox>>& low_data_zlo,
-                        Real& start_low_time)
+                        Real& start_low_time, Real& final_low_time)
 {
     Print() << "Loading lower boundary data from NetCDF file " << std::endl;
 
@@ -62,15 +62,17 @@ read_times_from_wrflow (const std::string& nc_low_file,
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
-                timeInterval = epochTimes[1] - epochTimes[0];
+                timeInterval = static_cast<Real>(epochTimes[1] - epochTimes[0]);
             } else if (nt >= 1) {
-                AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
+              AMREX_ALWAYS_ASSERT(static_cast<Real>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
-        start_low_time = epochTimes[0];
+        start_low_time = static_cast<Real>(epochTimes[0]);
+        final_low_time = static_cast<Real>(epochTimes[ntimes-1]);
     }
 
     ParallelDescriptor::Bcast(&start_low_time,1,ioproc);
+    ParallelDescriptor::Bcast(&final_low_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
@@ -194,6 +196,13 @@ update_sst_tsk (const int itime,
     if (itime > 0) {
         sst_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
         tsk_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
+
+        // NOTE: we assume that TSK was in the wrfinput file so it is defined
+        //       at the first time, but not in the wrflow file so not defined
+        //       at later times.  Here we fill the later time arrays by copying
+        //       from the initial time
+        MultiFab::Copy(*tsk_lev[itime],*tsk_lev[0],0,0,1,tsk_lev[0]->nGrowVect());
+
         if (SurfLayer) {
             SurfLayer->update_sst_ptr(0, itime, sst_lev[itime].get());
             SurfLayer->update_tsk_ptr(0, itime, tsk_lev[itime].get());
@@ -212,26 +221,17 @@ update_sst_tsk (const int itime,
         const Array4<const Real>& src_arr   = src.const_array();
         const Array4<const Real>& psfc_arr  = mf_PSFC_lev.const_array(mfi);
         const Array4<const  int>& lmask_arr = (lmask) ? lmask->const_array(mfi) : Array4<const int> {};
-      //const Array4<const Real>& con_arr = cons.const_array(mfi);
+
+        // For simplicity, assume constant surface pressure = p0
+        // ==> surface theta == SST.
+        // We convert to theta for the surface layer scheme using the
+        // the initial surface pressure since it's not available in the wrflowinp file
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             int li = min(max(i, ilo), ihi);
             int lj = min(max(j, jlo), jhi);
 
-            // For simplicity, assume constant surface pressure = p0
-            // ==> surface theta == SST
-//            sst_arr(i,j,0) = src_arr(li,lj,0);
-
-            // Use local density to convert to potential temperature -- but
-            // this should be averaged over the lowinput time interval
-//            Real rho = con_arr(li, lj, 0, Rho_comp);
-//            Real qv = (use_moist) con_arr(li, lj, 0, RhoQ1_comp) / rho : 0.0;
-//            sst_arr(i,j,0) = getThgivenRandT(rho, src_arr(li,lj,0), rdOcp, qv);
-
-            // NOTE: we convert to potential temperature for the surface
-            // layer scheme using the initial surface pressure since it's
-            // not available in the wrflowinp file
             bool is_land = (lmask_arr) ? lmask_arr(li,lj,0) : true;
             sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), rdOcp);
             if (!is_land && std::abs(sst_arr(i,j,0)) < 400.0) {

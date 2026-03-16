@@ -292,8 +292,8 @@ namespace SDMassChangeUtils_LV
         void printStepInfo (RT cur_time, RT dt, RT tau, RT radius, RT snorm) const
         {
             if (m_verbose) {
-                printf("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                       cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+                AMREX_DEVICE_PRINTF("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                                    cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
             }
         }
 
@@ -303,10 +303,10 @@ namespace SDMassChangeUtils_LV
                                   RT res_norm_a, RT res_norm_r, bool converged) const
         {
             if (m_verbose) {
-                printf("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                       cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
-                printf("    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
-                       res_norm_a, res_norm_r, (converged ? "yes" : "no"));
+                AMREX_DEVICE_PRINTF("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                                    cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+                AMREX_DEVICE_PRINTF("    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
+                                    res_norm_a, res_norm_r, (converged ? "yes" : "no"));
             }
         }
 
@@ -407,7 +407,7 @@ namespace SDMassChangeUtils_LV
                     cur_time += dt;
 
                     if (m_verbose) {
-                        printf( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                        AMREX_DEVICE_PRINTF( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
                                 cur_time, dt, dt * std::sqrt(tau*tau), std::sqrt(a_u), snorm);
                     }
                     if (snorm < m_stol) {

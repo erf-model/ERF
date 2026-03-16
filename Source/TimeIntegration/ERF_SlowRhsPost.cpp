@@ -83,11 +83,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                         amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
+                        const Real& old_stage_time_total,
+                        const Real& start_bdy_time,
+                        const Real& final_bdy_time,
                         const Real& bdy_time_interval,
-                        const Real& new_stage_time,
-                        const Real& stop_time_elapsed,
                         int  width,
-                        int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -97,7 +97,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                         YAFluxRegister* fr_as_crse,
-                        YAFluxRegister* fr_as_fine)
+                        YAFluxRegister* fr_as_fine,
+                        std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -135,6 +136,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type  == PBLType::YSU ||
                                     tc.pbl_type  == PBLType::MRF );
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
+    const bool do_upwind        = solverChoice.upwind_real_bcs;
+    const bool l_do_scalar      = (solverChoice.transport_scalar);
+    amrex::ignore_unused(do_upwind);
+    amrex::ignore_unused(m_r2d);
 
     const Box& domain = geom.Domain();
 
@@ -159,8 +164,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 0);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 0);
+        IntVect ng(0,0,1);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
     } else {
         dflux_x = nullptr;
@@ -170,8 +176,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     // Valid vars
     Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
-    if (l_use_KE) {is_valid_slow_var[    RhoKE_comp] = 1;}
-                   is_valid_slow_var[RhoScalar_comp] = 1;
+    if (l_use_KE)    { is_valid_slow_var[    RhoKE_comp] = 1; }
+    if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp] = 1; }
     if (solverChoice.moisture_type != MoistureType::None) {
          is_valid_slow_var[RhoQ1_comp] = 1;
     }
@@ -472,11 +478,17 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
         if (moist_set_rhs_bool)
         {
-            const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
-            moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          new_stage_time, dt, stop_time_elapsed, width, set_width, domain,
-                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
+            //
+            // Note that old_stage_time_total = start_time+old_stage_time is total time
+            //           start_bdy_time and final_bdy_time are total time
+            //
+            moist_set_rhs(geom, tbx, new_cons_const, cell_rhs,
+                          old_stage_time_total, dt, start_bdy_time, final_bdy_time, bdy_time_interval,
+                          bdy_factor, width, do_upwind, domain,
+                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                          m_r2d);
         }
 #endif
 

@@ -37,11 +37,17 @@ Vector<AMRErrorTag> ERF::ref_tags;
 SolverChoice ERF::solverChoice;
 
 Real ERF::start_time    = 0.0;
+//
+// Note: stop_time is total time, NOT elapsed time
+//
 Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
 #ifdef ERF_USE_NETCDF
-Real ERF::start_bdy_time     = 0.0;
-Real ERF::start_low_time     = 0.0;
+Real ERF::start_bdy_time     =  0.0;
+Real ERF::final_bdy_time     = -1.0;
+
+Real ERF::start_low_time     =  0.0;
+Real ERF::final_low_time     = -1.0;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
 Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
@@ -123,6 +129,11 @@ Real ERF::bndry_output_planes_start_time =  0.0;
 int  ERF::input_bndry_planes             = 0;
 
 Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+
+#ifdef ERF_USE_NETCDF
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Real read_start_time_from_metgrid  (int lev, const std::string& fname);
+#endif
 
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
@@ -353,7 +364,7 @@ ERF::ERF_shared ()
     // Stresses
     Tau.resize(nlevs_max);
     Tau_corr.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max);  SFS_hfx2_lev.resize(nlevs_max);  SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
@@ -466,6 +477,14 @@ ERF::ERF_shared ()
         cosPhi_m[lev] = nullptr;
     }
 
+    // Rayleigh damping
+    h_rayleigh_ptrs.resize(nlevs_max);
+    d_rayleigh_ptrs.resize(nlevs_max);
+    h_sinesq_ptrs.resize(nlevs_max);
+    d_sinesq_ptrs.resize(nlevs_max);
+    h_sinesq_stag_ptrs.resize(nlevs_max);
+    d_sinesq_stag_ptrs.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -489,8 +508,8 @@ ERF::ERF_shared ()
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
         std::string geometry ="terrain";
-        ParmParse pp("eb2");
-        pp.queryAdd("geometry", geometry);
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("geometry", geometry);
 
         constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
@@ -518,8 +537,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
-            pp.query("box_lo", box_lo);
-            pp.query("box_hi", box_hi);
+            pp_eb2.query("box_lo", box_lo);
+            pp_eb2.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -573,11 +592,15 @@ ERF::Evolve ()
 {
     BL_PROFILE_VAR("ERF::Evolve()", evolve);
 
+    //
+    // cur_time = t_new is elapsed time, not total time
+    // stop_time is total time
+    //
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
-    for (int step = istep[0]; step < max_step && start_time+cur_time < stop_time; ++step)
+    for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
     {
         if (use_datetime) {
             Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
@@ -590,7 +613,7 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+            m_r2d->read_input_files(cur_time+start_time,dt[0],m_bc_extdir_vals);
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -689,7 +712,7 @@ ERF::Evolve ()
         }
 #endif
 
-        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
+        if (start_time+cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
     // Write plotfiles at final time
@@ -860,7 +883,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
           time >= bndry_output_planes_start_time)
       {
          bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
+         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
       }
     }
 
@@ -987,6 +1010,7 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
+
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
@@ -1074,10 +1098,10 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time);
-            Real dT = bdy_time_interval;
+                                                       start_bdy_time, final_bdy_time);
 
-            int n_time_old = static_cast<int>(t_new[0] /  dT);
+            Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
             int lev = 0;
 
@@ -1085,6 +1109,7 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                  real_width);
@@ -1097,21 +1122,20 @@ ERF::InitData_post ()
 
         if (!nc_low_file.empty())
         {
-            low_time_interval = read_times_from_wrflow(nc_low_file,
-                                                       low_data_zlo,
-                                                       start_low_time);
-            Real dT = low_time_interval;
+            low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
 
             int lev = 0;
             sst_lev[lev].resize(low_data_zlo.size());
             tsk_lev[lev].resize(low_data_zlo.size());
 
-            int n_time_old = static_cast<int>(t_new[0] /  dT);
+            Real time_since_start_low = t_new[0] + start_time - start_low_time;
+            int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
 
-            int ntimes = std::min(n_time_old+2, static_cast<int>(low_data_zlo.size()));
+            int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                amrex::Print() << "READING IN LOW " << itime << std::endl;
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
                 // Need to read PSFC
@@ -1161,7 +1185,7 @@ ERF::InitData_post ()
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
-        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+        m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
     if (solverChoice.custom_rhotheta_forcing)
@@ -1255,7 +1279,9 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
-        initRayleigh();
+        for (int lev = 0; lev <= finest_level; lev++) {
+            initRayleigh_at_level(lev);
+        }
         if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
@@ -1288,10 +1314,10 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real time = 0.;
-        if (time >= bndry_output_planes_start_time) {
+        Real tot_time = t_new[0]+start_time;
+        if (tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, time, vars_new, is_moist);
+            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
         }
     }
 
@@ -1308,24 +1334,6 @@ ERF::InitData_post ()
 
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
-
-#ifdef ERF_USE_NETCDF
-        // We call this here because it is an ERF routine
-        if (solverChoice.use_real_bcs && (lev==0)) {
-            int icomp_cons = 0;
-            bool cons_only = false;
-            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
-                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            if (solverChoice.upwind_real_bcs) {
-                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                         ncomp_cons,ngvect_cons,ngvect_vels);
-            } else {
-                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                  ncomp_cons,ngvect_cons,ngvect_vels);
-            }
-            do_fb = false;
-    }
-#endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
@@ -1382,6 +1390,7 @@ ERF::InitData_post ()
             dz_min[lev] *= (*detJ_cc[lev]).min(0);
         }
     }
+
 
     // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
     if (restart_chkfile.empty()) {
@@ -1493,6 +1502,24 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    // Create wall distance field for RANS model
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+            // Handle bottom boundary
+            poisson_wall_dist(lev);
+
+            // Correct the wall distance for immersed bodies
+            if (solverChoice.advChoice.have_zero_flux_faces) {
+                thinbody_wall_dist(walldist[lev],
+                                   solverChoice.advChoice.zero_xflux,
+                                   solverChoice.advChoice.zero_yflux,
+                                   solverChoice.advChoice.zero_zflux,
+                                   geom[lev],
+                                   z_phys_cc[lev]);
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1516,9 +1543,11 @@ ERF::InitData_post ()
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
-                                                        start_time, stop_time
+                                                        solverChoice.turbChoice[finest_level],
 #ifdef ERF_USE_NETCDF
-                                                        , bdy_time_interval
+                                                        start_low_time, final_low_time, low_time_interval
+#else
+                                                        0.0, 0.0
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
@@ -1556,7 +1585,6 @@ ERF::InitData_post ()
         // Note we don't fill ghost cells here because this is just for diagnostics
         for (int lev = 0; lev <= finest_level; ++lev)
         {
-            Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
 
             MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
@@ -1584,7 +1612,15 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+#ifdef ERF_USE_NETCDF
+                Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+#else
+                Real elapsed_time_since_start_low = t_new[lev] + start_time;
+#endif
+                m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_nd[lev],
+                                              walldist[lev]);
 
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
@@ -1860,10 +1896,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
-        int ntimes = sst_lev[lev-1].size();
-        sst_lev[lev].resize(ntimes);
+        sst_lev[lev].resize(sst_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *sst_lev[lev-1][n], 0, 0, 1,
@@ -1873,10 +1918,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
     if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
-        int ntimes = tsk_lev[lev-1].size();
-        tsk_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(tsk_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *tsk_lev[lev-1][n], 0, 0, 1,
@@ -1939,8 +1993,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // cosPhi
     if (sst_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = sst_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
             IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -1954,8 +2016,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // sst_lev
     if (tsk_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = tsk_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
             IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -2067,10 +2137,10 @@ ERF::restart ()
 // If we are restarting, the base state is read from the restart file, including
 // ghost cell data.
 void
-ERF::init_only (int lev, Real time)
+ERF::init_only (int lev, Real elapsed_time)
 {
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_new[lev] = elapsed_time;
+    t_old[lev] = elapsed_time - 1.e200;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -2113,18 +2183,6 @@ ERF::init_only (int lev, Real time)
 
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
-        if (lev==0) {
-            if ((start_time > 0) && (start_time != start_bdy_time)) {
-                Print() << "Ignoring specified start_time="
-                        << std::setprecision(timeprecision) << start_time
-                        << std::endl;
-            }
-        }
-
-        start_time = start_bdy_time;
-
-        use_datetime = true;
-
         // The physbc's need the terrain but are needed for initHSE
         if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
@@ -2148,26 +2206,26 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (solverChoice.init_type == InitType::Uniform) {
-        // Initialize a uniform background field and base state based on the
-        // problem-specified reference density and temperature
+    } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
+                (solverChoice.init_type == InitType::ConstantDensity) ||
+                (solverChoice.init_type == InitType::Isentropic     ) ||
+                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::MoistBaseState ) ) {
+        // Initialize a uniform density/entropy background field and base state
+        // based on the problem-specified reference density and temperature
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
 
-        init_uniform(lev);
-        initHSE(lev);
-    } else {
-        // No background flow initialization specified, initialize the
-        // background field to be equal to the base state, calculated from the
-        // problem-specific erf_init_dens_hse
-
-        // The bc's need the terrain but are needed for initHSE
-        make_physbcs(lev);
-
         // We will initialize the state from the background state so must set that first
+        // The choice between constant rho and constant theta will be made inside initHSE
         initHSE(lev);
+
+        // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+    } else {
+        Abort("Unknown init_type!");
     }
 
     // Add problem-specific flow features
@@ -2213,51 +2271,6 @@ ERF::ReadParameters ()
     std::string prob_name = "Unknown";
     ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
     Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
-
-    {
-        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
-        pp.query("max_step", max_step);
-        if (max_step < 0) {
-            max_step = std::numeric_limits<int>::max();
-        }
-
-        // TODO: more robust general datetime parsing
-        std::string start_datetime, stop_datetime;
-        if (pp.query("start_datetime", start_datetime)) {
-            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
-                start_datetime += ":00"; // add seconds
-            }
-            if (start_datetime.length() != 19) {
-                Print() << "Got start_datetime = \"" << start_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
-            }
-            start_time = getEpochTime(start_datetime, datetime_format);
-            Print() << "Start datetime : " << start_datetime << std::endl;
-
-            if (pp.query("stop_datetime", stop_datetime)) {
-                if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
-                    stop_datetime += ":00"; // add seconds
-                }
-                if (stop_datetime.length() != 19) {
-                    Print() << "Got stop_datetime = \"" << stop_datetime
-                        << "\", format should be " << datetime_format << std::endl;
-                    exit(0);
-                }
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                Print() << "Stop  datetime : " << start_datetime << std::endl;
-            } else if (pp.query("stop_time", stop_time)) {
-                Print() << "Sim length     : " << stop_time << " s" << std::endl;
-                stop_time += start_time;
-            }
-
-            use_datetime = true;
-
-        } else {
-            pp.query("stop_time", stop_time);
-            pp.query("start_time", start_time); // This is optional, it defaults to 0
-        }
-    }
 
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
@@ -2596,9 +2609,8 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
 
-        // Query the set and total widths for wrfbdy interior ghost cells
+        // Query the total width for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
-        pp.query("real_set_width", real_set_width);
 
         // If using real boundaries, do we extrapolate w (or set to 0)
         pp.query("real_extrap_w", real_extrap_w);
@@ -2619,11 +2631,107 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level,pp_prefix);
 
+    {
+        ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.
+        pp_no_prefix.query("max_step", max_step);
+        if (max_step < 0) {
+            max_step = std::numeric_limits<int>::max();
+        }
+
+        std::string start_datetime, stop_datetime;
+        if (pp_no_prefix.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+            start_time = getEpochTime(start_datetime, datetime_format);
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_wrfinput) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from wrfinput = " <<
+                                       start_time_from_wrfinput << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_metgrid) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from metgrid = " <<
+                                       start_time_from_metgrid << std::endl;
+                    amrex::Abort();
+                }
+            }
+#endif
+            Print() << "Start datetime   : " << start_datetime << std::endl;
+
+            use_datetime = true;
+
+        } else {
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                start_time = start_time_from_wrfinput;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                start_time = start_time_from_metgrid;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
+                    amrex::Abort();
+                }
+            }
+#endif
+        }
+
+        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
+            if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                stop_datetime += ":00"; // add seconds
+            }
+            if (stop_datetime.length() != 19) {
+                Print() << "Got stop_datetime = \"" << stop_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+
+            stop_time = getEpochTime(stop_datetime, datetime_format);
+            Print() << "Stop  datetime : " << start_datetime << std::endl;
+
+        } else {
+
+            if (pp_no_prefix.query("stop_time", stop_time)) {
+                Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
+                amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
+                stop_time += start_time;
+            }
+        }
+    }
+
 #ifndef ERF_USE_NETCDF
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
                                        (solverChoice.init_type != InitType::Metgrid ) &&
                                        (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+                                     "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Query the canopy model file name
@@ -2685,8 +2793,6 @@ ERF::ParameterSanityChecks ()
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
@@ -3060,18 +3166,18 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
         {
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
-            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
 
             Real temp = getTgivenRandRTh(rho, rhotheta, qv);
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
-                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
-                Abort();
+                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
 #endif
+                Abort();
             }
         });
     }
@@ -3089,7 +3195,18 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
         const Array4<Real> &s_arr  = S.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+
+            if (rho <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+#else
+                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                Abort("Bad rho in check_for_negative_theta");
+#endif
+            }
+
             if (rhotheta <= 0.) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
@@ -3098,6 +3215,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 Abort("Bad theta in check_for_negative_theta");
 #endif
             }
+
             });
     } // mfi
 }

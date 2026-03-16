@@ -340,7 +340,7 @@ define( [[maybe_unused]] int const& a_level,
 
           eb_cut_cell_ lo_eb_cc(flag(iv_lo), lo_rbx, lo_point, lo_normal);
 
-          // cell iv_lo covered (regular) imples lo_eb_cc is covered (regular)
+          // cell iv_lo covered (regular) implies lo_eb_cc is covered (regular)
           // The inverse is not always true.
           AMREX_ASSERT( !lo_isCovered || lo_eb_cc.isCovered() );
           AMREX_ASSERT( !lo_isRegular || lo_eb_cc.isRegular() );
@@ -375,7 +375,7 @@ define( [[maybe_unused]] int const& a_level,
 
           eb_cut_cell_ hi_eb_cc(flag(iv_hi), hi_rbx, hi_point, hi_normal);
 
-          // cell iv_hi covered (regular) imples hi_eb_cc is covered (regular)
+          // cell iv_hi covered (regular) implies hi_eb_cc is covered (regular)
           // The inverse is not always true.
           AMREX_ASSERT( !hi_isCovered || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !hi_isRegular || hi_eb_cc.isRegular() );
@@ -393,7 +393,7 @@ define( [[maybe_unused]] int const& a_level,
 
             eb_cut_cell_ hi_hi_eb_cc(flag(iv_hi), lo_rbx, hi_point, hi_normal);
 
-            // cell iv_hi covered (regular) imples hi_hi_eb_cc is covered (regular)
+            // cell iv_hi covered (regular) implies hi_hi_eb_cc is covered (regular)
             // The inverse is not always true.
 #ifndef AMREX_USE_GPU
             if ( !(!hi_isRegular || hi_hi_eb_cc.isRegular()) ||
@@ -847,13 +847,6 @@ define( [[maybe_unused]] int const& a_level,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
-    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
-    const int dom_lo_i = domain.smallEnd(0);
-    const int dom_hi_i = domain.bigEnd(0);
-    const int dom_lo_j = domain.smallEnd(1);
-    const int dom_hi_j = domain.bigEnd(1);
-    const int dom_lo_k = domain.smallEnd(2);
-    const int dom_hi_k = domain.bigEnd(2);
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
@@ -873,41 +866,41 @@ define( [[maybe_unused]] int const& a_level,
 
       // Corrections for small cells
       Box my_xbx(bx); my_xbx.growHi(0,1);
+      int xbx_lo = my_xbx.smallEnd(0);
+      int xbx_hi = my_xbx.bigEnd(0);
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac) {
-          // At domain boundary, keep area fraction as is unless inside cell is small
-          if ((i == dom_lo_i && aux_vfrac(i,j,k) < small_volfrac) ||
-              (i == dom_hi_i+1 && aux_vfrac(i-1,j,k) < small_volfrac) ||
-              (i != dom_lo_i && i != dom_hi_i+1)) {
-              aux_afrac_x(i,j,k) = 0.0;
-          }
+        if ((i == xbx_lo && aux_vfrac(i,j,k) < small_volfrac) ||
+            (i == xbx_hi && aux_vfrac(i-1,j,k) < small_volfrac) ||
+            (i > xbx_lo && i < xbx_hi &&
+            (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac))) {
+            aux_afrac_x(i,j,k) = 0.0;
         }
       });
 
       Box my_ybx(bx); my_ybx.growHi(1,1);
+      int ybx_lo = my_ybx.smallEnd(1);
+      int ybx_hi = my_ybx.bigEnd(1);
       ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac) {
-          // At domain boundary, keep area fraction as is unless inside cell is small
-          if ((j == dom_lo_j && aux_vfrac(i,j,k) < small_volfrac) ||
-              (j == dom_hi_j+1 && aux_vfrac(i,j-1,k) < small_volfrac) ||
-              (j != dom_lo_j && j != dom_hi_j+1)) {
-              aux_afrac_y(i,j,k) = 0.0;
-          }
+        if ((j == ybx_lo && aux_vfrac(i,j,k) < small_volfrac) ||
+            (j == ybx_hi && aux_vfrac(i,j-1,k) < small_volfrac) ||
+            (j > ybx_lo && j < ybx_hi &&
+            (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac))) {
+            aux_afrac_y(i,j,k) = 0.0;
         }
       });
 
       Box my_zbx(bx); my_zbx.growHi(2,1);
+      int zbx_lo = my_zbx.smallEnd(2);
+      int zbx_hi = my_zbx.bigEnd(2);
       ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac) {
-          // At domain boundary, keep area fraction as is unless inside cell is small
-          if ((k == dom_lo_k && aux_vfrac(i,j,k) < small_volfrac) ||
-              (k == dom_hi_k+1 && aux_vfrac(i,j,k-1) < small_volfrac) ||
-              (k != dom_lo_k && k != dom_hi_k+1)) {
-              aux_afrac_z(i,j,k) = 0.0;
-          }
+        if ((k == zbx_lo && aux_vfrac(i,j,k) < small_volfrac) ||
+            (k == zbx_hi && aux_vfrac(i,j,k-1) < small_volfrac) ||
+            (k > zbx_lo && k < zbx_hi &&
+            (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac))) {
+            aux_afrac_z(i,j,k) = 0.0;
         }
       });
 
@@ -959,7 +952,7 @@ define( [[maybe_unused]] int const& a_level,
       // and this slice is not filled by fillBoundary(), for higher levels.
       // (Lower level might be filled by fillBoundary().)
       // Fill the ghost region for the last slice at bigEnd(idim)
-      // by the value of the nearst point. And let fillBoundary() overwrite it.
+      // by the value of the nearest point. And let fillBoundary() overwrite it.
 
       Box upper_slab = makeSlab(bx_grown, a_idim, bx.bigEnd(a_idim)+1);
       Box bx_grown_1 = bx; bx_grown_1.grow(a_idim,1);

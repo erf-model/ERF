@@ -321,29 +321,29 @@ ComputeStrain_EB (const MFIter& mfi,
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
         Real du_dx{0.0};
-        if (u_cflag(i+1,j,k).isCovered() && !u_cflag(i,j,k).isCovered()) {
+        if (u_cflag(i+1,j,k).isCovered() && u_cflag(i,j,k).isSingleValued()) {
             du_dx = ( 2.0*u(i, j, k) - 3.0*u(i-1, j, k) + u(i-2, j, k))*dxInv[0];
-        } else if (u_cflag(i,j,k).isCovered() && !u_cflag(i+1,j,k).isCovered()) {
+        } else if (u_cflag(i,j,k).isCovered() && u_cflag(i+1,j,k).isSingleValued()) {
             du_dx = (- 2.0*u(i+1, j, k) + 3.0*u(i+2, j, k) - u(i+3, j, k))*dxInv[0];
-        } else if (!u_cflag(i+1,j,k).isCovered() && !u_cflag(i,j,k).isCovered()) {
+        } else {
             du_dx = (u(i+1, j, k) - u(i, j, k))*dxInv[0];
         }
 
         Real dv_dy{0.0};
-        if (v_cflag(i,j+1,k).isCovered() && !v_cflag(i,j,k).isCovered()) {
+        if (v_cflag(i,j+1,k).isCovered() && v_cflag(i,j,k).isSingleValued()) {
             dv_dy = ( 2.0*v(i, j, k) - 3.0*v(i, j-1, k) + v(i, j-2, k))*dxInv[1];
-        } else if (v_cflag(i,j,k).isCovered() && !v_cflag(i,j+1,k).isCovered()) {
+        } else if (v_cflag(i,j,k).isCovered() && v_cflag(i,j+1,k).isSingleValued()) {
             dv_dy = (- 2.0*v(i, j+1, k) + 3.0*v(i, j+2, k) - v(i, j+3, k))*dxInv[1];
-        } else if (!v_cflag(i,j+1,k).isCovered() && !v_cflag(i,j,k).isCovered()) {
+        } else {
             dv_dy = (v(i, j+1, k) - v(i, j, k))*dxInv[1];
         }
 
         Real dw_dz{0.0};
-        if (w_cflag(i,j,k+1).isCovered() && !w_cflag(i,j,k).isCovered()) {
+        if (w_cflag(i,j,k+1).isCovered() && w_cflag(i,j,k).isSingleValued()) {
             dw_dz = ( 2.0*w(i, j, k) - 3.0*w(i, j, k-1) + w(i, j, k-2))*dxInv[2];
-        } else if (w_cflag(i,j,k).isCovered() && !w_cflag(i,j,k+1).isCovered()) {
+        } else if (w_cflag(i,j,k).isCovered() && w_cflag(i,j,k+1).isSingleValued()) {
             dw_dz = (- 2.0*w(i, j, k+1) + 3.0*w(i, j, k+2) - w(i, j, k+3))*dxInv[2];
-        } else if (!w_cflag(i,j,k+1).isCovered() && !w_cflag(i,j,k).isCovered()) {
+        } else {
             dw_dz = (w(i, j, k+1) - w(i, j, k))*dxInv[2];
         }
 
@@ -357,20 +357,20 @@ ComputeStrain_EB (const MFIter& mfi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
         Real du_dy{0.0};
-        if (u_cflag(i,j,k).isCovered() && !u_cflag(i,j-1,k).isCovered()) {
+        if (u_cflag(i,j,k).isCovered() && u_cflag(i,j-1,k).isSingleValued()) {
             du_dy = ( 2.0*u(i, j-1, k) - 3.0*u(i, j-2, k) + u(i, j-3, k))*dxInv[1];
-        } else if (u_cflag(i,j-1,k).isCovered() && !u_cflag(i,j,k).isCovered()) {
+        } else if (u_cflag(i,j-1,k).isCovered() && u_cflag(i,j,k).isSingleValued()) {
             du_dy = (- 2.0*u(i, j, k) + 3.0*u(i, j+1, k) - u(i, j+2, k))*dxInv[1];
-        } else if (!u_cflag(i,j,k).isCovered() && !u_cflag(i,j-1,k).isCovered()) {
+        } else {
             du_dy = (u(i, j, k) - u(i, j-1, k))*dxInv[1];
         }
 
         Real dv_dx{0.0};
-        if (v_cflag(i,j,k).isCovered() && !v_cflag(i-1,j,k).isCovered()) {
+        if (v_cflag(i,j,k).isCovered() && v_cflag(i-1,j,k).isSingleValued()) {
             dv_dx = ( 2.0*v(i-1, j, k) - 3.0*v(i-2, j, k) + v(i-3, j, k))*dxInv[0];
-        } else if (v_cflag(i-1,j,k).isCovered() && !v_cflag(i,j,k).isCovered()) {
+        } else if (v_cflag(i-1,j,k).isCovered() && v_cflag(i,j,k).isSingleValued()) {
             dv_dx = (- 2.0*v(i, j, k) + 3.0*v(i+1, j, k) - v(i+2, j, k))*dxInv[0];
-        } else if (!v_cflag(i,j,k).isCovered() && !v_cflag(i-1,j,k).isCovered()) {
+        } else {
             dv_dx = (v(i, j, k) - v(i-1, j, k))*dxInv[0];
         }
 
@@ -379,20 +379,20 @@ ComputeStrain_EB (const MFIter& mfi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
         Real du_dz{0.0};
-        if (u_cflag(i,j,k).isCovered() && !u_cflag(i,j,k-1).isCovered()) {
+        if (u_cflag(i,j,k).isCovered() && u_cflag(i,j,k-1).isSingleValued()) {
             du_dz = ( 2.0*u(i, j, k-1) - 3.0*u(i, j, k-2) + u(i, j, k-3))*dxInv[2];
-        } else if (u_cflag(i,j,k-1).isCovered() && !u_cflag(i,j,k).isCovered()) {
+        } else if (u_cflag(i,j,k-1).isCovered() && u_cflag(i,j,k).isSingleValued()) {
             du_dz = (- 2.0*u(i, j, k) + 3.0*u(i, j, k+1) - u(i, j, k+2))*dxInv[2];
-        } else if (!u_cflag(i,j,k).isCovered() && !u_cflag(i,j,k-1).isCovered()) {
+        } else {
             du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
         }
 
         Real dw_dx{0.0};
-        if (w_cflag(i,j,k).isCovered() && !w_cflag(i-1,j,k).isCovered()) {
+        if (w_cflag(i,j,k).isCovered() && w_cflag(i-1,j,k).isSingleValued()) {
             dw_dx = ( 2.0*w(i-1, j, k) - 3.0*w(i-2, j, k) + w(i-3, j, k))*dxInv[0];
-        } else if (w_cflag(i-1,j,k).isCovered() && !w_cflag(i,j,k).isCovered()) {
+        } else if (w_cflag(i-1,j,k).isCovered() && w_cflag(i,j,k).isSingleValued()) {
             dw_dx = (- 2.0*w(i, j, k) + 3.0*w(i+1, j, k) - w(i+2, j, k))*dxInv[0];
-        } else if (!w_cflag(i,j,k).isCovered() && !w_cflag(i-1,j,k).isCovered()) {
+        } else {
             dw_dx = (w(i, j, k) - w(i-1, j, k))*dxInv[0];
         }
 
@@ -403,22 +403,23 @@ ComputeStrain_EB (const MFIter& mfi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
         Real dv_dz{0.0};
-        if (v_cflag(i,j,k).isCovered() && !v_cflag(i,j,k-1).isCovered()) {
+        if (v_cflag(i,j,k).isCovered() && v_cflag(i,j,k-1).isSingleValued()) {
             dv_dz = ( 2.0*v(i, j, k-1) - 3.0*v(i, j, k-2) + v(i, j, k-3))*dxInv[2];
-        } else if (v_cflag(i,j,k-1).isCovered() && !v_cflag(i,j,k).isCovered()) {
+        } else if (v_cflag(i,j,k-1).isCovered() && v_cflag(i,j,k).isSingleValued()) {
             dv_dz = (- 2.0*v(i, j, k) + 3.0*v(i, j, k+1) - v(i, j, k+2))*dxInv[2];
-        } else if (!v_cflag(i,j,k).isCovered() && !v_cflag(i,j,k-1).isCovered()) {
+        } else {
             dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
         }
 
         Real dw_dy{0.0};
-        if (w_cflag(i,j,k).isCovered() && !w_cflag(i,j-1,k).isCovered()) {
+        if (w_cflag(i,j,k).isCovered() && w_cflag(i,j-1,k).isSingleValued()) {
             dw_dy = ( 2.0*w(i, j-1, k) - 3.0*w(i, j-2, k) + w(i, j-3, k))*dxInv[1];
-        } else if (w_cflag(i,j-1,k).isCovered() && !w_cflag(i,j,k).isCovered()) {
+        } else if (w_cflag(i,j-1,k).isCovered() && w_cflag(i,j,k).isSingleValued()) {
             dw_dy = (- 2.0*w(i, j, k) + 3.0*w(i, j+1, k) - w(i, j+2, k))*dxInv[1];
-        } else if (!w_cflag(i,j,k).isCovered() && !w_cflag(i,j-1,k).isCovered()) {
+        } else {
             dw_dy = (w(i, j, k) - w(i, j-1, k))*dxInv[1];
         }
+
 
         tau23(i,j,k) = 0.5 * ( dv_dz + dw_dy );
 

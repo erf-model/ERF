@@ -16,96 +16,19 @@ amrex_probinit (
 
 Problem::Problem ()
 {
-  // Parse params
-  amrex::ParmParse pp("prob");
-}
-
-void
-Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
-                                  std::unique_ptr<MultiFab>& z_phys_nd,
-                                  Geometry const& geom)
-{
-    const Real prob_lo_z = geom.ProbLo()[2];
-    const Real dz        = geom.CellSize()[2];
-    const int khi        = geom.Domain().bigEnd()[2];
-
-    // use_terrain = 1
-    if (z_phys_nd) {
-
-        if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-        for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
-        {
-            Array4<Real      > rho_arr  = rho_hse.array(mfi);
-            //Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
-
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            const Box& tbz = mfi.nodaltilebox(2);
-            Box b2d = tbz; // Copy constructor
-            b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-            b2d.setRange(2,0);
-
-            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-              Array1D<Real,0,255> r;
-
-              //init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
-
-              for (int k = 0; k <= khi; k++) {
-                 rho_arr(i,j,k) = r(k);
-              }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-            });
-        } // mfi
-    } else { // use_terrain = 0
-
-        // These are at cell centers (unstaggered)
-        Vector<Real> h_r(khi+2);
-        Vector<Real> h_p(khi+2);
-        Vector<Real> h_t(khi+2);
-        Vector<Real> h_q_v(khi+2);
-
-        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-
-        Real* r     = d_r.data();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-          for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-          {
-              const Box& bx = mfi.growntilebox(1);
-              const Array4<Real> rho_hse_arr   = rho_hse[mfi].array();
-              ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-              {
-                  int kk = std::max(k,0);
-                  rho_hse_arr(i,j,k) = 0.0;//r[kk];
-              });
-          } // mfi
-    } // no terrain
 }
 
 void
 Problem::init_custom_pert (
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc,
     const int /*lev*/)
 {
@@ -258,60 +181,78 @@ Problem::init_custom_pert (
            }
     });
 
-  // Set the x-velocity
-  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + i * dx[0];
-    const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+    Gpu::streamSynchronize();
+}
 
-    Real tmp_uvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                             dxvec, dyvec,
-                             nx, ny, nz,
-                             x, y, z,
-                             uvel_d_ptr, tmp_uvel);
-    x_vel_pert(i,j,k) = tmp_uvel;
-  });
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& r_hse,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int /*lev*/)
+{
+    // Set the x-velocity
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + i * dx[0];
+        const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Set the y-velocity
-  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + (i+0.5) * dx[0];
-    const Real y        = prob_lo[1] + j * dx[1];
-    const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+        Real tmp_uvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                 dxvec, dyvec,
+                                 nx, ny, nz,
+                                 x, y, z,
+                                 uvel_d_ptr, tmp_uvel);
+        x_vel_pert(i,j,k) = tmp_uvel;
+    });
 
-    Real tmp_vvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                           dxvec, dyvec,
-                           nx, ny, nz,
-                           x, y, z,
-                           vvel_d_ptr, tmp_vvel);
+    // Set the y-velocity
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + (i+0.5) * dx[0];
+        const Real y        = prob_lo[1] + j * dx[1];
+        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-      y_vel_pert(i, j, k) = tmp_vvel;
-  });
+        Real tmp_vvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               vvel_d_ptr, tmp_vvel);
 
-  // Set the z-velocity
-  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z        = prob_lo[2] + k * dx[2];
+        y_vel_pert(i, j, k) = tmp_vvel;
+    });
 
-    Real tmp_wvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                           dxvec, dyvec,
-                           nx, ny, nz,
-                           x, y, z,
-                           wvel_d_ptr, tmp_wvel);
+    // Set the z-velocity
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z        = prob_lo[2] + k * dx[2];
 
-      z_vel_pert(i, j, k) = tmp_wvel;
-  });
+        Real tmp_wvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               wvel_d_ptr, tmp_wvel);
 
-  Gpu::streamSynchronize();
+        z_vel_pert(i, j, k) = tmp_wvel;
+    });
+
+    Gpu::streamSynchronize();
 }
 
 void

@@ -20,7 +20,7 @@ using namespace amrex;
  */
 void
 Morrison::Init (const MultiFab& cons_in,
-                const BoxArray& grids,
+                const BoxArray& /*grids*/,
                 const Geometry& geom,
                 const Real& dt_advance,
                 std::unique_ptr<MultiFab>& z_phys_nd,
@@ -28,7 +28,6 @@ Morrison::Init (const MultiFab& cons_in,
 {
     [[maybe_unused]] amrex::Real dt     = dt_advance;
     m_geom = geom;
-    m_gtoe = grids;
 
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();
@@ -44,36 +43,31 @@ Morrison::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
-    // Set class data members
-    for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+    // NOTE: For multi-level not all ranks will own a box.
+    //       Furthermore, the plane average allocates space
+    //       for the entire domain. We make this consistent.
+    nlev = m_geom.Domain().length(2);
+    zlo  = m_geom.Domain().smallEnd(2);
+    zhi  = m_geom.Domain().bigEnd(2);
 
-        const auto& lo = lbound(box3d);
-        const auto& hi = ubound(box3d);
+    // parameters
+    accrrc.resize({zlo},  {zhi});
+    accrsi.resize({zlo},  {zhi});
+    accrsc.resize({zlo},  {zhi});
+    coefice.resize({zlo}, {zhi});
+    evaps1.resize({zlo},  {zhi});
+    evaps2.resize({zlo},  {zhi});
+    accrgi.resize({zlo},  {zhi});
+    accrgc.resize({zlo},  {zhi});
+    evapg1.resize({zlo},  {zhi});
+    evapg2.resize({zlo},  {zhi});
+    evapr1.resize({zlo},  {zhi});
+    evapr2.resize({zlo},  {zhi});
 
-        nlev = box3d.length(2);
-        zlo  = lo.z;
-        zhi  = hi.z;
-
-        // parameters
-        accrrc.resize({zlo},  {zhi});
-        accrsi.resize({zlo},  {zhi});
-        accrsc.resize({zlo},  {zhi});
-        coefice.resize({zlo}, {zhi});
-        evaps1.resize({zlo},  {zhi});
-        evaps2.resize({zlo},  {zhi});
-        accrgi.resize({zlo},  {zhi});
-        accrgc.resize({zlo},  {zhi});
-        evapg1.resize({zlo},  {zhi});
-        evapg2.resize({zlo},  {zhi});
-        evapr1.resize({zlo},  {zhi});
-        evapr2.resize({zlo},  {zhi});
-
-        // data (input)
-        rho1d.resize({zlo}, {zhi});
-        pres1d.resize({zlo}, {zhi});
-        tabs1d.resize({zlo}, {zhi});
-    }
+    // data (input)
+    rho1d.resize({zlo}, {zhi});
+    pres1d.resize({zlo}, {zhi});
+    tabs1d.resize({zlo}, {zhi});
 
 #ifdef ERF_USE_MORR_FORT
     int morr_rimed_ice = 0; // This is used to set something called "ihail"
@@ -209,7 +203,7 @@ void Morrison::Compute_Coefficients ()
         pres1d_t(k)   = pressure*0.01;
         // NOTE: Limit the temperature to the melting point of ice to avoid a divide by
         //       0 condition when computing the cold evaporation coefficients. This should
-        //       not affect results since evporation requires snow/graupel to be present
+        //       not affect results since evaporation requires snow/graupel to be present
         //       and thus T<273.16
         tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),273.16);
     });

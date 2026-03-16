@@ -87,8 +87,8 @@ void update_location_idata (  P& a_p,
         // If particle has moved outside the local tile region (after advection
         // but before redistribution), skip the k-index update. The particle
         // will be redistributed to the correct tile and can update then.
-        if (ix   < a_height_arr.begin.x || ix+1 >= a_height_arr.end.x ||
-            iy   < a_height_arr.begin.y || iy+1 >= a_height_arr.end.y) {
+        if (ix   < a_height_arr.begin[0] || ix+1 >= a_height_arr.end[0] ||
+            iy   < a_height_arr.begin[1] || iy+1 >= a_height_arr.end[1]) {
             return;
         }
 
@@ -101,7 +101,7 @@ void update_location_idata (  P& a_p,
             // Check if vertical indices are within valid array bounds.
             // We need iz and iz+1 to be valid for interpolation.
             // (Typically z is not decomposed, so this check will pass.)
-            if (iz < a_height_arr.begin.z || iz+1 >= a_height_arr.end.z) {
+            if (iz < a_height_arr.begin[2] || iz+1 >= a_height_arr.end[2]) {
                 break;
             }
 

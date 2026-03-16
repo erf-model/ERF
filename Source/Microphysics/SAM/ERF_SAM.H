@@ -4,7 +4,7 @@
  * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
  * Journal of the atmospheric sciences, vol35, p1070
  * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
- * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
+ * model formulation, results, uncertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
  */
 #ifndef ERF_SAM_H
 #define ERF_SAM_H
@@ -33,7 +33,7 @@ namespace MicVar {
       pres,  // pressure
       // non-precipitating vars
       qt,    // total cloud
-      qn,    // cloud condesnate (liquid + ice)
+      qn,    // cloud condensate (liquid + ice)
       qv,    // cloud vapor
       qcl,   // cloud water
       qci,   // cloud ice
@@ -150,6 +150,9 @@ public:
 
     int
     Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
+
+    void
+    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -296,8 +299,8 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
+    // Nudging + set width
+    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

@@ -118,7 +118,6 @@ void make_mom_sources (Real time,
     auto cosphi               = solverChoice.cosphi;
     auto sinphi               = solverChoice.sinphi;
     auto var_coriolis         = solverChoice.variable_coriolis;
-    auto has_lat_lon          = solverChoice.has_lat_lon;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
@@ -348,12 +347,12 @@ void make_mom_sources (Real time,
                     zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
                 });
             }
-            else if (var_coriolis && has_lat_lon) {
+            else if (var_coriolis && (sinPhi_mf) && (cosPhi_mf)) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
                     Real sphi_loc  = 0.5  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
                     Real cphi_loc  = 0.5  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
                     xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
@@ -372,7 +371,7 @@ void make_mom_sources (Real time,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
                     xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {

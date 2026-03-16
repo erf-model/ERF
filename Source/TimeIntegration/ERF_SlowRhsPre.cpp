@@ -201,8 +201,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact);
 
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        IntVect ng(0,0,1);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef ERF_USE_SHOC

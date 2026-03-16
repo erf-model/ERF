@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Hurricane"
 
+erf.init_type = MoistBaseState
+
 max_step = 51840
 #max_step = 1
 stop_time = 1000000.0
@@ -72,4 +74,3 @@ erf.alpha_T           = 200.33 # [m^2/s]
 erf.alpha_C           = 200.33
 
 erf.moisture_model = "None"
-erf.use_moist_background = true

@@ -1,3 +1,25 @@
+#26.03
+    -- Metgrid revamp (#2944)
+
+    -- Move to one executable (#2941,2939, 2936, 2934)
+
+    -- RRTMGP restart (#2938)
+
+    -- Anelastic AMR bug fix (#2933)
+
+    -- Real BCs with bndry reg (#2908)
+
+#26.02
+    -- BDY nudging revamp (#2851)
+
+    -- Refactor problem set up approach (#2848, 2846)
+
+    -- Super droplet method (#2820)
+
+    -- era5 bulk surface (#2826)
+
+    -- RRTMGP fixes (#2841, 2838)
+
 #26.01
     -- Fixes for MLMG solver (#2814)
 

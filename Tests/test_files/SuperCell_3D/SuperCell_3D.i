@@ -1,5 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Supercell"
+erf.prob_name = "SuperCell"
+
+erf.init_type = MoistBaseState
+
+prob.use_empirical_psat = true
+prob.T_from_theta_in_moist_init = true
 
 max_step = 10
 
@@ -47,8 +52,6 @@ erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_veloci
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.buoyancy_type = 1
-erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 
 #erf.les_type = "Smagorinsky"
 #erf.Cs       = 0.25
@@ -63,7 +66,6 @@ erf.alpha_T           = 33.33 # [m^2/s]
 erf.alpha_C           = 33.33
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
@@ -78,3 +80,8 @@ prob.x_r = 10000.0
 prob.y_r = 10000.0
 prob.z_r = 2000.0
 prob.theta_c = 3.0
+
+prob.rayleigh_U_0 = 2.0
+prob.rayleigh_V_0 = 1.0
+prob.rayleigh_W_0 = 0.0
+prob.rayleigh_T_0 = 300.0

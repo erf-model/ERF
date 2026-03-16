@@ -39,14 +39,15 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
-                         amrex::Real start_time,
-                         amrex::Real stop_time,
-                         amrex::Real bdy_time_interval = 0.0)
+                         const TurbChoice& a_turb_choice,
+                         amrex::Real start_low_time,
+                         amrex::Real final_low_time,
+                         amrex::Real low_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_time(start_time),
-    m_stop_time(stop_time),
-    m_bdy_time_interval(bdy_time_interval),
+    m_start_low_time(start_low_time),
+    m_final_low_time(final_low_time),
+    m_low_time_interval(low_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
   {
       // We have a moisture model if Qv_prim is a valid pointer
@@ -248,6 +249,18 @@ public:
       // use skin temperature instead of sea-surface temperature
       // (wrfinput data may have lower resolution SST data)
       pp.query("most.ignore_sst", m_ignore_sst);
+
+      // If we're using the RANS k model, then we need to update the dirichlet
+      // BC based on the instantaneous u* and θ*; the turbulence modeling
+      // choices can vary per level but for now, assume that if specified then
+      // all levels are using the same RANS model.
+      m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
+                         a_turb_choice.dirichlet_k == true);
+      if (m_update_k_rans) {
+          inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          theta_ref = a_turb_choice.theta_ref;
+      }
+
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -384,11 +397,9 @@ public:
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) {
-          b.setRange(2, 0);
-      }
+      for (auto& b : bl2d) { b.setRange(2,0); }
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
@@ -460,14 +471,16 @@ public:
 
   void
   update_fluxes (const int& lev,
-                 const amrex::Real& time,
-                 const amrex::MultiFab& cons_in,
+                 const amrex::Real& elapsed_time_since_start_low,
+                 amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 const std::unique_ptr<amrex::MultiFab>& walldist,
                  int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
+                       amrex::MultiFab& cons_in,
                        const FluxIter& most_flux,
                        bool is_land);
 
@@ -648,9 +661,9 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_time;
-  amrex::Real m_stop_time;
-  amrex::Real m_bdy_time_interval;
+  amrex::Real m_start_low_time;
+  amrex::Real m_final_low_time;
+  amrex::Real m_low_time_interval;
 
   bool m_include_wstar = false;
   amrex::Real z0_const{0.1};
@@ -705,6 +718,10 @@ private:
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
+
+  bool m_update_k_rans = false;
+  amrex::Real inv_Cmu2 = 0.0;
+  amrex::Real theta_ref = 0.0;
 };
 
 #endif /* SURFACELAYER_H */

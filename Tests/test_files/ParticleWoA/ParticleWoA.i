@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Particle Advection over Witch of Agnesi Hill"
+erf.prob_name = "Particles Over Witch of Agnesi Hill"
+
+erf.init_type = Isentropic
 
 max_step =  10
 
@@ -55,7 +57,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 erf.les_type = "None"
 
 # MULTILEVEL

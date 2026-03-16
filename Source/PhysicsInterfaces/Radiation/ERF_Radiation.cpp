@@ -506,9 +506,17 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo  = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
-            Real r_avg  = 0.5 * (r  + r_lo);
-            Real rt_avg = 0.5 * (rt + rt_lo);
-            Real qv_avg = 0.5 * (qv + qv_lo);
+            Real dz_k   = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                            + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                            + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                              + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : 0.5*dz; // Dist from w-face to CC at k
+            Real dz_km1 = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k  ) - z_arr(i  ,j  ,k-1))
+                                            + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
+                                            + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
+                                            + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : 0.5*dz; // Dist from w-face to CC at k-1
+            Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
+            Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
+            Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
 
             // Views at CC
             r_lay_tab(icol,ilay) = r;
@@ -540,9 +548,13 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
-                r_avg  = 0.5 * (r  + r_hi);
-                rt_avg = 0.5 * (rt + rt_hi);
-                qv_avg = 0.5 * (qv + qv_hi);
+                Real dz_kp1 = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+2) - z_arr(i  ,j  ,k+1))
+                                                + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
+                                                + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
+                                                + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : 0.5*dz; // Dist from w-face to CC at k+1
+                r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
+                rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
+                qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
                 p_lev_tab(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
                 t_lev_tab(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
@@ -582,7 +594,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             0.06, 0.06};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
-            auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
+            auto rrtmgp_to_fill_k = rrtmgp_in_vars[ivar];
+            amrex::Table1D<amrex::Real> rrtmgp_to_fill(rrtmgp_to_fill_k.data(),
+                                                       0, rrtmgp_to_fill_k.extent(0));
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
                 const auto& vbx  = mfi.validbox();
                 const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -732,7 +746,11 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                         lsm_out_arr(i,j,k) = mu0_tab(icol);
                     });
                 } else {
-                    auto rrtmgp_for_fill = rrtmgp_out_vars[ivar-1];
+                    auto rrtmgp_for_fill_k = rrtmgp_out_vars[ivar-1];
+                    amrex::Table2D<amrex::Real const, amrex::Order::C>
+                        rrtmgp_for_fill(rrtmgp_for_fill_k.data(),
+                                        {0,0}, {int(rrtmgp_for_fill_k.extent(0)),
+                                                int(rrtmgp_for_fill_k.extent(1))});
                     ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // map [i,j,k] 0-based to [icol, ilay] 0-based

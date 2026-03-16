@@ -52,6 +52,9 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domlo_z = domain.smallEnd(2);
     int domhi_z = domain.bigEnd(2) + 1;
 
+    // Just in case ...
+    z_phys_nd.setDomainBndry(1.234e20,0,1,geom);
+
     // ****************************************************************************
 
     if (lev == 0) {
@@ -273,7 +276,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
     case 1: // STF Method
     {
-        // Get Multifab spanning domain with 1 level of ghost cells
+        // Get MultiFab spanning domain with 1 level of ghost cells
         MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
         MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 
@@ -284,9 +287,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
         MultiFab mf2d;
         {
             BoxList bl2d = h_mf.boxArray().boxList();
-            for (auto& b : bl2d) {
-                b.setRange(2,0);
-            }
+            for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
             BoxArray ba2d(std::move(bl2d));
             mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
         }
@@ -557,8 +558,10 @@ make_J (const Geometry& geom,
  */
 void
 make_areas (const Geometry& geom,
-            MultiFab& z_phys_nd, MultiFab& ax,
-            MultiFab& ay, MultiFab& az)
+            MultiFab& z_phys_nd,
+            MultiFab& ax,
+            MultiFab& ay,
+            MultiFab& az)
 {
     const auto* dx = geom.CellSize();
     Real dzInv = 1.0/dx[2];

@@ -1,6 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "MultiSpecies Bubble"
+
 max_step  = 1
 stop_time = 3600.0
+
+erf.init_type = MoistBaseState
 
 amrex.fpe_trap_invalid = 1
 erf.fix_random_seed = 1
@@ -99,7 +103,6 @@ particles.disable_plt = true
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
 
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
@@ -113,7 +116,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities

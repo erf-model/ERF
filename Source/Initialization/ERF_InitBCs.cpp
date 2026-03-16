@@ -295,6 +295,18 @@ void ERF::init_bcs ()
     cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
     cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
 
+    bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
+                     solverChoice.turbChoice[max_level].dirichlet_k == true);
+    if (keqn_dir) {
+        // Need to change wall BC type, assume for now that all levels are RANS
+        for (int lev = 0; lev < max_level; ++lev) {
+            if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
+                Error("If using one-eqn RANS, all levels must be RANS for now");
+            }
+        }
+        Print() << "Using dirichlet BC for k equation" << std::endl;
+    }
+
     // *****************************************************************************
     //
     // Here we translate the physical boundary conditions -- one type per face --
@@ -647,6 +659,10 @@ void ERF::init_bcs ()
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NBCVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
+                }
+                if (keqn_dir) {
+                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
+                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
                 }
             }
         }

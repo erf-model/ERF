@@ -54,8 +54,6 @@ public:
     Define (SolverChoice& sc) override
     {
         m_fac_cond = lcond / sc.c_p;
-        m_fac_fus  = lfus / sc.c_p;
-        m_fac_sub  = lsub / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -122,6 +120,9 @@ public:
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
+    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+
+    void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
@@ -149,8 +150,8 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
+    // Nudging + set width
+    int m_real_width{0};
 
     // timestep
     amrex::Real dt;
@@ -166,8 +167,6 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_fac_fus;
-    amrex::Real m_fac_sub;
     bool m_do_cond;
 
     // Pointer to terrain data

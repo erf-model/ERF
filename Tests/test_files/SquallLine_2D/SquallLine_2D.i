@@ -1,5 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "SquallLine"
+erf.prob_name = "SquallLine"
+
+erf.init_type = MoistBaseState
+
+prob.use_empirical_psat = true
+prob.T_from_theta_in_moist_init = true
 
 max_step = 10
 
@@ -44,7 +49,6 @@ erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_veloci
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.buoyancy_type = 1
-erf.use_coriolis = false
 
 #erf.les_type = "Smagorinsky"
 #erf.Cs       = 0.25
@@ -59,7 +63,6 @@ erf.alpha_T           = 200.0 # [m^2/s]
 erf.alpha_C           = 200.0
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0

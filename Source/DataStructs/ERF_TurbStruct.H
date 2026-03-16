@@ -146,7 +146,7 @@ public:
       }
     }
 
-    // Flags for QKE/TKE euation
+    // Flags for QKE/TKE equation
     if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
         // Add sources/sinks to QKE/TKE? (MYJ does this inline)
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -190,6 +190,7 @@ public:
     query_one_or_per_level(pp, "Rt_crit", Rt_crit, lev, max_level);
     query_one_or_per_level(pp, "Rt_min", Rt_min, lev, max_level);
     query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
+    query_one_or_per_level(pp, "dirichlet_k", dirichlet_k, lev, max_level);
 
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
@@ -271,7 +272,8 @@ public:
       amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
-        << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
+        << "    Using Axell & Liungman one-equation RANS k model at level " << lev
+        << std::endl;
     } else if (pbl_type == PBLType::MYJ) {
       amrex::Print() << "    Using MYJ PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
@@ -401,7 +403,7 @@ public:
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
 
-  // Anistropic length scales
+  // Anisotropic length scales
   bool mix_isotropic = true;
 
   bool use_Ri_correction = true;
@@ -409,6 +411,8 @@ public:
 
   // RANS type
   RANSType rans_type;
+
+  bool dirichlet_k = false;
 
   // PBL model
   PBLType pbl_type;
@@ -433,7 +437,7 @@ public:
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above
   amrex::Real pbl_ysu_coriolis_freq =
-    1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or tske the
+    1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or take the
             // value from ERF coriolis forcing
   bool pbl_ysu_use_consistent_coriolis =
     false; // ignore input pbl_ysu_coriolis_freq, take value from ERF coriolis

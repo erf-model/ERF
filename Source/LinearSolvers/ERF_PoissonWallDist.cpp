@@ -268,7 +268,7 @@ void ERF::poisson_wall_dist (int lev)
     MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
 
     mlabec.setScalars(constA, constB);
-    mlabec.setACoeffs(lev, 0.0);
+    mlabec.setACoeffs(0, 0.0);
 #if 1
     // Set beta coefficients at faces
     Array<MultiFab, AMREX_SPACEDIM> beta;
@@ -299,7 +299,7 @@ void ERF::poisson_wall_dist (int lev)
         beta2_arr[b](i, j, k) = inv_h_zeta * (1 + h_xi*h_xi + h_eta*h_eta);
     });
 
-    mlabec.setBCoeffs(lev, GetArrOfConstPtrs(beta));
+    mlabec.setBCoeffs(0, GetArrOfConstPtrs(beta));
 
     // Set RHS := -h_zeta
     auto rhs_arr = rhs[0].arrays();
@@ -307,7 +307,7 @@ void ERF::poisson_wall_dist (int lev)
         rhs_arr[b](i, j, k) = -Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
     });
 #else
-    mlabec.setBCoeffs(lev, 1.0);
+    mlabec.setBCoeffs(0, 1.0);
 #endif
 
     mlabec.setDomainBC(bc3d_lo, bc3d_hi);
@@ -426,27 +426,7 @@ void ERF::poisson_wall_dist (int lev)
             dpdx = terrpoisson_flux_x(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0]);
             dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
             if (k == dom_lo.z) {
-                // Simplified gradient calc
-                // - assuming dirichlet (phi_klo==0)
-                Real phi_khi = 0.5 * (phi_arr[b](i,j,k) + phi_arr[b](i,j,k+1));
-                Real dz = 0.25 * ( zphys_arr[b](i  ,j  ,k+1) - zphys_arr[b](i  ,j  ,k)
-                                 + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i+1,j  ,k)
-                                 + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j+1,k)
-                                 + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j+1,k) );
-                Real pz = phi_khi / dz;
-                // - central diff in horizontal
-                Real px = 0.5 * (phi_arr[b](i+1,j,k) - phi_arr[b](i-1,j,k)); // * dxinv[0];
-                Real py = 0.5 * (phi_arr[b](i,j+1,k) - phi_arr[b](i,j-1,k)); // * dxinv[1];
-                // - account for skew
-                Real h_xi = 0.25 * ( zphys_arr[b](i+1,j  ,k  ) - zphys_arr[b](i,j  ,k  )
-                                   + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i,j+1,k  )
-                                   + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i,j  ,k+1)
-                                   + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i,j+1,k+1) ); // * dxinv[0];
-                Real h_eta = 0.25 * ( zphys_arr[b](i  ,j+1,k  ) - zphys_arr[b](i  ,j,k  )
-                                    + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i+1,j,k  )
-                                    + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j,k+1)
-                                    + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j,k+1) ); // * dxinv[1];
-                dpdz = pz - h_xi * px - h_eta * py;
+                dpdz = terrpoisson_flux_zlo_dir(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
             } else {
                 // This returns 0 at the wall, hence the need for the separate calc above
                 dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);

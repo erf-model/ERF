@@ -496,6 +496,17 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_random_perturbations (const int lev,
+                                      amrex::MultiFab& cons_pert,
+                                      amrex::MultiFab& xvel_pert,
+                                      amrex::MultiFab& yvel_pert,
+                                      amrex::MultiFab& zvel_pert);
+
+    void apply_gaussian_smoothing_to_perturbations (const int lev,
+                                                    amrex::MultiFab& cons_pert,
+                                                    amrex::MultiFab& xvel_pert,
+                                                    amrex::MultiFab& yvel_pert,
+                                                    amrex::MultiFab& zvel_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -538,26 +549,6 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
-    // Version in which we always set the velocity values but don't set theta
-    void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                            amrex::Real time,
-                            bool cons_only,
-                            int icomp_cons,
-                            int ncomp_cons,
-                            amrex::IntVect ngvect_cons,
-                            amrex::IntVect ngvect_vels);
-
-    // Version in which we only set the boundary value if inflowing, includes theta
-    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
-                                   amrex::Real time,
-                                   bool cons_only,
-                                   int icomp_cons,
-                                   int ncomp_cons,
-                                   amrex::IntVect ngvect_cons,
-                                   amrex::IntVect ngvect_vels);
-#endif
-
-#ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev,
                              amrex::MultiFab& mf_C1H,
                              amrex::MultiFab& mf_C2H,
@@ -570,13 +561,15 @@ public:
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm,
-                       const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark,
-                       const amrex::Real& time);
+                           const amrex::Real& dt_advance,
+                           amrex::MultiFab& cons_in,
+                           amrex::MultiFab& U_old,
+                           amrex::MultiFab& V_old,
+                           amrex::MultiFab& W_old,
+                           amrex::MultiFab& mf_vars_windfarm,
+                           const amrex::MultiFab& mf_Nturb,
+                           const amrex::MultiFab& mf_SMark,
+                           const amrex::Real& time);
 #endif
 
     void MakeEBGeometry ();
@@ -586,17 +579,20 @@ public:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
-    // write checkpoint file to disk
+    // Write checkpoint file to disk
     void WriteCheckpointFile () const;
 
-    // read checkpoint file from disk
+    // Read checkpoint file from disk
     void ReadCheckpointFile ();
+
+    // Read only velocities from checkpoint file
+    void ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile);
 
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();
 
-    void init_zphys            (int lev, amrex::Real time);
-    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void init_zphys            (int lev, amrex::Real elapsed_time);
+    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
 private:
@@ -624,8 +620,6 @@ private:
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
-
-    void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -695,8 +689,8 @@ private:
     void initHSE ();
     void initHSE (int lev);
 
-    //! Initialize Rayleigh damping profiles
-    void initRayleigh ();
+    //! Initialize Rayleigh damping profiles at a level
+    void initRayleigh_at_level (const int& lev);
 
     //! Initialize sponge profiles
     void initSponge ();
@@ -736,7 +730,10 @@ private:
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     static amrex::Real start_bdy_time;
+    static amrex::Real final_bdy_time;
+
     static amrex::Real start_low_time;
+    static amrex::Real final_low_time;
 
     static amrex::Real bdy_time_interval;
     static amrex::Real low_time_interval;
@@ -1123,7 +1120,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp",
+                                                    "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
@@ -1242,7 +1239,6 @@ private:
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
     int real_width{0};
-    int real_set_width{0};
     bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values
@@ -1406,7 +1402,7 @@ private:
             else
             {
                 if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 3;
+                    ngrow = 4;
                 } else {
                     ngrow = 2;
                 }

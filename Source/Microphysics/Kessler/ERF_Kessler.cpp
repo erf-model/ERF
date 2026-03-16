@@ -12,12 +12,15 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
     bool do_cond = m_do_cond;
     auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
+    auto domain  = m_geom.Domain();
+    int i_lo = domain.smallEnd(0);
+    int i_hi = domain.bigEnd(0);
+    int j_lo = domain.smallEnd(1);
+    int j_hi = domain.bigEnd(1);
+    int k_lo = domain.smallEnd(2);
+    int k_hi = domain.bigEnd(2);
     if (solverChoice.moisture_type == MoistureType::Kessler)
     {
-        auto domain = m_geom.Domain();
-        int k_lo = domain.smallEnd(2);
-        int k_hi = domain.bigEnd(2);
-
         MultiFab fz;
         auto ba    = tabs->boxArray();
         auto dm    = tabs->DistributionMap();
@@ -37,7 +40,11 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
             auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
-            const auto& tbx = mfi.tilebox();
+            auto tbx = mfi.tilebox();
+            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
@@ -260,12 +267,16 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
             auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
-            const auto& box3d = mfi.tilebox();
+            auto tbx = mfi.tilebox();
+            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
 
-            ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
 

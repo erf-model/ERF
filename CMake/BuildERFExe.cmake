@@ -268,7 +268,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
@@ -305,7 +304,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
-       ${SRC_DIR}/Initialization/ERF_InitUniform.cpp
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp

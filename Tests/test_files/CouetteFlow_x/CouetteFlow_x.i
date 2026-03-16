@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Couette Flow"
+erf.prob_name = "Couette Flow"
 
 max_step = 50
 
@@ -43,9 +43,11 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity
 # SOLVER CHOICE
 erf.use_gravity = false
 
-erf.les_type = "None"
+erf.init_type = Uniform
 
-erf.molec_diff_type   = "Constant"
+erf.les_type = None
+
+erf.molec_diff_type   = Constant
 erf.dynamic_viscosity = 0.1
 erf.alpha_T           = 0.0
 erf.alpha_C           = 0.0
@@ -55,7 +57,7 @@ prob.prob_type = 1
 
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-# NOTE: this u_0 should match the zhi.velocity specified above
-prob.u_0 = 2.0
-prob.v_0 = 0.0
-prob.w_0 = 0.0
+# NOTE: this U_0 should match the zhi.velocity specified above
+prob.U_0 = 2.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
