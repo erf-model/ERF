@@ -282,29 +282,29 @@ AdvectionSrcForScalars (const Box& bx,
             }
         });
 
-        // Special advection operator for open BC (bndry tangent operations)
-        if (xlo_open) {
-            bool do_lo = true;
-            AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, cons_index, advectionSrc, cell_prim,
-                                               avg_xmom, avg_ymom, avg_zmom,
-                                               detJ, cellSizeInv, do_lo);
-        }
-        if (xhi_open) {
-            AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, cons_index, advectionSrc, cell_prim,
-                                               avg_xmom, avg_ymom, avg_zmom,
-                                               detJ, cellSizeInv);
-        }
-        if (ylo_open) {
-            bool do_lo = true;
-            AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, cons_index, advectionSrc, cell_prim,
-                                               avg_xmom, avg_ymom, avg_zmom,
-                                               detJ, cellSizeInv, do_lo);
-        }
-        if (yhi_open) {
-            AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, cons_index, advectionSrc, cell_prim,
-                                               avg_xmom, avg_ymom, avg_zmom,
-                                               detJ, cellSizeInv);
-        }
-
     } // n
+
+    // Special advection operator for open BC (bndry tangent operations)
+    if (xlo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, do_lo);
+    }
+    if (xhi_open) {
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv);
+    }
+    if (ylo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, do_lo);
+    }
+    if (yhi_open) {
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv);
+    }
 }

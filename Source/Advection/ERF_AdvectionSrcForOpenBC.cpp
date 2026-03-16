@@ -179,7 +179,8 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const int& dir,
-                                    const int& cons_index,
+                                    const int& icomp,
+                                    const int& ncomp,
                                     const Array4<      Real>& cell_rhs,
                                     const Array4<const Real>& cell_prim,
                                     const Array4<const Real>& avg_xmom,
@@ -189,17 +190,18 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo)
 {
-    AMREX_ALWAYS_ASSERT(dir!=2 && cons_index>0);
+    AMREX_ALWAYS_ASSERT(dir!=2 && icomp>0);
 
     bool xopen = (dir==0);
     bool yopen = (dir==1);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    const int prim_index = cons_index - 1;
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         if (detJ(i,j,k) > 0.) {
+            const int cons_index = icomp + n;
+            const int prim_index = cons_index - 1;
             Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
             Real prim_xhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
             Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
