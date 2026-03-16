@@ -1,0 +1,62 @@
+diff --git a/Source/Diffusion/ERF_AddQKESources.H b/Source/Diffusion/ERF_AddQKESources.H
+@@
+-            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
++            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].hi(2) == ERFBCType::ext_dir) );
+@@
+-            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
++            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].hi(2) == ERFBCType::ext_dir) );
+@@
+-            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
++            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir) );
+
+diff --git a/Source/Diffusion/ERF_DiffusionSrcForState_S.cpp b/Source/Diffusion/ERF_DiffusionSrcForState_S.cpp
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim) )
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
+
+diff --git a/Source/Diffusion/ERF_DiffusionSrcForState_T.cpp b/Source/Diffusion/ERF_DiffusionSrcForState_T.cpp
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim) )
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
+@@
+-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
++            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
++                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
+                                     && k == dom_hi.z+1);
