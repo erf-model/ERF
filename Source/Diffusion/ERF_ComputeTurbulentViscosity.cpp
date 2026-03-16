@@ -148,7 +148,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 }
 
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+
                 hfx_x(i,j,k) = 0.0;
                 hfx_y(i,j,k) = 0.0;
                 hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
@@ -271,6 +272,219 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 hfx_x(i,j,k) = 0.0;
                 hfx_y(i,j,k) = 0.0;
                 hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+            });
+        }
+    }
+
+    // Extrapolate Kturb in x/y, fill remaining elements (relevant to lev==0)
+    //***********************************************************************************
+    int ngc(1);
+    // EddyDiff mapping :   Theta_h     KE_h       Scalar_h    Q_h
+    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
+    Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
+    Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
+    Real* fac_ptr = d_Factors.data();
+
+    const bool use_KE = ( turbChoice.les_type == LESType::Deardorff );
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box bxcc   = mfi.tilebox();
+        Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
+        Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
+        bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
+        bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
+
+        const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+
+        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
+            int offset = (EddyDiff::NumDiffs-1)/2;
+            switch (n)
+            {
+             case EddyDiff::KE_h:
+                if (use_KE) {
+                   ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                   {
+                       int indx   = n;
+                       int indx_v = indx + offset;
+                       mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                   });
+                }
+                break;
+            default:
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int indx   = n;
+                    int indx_v = indx + offset;
+
+                    // NOTE: Theta_h, Theta_v have already been set for Deardorff
+                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    }
+                });
+                break;
+          }
+       }
+    }
+}
+
+void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                                   const MultiFab& cons_in, MultiFab& eddyViscosity,
+                                   MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3,
+                                  const Geometry& geom,
+                                  Vector<std::unique_ptr<MultiFab>>& mapfac,
+                                  const TurbChoice& turbChoice, const Real const_grav,
+                                  [[maybe_unused]] const SolverChoice& solverChoice,
+                                  std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
+                                  const MoistureComponentIndices& moisture_indices,
+                                  const eb_& ebfact,
+                                  const MultiFab* xvel,
+                                  const MultiFab* yvel)
+{
+    const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    Real dxInv = cellSizeInv[0];
+    Real dyInv = cellSizeInv[1];
+    Real dzInv = cellSizeInv[2];
+
+    const Box& domain = geom.Domain();
+
+    Real inv_Pr_t    = turbChoice.Pr_t_inv;
+    Real inv_Sc_t    = turbChoice.Sc_t_inv;
+    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+
+    bool isotropic = turbChoice.mix_isotropic;
+
+    AMREX_ASSERT(turbChoice.les_type == LESType::Smagorinsky);
+
+    // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
+    //***********************************************************************************
+    if (turbChoice.les_type == LESType::Smagorinsky)
+    {
+        Real Cs = turbChoice.Cs;
+
+        // Define variables required inside device lambdas (scalars only)
+        Real l_abs_g = const_grav;
+        Real l_Ri_crit = turbChoice.Ri_crit;
+        bool l_use_Ri_corr = turbChoice.use_Ri_correction;
+        bool l_has_xvel = (xvel != nullptr);
+        bool l_has_yvel = (yvel != nullptr);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box bxcc  = mfi.growntilebox(1) & domain;
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
+            const Array4<Real const >& cell_data = cons_in.array(mfi);
+            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
+            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
+            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
+            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
+            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
+            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
+            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
+
+            Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
+            Array4<Real const> v_arr = (l_has_yvel) ? yvel->const_array(mfi) : Array4<Real const>{};
+
+            Array4<const EBCellFlag> c_cflag = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> u_cflag = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> v_cflag = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> w_cflag = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > u_vfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > v_vfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+
+            ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // =====================================================================
+                // 1. STRAIN RATE MAGNITUDE CALCULATION
+                // =====================================================================
+                Real SmnSmn=0.0;
+                if (c_cflag(i,j,k).isRegular()) {
+                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+                } else if (c_cflag(i,j,k).isSingleValued()) {
+                    SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
+                }
+                Real strain_rate_magnitude = std::sqrt(2.0 * SmnSmn);
+
+                // =====================================================================
+                // 2. GRID SCALE CALCULATION (filter width Δ)
+                // =====================================================================
+                Real Delta;
+                Real DeltaH;
+                if (isotropic) {
+                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Delta = std::cbrt(cellVolMsf);
+                    DeltaH = Delta;
+                } else {
+                    Delta = 1.0 / dzInv;
+                    DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                }
+
+                Real rho = cell_data(i, j, k, Rho_comp);
+                Real CsDeltaSqr_h = Cs * Cs * DeltaH * DeltaH;
+                Real CsDeltaSqr_v = Cs * Cs * Delta * Delta;
+
+                Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
+                Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
+
+                Real stability_factor = 1.0;
+
+                if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
+                    Real N2 = 0.0;
+                    Real S2_vert = 0.0;
+                    if (c_cflag(i,j,k).isRegular()) {
+                        N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
+                        S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                    } else if (c_cflag(i,j,k).isSingleValued()) {
+                        N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
+                        S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                    }
+                    Real Ri = ComputeRichardson(N2, S2_vert);
+                    stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                }
+
+                if (isotropic) {
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h * stability_factor;
+                    mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
+                } else {
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h;
+                    mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
+                }
+
+                amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+                amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+                Real dtheta_dz = 0.0;
+
+                if (c_cflag(i,j,k).isRegular()) {
+                    dtheta_dz = 0.5 * ( theta_kp1 - theta_km1 )*dzInv;
+                } else if (c_cflag(i,j,k).isSingleValued()) {
+
+                    amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
+                    if (c_cflag(i,j,k+1).isCovered()) {
+                        amrex::Real theta_km2 = cell_data(i, j, k-2, RhoTheta_comp) / cell_data(i, j, k-2, Rho_comp);
+                        dtheta_dz = (3.*theta - 4.*theta_km1 + theta_km2) * 0.5 * dzInv;
+                    } else if (c_cflag(i,j,k-1).isCovered()) {
+                        amrex::Real theta_kp2 = cell_data(i, j, k+2, RhoTheta_comp) / cell_data(i, j, k+2, Rho_comp);
+                        dtheta_dz = (-theta_kp2 + 4.*theta_kp1 - 3.*theta) * 0.5 * dzInv;
+                    } else {
+                        dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+                    }
+                }
+
+                hfx_x(i,j,k) = 0.0;
+                hfx_y(i,j,k) = 0.0;
+                hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
             });
         }
     }
@@ -588,6 +802,7 @@ void ComputeTurbulentViscosity (Real dt,
                                 const bool& use_moisture,
                                 int level,
                                 const BCRec* bc_ptr,
+                                const eb_& ebfact,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -614,13 +829,24 @@ void ComputeTurbulentViscosity (Real dt,
 
     if (turbChoice.les_type != LESType::None) {
         impose_phys_bcs = true;
-        ComputeTurbulentViscosityLES(Tau_lev,
-                                     cons_in, eddyViscosity,
-                                     Hfx1, Hfx2, Hfx3, Diss,
-                                     geom, use_terrain_fitted_coords,
-                                     mapfac, z_phys_nd, turbChoice, const_grav,
-                                     SurfLayer, solverChoice.moisture_indices,
-                                     &xvel, &yvel);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            ComputeTurbulentViscosityLES_EB(Tau_lev,
+                                        cons_in, eddyViscosity,
+                                        Hfx1, Hfx2, Hfx3,
+                                        geom,
+                                        mapfac, turbChoice, const_grav,
+                                        solverChoice,
+                                        SurfLayer, solverChoice.moisture_indices,
+                                        ebfact, &xvel, &yvel);
+        } else {
+            ComputeTurbulentViscosityLES(Tau_lev,
+                                        cons_in, eddyViscosity,
+                                        Hfx1, Hfx2, Hfx3, Diss,
+                                        geom, use_terrain_fitted_coords,
+                                        mapfac, z_phys_nd, turbChoice, const_grav,
+                                        SurfLayer, solverChoice.moisture_indices,
+                                        &xvel, &yvel);
+        }
     }
 
     if (turbChoice.rans_type != RANSType::None) {

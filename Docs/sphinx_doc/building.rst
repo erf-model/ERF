@@ -3,7 +3,7 @@
 Building ERF
 ============
 
-ERF supports two build systems: GNUMake and CMake. Most users should start with GNUMake. When on Cray HPC platforms like Perlmutter, CMake provides automated detection to simplify configuration. This page provides quick-start commands; comprehensive documentation follows in the sections below.
+ERF supports two build systems: GNUMake and CMake. Most users should start with GNUMake. When on Cray HPC platforms like Perlmutter, CMake provides automated detection to simplify configuration. With CMake, a shared ERF executable is built in ``Exec`` and is used with input decks in ``Exec/RegTests`` and ``Exec/CanonicalTests``. This page provides quick-start commands; comprehensive documentation follows in the sections below.
 
 **Where to start:**
 

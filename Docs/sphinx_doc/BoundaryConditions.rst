@@ -210,7 +210,7 @@ of the governing equations:
 
 where :math:`A` is specified with ``erf.bdy_nudge_factor`` (defaults to 10.0),
 :math:`\psi^{*}` is the state variable at the current RK stage, :math:`\psi^{BDY}` is
-the temporal interpolation of the observational data, and :math:`xi` is a linear coordinate
+the temporal interpolation of the observational data, and :math:`\xi` is a linear coordinate
 that is 1 at the domain boundary and 0 at the edge of the nudge region.
 
 
@@ -263,7 +263,7 @@ Specification of the number of layers and the offset into the domain of the pert
 
 ::
 
-          erf.inlet_perturbation_type = "source"
+          erf.perturbation_type = "source"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 4
@@ -308,7 +308,7 @@ and the perturbation amplitude is then computed through,
 
 ::
 
-          erf.inlet_perturbation_type = "source"
+          erf.perturbation_type = "source"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 4
@@ -333,7 +333,7 @@ The ``direct`` method can also be used to effectively trip turbulence into the d
 To activate the ``direct`` type forcing, set the following inputs list.
 ::
 
-          erf.inlet_perturbation_type = "direct"
+          erf.perturbation_type = "direct"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 16 16 8
@@ -379,7 +379,7 @@ Below is an example of the input tags necessary for a simulation with CPM:
 
 ::
 
-          erf.inlet_perturbation_type = "CPM"
+          erf.perturbation_type = "CPM"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 3

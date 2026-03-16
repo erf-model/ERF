@@ -60,7 +60,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                 int iflip = dom_lo.x - 1- i;
                 if (bc_ptr[0].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
-                } else if (bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,i,j) >= 0.) {
+                } else if (bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= 0.) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                 } else if (bc_ptr[0].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
@@ -79,7 +79,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                 int iflip =  2*dom_hi.x + 1 - i;
                 if (bc_ptr[0].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
-                } else if (bc_ptr[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,i,j) <= 0.) {
+                } else if (bc_ptr[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= 0.) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                 } else if (bc_ptr[0].hi(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);

@@ -86,6 +86,13 @@ ERF::initHSE (int lev)
             AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
             prob->erf_init_const_dens_and_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,solverChoice.rdOcp);
         }
+        else if (solverChoice.init_type == InitType::ConstantDensityLinearTheta)
+        {
+            // In this case we set both rho and theta from user-specified values
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            prob->erf_init_const_dens_and_linear_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,
+                                                        solverChoice.rdOcp,z_phys_cc[lev]);
+        }
         else
         {
             // In this case we set rho from user-specified values, then integrate
@@ -93,7 +100,7 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
-        if (solverChoice.init_type != InitType::Uniform) {
+        if (solverChoice.init_type != InitType::Uniform && solverChoice.init_type !=InitType::ConstantDensityLinearTheta) {
             erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
         }
 

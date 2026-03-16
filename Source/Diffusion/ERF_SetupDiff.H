@@ -8,14 +8,13 @@
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
 
-    const int end_comp   = start_comp + num_comp - 1;
-
-    bool l_use_keqn = turbChoice.use_keqn;
-    bool l_use_mynn = turbChoice.use_pbl_tke;
+    [[maybe_unused]] const int end_comp   = start_comp + num_comp - 1;
+    [[maybe_unused]] bool l_use_keqn = turbChoice.use_keqn;
+    [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
     // used by ERF_AddTKESources.H
-    const bool use_ref_theta = (turbChoice.theta_ref > 0);
-    const Real l_inv_theta0 = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
+    [[maybe_unused]] const bool use_ref_theta = (turbChoice.theta_ref > 0);
+    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
     // vertical diffusivities are defined in ERF_SetupVertDiff.H
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,

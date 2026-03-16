@@ -373,8 +373,8 @@ Perlmutter (NERSC)
          # Load environment
          module load PrgEnv-gnu cudatoolkit cray-mpich cray-netcdf-hdf5parallel
 
-         # Navigate to problem directory
-         cd ${ERF_HOME}/Exec/ABL
+         # Navigate to Exec
+         cd ${ERF_HOME}/Exec
 
          # Build
          make -j4 COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
@@ -394,7 +394,7 @@ Perlmutter (NERSC)
          mkdir build && cd build
          ../Build/cmake_with_kokkos_many_cuda.sh
 
-      **Executable location:** ``build/Exec/ABL/erf_abl`` (or ``install/bin/erf_abl`` if installed)
+      **Executable location:** ``build/Exec/erf_exec`` (or ``install/bin/erf_exec`` if installed)
 
       Or manual configuration:
 
@@ -507,7 +507,7 @@ The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`__ clus
          module restore
 
          # Build with Cray compilers
-         cd ${ERF_HOME}/Exec/ABL
+         cd ${ERF_HOME}/Exec
          make realclean
          make -j COMP=cray
 
@@ -522,7 +522,7 @@ The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`__ clus
          module load craype-x86-milan
 
          # Build
-         cd ${ERF_HOME}/Exec/ABL
+         cd ${ERF_HOME}/Exec
          make realclean
          make -j COMP=gnu USE_CUDA=TRUE
 

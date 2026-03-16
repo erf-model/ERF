@@ -80,11 +80,11 @@
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
-            const auto prob_lo         = geomdata.ProbLo();
-            const auto dx              = geomdata.CellSize();
-            const amrex::Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-            const amrex::Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-            const amrex::Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+            const auto prob_lo  = geomdata.ProbLo();
+            const auto dx       = geomdata.CellSize();
+            const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+            const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+            const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
@@ -158,24 +158,23 @@
             // - The bubble is either cylindrical (for 2-D problems, if two
             //   radial extents are specified) or an ellipsoid (if all three
             //   radial extents are specified).
-            amrex::Real L = 0.0;
+            Real L = 0.0;
             if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
             if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
             if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
             L = std::sqrt(L);
-            amrex::Real dT;
+            Real dT;
             if (L > 1.0) {
                 dT = 0.0;
-            }
-            else {
+            } else {
                 dT = T_pert * std::pow(cos(PI*L/2.0),2);
             }
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-            const amrex::Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+            const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: theta_perturbed is theta PLUS perturbation in theta
-            amrex::Real theta_perturbed;
+            Real theta_perturbed;
             if (T_pert_is_airtemp) {
                 // dT is air temperature
                 theta_perturbed = (Tbar_hse + dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);

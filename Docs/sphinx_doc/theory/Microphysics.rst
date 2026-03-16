@@ -1143,52 +1143,62 @@ Idealized Test Cases
 ^^^^^^^^^^^^^^^^^^^^^
 
 **SDM_Bubble2D_Adv**: 2D advection test of a moist bubble with super-droplets. Tests particle advection with the flow field
-and basic particle dynamics without coalescence or phase change. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv/``.
+and basic particle dynamics without coalescence or phase change. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv/``.
 
 **SDM_Bubble2D_Adv_InitSampling**: Similar to SDM_Bubble2D_Adv but demonstrates sampling-based multiplicity assignment for
-improved representation of the size distribution. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_InitSampling/``.
+improved representation of the size distribution. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_InitSampling/``.
 
 **SDM_Bubble2D_Adv_wInjection**: 2D moist bubble with runtime particle injection. Demonstrates injection configuration with
-moving injection domains. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
+moving injection domains. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
 
 **SDM_Box3D_Cond**: 3D box test for condensation/evaporation processes. Tests phase change physics with fixed environmental
-conditions. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_Cond/``.
+conditions. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Box3D_Cond/``.
 
 **SDM_Box3D_VTerm**: 3D box test for terminal velocity and sedimentation. Tests gravitational settling with various terminal
-velocity formulations. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_VTerm/``.
+velocity formulations. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Box3D_VTerm/``.
 
 **SDM_Box3D_Recycling**: 3D box test demonstrating particle recycling at domain boundaries. Shows how to maintain particle
-population during sedimentation. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_Recycling/``.
+population during sedimentation. Source located in ``Exec/RegTests/Bubble/``.
+Inputs located in ``Tests/test_files/SDM_Box3D_Recycling/``.
 
 **SDM_MultiSpecies_Bubble2D**: 2D moist bubble with multiple aerosol species. Demonstrates multi-component configuration.
-Source located in ``DevTests/MultiSpeciesBubble/``. Inputs located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
+Source located in ``RegTests/MultiSpeciesBubble/``.
+Inputs located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
 
 Realistic Test Cases
 ^^^^^^^^^^^^^^^^^^^^^
 
 **SDM_RICO3D**: 3D simulation of the Rain In Cumulus Over the Ocean (RICO) case, a precipitating shallow cumulus benchmark.
-Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Source
-located in ``Exec/DevTests/RICO``. Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
+Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment.
+Source files located in ``Source/Prob/ERF*RICO3D.H``.
+Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
 
 **SDM_RICO3D_InitSampling**: RICO case with sampling-based initialization for improved size distribution representation.
-Source located in ``Exec/DevTests/RICO``. Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
+Source files located in ``Source/Prob/ERF*SDM_RICO3D.H``.
+Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
 
 **SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment.
-Source located in ``Exec/DevTests/TemperatureSourceSpatial``. Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
+Source files located in ``Source/Prob/ERF*SDM_Congestus3D.H``.
+Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
 
 Example Problems
 ^^^^^^^^^^^^^^^^^
 
-**Moist Bubble with Multi-Injection**: ``Exec/MoistRegTests/Bubble/`` contains multiple inputs files for different microphysics models,
+**Moist Bubble with Multi-Injection**: ``Exec/RegTests/Bubble/`` contains multiple inputs files for different microphysics models,
 the ``inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl`` demonstrates SDM a complex injection setup with three injection sources:
 two moving box regions with opposing velocities and one time-limited bubble injection. This example is useful for understanding injection
 configuration and moving source regions.
 
-**RICO DevTest**: ``Exec/DevTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
+**RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
 including SDM configurations with various aerosol species (``input_sdm``).
 
-**Temperature Source Tests**: ``Exec/DevTests/TemperatureSourceSpatial/`` and ``Exec/DevTests/sinusoidal_mass_flux/`` include
-SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
+**Temperature Source Tests**: ``Exec_dev/RegTests/SDM_Congestus3D`` and ``.Exec_dev/sinusoidal_mass_flux/``
+include SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
 
 Verification
 ^^^^^^^^^^^^

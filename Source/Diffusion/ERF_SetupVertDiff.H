@@ -104,4 +104,4 @@
     Real* d_alpha_eff     = alpha_eff_d.data();
 //  int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
 //  int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
-    int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
+    [[maybe_unused]] int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
