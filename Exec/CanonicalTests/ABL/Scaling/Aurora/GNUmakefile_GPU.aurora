@@ -1,5 +1,5 @@
 # AMReX
-COMP = gnu
+COMP = intel
 PRECISION = DOUBLE
 
 # Profiling
@@ -16,19 +16,22 @@ USE_OMP  = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
-USE_SYCL = FALSE
+USE_SYCL = TRUE
+#SYCL_AOT=TRUE
+#AMREX_INTEL_ARCH=pvc
 
 # Debugging
 DEBUG = FALSE
 
-TEST = TRUE
-USE_ASSERTION = TRUE
+TEST = FALSE
+USE_ASSERTION = FALSE
 
-#USE_POISSON_SOLVE = TRUE
+#CXXFLAGS += -fsycl-device-code-split=per_kernel -v
+#CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=1
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/.Exec_dev/TemperatureSourceSpatial
+ERF_HOME := ..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec
 include $(ERF_HOME)/Exec/Make.ERF

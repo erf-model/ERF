@@ -17,18 +17,18 @@ Clone, build, and run with GNU Make:
       .. code-block:: bash
 
          git clone --recursive git@github.com:erf-model/ERF.git
-         cd ERF/Exec/ABL
+         cd ERF/Exec
          make COMP=gnu USE_MPI=TRUE
-         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.ex inputs_most
+         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.ex CanonicalTests/ABL/inputs_most
 
    .. tab-item:: GPU Build
 
       .. code-block:: bash
 
          git clone --recursive git@github.com:erf-model/ERF.git
-         cd ERF/Exec/ABL
+         cd ERF/Exec
          make COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
-         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_most
+         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex  CanonicalTests/ABL/inputs_most
 
 Build with CMake
 ----------------
@@ -49,8 +49,8 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
          make -j
 
          # Run from Exec subdirectory
-         cd Exec/ABL
-         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+         cd Exec
+         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
    .. tab-item:: Out-of-Source Build
 
@@ -66,12 +66,12 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
          make install  # optional
 
          # Run from build tree (without install)
-         cd Exec/ABL
-         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+         cd Exec
+         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
          # Or run from install directory
          cd ../../install/bin
-         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
    .. tab-item:: Automated Script
 
@@ -94,7 +94,7 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
 
          # Run from install directory
          cd install/bin  # or $ERF_INSTALL_DIR/bin if customized
-         mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
 Cleanup
 -------
@@ -107,7 +107,7 @@ Remove build artifacts:
 
       .. code-block:: bash
 
-         # From problem directory (e.g., Exec/ABL)
+         # From ``ERF/Exec`` directory
          make clean           # Remove build artifacts
          make realclean       # Same as clean
          make cleanconfig     # Remove configuration only

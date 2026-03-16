@@ -17,4 +17,4 @@ Environ. Fluid Mech.) neglecting Coriolis forces. Damping is provided at the
 inlets and top boundary (sponge zone and Rayleigh layer, respectively) to
 prevent terrain-induced wave reflections.
 
-The solver executable is compiled in Exec/ABL.
+The solver executable is compiled in Exec.

@@ -1,10 +1,11 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "RICO"
 
+stop_time = 600      # 10 min
 #stop_time = 3600    #  1 hour
 #stop_time = 4800    #  1.5 hours
 #stop_time = 7200    #  2 hours
-stop_time = 86400   #  24 hours
+#stop_time = 86400   #  24 hours
 
 amrex.fpe_trap_invalid = 1
 
@@ -28,7 +29,6 @@ erf.most.qstar  = 0.001133 # Cq
 erf.most.z0     = 0.1 # from BOMEX
 erf.most.zref   = 20.0 # from BOMEX
 
-erf.use_explicit_most   = 1
 erf.most.rico.theta_z0 = 300.0
 erf.most.rico.qsat_z0 = 0.022
 
@@ -48,7 +48,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
-erf.use_mono_adv       = true
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -102,7 +101,6 @@ erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
 
 #erf.restart = chk160000
 
@@ -114,13 +112,20 @@ erf.custom_forcing_uses_primitive_vars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.01
-prob.V_0_Pert_Mag = 0.01
+#prob.U_0_Pert_Mag = 0.01
+#prob.V_0_Pert_Mag = 0.01
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1600.0
-prob.T_0_Pert_Mag    = 0.1
-prob.qv_0_Pert_Mag   = 0.000025
+#prob.T_0_Pert_Mag    = 0.1
+#prob.qv_0_Pert_Mag   = 0.000025
+
+prob.pert_deltaU = 0.01
+prob.pert_deltaV = 0.01
+prob.pert_deltaT = 0.1
+prob.pert_deltaQV = 0.000025
+prob.pert_periods_T = 10.0
+prob.pert_periods_QV = 10.0
 
 prob.advection_heating_rate   = -2.8935E-5
 prob.source_cutoff            = 1500.0

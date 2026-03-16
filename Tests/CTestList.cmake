@@ -208,29 +208,29 @@ if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling
     if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
         # log-normal distribution for radius
-        add_test_sdm(SDM_RICO3D_InitSampling         "../.Exec_dev/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+        add_test_sdm(SDM_RICO3D_InitSampling         ""  "erf_exec"   "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
-        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "RegTests"  "erf_exec"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   ""  "erf_exec"   "plt00000" 1e-14 1e-14)
         # column case to test condensation
         add_test_sdm(SDM_SineMassFlux                "../.Exec_dev/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
     endif()
 
     # passive advection of particles
-    add_test_sdm(SDM_Bubble2D_Adv                "RegTests" "erf_exec"   "plt00050" 1e-12 1e-12)
+    add_test_sdm(SDM_Bubble2D_Adv                "" "erf_exec"  "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection
-    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "RegTests" "erf_exec"   "plt00050" 5e-12 5e-12)
+    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "" "erf_exec"  "plt00050" 5e-12 5e-12)
     # condensation/evaporation
-    add_test_sdm(SDM_Box3D_Cond                  "RegTests" "erf_exec"   "plt00010" 2e-12 3e-13)
+    add_test_sdm(SDM_Box3D_Cond                  "" "erf_exec"  "plt00010" 2e-12 3e-13)
     # terminal velocity
-    add_test_sdm(SDM_Box3D_VTerm                 "RegTests" "erf_exec"   "plt00001" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"  "plt00001" 5e-13 1e-14)
     # recycling
-    add_test_sdm(SDM_Box3D_Recycling             "RegTests" "erf_exec"   "plt00020" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00020" 5e-13 1e-14)
     # Congestus case
-    add_test_sdm(SDM_Congestus3D                 "../.Exec_dev/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+    add_test_sdm(SDM_Congestus3D                 "" "erf_exec"  "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case
-    add_test_sdm(SDM_RICO3D                      "../.Exec_dev/RICO"        "erf_rico"     "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+    add_test_sdm(SDM_RICO3D                      "" "erf_exec"  "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # multispecies setup with dummy water species
-    add_test_sdm(SDM_MultiSpecies_Bubble2D       "RegTests" "erf_exec"   "plt00001" 5e-12 1e-12)
+    add_test_sdm(SDM_MultiSpecies_Bubble2D       "" "erf_exec"  "plt00001" 5e-12 1e-12)
 endif()
 
 #=============================================================================

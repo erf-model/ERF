@@ -52,7 +52,6 @@ erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
     
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
 
 # PROBLEM PARAMETERS
 # these are zeroed because we are using an input_sounding

@@ -260,7 +260,7 @@ Quick Test
 .. code-block:: bash
 
    # Run short simulation
-   cd build/install/bin  # or Exec/ABL for in-place builds
+   cd build/install/bin
    mpiexec -n 4 ./ERF3d.*.ex inputs max_step=10
 
 Regression Tests

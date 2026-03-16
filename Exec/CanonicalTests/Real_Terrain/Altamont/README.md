@@ -13,4 +13,4 @@ ztop = dz0 * (gsr**(nz+1) - 1) / (gsr - 1)  # partial sum formula
 # ztop = 1278.4
 ```
 
-The solver executable is compiled in Exec/ABL.
+The solver executable is compiled in Exec.

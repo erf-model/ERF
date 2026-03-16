@@ -23,7 +23,8 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    // Boundary-plane files are indexed by absolute simulation time.
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time + start_time);
 
     const BCRec* bc_ptr = domain_bcs_type_d.data();
 

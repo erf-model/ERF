@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "RICO"
+
 stop_time = 3600
 max_step = 10
 
@@ -24,7 +26,6 @@ erf.most.qstar  = 0.001133 # Cq
 erf.most.z0     = 0.1 # from BOMEX
 erf.most.zref   =160.0 # from BOMEX
 
-erf.use_explicit_most   = 1
 erf.most.rico.theta_z0 = 300.0
 erf.most.rico.qsat_z0 = 0.022
 
@@ -34,7 +35,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt           = 2.5 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
-erf.use_mono_adv       = true
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -129,7 +129,6 @@ erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
