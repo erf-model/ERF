@@ -159,7 +159,7 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) * az(i,j,k):
                                                0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
-                                               0.5  * (az(i,j,k) + az(i,j,k-1));
+                                               0.5  * (az(i,j,k) + az(i,j,k+1));
 
             Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, w, rho_u, dxInv, do_lo) :
                                    (xflux_hi - xflux_lo) * dxInv;
