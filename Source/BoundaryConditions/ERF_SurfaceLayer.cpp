@@ -664,9 +664,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
-        // Terrain
-        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
-
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
         const auto *const v_mean     = m_ma.get_average(lev,1);

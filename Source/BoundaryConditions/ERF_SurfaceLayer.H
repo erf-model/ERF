@@ -525,6 +525,7 @@ public:
                                  const amrex::MultiFab* z_phys,
                                  const FluxCalc& flux_comp);
 
+  template <typename FluxCalc>
   void compute_SurfaceLayer_bcs_EB (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
