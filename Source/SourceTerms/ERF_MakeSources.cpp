@@ -399,7 +399,6 @@ void make_sources (int level,
         // 6. Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step) {
-            int sc, nc;
             const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
             const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
@@ -413,11 +412,11 @@ void make_sources (int level,
 
 
             if (l_use_KE && l_diff_KE) {
-                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
+                NumericalDiffusion_Scal(bx, /*sc=*/RhoKE_comp, /*nc=*/1, dt, solverChoice.num_diff_coeff,
                                         cell_prim, cell_data, cell_src, mf_mx, mf_my);
             }
 
-            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, /*sc=*/RhoScalar_comp, /*nc=*/NSCALARS, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_mx, mf_my);
         }
 
