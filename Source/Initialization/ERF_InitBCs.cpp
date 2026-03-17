@@ -758,6 +758,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     // Ensure we set a reasonable theta surface
     if (th_read) {
         if (th_inp_tmp[0] == th_init) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((th_inp_tmp.size() > 2) && (z_inp_tmp.size() > 2),
+                "Need at least 3 theta profile points to extrapolate surface theta");
             Real slope = (th_inp_tmp[2] - th_inp_tmp[1]) / (z_inp_tmp[2] - z_inp_tmp[1]);
             Real dz    = z_inp_tmp[0] - z_inp_tmp[1];
             th_inp_tmp[0] = slope * dz + th_inp_tmp[1];
