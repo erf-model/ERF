@@ -12,6 +12,10 @@ enum struct EBBoundaryType {
     SlipWall, NoSlipWall
 };
 
+enum struct EBTauType {
+    tau13, tau23
+};
+
 /**
  * Container holding EB-related choices
  */
