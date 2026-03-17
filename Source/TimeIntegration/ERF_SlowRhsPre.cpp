@@ -85,12 +85,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
+                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
                        MultiFab* Q1fx1, MultiFab* Q1fx2,
                        MultiFab* Q1fx3, MultiFab* Q2fx3,
                        MultiFab* Diss,
+                       MultiFab* Hfx3_EB,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
@@ -513,6 +515,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> fcy_arr{};
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
+        Array4<const Real> barea_arr{};
+        Array4<const Real> bcent_arr{};
 
         if (l_use_eb)
         {
@@ -527,8 +531,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
                 fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
                 detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-                // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
                 mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
+                barea_arr = (ebfact.get_const_factory())->getBndryArea().const_array(mfi);
+                bcent_arr = (ebfact.get_const_factory())->getBndryCent().const_array(mfi);
             } else {
                 ax_arr   = ax.const_array(mfi);
                 ay_arr   = ay.const_array(mfi);
@@ -587,6 +592,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Array4<Real> hfx_x = Hfx1->array(mfi);
             Array4<Real> hfx_y = Hfx2->array(mfi);
             Array4<Real> hfx_z = Hfx3->array(mfi);
+            Array4<Real> hfx_EB{};
+            if (l_use_eb) {
+                hfx_EB = Hfx3_EB->array(mfi);
+            }
 
             Array4<Real> q1fx_x = (Q1fx1) ? Q1fx1->array(mfi) : Array4<Real>{};
             Array4<Real> q1fx_y = (Q1fx2) ? Q1fx2->array(mfi) : Array4<Real>{};
@@ -630,8 +639,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
-                                       dxInv,
-                                       hfx_z, q1fx_z, q2fx_z,
+                                       barea_arr, bcent_arr,
+                                       dx, dxInv,
+                                       hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                        mu_turb, solverChoice, level,
                                        bc_ptr_d, l_use_SurfLayer);
             } else {

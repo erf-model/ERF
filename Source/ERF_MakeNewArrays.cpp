@@ -557,6 +557,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     Tau[lev].resize(9);
     Tau_corr[lev].resize(3);
+    Tau_EB[lev].resize(2);
 
     if (l_use_diff) {
         //
@@ -592,13 +593,13 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
         // EB diffusive stresses
         if (l_use_eb) {
-            Tau_EB[lev][EBTauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau13]->setVal(0.);
-            Tau_EB[lev][EBTauType::tau23]->setVal(0.);
+            Tau_EB[lev][static_cast<int>(EBTauType::tau13)] = std::make_unique<MultiFab>( ba, dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][static_cast<int>(EBTauType::tau23)] = std::make_unique<MultiFab>( ba, dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][static_cast<int>(EBTauType::tau13)]->setVal(0.);
+            Tau_EB[lev][static_cast<int>(EBTauType::tau23)]->setVal(0.);
         } else {
-            Tau_EB[lev][EBTauType::tau13] = nullptr;
-            Tau_EB[lev][EBTauType::tau23] = nullptr;
+            Tau_EB[lev][static_cast<int>(EBTauType::tau13)] = nullptr;
+            Tau_EB[lev][static_cast<int>(EBTauType::tau23)] = nullptr;
         }
 
         if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
@@ -630,7 +631,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
         // EB heat fluxes
         if (l_use_eb) {
-            hfx3_EB[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            hfx3_EB[lev] = std::make_unique<MultiFab>( ba, dm, 1, IntVect(1,1,1) );
             hfx3_EB[lev]->setVal(0.);
         } else {
             hfx3_EB[lev] = nullptr;
