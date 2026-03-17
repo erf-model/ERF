@@ -540,55 +540,6 @@ void make_mom_sources (Real time,
             }
         }
 
-        // *************************************************************************************
-        // 5. Add nudging towards value specified in input sounding
-        // *************************************************************************************
-        /*
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
-        {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = Real(1.0);
-            Real coeff_np1 = Real(0.0);
-
-            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
-            } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = Real(1.0) - coeff_np1;
-            }
-
-            int nr = Rho_comp;
-
-            const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
-            const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
-            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
-            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
-            ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
-                nudge_u *= tau_inv;
-                xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
-                nudge_v *= tau_inv;
-                ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
-            });
-        }
-        */
-
         if (solverChoice.large_scale_forcing && is_slow_step)
         {
             // subsidence terms for U and V
@@ -707,23 +658,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 6. Add NUMERICAL DIFFUSION terms
-        // *****************************************************************************
-#if 0
-        if (l_use_ndiff) {
-            const Array4<const Real>& mf_ux   = mapfac[MapFac::ux]->const_array(mfi);
-            const Array4<const Real>& mf_uy   = mapfac[MapFac::uy]->const_array(mfi);
-            const Array4<const Real>& mf_vx   = mapfac[MapFac::vx]->const_array(mfi);
-            const Array4<const Real>& mf_vy   = mapfac[MapFac::vy]->const_array(mfi);
-            NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
-                                    u, cell_data, xmom_src_arr, mf_ux, mf_uy);
-            NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
-                                    v, cell_data, ymom_src_arr, mf_vx, mf_vy);
-        }
-#endif
-
-        // *****************************************************************************
-        // 7. Add SPONGING
+        // 6. Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
             if (solverChoice.spongeChoice.sponge_type == "input_sponge")

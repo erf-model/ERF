@@ -226,7 +226,6 @@ void ERF::advance_dycore (int level,
         });
     }
 
-    /**/
     if (use_lsf) {
         lsf_data[0]->setVal(0.0);
 
@@ -234,7 +233,6 @@ void ERF::advance_dycore (int level,
         int itime_next = 0;
         amrex::Real coeff_curr = 1.0;
         amrex::Real coeff_next = 0.0;
-        amrex::Real inv_scale = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
 
         lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
 

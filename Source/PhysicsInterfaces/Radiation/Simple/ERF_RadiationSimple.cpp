@@ -91,7 +91,7 @@ void RadiationSimple::Run(int& level,
                 Real dz = (z_nd_arr) ? 0.25 * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
                                             + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
                                             + (z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k))
-                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)) ) : fixed_dz;
+                                            + (z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k)) ) : fixed_dz;
 
                 // optical depth only includes that due to liquid water
                 if (qc + qi > 0.0)
@@ -151,15 +151,15 @@ void RadiationSimple::Run(int& level,
                 Real dz = (z_nd_arr) ? 0.25 * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
                                             + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
                                             + (z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k))
-                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)) ) : fixed_dz;
+                                            + (z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k)) ) : fixed_dz;
 
                 Real cpmassl = cp_spec * cons_arr(i, j, k, Rho_comp) * dz; // thermal mass
                 Real FTHRL = -(flux_arr(i, j, k+1) - flux_arr(i, j, k)) / cpmassl;
                 // convert heating rate FTHRL for theta_d
-				Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp),cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp));
-				Real exner = getExnergivenP(pres, R_d/Cp_d);
-				FTHRL *= exner; 
-				qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
+                Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp),cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp));
+                Real exner = getExnergivenP(pres, R_d/Cp_d);
+                FTHRL *= exner;
+                qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
                 radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
 

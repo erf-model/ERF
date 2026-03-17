@@ -53,7 +53,7 @@ void make_sources (int level,
                    const Real* d_sinesq_at_lev,
                    const MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
-                   LargeScaleForcingData &lsf_data,
+                   LargeScaleForcingData& /*lsf_data*/,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
 {
@@ -443,49 +443,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 9. Add nudging towards value specified in input sounding
-        // *************************************************************************************
-        /*
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
-        {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = Real(1.0);
-            Real coeff_np1 = Real(0.0);
-
-            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
-            } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = Real(1.0) - coeff_np1;
-            }
-
-            const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr();
-            const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr();
-
-            const int n  = RhoTheta_comp;
-            const int nr = Rho_comp;
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
-                nudge *= tau_inv;
-                cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
-            });
-        }
-        */
-
-        // *************************************************************************************
-        // 10a. Add immersed source terms for terrain
+        // 9. Add immersed source terms for terrain
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
