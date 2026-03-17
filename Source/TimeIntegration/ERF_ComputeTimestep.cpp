@@ -308,6 +308,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (solverChoice.substepping_type[level] != SubsteppingType::None) {
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
+             if (dt_fast_ratio < 1) {
+                 Abort("Invalid fixed_fast_dt: must be <= fixed_dt so mri_dt_ratio >= 1");
+             }
          } else if (fixed_dt[level] > 0.) {
              // Max CFL_c = 1.0 for substeps by default, but we enforce a min of 4 substeps
              auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
