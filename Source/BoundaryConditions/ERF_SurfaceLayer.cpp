@@ -319,7 +319,6 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        Print() << "SK: impose_SurfaceLayer_bcs: flux_type == FluxCalcType::MOENG " << std::endl;
         moeng_flux flux_comp;
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
@@ -380,7 +379,6 @@ SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
                                        const eb_& ebfact)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        Print() << "SK: impose_SurfaceLayer_bcs: flux_type == FluxCalcType::MOENG " << std::endl;
         moeng_flux flux_comp;
         compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
@@ -666,18 +664,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
-        // Rotated stress vars
-        auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
-        auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
-        auto t33_arr = (m_rotate) ? Tau_lev[TauType::tau33]->array(mfi) : Array4<Real>{};
-        auto t12_arr = (m_rotate) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
-        auto t21_arr = (m_rotate) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
-
-        auto hfx1_arr = (m_rotate) ? xheat_flux->array(mfi) : Array4<Real>{};
-        auto hfx2_arr = (m_rotate) ? yheat_flux->array(mfi) : Array4<Real>{};
-        auto qfx1_arr = (m_rotate && xqv_flux) ? xqv_flux->array(mfi) : Array4<Real>{};
-        auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
-
         // Terrain
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
@@ -715,7 +701,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
         }
 
-
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
@@ -733,37 +718,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
-
             }
             hfx3_arr(i,j,klo) = Tflux;
         });
-
-        // // Rho*Qv flux
-        // //============================================================================
-        // if (use_moisture) {
-        //     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        //     {
-        //         // Valid qv flux from LSM and over land
-        //         Real Qflux;
-        //         int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-        //         if (lsm_q_flux_arr && is_land) {
-        //             Qflux = lsm_q_flux_arr(i,j,k);
-        //         } else {
-        //             Qflux = flux_comp.compute_q_flux(i, j, k,
-        //                                              cons_arr, velx_arr, vely_arr,
-        //                                              umm_arr, qm_arr, u_star_arr,
-        //                                              q_star_arr, q_surf_arr);
-        //         }
-
-        //         // Do scalar flux rotations?
-        //         if (rotate) {
-        //             rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
-        //                                qfx1_arr, qfx2_arr, qfx3_arr);
-        //         } else {
-        //             qfx3_arr(i,j,k) = Qflux;
-        //         }
-        //     });
-        // } // custom
 
         // Rho*u flux
         //============================================================================
