@@ -18,7 +18,7 @@ erf.fixed_dt       = 0.00001     # fixed time step [s]
 erf.substepping_type = "None"
 
 # initialization type
-erf.init_type = "uniform"
+erf.init_type = "Uniform"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -92,7 +92,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 # Super Droplets Options
 super_droplets_moisture.stable_redistribute = true

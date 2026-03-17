@@ -1,4 +1,4 @@
-Version_Two_Dot_One_double
+Version_Two_Dot_Zero_double
 3
 17
 xvel
@@ -16,10 +16,11 @@ species_mass_ice
 T_fz
 a
 c
-rho_i
 m_rime
-1
+n_mono
+2
 int_comp0
+int_comp1
 1
 64
 17
