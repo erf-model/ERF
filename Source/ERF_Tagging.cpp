@@ -114,10 +114,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             }
                         }
 
-                        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+                        Box coarsened_bx(boxes_at_level[levc+1][isub]); coarsened_bx.coarsen(ref_ratio[levc]);
+
+                        for (MFIter mfi(tags); mfi.isValid(); ++mfi)
+                        {
                             auto tag_arr = tags.array(mfi);  // Get device-accessible array
 
-                            Box bx = mfi.validbox(); bx &= subdomain;
+                            Box bx = mfi.validbox() & coarsened_bx;
 
                             if (!bx.isEmpty()) {
                                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
