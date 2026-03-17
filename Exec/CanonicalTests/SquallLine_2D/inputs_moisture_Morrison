@@ -74,4 +74,5 @@ prob.rayleigh_V_0 = 1.0
 prob.rayleigh_W_0 = 0.0
 prob.rayleigh_T_0 = 300.0
 
-prob.use_empirical_sat_pressure = true
+prob.use_empirical_psat         = true
+prob.T_from_theta_in_moist_init = true

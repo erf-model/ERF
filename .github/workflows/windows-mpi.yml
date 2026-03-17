@@ -84,17 +84,17 @@ jobs:
 
           ## Running the Executable
 
-          Navigate to the executable directory (e.g., `Exec\ABL\Debug\` or `Exec\ABL\Release\`) and run:
+          Navigate to the executable directory (e.g., `Exec\Debug\` or `Exec\Release\`) and run:
 
           ``````powershell
           # Single process
-          mpiexec -n 1 .\erf_abl.exe path\to\inputs_file
+          mpiexec -n 1 .\erf_exec.exe path\to\inputs_file
 
           # Multiple processes (e.g., 4)
-          mpiexec -n 4 .\erf_abl.exe path\to\inputs_file
+          mpiexec -n 4 .\erf_exec.exe path\to\inputs_file
           ``````
 
-          **Important:** Always use `mpiexec` or `mpirun` to launch. Running `.\erf_abl.exe` directly will trigger Windows Defender firewall warnings.
+          **Important:** Always use `mpiexec` or `mpirun` to launch. Running `.\erf_exec.exe` directly will trigger Windows Defender firewall warnings.
 
           ## Troubleshooting
 
@@ -146,10 +146,10 @@ jobs:
           ### 🚀 Running the Executable
 
           ``````powershell
-          mpiexec -n 4 .\erf_abl.exe path\to\inputs_file
+          mpiexec -n 4 .\erf_exec.exe path\to\inputs_file
           ``````
 
-          **Note:** Always use `mpiexec` to launch (not `.\erf_abl.exe` directly) to avoid Windows Defender warnings.
+          **Note:** Always use `mpiexec` to launch (not `.\erf_exec.exe` directly) to avoid Windows Defender warnings.
 
           See `INSTALL.txt` in the artifact for complete instructions.
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

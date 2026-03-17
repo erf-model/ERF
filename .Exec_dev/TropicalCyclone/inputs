@@ -29,7 +29,6 @@ xhi.type = "Outflow"
 yhi.type = "Outflow"
 
 zlo.type = "surface_layer"
-erf.use_explicit_most   = 1
 erf.most.surf_temp      = 301.14
 erf.most.zref           = 10.
 erf.most.average_policy = 1  # local averaging

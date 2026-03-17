@@ -25,11 +25,13 @@ ERF::ComputeDt (int step)
         dt_tmp[lev] = amrex::min(dt_tmp[lev], change_max*dt[lev]);
         n_factor *= nsubsteps[lev];
         dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
-        if (step == 0){
-            dt_0 *= init_shrink;
-            if (verbose && init_shrink != 1.0) {
-                Print() << "Timestep 0: shrink initial dt at level " << lev << " by " << init_shrink << std::endl;
-            }
+
+    }
+    // Limit level 0 time step if requested
+    if (step == 0) {
+        dt_0 *= init_shrink;
+        if (verbose && init_shrink != 1.0) {
+            Print() << "Timestep 0: shrink level 0 initial dt by " << init_shrink << std::endl;
         }
     }
     //

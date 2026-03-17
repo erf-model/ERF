@@ -31,7 +31,7 @@ Building the Tests
 ~~~~~~~~~~~~~~~~~~
 
 Once the user has performed the CMake configure step, the ``make`` command will build
-the ERF executable(s) required for each test (for example, the shared ``erf_regtests`` binary).
+the ERF executable(s) required for each test (for example, the shared ``erf_exec`` binary).
 In this step, it is highly beneficial for the user to use the ``-j`` option for ``make``
 to build source files in parallel.
 
@@ -42,7 +42,7 @@ Once the test executables are built, CTest also creates working directories for 
 where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
 
 **Where is the executable?** With the CMake workflow, the shared test executable is built under the build tree in ``Exec``
-(for example, ``Build/Exec/erf_regtests``), and all regression/canonical test input decks are run using that binary.
+(for example, ``Build/Exec/erf_exec``), and all regression/canonical test input decks are run using that binary.
 
 To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status.
 Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``

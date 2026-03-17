@@ -84,7 +84,6 @@ super_droplets_moisture.0.initial_number_density = 5.0e7 #m^{-3}
 super_droplets_moisture.0.initial_particles_per_cell = 128
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
 
 erf.nudging_from_input_sounding = true
 erf.tau_nudging = 0.2

@@ -4,22 +4,8 @@
     Real cutoff_transition      =  50.0; pp_prob.query("source_cutoff_transition", cutoff_transition);
     Real advection_heating_rate =   0.0; pp_prob.query("advection_heating_rate", advection_heating_rate);
 
-    // If the z coordinate varies in time and or space, then the the height
-    // needs to be calculated at each time step. Here, we assume that only
-    // grid stretching exists.
-
-    Vector<Real> zlevels;
-    Gpu::DeviceVector<Real> d_zlevels;
-
-    zlevels.resize(khi+1);
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    d_zlevels.resize(khi+1);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
-
-    const Real* d_zlevels_arr = d_zlevels.dataPtr();
-
     // Only apply temperature source below nominal inversion height
-    for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for (MFIter mfi(*src, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& src_arr = src->array(mfi);

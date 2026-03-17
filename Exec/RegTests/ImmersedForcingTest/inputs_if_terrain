@@ -58,7 +58,6 @@ prob.zdamp = 300. # from model top"
 
 # INITIALIZATION 
 erf.init_type           = "input_sounding"
-erf.init_sounding_ideal = 1
 erf.input_sounding_file = "input_sounding_CBL"
 
 ## TERRRAIN GRID TYPE

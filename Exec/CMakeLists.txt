@@ -12,7 +12,7 @@ build_erf_lib(${erf_lib_name})
 if(NOT ERF_BUILD_LIBRARY_ONLY)
   # Build the shared regtests executable from Exec so it can be used by
   # both RegTests and CanonicalTests input decks.
-  set(erf_exe_name erf_regtests)
+  set(erf_exe_name erf_exec)
   add_executable(${erf_exe_name} "")
   target_sources(${erf_exe_name}
      PRIVATE

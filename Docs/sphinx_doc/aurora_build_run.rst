@@ -164,7 +164,7 @@ Verify your environment before building:
 
          mpiexec --np ${NTOTRANKS} -ppn ${NRANKS} -d ${NDEPTH} --cpu-bind depth \
             -env OMP_NUM_THREADS=${NTHREADS} \
-            ./Exec/ABL/erf_abl <PATH_TO_INPUTS_FILE>
+            ./Exec/erf_exec <PATH_TO_INPUTS_FILE>
 
       **MPI layout parameters:**
 
@@ -265,7 +265,7 @@ Verify your environment before building:
 
          mpiexec --np ${NTOTRANKS} -ppn ${NRANKS} -d ${NDEPTH} --cpu-bind depth \
             -env OMP_NUM_THREADS=${NTHREADS} \
-            ./Exec/ABL/erf_abl ${INPUTS_FILE}
+            ./Exec/erf_exec ${INPUTS_FILE}
 
       **Submit the job:**
 
@@ -395,7 +395,7 @@ Troubleshooting
 
       mpiexec --np 4 -ppn 4 -d 16 --cpu-bind depth \
          -env OMP_NUM_THREADS=1 \
-         ./Exec/ABL/erf_abl <inputs_file> max_step=10
+         ./Exec/erf_exec <inputs_file> max_step=10
 
    Check ``Backtrace.*`` files for stack traces.
 

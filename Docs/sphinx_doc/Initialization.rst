@@ -148,20 +148,20 @@ For a summary of initialization strategies for real-data simulations, see the ta
    * - WRF --> ERF
      - Manual download
      - WPS + ``real.exe``
-     - ``erf_abl`` (init from wrfinput)
+     - ``erf_exec`` (init from wrfinput)
    * -
      - Manual download
      - ``ndown.exe``
-     - ``erf_abl`` (init from wrfinput)
+     - ``erf_exec`` (init from wrfinput)
    * - WPS --> ERF
      - Manual download
      - WPS
-     - ``erf_abl`` (init from metgrid)
+     - ``erf_exec`` (init from metgrid)
    * - E3SM --> ERF
      - ``run_e3sm``
      -  *Under development*
-     - ``erf_abl``
+     - ``erf_exec``
    * - ERF standalone
      - Python tools
      - Python tools *(under development)*
-     - ``erf_abl``
+     - ``erf_exec``
