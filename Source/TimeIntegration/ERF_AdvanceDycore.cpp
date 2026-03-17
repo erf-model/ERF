@@ -279,7 +279,7 @@ void ERF::advance_dycore (int level,
 
                 if (k > kmin && k < kmax) {
                     int k1, k2;
-                    amrex::Real inv_dz, rdz;
+                    amrex::Real rdz;
                     if (wsub >= 0.0)
                     {
                         k1 = k;
@@ -350,7 +350,6 @@ void ERF::advance_dycore (int level,
 
         const int n  = RhoTheta_comp;
         const int nq  = RhoQ1_comp;
-        const int nr = Rho_comp;
 
         // lower and upper bounds to apply theta nudging
         const Real t_z1 = solverChoice.nudging_t_z1;

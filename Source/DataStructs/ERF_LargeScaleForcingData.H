@@ -64,7 +64,6 @@ public:
         num_times = 0;
         nz_lsf = 0;
 
-        amrex::Real curr_time = 0.0;
         amrex::Real start_time = 0.0; // first time in file, in days, other inputs are relative to this time
 
         amrex::Real pres0;

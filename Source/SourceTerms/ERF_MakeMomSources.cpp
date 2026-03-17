@@ -601,7 +601,6 @@ void make_mom_sources (Real time,
             {
                 if (k > kmin && k < kmax) {
                     int k1, k2;
-                    amrex::Real inv_dz, rdz;
                     if (lsf_arr(i, j, k, 2) >= 0.0)
                     {
                         k1 = k;
@@ -629,7 +628,6 @@ void make_mom_sources (Real time,
             {
                 if (k > kmin && k < kmax) {
                     int k1, k2;
-                    amrex::Real inv_dz, rdz;
                     if (lsf_arr(i, j, k, 2) >= 0.0)
                     {
                         k1 = k;
