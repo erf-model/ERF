@@ -55,6 +55,17 @@ void add_par () {
 int main (int argc, char* argv[])
 {
 
+auto finalize_mpi_and_return = [](int code) {
+#ifdef AMREX_USE_MPI
+#ifdef ERF_USE_WW3_COUPLING
+    amrex::MPMD::Finalize();
++#else
+    MPI_Finalize();
+#endif
+#endif
+return code;
+};
+
 #if defined(AMREX_MPI_THREAD_MULTIPLE)
     int requested = MPI_THREAD_MULTIPLE;
     int provided = -1;
@@ -81,13 +92,23 @@ int main (int argc, char* argv[])
         }
     }
 
-    if (!amrex::FileSystem::Exists(std::string(argv[1]))) {
+    if (argc >= 2) {
+        for (auto i = 1; i < argc; i++) {
+            if (std::string(argv[i]) == "--describe") {
+                ERF::writeBuildInfo(std::cout);
+                return finalize_mpi_and_return(0);
+            }
+        }
+    }
+
+    if (!strchr(argv[1], '=') && !amrex::FileSystem::Exists(std::string(argv[1])))
+    {
         // Print usage and exit with error code if we cannot find the input file
         ERF::print_usage(MPI_COMM_WORLD, std::cout);
         ERF::print_error(
             MPI_COMM_WORLD, "Input file does not exist = " +
                                 std::string(argv[1]) + ". Exiting!!");
-        return 1;
+        return finalize_mpi_and_return(1);
     }
 
   //  print_banner(MPI_COMM_WORLD, std::cout);
