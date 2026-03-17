@@ -18,6 +18,11 @@ using namespace amrex;
 
 #include "ERF_NCWpsFile.H"
 
+Box
+read_subdomain_from_wrfinput(int /*lev*/,
+                             const std::string& fname,
+                             int& ratio);
+
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
@@ -145,9 +150,9 @@ ERF::init_from_wrfinput (int lev,
         }
     }
     int nvar = NC_names.size();
-    Vector<Vector<FArrayBox>> NC_fab_var_file;
-    NC_fab_var_file.resize(num_boxes_at_level[lev]);
-    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var_file[idx].resize(nvar); }
+    Vector<Vector<FArrayBox>> NC_fab_var;
+    NC_fab_var.resize(num_boxes_at_level[lev]);
+    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var[idx].resize(nvar); }
 
     auto& lev_new = vars_new[lev];
 
@@ -171,24 +176,66 @@ ERF::init_from_wrfinput (int lev,
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
+
+        int ratio_from_file;
+        Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
+        Print() << "Box in file " << subdomain_to_read << "\n";
+
+        Box subdomain_to_fill = boxes_at_level[lev][idx];
+        Print() << "Box to fill " << subdomain_to_fill << "\n";
+
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             Print() << "Checking for " << NC_names[ivar] << " ...";
 
             int success, use_theta_m;
-            read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev],
+            read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][idx],
+                               NC_fab_var[idx][ivar], NC_names[ivar], geom[lev],
                                use_theta_m, success);
 
             auto var_name = NC_names[ivar];
-            auto& var_fab = NC_fab_var_file[idx][ivar];
+            auto& var_fab_from_file = NC_fab_var[idx][ivar];
 
+            // This shift occurs only when the coarser grid is at least at level 1,
+            // because the indices are always given relative to that coarser "domain"
             if (lev > 1) {
                 Box shift_by_box(subdomains[lev][0].minimalBox());
                 IntVect shift_by(shift_by_box.smallEnd());
                 for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                    shift_by[i] -= var_fab.box().smallEnd(i);
+                    shift_by[i] -= var_fab_from_file.box().smallEnd(i);
                 }
-                var_fab.shift(shift_by);
+                var_fab_from_file.shift(shift_by);
+            }
+
+
+            // In the case where the array is 1D in the z-direction, the destination box needs to also
+            //    be 1D in the z-direction, but with (i,j) corresponding to the low corner of the box
+            //    to be filled
+            int nx = var_fab_from_file.box().length(0);
+            int ny = var_fab_from_file.box().length(1);
+            Box subdomain_tmp(subdomain_to_fill);
+            if (nx == 1 and ny == 1) {
+                subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
+                subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
+            }
+
+            Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
+#ifdef AMREX_USE_GPU
+            FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
+#else
+            FArrayBox var_fab(subdomain_to_fill_typed,1);
+#endif
+            if (success) {
+                Box intersection = var_fab.box() & var_fab_from_file.box();
+                if (intersection.ok()) {
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+                } else if (nx == 1 and ny == 1) {
+                    Print() << " Copying 1D FAB from " << var_fab_from_file.box() << " to " << var_fab.box() << std::endl;
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+                } else {
+                    Print() <<"var_fab.box()           " << var_fab.box() << std::endl;
+                    Print() <<"var_fab_from_file.box() " << var_fab_from_file.box() << std::endl;
+                    amrex::Error("ERF::init_from_wrfinput: Region we want not contained in region we have");
+                }
             }
 
             // Initialize rho =  1/(ALB + AL)

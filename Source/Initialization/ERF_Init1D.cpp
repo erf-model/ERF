@@ -100,7 +100,7 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
-        if (solverChoice.init_type != InitType::Uniform) {
+        if (solverChoice.init_type != InitType::Uniform && solverChoice.init_type !=InitType::ConstantDensityLinearTheta) {
             erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
         }
 

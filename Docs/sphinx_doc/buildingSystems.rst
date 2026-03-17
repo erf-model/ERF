@@ -16,25 +16,23 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
+ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_exec``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
 
 The problem directories within ``Exec`` are organized by purpose:
 
 .. code-block:: text
 
    Exec/
-   ├── ABL/                    # Atmospheric boundary layer (science runs)
-   ├── RegTests/               # Fluid dynamical regression tests
+   ├── RegTests/               # Fluid dynamical regression test input decks
    │   ├── IsentropicVortex/
    │   ├── TaylorGreenVortex/
    │   ├── Bubble/
    │   └── ...
-   ├── CanonicalFlows/         # Canonical atmospheric flows
-   │   ├── Bomex/
-   │   ├── SquallLine/
-   │   └── ...
-   └── DevTests/               # Development and experimental features
-       ├── ...
+   ├── CanonicalTests/         # Canonical atmospheric flow input decks
+       ├── ABL/
+       ├── Bomex/
+       ├── SquallLine/
+       ├── SuperCell/
        └── ...
 
 Each problem directory contains a README describing its purpose and functionality.
@@ -54,14 +52,14 @@ Primary use cases:
 * Debugging build configuration
 * Single executables without library versioning overhead
 
-The build is orchestrated by a ``GNUmakefile`` in each case directory (such as ``Exec/ABL/``), which uses build logic from the AMReX framework.
+The build is orchestrated by a ``GNUmakefile`` in ``ERF/Exec/``), which uses build logic from the AMReX framework.
 
 .. dropdown:: How it Works: The Orchestration Process
    :icon: info
 
    The GNU Make process uses a hierarchy of includes separating user configuration from application and framework build logic:
 
-   1. **GNUmakefile Location**: User invokes ``make`` in an application directory, such as ``Exec/ABL/``, which contains the ``GNUmakefile`` control file.
+   1. **GNUmakefile Location**: User invokes ``make`` in ``ERF/Exec/``, which contains the ``GNUmakefile`` control file.
 
    2. **Set AMREX_HOME**: The ``GNUmakefile`` defines ``AMREX_HOME``, pointing to the AMReX submodule containing core build logic. Default path is ``$(ERF_HOME)/Submodules/AMReX``.
 
@@ -244,14 +242,9 @@ Set build variables in the ``GNUmakefile``:
 
    Typical ``GNUmakefile`` examples:
 
-   **Exec/ABL/GNUmakefile:**
+   **Exec/GNUmakefile:**
 
-   .. literalinclude:: ../../Exec/ABL/GNUmakefile
-      :language: makefile
-
-   **Exec/RegTests/IsentropicVortex/GNUmakefile:**
-
-   .. literalinclude:: ../../Exec/RegTests/IsentropicVortex/GNUmakefile
+   .. literalinclude:: ../../Exec/GNUmakefile
       :language: makefile
 
 **5. Build**
@@ -260,7 +253,7 @@ Set build variables in the ``GNUmakefile``:
 
    make
 
-The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/RegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
+The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
 
 **6. Verify Build (Optional)**
 
@@ -301,20 +294,20 @@ View build configuration:
    .. code-block:: bash
 
       # If built in Build/ directory:
-      cd Build/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+      cd Build/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If out-of-source build (without install):
-      cd build/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+      cd build/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If installed to install/:
       cd install/bin
-      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If using cmake_with_kokkos_many.sh with defaults:
-      cd install/bin  # or cd $ERF_INSTALL_DIR/bin if customized or cd $ERF_BUILD_DIR/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+      cd install/bin  # or cd $ERF_INSTALL_DIR/bin if customized or cd $ERF_BUILD_DIR/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
    For details on input files and job submission, see :ref:`sec:running`.
 
@@ -401,7 +394,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd Build
          ./cmake.sh
 
-      **Executable locations:** ``Build/Exec/ABL/erf_abl``, ``Build/Exec/RegTests/Bubble/erf_bubble``, etc.
+      **Executable locations:** ``Build/Exec/erf_exec``
 
       **Cleanup for rebuild:**
 
@@ -420,7 +413,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          ../Build/cmake.sh
          make install  # optional - copies to install/bin/ (may be needed for builds that require kokkos)
 
-      **Executable locations:** ``build/Exec/ABL/erf_abl``, etc., and optionally ``install/bin/erf_abl`` (if installed)
+      **Executable locations:** ``build/Exec/erf_exec``, etc., and optionally ``install/bin/erf_exec`` (if installed)
 
       **Cleanup for rebuild:**
 
@@ -449,7 +442,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd ERF
          ./Build/cmake_with_kokkos_many.sh
 
-      **Executable locations:** ``$ERF_BUILD_DIR/Exec/ABL/erf_abl`` and ``$ERF_INSTALL_DIR/bin/erf_abl`` (defaults: ``./Exec/ABL/erf_abl`` and ``install/bin/erf_abl``)
+      **Executable locations:** ``$ERF_BUILD_DIR/Exec/erf_exec`` and ``$ERF_INSTALL_DIR/bin/erf_exec`` (defaults: ``./Exec/erf_exec`` and ``install/bin/erf_exec``)
 
       **Cleanup for rebuild:**
 

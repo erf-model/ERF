@@ -15,6 +15,7 @@
 #include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
+#include "AMReX_EB2_IF_Plane.H"
 
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
@@ -533,6 +534,19 @@ ERF::ERF_shared ()
             Real dummy_time = 0.0;
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(implicit_fun);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
+        } else if (geometry == "plane") {
+            RealArray plane_point{0.0, 0.0, 0.0};
+            RealArray plane_normal{0.0, 0.0, -1.0}; // pointing into the solid region
+            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.query("plane_normal", plane_normal);
+            EB2::PlaneIF implicit_fun(plane_point, plane_normal, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
                 EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
@@ -1908,8 +1922,10 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               refRatio(lev-1), &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
-    if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
-        sst_lev[lev].resize(sst_lev[lev-1].size());
+    if (sst_lev[lev-1][0]) {
+        if (sst_lev[lev].size() < sst_lev[lev-1].size()) {
+            sst_lev[lev].resize(sst_lev[lev-1].size());
+        }
 #ifdef ERF_USE_NETCDF
         Real time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
@@ -1922,16 +1938,21 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
 
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-            InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
-                                  *sst_lev[lev-1][n], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &cell_cons_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
+            if (!sst_lev[lev-1][n]) { continue; }
+            if (!sst_lev[lev][n]) {
+                sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+                InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                      *sst_lev[lev-1][n], 0, 0, 1,
+                                      geom[lev-1], geom[lev],
+                                      refRatio(lev-1), &cell_cons_interp,
+                                      domain_bcs_type, BCVars::cons_bc);
+            }
         }
     }
-    if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
-        tsk_lev[lev].resize(tsk_lev[lev-1].size());
+    if (tsk_lev[lev-1][0]) {
+        if (tsk_lev[lev].size() < tsk_lev[lev-1].size()) {
+            tsk_lev[lev].resize(tsk_lev[lev-1].size());
+        }
 #ifdef ERF_USE_NETCDF
         Real time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
@@ -1944,12 +1965,15 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
 
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-            InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
-                                  *tsk_lev[lev-1][n], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &cell_cons_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
+            if (!tsk_lev[lev-1][n]) { continue; }
+            if (!tsk_lev[lev][n]) {
+                tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+                InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                      *tsk_lev[lev-1][n], 0, 0, 1,
+                                      geom[lev-1], geom[lev],
+                                      refRatio(lev-1), &cell_cons_interp,
+                                      domain_bcs_type, BCVars::cons_bc);
+            }
         }
     }
 
@@ -2016,6 +2040,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = 1;
 #endif
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            if (!sst_lev[lev][n] || !sst_lev[lev-1][n]) { continue; }
             Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
             IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -2039,6 +2064,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = 1;
 #endif
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
+            if (!tsk_lev[lev][n] || !tsk_lev[lev-1][n]) { continue; }
             Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
             IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -2222,7 +2248,8 @@ ERF::init_only (int lev, Real elapsed_time)
     } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
                 (solverChoice.init_type == InitType::ConstantDensity) ||
                 (solverChoice.init_type == InitType::Isentropic     ) ||
-                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::ConstantDensityLinearTheta     ) ||
+        (solverChoice.init_type == InitType::HindCast       ) ||
                 (solverChoice.init_type == InitType::MoistBaseState ) ) {
         // Initialize a uniform density/entropy background field and base state
         // based on the problem-specified reference density and temperature
@@ -3114,23 +3141,19 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
 void
 ERF::check_state_for_nans(MultiFab const& S)
 {
-    int ncomp = S.nComp();
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        //
-        // Test at the end of every full timestep whether the solution data contains NaNs
-        //
-        bool any_have_nans = false;
-        for (int i = 0; i < ncomp; i++) {
-            if (S.contains_nan(i,1,0))
-            {
-                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
-                any_have_nans = true;
-            }
+    bool any_have_nans = false;
+
+    for (int i = 0; i < S.nComp(); i++) {
+
+        if (S.contains_nan(i,1,0))
+        {
+            amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
+            any_have_nans = true;
         }
-        if (any_have_nans) {
-            exit(0);
-        }
+    }
+
+    if (any_have_nans) {
+        exit(0);
     }
 }
 
