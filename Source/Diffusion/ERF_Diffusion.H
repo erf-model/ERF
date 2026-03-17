@@ -447,6 +447,19 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Array4<amrex::Real>& tau13i,
                       amrex::Array4<amrex::Real>& tau23i);
 
+void ImplicitDiffForStateLU_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
+                               const amrex::Real dt,
+                               /*int start_comp, int num_comp,*/
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
+                               const amrex::Array4<      amrex::Real>& cell_data,
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                               const amrex::Array4<const amrex::Real>& hfx_z,
+                               const amrex::Array4<const amrex::Real>& mu_turb,
+                               const SolverChoice& solverChoice,
+                               const amrex::BCRec* bc_ptr,
+                               const bool use_SurfLayer,
+                               const amrex::Real implicit_fac);
+
 void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
                              const amrex::Real dt,
                              /*int start_comp, int num_comp,*/

@@ -120,12 +120,22 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
+#if 1
+                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, slow_dt,
+                                                     l_bc_neumann_vals_d,
+                                                     cell_data,
+                                                     dxInv, hfx_z,
+                                                     mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+#else
                             ImplicitDiffForState_N(bx, fine_geom.Domain(), level, slow_dt,
                                                    l_bc_neumann_vals_d,
                                                    cell_data,
                                                    dxInv, hfx_z,
                                                    mu_turb, solverChoice,
                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+#endif
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMom_N<0>(tbx, fine_geom.Domain(), level, slow_dt,
