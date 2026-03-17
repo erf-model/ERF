@@ -399,6 +399,7 @@ void make_sources (int level,
         // 6. Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step) {
+            int sc, nc;
             const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
             const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
