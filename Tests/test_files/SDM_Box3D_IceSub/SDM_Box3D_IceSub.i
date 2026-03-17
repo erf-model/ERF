@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 max_step = 10
 stop_time = 5.0
 
@@ -17,7 +18,7 @@ erf.fixed_dt       = 0.00001     # fixed time step [s]
 erf.substepping_type = "None"
 
 # initialization type
-erf.init_type = "uniform"
+erf.init_type = "Isentropic"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
