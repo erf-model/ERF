@@ -441,15 +441,15 @@ public:
 
       // TODO: Do we want an enum struct for indexing?
 
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
+      bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
+      bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
+      if (has_sst0 || has_tsk0 || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
 
           // Pathways in fill_tsurf_with_sst_and_tsk
-          bool use_tsk = (m_tsk_lev[lev][0]);
-          bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
           // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
           //       So if we have TSK, it contains everything and has been
