@@ -404,7 +404,7 @@ ERF::refinement_criteria_setup ()
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
                 lev_for_box = max_level;
                 ppr.query("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -543,7 +543,7 @@ ERF::refinement_criteria_setup ()
 
                 std::vector<int> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -639,7 +639,7 @@ ERF::refinement_criteria_setup ()
 
                 std::vector<int> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -701,14 +701,17 @@ ERF::refinement_criteria_setup ()
             if (realbox.ok()) {
                 info.SetRealBox(realbox);
             }
+
             if (ppr.countval("start_time") > 0) {
                 Real ref_min_time; ppr.get("start_time",ref_min_time);
                 info.SetMinTime(ref_min_time);
             }
+
             if (ppr.countval("end_time") > 0) {
                 Real ref_max_time; ppr.get("end_time",ref_max_time);
                 info.SetMaxTime(ref_max_time);
             }
+
             if (ppr.countval("max_level") > 0) {
                 int ref_max_level; ppr.get("max_level",ref_max_level);
                 info.SetMaxLevel(ref_max_level);
@@ -721,14 +724,16 @@ ERF::refinement_criteria_setup ()
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
             }
-            else if (ppr.countval("value_less")) {
+            else if (ppr.countval("value_less"))
+            {
                 int num_val = ppr.countval("value_less");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
             }
-            else if (ppr.countval("adjacent_difference_greater")) {
+            else if (ppr.countval("adjacent_difference_greater"))
+            {
                 int num_val = ppr.countval("adjacent_difference_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
@@ -738,7 +743,9 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else if (refinement_indicators[i] != "storm_tracker") {
+            }
+            else if ( (lev_for_box > 0) && (refinement_indicators[i] != "storm_tracker") )
+            {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
