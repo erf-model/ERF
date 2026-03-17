@@ -3,6 +3,8 @@
 
 #include <string>
 #include <iostream>
+#include <sstream>
+#include <fstream>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -25,9 +27,7 @@ public:
         amrex::ParmParse pp("erf");
         pp.query("forcing_timescale", tau_lsf);
         pp.query("large_scale_forcing_file", lsf_file);
-
-
-    };
+    }
 
     int get_columns_in_str(std::string &str)
     {
@@ -139,20 +139,6 @@ public:
                 amrex::Real z, p, tls, qls, uls, vls, wls;
                 iss >> z >> p >> tls >> qls >> uls >> vls >> wls;
 
-                /*
-                if (z_in.size() == 1)
-                {
-                    u_in[0] = uls;
-                    v_in[0] = vls;
-                    w_in[0] = wls;
-                    //t_in[0] = getThgivenPandT(tls, p*100.0, R_d/Cp_d);
-                    //t_in[0] = tls*std::pow(pres0/(p*100.0), R_d/Cp_d);
-                    t_in[0] = tls;
-                    q_in[0] = qls;
-
-                    z_in[0] = 0.0;
-                }
-                */
                 if (z < 0.0) {
                     // if z < 0, then LSF is defined on pressure levels
                     use_z_grid = false;
@@ -160,8 +146,6 @@ public:
 
                 z_in.push_back(z);
                 p_in.push_back(p * 100.0);
-                //t_in.push_back(getThgivenPandT(tls, p*100.0, R_d/Cp_d));
-                //t_in.push_back(tls*std::pow(pres0/(p*100.0), R_d/Cp_d));
                 t_in.push_back(tls);
                 q_in.push_back(qls);
                 u_in.push_back(uls);
@@ -187,17 +171,6 @@ public:
 
         num_times = times_lsf.size();
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
-
-        // debugging print
-        for (int i = 0; i < times_lsf.size(); i++)
-        {
-            amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
-            for (int lev = 0; lev < nz_lsf + 1; lev++)
-            {
-                amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = " << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = " << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
-            }
-            break;
-        }
     }
 
 
@@ -215,8 +188,7 @@ public:
         const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
         const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
-        int num_times = times_lsf.size();
-        AMREX_ALWAYS_ASSERT(num_times == num_times);
+        AMREX_ALWAYS_ASSERT(num_times == static_cast<int>(times_lsf.size()));
 
         z_int_lsf.resize(num_times);
         t_int_lsf.resize(num_times);
@@ -280,14 +252,13 @@ public:
                 }
 
                 if (set) {
-                    set = false;
                     continue;
                 }
 
                 t_int_lsf[itime][k] = 0.0;
                 q_int_lsf[itime][k] = 0.0;
-                u_int_lsf[itime][k] = u_int_lsf[itime][k-1];
-                v_int_lsf[itime][k] = v_int_lsf[itime][k-1];
+                u_int_lsf[itime][k] = (k > 0) ? u_int_lsf[itime][k-1] : 0.0;
+                v_int_lsf[itime][k] = (k > 0) ? v_int_lsf[itime][k-1] : 0.0;
                 w_int_lsf[itime][k] = 0.0;
             }
 
@@ -299,17 +270,6 @@ public:
             w_int_lsf[itime][Nz] = 0.0;
 
             host_to_device(itime);
-        }
-
-        // debugging print
-        for (int i = 0; i < times_lsf.size(); i++)
-        {
-            amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
-            for (int k = 0; k <= Nz; k++)
-            {
-                amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k] << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = " << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
-            }
-            break;
         }
     }
 
@@ -339,7 +299,9 @@ public:
         if (curr == num_times - 1)
         {
             // use last set if time > last forcing time
-            next = num_times;
+            next = num_times - 1;
+            coeff_curr = 1.0;
+            coeff_next = 0.0;
         } else {
             next = curr + 1;
             coeff_next = ((time - start_time) - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);

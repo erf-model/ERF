@@ -24,7 +24,7 @@ using namespace amrex;
 void
 ERF::write_1D_profiles_stag (Real time)
 {
-    BL_PROFILE("ERF::write_1D_profiles()");
+    BL_PROFILE("ERF::write_1D_profiles_stag()");
 
     int datwidth = 14;
     int datprecision = 9;
@@ -46,9 +46,9 @@ ERF::write_1D_profiles_stag (Real time)
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
 
-        Gpu::HostVector<Real> h_avg_ttend, h_avg_qtend, h_avg_wsub, h_avg_tnudge, h_avg_qnudge, h_avg_unudge, h_avg_vnudge;   
+        Gpu::HostVector<Real> h_avg_ttend, h_avg_qtend, h_avg_wsub, h_avg_tnudge, h_avg_qnudge, h_avg_unudge, h_avg_vnudge;
         Gpu::HostVector<Real> h_avg_thtend, h_avg_qhtend, h_avg_tvtend, h_avg_qvtend, h_avg_qcvtend;
-        if (NumDataLogs() > 1) {
+        {
             derive_diag_profiles_stag(time,
                                       h_avg_u, h_avg_v, h_avg_w,
                                       h_avg_rho, h_avg_th, h_avg_ksgs,

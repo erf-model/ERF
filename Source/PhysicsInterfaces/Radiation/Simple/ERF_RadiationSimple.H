@@ -14,14 +14,16 @@
 class RadiationSimple : public IRadiation
 {
 public:
-    RadiationSimple(const int& lev,
-                    SolverChoice& sc) {
+    RadiationSimple(const int& /*lev*/,
+                    const SolverChoice& sc) {
         // Check if we have a valid moisture model
         if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
         // Check if we have a moisture model with ice
-        if (sc.moisture_type == MoistureType::SAM || sc.moisture_type == MoistureType::Kessler || sc.moisture_type == MoistureType::Morrison)  { m_ice = true; }
-    };
+        if (sc.moisture_type == MoistureType::SAM ||
+            sc.moisture_type == MoistureType::Kessler ||
+            sc.moisture_type == MoistureType::Morrison) { m_ice = true; }
+    }
 
     ~RadiationSimple() = default;
 
