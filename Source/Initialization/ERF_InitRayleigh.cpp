@@ -135,6 +135,8 @@ ERF::setRayleighRefFromSounding (bool restarting)
         Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
 
-        refine_fac *= ref_ratio[lev][2];
+        if (lev < finest_level) {
+            refine_fac *= ref_ratio[lev][2];
+        }
     }
 }
