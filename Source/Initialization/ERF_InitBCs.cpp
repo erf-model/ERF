@@ -714,6 +714,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         while (iss_z >> rval) {
             rval_v.push_back(rval);
         }
+        if ((rval_v.size() != 4) && (rval_v.size() != 5)) {
+            Abort("Unknown inflow file format!");
+        }
         z = rval_v[0];
         u = rval_v[1];
         v = rval_v[2];
