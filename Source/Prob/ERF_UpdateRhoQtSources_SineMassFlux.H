@@ -4,10 +4,6 @@
     Real moisture_cutoff            = 500.0; pp_prob.query("moisture_source_cutoff", moisture_cutoff);
     Real moisture_cutoff_transition =  50.0; pp_prob.query("moisture_source_cutoff_transition", moisture_cutoff_transition);
 
-    auto prob_lo = geom.ProbLoArray();
-    auto dx = geom.CellSizeArray();
-    bool use_zlevels = (z_phys_cc != nullptr);
-
     for (MFIter mfi(*qsrc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const auto &box = mfi.tilebox();
@@ -17,7 +13,7 @@
             qsrc->setVal(0.0);
         } else {
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                const Real z_cc = use_zlevels ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)*dx[2];
+                const Real z_cc = d_zlevels_arr[k];
                 if (z_cc < moisture_cutoff) {
                     qsrc_arr(i, j, k) = advection_moisture_rate;
                 } else if (z_cc < moisture_cutoff+moisture_cutoff_transition) {

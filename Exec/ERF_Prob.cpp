@@ -255,10 +255,8 @@ Problem::update_rhotheta_sources (const Real& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    if (z_phys_cc) {
-        reduce_to_max_per_height(zlevels, z_phys_cc);
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
-    }
+    reduce_to_max_per_height(zlevels, z_phys_cc);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -297,10 +295,8 @@ Problem::update_rhoqt_sources (const Real& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    if (z_phys_cc) {
-        reduce_to_max_per_height(zlevels, z_phys_cc);
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
-    }
+    reduce_to_max_per_height(zlevels, z_phys_cc);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -339,9 +335,7 @@ Problem::update_w_subsidence (const Real& time,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+2);
-    if (z_phys_nd) {
-        reduce_to_max_per_height(zlevels, z_phys_nd);
-    }
+    reduce_to_max_per_height(zlevels, z_phys_nd);
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -377,9 +371,7 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+1);
-    if (z_phys_cc) {
-        reduce_to_max_per_height(zlevels, z_phys_cc);
-    }
+    reduce_to_max_per_height(zlevels, z_phys_cc);
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);

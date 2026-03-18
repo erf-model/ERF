@@ -4,10 +4,6 @@
     Real cutoff                 = 500.0; pp_prob.query("source_cutoff", cutoff);
     Real cutoff_transition      =  50.0; pp_prob.query("source_cutoff_transition", cutoff_transition);
 
-    auto prob_lo = geom.ProbLoArray();
-    auto dx = geom.CellSizeArray();
-    bool use_zlevels = (z_phys_cc != nullptr);
-
     for (MFIter mfi(*src, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const auto &box = mfi.tilebox();
@@ -17,7 +13,7 @@
             src->setVal(0.0);
         } else {
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                const Real z_cc = use_zlevels ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)*dx[2];
+                const Real z_cc = d_zlevels_arr[k];
                 if (z_cc < cutoff) {
                     src_arr(i, j, k) = advection_heating_rate;
                 } else if (z_cc < cutoff+cutoff_transition) {
