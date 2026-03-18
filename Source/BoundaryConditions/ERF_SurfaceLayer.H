@@ -443,7 +443,7 @@ public:
 
       bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
       bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
-      if (has_sst0 || has_tsk0 || m_has_lsm_tsurf) {
+      if (use_sst || use_tsk || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
