@@ -1167,7 +1167,7 @@ population during sedimentation. Source located in ``Exec/RegTests/Bubble/``.
 Inputs located in ``Tests/test_files/SDM_Box3D_Recycling/``.
 
 **SDM_MultiSpecies_Bubble2D**: 2D moist bubble with multiple aerosol species. Demonstrates multi-component configuration.
-Source located in ``RegTests/MultiSpeciesBubble/``.
+Source located in ``Exec/RegTests/MultiSpeciesBubble/``.
 Inputs located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
 
 Realistic Test Cases
@@ -1197,7 +1197,7 @@ configuration and moving source regions.
 **RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
 including SDM configurations with various aerosol species (``input_sdm``).
 
-**Temperature Source Tests**: ``Exec_dev/RegTests/SDM_Congestus3D`` and ``.Exec_dev/sinusoidal_mass_flux/``
+**Temperature Source Tests**: ``Exec/RegTests/SDM_Congestus3D`` and ``Exec/RegTests/SineMassFlux``
 include SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
 
 Verification

@@ -16,7 +16,7 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_exec``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
+ERF builds executables in ``ERF/Exec`` when using GNU Make. The exception is development-test work under ``ERF/.Exec_dev``, where GNU Make builds in that test directory. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_exec``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
 
 The problem directories within ``Exec`` are organized by purpose:
 
@@ -43,7 +43,7 @@ Building with GNU Make
 System Overview
 ~~~~~~~~~~~~~~~
 
-The GNU Make system provides a direct path to producing a single, case-specific executable. It uses an application-centric approach, where developers and scientists compile code for a particular problem setup (e.g., atmospheric boundary layer simulation) directly within the ``Exec/`` directory structure.
+The GNU Make system provides a direct path to producing a single, case-specific executable. It uses an application-centric approach, where developers and scientists compile code directly in ``ERF/Exec`` (or in ``ERF/.Exec_dev`` when working with development tests).
 
 Primary use cases:
 
@@ -52,14 +52,14 @@ Primary use cases:
 * Debugging build configuration
 * Single executables without library versioning overhead
 
-The build is orchestrated by a ``GNUmakefile`` in ``ERF/Exec/``), which uses build logic from the AMReX framework.
+The build is orchestrated by a ``GNUmakefile`` in ``ERF/Exec/`` (and similarly in ``ERF/.Exec_dev`` for development tests), which uses build logic from the AMReX framework.
 
 .. dropdown:: How it Works: The Orchestration Process
    :icon: info
 
    The GNU Make process uses a hierarchy of includes separating user configuration from application and framework build logic:
 
-   1. **GNUmakefile Location**: User invokes ``make`` in ``ERF/Exec/``, which contains the ``GNUmakefile`` control file.
+   1. **GNUmakefile Location**: User invokes ``make`` in ``ERF/Exec/`` for standard builds, or in ``ERF/.Exec_dev/<test>/`` for development-test builds.
 
    2. **Set AMREX_HOME**: The ``GNUmakefile`` defines ``AMREX_HOME``, pointing to the AMReX submodule containing core build logic. Default path is ``$(ERF_HOME)/Submodules/AMReX``.
 
@@ -121,11 +121,15 @@ If building with SHOC or P3, run the setup scripts:
 
 Then set ``USE_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile (step 4).
 
-**3. Navigate to Problem Directory**
+**3. Navigate to GNU Make Build Directory**
 
 .. code-block:: bash
 
-   cd ERF/Exec/RegTests/IsentropicVortex/
+   # Standard workflow
+   cd ERF/Exec
+
+   # Development-test workflow (exception)
+   # cd ERF/.Exec_dev/<test_name>
 
 **4. Edit GNUmakefile**
 

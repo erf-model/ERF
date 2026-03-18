@@ -58,7 +58,7 @@ CTest framework. The locations (relative to the ERF code base) of the tests are 
 create a problem directory with a name in ``Exec/RegTests/<prob_name>``
 (for problems to be used as regression tests),
 ``Exec/CanonicalTests/<prob_name>`` (for canonical test cases),
-or ``.Exec_dev/<prob_name>`` (for problems testing features under development),
+or ``ERF/.Exec_dev/<prob_name>`` (for problems testing features under development),
 depending on which type of test is being added.  Prepare a suitable input file.
 As an example, the ``TaylorGreenVortex`` problem with input file ``Exec/RegTests/TaylorGreenVortex/inputs_ex``
 solves a simple advection-diffusion problem. The corresponding regression tests are driven by the input files
