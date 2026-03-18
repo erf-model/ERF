@@ -203,8 +203,8 @@ SAM::PrecipFall (const SolverChoice& sc)
                         omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
                     }
                     rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
-                    snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vrain*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
-                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vrain*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
+                    snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vsnow*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
+                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vgrau*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
                 }
             });
 
