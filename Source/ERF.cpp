@@ -371,12 +371,8 @@ ERF::ERF_shared ()
     SFS_q2fx3_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
-
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        Tau_EB.resize(nlevs_max);
-        hfx3_EB.resize(nlevs_max);
-    }
-
+    Tau_EB.resize(nlevs_max);
+    hfx3_EB.resize(nlevs_max);
 
     // Sea surface temps
     sst_lev.resize(nlevs_max);
