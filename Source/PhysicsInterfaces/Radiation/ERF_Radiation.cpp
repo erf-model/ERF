@@ -140,8 +140,6 @@ Radiation::set_grids (int& level,
                       MultiFab* cons_in,
                       iMultiFab* lmask,
                       MultiFab*  t_surf,
-                      MultiFab* lsm_fluxes,
-                      MultiFab* lsm_zenith,
                       Vector<MultiFab*>& lsm_input_ptrs,
                       MultiFab* qheating_rates,
                       MultiFab* rad_fluxes,
@@ -157,8 +155,6 @@ Radiation::set_grids (int& level,
     m_dt             = dt;
     m_geom           = geom;
     m_cons_in        = cons_in;
-    m_lsm_fluxes     = lsm_fluxes;
-    m_lsm_zenith     = lsm_zenith;
     m_qheating_rates = qheating_rates;
     m_rad_fluxes     = rad_fluxes;
     m_z_phys         = z_phys;
@@ -653,7 +649,6 @@ void
 Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
 {
     // Heating rate, fluxes, zenith, lsm ptrs
-    Vector<real2d_k> rrtmgp_out_vars = {sw_flux_dn, lw_flux_dn};
 
     Table2D<Real,Order::C> p_lay_tab(p_lay.data(), {0,0}, {static_cast<int>(p_lay.extent(0)),static_cast<int>(p_lay.extent(1))});
     Table2D<Real,Order::C> sw_heating_tab(sw_heating.data(), {0,0}, {static_cast<int>(sw_heating.extent(0)),static_cast<int>(sw_heating.extent(1))});
@@ -663,13 +658,19 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
     Table2D<Real,Order::C> lw_flux_up_tab(lw_flux_up.data(), {0,0}, {static_cast<int>(lw_flux_up.extent(0)),static_cast<int>(lw_flux_up.extent(1))});
     Table2D<Real,Order::C> lw_flux_dn_tab(lw_flux_dn.data(), {0,0}, {static_cast<int>(lw_flux_dn.extent(0)),static_cast<int>(lw_flux_dn.extent(1))});
 
-    Table1D<Real> sfc_flux_dir_vis_tab(sfc_flux_dir_vis.data(), {0}, {static_cast<int>(sfc_flux_dir_vis.extent(0))});
-    Table1D<Real> sfc_flux_dir_nir_tab(sfc_flux_dir_nir.data(), {0}, {static_cast<int>(sfc_flux_dir_nir.extent(0))});
-    Table1D<Real> sfc_flux_dif_vis_tab(sfc_flux_dif_vis.data(), {0}, {static_cast<int>(sfc_flux_dif_vis.extent(0))});
-    Table1D<Real> sfc_flux_dif_nir_tab(sfc_flux_dif_nir.data(), {0}, {static_cast<int>(sfc_flux_dif_nir.extent(0))});
+    TableData<Real,1> sfc_flux_sw_dn; sfc_flux_sw_dn.resize({0}, {static_cast<int>(sw_flux_dn.extent(0))});
+    TableData<Real,1> sfc_flux_lw_dn; sfc_flux_lw_dn.resize({0}, {static_cast<int>(lw_flux_dn.extent(0))});
+    Table1D<Real> sfc_flux_sw_dn_tab = sfc_flux_sw_dn.table();
+    Table1D<Real> sfc_flux_lw_dn_tab = sfc_flux_lw_dn.table();
+    Table1D<Real> sfc_flux_sw_dir_vis_tab(sfc_flux_dir_vis.data(), {0}, {static_cast<int>(sfc_flux_dir_vis.extent(0))});
+    Table1D<Real> sfc_flux_sw_dir_nir_tab(sfc_flux_dir_nir.data(), {0}, {static_cast<int>(sfc_flux_dir_nir.extent(0))});
+    Table1D<Real> sfc_flux_sw_dif_vis_tab(sfc_flux_dif_vis.data(), {0}, {static_cast<int>(sfc_flux_dif_vis.extent(0))});
+    Table1D<Real> sfc_flux_sw_dif_nir_tab(sfc_flux_dif_nir.data(), {0}, {static_cast<int>(sfc_flux_dif_nir.extent(0))});
     Table1D<Real>              mu0_tab(mu0.data(),              {0}, {static_cast<int>(mu0.extent(0))});
-
-    // Expose for device
+    Vector<Table1D<Real>> rrtmgp_out_vars = {mu0_tab                , sfc_flux_sw_dn_tab     ,
+                                             sfc_flux_sw_dir_vis_tab, sfc_flux_sw_dir_nir_tab,
+                                             sfc_flux_sw_dif_vis_tab, sfc_flux_sw_dif_nir_tab,
+                                             sfc_flux_lw_dn_tab     };
 
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -700,66 +701,24 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             f_arr(i,j,k,1) = sw_flux_dn_tab(icol,ilay);
             f_arr(i,j,k,2) = lw_flux_up_tab(icol,ilay);
             f_arr(i,j,k,3) = lw_flux_dn_tab(icol,ilay);
+
+            if (k==0) {
+                sfc_flux_sw_dn_tab(icol) = sw_flux_dn_tab(icol,ilay);
+                sfc_flux_lw_dn_tab(icol) = lw_flux_dn_tab(icol,ilay);
+            }
         });
-        if (m_lsm_fluxes) {
-            const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
-            ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                // map [i,j,k] 0-based to [icol, ilay] 0-based
-                const int icol = (j-jmin)*nx + (i-imin) + offset;
-
-                // SW fluxes for LSM
-                lsm_arr(i,j,k,0) = sfc_flux_dir_vis_tab(icol);
-                lsm_arr(i,j,k,1) = sfc_flux_dir_nir_tab(icol);
-                lsm_arr(i,j,k,2) = sfc_flux_dif_vis_tab(icol);
-                lsm_arr(i,j,k,3) = sfc_flux_dif_nir_tab(icol);
-
-                // Net SW flux for LSM
-                lsm_arr(i,j,k,4) = sfc_flux_dir_vis_tab(icol) + sfc_flux_dir_nir_tab(icol)
-                                 + sfc_flux_dif_vis_tab(icol) + sfc_flux_dif_nir_tab(icol);
-
-                // LW flux for LSM (at bottom surface)
-                lsm_arr(i,j,k,5) = lw_flux_dn_tab(icol,0);
-            });
-        }
-        if (m_lsm_zenith) {
-            const Array4<Real>& lsm_zenith_arr =  m_lsm_zenith->array(mfi);
-            ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                // map [i,j,k] 0-based to [icol, ilay] 0-based
-                const int icol = (j-jmin)*nx + (i-imin) + offset;
-
-                // export cosine zenith angle for LSM
-                lsm_zenith_arr(i,j,k) = mu0_tab(icol);
-            });
-        }
         for (int ivar(0); ivar<lsm_output_ptrs.size(); ivar++) {
             if (lsm_output_ptrs[ivar]) {
+                auto rrtmgp_for_fill = rrtmgp_out_vars[ivar];
                 const Array4<Real>& lsm_out_arr = lsm_output_ptrs[ivar]->array(mfi);
-                if (ivar==0) {
-                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        // map [i,j,k] 0-based to [icol, ilay] 0-based
-                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
+                ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // map [i,j,k] 0-based to [icol, ilay] 0-based
+                    const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
-                        // export the desired variable at surface
-                        lsm_out_arr(i,j,k) = mu0_tab(icol);
-                    });
-                } else {
-                    auto rrtmgp_for_fill_k = rrtmgp_out_vars[ivar-1];
-                    amrex::Table2D<amrex::Real const, amrex::Order::C>
-                        rrtmgp_for_fill(rrtmgp_for_fill_k.data(),
-                                        {0,0}, {int(rrtmgp_for_fill_k.extent(0)),
-                                                int(rrtmgp_for_fill_k.extent(1))});
-                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        // map [i,j,k] 0-based to [icol, ilay] 0-based
-                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
-
-                        // export the desired variable at surface
-                        lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol,0);
-                    });
-                } // ivar
+                    // export the desired variable at surface
+                    lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol);
+                });
             } // valid ptr
         } // ivar
     }// mfi
