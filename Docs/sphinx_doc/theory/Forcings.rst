@@ -144,7 +144,7 @@ ed in a problem-specific manner. The density and the :math:`x, y, z` velocities 
 
 Another way of specifying sponge zones is by providing the sponge zone data as a text file input. This is currently implemented only for forcing :math:`x` and :math:`y` velocities in the sponge zones.
 The sponge data is input as a text file with 3 columns containing :math:`z, u, v` values.
-An example can be found in ``Exec/CanonicalTests/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
+An example can be found in ``Exec/CanonicalTests/Idealized_Terrain/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
 This list specifies a sponge zone in the inlet in the x-direction.
 The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in from the text file -- `input_sponge_file.txt`.
 
@@ -288,4 +288,3 @@ where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` 
 period (measured in seconds), and the geostrophic wind :math:`(u_{geo}, v_{geo}, 0)` is
 user-specified through ``erf.abl_geo_wind``.  Note that if geostrophic forcing is enabled,
 Coriolis forcing must also be included.
-

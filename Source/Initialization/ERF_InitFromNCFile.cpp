@@ -149,14 +149,22 @@ ERF::init_from_ncfile (int lev)
         if (success[3]) {
             int dest_comp = 0;
             xvel_fab.template copy<RunOn::Device>(NC_xvel_fab , src_comp, dest_comp, num_comp);
+        } else {
+            xvel_fab.template setVal<RunOn::Device>(0.0);
         }
+
         if (success[4]) {
             int dest_comp = 0;
             yvel_fab.template copy<RunOn::Device>(NC_yvel_fab , src_comp, dest_comp, num_comp);
+        } else {
+            yvel_fab.template setVal<RunOn::Device>(0.0);
         }
+
         if (success[5]) {
             int dest_comp = 0;
             zvel_fab.template copy<RunOn::Device>(NC_zvel_fab , src_comp, dest_comp, num_comp);
+        } else {
+            zvel_fab.template setVal<RunOn::Device>(0.0);
         }
 
         // HSE vars
@@ -185,10 +193,6 @@ ERF::init_from_ncfile (int lev)
             Print() << "QV not found, defaulting to dry" << std::endl;
         }
     } // mf
-
-    lev_new[Vars::xvel].setVal(0.0,0,0,1);
-    lev_new[Vars::yvel].setVal(0.0,0,0,1);
-    lev_new[Vars::zvel].setVal(0.0,0,0,1);
 
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoTheta_comp, 1, 0);
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoScalar_comp, 1, 0);

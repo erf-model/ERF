@@ -147,13 +147,13 @@ ERF::initHSE (int lev)
 
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_const_dens_hse(r_hse);
+            prob->erf_init_const_dens_hse(new_r_hse);
 
         } else if (solverChoice.init_type == InitType::Uniform) {
 
             // In this case we set both rho and theta from user-specified values
             AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
-            prob->erf_init_const_dens_and_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,solverChoice.rdOcp);
+            prob->erf_init_const_dens_and_th_hse(new_r_hse,new_p_hse,new_pi_hse,new_th_hse,new_qv_hse,solverChoice.rdOcp);
 
         } else {
             prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);

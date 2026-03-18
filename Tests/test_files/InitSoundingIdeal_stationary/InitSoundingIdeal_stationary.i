@@ -57,18 +57,6 @@ erf.init_type = "input_sounding"
 # these are zeroed because we are using an input_sounding
 prob.rho_0 = 0.0
 prob.T_0 = 0.0
-prob.A_0 = 0.0
-prob.U_0 = 0.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
 
-prob.pert_ref_height = -1.0
-prob.U_0_Pert_Mag = 0.0 # this causes rho < 0 in the first slow step
-prob.V_0_Pert_Mag = 0.0
-prob.W_0_Pert_Mag = 0.0
 
-prob.pert_deltaU = 0.0
-prob.pert_deltaV = 0.0
 
-prob.pert_periods_U = 1
-prob.pert_periods_V = 1

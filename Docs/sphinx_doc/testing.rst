@@ -5,7 +5,7 @@ Testing and Verification
 
 Testing and verification of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step.
 
-An example ``cmake`` configure command performed in the ``Build`` directory in ERF is shown below with options relevant to the testing suite:
+An example ``cmake`` configure command performed in the ``build`` directory in ERF is shown below with options relevant to the testing suite:
 
 ::
 
@@ -38,17 +38,17 @@ to build source files in parallel.
 Running the Tests
 ~~~~~~~~~~~~~~~~~
 
-Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory
+Once the test executables are built, CTest also creates working directories for each test within the ``build`` directory
 where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
 
 **Where is the executable?** With the CMake workflow, the shared test executable is built under the build tree in ``Exec``
-(for example, ``Build/Exec/erf_exec``), and all regression/canonical test input decks are run using that binary.
+(for example, ``build/Exec/erf_exec``), and all regression/canonical test input decks are run using that binary.
 
-To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status.
+To run the test suite, run ``ctest`` in the ``build`` directory. CTest will run the tests and report their exit status.
 Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
 where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in
 parallel based on how many processes each test is specified to use and fit them into the amount of cores available
-on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
+on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``build`` directory in ``Tests/Temporary/LastTest.log``.
 
 Adding Tests
 ~~~~~~~~~~~~
@@ -58,7 +58,7 @@ CTest framework. The locations (relative to the ERF code base) of the tests are 
 create a problem directory with a name in ``Exec/RegTests/<prob_name>``
 (for problems to be used as regression tests),
 ``Exec/CanonicalTests/<prob_name>`` (for canonical test cases),
-or ``.Exec_dev/<prob_name>`` (for problems testing features under development),
+or ``ERF/.Exec_dev/<prob_name>`` (for problems testing features under development),
 depending on which type of test is being added.  Prepare a suitable input file.
 As an example, the ``TaylorGreenVortex`` problem with input file ``Exec/RegTests/TaylorGreenVortex/inputs_ex``
 solves a simple advection-diffusion problem. The corresponding regression tests are driven by the input files
