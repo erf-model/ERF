@@ -46,6 +46,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     const Array4<const Real>& tau12,
                     const Array4<const Real>& tau13,
                     const Array4<const Real>& tau23,
+                    const Array4<const Real>& tau_eb13,
+                    const Array4<const Real>& tau_eb23,
                     const Real* dx_arr,
                     const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                     const Array4<const Real>& mf_mx,
@@ -128,20 +130,22 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
 
+                Real axm = u_afrac_x(i  ,j  ,k  );
+                Real axp = u_afrac_x(i+1,j  ,k  );
+                Real aym = u_afrac_y(i  ,j  ,k  );
+                Real ayp = u_afrac_y(i  ,j+1,k  );
+                Real azm = u_afrac_z(i  ,j  ,k  );
+                Real azp = u_afrac_z(i  ,j  ,k+1);
+
+                Real adx = (axm-axp) * dy * dz;
+                Real ady = (aym-ayp) * dx * dz;
+                Real adz = (azm-azp) * dx * dy;
+
+                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                Real dudn = 0.0;
+
                 if (l_no_slip) {
-
-                    Real axm = u_afrac_x(i  ,j  ,k  );
-                    Real axp = u_afrac_x(i+1,j  ,k  );
-                    Real aym = u_afrac_y(i  ,j  ,k  );
-                    Real ayp = u_afrac_y(i  ,j+1,k  );
-                    Real azm = u_afrac_z(i  ,j  ,k  );
-                    Real azp = u_afrac_z(i  ,j  ,k+1);
-
-                    Real adx = (axm-axp) * dy * dz;
-                    Real ady = (aym-ayp) * dx * dz;
-                    Real adz = (azm-azp) * dx * dy;
-
-                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
                     const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
                     const Real Dirichlet_u {0.};
@@ -168,13 +172,14 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau12_eb = 0.5 * (dudy + dvdx);
                     Real tau13_eb = 0.5 * (dudz + dwdx);
 
-                    Real dudn = -(u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
-
-                    rho_u_rhs(i,j,k) -= mu_eff * barea * dudn / (vol * u_volfrac(i,j,k));
+                    dudn = - mu_eff * (u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
 
                 } else if (l_surface_layer) {
-                    // SK TODO: implement surface layer BC contribution to diffusion
+
+                    dudn = - tau_eb13(i,j,k);
                 }
+
+                rho_u_rhs(i,j,k) -= barea * dudn / (vol * u_volfrac(i,j,k));
             }
         }
 
@@ -198,20 +203,22 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             if (!l_constraint_y && l_no_slip && v_cellflg(i,j,k).isSingleValued()) {
 
+                Real axm = v_afrac_x(i  ,j  ,k  );
+                Real axp = v_afrac_x(i+1,j  ,k  );
+                Real aym = v_afrac_y(i  ,j  ,k  );
+                Real ayp = v_afrac_y(i  ,j+1,k  );
+                Real azm = v_afrac_z(i  ,j  ,k  );
+                Real azp = v_afrac_z(i  ,j  ,k+1);
+
+                Real adx = (axm-axp) * dy * dz;
+                Real ady = (aym-ayp) * dx * dz;
+                Real adz = (azm-azp) * dx * dy;
+
+                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                Real dvdn = 0.0;
+
                 if (l_no_slip) {
-
-                    Real axm = v_afrac_x(i  ,j  ,k  );
-                    Real axp = v_afrac_x(i+1,j  ,k  );
-                    Real aym = v_afrac_y(i  ,j  ,k  );
-                    Real ayp = v_afrac_y(i  ,j+1,k  );
-                    Real azm = v_afrac_z(i  ,j  ,k  );
-                    Real azp = v_afrac_z(i  ,j  ,k+1);
-
-                    Real adx = (axm-axp) * dy * dz;
-                    Real ady = (aym-ayp) * dx * dz;
-                    Real adz = (azm-azp) * dx * dy;
-
-                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
                     const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
                     const Real Dirichlet_u {0.};
@@ -238,13 +245,14 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau12_eb = 0.5 * (dudy + dvdx);
                     Real tau23_eb = 0.5 * (dvdz + dwdy);
 
-                    Real dvdn = -(v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
-
-                    rho_v_rhs(i,j,k) -= mu_eff * barea * dvdn / (vol * v_volfrac(i,j,k));
+                    dvdn = - mu_eff * (v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
 
                 } else if (l_surface_layer) {
-                    // SK TODO: implement surface layer BC contribution to diffusion
+                    
+                    dvdn = - tau_eb23(i,j,k);
                 }
+
+                rho_v_rhs(i,j,k) -= barea * dvdn / (vol * v_volfrac(i,j,k));
             }
         }
     },

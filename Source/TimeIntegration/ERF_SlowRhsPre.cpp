@@ -494,6 +494,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
 
+        Array4<Real> tau_eb13{}, tau_eb23{};
+        if (l_use_eb && Tau_EB[EBTauType::tau13] && Tau_EB[EBTauType::tau23]) {
+            tau_eb13 = Tau_EB[EBTauType::tau13]->array(mfi);
+            tau_eb23 = Tau_EB[EBTauType::tau23]->array(mfi);
+        }
+
         // Strain magnitude
         Array4<Real> SmnSmn_a;
         if (l_need_SmnSmn) {
@@ -719,6 +725,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     u, v, w,
                     tau11, tau22, tau33,
                     tau12, tau13, tau23,
+                    tau_eb13, tau_eb23,
                     dx, dxInv,
                     mf_mx, mf_ux, mf_vx,
                     mf_my, mf_uy, mf_vy,
