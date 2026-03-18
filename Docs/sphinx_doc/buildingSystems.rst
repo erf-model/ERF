@@ -16,14 +16,19 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in ``ERF/Exec`` when using GNU Make. The exception is development-test work under ``ERF/.Exec_dev``, where GNU Make builds in that test directory. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_exec``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
+ERF builds executables in ``ERF/Exec`` when using GNU Make. The exception is development-test work under ``ERF/.Exec_dev``, where GNU Make builds in a problem-specific directory under ``ERF/.Exec_dev``.
 
-The problem directories within ``Exec`` are organized by purpose:
+With CMake, one configures once to build the core libraries and the shared test executable in ``build`` (e.g., ``erf_exec``).
+
+Regardless of how the executable is built, it can be run on regression and canonical tests that have inputs files in subdirectories of ``Exec/RegTests`` and ``Exec/CanonicalTests``.
+Ctests are run on files in subdirectories of ``ERF/Tests/test_files``.
+
+Directories within ``Exec`` are organized into cases used primarily for regression testing and cases representing more canonical tests.
 
 .. code-block:: text
 
    Exec/
-   ├── RegTests/               # Fluid dynamical regression test input decks
+   ├── RegTests/               # Regression test input decks
    │   ├── IsentropicVortex/
    │   ├── TaylorGreenVortex/
    │   ├── Bubble/
@@ -43,14 +48,12 @@ Building with GNU Make
 System Overview
 ~~~~~~~~~~~~~~~
 
-The GNU Make system provides a direct path to producing a single, case-specific executable. It uses an application-centric approach, where developers and scientists compile code directly in ``ERF/Exec`` (or in ``ERF/.Exec_dev`` when working with development tests).
+The GNU Make system provides a direct path to producing a single, non-case-specific executable that works for all cases
+represented in ``ERF/Exec/RegTests`` and ``ERF/Exec/CanonicalTests``.
 
-Primary use cases:
-
-* Scientific production runs with in-place compilation
-* Development scenarios requiring direct control over compiler flags
-* Debugging build configuration
-* Single executables without library versioning overhead
+Depending on the cases of interest, the user must specify in ``ERF/Exec/GNUmakefile`` whether the executable should be built
+with particle capability (``USE\_PARTICLES = TRUE``), with NetCDF capability (``USE\_NETCDF = TRUE``),
+with radiation (``USE\_RRGMTP = TRUE``), and several other compile-time options.
 
 The build is orchestrated by a ``GNUmakefile`` in ``ERF/Exec/`` (and similarly in ``ERF/.Exec_dev`` for development tests), which uses build logic from the AMReX framework.
 
