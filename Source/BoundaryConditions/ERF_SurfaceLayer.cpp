@@ -17,7 +17,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                              int max_iters)
 {
     // Update with SST/TSK data if we have a valid pointer
-    if (m_sst_lev[lev][0]) {
+    if (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
 

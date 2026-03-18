@@ -251,7 +251,7 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
 
     // Initialize kokkos rrtmgp pool allocator
     const size_t nvar = 300;
-    const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_sw_k->get_nband());
+    const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_lw_k->get_nband());
     const size_t ncol = gas_concs_k.ncol;
     const size_t nlay = gas_concs_k.nlay;
     auto my_size_ref = static_cast<unsigned long>(nvar * ncol * nlay * nbnd);
@@ -1072,6 +1072,7 @@ compute_cloud_area (int ncol,
     // Subcolumn binary cld mask; if any layers with pressure between pmin and pmax are cloudy
     // then 2d subcol mask is 1, otherwise it is 0
     real2d_k subcol_mask("subcol_mask", ncol, ngpt);
+    Kokkos::deep_copy(subcol_mask, 0.0);
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
                          KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
@@ -1079,8 +1080,6 @@ compute_cloud_area (int ncol,
         // using play/pmid does not
         if (cld_tau_gpt(icol,ilay,igpt) > 0 && pmid(icol,ilay) >= pmin && pmid(icol,ilay) < pmax) {
             subcol_mask(icol,igpt) = 1.0;
-        } else {
-            subcol_mask(icol,igpt) = 0.0;
         }
     });
     // Compute average over subcols to get cloud area

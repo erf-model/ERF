@@ -146,6 +146,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
 #include "Prob/ERF_InitCustomPert_TempSrcCold.H"
     }
+    else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_InitCustomPert_Bomex.H"
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -235,6 +238,9 @@ Problem::init_custom_pert_vels (
               (my_prob_name_ci == "temperaturesourcespatial_cold") ) {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
+    else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -280,6 +286,8 @@ Problem::update_rhotheta_sources (const Real& time,
 #include "Prob/ERF_UpdateRhoThetaSources_GATE.H"
     } else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
 #include "Prob/ERF_UpdateRhoThetaSources_TempSrcCold.H"
+    } else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_UpdateRhoThetaSources_SineMassFlux.H"
     }
 }
 
@@ -324,6 +332,8 @@ Problem::update_rhoqt_sources (const Real& time,
 #include "Prob/ERF_UpdateRhoQtSources_GATE.H"
     } else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
 #include "Prob/ERF_UpdateRhoQtSources_TempSrcCold.H"
+    } else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_UpdateRhoQtSources_SineMassFlux.H"
     }
 }
 
@@ -331,10 +341,10 @@ Problem::update_rhoqt_sources (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& /*time*/,
+Problem::update_w_subsidence (const Real& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
-                              const amrex::MultiFab& /* state */,
+                              const amrex::MultiFab& state,
                               const Geometry& geom,
                               std::unique_ptr<MultiFab>& z_phys_nd)
 {
@@ -361,6 +371,8 @@ Problem::update_w_subsidence (const Real& /*time*/,
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateWSubsidence_GATE.H"
+    } else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_UpdateWSubsidence_SineMassFlux.H"
     }
 }
 
@@ -399,6 +411,8 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 #include "Prob/ERF_UpdateGeostrophicProfile_RICO.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateGeostrophicProfile_GATE.H"
+    } else if  (my_prob_name_ci == "sinusoidalmassflux") {
+#include "Prob/ERF_UpdateGeostrophicProfile_SineMassFlux.H"
     }
 
     // Copy from host version to device version
