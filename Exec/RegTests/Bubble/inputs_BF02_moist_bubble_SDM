@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 
 erf.init_type = MoistBaseState
 

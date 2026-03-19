@@ -419,6 +419,7 @@ Perlmutter (NERSC)
          source $ERF_HOME/Build/machines/perlmutter_erf.profile
 
          # Run from scratch filesystem with executable and inputs in same directory
+         mkdir -p $PSCRATCH/ERF/rundir
          cd $PSCRATCH/ERF/rundir
 
          # Verify paths before launching

@@ -453,32 +453,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     //*********************************************************
-    // Radiation fluxes for coupling to LSM
-    //*********************************************************
-
-    // NOTE: Finer levels do not need to coincide with the bottom domain boundary
-    //       at k=0. We make slabs here with the kmin for a given box. Therefore,
-    //       care must be taken before applying these fluxes to an LSM model. For
-
-    // Radiative fluxes for LSM
-    if (solverChoice.lsm_type != LandSurfaceType::None &&
-        solverChoice.rad_type != RadiationType::None)
-    {
-        BoxList m_bl = ba.boxList();
-        for (auto& b : m_bl) {
-            int kmin = b.smallEnd(2);
-            b.setRange(2,kmin);
-        }
-        BoxArray m_ba(std::move(m_bl));
-
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, 0); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, 0);
-
-        sw_lw_fluxes[lev]->setVal(0.);
-        solar_zenith[lev]->setVal(0.);
-    }
-
-    //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************
     if (solverChoice.pert_type == PerturbationType::Source ||
