@@ -30,6 +30,8 @@ Clone, build, and run with GNU Make:
          make COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
          mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex  CanonicalTests/ABL/inputs_most
 
+Default GNU Make builds are done in ``ERF/Exec``. Use ``ERF/.Exec_dev/<test_name>`` only when working on development tests.
+
 Build with CMake
 ----------------
 
@@ -107,7 +109,7 @@ Remove build artifacts:
 
       .. code-block:: bash
 
-         # From ``ERF/Exec`` directory
+         # From ``ERF/Exec`` (or ``ERF/.Exec_dev/<test_name>`` for dev-test builds)
          make clean           # Remove build artifacts
          make realclean       # Same as clean
          make cleanconfig     # Remove configuration only

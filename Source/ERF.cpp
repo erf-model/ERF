@@ -186,8 +186,6 @@ ERF::ERF_shared ()
 
     qheating_rates.resize(nlevs_max);
     rad_fluxes.resize(nlevs_max);
-    sw_lw_fluxes.resize(nlevs_max);
-    solar_zenith.resize(nlevs_max);
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);

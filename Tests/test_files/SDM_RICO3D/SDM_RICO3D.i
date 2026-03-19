@@ -88,8 +88,6 @@ erf.plot_vars_1     = density \
 particles.disable_plt = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = true
@@ -147,15 +145,11 @@ prob.pert_periods_T = 10.0
 prob.pert_periods_QV = 10.0
 
 prob.advection_heating_rate   = -2.8935E-5
-prob.source_cutoff            = 1500.0
-prob.source_cutoff_transition = 1500.0
 
 prob.advection_moisture_rate            = -1.157E-8
 prob.moisture_source_cutoff            	= 2980.0
-prob.moisture_source_cutoff_transition 	= 200.0
 
 prob.wbar_sub_max    = -0.005
 prob.wbar_cutoff_max = 2260.0
-prob.wbar_cutoff_min = 2500.0
 
 prob.custom_TKE      = true

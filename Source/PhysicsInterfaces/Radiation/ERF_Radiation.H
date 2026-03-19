@@ -96,8 +96,6 @@ public:
          amrex::MultiFab* cons_in,
          amrex::iMultiFab* lmask,
          amrex::MultiFab*  t_surf,
-         amrex::MultiFab* lsm_fluxes,
-         amrex::MultiFab* lsm_zenith,
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
@@ -107,8 +105,8 @@ public:
          amrex::MultiFab* lon_ptr) override
     {
         set_grids(level, step, time, dt, ba, geom,
-                  cons_in, lmask, t_surf, lsm_fluxes,
-                  lsm_zenith, lsm_input_ptrs, qheating_rates,
+                  cons_in, lmask, t_surf,
+                  lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr);
         rad_run_impl(lsm_output_ptrs);
     }
@@ -124,8 +122,6 @@ public:
                amrex::MultiFab* cons_in,
                amrex::iMultiFab* lmask,
                amrex::MultiFab*  t_surf,
-               amrex::MultiFab* lsm_fluxes,
-               amrex::MultiFab* lsm_zenith,
                amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* rad_fluxes,
@@ -250,7 +246,10 @@ private:
                                                     "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
 
     // List of output parameter names
-    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"};
+    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle"  , "sw_flux_dn"        ,
+                                                     "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
+                                                     "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                                                     "lw_flux_dn"};
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
@@ -274,10 +273,6 @@ private:
     // Constant lat/lon if the above MFs are not valid
     amrex::Real m_lat_cons =  39.809860;
     amrex::Real m_lon_cons = -98.555183;
-
-    // Pointer to output data for LSM
-    amrex::MultiFab* m_lsm_fluxes = nullptr;
-    amrex::MultiFab* m_lsm_zenith = nullptr;
 
     // Holds output from KOKKOS views used in the datalog
     amrex::MultiFab datalog_mf;

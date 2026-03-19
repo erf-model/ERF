@@ -119,7 +119,6 @@ erf.buoyancy_type   = 1
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T          = 0.0 # [m^2/s]
 erf.alpha_C          = 0.0
 

@@ -31,12 +31,11 @@ To run the coupled model:
 .. code-block:: bash
 
     git clone --recursive git@github.com:erf-model/ERF
-    cd ERF/Exec/DevTest/ABL_with_WW3
+    cd ERF/Exec/CanonicalTests/ABL/WW3_coupling
     make -j4 USE_WW3_COUPLING=TRUE
-    cd ../../Submodules/WW3
+    cd ../../../../Submodules/WW3
     ./model/bin/w3_setup model -c gnu -s Ifremer1
     cd regtests
     ./bin/run_cmake_test -C MPMD -n 2 -p mpirun -f -s ST6_PR1_MPI -w work ../model ww3_ts3
 
 Modifications to the problem size and geometry, as well as other parameters can be done in the `inputs_mpmd` file. The `plt` files as well as relevant outputs can be viewed in the `regtests/ww3_ts3/work` directory.
-
