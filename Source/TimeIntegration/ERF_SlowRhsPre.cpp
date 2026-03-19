@@ -495,9 +495,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
 
         Array4<Real> tau_eb13{}, tau_eb23{};
-        if (l_use_eb && Tau_EB[EBTauType::tau13] && Tau_EB[EBTauType::tau23]) {
-            tau_eb13 = Tau_EB[EBTauType::tau13]->array(mfi);
-            tau_eb23 = Tau_EB[EBTauType::tau23]->array(mfi);
+        if (l_use_eb && Tau_EB[EBTauType::tau_eb13] && Tau_EB[EBTauType::tau_eb23]) {
+            tau_eb13 = Tau_EB[EBTauType::tau_eb13]->array(mfi);
+            tau_eb23 = Tau_EB[EBTauType::tau_eb23]->array(mfi);
         }
 
         // Strain magnitude

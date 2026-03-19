@@ -12,8 +12,8 @@ enum struct EBBoundaryType {
     SlipWall, NoSlipWall, SurfaceLayer
 };
 
-enum struct EBTauType {
-    tau13, tau23
+enum EBTauType {
+    tau_eb13, tau_eb23
 };
 
 /**
