@@ -318,8 +318,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     rho_w_rhs(i,j,k) -= mu_eff * barea * dwdn / (vol * w_volfrac(i,j,k));
 
-                } else if (l_surface_layer) {
-                    // SK TODO: implement surface layer BC contribution to diffusion
                 }
             }
         }
