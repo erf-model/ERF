@@ -226,7 +226,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer() override
         {
-            return m_super_droplets.get();
+            return m_super_droplets;
         }
 
         inline virtual const std::string& getName() const override
@@ -411,9 +411,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! name of model and its particle container */
         std::string m_name;
-        /*! particle container for super-droplets */
-        std::unique_ptr<SuperDropletPC> m_super_droplets;
-
         /*! Geometry object */
         amrex::Geometry m_geom;
 
@@ -452,6 +449,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! species index of water */
         int m_idx_w;
+
+        /*! particle container for super-droplets
+         *  Owned by ERF::particleData which deletes it during teardown;
+         *  raw pointer here to avoid double-free. */
+        SuperDropletPC* m_super_droplets;
 
         /*! \brief read inputs */
         virtual void readInputs();
