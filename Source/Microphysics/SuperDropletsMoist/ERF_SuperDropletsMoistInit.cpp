@@ -166,13 +166,13 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
     }
 
     /* create the super-droplet particle container */
-    m_super_droplets = new SuperDropletPC ( a_geom,
-                                            a_cons_vars.DistributionMap(),
-                                            a_cons_vars.boxArray(),
-                                            m_species,
-                                            m_aerosols,
-                                            m_dt,
-                                            m_name );
+    m_super_droplets = std::make_unique<SuperDropletPC> ( a_geom,
+                                                          a_cons_vars.DistributionMap(),
+                                                          a_cons_vars.boxArray(),
+                                                          m_species,
+                                                          m_aerosols,
+                                                          m_dt,
+                                                          m_name );
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"

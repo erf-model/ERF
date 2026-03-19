@@ -52,7 +52,7 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                     Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
                     if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
@@ -64,7 +64,7 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                 if (a_subgrid) {
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
+                                      plo[2]+k*dx[2],
                                       plo[0]+(i+1)*dx[0],
                                       plo[1]+(j+1)*dx[1],
                                       plo[2]+(k+1)*dx[2] );
@@ -118,7 +118,7 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
 
                     // Extract bubble params
                     const auto& x_c = a_bubble.lo(); // center
@@ -141,7 +141,7 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                 if (a_subgrid) {
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
+                                      plo[2]+k*dx[2],
                                       plo[0]+(i+1)*dx[0],
                                       plo[1]+(j+1)*dx[1],
                                       plo[2]+(k+1)*dx[2] );
@@ -451,10 +451,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                         }
                     } else if (itype == SDInitShape::bubble) {
                         if (random_place) {
-                            ParticleReal u[AMREX_SPACEDIM] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine) };
-                            auto L = std::sqrt(u[0]*u[0]+ u[1]*u[1] + u[2]*u[2]);
-                            auto r = Random(rnd_engine);
-                            ParticleReal xs[AMREX_SPACEDIM] = {r*u[0]/L, r*u[1]/L, r*u[2]/L};
+                            ParticleReal u[AMREX_SPACEDIM];
+                            ParticleReal L = 0.0;
+                            do {
+                                u[0] = 2.0*Random(rnd_engine) - 1.0;
+                                u[1] = 2.0*Random(rnd_engine) - 1.0;
+                                u[2] = 2.0*Random(rnd_engine) - 1.0;
+                                L = std::sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2]);
+                            } while (L <= 1.0e-12);
+
+                            const ParticleReal r = Random(rnd_engine);
+                            const ParticleReal xs[AMREX_SPACEDIM] = {r*u[0]/L, r*u[1]/L, r*u[2]/L};
                             p.pos(0) = pdomain.lo(0) + pdomain.hi(0) * xs[0];
                             p.pos(1) = pdomain.lo(1) + pdomain.hi(1) * xs[1];
                             p.pos(2) = pdomain.lo(2) + pdomain.hi(2) * xs[2];
@@ -524,7 +531,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
-                auto& p = aos[n];
+                auto& p = aos[n+size_old];
                 Real x = p.pos(0);
                 Real y = p.pos(1);
                 Real z = p.pos(2);

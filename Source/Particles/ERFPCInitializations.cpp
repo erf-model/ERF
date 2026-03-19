@@ -110,7 +110,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                 Real zh = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                    height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                    height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                   height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                                   height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
 
                 // SWAP TWO LINES BELOW TO COMPUTE ABSOLUTE HEIGHT VS HEIGHT ABOVE SURFACE
                 Real z = zh;
