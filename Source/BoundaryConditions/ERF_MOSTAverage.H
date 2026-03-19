@@ -104,6 +104,9 @@ public:
     // Get z_ref (may be computed from specified k_indx)
     [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
 
+    // Get pointer to the k-index mf
+    [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
+
     /**
      * Function to compute trilinear interpolation with terrain.
      *

@@ -240,8 +240,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 //}                
             } else {
                 Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-                SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_lev,
-                                                   Hfx1, Hfx2, Hfx3,
+                SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
+                                                   Hfx1, Hfx2, Hfx3_EB,
                                                    Q1fx1, Q1fx2, Q1fx3,
                                                    ebfact);
             }
