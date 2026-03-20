@@ -502,6 +502,20 @@ void ImplicitDiffForState_T (const amrex::Box& bx, const amrex::Box& domain, con
                              const amrex::Real implicit_fac);
 
 template <int stagdir>
+void ImplicitDiffForMomLU_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
+                             const amrex::Real dt,
+                             const amrex::Array4<const amrex::Real>& cell_data,
+                             const amrex::Array4<      amrex::Real>& face_data,
+                             const amrex::Array4<const amrex::Real>& tau,
+                             const amrex::Array4<const amrex::Real>& tau_corr,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& mu_turb,
+                             const SolverChoice& solverChoice,
+                             const amrex::BCRec* bc_ptr,
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
+
+template <int stagdir>
 void ImplicitDiffForMom_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
                            const amrex::Real dt,
                            const amrex::Array4<const amrex::Real>& cell_data,
