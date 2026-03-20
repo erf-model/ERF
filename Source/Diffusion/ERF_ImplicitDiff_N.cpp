@@ -283,6 +283,39 @@ ImplicitDiffForMomLU_N (const Box& bx,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
+          // Notes:
+          //
+          // - In DiffusionSrcForMom (e.g., for x-mom)
+          //
+          //     Real diffContrib = ...
+          //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dzinv
+          //     rho_u_rhs(i,j,k) -= diffContrib;  // note the negative sign
+          //
+          // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
+          //   The part that needs to be scaled is stored in `tau_corr`.
+          //   E.g., tau13 = 0.5 * (du/dz + dw/dx)
+          //         tau13_corr = 0.5 * du/dz
+          //
+          // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
+          //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
+          //   sources from advection and other forcings, not just diffusion.
+          //
+          // - To correct momentum, we need to subtract `implicit_fac * diffContrib_corr`
+          //   from S_rhs to recover `(1 - implicit_fac) * diffContrib_corr`,
+          //   where `diffContrib_corr = -d(tau_corr)/dz`. The negative sign
+          //   comes from our convention for the RHS diffusion source.
+          //
+          //   Subtracting a negative gives the += below; multiply by dt to
+          //   get the intermediate momentum on the RHS of the tridiagonal
+          //   system.
+          //
+          // - With a surface_layer BC, tau13/23 holds the vertical flux -d_z(k*u_i)
+          //   directly. We must use tau at klo (not tau_corr) with SL BCs.
+          //
+          // - Finally, the terms ~ RHS += (tau_corr_hi - tau_corr_lo) / dz (below)
+          //   essentially undo the explicit diffusion update that will be
+          //   handled here implicitly.
+
           // Bottom boundary coefficients and RHS for L decomp
           //===================================================
           Real rhoface, rhoAlpha_lo, rhoAlpha_hi;
@@ -298,35 +331,9 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               RHS_a(i,j,klo) = face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
-              // Notes:
-              //
-              // - In DiffusionSrcForMom (e.g., for x-mom)
-              //
-              //     Real diffContrib = ...
-              //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dzinv
-              //     rho_u_rhs(i,j,k) -= diffContrib;  // note the negative sign
-              //
-              // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
-              //   The part that needs to be scaled is stored in `tau_corr`.
-              //   E.g., tau13 = 0.5 * (du/dz + dw/dx)
-              //         tau13_corr = 0.5 * du/dz
-              //
-              // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
-              //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
-              //   sources from advection and other forcings, not just diffusion.
-              //
-              // - To correct momentum, we need to subtract `implicit_fac * diffContrib_corr`
-              //   from S_rhs to recover `(1 - implicit_fac) * diffContrib_corr`,
-              //   where `diffContrib_corr = -d(tau_corr)/dz`. The negative sign
-              //   comes from our convention for the RHS diffusion source.
-              //
-              //   Subtracting a negative gives the += below; multiply by dt to
-              //   get the intermediate momentum on the RHS of the tridiagonal
-              //   system.
-              RHS_a(i,j,klo) += implicit_fac * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv * dt;
-
+              // BCs: Dirichlet (u_i = val), slip wall (w = 0), or surface layer (w = 0)
               if (ext_dir_on_zlo) {
-                  // This can be a no-slip wall (u = v = w = 0), slip wall (w = 0), or surface layer (w = 0)
+                  RHS_a(i,j,klo) += implicit_fac * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv * dt;
                   if (stagdir==2) {
                       c_tmp = 0.;
                       RHS_a(i,j,klo) = 0.;
@@ -335,14 +342,9 @@ ImplicitDiffForMomLU_N (const Box& bx,
                       RHS_a(i,j,klo) += 2.0 * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv;
                   }
               } else if (use_SurfLayer) {
-                  // COMPARE
-                  Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i-ioff,j-joff,klo  ,Rho_comp));
-                  Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i-ioff,j-joff,klo-1,Rho_comp));
-                  Real Flux = -rhoAlpha_lo * (uhi - ulo) * dz_inv;
-                  Print() << "Compare values: " << IntVect(i,j,klo) << ' '
-                          << tau(i,j,klo) << ' ' << Flux << "\n";
-
-                  RHS_a(i,j,klo) +=  Fact * tau(i,j,klo); // NOTE: tau = -d_z(k*u_i)
+                  // NOTE: tau = -d_z(k*u_i) w/ SL
+                  RHS_a(i,j,klo) += implicit_fac * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo)) * dz_inv * dt;
+                  RHS_a(i,j,klo) +=  Fact * tau(i,j,klo);
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
@@ -366,6 +368,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
               inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
+              RHS_a(i,j,k)   += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k)) * dz_inv * dt;
 
               RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
               coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"
@@ -382,37 +385,11 @@ ImplicitDiffForMomLU_N (const Box& bx,
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv;
               c_tmp = 0.;
 
-              RHS_a(i,j,khi) = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
-
-              // Notes:
-              //
-              // - In DiffusionSrcForMom (e.g., for x-mom)
-              //
-              //     Real diffContrib = ...
-              //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dzinv
-              //     rho_u_rhs(i,j,k) -= diffContrib;  // note the negative sign
-              //
-              // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
-              //   The part that needs to be scaled is stored in `tau_corr`.
-              //   E.g., tau13 = 0.5 * (du/dz + dw/dx)
-              //         tau13_corr = 0.5 * du/dz
-              //
-              // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
-              //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
-              //   sources from advection and other forcings, not just diffusion.
-              //
-              // - To correct momentum, we need to subtract `implicit_fac * diffContrib_corr`
-              //   from S_rhs to recover `(1 - implicit_fac) * diffContrib_corr`,
-              //   where `diffContrib_corr = -d(tau_corr)/dz`. The negative sign
-              //   comes from our convention for the RHS diffusion source.
-              //
-              //   Subtracting a negative gives the += below; multiply by dt to
-              //   get the intermediate momentum on the RHS of the tridiagonal
-              //   system.
+              RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += implicit_fac * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi)) * dz_inv * dt;
 
+              // BCs: Dirichlet (u_i = val), slip wall (w = 0)
               if (ext_dir_on_zhi) {
-                  // This can be a no-slip wall (u = v = w = 0), slip wall (w = 0), or surface layer (w = 0)
                   if (stagdir==2) {
                       a_tmp = 0.;
                       RHS_a(i,j,khi) = 0.;
