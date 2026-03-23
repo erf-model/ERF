@@ -109,6 +109,7 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                        const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                       const eb_& ebfact,
                              bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
