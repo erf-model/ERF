@@ -26,7 +26,8 @@ using namespace amrex;
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  */
 void
-ImplicitDiffForStateLU_T (const Box& bx, const Box& domain,
+ImplicitDiffForStateLU_T (const Box& bx,
+                          const Box& domain,
                           const int level,
                           const Real dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
@@ -219,7 +220,7 @@ ImplicitDiffForStateLU_T (const Box& bx, const Box& domain,
 template <int stagdir>
 void
 ImplicitDiffForMomLU_T (const Box& bx,
-                        const Box& domain,
+                        const Box& /*domain*/,
                         const int level,
                         const Real dt,
                         const Array4<const Real>& cell_data,

@@ -212,7 +212,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
 template <int stagdir>
 void
 ImplicitDiffForMomLU_S (const Box& bx,
-                        const Box& domain,
+                        const Box& /*domain*/,
                         const int level,
                         const Real dt,
                         const Array4<const Real>& cell_data,
