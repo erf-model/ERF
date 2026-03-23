@@ -26,7 +26,8 @@ using namespace amrex;
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  */
 void
-ImplicitDiffForStateLU_N (const Box& bx, const Box& domain,
+ImplicitDiffForStateLU_N (const Box& bx,
+                          const Box& domain,
                           const int level,
                           const Real dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
@@ -109,7 +110,7 @@ ImplicitDiffForStateLU_N (const Box& bx, const Box& domain,
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*theta; solution is theta
                 if (use_SurfLayer) {
-                    RHS_a(i,j,klo) +=  Fact * hfx_z(i,j,klo); // NOTE: hfx_z = -d_z(k*\theta)
+                    RHS_a(i,j,klo) +=  Fact * hfx_z(i,j,klo); // NOTE: hfx_z = -K*d_z(\theta)
                 } else if (neumann_on_zlo) {
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\theta)
                 }
@@ -148,7 +149,7 @@ ImplicitDiffForStateLU_N (const Box& bx, const Box& domain,
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
-                RHS_a(i,j,khi)    = cell_data(i,j,khi,n); // NOTE: this is rho*theta; solution is theta
+                RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*theta; solution is theta
                 if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\theta)
                 }
@@ -254,8 +255,6 @@ ImplicitDiffForMomLU_N (const Box& bx,
     auto const& soln_a       =       soln_fab.array();
     auto const& coeffG_a     =     coeffG_fab.array();
 
-    const auto& dom_lo = lbound(domain);
-    const auto& dom_hi = ubound(domain);
     Real dz_inv = cellSizeInv[2];
 
     int bc_comp = BCVars::xvel_bc + stagdir;
@@ -333,7 +332,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               // BCs: Dirichlet (u_i = val), slip wall (w = 0), or surface layer (w = 0)
               if (ext_dir_on_zlo) {
-                  RHS_a(i,j,klo) += implicit_fac * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv * dt;
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
                   if (stagdir==2) {
                       c_tmp = 0.;
                       RHS_a(i,j,klo) = 0.;
@@ -342,9 +341,9 @@ ImplicitDiffForMomLU_N (const Box& bx,
                       RHS_a(i,j,klo) += 2.0 * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv;
                   }
               } else if (use_SurfLayer) {
-                  // NOTE: tau = -d_z(k*u_i) w/ SL
-                  RHS_a(i,j,klo) += implicit_fac * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo)) * dz_inv * dt;
-                  RHS_a(i,j,klo) +=  Fact * tau(i,j,klo);
+                  // NOTE: tau = -mu*d_z(u_i) w/ SL
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo));
+                  RHS_a(i,j,klo) += Fact * tau(i,j,klo);
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
@@ -368,7 +367,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
               inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,k)   += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k)) * dz_inv * dt;
+              RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k));
 
               RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
               coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"
@@ -386,7 +385,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
               c_tmp = 0.;
 
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,khi) += implicit_fac * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi)) * dz_inv * dt;
+              RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
 
               // BCs: Dirichlet (u_i = val), slip wall (w = 0)
               if (ext_dir_on_zhi) {
@@ -426,7 +425,6 @@ ImplicitDiffForMomLU_N (const Box& bx,
     } // j
 #endif
 }
-
 
 #define INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(STAGDIR) \
     template void ImplicitDiffForMomLU_N<STAGDIR> ( \
@@ -800,7 +798,6 @@ ImplicitDiffForMom_N (const Box& bx,
     } // j
 #endif
 }
-
 
 #define INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(STAGDIR) \
     template void ImplicitDiffForMom_N<STAGDIR> ( \
