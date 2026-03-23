@@ -28,16 +28,16 @@ Basic Set up
 
 2. Set up your API key
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      export CBORG_API_KEY=<your_key_name>
+   export CBORG_API_KEY=<your_key_name>
 
 3. Clone ``ERF`` and export the path (recommended to add export to .bashrc)
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      git clone https://github.com/erf-model/ERF.git
-      export ERF_REPO_PATH=<path_to_ERF>
+    git clone https://github.com/erf-model/ERF.git
+    export ERF_REPO_PATH=<path_to_ERF>
 
 4. Set up the environment
 
@@ -54,9 +54,9 @@ Basic Set up
 
 6. Prompt the ``AMRex-Agent``. Example here requests a local simulation that runs a 2D squall line with 4 ranks and plots the cloud water.
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      python amrex_agent.py --run_ntasks 4 --indexing-strategy simple --inputs-file-strategy llm_compare
-      --json --prompt "Run a 2D squall line simulation with Kessler microphysics, open x boundaries,
-      and HO outflow aloft. Run the simulation for 10000 steps and visualize the cloud water."
+   python amrex_agent.py --run_ntasks 4 --indexing-strategy simple --inputs-file-strategy llm_compare
+   --json --prompt "Run a 2D squall line simulation with Kessler microphysics, open x boundaries,
+   and HO outflow aloft. Run the simulation for 10000 steps and visualize the cloud water."
 
