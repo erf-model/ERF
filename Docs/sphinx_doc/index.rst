@@ -47,6 +47,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    Inputs.rst
    Initialization.rst
    BestPractices.rst
+   AgenticWorkFlow.rst
    HowToCite.rst
 
 .. toctree::
