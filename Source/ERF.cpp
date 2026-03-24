@@ -542,7 +542,7 @@ ERF::ERF_shared ()
             RealArray plane_normal{0.0, 0.0, -1.0}; // pointing into the solid region
             pp_eb2.query("plane_point", plane_point);
             pp_eb2.query("plane_normal", plane_normal);
-            EB2::PlaneIF implicit_fun(plane_point, plane_normal, false);
+            EB2::PlaneIF implicit_fun(plane_point, plane_normal, true);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
                 EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
@@ -2265,6 +2265,7 @@ ERF::init_only (int lev, Real elapsed_time)
     // - The fields set by init_custom_pert are **perturbations** to the
     //   background flow set based on init_type
     if (solverChoice.init_type != InitType::NCFile) {
+        Print()<<"SK: ERF.cpp/ call init_custum"<<std::endl;
         init_custom(lev);
     }
 
