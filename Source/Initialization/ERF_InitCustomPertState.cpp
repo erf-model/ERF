@@ -115,7 +115,7 @@ ERF::init_custom (int lev)
                 if (w_cellflg(i,j,k).isCovered()) {
                     zvel_pert_arr(i,j,k) = 0.0;
                 }
-            });   
+            });
         }
 
     } //mfi
