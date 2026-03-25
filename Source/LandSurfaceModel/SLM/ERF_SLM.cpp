@@ -2164,7 +2164,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
         if (coszrsxy_arr(i, j, 0) > 0.0)
         {
             // Optical depth of the direct beam per unit leaf area
-            ka = phi_1_arr(i, j, 0) / coszrsxy_arr(i, j, 0) + phi_2_arr(i, j, 0);
+            ka = phi_1_arr(i, j, 0) / std::max(0.01, coszrsxy_arr(i, j, 0)) + phi_2_arr(i, j, 0);
             explai = exp(-ka*LAI_arr(i, j, 0)); // for direct radiation
 
             // Optical depth of the diffuse beam per unit leaf area
@@ -2178,7 +2178,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
             net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += swdsnirdxyref_arr(i, j, 0)*(1.0 - albedonir_v_arr(i, j, 0)*(1.0 - explai0)-explai);
 
             net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) = swdsvisxyref_arr(i, j, 0) + swdsvisdxyref_arr(i, j, 0) + swdsnirxyref_arr(i, j, 0) + swdsnirdxyref_arr(i, j, 0);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1);
+            net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) * (1. - explai);
 
             // net_rad(2) = net absorbed shortwave radiation by soil
             wetfactor = 1.0 - 0.5*soilw_arr(i, j, d_khi_lsm); // soil wetness factor: assume that wet soil is twice as dark
@@ -2891,7 +2891,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
                 // Update vegetation temeprature
                 cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
-                t_canop_inc = dt / std::max(1.0e-3, cp_vege_tot)*(net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0)) * vege_YES_arr(i, j, 0);
+                t_canop_inc = dt_iter / std::max(1.0e-3, cp_vege_tot)*(net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0)) * vege_YES_arr(i, j, 0);
                 t_canop_arr(i, j, 0) = std::min(t_canop_max, t_canop_arr(i, j, 0) + t_canop_inc);
             }
             shf_canop_arr(i, j, 0) = shf0 / static_cast<amrex::Real>(niter);
