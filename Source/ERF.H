@@ -1112,7 +1112,8 @@ private:
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
+    const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
+                                                    "reflectivity","max_reflectivity",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
@@ -1140,7 +1141,6 @@ private:
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
-                                                    "reflectivity", "max_reflectivity",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables
