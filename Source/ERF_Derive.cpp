@@ -1,5 +1,6 @@
 #include "ERF_Derive.H"
 #include "ERF_EOS.H"
+#include "ERF_StormDiagnostics.H"
 #include "ERF_IndexDefines.H"
 
 using namespace amrex;
@@ -368,4 +369,86 @@ erf_dermagvelsq (
         tfab(i,j,k,dcomp) = u*u + v*v + w*w;
     });
 }
+
+void
+erf_derreflectivity (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered state vector
+    auto rfab      = derfab.array(); // cell-centered reflectivity
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real rho = dat(i,j,k,Rho_comp);
+        Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
+        Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
+        Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
+        Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+
+        Real temp  = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
+
+        rfab(i, j, k, dcomp) = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                            1, 1, 1, 1);
+    });
+}
+
+void
+erf_dermaxreflectivity (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered state vector
+    auto rfab      = derfab.array(); // cell-centered max reflectivity
+
+    // Collapse to i,j box (ignore vertical for now)
+    Box b2d = bx;
+    b2d.setSmall(2,0);
+    b2d.setBig(2,0);
+
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+
+        Real max_dbz = -1.0e30;
+
+        // find max reflectivity over k
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+
+            Real rho = dat(i,j,k,Rho_comp);
+            Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
+            Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
+            Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
+            Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+
+            Real temp = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
+
+            Real dbz = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                    1, 1, 1, 1);
+            max_dbz = amrex::max(max_dbz, dbz);
+        }
+
+        // Store max_dbz into *all* levels for this (i,j)
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            rfab(i, j, k, dcomp) = max_dbz;
+        }
+    });
+}
+
 } // namespace
