@@ -1372,6 +1372,8 @@ void SLM::init_layer_depths()
  */
 void SLM::init_soil_vars()
 {
+    const bool d_param_updated = params_updated;
+
     auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
     for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
@@ -1396,36 +1398,39 @@ void SLM::init_soil_vars()
         {
             if (landmask_arr(i, j, 0) == 1)
             {
-                const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
+                if (!d_param_updated) {
+                    // compute the initial values
+                    const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
 
-                // soil solids thermal conductivity (Johansen 1975)
-                //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
-                const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
-                sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
+                    // soil solids thermal conductivity (Johansen 1975)
+                    //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
+                    const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
+                    sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
 
-                // Calculated following Cosby et al. 1984 ( hydraulic properties)
-                // hydraulic conductivity at satuation , mm/s
-                ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
+                    // Calculated following Cosby et al. 1984 ( hydraulic properties)
+                    // hydraulic conductivity at satuation , mm/s
+                    ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
 
-                // constant B
-                Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
+                    // constant B
+                    Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
 
-                // porosity (or saturation volumetric water content)
-                poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
+                    // porosity (or saturation volumetric water content)
+                    poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
 
-                // moisture potential at saturation, [mm]
-                m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
+                    // moisture potential at saturation, [mm]
+                    m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
 
-                // soil heat capacity, [J/m^3/K]
-                //  Following de Vries(1963) using SAND=34% CLAY=63%
-                sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
+                    // soil heat capacity, [J/m^3/K]
+                    //  Following de Vries(1963) using SAND=34% CLAY=63%
+                    sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
 
-                // volumetric moisture content at field capacity
-                // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
-                theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
+                    // volumetric moisture content at field capacity
+                    // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
+                    theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
 
-                // volumetric moisture content at wilting point
-                theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
+                    // volumetric moisture content at wilting point
+                    theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
+                }
 
                 // soil wetness at field capacity
                 w_s_FC_arr(i, j, k) = theta_FC_arr(i, j, k) / poro_soil_arr(i, j, k);
@@ -1756,6 +1761,12 @@ void SLM::init_from_params()
             }
         });
     }
+
+    // set a flag to indicate remaining soil variables should be recomputed
+    params_updated = true;
+
+    // recompute soil variables using updated parameters
+    init_soil_vars();
 }
 
 /**
