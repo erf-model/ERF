@@ -25,7 +25,6 @@ erf.fixed_mri_dt_ratio = 6
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -47,5 +46,4 @@ erf.molec_diff_type  = "None"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
 prob.V_0 = 1.0

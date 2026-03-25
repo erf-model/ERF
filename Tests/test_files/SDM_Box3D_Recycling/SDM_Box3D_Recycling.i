@@ -98,11 +98,3 @@ super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
 super_droplets_moisture.initial_particles_per_cell = 1
 
 # PROBLEM PARAMETERS (optional)
-prob.U_0    = 0.0
-prob.T_pert = 0.0 # theta pert magnitude
-prob.x_c    = 200.0
-prob.z_c    = 200.0
-prob.x_r    = 100.0
-prob.z_r    = 100.0
-prob.do_moist_bubble = false
-prob.T_pert_is_airtemp = false # Perturb theta

@@ -487,7 +487,7 @@ void erf_substep_MT (int step, int /*nrk*/,
         {
             // Moving terrain
             Real rho_on_bdy = 0.5 * ( prev_cons(i,j,lo.z) + prev_cons(i,j,lo.z-1) );
-            RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,0);
+            RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z);
 
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
