@@ -467,7 +467,6 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 3a. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
-
         if (is_slow_step) {
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
