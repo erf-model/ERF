@@ -108,7 +108,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > w_bcent = (ebfact.get_w_const_factory())->getBndryCent().const_array(mfi);
     Array4<const Real      > w_bnorm = (ebfact.get_w_const_factory())->getBndryNorm().const_array(mfi);
 
-    ParallelFor(bxx, bxy, bxz,
+    // x-momentum
+    ParallelFor(bxx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
         if (u_volfrac(i,j,k)>0.) {
@@ -172,7 +173,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             }
         }
 
-    },
+    });
+
+    // y-momentum
+    ParallelFor(bxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
         if (v_volfrac(i,j,k)>0.) {
@@ -235,7 +239,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 rho_v_rhs(i,j,k) -= mu_eff * barea * dvdn / (vol * v_volfrac(i,j,k));
             }
         }
-    },
+    });
+
+    // z-momentum
+    ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
         if (w_volfrac(i,j,k)>0.) {
