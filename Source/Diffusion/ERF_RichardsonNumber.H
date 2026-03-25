@@ -385,13 +385,15 @@ AMREX_FORCE_INLINE
 amrex::Real
 StabilityFunction(amrex::Real Ri, amrex::Real Ri_crit)
 {
+    amrex::Real stability_factor = 0.0;
     if (Ri >= Ri_crit) {
-        return 0.0;
-    } else if (Ri > 0.0) {
-        return std::sqrt(1.0 - Ri / Ri_crit);
+        stability_factor = 0.0;
+    } else if (Ri > 0.0 && Ri < Ri_crit) {
+        stability_factor = std::sqrt(amrex::max(0.0, 1.0 - Ri / Ri_crit));
     } else {
-        return 1.0;
+        stability_factor = 1.0;
     }
+    return stability_factor;
 }
 
 #endif // ERF_RICHARDSON_NUMBER_H_
