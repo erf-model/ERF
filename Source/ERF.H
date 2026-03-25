@@ -877,14 +877,14 @@ private:
 #endif
 
     LandSurface lsm;
-    amrex::Vector<std::string> lsm_data_name;                // (ncomp)
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp)
-    amrex::Vector<std::string> lsm_flux_name;                // (ncomp)
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp)
+    amrex::Vector<std::string> lsm_data_name;                // (ncomp) -- e.g., sw_dn_dir/dif_vis/nir, lw_dn, cos_zen
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
+    amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
 #ifdef ERF_USE_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
 #endif
@@ -892,10 +892,6 @@ private:
 #ifdef ERF_USE_P3
     amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level
 #endif
-
-    // Containers for additional SLM inputs
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 
     bool plot_rad = false;
     int rad_datalog_int = -1;
@@ -1121,7 +1117,8 @@ private:
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
+    const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
+                                                    "reflectivity","max_reflectivity",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
@@ -1149,7 +1146,6 @@ private:
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
-                                                    "reflectivity", "max_reflectivity",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables

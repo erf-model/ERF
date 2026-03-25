@@ -237,9 +237,9 @@ ImplicitDiffForMom_N (const Box& bx,
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     amrex::ignore_unused(foextrap_on_zhi);
 
-    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || ext_dir_on_zhi || use_SurfLayer,
+    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
                               "Unexpected lower BC used with implicit vertical diffusion");
-    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || ext_dir_on_zhi,
                               "Unexpected upper BC used with implicit vertical diffusion");
     if (stagdir < 2 && (ext_dir_on_zlo || ext_dir_on_zhi)) {
         amrex::Warning("No-slip walls have not been fully tested");

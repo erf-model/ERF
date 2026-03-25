@@ -30,6 +30,10 @@ namespace LsmData_NOAHMP {
          sfc_alb_dif_nir,
          cos_zenith_angle,
          sw_flux_dn,
+         sw_flux_dn_dir_vis,
+         sw_flux_dn_dir_nir,
+         sw_flux_dn_dif_vis,
+         sw_flux_dn_dif_nir,
          lw_flux_dn,
          NumVars
   };

@@ -61,12 +61,7 @@ erf.les_type = "None"
 
 # MULTILEVEL
 amr.max_level = 0
-amr.ref_ratio_vect = 2 2 1
 
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  2. 0.25
-erf.box1.in_box_hi =  8. 0.75
 
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
@@ -91,4 +86,3 @@ prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
 prob.custom_terrain_type = "WoA"
-prob.hill_ampl = 0.5

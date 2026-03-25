@@ -159,7 +159,7 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) * az(i,j,k):
                                                0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
-                                               0.5  * (az(i,j,k) + az(i,j,k-1));
+                                               0.5  * (az(i,j,k) + az(i,j,k+1));
 
             Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, w, rho_u, dxInv, do_lo) :
                                    (xflux_hi - xflux_lo) * dxInv;
@@ -202,7 +202,6 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
         if (detJ(i,j,k) > 0.) {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
-
             Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
             Real prim_xhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
             Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
@@ -218,10 +217,14 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
             Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
             Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
 
-            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, prim_index, dir, cell_prim, avg_xmom, dxInv, do_lo) :
-                                              (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, prim_index, dir, cell_prim, avg_ymom, dyInv, do_lo) :
-                                              (yflux_hi - yflux_lo) * dyInv;
+            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 prim_index, dir, cell_prim,
+                                                                 avg_xmom, dxInv, do_lo) :
+                                   (xflux_hi - xflux_lo) * dxInv;
+            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 prim_index, dir, cell_prim,
+                                                                 avg_ymom, dyInv, do_lo) :
+                                   (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
             cell_rhs(i,j,k,cons_index) = -advectionSrc / detJ(i,j,k);
@@ -248,16 +251,18 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -1.
     // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
-    int sgn = 1; if (do_lo) sgn = -1;
+    //       Therefore, momentum indexing (ivm1/2) have 1 extra cell on the high
+    //       side that should be accessed while scalar indexing (ivs1/2) does not.
+    int sgn = 1; if (do_lo) { sgn = -1; }
 
-    IntVect ivm1(i,j,k); if ( do_lo) ivm1[dir] -= sgn; // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) ivm1[dir] += sgn; // Mom indexed out  domain for do_hi
+    IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
+    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed out  domain for do_hi
 
-    IntVect ivs1(i,j,k); if ( do_lo) ivs1[dir] -= sgn; // Scalar indexed into domain for do_hi
-    IntVect ivs2(i,j,k); if (!do_lo) ivs2[dir] -= sgn; // Scalar indexed into domain for do_lo
+    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
+    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
 
     Real mom_at_cc = 0.5 * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
-    Real mom_star  =    Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
+    Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
     Real mom_grad  = ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
     Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 

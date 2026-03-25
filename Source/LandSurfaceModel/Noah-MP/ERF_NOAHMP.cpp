@@ -27,17 +27,21 @@ NOAHMP::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmDataMap.resize(m_lsm_data_size);
-    LsmDataMap = {LsmData_NOAHMP::t_sfc           , LsmData_NOAHMP::sfc_emis       ,
-                  LsmData_NOAHMP::sfc_alb_dir_vis , LsmData_NOAHMP::sfc_alb_dir_nir,
-                  LsmData_NOAHMP::sfc_alb_dif_vis , LsmData_NOAHMP::sfc_alb_dif_nir,
-                  LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
-                  LsmData_NOAHMP::lw_flux_dn                                        };
+    LsmDataMap = {LsmData_NOAHMP::t_sfc             , LsmData_NOAHMP::sfc_emis          ,
+                  LsmData_NOAHMP::sfc_alb_dir_vis   , LsmData_NOAHMP::sfc_alb_dir_nir   ,
+                  LsmData_NOAHMP::sfc_alb_dif_vis   , LsmData_NOAHMP::sfc_alb_dif_nir   ,
+                  LsmData_NOAHMP::cos_zenith_angle  , LsmData_NOAHMP::sw_flux_dn        ,
+                  LsmData_NOAHMP::sw_flux_dn_dir_vis, LsmData_NOAHMP::sw_flux_dn_dir_nir,
+                  LsmData_NOAHMP::sw_flux_dn_dif_vis, LsmData_NOAHMP::sw_flux_dn_dif_nir,
+                  LsmData_NOAHMP::lw_flux_dn        };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"           , "sfc_emis"        ,
-                   "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
-                   "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
-                   "cos_zenith_angle", "sw_flux_dn"      ,
-                   "lw_flux_dn"      };
+    LsmDataName = {"t_sfc"             , "sfc_emis"          ,
+                   "sfc_alb_dir_vis"   , "sfc_alb_dir_nir"   ,
+                   "sfc_alb_dif_vis"   , "sfc_alb_dif_nir"   ,
+                   "cos_zenith_angle"  , "sw_flux_dn"        ,
+                   "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
+                   "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                   "lw_flux_dn"        };
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
