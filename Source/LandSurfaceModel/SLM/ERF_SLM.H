@@ -167,6 +167,8 @@ namespace SLM_DSW {
     };
 }
 
+using SLMParameterTable = std::unordered_map<std::string, amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>>;
+
 /* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
 class SLM : public NullSurf {
 
@@ -524,7 +526,9 @@ public:
 
     void init_slm_vars();
 
-    void ReadParameterFile(const std::string &filename);
+    SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
+
+    void init_from_params();
 
     void UpdateLAI(const amrex::MFIter &mfi);
 
@@ -815,8 +819,17 @@ private:
     bool first_step = true;
 
     std::string parameter_file = "NoahmpTable.TBL";
-    std::string veg_dataset = "modis";
+    std::string veg_dataset = "modis"; // modis or usgs
+    std::string soil_dataset = "stas"; // stas or stas_ruc
     int num_landtypes = -1; // Number of land types in sai/lai, parameter tables
+
+    SLMParameterTable full_params;
+    amrex::Vector<std::string> param_veg_categories;
+    amrex::Vector<std::string> param_soil_categories;
+
+    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_soil_params;
+    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_veg_params;
+
     //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
     std::vector<std::vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
