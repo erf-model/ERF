@@ -378,11 +378,11 @@ void make_mom_sources (Real time,
                         Real v_vol = v_volfrac(i,j+1,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i-1,j,k);
                         Real w_vol = w_volfrac(i,j,k+1) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i-1,j,k);
                         if (v_vol > 0.0) {
-                            rho_v_loc = ( v_volfrac(i,j+1,k) * rho_v(i,j+1,k) + v_volfrac(i,j,k) * rho_v(i,j,k) 
+                            rho_v_loc = ( v_volfrac(i,j+1,k) * rho_v(i,j+1,k) + v_volfrac(i,j,k) * rho_v(i,j,k)
                                         + v_volfrac(i-1,j+1,k) * rho_v(i-1,j+1,k) + v_volfrac(i-1,j,k) * rho_v(i-1,j,k)) / v_vol;
                         }
                         if (w_vol > 0.0) {
-                            rho_w_loc = ( w_volfrac(i,j,k+1) * rho_w(i,j,k+1) + w_volfrac(i,j,k) * rho_w(i,j,k) 
+                            rho_w_loc = ( w_volfrac(i,j,k+1) * rho_w(i,j,k+1) + w_volfrac(i,j,k) * rho_w(i,j,k)
                                         + w_volfrac(i-1,j,k+1) * rho_w(i-1,j,k+1) + w_volfrac(i-1,j,k) * rho_w(i-1,j,k)) / w_vol;
                         }
                         xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
@@ -391,7 +391,7 @@ void make_mom_sources (Real time,
                         Real rho_u_loc = 0.0;
                         Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i,j-1,k);
                         if (u_vol > 0.0) {
-                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k) 
+                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
                                         + u_volfrac(i+1,j-1,k) * rho_u(i+1,j-1,k) + u_volfrac(i,j-1,k) * rho_u(i,j-1,k)) / u_vol;
                         }
                         ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
@@ -400,7 +400,7 @@ void make_mom_sources (Real time,
                         Real rho_u_loc = 0.0;
                         Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1);
                         if (u_vol > 0.0) {
-                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k) 
+                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
                                         + u_volfrac(i+1,j,k-1) * rho_u(i+1,j,k-1) + u_volfrac(i,j,k-1) * rho_u(i,j,k-1)) / u_vol;
                         }
                         zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
