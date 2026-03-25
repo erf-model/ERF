@@ -843,6 +843,7 @@ private:
     bool use_param_file = false;  // whether to initialize using parameters from file
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
+    bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
 
     std::vector<std::vector<amrex::Real>> param_table;
     amrex::TableData<amrex::Real, 2> d_param_table;
