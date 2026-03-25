@@ -39,3 +39,4 @@ void getRhoAlpha (int i, int j, int k,
         rhoAlpha_hi = d_alpha_eff[prim_index];
     }
 }
+
