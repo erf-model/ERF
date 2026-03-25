@@ -386,16 +386,60 @@ void SLM::init_from_file()
     pp.query("interpolate_lai", interpolate_lai);
     pp.query("parameter_file", parameter_file);
     pp.query("veg_dataset", veg_dataset);
+    pp.query("soil_dataset", soil_dataset);
     pp.query("use_param_tbl", use_wrf_lai);
     if (use_param_file) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(parameter_file != "", "Using parameter file, but file path is empty!");
     }
 
-    /*
-    if (use_param_file) {
-        ReadParameterFile(parameter_file);
+    // Read NoahMP table if provided
+    if (use_param_file && parameter_file != "") {
+        full_params = ReadParameterFile(parameter_file, param_veg_categories, param_soil_categories);
+
+        std::string soil_param_key, veg_param_key;
+        if (soil_dataset == "stas_ruc") {
+            soil_param_key = "noahmp_soil_stas_ruc_parameters";
+        } else if (soil_dataset == "stas") {
+            soil_param_key = "noahmp_soil_stas_parameters";
+        } else {
+            amrex::Abort("Unrecognized soil dataset type, expected 'stas_ruc' or 'stas'");
+        }
+
+        if (veg_dataset == "usgs") {
+            veg_param_key = "noahmp_usgs_parameters";
+        } else if (veg_dataset == "modis") {
+            veg_param_key = "noahmp_modis_parameters";
+        } else {
+            amrex::Abort("Unrecognized vegetation dataset type, expected 'usgs' or 'modis'");
+        }
+
+        // Copy soil and vegetation datasets to GPU
+        auto &h_soil_params = full_params.at(soil_param_key);
+        auto &h_veg_params = full_params.at(veg_param_key);
+
+        for (int i = 0; i < h_soil_params.size(); i++) {
+            const int varsize = h_soil_params[i].second.size();
+            if (varsize > 1) {
+                //amrex::Print() << " -- copying soil param '" << h_soil_params[i].first << "' to GPU " << std::endl;
+                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
+                d_soil_params.insert(std::make_pair(h_soil_params[i].first, d_var));
+                Gpu::copyAsync(Gpu::hostToDevice, h_soil_params[i].second.data(), h_soil_params[i].second.data()+varsize, d_var->data());
+            }
+        }
+
+        for (int i = 0; i < h_veg_params.size(); i++) {
+            const int varsize = h_veg_params[i].second.size();
+            if (varsize > 1) {
+                //amrex::Print() << " -- copying veg param '" << h_veg_params[i].first << "' to GPU " << std::endl;
+                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
+                d_veg_params.insert(std::make_pair(h_veg_params[i].first, d_var));
+                Gpu::copyAsync(Gpu::hostToDevice, h_veg_params[i].second.data(), h_veg_params[i].second.data()+varsize, d_var->data());
+            }
+        }
+
+        Gpu::streamSynchronize();
     }
-    */
 
     if (interpolate_lai) {
         pp.gettable("lai", lai_table);
@@ -762,6 +806,9 @@ void SLM::slm_init()
 
     // Calculate fraction of root in each soil layer
     vege_root_init();
+
+    // Update any parameters using the values from a parameter file
+    init_from_params();
 }
 
 /**
@@ -1520,10 +1567,187 @@ void SLM::init_slm_vars()
     MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
 }
 
-void SLM::ReadParameterFile(const std::string &filename)
+/**
+ * Loads and parses the given .TBL file (such as NoahMPTable.TBL)
+ *
+ * Returns an unorderd map containing the name of each parameter block, where
+ * each block contains a list of variables, with each variable containing one or more values.
+ *
+ * Returns the vegetation and soil category names loaded from file as a vector of names.
+ */
+SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories)
 {
+    amrex::Print() << " SLM: Reading parameter file '" << filename << "'..." << std::endl;
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(filename, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    std::string prev_line = "";
+    std::string line, word;
+
+    std::unordered_map<std::string,
+                       amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>> table;
+
+    bool invalid_line = false;
+    while(!is.eof()) {
+        std::getline(is, line, '&');
+        if (invalid_line) {
+            line = prev_line + line;
+            invalid_line = false;
+            prev_line = "";
+        }
+        // catch if there is a stray '&' in the file in between blocks
+        if (is.peek() == ' ') {
+            invalid_line = true;
+            prev_line = line;
+            continue;
+        }
+
+        std::istringstream lis(line);
+        std::string sline;
+        std::string block_name;
+
+        lis >> block_name;
+        if (block_name.empty()) { continue; }
+
+        amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>> variables;
+        while (!lis.eof()) {
+            std::getline(lis, sline);
+            if (sline.empty() || sline[0] == '!' || sline == " ") { continue; }
+            {
+                std::istringstream var(sline);
+                int pos = 0;
+
+                bool save = true;
+                amrex::Vector<amrex::Real> var_values;
+                std::string varname;
+                while (var >> word) {
+                    // skip if empty line, or comment
+                    if (word.empty() || word[0] == '!' || word[0] == '/') {
+                        if (pos == 0) save = false; // make sure variables with end comments are still saved (pos > 0)
+                        break;
+                    }
+
+                    // handle veg and soil dataset names separately
+                    if (word == "veg_dataset_description") {
+                        var >> word; // '='
+                        var >> word;
+                        // amrex::Print() << " VEG CATEGORY '" << word << "'" << std::endl;
+                        veg_categories.push_back(word);
+                        save = false;
+                        break;
+                    } else if (word == "sltype") {
+                        var >> word; // '='
+                        var >> word;
+                        // amrex::Print() << " SOIL CATEGORY '" << word << "'" << std::endl;
+                        soil_categories.push_back(word);
+                        save = false;
+                        break;
+                    }
+
+                    // skip assignment, commas, end block '/'
+                    if (word == "=" || word == ",") { continue; }
+
+                    // save variable name
+                    if (pos == 0) {
+                        // check if there is an "=" next to the variable name, to catch instances of "var=" instead of "var = "
+                        auto tpos = word.find("=");
+                        if (tpos != std::string::npos) {
+                            varname = word.substr(0, tpos);
+                            word = word.substr(tpos+1);
+                            if (!word.empty()) {
+                                // if there is a value packed next to the variable name, such as var=1
+                                var_values.push_back(std::stod(word));
+                            }
+                        } else {
+                            varname = word;
+                        }
+                    } else {
+                        var_values.push_back(std::stod(word));
+                    }
+                    pos++;
+                }
+
+                // store value if we should save it
+                if (save) {
+                    variables.push_back(std::make_pair(varname, var_values));
+                }
+            }
+
+        }
+
+        if (variables.size() > 0) {
+            table.insert(std::make_pair(block_name, variables));
+        }
+    }
+
+
+    // Print out all the variables:
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+    amrex::Print() << " SLM Parameter File '" << filename << "':" << std::endl;
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+    for (auto &block : table) {
+        amrex::Print() << "  '" << block.first << "':" << std::endl;
+        for (auto &var : block.second) {
+            amrex::Print() << "      - '" << var.first << "': [";
+            for (int i = 0; i < var.second.size(); i++) {
+                amrex::Print() << " " << var.second[i];
+                if (i + 1 < var.second.size()) {
+                    amrex::Print() << ",";
+                }
+            }
+            amrex::Print() << " ]" << std::endl;
+        }
+    }
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+
+    return table;
 }
 
+/**
+ * Overwrites any default SLM variables from values set in the parameter file
+ */
+void SLM::init_from_params()
+{
+    // do nothing if not using the parameter file
+    if (!use_param_file) {
+        return;
+    }
+
+    const int d_khi_lsm = khi_lsm;
+    const int d_klo_lsm = klo_lsm;
+
+    // Get pointers to GPU parameter values
+    const amrex::Real *d_param_poro = d_soil_params["maxsmc"]->data();
+
+    for ( amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        amrex::Box bx2d = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
+
+        auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->array(mfi);
+
+        amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            if (landmask_arr(i, j, 0) == 1) {
+
+                const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> index 0-19)
+                const int stype = soiltype_arr(i,j,d_khi_lsm) - 1;
+
+                // set soil porosity from parameter file value
+                // amrex::Print() << " i = " << i << " j = " << j << " ltype = " << ltype << " stype = " << stype << " poro = " << d_param_poro[stype] << std::endl;
+
+                for (int k = d_khi_lsm; k >= d_klo_lsm; k--) {
+                    poro_soil_arr(i, j, k) = d_param_poro[stype];
+                }
+            }
+        });
+    }
+}
 
 /**
  * Updates the LAI + SAI based on the current simulation time and monthly values
