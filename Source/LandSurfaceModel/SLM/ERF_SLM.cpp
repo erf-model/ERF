@@ -1721,6 +1721,9 @@ void SLM::init_from_params()
 
     // Get pointers to GPU parameter values
     const amrex::Real *d_param_poro = d_soil_params["maxsmc"]->data();
+    const amrex::Real *d_param_theta_FC = d_soil_params["refsmc"]->data();
+	const amrex::Real *d_param_theta_WP = d_soil_params["wltsmc"]->data();
+	const amrex::Real *d_param_m_pot_sat = d_soil_params["satpsi"]->data();
 
     for ( amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx2d = mfi.tilebox();
@@ -1731,6 +1734,9 @@ void SLM::init_from_params()
         auto soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
 
         auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->array(mfi);
+        auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->array(mfi);
+        auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->array(mfi);
+        auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->array(mfi);
 
         amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
@@ -1743,6 +1749,9 @@ void SLM::init_from_params()
 
                 for (int k = d_khi_lsm; k >= d_klo_lsm; k--) {
                     poro_soil_arr(i, j, k) = d_param_poro[stype];
+                    theta_FC_arr(i, j, k) = d_param_theta_FC[stype];
+                    theta_WP_arr(i, j, k) = d_param_theta_WP[stype];
+                    m_pot_sat_arr(i, j, k) = d_param_m_pot_sat[stype];
                 }
             }
         });
