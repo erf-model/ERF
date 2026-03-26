@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Flow over Witch of Agnesi hill"
+
 stop_time = 18000. # 5h
 
 amrex.fpe_trap_invalid = 0
