@@ -60,7 +60,7 @@
 
                     const Array4<const Real> tau13  = Tau[level][TauType::tau13]->array(mfi);
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
-                    const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
+                    [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
 
                     if (l_use_stretched_dz) {
