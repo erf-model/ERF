@@ -2,7 +2,6 @@
 #define ERF_TURB_STRUCT_H_
 
 #include <ERF_MYNNStruct.H>
-#include <ERF_Constants.H>
 
 AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
@@ -397,7 +396,7 @@ public:
 
   // Deardorff or k-eqn RANS
   // - diffusivity of tke is 1/sigma_k times the eddy viscosity
-  amrex::Real sigma_k = half;
+  amrex::Real sigma_k = amrex::Real(0.5);
   // - reference potential temperature used to quantify the stratification in
   //   a stable region
   amrex::Real theta_ref = zero;
@@ -452,12 +451,9 @@ public:
     zero; // Critical Bulk Richardson number for unstable conditions
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
-  amrex::Real pbl_mrf_Ribcr =
-    half; // Critical Bulk Richardson number for MRF PBL model
-  amrex::Real pbl_mrf_const_b =
-    amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
-  amrex::Real pbl_mrf_sf =
-    amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
+  amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
+  amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
+  amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   // MYNN2.5 PBL model
   // TKE/QKE stuff
