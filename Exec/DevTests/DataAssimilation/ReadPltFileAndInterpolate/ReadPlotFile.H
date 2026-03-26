@@ -49,4 +49,12 @@ PopulateFineCellCenteredFromCoarseNodal(const amrex::Geometry& geom_coarse,
 void
 check_large_values(const amrex::MultiFab& mf);
 
+void 
+ApplyNeumannBCs(const amrex::Geometry& geom,
+                     amrex::MultiFab& mf_cc);   
+
+void WriteCustomDataFile(const amrex::Geometry& geom,
+                         const amrex::MultiFab& mf_cc,
+                         const std::string& filename_custom);
+
 #endif

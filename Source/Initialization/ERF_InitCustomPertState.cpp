@@ -49,9 +49,9 @@ ERF::init_custom (int lev)
     // 4. Add the perturbations to the background state and then populate the "pert variables
 
     if(solverChoice.is_init_for_ensemble) {
-        create_background_state_for_ensemble(); 
-        create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
-        apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+        create_background_state_for_ensemble(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert); 
+        //create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+        //apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
     }
 
 #ifdef _OPENMP

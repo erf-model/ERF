@@ -123,6 +123,52 @@ ReadPlotFile(const std::string& var_filename,
     }
 }
 
+void ApplyNeumannBCs(const Geometry& geom, 
+                     MultiFab& mf_cc)
+{
+
+     // -------------------------------------------------
+    // 2. Fill interior + periodic ghost cells
+    // -------------------------------------------------
+    mf_cc.FillBoundary(geom.periodicity());
+    // -------------------------------------------------
+    // 3. Apply FOExtrap (Neumann) at domain boundaries
+    // -------------------------------------------------
+    const Box& domain = geom.Domain();
+
+    for (MFIter mfi(mf_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& gbx = mfi.growntilebox();   // includes ghost cells
+        const Box& vbx = mfi.validbox();
+
+        auto const& arr = mf_cc.array(mfi);
+        int ncomp = mf_cc.nComp();
+
+        ParallelFor(gbx, ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        {
+            if (vbx.contains(i,j,k)) return;
+
+            int ii = i;
+            int jj = j;
+            int kk = k;
+
+            // Clamp to domain interior (FOExtrap)
+            ii = amrex::max(domain.smallEnd(0),
+                 amrex::min(i, domain.bigEnd(0)));
+
+            jj = amrex::max(domain.smallEnd(1),
+                 amrex::min(j, domain.bigEnd(1)));
+
+            kk = amrex::max(domain.smallEnd(2),
+                 amrex::min(k, domain.bigEnd(2)));
+
+            arr(i,j,k,n) = arr(ii,jj,kk,n);
+        });
+    }
+}
+
+
 void
 CreateNodalMultiFabFromCellCenteredMultiFab (MultiFab& mf_nc,      // output nodal MF
                                              MultiFab& mf_cc,      // input cell-centered MF (coarse)
@@ -439,4 +485,70 @@ PopulateFineCellCenteredFromCoarseNodal(const Geometry& geom_coarse,
             arr_cc(i,j,k,n) = c0 * (1.0_rt - wz) + c1 * wz;
         });
     }
+}
+
+void WriteCustomDataFile(const Geometry& geom,
+                         const MultiFab& mf_cc,
+                         const std::string& filename_custom)
+{
+    AMREX_ALWAYS_ASSERT(mf_cc.nComp() >= 1);
+    AMREX_ALWAYS_ASSERT(mf_cc.local_size() == 1); // single box assumed
+
+    const int ncomp = mf_cc.nComp();
+    const int ng    = mf_cc.nGrow();
+
+    const Box grown_domain = amrex::grow(geom.Domain(), ng);
+    const auto lo = lbound(grown_domain);
+    const auto hi = ubound(grown_domain);
+
+    const auto problo = geom.ProbLoArray();
+    const auto probhi = geom.ProbHiArray();
+    const auto dx     = geom.CellSizeArray();
+
+    // extend physical domain to include ghosts
+    amrex::GpuArray<double,3> problo_ext, probhi_ext;
+    for (int d=0; d<3; ++d) {
+        problo_ext[d] = problo[d] - ng*dx[d];
+        probhi_ext[d] = probhi[d] + ng*dx[d];
+    }
+
+    std::ofstream ofs(filename_custom, std::ios::binary);
+    if (!ofs.is_open()) Abort("Failed to open file for writing");
+
+    // header
+    const int nx = hi.x - lo.x + 1;
+    const int ny = hi.y - lo.y + 1;
+    const int nz = hi.z - lo.z + 1;
+
+    ofs.write(reinterpret_cast<const char*>(&nx), sizeof(int));
+    ofs.write(reinterpret_cast<const char*>(&ny), sizeof(int));
+    ofs.write(reinterpret_cast<const char*>(&nz), sizeof(int));
+    ofs.write(reinterpret_cast<const char*>(&ng), sizeof(int));
+    ofs.write(reinterpret_cast<const char*>(&ncomp), sizeof(int));
+
+    for (int d=0; d<3; ++d) ofs.write(reinterpret_cast<const char*>(&problo_ext[d]), sizeof(double));
+    for (int d=0; d<3; ++d) ofs.write(reinterpret_cast<const char*>(&probhi_ext[d]), sizeof(double));
+
+    // data
+    const auto& arr = mf_cc.const_array(0);
+    for (int k=lo.z; k<=hi.z; ++k)
+    for (int j=lo.y; j<=hi.y; ++j)
+    for (int i=lo.x; i<=hi.x; ++i)
+    {
+        double x = problo[0] + (i + 0.5) * dx[0];
+        double y = problo[1] + (j + 0.5) * dx[1];
+        double z = problo[2] + (k + 0.5) * dx[2];
+
+        ofs.write(reinterpret_cast<const char*>(&x), sizeof(double));
+        ofs.write(reinterpret_cast<const char*>(&y), sizeof(double));
+        ofs.write(reinterpret_cast<const char*>(&z), sizeof(double));
+
+        for (int n=0; n<ncomp; ++n)
+        {
+            double val = arr(i,j,k,n);
+            ofs.write(reinterpret_cast<const char*>(&val), sizeof(double));
+        }
+    }
+
+    ofs.close();
 }

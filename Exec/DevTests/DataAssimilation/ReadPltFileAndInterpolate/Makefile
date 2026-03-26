@@ -1,7 +1,8 @@
+
+
 #---------------------------
 # Makefile for AMReX project
 #---------------------------
-
 CXX = mpicxx
 CXXFLAGS = -O2 -std=c++17 -fopenmp -Wall
 
@@ -9,25 +10,49 @@ CXXFLAGS = -O2 -std=c++17 -fopenmp -Wall
 AMREX_INC = /pscratch/sd/n/nataraj2/AIModCon/GitHub/amrex_repos/amrex/include
 AMREX_LIB = /pscratch/sd/n/nataraj2/AIModCon/GitHub/amrex_repos/amrex/lib
 
-SRCS = main.cpp ReadPlotFile.cpp
 HDRS = ReadPlotFile.H
+LIBS = -lamrex -lpthread -lgfortran -ldl -lm -lstdc++
 
-OBJS = $(SRCS:.cpp=.o)
-EXE  = out
+# Default: do nothing if 'make' is called without target
+all:
+	@echo "Use 'make serial' or 'make parallel'"
 
-# Add math, dl, pthread as required by AMReX
-LIBS = -lamrex -lpthread -lgfortran -ldl -lm
+# -------------------------
+# Serial build
+# -------------------------
+SRCS_SERIAL = main_serial.cpp ReadPlotFile.cpp
+OBJS_SERIAL = $(SRCS_SERIAL:.cpp=.o)
+EXE_SERIAL  = out_serial
 
-all: $(EXE)
+serial: $(EXE_SERIAL)
 
-$(EXE): $(OBJS)
+$(EXE_SERIAL): $(OBJS_SERIAL)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -L$(AMREX_LIB) $(LIBS)
 
-# Compile rule with header dependency
+# -------------------------
+# Parallel build
+# -------------------------
+SRCS_PARALLEL = main_parallel.cpp ReadPlotFile.cpp
+OBJS_PARALLEL = $(SRCS_PARALLEL:.cpp=.o)
+EXE_PARALLEL  = out_parallel
+
+parallel: $(EXE_PARALLEL)
+
+$(EXE_PARALLEL): $(OBJS_PARALLEL)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -L$(AMREX_LIB) $(LIBS)
+
+# -------------------------
+# Compile rules for object files
+# -------------------------
 %.o: %.cpp $(HDRS)
 	$(CXX) $(CXXFLAGS) -I$(AMREX_INC) -c $< -o $@
 
+# -------------------------
+# Clean
+# -------------------------
 clean:
-	rm -f $(OBJS) $(EXE)
+	rm -f *.o out_serial out_parallel
 
-.PHONY: all clean
+.PHONY: all serial parallel clean
+
+

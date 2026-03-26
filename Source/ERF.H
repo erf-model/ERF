@@ -498,7 +498,11 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
-    void create_background_state_for_ensemble ();
+    void create_background_state_for_ensemble (int lev,
+                                               amrex::MultiFab& cons_pert,
+                                               amrex::MultiFab& xvel_pert,
+                                               amrex::MultiFab& yvel_pert,
+                                               amrex::MultiFab& zvel_pert);
 
     void create_random_perturbations (const int lev,
                                       amrex::MultiFab& cons_pert,
