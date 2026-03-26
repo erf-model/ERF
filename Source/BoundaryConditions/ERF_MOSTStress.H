@@ -1158,8 +1158,8 @@ struct surface_temp
             psi_h = sfuns.calc_psi_h2(zeta_old);
 
             // Limiting
-            num = std::max(C - psi_m, one);
-            den = std::max(C - psi_h, one);
+            num = std::max(C - psi_m, amrex::Real(1.0));
+            den = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
             zeta = (one - alpha) * zeta_old + alpha * Rib * num * num / den;
@@ -1322,11 +1322,11 @@ struct surface_temp_charnock
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, one);
-            den = std::max(C - psi_h, one);
+            num = std::max(C - psi_m, amrex::Real(1.0));
+            den = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (one - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1446,8 +1446,8 @@ struct surface_temp_mod_charnock
         }
 
         // Bulk Richardson number w/ moisture
-        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + amrex::Real(0.61)*qv_s);
-        amrex::Real thv_a =     tm_arr(i,j,k) * (one + amrex::Real(0.61)*qv_a);
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (amrex::Real(1.0) + amrex::Real(0.61)*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (amrex::Real(1.0) + amrex::Real(0.61)*qv_a);
         Rib = ( (mdata.gravity * zref) / tm_arr(i,j,k) ) *
               ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
@@ -1480,11 +1480,11 @@ struct surface_temp_mod_charnock
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, one);
-            den = std::max(C - psi_h, one);
+            num = std::max(C - psi_m, amrex::Real(1.0));
+            den = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (one - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1597,7 +1597,7 @@ struct surface_temp_donelan
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             if ( (((Olen >= zero) && (Oleno <= zero)) ||
                   ((Olen <= zero) && (Oleno >= zero))) &&
-                 std::fabs(Olen) + std::fabs(Oleno) < one) {
+                 std::fabs(Olen) + std::fabs(Oleno) < amrex::Real(1.0)) {
                 Olen = myhalf * (Olen + Oleno);
             }
             Oleno = Olen;
@@ -1721,7 +1721,7 @@ struct surface_temp_wave_coupled
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             if ( (((Olen >= zero) && (Oleno <= zero)) ||
                   ((Olen <= zero) && (Oleno >= zero))) &&
-                 std::fabs(Olen) + std::fabs(Oleno) < one) {
+                 std::fabs(Olen) + std::fabs(Oleno) < amrex::Real(1.0)) {
                 Olen = myhalf * (Olen + Oleno);
             }
             Oleno = Olen;
