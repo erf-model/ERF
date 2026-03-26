@@ -341,11 +341,11 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real yflux_hi = cur_ymom(i,j+1,k) - stg_ymom(i,j+1,k)*h_zeta_stg_yhi;
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
-            temp_rhs_arr(i,j,k,0) = ( ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi );
-            temp_rhs_arr(i,j,k,1) = ( (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                         xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
-                                       ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                         yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * half );
+            temp_rhs_arr(i,j,k,0) = ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
+            temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
+                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
+                                     ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
+                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * half;
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
@@ -461,8 +461,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                         temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
+            Real detJ_half = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1)); // TODO: THIS MAY NOT BE RIGHT
             RHS_a(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k)
-                + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k))
+                + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k)) / detJ_half
                 + dtau * (R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...

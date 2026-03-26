@@ -5,6 +5,7 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <ERF_Constants.H>
 
 struct ERFParticlesIntIdxAoS
 {

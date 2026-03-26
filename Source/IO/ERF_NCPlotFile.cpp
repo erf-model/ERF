@@ -176,9 +176,9 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                 for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                     for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                        x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+half));
-                        y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+half));
-                        z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+half));
+                        x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+0.5));
+                        y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+0.5));
+                        z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+0.5));
                      }
                 }
             }
