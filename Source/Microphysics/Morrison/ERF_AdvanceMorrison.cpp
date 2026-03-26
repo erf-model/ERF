@@ -258,18 +258,14 @@ amrex::Real wrf_gamma (amrex::Real x)
     // Local variables
     int i, n;
     bool parity = false;
-    amrex::Real fact, half, one, res, sum, twelve, two, xbig, xden, xinf, xminin;
-    amrex::Real xnum, y, y1, ysq, z, zero;
+    amrex::Real fact, res, sum, twelve, xbig, xden, xinf, xminin;
+    amrex::Real xnum, y, y1, ysq, z;
     amrex::Real c[7];
     amrex::Real p[8];
     amrex::Real q[8];
 
     // Mathematical constants
-    one = one;
-    half = half;
     twelve = Real(12.0);
-    two = two;
-    zero = zero;
 
     // Machine dependent parameters
     xbig = Real(35.040);
@@ -279,20 +275,20 @@ amrex::Real wrf_gamma (amrex::Real x)
 
     // Numerator and denominator coefficients for rational minimax approximation over (1,2)
     p[0] = -Real(1.71618513886549492533811e+0);
-    p[1] = Real(2.47656508055759199108314e+1);
+    p[1] =  Real(2.47656508055759199108314e+1);
     p[2] = -Real(3.79804256470945635097577e+2);
-    p[3] = Real(6.29331155312818442661052e+2);
-    p[4] = Real(8.66966202790413211295064e+2);
+    p[3] =  Real(6.29331155312818442661052e+2);
+    p[4] =  Real(8.66966202790413211295064e+2);
     p[5] = -Real(3.14512729688483675254357e+4);
     p[6] = -Real(3.61444134186911729807069e+4);
-    p[7] = Real(6.64561438202405440627855e+4);
+    p[7] =  Real(6.64561438202405440627855e+4);
 
     q[0] = -Real(3.08402300119738975254353e+1);
-    q[1] = Real(3.15350626979604161529144e+2);
+    q[1] =  Real(3.15350626979604161529144e+2);
     q[2] = -Real(1.01515636749021914166146e+3);
     q[3] = -Real(3.10777167157231109440444e+3);
-    q[4] = Real(2.25381184209801510330112e+4);
-    q[5] = Real(4.75584627752788110767815e+3);
+    q[4] =  Real(2.25381184209801510330112e+4);
+    q[5] =  Real(4.75584627752788110767815e+3);
     q[6] = -Real(1.34659959864969306392456e+5);
     q[7] = -Real(1.15132259675553483497211e+5);
 
