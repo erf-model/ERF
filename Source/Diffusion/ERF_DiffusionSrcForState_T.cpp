@@ -678,10 +678,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real yfluxhi  = half * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
             yfluxbar_hi = Real(1.5)*yfluxhi - half*yfluxlo;
         } else {
-            xfluxbar_hi = fourth) * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
-                                    + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );
-            yfluxbar_hi = fourth) * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
-                                    + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
+            xfluxbar_hi = fourth * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
+                                   + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );
+            yfluxbar_hi = fourth * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
+                                   + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
         }
 
         // Allow semi-implicit discretization of the vertical diffusive terms

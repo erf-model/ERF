@@ -3,14 +3,15 @@
 
 #include <AMReX_REAL.H>
 
-constexpr amrex::Real zero         = zero;
-constexpr amrex::Real one          = one;
-constexpr amrex::Real two          = two;
-constexpr amrex::Real three        = three;
+constexpr amrex::Real zero         = amrex::Real(0.0);
+constexpr amrex::Real one          = amrex::Real(1.0);
+constexpr amrex::Real two          = amrex::Real(2.0);
+constexpr amrex::Real three        = amrex::Real(3.0);
 constexpr amrex::Real four         = amrex::Real(4.0);
-constexpr amrex::Real half         = half;
+constexpr amrex::Real half         = amrex::Real(0.5);
+constexpr amrex::Real fourth       = amrex::Real(0.25);
 constexpr amrex::Real third        = amrex::Real(1.0/3.0);
-constexpr amrex::Real 8thirds      = amrex::Real(8.0/3.0);
+constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
 constexpr amrex::Real PIoTwo       = PI/two;
