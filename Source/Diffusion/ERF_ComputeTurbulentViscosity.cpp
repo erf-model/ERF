@@ -448,7 +448,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     } else if (c_cflag(i,j,k).isSingleValued()) {
                         SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
                     }
-                    Real strain_rate_magnitude = std::sqrt(2.0 * SmnSmn);
+                    Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
                 if (isotropic) {
                     mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h * stability_factor;

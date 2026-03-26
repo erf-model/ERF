@@ -144,7 +144,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                Real dudn = 0.0;
+                Real dudn = zero;
 
                 if (l_no_slip) {
 
