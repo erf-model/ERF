@@ -44,17 +44,17 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
 
         if (!use_terrain) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                Real xr = prob_lo[0] + (i + 0.5) * dx[0];
-                Real yr = prob_lo[1] + (j + 0.5) * dx[1];
-                Real zr = prob_lo[2] + (k + 0.5) * dx[2];
+                Real xr = prob_lo[0] + (i + half) * dx[0];
+                Real yr = prob_lo[1] + (j + half) * dx[1];
+                Real zr = prob_lo[2] + (k + half) * dx[2];
 
                 for (std::size_t iface=0; iface < xfaces_d_ptr->size(); ++iface) {
                     int ii = xfaces_d_ptr[iface][0];
                     int jj = xfaces_d_ptr[iface][1];
                     int kk = xfaces_d_ptr[iface][2];
                     Real xfc = prob_lo[0] +  ii      * dx[0];
-                    Real yfc = prob_lo[1] + (jj+0.5) * dx[1];
-                    Real zfc = prob_lo[2] + (kk+0.5) * dx[2];
+                    Real yfc = prob_lo[1] + (jj+half) * dx[1];
+                    Real zfc = prob_lo[2] + (kk+half) * dx[2];
                     Real y0  = prob_lo[1] +  jj   * dx[1];
                     Real y1  = prob_lo[1] + (jj+1)* dx[1];
                     Real z0  = prob_lo[2] +  kk   * dx[2];
@@ -72,9 +72,9 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     int ii = yfaces_d_ptr[iface][0];
                     int jj = yfaces_d_ptr[iface][1];
                     int kk = yfaces_d_ptr[iface][2];
-                    Real xfc = prob_lo[0] + (ii+0.5) * dx[0];
+                    Real xfc = prob_lo[0] + (ii+half) * dx[0];
                     Real yfc = prob_lo[1] +  jj      * dx[1];
-                    Real zfc = prob_lo[2] + (kk+0.5) * dx[2];
+                    Real zfc = prob_lo[2] + (kk+half) * dx[2];
                     Real x0  = prob_lo[0] +  ii   * dx[0];
                     Real x1  = prob_lo[0] + (ii+1)* dx[0];
                     Real z0  = prob_lo[2] +  kk   * dx[2];
@@ -92,8 +92,8 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     int ii = zfaces_d_ptr[iface][0];
                     int jj = zfaces_d_ptr[iface][1];
                     int kk = zfaces_d_ptr[iface][2];
-                    Real xfc = prob_lo[0] + (ii+0.5) * dx[0];
-                    Real yfc = prob_lo[1] + (jj+0.5) * dx[1];
+                    Real xfc = prob_lo[0] + (ii+half) * dx[0];
+                    Real yfc = prob_lo[1] + (jj+half) * dx[1];
                     Real zfc = prob_lo[2] +  kk      * dx[2];
                     Real x0  = prob_lo[0] +  ii   * dx[0];
                     Real x1  = prob_lo[0] + (ii+1)* dx[0];

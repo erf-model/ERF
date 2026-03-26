@@ -69,13 +69,13 @@ erf_dersoundspeed (const Box& bx,
     auto cfab      = derfab.array();
 
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
-    Real qv = 0.;
+    Real qv = zero;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
@@ -105,7 +105,7 @@ erf_dertemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
     });
 }
@@ -127,7 +127,7 @@ erf_dermoisttemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         const Real qv = dat(i, j, k, RhoQ1_comp) / rho;
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta,qv);
     });
@@ -219,8 +219,8 @@ erf_dervortx (
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (2.0*dy)  // dw/dy
-                          - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (2.0*dz); // dv/dz
+        tfab(i,j,k,dcomp) = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (two*dy)  // dw/dy
+                          - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (two*dz); // dv/dz
     });
 }
 
@@ -247,8 +247,8 @@ erf_dervorty (
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (2.0*dz)  // du/dz
-                          - (dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (2.0*dx); // dw/dx
+        tfab(i,j,k,dcomp) = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (two*dz)  // du/dz
+                          - (dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (two*dx); // dw/dx
     });
 }
 
@@ -275,8 +275,8 @@ erf_dervortz (
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
     });
 }
 
@@ -304,12 +304,12 @@ erf_derenstrophysq (
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (2.0*dy)  // dw/dy
-                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (2.0*dz); // dv/dz
-        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (2.0*dz)  // du/dz
-                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (2.0*dx); // dw/dx
-        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (two*dy)  // dw/dy
+                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (two*dz); // dv/dz
+        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (two*dz)  // du/dz
+                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (two*dx); // dw/dx
+        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
 
         tfab(i,j,k,dcomp) = vortx*vortx + vorty*vorty + vortz*vortz;
     });

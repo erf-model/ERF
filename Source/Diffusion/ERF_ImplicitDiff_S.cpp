@@ -100,11 +100,11 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                         cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                         prim_index, prim_scal_index, l_consA, l_turb);
 
-            Real dz_inv = 1.0 / dz_ptr[k];
+            Real dz_inv = one / dz_ptr[k];
             Real dz_inv_lo = (k == dom_lo.z) ? dz_inv
-                                             : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                                             : two / (dz_ptr[k] + dz_ptr[k-1]);
             Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
-                                             : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
+                                             : two / (dz_ptr[k] + dz_ptr[k+1]);
 
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
@@ -121,14 +121,14 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                     RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
                 }
 
-                coeffA_a(i,j,klo) = 0.;
+                coeffA_a(i,j,klo) = zero;
             }
             if (k == dom_hi.z) {
                 if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * bc_neumann_vals[5] / dz_inv_hi;
                 }
 
-                coeffC_a(i,j,khi) = 0.;
+                coeffC_a(i,j,khi) = zero;
             }
 
             coeffB_a(i,j,k) = cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
@@ -190,14 +190,14 @@ ImplicitDiffForMom_S (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
-                            : 2.0 * dc.dynamic_viscosity;
+    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
+                            : two * dc.dynamic_viscosity;
 
     // g(S*) coefficient
     // stagdir==0: tau_corr = 0.5 * du/dz * mu_tot
     // stagdir==1: tau_corr = 0.5 * dv/dz * mu_tot
     // stagdir==2: tau_corr =       dw/dz * mu_tot
-    constexpr Real gfac = (stagdir == 2) ? 2.0/3.0 : 1.0;
+    constexpr Real gfac = (stagdir == 2) ? two/three : one;
 
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
@@ -259,18 +259,18 @@ ImplicitDiffForMom_S (const Box& bx,
         for (int k(klo); k <= khi; k++)
         {
             // Note: either ioff or joff are 1
-            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+            Real rhoface = half * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
 
             Real rhoAlpha_lo, rhoAlpha_hi;
             getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                 cell_data, mu_turb, mu_eff,
                                 l_consA, l_turb);
 
-            Real dz_inv = 1.0 / dz_ptr[k];
+            Real dz_inv = one / dz_ptr[k];
             Real dz_inv_lo = (k == dom_lo.z) ? dz_inv
-                                             : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                                             : two / (dz_ptr[k] + dz_ptr[k-1]);
             Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
-                                             : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
+                                             : two / (dz_ptr[k] + dz_ptr[k+1]);
 
             // Face data currently holds the _fully_ explicit solution, which
             // will be used to determine the velocity gradient for the bottom
@@ -314,39 +314,39 @@ ImplicitDiffForMom_S (const Box& bx,
                 if (ext_dir_on_zlo) {
                     // This can be a no-slip wall (u = v = w = 0), slip wall (w = 0), or surface layer (w = 0)
                     if (stagdir==2) {
-                        coeffC_a(i,j,klo) = 0.;
-                        RHS_a(i,j,klo) = 0.;
+                        coeffC_a(i,j,klo) = zero;
+                           RHS_a(i,j,klo) = zero;
                     } else {
                         // first-order:
                         //   u(klo) - (u(klo+1) - u(klo))/dz_hi * dz/2 = u_dir
-                        coeffC_a(i,j,klo) = -0.5 * dz_inv_hi / dz_inv;
+                        coeffC_a(i,j,klo) = -half * dz_inv_hi / dz_inv;
                         RHS_a(i,j,klo) = face_data(i,j,klo-1); // Dirichlet value
                     }
                 } else if (use_SurfLayer) {
                     // Match explicit grad(u) at the surface
-                    Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i-ioff,j-joff,klo  ,Rho_comp));
-                    Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i-ioff,j-joff,klo-1,Rho_comp));
+                    Real uhi = two * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i-ioff,j-joff,klo  ,Rho_comp));
+                    Real ulo = two * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i-ioff,j-joff,klo-1,Rho_comp));
                     RHS_a(i,j,klo) += coeffA_a(i,j,klo) * (uhi - ulo);
                 }
 
                 // default is foextrap
-                coeffA_a(i,j,klo) = 0.;
+                coeffA_a(i,j,klo) = zero;
             }
             if (k == dom_hi.z) {
                 if (ext_dir_on_zhi) {
                     if (stagdir==2) {
-                        coeffA_a(i,j,khi) = 0.;
-                        RHS_a(i,j,khi) = 0.;
+                        coeffA_a(i,j,khi) = zero;
+                           RHS_a(i,j,khi) = zero;
                     } else {
                         // first-order:
                         //   u(khi) + (u(khi) - u(khi-1))/dz_lo * dz/2 = u_dir
-                        coeffA_a(i,j,khi) = -0.5 * dz_inv_lo / dz_inv;
+                        coeffA_a(i,j,khi) = -half * dz_inv_lo / dz_inv;
                         RHS_a(i,j,khi) = face_data(i,j,khi+1); // Dirichlet value
                     }
                 }
 
                 // default is foextrap
-                coeffC_a(i,j,khi) = 0.;
+                coeffC_a(i,j,khi) = zero;
             }
 
             coeffB_a(i,j,k) = rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
@@ -354,7 +354,7 @@ ImplicitDiffForMom_S (const Box& bx,
 
         SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
         for (int k(klo); k<=khi; ++k) {
-            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+            Real rhoface = half * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
             face_data(i,j,k) = rhoface * soln_a(i,j,k);
         }
 

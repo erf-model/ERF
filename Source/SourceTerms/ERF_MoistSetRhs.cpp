@@ -48,7 +48,7 @@ moist_set_rhs (const Geometry& geom,
     //
 
     // Relaxation constants
-    Real F1 = 1./(nudge_factor*dt);
+    Real F1 = one/(nudge_factor*dt);
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -68,15 +68,15 @@ moist_set_rhs (const Geometry& geom,
     if (time >= final_bdy_time) {
       n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
       n_time_p1 = n_time;
-      alpha     = 0.0;
+      alpha     = zero;
     }
 
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     /*
     // UNIT TEST DEBUG
-    oma = 1.0; alpha = 0.0;
+    oma = one; alpha = zero;
     */
 
     // NOTE: The sizing of the temporary BDY FABS is
@@ -226,28 +226,28 @@ moist_set_rhs (const Geometry& geom,
                             tbx_ylo, tbx_yhi);
     ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
+      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > Real(1.0e-7)) {
             Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
+      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > Real(1.0e-7)) {
             Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
+      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> Real(1.0e-7)) {
             Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
+      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> Real(1.0e-7)) {
             Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }

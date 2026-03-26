@@ -62,8 +62,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     DiffChoice dc = solverChoice.diffChoice;
     const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
-    Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
-                                     : 2.0 * dc.dynamic_viscosity;
+    Real mu_eff = (l_use_constAlpha) ? two * dc.dynamic_viscosity / dc.rho0_trans
+                                     : two * dc.dynamic_viscosity;
 
     auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
     Real dx = dx_arr[0], dy = dx_arr[1], dz = dx_arr[2];
@@ -111,7 +111,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     ParallelFor(bxx, bxy, bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (u_volfrac(i,j,k)>0.) {
+        if (u_volfrac(i,j,k)>zero) {
 
             // Inv Jacobian
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
@@ -142,9 +142,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
                 const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
-                const Real Dirichlet_u {0.};
-                const Real Dirichlet_v {0.};
-                const Real Dirichlet_w {0.};
+                const Real Dirichlet_u {zero};
+                const Real Dirichlet_v {zero};
+                const Real Dirichlet_w {zero};
 
                 GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                 GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -162,9 +162,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdx = slopes_w[0];
                 Real dwdz = slopes_w[2];
 
-                Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / 3. );
-                Real tau12_eb = 0.5 * (dudy + dvdx);
-                Real tau13_eb = 0.5 * (dudz + dwdx);
+                Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                Real tau12_eb = half * (dudy + dvdx);
+                Real tau13_eb = half * (dudz + dwdx);
 
                 Real dudn = -(u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
 
@@ -175,7 +175,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (v_volfrac(i,j,k)>0.) {
+        if (v_volfrac(i,j,k)>zero) {
 
             // Inv Jacobian
             Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
@@ -206,9 +206,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
                 const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
-                const Real Dirichlet_u {0.};
-                const Real Dirichlet_v {0.};
-                const Real Dirichlet_w {0.};
+                const Real Dirichlet_u {zero};
+                const Real Dirichlet_v {zero};
+                const Real Dirichlet_w {zero};
 
                 GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                 GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -226,9 +226,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdy = slopes_w[1];
                 Real dwdz = slopes_w[2];
 
-                Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / 3. );
-                Real tau12_eb = 0.5 * (dudy + dvdx);
-                Real tau23_eb = 0.5 * (dvdz + dwdy);
+                Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                Real tau12_eb = half * (dudy + dvdx);
+                Real tau23_eb = half * (dvdz + dwdy);
 
                 Real dvdn = -(v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
 
@@ -238,7 +238,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (w_volfrac(i,j,k)>0.) {
+        if (w_volfrac(i,j,k)>zero) {
 
             // Inv Jacobian
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
@@ -268,9 +268,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
                 const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
-                const Real Dirichlet_u {0.};
-                const Real Dirichlet_v {0.};
-                const Real Dirichlet_w {0.};
+                const Real Dirichlet_u {zero};
+                const Real Dirichlet_v {zero};
+                const Real Dirichlet_w {zero};
 
                 GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                 GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -288,9 +288,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdy = slopes_w[1];
                 Real dwdz = slopes_w[2];
 
-                Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / 3. );
-                Real tau13_eb = 0.5 * (dudz + dwdx);
-                Real tau23_eb = 0.5 * (dvdz + dwdy);
+                Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                Real tau13_eb = half * (dudz + dwdx);
+                Real tau23_eb = half * (dvdz + dwdy);
 
                 Real dwdn = -(w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
 

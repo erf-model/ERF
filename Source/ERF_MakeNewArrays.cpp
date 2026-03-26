@@ -33,11 +33,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
-    tmp_base_state.setVal(0.);
+    tmp_base_state.setVal(0);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
-        base_state_new[lev].setVal(0.);
+        base_state_new[lev].setVal(0);
     }
 
     // ********************************************************************************************
@@ -87,7 +87,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
-        terrain_blanking[lev]->setVal(1.0);
+        terrain_blanking[lev]->setVal(1);
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -96,10 +96,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
          ay[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
          az[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-    detJ_cc[lev]->setVal(1.0);
-         ax[lev]->setVal(1.0);
-         ay[lev]->setVal(1.0);
-         az[lev]->setVal(1.0);
+    detJ_cc[lev]->setVal(1);
+         ax[lev]->setVal(1);
+         ay[lev]->setVal(1);
+         az[lev]->setVal(1);
 
     // ********************************************************************************************
     // Create wall distance array for RANS modeling
@@ -143,8 +143,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     // Initialize all components to zero so we don't need to explicitly set
     //     scalars / moisture variables to zero in the initialization
-    lev_new[Vars::cons].setVal(0.0);
-    lev_old[Vars::cons].setVal(0.0);
+    lev_new[Vars::cons].setVal(0);
+    lev_old[Vars::cons].setVal(0);
 
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
@@ -163,26 +163,26 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0.);
-    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0.);
-    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0.);
+    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0);
+    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0);
+    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0);
 
     if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
-        pp_inc[lev].setVal(0.0);
+        pp_inc[lev].setVal(0);
     }
 
     // We use this in the fast substepping only
     if (solverChoice.anelastic[lev] == 0) {
         lagged_delta_rt[lev].define(ba, dm, 1, 1);
-        lagged_delta_rt[lev].setVal(0.0);
+        lagged_delta_rt[lev].setVal(0);
     }
 
     // We use these for advecting the slow variables, whether anelastic or compressible
     avg_xmom[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
     avg_ymom[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
     avg_zmom[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
-    avg_xmom[lev].setVal(0.0); avg_ymom[lev].setVal(0.0); avg_zmom[lev].setVal(0.0);
+    avg_xmom[lev].setVal(0); avg_ymom[lev].setVal(0); avg_zmom[lev].setVal(0);
 
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
@@ -233,8 +233,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
-        vel_t_avg[lev]->setVal(0.0);
-        t_avg_cnt[lev] = 0.0;
+        vel_t_avg[lev]->setVal(0);
+        t_avg_cnt[lev] = zero;
     }
 
     // ********************************************************************************************
@@ -323,7 +323,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
-            mapfac[lev][i]->setVal(1.0);
+            mapfac[lev][i]->setVal(1);
         }
     }
 
@@ -448,8 +448,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
-        qheating_rates[lev]->setVal(0.);
-        rad_fluxes[lev]->setVal(0.);
+        qheating_rates[lev]->setVal(0);
+        rad_fluxes[lev]->setVal(0);
     }
 
     //*********************************************************
@@ -663,7 +663,7 @@ ERF::init_zphys (int lev, Real elapsed_time)
         //
         if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
             solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-                terrain_fab.template setVal<RunOn::Device>(0.0);
+                terrain_fab.template setVal<RunOn::Device>(0);
         } else {
             //
             // Fill the values of the terrain height at k=0 only
@@ -686,10 +686,10 @@ ERF::init_zphys (int lev, Real elapsed_time)
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            if (rel_diff < 1.e-8) {
+            if (rel_diff < Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
             }
         } // lev == 0
 

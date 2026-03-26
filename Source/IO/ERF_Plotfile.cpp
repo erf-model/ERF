@@ -649,11 +649,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& p_arr = pressure.const_array(mfi);
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
-                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
+                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : zero;
                     Real T = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     Real fac = Cp_d + Cp_l*(qv + qc);
-                    Real pv = erf_esatw(T)*100.0;
+                    Real pv = erf_esatw(T)*Real(100.0);
 
                     derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
                 });
@@ -676,15 +676,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
 
                     const Real T        = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                    const Real e_sat = 100.0 * erf_esatw_cc(T);
+                    const Real e_sat = Real(100.0) * erf_esatw_cc(T);
 
                     const Real P     = p_arr(i,j,k);
                     const Real e_act = P * qv / (Real(0.622) + qv);
 
-                    derdat(i,j,k,mf_comp) = std::max(Real(0.0), e_sat - e_act) * Real(0.001);
+                    derdat(i,j,k,mf_comp) = std::max(zero, e_sat - e_act) * Real(0.001);
                 });
             }
             mf_comp ++;
@@ -754,7 +754,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                       gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
                 const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
+                    derdat(i ,j ,k, mf_comp) = half * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -769,7 +769,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                       gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
                 const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
+                    derdat(i ,j ,k, mf_comp) = half * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -783,7 +783,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>&  gpz_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpz].array(mfi) : gradp_temp[GpVars::gpz].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = half * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
                 });
             }
             mf_comp ++;
@@ -808,7 +808,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>&  gpx_arr = gradp_temp[0].array(mfi);
                 const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
+                    derdat(i ,j ,k, mf_comp) = half * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -823,7 +823,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>&  gpy_arr = gradp_temp[1].array(mfi);
                 const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
+                    derdat(i ,j ,k, mf_comp) = half * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -1035,8 +1035,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // TODO: The size of the q variables can vary with different
         //       moisture models. Therefore, certain components may
         //       reside at different indices. For example, Kessler is
-        //       warm but precipitating. This puts qp at index 3.
-        //       However, SAM is cold and precipitating so qp is index 4.
+        //       warm but precipitating. This puts qp at index three
+        //       However, SAM is cold and precipitating so qp is index Real(4.)
         //       Need to built an external enum struct or a better pathway.
 
         // NOTE: Protect against accessing non-existent data
@@ -1230,10 +1230,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
                             Real rho = S_arr(i,j,k,Rho_comp);
-                            Real qv  = std::max(0.0,S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qpr = std::max(0.0,S_arr(i,j,k,RhoQ4_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qps = std::max(0.0,S_arr(i,j,k,RhoQ5_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qpg = std::max(0.0,S_arr(i,j,k,RhoQ6_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qv  = std::max(zero,S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qpr = std::max(zero,S_arr(i,j,k,RhoQ4_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qps = std::max(zero,S_arr(i,j,k,RhoQ5_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qpg = std::max(zero,S_arr(i,j,k,RhoQ6_comp)/S_arr(i,j,k,Rho_comp));
 
                             Real temp  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),
                                                      S_arr(i,j,k,RhoTheta_comp),
@@ -1261,15 +1261,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
                         ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
 
-                            Real max_dbz = -1.0e30;
+                            Real max_dbz = -Real(1.0e30);
 
                             // find max reflectivity over k
                             for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
                                 Real rho = S_arr(i,j,k,Rho_comp);
-                                Real qv  = std::max(0.0, S_arr(i,j,k,RhoQ1_comp)/rho);
-                                Real qpr = std::max(0.0, S_arr(i,j,k,RhoQ4_comp)/rho);
-                                Real qps = std::max(0.0, S_arr(i,j,k,RhoQ5_comp)/rho);
-                                Real qpg = std::max(0.0, S_arr(i,j,k,RhoQ6_comp)/rho);
+                                Real qv  = std::max(zero, S_arr(i,j,k,RhoQ1_comp)/rho);
+                                Real qpr = std::max(zero, S_arr(i,j,k,RhoQ4_comp)/rho);
+                                Real qps = std::max(zero, S_arr(i,j,k,RhoQ5_comp)/rho);
+                                Real qpg = std::max(zero, S_arr(i,j,k,RhoQ6_comp)/rho);
 
                                 Real temp = getTgivenRandRTh(rho, S_arr(i,j,k,RhoTheta_comp), qv);
 
@@ -1317,9 +1317,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             // Moving terrain ANALYTICAL
             //
             Real H           = geom[lev].ProbHi()[2];
-            Real Ampl        = 0.16;
-            Real wavelength  = 100.;
-            Real kp          = 2. * PI / wavelength;
+            Real Ampl        = Real(0.16);
+            Real wavelength  = Real(100.);
+            Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;
             Real omega       = std::sqrt(g * kp);
             Real omega_t     = omega * t_new[lev];
@@ -1341,7 +1341,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real x = i * dx[0];
-                    Real z = 0.25 * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
+                    Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
 
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
                     z -= z_base;
@@ -1353,8 +1353,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real x   = (i + 0.5) * dx[0];
-                    Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
+                    Real x   = (i + half) * dx[0];
+                    Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
 
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
                     z -= z_base;
@@ -1399,7 +1399,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real x = i * dx[0];
-                    Real z = 0.25 * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
+                    Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
 
                     z -= z_base;
@@ -1409,8 +1409,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 });
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real x   = (i + 0.5) * dx[0];
-                    Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
+                    Real x   = (i + half) * dx[0];
+                    Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
 
                     z -= z_base;
@@ -1440,9 +1440,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& r0_arr = r_hse.const_array(mfi);
 
                 Real H           = geom[lev].ProbHi()[2];
-                Real Ampl        = 0.16;
-                Real wavelength  = 100.;
-                Real kp          = 2. * PI / wavelength;
+                Real Ampl        = Real(0.16);
+                Real wavelength  = Real(100.);
+                Real kp          = two * PI / wavelength;
                 Real g           = CONST_GRAV;
                 Real omega       = std::sqrt(g * kp);
                 Real omega_t     = omega * t_new[lev];
@@ -1453,8 +1453,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
                     Real rho_hse     = r0_arr(i,j,k);
 
-                    Real x   = (i + 0.5) * dx[0];
-                    Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                    Real x   = (i + half) * dx[0];
+                    Real z   = Real(0.125) * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                         +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
 
@@ -1546,7 +1546,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     if (solverChoice.terrain_type == TerrainType::EB)
     {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            EB_set_covered(mf[lev], 0.0);
+            EB_set_covered(mf[lev], zero);
         }
     }
 
@@ -1969,7 +1969,7 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
         {
             // Need to shift because the RealBox ctor we call takes the
             // physical location of index (0,0,0).  This does not affect
-            // the usual cases where the domain index starts with 0.
+            // the usual cases where the domain index starts with zero
             const Box& b = shift(bArray[level][i], -domain_lo);
             RealBox loc = RealBox(b, my_geom[level].CellSize(), my_geom[level].ProbLo());
             for (int n = 0; n < AMREX_SPACEDIM; ++n) {
@@ -2367,7 +2367,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     auto rt = cons_arr(i,j,klo,RhoTheta_comp);
                     auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
-                                      : 0.0;
+                                      : zero;
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
                 });
             }

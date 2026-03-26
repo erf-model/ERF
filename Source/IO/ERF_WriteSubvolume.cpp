@@ -182,11 +182,11 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     // **************************************************************
     // Now that we know which level we're at, we can figure out which (i,j,k) the origin corresponds to
-    // Note we use 1.0001 as a fudge factor since the division of two reals --> integer will do a floor
+    // Note we use Real(1.0001) as a fudge factor since the division of two reals --> integer will do a floor
     // **************************************************************
-    int i0 = static_cast<int>((origin[offset+0] - geom[lev_for_sub].ProbLo(0)) * 1.0001 / delta[offset+0]);
-    int j0 = static_cast<int>((origin[offset+1] - geom[lev_for_sub].ProbLo(1)) * 1.0001 / delta[offset+1]);
-    int k0 = static_cast<int>((origin[offset+2] - geom[lev_for_sub].ProbLo(2)) * 1.0001 / delta[offset+2]);
+    int i0 = static_cast<int>((origin[offset+0] - geom[lev_for_sub].ProbLo(0)) * Real(1.0001) / delta[offset+0]);
+    int j0 = static_cast<int>((origin[offset+1] - geom[lev_for_sub].ProbLo(1)) * Real(1.0001) / delta[offset+1]);
+    int k0 = static_cast<int>((origin[offset+2] - geom[lev_for_sub].ProbLo(2)) * Real(1.0001) / delta[offset+2]);
 
     found = false;
     if (almostEqual(geom[lev_for_sub].ProbLo(0)+i0*delta[offset+0],origin[offset+0]) &&
