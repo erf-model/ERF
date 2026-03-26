@@ -13,7 +13,8 @@ CEXE_sources += ERF_Substep_NS.cpp
 CEXE_sources += ERF_Substep_T.cpp
 CEXE_sources += ERF_Substep_MT.cpp
 
-CEXE_headers += ERF_Implicit.H
+CEXE_headers += ERF_ImplicitPre.H
+CEXE_headers += ERF_ImplicitPost.H
 
 CEXE_headers += ERF_TI_slow_rhs_pre.H
 CEXE_headers += ERF_TI_slow_rhs_post.H

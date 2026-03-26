@@ -540,6 +540,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 ax_arr, ay_arr, az_arr, detJ_arr,
                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
                                 flx_arr, l_fixed_rho);
+            /*
             AdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                 cell_prim, cell_rhs,
@@ -547,6 +548,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, domain, bc_ptr_h);
+            */
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
                                 rho_u, rho_v, omega_arr,

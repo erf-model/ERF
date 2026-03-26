@@ -635,6 +635,10 @@ struct SolverChoice {
              // thermal diffusion
              pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
+             // If true (default), include implicit contributions to vertical
+             // moisture diffusion
+             pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
+
              // If true (default), include implicit contributions in tau13, tau23,
              // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
              pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
@@ -1102,6 +1106,7 @@ struct SolverChoice {
     amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
     // if any vert_implicit_fac > 0, then the following apply:
     bool implicit_thermal_diffusion  = true;
+    bool implicit_moisture_diffusion = true;
     bool implicit_momentum_diffusion = true;
     bool implicit_before_substep     = true;
 
