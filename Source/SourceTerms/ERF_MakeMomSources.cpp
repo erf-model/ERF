@@ -64,6 +64,7 @@ void make_mom_sources (Real time,
                        const Vector<MultiFab>* forecast_state_at_lev,
                        const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                       const eb_& ebfact,
                              bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -367,21 +368,60 @@ void make_mom_sources (Real time,
                     zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_arr(i,j,0);
                 });
             } else {
-                ParallelFor(tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
-                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
-                });
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    Array4<const Real> u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+                    Array4<const Real> v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+                    Array4<const Real> w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
+                    ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        Real rho_v_loc = 0.0;
+                        Real rho_w_loc = 0.0;
+                        Real v_vol = v_volfrac(i,j+1,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i-1,j,k);
+                        Real w_vol = w_volfrac(i,j,k+1) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i-1,j,k);
+                        if (v_vol > 0.0) {
+                            rho_v_loc = ( v_volfrac(i,j+1,k) * rho_v(i,j+1,k) + v_volfrac(i,j,k) * rho_v(i,j,k)
+                                        + v_volfrac(i-1,j+1,k) * rho_v(i-1,j+1,k) + v_volfrac(i-1,j,k) * rho_v(i-1,j,k)) / v_vol;
+                        }
+                        if (w_vol > 0.0) {
+                            rho_w_loc = ( w_volfrac(i,j,k+1) * rho_w(i,j,k+1) + w_volfrac(i,j,k) * rho_w(i,j,k)
+                                        + w_volfrac(i-1,j,k+1) * rho_w(i-1,j,k+1) + w_volfrac(i-1,j,k) * rho_w(i-1,j,k)) / w_vol;
+                        }
+                        xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                    });
+                    ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        Real rho_u_loc = 0.0;
+                        Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i,j-1,k);
+                        if (u_vol > 0.0) {
+                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
+                                        + u_volfrac(i+1,j-1,k) * rho_u(i+1,j-1,k) + u_volfrac(i,j-1,k) * rho_u(i,j-1,k)) / u_vol;
+                        }
+                        ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
+                    });
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        Real rho_u_loc = 0.0;
+                        Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1);
+                        if (u_vol > 0.0) {
+                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
+                                        + u_volfrac(i+1,j,k-1) * rho_u(i+1,j,k-1) + u_volfrac(i,j,k-1) * rho_u(i,j,k-1)) / u_vol;
+                        }
+                        zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
+                    });
+                } else {
+                    ParallelFor(tbx, tby, tbz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                        Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
+                        xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                        ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                        zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
+                    });
+                }
             } // var_coriolis
         } // use_coriolis
 

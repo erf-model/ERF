@@ -140,7 +140,7 @@
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                         input_sounding_data, true);
+                         input_sounding_data, get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

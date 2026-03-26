@@ -388,13 +388,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // Array of MultiFabs for cell-centered velocity
     Vector<MultiFab> mf_cc_vel(finest_level+1);
 
-    if (containerHasElement(plot_var_names, "x_velocity" ) ||
-        containerHasElement(plot_var_names, "y_velocity" ) ||
-        containerHasElement(plot_var_names, "z_velocity" ) ||
-        containerHasElement(plot_var_names, "magvel"     ) ||
-        containerHasElement(plot_var_names, "vorticity_x") ||
-        containerHasElement(plot_var_names, "vorticity_y") ||
-        containerHasElement(plot_var_names, "vorticity_z") ) {
+    if (containerHasElement(plot_var_names, "x_velocity"    ) ||
+        containerHasElement(plot_var_names, "y_velocity"    ) ||
+        containerHasElement(plot_var_names, "z_velocity"    ) ||
+        containerHasElement(plot_var_names, "magvel"        ) ||
+        containerHasElement(plot_var_names, "helicity"      ) ||
+        containerHasElement(plot_var_names, "local_helicity") ||
+        containerHasElement(plot_var_names, "vorticity_x"   ) ||
+        containerHasElement(plot_var_names, "vorticity_y"   ) ||
+        containerHasElement(plot_var_names, "vorticity_z"   ) ) {
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
@@ -544,7 +546,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
                     auto& sfab = src_mf[mfi];
-                    der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
+                    auto& zfab = (*z_phys_cc[lev])[mfi];
+                    der_function(bx, dfab, 0, 1, sfab, zfab, Geom(lev), t_new[0], nullptr, lev);
                 }
 
                 mf_comp++;
@@ -572,14 +575,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
         }
 
-        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
-        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
-        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
-        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
+        calculate_derived("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
+        calculate_derived("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
+        calculate_derived("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
+        calculate_derived("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
+        calculate_derived("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
+        calculate_derived("magvel",         mf_cc_vel[lev], derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
         {
-            // TODO TODO TODO  -- we need to convert w to omega here!!
             MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
             Array<MultiFab const*, AMREX_SPACEDIM> u;
             u[0] = &(vars_new[lev][Vars::xvel]);
