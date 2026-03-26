@@ -135,7 +135,7 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
     amrex::Real theta_v_upper = GetThetav(i, j, k+1, cell_data, moisture_indices);
     amrex::Real theta_v_lower = GetThetav(i, j, k-1, cell_data, moisture_indices);
 
-    amrex::Real dthetav_dz = half * (theta_v_upper - theta_v_lower) * dzInv;
+    amrex::Real dthetav_dz = myhalf * (theta_v_upper - theta_v_lower) * dzInv;
     amrex::Real stratification = abs_g * dthetav_dz * inv_theta0;
 
     // Apply conditional instability correction
@@ -189,7 +189,7 @@ amrex::Real ComputeStratificationForSmagorinsky (int i, int j, int k,
         // Dry stratification (original approach)
         amrex::Real theta_hi = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
         amrex::Real theta_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-        amrex::Real dtheta_dz = half * (theta_hi - theta_lo) * dzInv;
+        amrex::Real dtheta_dz = myhalf * (theta_hi - theta_lo) * dzInv;
         return abs_g * dtheta_dz * inv_theta0;
     }
 }

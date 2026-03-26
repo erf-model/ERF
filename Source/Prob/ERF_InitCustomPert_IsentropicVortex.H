@@ -10,8 +10,8 @@
     amrex::Real beta = amrex::Real(0.01);   pp.query("beta", beta);//non-dimensional max perturbation strength [-]
     amrex::Real sigma = one;   pp.query("sigma", sigma);//Gaussian standard deviation, i.e., spreading parameter [-]
     amrex::Real R = two;       pp.query("R", R);//characteristic length scale for grid [m]
-    amrex::Real xc_frac = half; pp.query("xc", xc_frac);//normalized x-location of vortex center [-]
-    amrex::Real yc_frac = half; pp.query("yc", yc_frac);//normalized y-location of vortex center [-]
+    amrex::Real xc_frac = myhalf; pp.query("xc", xc_frac);//normalized x-location of vortex center [-]
+    amrex::Real yc_frac = myhalf; pp.query("yc", yc_frac);//normalized y-location of vortex center [-]
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -54,8 +54,8 @@
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
-        const Real x = (i + half) * dx[0]; // cell center
-        const Real y = (j + half) * dx[1]; // cell center
+        const Real x = (i + myhalf) * dx[0]; // cell center
+        const Real y = (j + myhalf) * dx[1]; // cell center
 
         // Calculate perturbation temperature
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);

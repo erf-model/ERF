@@ -315,8 +315,8 @@ compute_band_by_band_surface_albedos (const int ncol,
             // Band straddles the visible to near-infrared transition, so we take
             // the albedo to be the average of the visible and near-infrared
             // broadband albedos
-            sfc_alb_dir(icol,ibnd) = half*(sfc_alb_dir_vis(icol) + sfc_alb_dir_nir(icol));
-            sfc_alb_dif(icol,ibnd) = half*(sfc_alb_dif_vis(icol) + sfc_alb_dif_nir(icol));
+            sfc_alb_dir(icol,ibnd) = myhalf*(sfc_alb_dir_vis(icol) + sfc_alb_dir_nir(icol));
+            sfc_alb_dif(icol,ibnd) = myhalf*(sfc_alb_dif_vis(icol) + sfc_alb_dif_nir(icol));
         }
     });
 }
@@ -337,10 +337,10 @@ compute_broadband_surface_fluxes (const int ncol,
     // TODO: Hard-coding these band indices is really bad practice. If the bands ever were to change (like when
     // the RRTMG bands were re-ordered for RRTMGP), we would be using the wrong bands for the IR and UV/VIS. This
     // should be refactored to grab the correct bands by specifying appropriate wavenumber rather than index.
-    //sfc_flux_dir_nir(i) = sum(sw_bnd_flux_dir(i+1,kbot,1:9))   + half * sw_bnd_flux_dir(i+1,kbot,10);
-    //sfc_flux_dir_vis(i) = sum(sw_bnd_flux_dir(i+1,kbot,11:14)) + half * sw_bnd_flux_dir(i+1,kbot,10);
-    //sfc_flux_dif_nir(i) = sum(sw_bnd_flux_dif(i+1,kbot,1:9))   + half * sw_bnd_flux_dif(i+1,kbot,10);
-    //sfc_flux_dif_vis(i) = sum(sw_bnd_flux_dif(i+1,kbot,11:14)) + half * sw_bnd_flux_dif(i+1,kbot,10);
+    //sfc_flux_dir_nir(i) = sum(sw_bnd_flux_dir(i+1,kbot,1:9))   + myhalf * sw_bnd_flux_dir(i+1,kbot,10);
+    //sfc_flux_dir_vis(i) = sum(sw_bnd_flux_dir(i+1,kbot,11:14)) + myhalf * sw_bnd_flux_dir(i+1,kbot,10);
+    //sfc_flux_dif_nir(i) = sum(sw_bnd_flux_dif(i+1,kbot,1:9))   + myhalf * sw_bnd_flux_dif(i+1,kbot,10);
+    //sfc_flux_dif_vis(i) = sum(sw_bnd_flux_dif(i+1,kbot,11:14)) + myhalf * sw_bnd_flux_dif(i+1,kbot,10);
 
     // Initialize sums over bands
     Kokkos::deep_copy(sfc_flux_dir_nir, 0);
@@ -368,12 +368,12 @@ compute_broadband_surface_fluxes (const int ncol,
                 sfc_flux_dir_nir(icol) += sw_bnd_flux_dir(icol,kbot,ibnd);
                 sfc_flux_dif_nir(icol) += sw_bnd_flux_dif(icol,kbot,ibnd);
             } else {
-                // Band straddles the visible to near-infrared transition, so put half
-                // the flux in visible and half in near-infrared fluxes
-                sfc_flux_dir_vis(icol) += half * sw_bnd_flux_dir(icol,kbot,ibnd);
-                sfc_flux_dif_vis(icol) += half * sw_bnd_flux_dif(icol,kbot,ibnd);
-                sfc_flux_dir_nir(icol) += half * sw_bnd_flux_dir(icol,kbot,ibnd);
-                sfc_flux_dif_nir(icol) += half * sw_bnd_flux_dif(icol,kbot,ibnd);
+                // Band straddles the visible to near-infrared transition, so put myhalf
+                // the flux in visible and myhalf in near-infrared fluxes
+                sfc_flux_dir_vis(icol) += myhalf * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_vis(icol) += myhalf * sw_bnd_flux_dif(icol,kbot,ibnd);
+                sfc_flux_dir_nir(icol) += myhalf * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_nir(icol) += myhalf * sw_bnd_flux_dif(icol,kbot,ibnd);
             }
         }
     });
@@ -1005,7 +1005,7 @@ rrtmgp_lw (const int ncol,
                                                               {zero  , zero        , zero        , amrex::Real(7.15513024)} };
     realHost2d_k gauss_Ds_host(&gauss_Ds_host_raw[0][0], max_gauss_pts, max_gauss_pts);
 
-    RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {half, amrex::Real(0.3180413817), amrex::Real(0.2009319137), amrex::Real(0.1355069134)},
+    RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {myhalf, amrex::Real(0.3180413817), amrex::Real(0.2009319137), amrex::Real(0.1355069134)},
                                                                {zero , amrex::Real(0.1819586183), amrex::Real(0.2292411064), amrex::Real(0.2034645680)},
                                                                {zero , zero          , amrex::Real(0.0698269799), amrex::Real(0.1298475476)},
                                                                {zero , zero          , zero          , amrex::Real(0.0311809710)} };

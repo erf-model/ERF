@@ -43,7 +43,7 @@ ERF::createNCColumnFile (int lev,
     // Put in the Z grid, but not any actual data yet
     Real zmin = geom[lev].ProbLo(2);
     Real dz = geom[lev].CellSize(2);
-    amrex::Vector<Real> zvalues(nheights, zmin-half*dz);
+    amrex::Vector<Real> zvalues(nheights, zmin-myhalf*dz);
     for (int ii = 0; ii < nheights; ++ii) {
       zvalues[ii] += ii * dz;
     }
@@ -90,10 +90,10 @@ ERF::writeToNCColumnFile (const int lev,
   // get indices and interpolation coefficients
   const Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
   const Real y_cell_loc = probBox.smallEnd(1) + (yloc - geom[lev].ProbLo(1))* geom[lev].InvCellSize(1);
-  const int iloc = static_cast<int>(floor(x_cell_loc - half));
-  const int jloc = static_cast<int>(floor(y_cell_loc - half));
-  const Real alpha_x = x_cell_loc - half - iloc;
-  const Real alpha_y = y_cell_loc - half - jloc;
+  const int iloc = static_cast<int>(floor(x_cell_loc - myhalf));
+  const int jloc = static_cast<int>(floor(y_cell_loc - myhalf));
+  const Real alpha_x = x_cell_loc - myhalf - iloc;
+  const Real alpha_y = y_cell_loc - myhalf - jloc;
   amrex::Array2D<Real, 0, 1, 0, 1> alpha_theta;
   alpha_theta(0,0) = (one - alpha_x) * (one-alpha_y);
   alpha_theta(1,0) = (alpha_x) * (one-alpha_y);

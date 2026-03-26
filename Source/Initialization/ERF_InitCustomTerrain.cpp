@@ -23,7 +23,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
     Real mf_m;
     if (test_mapfactor) {
-        mf_m = half;
+        mf_m = myhalf;
     } else {
         mf_m = one;
     }
@@ -39,10 +39,10 @@ init_my_custom_terrain ( const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // User function parameters
-    Real a    = half;
+    Real a    = myhalf;
     Real num  = Real(8.) * a * a * a;
-    Real xcen = half * (ProbLoArr[0] + ProbHiArr[0]) / mf_m;
-    Real ycen = half * (ProbLoArr[1] + ProbHiArr[1]) / mf_m;
+    Real xcen = myhalf * (ProbLoArr[0] + ProbHiArr[0]) / mf_m;
+    Real ycen = myhalf * (ProbLoArr[1] + ProbHiArr[1]) / mf_m;
 
     // Populate bottom plane
     int k0 = domlo_z;
@@ -146,7 +146,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "HalfCylinder") {
 
-            Real asq = half * half;
+            Real asq = myhalf * myhalf;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
@@ -159,7 +159,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = pow(asq - rsq, half);
+                    z_arr(i,j,k0) = pow(asq - rsq, myhalf);
                 } else {
                     z_arr(i,j,k0) = zero;
                 }
@@ -167,7 +167,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "Hemisphere") {
 
-            Real asq = half * half;
+            Real asq = myhalf * myhalf;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
@@ -182,7 +182,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x + y*y;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = std::pow(asq-rsq, half);
+                    z_arr(i,j,k0) = std::pow(asq-rsq, myhalf);
                 } else {
                     z_arr(i,j,k0) = zero;
                 }

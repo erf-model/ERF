@@ -71,7 +71,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( u_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = half * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
+            amrex::Real rho_u_avg = myhalf * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
 
             int icell = 0;
 
@@ -118,7 +118,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( u_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = half * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
 
             int jcell = 0;
 
@@ -165,7 +165,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( u_afrac_z(i,j,k) > zero )
         {
-            amrex::Real rho_w_avg = half * (rho_w(i,j,k) + rho_w(i-1,j,k));
+            amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i-1,j,k));
 
             int kcell = 0;
 
@@ -218,7 +218,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( v_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = half * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
+            amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
 
             int icell = 0;
 
@@ -265,7 +265,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( v_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = half * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
 
             int jcell = 0;
 
@@ -312,7 +312,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( v_afrac_z(i,j,k) > zero )
         {
-            amrex::Real rho_w_avg = half * (rho_w(i,j,k) + rho_w(i,j-1,k));
+            amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i,j-1,k));
 
             int kcell = 0;
 
@@ -365,7 +365,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( w_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = half * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
+            amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
 
             int icell = 0;
 
@@ -412,7 +412,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( w_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = half * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
 
             int jcell = 0;
 
@@ -464,7 +464,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 flx_w_arr[2](i,j,k) = rho_w(i,j,k) * w(i,j,k);
 
             } else {
-                amrex::Real rho_w_avg = half * (rho_w(i,j,k) + rho_w(i,j,k-1));
+                amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
                 int kcell = 0;
 

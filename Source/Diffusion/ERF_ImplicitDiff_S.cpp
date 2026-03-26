@@ -237,8 +237,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
                             : two * dc.dynamic_viscosity;
 
     // g(S*) coefficient
-    // stagdir==0: tau_corr = half * du/dz * mu_tot
-    // stagdir==1: tau_corr = half * dv/dz * mu_tot
+    // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
+    // stagdir==1: tau_corr = myhalf * dv/dz * mu_tot
     // stagdir==2: tau_corr =       dw/dz * mu_tot
     constexpr Real gfac = (stagdir == 2) ? two/three : one;
 
@@ -302,8 +302,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
           //
           // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
           //   The part that needs to be scaled is stored in `tau_corr`.
-          //   E.g., tau13 = half * (du/dz + dw/dx)
-          //         tau13_corr = half * du/dz
+          //   E.g., tau13 = myhalf * (du/dz + dw/dx)
+          //         tau13_corr = myhalf * du/dz
           //
           // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
           //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
@@ -331,7 +331,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           Real dz_inv, dz_inv_lo, dz_inv_hi;
           Real a_tmp, b_tmp, c_tmp, inv_b2_tmp;
           {
-              rhoface = half * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
+              rhoface = myhalf * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
               getRhoAlphaForFaces(i, j, klo, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
@@ -371,7 +371,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Build the coefficients and RHS for L decomp
           //===================================================
           for (int k(klo+1); k < khi; k++) {
-              rhoface = half * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
@@ -395,7 +395,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              rhoface = half * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
+              rhoface = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
               getRhoAlphaForFaces(i, j, khi, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
@@ -437,7 +437,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Convert back to momenta
           //===================================================
           for (int k(klo); k<=khi; ++k) {
-              rhoface = half * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               face_data(i,j,k) = rhoface * soln_a(i,j,k);
           }
 

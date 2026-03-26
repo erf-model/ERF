@@ -873,7 +873,7 @@ ERF::init_from_wrfinput (int lev,
                     P_lo  = p_0;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                     rho_tot_lo = R_lo * (one + qv_lo);
-                    C  = -P_lo + half*rho_tot_lo*grav*dz;
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
                     qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
@@ -881,7 +881,7 @@ ERF::init_from_wrfinput (int lev,
                     P_hi  = p_0;
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                     rho_tot_hi = R_hi * (one + qv_hi);
-                    F = P_hi + half*rho_tot_hi*grav*dz + C;
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -908,14 +908,14 @@ ERF::init_from_wrfinput (int lev,
                   Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                   rho_tot_lo = R_lo * (one + qv_lo);
-                  C  = -P_lo + half*rho_tot_lo*grav*dz;
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
                   Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                   rho_tot_hi = R_hi * (one + qv_hi);
-                  F = P_hi + half*rho_tot_hi*grav*dz + C;
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -1266,13 +1266,13 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     Print() << "Top of mesh has min value    = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
 
     // Average the top nodes to define a flat surface at the top
-    z_top = half * (terrain_top_min + terrain_top_max);
+    z_top = myhalf * (terrain_top_min + terrain_top_max);
 
     // If this creates a case where z_k < z_{k-1} then we do what we used to do
     if (terrain_km1_max > z_top) {
         amrex::Print() << "Max of second-to-highest row = " << terrain_km1_max <<
                           " which is greater than average of top row so defaulting to alternate approach " << std::endl;
-        z_top = half * (terrain_km1_max + terrain_top_max);
+        z_top = myhalf * (terrain_km1_max + terrain_top_max);
     }
 
     amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
@@ -1305,7 +1305,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-        // PHB and PH are on z-faces (half dx/y ahead of zphys)
+        // PHB and PH are on z-faces (myhalf dx/y ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells

@@ -142,7 +142,7 @@ struct SolverChoice {
             amrex::Error("The input use_moist_background is deprecated.  Set init_type = MoistBaseState instead.");
         }
 
-        // Do we set map scale factors to half instead of 1 for testing?
+        // Do we set map scale factors to myhalf instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?

@@ -118,7 +118,7 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
             if(SMark_array(i,j,k,0) != -one) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),half));
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
                 Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
@@ -239,7 +239,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, avg_vel, n_spec_table);
                 Real a;
                 if(C_T <= 1) {
-                    a = half - half*std::pow(one-C_T,half);
+                    a = myhalf - myhalf*std::pow(one-C_T,myhalf);
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
                     if(C_T <= 1) {
@@ -247,8 +247,8 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                         source_y = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
                     else {
-                        source_x = -half*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -half*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
              }
 

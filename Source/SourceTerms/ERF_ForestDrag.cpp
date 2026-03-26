@@ -85,8 +85,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                     expFun += std::pow(ratio, Real(6.0)) *
                               std::exp(6 * (1 - ratio));
                 } else {
-                    expFun += std::pow(ratio, half) *
-                              std::exp(half * (1 - ratio));
+                    expFun += std::pow(ratio, myhalf) *
+                              std::exp(myhalf * (1 - ratio));
                 }
                 ztree += dz;
             }
@@ -103,8 +103,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Physical positions of cell-centers
-                const Real x = prob_lo[0] + (i + half) * dx[0];
-                const Real y = prob_lo[1] + (j + half) * dx[1];
+                const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+                const Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // "z" is measured as distance from cell center to ground
                 const Real z_sfc = fourth * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
@@ -117,15 +117,15 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
                 // Hit for canopy region
                 Real factor = 1;
-                if ((z <= hf) && (radius <= (half * df))) {
+                if ((z <= hf) && (radius <= (myhalf * df))) {
                     if (tf == 2) {
                         Real ratio = (hf - treeZm) / (hf - z);
                         if (z < treeZm) {
                             factor = std::pow(ratio, Real(6.0)) *
                                      std::exp(Real(6.0) * (one - ratio));
                         } else if (z <= hf) {
-                            factor = std::pow(ratio, half) *
-                                     std::exp(half * (one - ratio));
+                            factor = std::pow(ratio, myhalf) *
+                                     std::exp(myhalf * (one - ratio));
                         }
                     }
                     levelDrag(i, j, k) = cdf * af * factor;

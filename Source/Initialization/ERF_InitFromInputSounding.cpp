@@ -200,7 +200,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                  : z_lo + (k + half) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         Real rho_0 = one;
 
@@ -276,7 +276,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                  : z_lo + (k + half) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         Real rho_k   = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         Real rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
@@ -410,7 +410,7 @@ init_bx_velocities_from_input_sounding (const Box &bx,
                                          + z_nd_arr(i,j+1,k  )
                                          + z_nd_arr(i,j  ,k+1)
                                          + z_nd_arr(i,j+1,k+1))
-                                  : z_lo + (k + half) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
@@ -421,7 +421,7 @@ init_bx_velocities_from_input_sounding (const Box &bx,
                                          + z_nd_arr(i+1,j,k  )
                                          + z_nd_arr(i  ,j,k+1)
                                          + z_nd_arr(i+1,j,k+1))
-                                  : z_lo + (k + half) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);

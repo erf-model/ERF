@@ -142,7 +142,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
                 if (k == dom_lo.z || k == dom_hi.z+1) {
                     fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = half * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });

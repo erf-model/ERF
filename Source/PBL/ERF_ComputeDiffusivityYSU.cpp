@@ -65,7 +65,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             } else {
                 // zref gets reset to nearest cell center, so assert that zref is in the same cell as the 10m point
                 Real dz = geom.CellSize(2);
-                invalid_zref = int((most_zref - half*dz)/dz) != int((Real(10.0) - half*dz)/dz);
+                invalid_zref = int((most_zref - myhalf*dz)/dz) != int((Real(10.0) - myhalf*dz)/dz);
             }
             if (invalid_zref) {
                 Print() << "most_zref = " << most_zref << std::endl;
@@ -122,7 +122,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 while (!above_critical and bx.contains(i,j,kpbl+1)) {
                     kpbl += 1;
                     const Real zval = use_terrain_fitted_coords ?
-                                      Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + half)*gdata.CellSize(2);
+                                      Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf)*gdata.CellSize(2);
                     const Real ws2_level = fourth*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
                                                 + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                     const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
@@ -141,16 +141,16 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 }
 
                 const Real zval_up = use_terrain_fitted_coords ?
-                                     Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + half)*gdata.CellSize(2);
+                                     Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf)*gdata.CellSize(2);
                 const Real zval_dn = use_terrain_fitted_coords ?
-                                     Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + half)*gdata.CellSize(2);
+                                     Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + myhalf)*gdata.CellSize(2);
                 pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
 
                 const Real zval_0 = use_terrain_fitted_coords ?
-                                     Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (half)*gdata.CellSize(2);
+                                     Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (myhalf)*gdata.CellSize(2);
                 const Real zval_1 = use_terrain_fitted_coords ?
                                      Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr) : gdata.ProbLo(2) + (Real(1.5))*gdata.CellSize(2);
-                if (pblh_arr(i,j,0) < half*(zval_0+zval_1) ) {
+                if (pblh_arr(i,j,0) < myhalf*(zval_0+zval_1) ) {
                     kpbl = 0;
                 }
                 pbli_arr(i,j,0) = kpbl;
@@ -184,7 +184,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const Real zval = use_terrain_fitted_coords ?
-                                  Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + half)*gdata.CellSize(2);
+                                  Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                 const Real rho = cell_data(i,j,k,Rho_comp);
                 const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
                 const Real dz_terrain = met_h_zeta/dz_inv;

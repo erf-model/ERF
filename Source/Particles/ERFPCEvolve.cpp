@@ -231,16 +231,16 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             ParticleReal grav = CONST_GRAV;
             ParticleReal drag = CONST_GRAV * (v * v) / (terminal_vel*terminal_vel);
 
-            ParticleReal half_dt = half * a_dt;
+            ParticleReal myhalf_dt = myhalf * a_dt;
 
-            // Update the particle velocity over first half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
+            // Update the particle velocity over first myhalf of step (a_dt/2)
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
             // Update the particle position over (a_dt)
             p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*vz_ptr[i]);
 
-            // Update the particle velocity over second half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
+            // Update the particle velocity over second myhalf of step (a_dt/2)
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
             // also update z-coordinate here
             update_location_idata(p,plo,dxi,zheight);

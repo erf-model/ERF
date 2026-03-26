@@ -141,13 +141,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real tau11lo  = half * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
-            Real tau11hi  = half * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
-            Real tau11bar = Real(1.5)*tau11lo - half*tau11hi;
+            Real tau11lo  = myhalf * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
+            Real tau11hi  = myhalf * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
+            Real tau11bar = Real(1.5)*tau11lo - myhalf*tau11hi;
 
-            Real tau12lo  = half * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
-            Real tau12hi  = half * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
-            Real tau12bar = Real(1.5)*tau12lo - half*tau12hi;
+            Real tau12lo  = myhalf * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
+            Real tau12hi  = myhalf * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
+            Real tau12bar = Real(1.5)*tau12lo - myhalf*tau12hi;
 
             Real mu_tot = fourth*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
                                + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
@@ -171,13 +171,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real tau21lo  = half * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
-            Real tau21hi  = half * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
-            Real tau21bar = Real(1.5)*tau21lo - half*tau21hi;
+            Real tau21lo  = myhalf * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
+            Real tau21hi  = myhalf * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
+            Real tau21bar = Real(1.5)*tau21lo - myhalf*tau21hi;
 
-            Real tau22lo  = half * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
-            Real tau22hi  = half * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
-            Real tau22bar = Real(1.5)*tau22lo - half*tau22hi;
+            Real tau22lo  = myhalf * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
+            Real tau22hi  = myhalf * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
+            Real tau22bar = Real(1.5)*tau22lo - myhalf*tau22hi;
 
             Real mu_tot = fourth*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
                                + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
@@ -203,13 +203,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real tau11lo  = half * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
-            Real tau11hi  = half * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
-            Real tau11bar = Real(1.5)*tau11hi - half*tau11lo;
+            Real tau11lo  = myhalf * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
+            Real tau11hi  = myhalf * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+            Real tau11bar = Real(1.5)*tau11hi - myhalf*tau11lo;
 
-            Real tau12lo  = half * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
-            Real tau12hi  = half * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
-            Real tau12bar = Real(1.5)*tau12hi - half*tau12lo;
+            Real tau12lo  = myhalf * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
+            Real tau12hi  = myhalf * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+            Real tau12bar = Real(1.5)*tau12hi - myhalf*tau12lo;
 
             Real mu_tot = fourth*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
                                + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
@@ -233,13 +233,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real tau21lo  = half * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
-            Real tau21hi  = half * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
-            Real tau21bar = Real(1.5)*tau21hi - half*tau21lo;
+            Real tau21lo  = myhalf * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
+            Real tau21hi  = myhalf * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+            Real tau21bar = Real(1.5)*tau21hi - myhalf*tau21lo;
 
-            Real tau22lo  = half * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
-            Real tau22hi  = half * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
-            Real tau22bar = Real(1.5)*tau22hi - half*tau22lo;
+            Real tau22lo  = myhalf * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
+            Real tau22hi  = myhalf * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+            Real tau22bar = Real(1.5)*tau22hi - myhalf*tau22lo;
 
             Real mu_tot = fourth*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
                                + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
@@ -320,8 +320,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = half * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = half * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
@@ -474,13 +474,13 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real tau11lo  = half * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
-            Real tau11hi  = half * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
-            Real tau11bar = Real(1.5)*tau11lo - half*tau11hi;
+            Real tau11lo  = myhalf * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
+            Real tau11hi  = myhalf * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
+            Real tau11bar = Real(1.5)*tau11lo - myhalf*tau11hi;
 
-            Real tau12lo  = half * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
-            Real tau12hi  = half * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
-            Real tau12bar = Real(1.5)*tau12lo - half*tau12hi;
+            Real tau12lo  = myhalf * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
+            Real tau12hi  = myhalf * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
+            Real tau12bar = Real(1.5)*tau12lo - myhalf*tau12hi;
 
             Real mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -507,13 +507,13 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real tau21lo  = half * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
-            Real tau21hi  = half * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
-            Real tau21bar = Real(1.5)*tau21lo - half*tau21hi;
+            Real tau21lo  = myhalf * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
+            Real tau21hi  = myhalf * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
+            Real tau21bar = Real(1.5)*tau21lo - myhalf*tau21hi;
 
-            Real tau22lo  = half * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
-            Real tau22hi  = half * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
-            Real tau22bar = Real(1.5)*tau22lo - half*tau22hi;
+            Real tau22lo  = myhalf * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
+            Real tau22hi  = myhalf * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
+            Real tau22bar = Real(1.5)*tau22lo - myhalf*tau22hi;
 
             Real mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -542,13 +542,13 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real tau11lo  = half * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
-            Real tau11hi  = half * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
-            Real tau11bar = Real(1.5)*tau11hi - half*tau11lo;
+            Real tau11lo  = myhalf * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
+            Real tau11hi  = myhalf * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+            Real tau11bar = Real(1.5)*tau11hi - myhalf*tau11lo;
 
-            Real tau12lo  = half * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
-            Real tau12hi  = half * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
-            Real tau12bar = Real(1.5)*tau12hi - half*tau12lo;
+            Real tau12lo  = myhalf * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
+            Real tau12hi  = myhalf * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+            Real tau12bar = Real(1.5)*tau12hi - myhalf*tau12lo;
 
             Real mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -575,13 +575,13 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real tau21lo  = half * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
-            Real tau21hi  = half * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
-            Real tau21bar = Real(1.5)*tau21hi - half*tau21lo;
+            Real tau21lo  = myhalf * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
+            Real tau21hi  = myhalf * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+            Real tau21bar = Real(1.5)*tau21hi - myhalf*tau21lo;
 
-            Real tau22lo  = half * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
-            Real tau22hi  = half * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
-            Real tau22bar = Real(1.5)*tau22hi - half*tau22lo;
+            Real tau22lo  = myhalf * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
+            Real tau22hi  = myhalf * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+            Real tau22bar = Real(1.5)*tau22hi - myhalf*tau22lo;
 
             Real mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -674,8 +674,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = half * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = half * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 

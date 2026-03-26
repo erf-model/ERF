@@ -148,14 +148,14 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                             inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
-            Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-            Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+            Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+            Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
             Real met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             Real met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
             if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i, j-1, k) )*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k) )*dxInv[1]*mfy
                                    + (-(Real(8.)/three) * v(i-1,j,k) + three * v(i,j,k) - (one/three) * v(i+1,j,k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
@@ -168,7 +168,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  // where ξ and η are in computational space, corresponding to
                  // x and y in physical space
             } else {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
@@ -196,19 +196,19 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                             inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
-            Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-            Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+            Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+            Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
             Real met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             Real met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
             if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i, j-1, k) )*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k) )*dxInv[1]*mfy
                                    - (-(Real(8.)/three) * v(i,j,k) + three * v(i-1,j,k) - (one/three) * v(i-2,j,k))*dxInv[0]*mfx
                                    - (met_h_eta)*GradUz*mfy
                                    - (met_h_xi )*GradVz*mfx );
             } else {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
@@ -224,11 +224,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
                               - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
             Real idz0 = one / dz0;
 
-            Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+            Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                        - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
             Real mfx = mf_ux(i,j,0);
 
@@ -237,7 +237,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta;
             if (!need_to_test || u(dom_lo.x,j,k) <= zero) {
-                 tau13(i,j,k) = half * ( du_dz
+                 tau13(i,j,k) = myhalf * ( du_dz
                                       + ( (-(Real(8.)/three) * w(i-1,j,k) + three * w(i,j,k) - (one/three) * w(i+1,j,k))*dxInv[0]
                                         - (met_h_xi)*GradWz ) * mfx );
                  // Note:
@@ -248,13 +248,13 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  // where ξ and ζ are in computational space, corresponding to
                  // x and z in physical space
             } else {
-                tau13(i,j,k) = half * ( du_dz
+                tau13(i,j,k) = myhalf * ( du_dz
                                      + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
                                        - (met_h_xi)*GradWz ) * mfx );
             }
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
 
@@ -265,11 +265,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
                               - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
             Real idz0 = one / dz0;
 
-            Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+            Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                        - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
             Real mfx = mf_ux(i,j,0);
@@ -279,17 +279,17 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta;
             if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
-                tau13(i,j,k) = half * ( du_dz
+                tau13(i,j,k) = myhalf * ( du_dz
                                      - ( (-(Real(8.)/three) * w(i,j,k) + three * w(i-1,j,k) - (one/three) * w(i-2,j,k))*dxInv[0]
                                        - (met_h_xi)*GradWz ) * mfx );
             } else {
-                tau13(i,j,k) = half * ( du_dz
+                tau13(i,j,k) = myhalf * ( du_dz
                                      + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
                                        - (met_h_xi)*GradWz ) * mfx );
             }
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
 
@@ -308,27 +308,27 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real GradUz = (k == 0) ?
                                 idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
-                          half * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                          myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
             Real GradVz = (k == 0) ?
                                 idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
-                          half * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                          myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
-            Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-            Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+            Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+            Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
             Real met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             Real met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
             if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
-                tau12(i,j,k) = half * ( (-(Real(8.)/three) * u(i,j-1,k) + three * u(i,j,k) - (one/three) * u(i,j+1,k))*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (-(Real(8.)/three) * u(i,j-1,k) + three * u(i,j,k) - (one/three) * u(i,j+1,k))*dxInv[1]*mfy
                                    + (v(i, j, k) - v(i-1, j, k))*dxInv[0]*mfx
                                    - (met_h_eta)*GradUz*mfy
                                    - (met_h_xi )*GradVz*mfx );
             } else {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
@@ -348,27 +348,27 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real GradUz = (k == 0) ?
                                 idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
-                          half * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                          myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
             Real GradVz = (k == 0) ?
                                 idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
-                          half * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                          myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
-            Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-            Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+            Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+            Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
             Real met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             Real met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
             if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
-                tau12(i,j,k) = half * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - (one/three) * u(i,j-2,k))*dxInv[1]*mfy +
+                tau12(i,j,k) = myhalf * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - (one/three) * u(i,j-2,k))*dxInv[1]*mfy +
                                      + (v(i, j, k) - v(i-1, j, k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
             } else {
-                tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
@@ -384,11 +384,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
                               - z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
             Real idz0 = one / dz0;
 
-            Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+            Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                        - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
             Real mfy = mf_vy(i,j,0);
@@ -398,7 +398,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta;
             if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
-                tau23(i,j,k) = half * ( dv_dz
+                tau23(i,j,k) = myhalf * ( dv_dz
                                      + ( (-(Real(8.)/three) * w(i,j-1,k) + three * w(i,j  ,k) - (one/three) * w(i,j+1,k))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );
                 // Note:
@@ -409,13 +409,13 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  // where η and ζ are in computational space, corresponding to
                  // y and z in physical space
             } else {
-                tau23(i,j,k) = half * ( dv_dz
+                tau23(i,j,k) = myhalf * ( dv_dz
                                      + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );
             }
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
     if (yh_w_dir) {
@@ -425,11 +425,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
                               - z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
             Real idz0 = one / dz0;
 
-            Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+            Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                        - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
             Real mfy = mf_vy(i,j,0);
@@ -439,17 +439,17 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta;
             if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
-                tau23(i,j,k) = half * ( dv_dz
+                tau23(i,j,k) = myhalf * ( dv_dz
                                      - ( (-(Real(8.)/three) * w(i,j  ,k) + three * w(i,j-1,k) - (one/three) * w(i,j-2,k))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );
             } else {
-                tau23(i,j,k) = half * ( dv_dz
+                tau23(i,j,k) = myhalf * ( dv_dz
                                      + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );
             }
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
 
@@ -462,9 +462,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Third order stencil with variable dz
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
                               - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-            Real dz1  = half * ( z_nd(i,j,k+2) + z_nd(i,j+1,k+2)
+            Real dz1  = myhalf * ( z_nd(i,j,k+2) + z_nd(i,j+1,k+2)
                               - z_nd(i,j,k+1) - z_nd(i,j+1,k+1) );
             Real idz0 = one / dz0;
             Real f    = (dz1 / dz0) + two;
@@ -473,7 +473,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c2   = -f2*c3;
             Real c1   = -(one-f2)*c3;
 
-            Real GradWz = half  * idz0 * ( w(i,j,k+1) + w(i-1,j,k+1)
+            Real GradWz = myhalf  * idz0 * ( w(i,j,k+1) + w(i-1,j,k+1)
                                         - w(i,j,k  ) - w(i-1,j,k  ) );
 
             Real mfx = mf_ux(i,j,0);
@@ -483,12 +483,12 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             // Note: u(i,j,k) and u(i,j,k+1) are located at cell centers
             //       whereas u(i,j,k-1) is the value on the boundary
             Real du_dz = (c1 * u(i,j,k-1) + c2 * u(i,j,k) + c3 * u(i,j,k+1))*idz0;
-            tau13(i,j,k) = half * ( du_dz
+            tau13(i,j,k) = myhalf * ( du_dz
                                  + ( (w(i, j, k) - w(i-1, j, k))*dxInv[0]
                                    - (met_h_xi)*GradWz ) * mfx );
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
     if (zh_u_dir) {
@@ -498,9 +498,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Third order stencil with variable dz
-            Real dz0  = half * ( z_nd(i,j,k  ) + z_nd(i,j+1,k  )
+            Real dz0  = myhalf * ( z_nd(i,j,k  ) + z_nd(i,j+1,k  )
                               - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
-            Real dz1  = half * ( z_nd(i,j,k-1) + z_nd(i,j+1,k-1)
+            Real dz1  = myhalf * ( z_nd(i,j,k-1) + z_nd(i,j+1,k-1)
                               - z_nd(i,j,k-2) - z_nd(i,j+1,k-2) );
             Real idz0 = one / dz0;
             Real f    = (dz1 / dz0) + two;
@@ -512,11 +512,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real mfx = mf_ux(i,j,0);
 
             Real du_dz = -(c1 * u(i,j,k) + c2 * u(i,j,k-1) + c3 * u(i,j,k-2))*idz0;
-            tau13(i,j,k) = half * ( du_dz
+            tau13(i,j,k) = myhalf * ( du_dz
                                  +  (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
 
@@ -526,9 +526,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Third order stencil with variable dz
-            Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+            Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
                               - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
-            Real dz1  = half * ( z_nd(i,j,k+2) + z_nd(i+1,j,k+2)
+            Real dz1  = myhalf * ( z_nd(i,j,k+2) + z_nd(i+1,j,k+2)
                               - z_nd(i,j,k+1) - z_nd(i+1,j,k+1) );
             Real idz0 = one / dz0;
             Real f    = (dz1 / dz0) + two;
@@ -537,7 +537,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c2   = -f2*c3;
             Real c1   = -(one-f2)*c3;
 
-            Real GradWz = half  * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+            Real GradWz = myhalf  * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                         - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
 
             Real mfy = mf_vy(i,j,0);
@@ -548,12 +548,12 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             // Note: v(i,j,k) and v(i,j,k+1) are located at cell centers
             //       whereas v(i,j,k-1) is the value on the boundary
             Real dv_dz = (c1 * v(i,j,k-1) + c2 * v(i,j,k  ) + c3 * v(i,j,k+1))*idz0;
-            tau23(i,j,k) = half * ( dv_dz
+            tau23(i,j,k) = myhalf * ( dv_dz
                                  + ( (w(i, j, k) - w(i, j-1, k))*dxInv[1]
                                    - (met_h_eta)*GradWz ) * mfy );
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
     if (zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -563,9 +563,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Third order stencil with variable dz
-            Real dz0  = half * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  )
+            Real dz0  = myhalf * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  )
                               - z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
-            Real dz1  = half * ( z_nd(i,j,k-1) + z_nd(i+1,j,k-1)
+            Real dz1  = myhalf * ( z_nd(i,j,k-1) + z_nd(i+1,j,k-1)
                               - z_nd(i,j,k-2) - z_nd(i+1,j,k-2) );
             Real idz0 = one / dz0;
             Real f    = (dz1 / dz0) + two;
@@ -577,11 +577,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real mfy = mf_vy(i,j,0);
 
             Real dv_dz = -(c1 * v(i,j,k  ) + c2 * v(i,j,k-1) + c3 * v(i,j,k-2))*idz0;
-            tau23(i,j,k) = half * ( dv_dz
+            tau23(i,j,k) = myhalf * ( dv_dz
                                  + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
 
@@ -603,9 +603,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c2   = -f2*c3;
             Real c1   = -(one-f2)*c3;
 
-            Real GradUz = half * idz0 * ( (c1 * u(i  ,j,k-1) + c2 * u(i  ,j,k) + c3 * u(i  ,j,k+1))
+            Real GradUz = myhalf * idz0 * ( (c1 * u(i  ,j,k-1) + c2 * u(i  ,j,k) + c3 * u(i  ,j,k+1))
                                        + (c1 * u(i-1,j,k-1) + c2 * u(i-1,j,k) + c3 * u(i-1,j,k+1)) );
-            Real GradVz = half * idz0 * ( (c1 * v(i,j  ,k-1) + c2 * v(i,j  ,k) + c3 * v(i,j  ,k+1))
+            Real GradVz = myhalf * idz0 * ( (c1 * v(i,j  ,k-1) + c2 * v(i,j  ,k) + c3 * v(i,j  ,k+1))
                                        + (c1 * v(i,j-1,k-1) + c2 * v(i,j-1,k) + c3 * v(i,j-1,k+1)) );
 
             Real mfx = mf_mx(i,j,0);
@@ -637,19 +637,19 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c2   = -f2*c3;
             Real c1   = -(one-f2)*c3;
 
-            Real GradUz = half * idz0 * ( (c1 * u(i,j  ,k-1) + c2 * u(i,j  ,k) + c3 * u(i,j  ,k+1))
+            Real GradUz = myhalf * idz0 * ( (c1 * u(i,j  ,k-1) + c2 * u(i,j  ,k) + c3 * u(i,j  ,k+1))
                                        + (c1 * u(i,j-1,k-1) + c2 * u(i,j-1,k) + c3 * u(i,j-1,k+1)) );
-            Real GradVz = half * idz0 * ( (c1 * v(i  ,j,k-1) + c2 * v(i  ,j,k) + c3 * v(i  ,j,k+1))
+            Real GradVz = myhalf * idz0 * ( (c1 * v(i  ,j,k-1) + c2 * v(i  ,j,k) + c3 * v(i  ,j,k+1))
                                        + (c1 * v(i-1,j,k-1) + c2 * v(i-1,j,k) + c3 * v(i-1,j,k+1)) );
 
-            Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-            Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+            Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+            Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
             Real met_h_xi,met_h_eta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
-            tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+            tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                  + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                                  - (met_h_eta)*GradUz*mfy
                                  - (met_h_xi )*GradVz*mfx );
@@ -671,17 +671,17 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real GradWz = half  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+            Real GradWz = myhalf  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                             - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
             GradWz /= met_h_zeta;
 
             Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta;
-            tau13(i,j,k) = half * ( du_dz
+            tau13(i,j,k) = myhalf * ( du_dz
                                  + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
                                    - (met_h_xi)*GradWz ) * mfx);
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
     if (!zl_v_dir && (tbxyz.smallEnd(2) == domain_yz.smallEnd(2))) {
@@ -695,17 +695,17 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real GradWz = half  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+            Real GradWz = myhalf  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                             - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
             GradWz /= met_h_zeta;
 
             Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta;
-            tau23(i,j,k) = half * ( dv_dz
+            tau23(i,j,k) = myhalf * ( dv_dz
                                  + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
                                    - (met_h_eta)*GradWz ) * mfy );
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
 
@@ -723,11 +723,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta;
-            tau13(i,j,k) = half * ( du_dz
+            tau13(i,j,k) = myhalf * ( du_dz
                                  + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]*mfx );
             tau31(i,j,k) = tau13(i,j,k);
 
-            if (tau13i) tau13i(i,j,k) = half * du_dz;
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
         });
     }
     if (!zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -741,11 +741,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta;
-            tau23(i,j,k) = half * ( dv_dz
+            tau23(i,j,k) = myhalf * ( dv_dz
                                  + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]*mfy );
             tau32(i,j,k) = tau23(i,j,k);
 
-            if (tau23i) tau23i(i,j,k) = half * dv_dz;
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
         });
     }
 
@@ -761,12 +761,12 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real GradUz = (k == 0) ?
                             idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
                                    - u(i  ,j  ,k  ) - u(i-1,j  ,k  ) ) :
-                      half * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
+                      myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
                                    - u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
         Real GradVz = (k == 0) ?
                             idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
                                    - v(i  ,j  ,k  ) - v(i  ,j-1,k  ) ) :
-                      half * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
+                      myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
                                    - v(i  ,j  ,k-1) - v(i  ,j-1,k-1) );
 
         Real mfx = mf_mx(i,j,0);
@@ -791,33 +791,33 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real GradUz = (k == 0) ?
                             idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                    - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
-                      half * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                      myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                    - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
         Real GradVz = (k == 0) ?
                             idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                    - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
-                      half * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                      myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                    - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
-        Real mfy = half * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
-        Real mfx = half * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
+        Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+        Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
         Real met_h_xi,met_h_eta;
         met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
         met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
-        tau12(i,j,k) = half * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
+        tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                              + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                              - (met_h_eta)*GradUz*mfy
                              - (met_h_xi )*GradVz*mfx );
         tau21(i,j,k) = tau12(i,j,k);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+        Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
                           - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
         Real idz0 = one / dz0;
 
-        Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+        Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                    - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
         Real mfx = mf_ux(i,j,0);
@@ -827,19 +827,19 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
         Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta;
-        tau13(i,j,k) = half * ( du_dz
+        tau13(i,j,k) = myhalf * ( du_dz
                              + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
                                - (met_h_xi)*GradWz ) * mfx );
         tau31(i,j,k) = tau13(i,j,k);
 
-        if (tau13i) tau13i(i,j,k) = half * du_dz;
+        if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real dz0  = half * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+        Real dz0  = myhalf * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
                           - z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
         Real idz0 = one / dz0;
 
-        Real GradWz = half * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+        Real GradWz = myhalf * idz0 * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                    - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
         Real mfy = mf_vy(i,j,0);
@@ -849,11 +849,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
         Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta;
-        tau23(i,j,k) = half * ( dv_dz
+        tau23(i,j,k) = myhalf * ( dv_dz
                              + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
                                - (met_h_eta)*GradWz ) * mfy );
         tau32(i,j,k) = tau23(i,j,k);
 
-        if (tau23i) tau23i(i,j,k) = half * dv_dz;
+        if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
     });
 }

@@ -533,7 +533,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         } else if (i-1 < bx_lo.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i  ,j,k0,dest_comp));
                         } else {
-                            GradVarx = half * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
+                            GradVarx = myhalf * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         }
 
                         // GradY at IJK location inside domain -- this relies on the assumption that we have
@@ -545,7 +545,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         } else if (j-1 < bx_lo.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j  ,k0,dest_comp));
                         } else {
-                            GradVary = half * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
+                            GradVary = myhalf * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         }
 
                         // Prefactor

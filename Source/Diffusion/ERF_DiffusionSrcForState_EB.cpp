@@ -76,10 +76,10 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
 
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rhoFace  = l_consA ? half * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) ) : one;
+            Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
-                rhoAlpha += half * ( mu_turb(i  , j, k, eddy_x)
+                rhoAlpha += myhalf * ( mu_turb(i  , j, k, eddy_x)
                                   + mu_turb(i-1, j, k, eddy_x) );
             }
 
@@ -118,10 +118,10 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rhoFace  = l_consA ? half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) ) : one;
+            Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
-                rhoAlpha += half * ( mu_turb(i, j  , k, eddy_y)
+                rhoAlpha += myhalf * ( mu_turb(i, j  , k, eddy_y)
                                   + mu_turb(i, j-1, k, eddy_y) );
             }
 
@@ -160,10 +160,10 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rhoFace  = l_consA ? half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) ) : one;
+            Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
-                rhoAlpha += half * ( mu_turb(i, j, k  , eddy_z)
+                rhoAlpha += myhalf * ( mu_turb(i, j, k  , eddy_z)
                                   + mu_turb(i, j, k-1, eddy_z) );
             }
 

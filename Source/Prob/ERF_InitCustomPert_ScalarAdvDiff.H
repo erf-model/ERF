@@ -6,9 +6,9 @@
     Real rad_0 = zero;  pp.query("rad_0", rad_0);
 
     // Location of "center" of scalar (multiplies domain length)
-    Real xc_frac = half; pp.query("xc_frac", xc_frac);
-    Real yc_frac = half; pp.query("yc_frac", yc_frac);
-    Real zc_frac = half; pp.query("zc_frac", zc_frac);
+    Real xc_frac = myhalf; pp.query("xc_frac", xc_frac);
+    Real yc_frac = myhalf; pp.query("yc_frac", yc_frac);
+    Real zc_frac = myhalf; pp.query("zc_frac", zc_frac);
 
     int prob_type = -1; pp.query("prob_type", prob_type);
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -17,9 +17,9 @@
         const Real* prob_lo = geomdata.ProbLo();
         const Real* prob_hi = geomdata.ProbHi();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = xc_frac * (prob_lo[0] + prob_hi[0]);

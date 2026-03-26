@@ -83,7 +83,7 @@ struct CENTERED2
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    static constexpr amrex::Real g1=(half);
+    static constexpr amrex::Real g1=(myhalf);
 };
 
 /**
@@ -307,7 +307,7 @@ struct UPWIND3SL
         amrex::Real rmh = (s - sm1) / ((sm1 - sm2) + eps);
         amrex::Real K   = l2 + two*l2*rmh;
         amrex::Real phi = std::max(zero,std::min(two*rmh,std::min(two,K)));
-        return (sm1 + half * phi * (sm1 - sm2));
+        return (sm1 + myhalf * phi * (sm1 - sm2));
     }
 
     int GetUpwindCellNumber() const {return 2;}
@@ -669,7 +669,7 @@ struct UPWINDALL
                     const AdvType adv_type) const
     {
         if (adv_type == AdvType::Centered_2nd) {
-            val_lo = half * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k-1,qty_index) );
+            val_lo = myhalf * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k-1,qty_index) );
             return;
         } else {
             // Data to interpolate on
@@ -714,7 +714,7 @@ struct UPWINDALL
         // Interpolated value
         amrex::Real iv(zero);
         if (adv_type == AdvType::Centered_2nd) {
-            iv = half * a1;
+            iv = myhalf * a1;
         } else if (adv_type == AdvType::Upwind_3rd) {
             iv = g1_3_4*a1 - g2_3_4*a2 + upw * g2_3_4 * (d2 - three*d1);
         } else if (adv_type == AdvType::Centered_4th) {

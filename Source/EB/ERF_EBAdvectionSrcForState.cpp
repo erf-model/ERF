@@ -303,21 +303,21 @@ EBAdvectionSrcForScalars (const Box& bx,
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
-            const Real prim_on_face = half * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
+            const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
             flx_arr[0](i,j,k,cons_index) = avg_xmom(i,j,k) * prim_on_face;
         });
         ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
-            const Real prim_on_face = half * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
+            const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
             flx_arr[1](i,j,k,cons_index) = avg_ymom(i,j,k) * prim_on_face;
         });
         ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
-            const Real prim_on_face = half * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
+            const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
             flx_arr[2](i,j,k,cons_index) = avg_zmom(i,j,k) * prim_on_face;
         });
 

@@ -294,11 +294,11 @@
                Box gbx2 = mfi.growntilebox({1,1,0});
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
-                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * half * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
-                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * half * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
+                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
 
-                   Real zflux_rt_lo = zflux_r_lo * half * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
-                   Real zflux_rt_hi = zflux_r_hi * half * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
+                   Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
 
                    Real invdetJ = one / dJ_src_arr(i,j,k);
 

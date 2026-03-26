@@ -80,7 +80,7 @@ namespace SDMassChangeUtils
             RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = std::exp(-half*std::log(a_R_sq));
+            RT R_inv = std::exp(-myhalf*std::log(a_R_sq));
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
             RT alpha = two * (a_S-one) / (F_k + F_d);
@@ -119,10 +119,10 @@ namespace SDMassChangeUtils
             RT retval = zero;
 
             RT beta = -two * (a_a/a_T) / (F_k + F_d);
-            retval -= half * beta*R_inv_3;
+            retval -= myhalf * beta*R_inv_3;
 
             RT gamma = two * a_b * a_N_s / (F_k + F_d);
-            retval -= half * three*gamma*R_inv_5;
+            retval -= myhalf * three*gamma*R_inv_5;
 
             return retval;
         }
@@ -288,28 +288,28 @@ namespace SDMassChangeUtils
 
                     RT u1 = a_u;
                     if (u1 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u2 = a_u + half*dt*f1;
+                    RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
                     RT u3 = a_u + amrex::Real(0.75)*dt*f2;
                     if (u3 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
                     RT u4 = a_u + (one/amrex::Real(9.0))*dt * (two*f1 + three*f2 + amrex::Real(4.0)*f3);
                     if (u4 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -330,7 +330,7 @@ namespace SDMassChangeUtils
                             break;
                         }
                     }
-                    dt *= half;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -393,28 +393,28 @@ namespace SDMassChangeUtils
 
                     RT u1 = a_u;
                     if (u1 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u2 = a_u + half*dt*f1;
+                    RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u3 = a_u + half*dt*f2;
+                    RT u3 = a_u + myhalf*dt*f2;
                     if (u3 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
                     RT u4 = a_u + one*dt*f3;
                     if (u4 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -427,7 +427,7 @@ namespace SDMassChangeUtils
                             break;
                         }
                     }
-                    dt *= half;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -506,7 +506,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= half;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -572,23 +572,23 @@ namespace SDMassChangeUtils
                          && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
-                    RT mu = one / (half*dt);
+                    RT mu = one / (myhalf*dt);
 
                     RT u1 = a_u;
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
                     RT u2 = u1;
-                    RT rhs = mu * (a_u + half*dt*f1);
+                    RT rhs = mu * (a_u + myhalf*dt*f1);
                     m_newton( u2, rhs, mu,
                               m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
                               res_norm_a, res_norm_r, converged );
                     if (u2 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    u_new = a_u + half * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
                         if (std::isfinite(u_new)) {
@@ -598,7 +598,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= half;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -684,7 +684,7 @@ namespace SDMassChangeUtils
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u1 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -703,12 +703,12 @@ namespace SDMassChangeUtils
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u2 <= 0) {
-                        dt *= half;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    u_new = a_u + half * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
                         if (std::isfinite(u_new)) {
@@ -718,7 +718,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= half;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {

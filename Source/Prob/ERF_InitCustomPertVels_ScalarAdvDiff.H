@@ -16,7 +16,7 @@
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real*      dx = geomdata.CellSize();
-        const Real        z = prob_lo[2] + (k + half) * dx[2];
+        const Real        z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the x-velocity
         if (uRef != zero) {

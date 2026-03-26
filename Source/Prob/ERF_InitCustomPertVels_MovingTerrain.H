@@ -29,7 +29,7 @@
     {
         const auto dx         = geomdata.CellSize();
 
-        Real x   = (i + half) * dx[0];
+        Real x   = (i + myhalf) * dx[0];
         Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
         Real z_base = Ampl * std::sin(kp * x);
 

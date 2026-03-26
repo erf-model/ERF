@@ -97,8 +97,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = half * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = half * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real mu_tot = fourth*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
@@ -230,8 +230,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = half * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = half * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real mu_bar = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );

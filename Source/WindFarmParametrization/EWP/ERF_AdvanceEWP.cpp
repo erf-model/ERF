@@ -65,7 +65,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
             if(SMark_array(i,j,k,0) == one) {
                 Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                         v_vel(i,j,k)*v_vel(i,j,k) +
-                                        w_vel(i,j,k)*w_vel(i,j,k),half);
+                                        w_vel(i,j,k)*w_vel(i,j,k),myhalf);
                 Real turb_power = interpolate_1d(d_wind_speed_ptr, d_power_ptr, avg_vel, n_spec_table);
                 turb_power = turb_power*Nturb_array(i,j,k,0);
                 Gpu::Atomic::Add(d_total_power_ptr,turb_power);
@@ -176,27 +176,27 @@ EWP::source_terms_cellcentered (const Geometry& geom,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
-            Real z = ProbLoArr[2] + (kk+half) * dx[2];
+            Real z = ProbLoArr[2] + (kk+myhalf) * dx[2];
 
             // Compute Fitch source terms
 
             Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                  v_vel(i,j,k)*v_vel(i,j,k) +
-                                 w_vel(i,j,kk)*w_vel(i,j,kk), half);
+                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf);
 
             Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
 
             Real C_TKE = zero;
             Real K_turb = Real(6.0);
 
-            Real L_wake = std::pow(dx[0]*dx[1],half)/two;
+            Real L_wake = std::pow(dx[0]*dx[1],myhalf)/two;
             Real sigma_e = Vabs/(three*K_turb*L_wake)*
                            (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - std::pow(sigma_0,3));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(PI/Real(8.0),half)*C_T*std::pow(d_rotor_rad,2)*
+            Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*std::pow(d_rotor_rad,2)*
                         std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*
-                        std::exp(-half*std::pow((z - d_hub_height)/sigma_e,2));
+                        std::exp(-myhalf*std::pow((z - d_hub_height)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = C_TKE*zero;

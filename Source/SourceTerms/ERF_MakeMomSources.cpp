@@ -354,13 +354,13 @@ void make_mom_sources (Real time,
                 {
                     Real rho_v_loc = fourth * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                     Real rho_w_loc = fourth * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
-                    Real sphi_loc  = half  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
-                    Real cphi_loc  = half  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
+                    Real sphi_loc  = myhalf  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
+                    Real cphi_loc  = myhalf  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
                     xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     Real rho_u_loc = fourth * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                    Real sphi_loc  = half  * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0));
+                    Real sphi_loc  = myhalf  * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0));
                     ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -434,7 +434,7 @@ void make_mom_sources (Real time,
             if (rayleigh_damp_U) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rho_on_u_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                     Real uu = rho_u(i,j,k) / rho_on_u_face;
                     Real sinesq = d_sinesq_at_lev[k];
                     xmom_src_arr(i, j, k) -= dampcoef*sinesq * (uu - ubar[k]) * rho_on_u_face;
@@ -444,7 +444,7 @@ void make_mom_sources (Real time,
             if (rayleigh_damp_V) {
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rho_on_v_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                     Real vv = rho_v(i,j,k) / rho_on_v_face;
                     Real sinesq = d_sinesq_at_lev[k];
                     ymom_src_arr(i, j, k) -= dampcoef*sinesq * (vv - vbar[k]) * rho_on_v_face;
@@ -456,7 +456,7 @@ void make_mom_sources (Real time,
             if (rayleigh_damp_W) {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rho_on_w_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
                     Real sinesq = d_sinesq_stag_at_lev[k];
                     zmom_src_arr(i, j, k) -= dampcoef*sinesq * (ww - wbar[k]) * rho_on_w_face;
@@ -471,17 +471,17 @@ void make_mom_sources (Real time,
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_u_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 xmom_src_arr(i, j, k) += rho_on_u_face * abl_geo_forcing[0];
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_v_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 ymom_src_arr(i, j, k) += rho_on_v_face * abl_geo_forcing[1];
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_w_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) += rho_on_w_face * abl_geo_forcing[2];
             });
         }
@@ -493,12 +493,12 @@ void make_mom_sources (Real time,
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_u_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_v_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
             });
         } // geo_wind_profile
@@ -512,7 +512,7 @@ void make_mom_sources (Real time,
                 ParallelFor(tbx, tby,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = half*dxInv[2];
+                    Real dzInv = myhalf*dxInv[2];
                     if (z_nd_arr) {
                         Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
                                               + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
@@ -520,15 +520,15 @@ void make_mom_sources (Real time,
                                               + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
                         dzInv = one / (z_xf_hi - z_xf_lo);
                     }
-                    Real rho_on_u_face = half * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_xf = half * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_xf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * (U_hi - U_lo) * dzInv;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = half*dxInv[2];
+                    Real dzInv = myhalf*dxInv[2];
                     if (z_nd_arr) {
                         Real z_yf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
                                               + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
@@ -536,17 +536,17 @@ void make_mom_sources (Real time,
                                               + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
                         dzInv = one / (z_yf_hi - z_yf_lo);
                     }
-                    Real rho_on_v_face = half * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
+                    Real rho_on_v_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_yf = half * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_yf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * (V_hi - V_lo) * dzInv;
                 });
             } else {
                 ParallelFor(tbx, tby,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = half*dxInv[2];
+                    Real dzInv = myhalf*dxInv[2];
                     if (z_nd_arr) {
                         Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
                                               + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
@@ -556,12 +556,12 @@ void make_mom_sources (Real time,
                     }
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_xf = half * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_xf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     xmom_src_arr(i, j, k) -= wbar_xf * (U_hi - U_lo) * dzInv;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = half*dxInv[2];
+                    Real dzInv = myhalf*dxInv[2];
                     if (z_nd_arr) {
                         Real z_yf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
                                               + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
@@ -571,7 +571,7 @@ void make_mom_sources (Real time,
                     }
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_yf = half * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_yf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     ymom_src_arr(i, j, k) -= wbar_yf * (V_hi - V_lo) * dzInv;
                 });
             }
@@ -693,7 +693,7 @@ void make_mom_sources (Real time,
                 const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real f_drag = half * (f_drag_arr(i, j, k) + f_drag_arr(i-1, j, k));
+                const Real f_drag = myhalf * (f_drag_arr(i, j, k) + f_drag_arr(i-1, j, k));
                 xmom_src_arr(i, j, k) -= f_drag * ux * windspeed;
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -704,7 +704,7 @@ void make_mom_sources (Real time,
                 const Real uz = fourth * ( w(i  , j  , k  ) + w(i  , j-1, k  )
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
                 const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real f_drag = half * (f_drag_arr(i, j, k) + f_drag_arr(i, j-1, k));
+                const Real f_drag = myhalf * (f_drag_arr(i, j, k) + f_drag_arr(i, j-1, k));
                 ymom_src_arr(i, j, k) -= f_drag * uy * windspeed;
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -715,7 +715,7 @@ void make_mom_sources (Real time,
                                               + v(i  , j  , k-1) + v(i  , j+1, k-1) );
                 const amrex::Real uz = w(i, j, k);
                 const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real f_drag = half * (f_drag_arr(i, j, k) + f_drag_arr(i, j, k-1));
+                const Real f_drag = myhalf * (f_drag_arr(i, j, k) + f_drag_arr(i, j, k-1));
                 zmom_src_arr(i, j, k) -= f_drag * uz * windspeed;
             });
         }
@@ -752,10 +752,10 @@ void make_mom_sources (Real time,
                 const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-                const Real t_blank_above = half * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
+                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_xface = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
                     // calculate tangential velocity one cell above
@@ -765,9 +765,9 @@ void make_mom_sources (Real time,
                     const Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
 
                     // MOST
-                    const Real theta_xface = (half * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
-                    const Real rho_xface_below    = half * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
-                    const Real theta_xface_below  = (half * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_below;
+                    const Real theta_xface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
+                    const Real rho_xface_below    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
+                    const Real theta_xface_below  = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_below;
                     const Real theta_surf         = theta_xface_below;
 
                     Real psi_m = zero;
@@ -785,10 +785,10 @@ void make_mom_sources (Real time,
                     // prevent some unphysical math
                     if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                     if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
-                    if (psi_m > std::log(half * dx_z / z0)) { psi_m = std::log(half * dx_z / z0); }
+                    if (psi_m > std::log(myhalf * dx_z / z0)) { psi_m = std::log(myhalf * dx_z / z0); }
 
                     // determine target velocity
-                    const Real uTarget  = ustar / kappa * (std::log(half * dx_z / z0) - psi_m);
+                    const Real uTarget  = ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uxTarget = uTarget * ux2r / (tiny + h_windspeed2r);
                     const Real bc_forcing_x = -(uxTarget - ux); // BC forcing pushes nonrelative velocity toward target velocity
                     xmom_src_arr(i, j, k) -= (1-t_blank) * rho_xface * CdM * U_s * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
@@ -804,10 +804,10 @@ void make_mom_sources (Real time,
                 const Real uz = fourth * ( w(i  , j  , k  ) + w(i  , j-1, k  )
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-                const Real t_blank_above = half * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
+                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_yface =  half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
                     // calculate tangential velocity one cell above
@@ -817,9 +817,9 @@ void make_mom_sources (Real time,
                     const Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
 
                     // MOST
-                    const Real theta_yface = (half * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k, RhoTheta_comp))) / rho_yface;
-                    const Real rho_yface_below    =  half * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
-                    const Real theta_yface_below  = (half * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1, RhoTheta_comp))) / rho_yface_below;
+                    const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k, RhoTheta_comp))) / rho_yface;
+                    const Real rho_yface_below    =  myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+                    const Real theta_yface_below  = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1, RhoTheta_comp))) / rho_yface_below;
                     const Real theta_surf         = theta_yface_below;
 
                     Real psi_m = zero;
@@ -837,10 +837,10 @@ void make_mom_sources (Real time,
                     // prevent some unphysical math
                     if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                     if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
-                    if (psi_m > std::log(half * dx_z / z0)) { psi_m = std::log(half * dx_z / z0); }
+                    if (psi_m > std::log(myhalf * dx_z / z0)) { psi_m = std::log(myhalf * dx_z / z0); }
 
                     // determine target velocity
-                    const Real uTarget  = ustar / kappa * (std::log(half * dx_z / z0) - psi_m);
+                    const Real uTarget  = ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uyTarget = uTarget * uy2r / (tiny + h_windspeed2r);
                     const Real bc_forcing_y = -(uyTarget - uy);  // BC forcing pushes nonrelative velocity toward target velocity
                     ymom_src_arr(i, j, k) -= (1 - t_blank) * rho_yface * CdM * U_s * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
@@ -856,9 +856,9 @@ void make_mom_sources (Real time,
                                        + v(i  , j  , k-1) + v(i  , j+1, k-1) );
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_zface =  half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
             });
         }
@@ -887,12 +887,12 @@ void make_mom_sources (Real time,
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 if (t_blank < min_t_blank) { t_blank = zero; }
                 const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_xface = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -904,12 +904,12 @@ void make_mom_sources (Real time,
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 if (t_blank < min_t_blank) { t_blank = zero; }
                 const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_yface =  half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
             });
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -921,12 +921,12 @@ void make_mom_sources (Real time,
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = half * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 if (t_blank < min_t_blank) { t_blank = zero; }
                 const Real dx_z    = (z_nd_arr) ? (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-1)) : dx_arr[2]; // ASW double check
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_zface =  half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
             });
         }

@@ -110,9 +110,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += half * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
@@ -125,7 +125,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -142,9 +142,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += half * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
@@ -156,7 +156,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -173,9 +173,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += half * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
@@ -250,7 +250,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += half * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
@@ -262,7 +262,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -279,7 +279,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += half * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
@@ -291,7 +291,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -308,7 +308,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += half * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
@@ -383,7 +383,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
@@ -395,7 +395,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -411,7 +411,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
@@ -423,7 +423,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -439,7 +439,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = half * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real GradCz;
@@ -524,7 +524,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -551,7 +551,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    half * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -654,13 +654,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         Real xfluxbar_lo, yfluxbar_lo;
         if (k == dom_lo.z) {
-            Real xfluxlo  = half * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
-            Real xfluxhi  = half * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
-            xfluxbar_lo = Real(1.5)*xfluxlo - half*xfluxhi;
+            Real xfluxlo  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            Real xfluxhi  = myhalf * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
+            xfluxbar_lo = Real(1.5)*xfluxlo - myhalf*xfluxhi;
 
-            Real yfluxlo  = half * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
-            Real yfluxhi  = half * ( yflux(i,j,k+1) + yflux(i,j+1,k+1) );
-            yfluxbar_lo = Real(1.5)*yfluxlo - half*yfluxhi;
+            Real yfluxlo  = myhalf * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            Real yfluxhi  = myhalf * ( yflux(i,j,k+1) + yflux(i,j+1,k+1) );
+            yfluxbar_lo = Real(1.5)*yfluxlo - myhalf*yfluxhi;
         } else {
             xfluxbar_lo = fourth * ( xflux(i,j,k  ) + xflux(i+1,j  ,k  )
                                    + xflux(i,j,k-1) + xflux(i+1,j  ,k-1) );
@@ -670,13 +670,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         Real xfluxbar_hi, yfluxbar_hi;
         if (k == dom_hi.z) {
-            Real xfluxlo  = half * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
-            Real xfluxhi  = half * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
-            xfluxbar_hi = Real(1.5)*xfluxhi - half*xfluxlo;
+            Real xfluxlo  = myhalf * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
+            Real xfluxhi  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            xfluxbar_hi = Real(1.5)*xfluxhi - myhalf*xfluxlo;
 
-            Real yfluxlo  = half * ( yflux(i,j,k-1) + yflux(i,j+1,k-1) );
-            Real yfluxhi  = half * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
-            yfluxbar_hi = Real(1.5)*yfluxhi - half*yfluxlo;
+            Real yfluxlo  = myhalf * ( yflux(i,j,k-1) + yflux(i,j+1,k-1) );
+            Real yfluxhi  = myhalf * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            yfluxbar_hi = Real(1.5)*yfluxhi - myhalf*yfluxlo;
         } else {
             xfluxbar_hi = fourth * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
                                    + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );

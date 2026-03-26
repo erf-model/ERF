@@ -19,7 +19,7 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
 {
     amrex::Real myInterpolatedVal(zero);
     if (adv_type == AdvType::Centered_2nd) {
-        myInterpolatedVal = half * avg1;
+        myInterpolatedVal = myhalf * avg1;
     } else if (adv_type == AdvType::Upwind_3rd) {
         myInterpolatedVal = (amrex::Real(7.0)/amrex::Real(12.0))*avg1 -(one/amrex::Real(12.0))*avg2 + (scaled_upw/amrex::Real(12.0))*(diff2 - three*diff1);
     } else if (adv_type == AdvType::Centered_4th) {
@@ -41,7 +41,7 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
 {
 
     if (adv_type == AdvType::Centered_2nd) {
-        return half * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
     } else {
 
         amrex::Real avg1 = zero; amrex::Real avg2 = zero; amrex::Real avg3 = zero;
@@ -71,7 +71,7 @@ InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
                 int qty_index, amrex::Real upw, const AdvType adv_type)
 {
     if (adv_type == AdvType::Centered_2nd) {
-        return half * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
     } else {
 
         amrex::Real avg1; amrex::Real avg2; amrex::Real avg3 = zero;
@@ -101,7 +101,7 @@ InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
                 int qty_index, amrex::Real upw, const AdvType adv_type)
 {
     if (adv_type == AdvType::Centered_2nd) {
-        return half * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
     } else {
 
         amrex::Real avg1 = zero; amrex::Real avg2 = zero; amrex::Real avg3 = zero;

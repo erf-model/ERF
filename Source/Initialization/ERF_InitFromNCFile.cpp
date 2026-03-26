@@ -287,7 +287,7 @@ ERF::init_from_ncfile (int lev)
                     P_lo  = p_0;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                     rho_tot_lo = R_lo * (one + qv_lo);
-                    C  = -P_lo + half*rho_tot_lo*grav*dz;
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
                     qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero;
@@ -295,7 +295,7 @@ ERF::init_from_ncfile (int lev)
                     P_hi  = p_0;
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                     rho_tot_hi = R_hi * (one + qv_hi);
-                    F = P_hi + half*rho_tot_hi*grav*dz + C;
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -324,14 +324,14 @@ ERF::init_from_ncfile (int lev)
                   Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                   rho_tot_lo = R_lo * (one + qv_lo);
-                  C  = -P_lo + half*rho_tot_lo*grav*dz;
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
                   Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                   rho_tot_hi = R_hi * (one + qv_hi);
-                  F = P_hi + half*rho_tot_hi*grav*dz + C;
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,

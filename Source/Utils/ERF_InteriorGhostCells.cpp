@@ -287,9 +287,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = half * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = half * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -312,9 +312,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = half * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = half * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -339,9 +339,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = half * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = half * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -364,9 +364,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = half * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = half * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -582,7 +582,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = half * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -609,7 +609,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = half * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -636,7 +636,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = half * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });

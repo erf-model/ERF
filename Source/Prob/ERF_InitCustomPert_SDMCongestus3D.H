@@ -26,8 +26,8 @@
     Real cval = pert_periods_T  * two * PI / (prob_hi_x - prob_lo_x);
     Real dval = pert_periods_QV * two * PI / (prob_hi_x - prob_lo_x);
 
-    Real  tfac = pert_deltaT  * std::exp(half) / pert_ref_height;
-    Real qvfac = pert_deltaQV * std::exp(half) / pert_ref_height;
+    Real  tfac = pert_deltaT  * std::exp(myhalf) / pert_ref_height;
+    Real qvfac = pert_deltaQV * std::exp(myhalf) / pert_ref_height;
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
@@ -38,14 +38,14 @@
         const Real* prob_lo = geomdata.ProbLo();
         const Real* prob_hi = geomdata.ProbHi();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
-        const Real xc = half * (prob_lo[0] + prob_hi[0]);
-        const Real yc = half * (prob_lo[1] + prob_hi[1]);
-        const Real zc = half * (prob_lo[2] + prob_hi[2]);
+        const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
+        const Real yc = myhalf * (prob_lo[1] + prob_hi[1]);
+        const Real zc = myhalf * (prob_lo[2] + prob_hi[2]);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
@@ -68,7 +68,7 @@
         if (pert_deltaT != zero)
         {
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-half * zl * zl);
+            const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
@@ -89,7 +89,7 @@
         if (use_moisture && pert_deltaQV != zero)
         {
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-half * zl * zl);
+            const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
             Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);

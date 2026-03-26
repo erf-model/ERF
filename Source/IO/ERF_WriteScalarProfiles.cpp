@@ -369,7 +369,7 @@ ERF::sum_energy_quantities (Real time)
             Real Rhod = cons_arr(i,j,k,Rho_comp);
             Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
-            Real TKE  = half * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+            Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
             Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];

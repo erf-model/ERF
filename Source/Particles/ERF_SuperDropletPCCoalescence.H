@@ -49,7 +49,7 @@ struct CollisionKernel
                         const RT* const a_v2 ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
-        auto E = half*p*p / ((one+p)*(one+p));
+        auto E = myhalf*p*p / ((one+p)*(one+p));
         RT dv = 0;
         for (int d = 0; d < SPACEDIM; d++) {
             dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);

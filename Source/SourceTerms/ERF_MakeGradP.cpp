@@ -154,7 +154,7 @@ compute_gradp (const MultiFab& p,
                         gpz_hi  = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
                         gpz_lo  = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                     }
-                    Real gpx_metric = met_h_xi * half * (gpz_hi + gpz_lo);
+                    Real gpx_metric = met_h_xi * myhalf * (gpz_hi + gpz_lo);
                     gpx -= gpx_metric;
                 }
                 gpx_arr(i,j,k) = gpx;
@@ -188,7 +188,7 @@ compute_gradp (const MultiFab& p,
                         gpz_hi  = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
                         gpz_lo  = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                     }
-                    Real gpy_metric = met_h_eta * half * (gpz_hi + gpz_lo);
+                    Real gpy_metric = met_h_eta * myhalf * (gpz_hi + gpz_lo);
                     gpy -= gpy_metric;
                 }
                 gpy_arr(i,j,k) = gpy;
@@ -399,7 +399,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i-1,j,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = half * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
+                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     if (k==domain_klo) {
@@ -454,7 +454,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i,j-1,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = half * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
+                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     if (k==domain_klo) {

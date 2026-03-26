@@ -298,7 +298,7 @@ public:
         }
 
         // make sure a meaningful calculation is possible
-        if (p <= amrex::Real(5.)*es || qs <= zero || qs >= half || t < tmin || t > tmax) {
+        if (p <= amrex::Real(5.)*es || qs <= zero || qs >= myhalf || t < tmin || t > tmax) {
             status = 1;
             // Keep initial parameters when conditions aren't suitable
             tsp = t;

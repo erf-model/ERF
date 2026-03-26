@@ -80,13 +80,13 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         if (c_vfrac==nullptr) {
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                momx(i,j,k) = velx(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
+                momx(i,j,k) = velx(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                momy(i,j,k) = vely(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
+                momy(i,j,k) = vely(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                momz(i,j,k) = velz(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
+                momz(i,j,k) = velz(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
             });
         } else {
             // EB
@@ -100,7 +100,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i-1,j,k));
                     momx(i,j,k) = velx(i,j,k) * rho;
                 } else {
-                    momx(i,j,k) = velx(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
+                    momx(i,j,k) = velx(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -110,7 +110,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j-1,k));
                     momy(i,j,k) = vely(i,j,k) * rho;
                 } else {
-                    momy(i,j,k) = vely(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
+                    momy(i,j,k) = vely(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -120,7 +120,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j,k-1));
                     momz(i,j,k) = velz(i,j,k) * rho;
                 } else {
-                    momz(i,j,k) = velz(i,j,k) * half * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
+                    momz(i,j,k) = velz(i,j,k) * myhalf * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
                 }
             });
         }

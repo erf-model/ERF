@@ -227,8 +227,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
                             : two * dc.dynamic_viscosity;
 
     // g(S*) coefficient
-    // stagdir==0: tau_corr = half * du/dz * mu_tot
-    // stagdir==1: tau_corr = half * dv/dz * mu_tot
+    // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
+    // stagdir==1: tau_corr = myhalf * dv/dz * mu_tot
     // stagdir==2: tau_corr =       dw/dz * mu_tot
     constexpr Real gfac = (stagdir == 2) ? two/three : one;
 

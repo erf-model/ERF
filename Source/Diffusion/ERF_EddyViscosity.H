@@ -209,6 +209,6 @@ ComputeSmnSmn2D (int& i, int& j, int& k,
     amrex::Real sdiff = tau11(i,j,k) - tau22(i,j,k);
     amrex::Real s12bar = fourth * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                   + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-    return half * sdiff*sdiff + two*s12bar*s12bar;
+    return myhalf * sdiff*sdiff + two*s12bar*s12bar;
 }
 #endif

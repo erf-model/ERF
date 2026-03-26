@@ -16,7 +16,7 @@
         const auto prob_lo = geomdata.ProbLo();
         const auto dx      = geomdata.CellSize();
 
-        const Real x = ( prob_lo[0] + (i + half) * dx[0] ) / mf_m(i,j,0);
+        const Real x = ( prob_lo[0] + (i + myhalf) * dx[0] ) / mf_m(i,j,0);
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(

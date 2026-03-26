@@ -374,7 +374,7 @@ void boulac_length_cc(int kts, int kte,
 
     for (iz = kts; iz <= kte; iz++) {
         zup = zero;
-        dlu[iz] = zw[kte + 1] - zw[iz] - dz[iz] * half;
+        dlu[iz] = zw[kte + 1] - zw[iz] - dz[iz] * myhalf;
         zzz = zero;
         zup_inf = zero;
         beta = gtr;
@@ -386,7 +386,7 @@ void boulac_length_cc(int kts, int kte,
                 if (izz < kte) {
                     dzt = dz[izz];
                     zup = zup - beta * theta[iz] * dzt;
-                    zup = zup + beta * (theta[izz + 1] + theta[izz]) * dzt * half;
+                    zup = zup + beta * (theta[izz + 1] + theta[izz]) * dzt * myhalf;
                     zzz = zzz + dzt;
 
                     if (qtke[iz] < zup && qtke[iz] >= zup_inf) {
@@ -426,7 +426,7 @@ void boulac_length_cc(int kts, int kte,
                 if (izz > kts) {
                     dzt = dz[izz - 1];
                     zdo = zdo + beta * theta[iz] * dzt;
-                    zdo = zdo - beta * (theta[izz - 1] + theta[izz]) * dzt * half;
+                    zdo = zdo - beta * (theta[izz - 1] + theta[izz]) * dzt * myhalf;
                     zzz = zzz + dzt;
 
                     if (qtke[iz] < zdo && qtke[iz] >= zdo_sup) {
@@ -882,7 +882,7 @@ void mym_length_cc(
                      * tau_cloud is an eddy turnover timescale;
                      * see Teixeira and Cheinet (2004), Eq. 1, and
                      * Cheinet and Teixeira (2003), Eq. Real(7.)  The
-                     * coefficient half is tuneable. Expression in
+                     * coefficient myhalf is tuneable. Expression in
                      * denominator is identical to vsc (a convective
                      * velocity scale), except that elt is replaced
                      * by zi, and zero is replaced by Real(1.0e-4) to
@@ -2203,9 +2203,9 @@ void mym_condensation_cc(
 
                 // Specify cloud fraction
                 //Original C-B cloud fraction, allows cloud fractions out to q1 = -Real(3.5)
-                //cldfra_bl1D(K) = max(zero, min(one, half+Real(0.36)*atan(Real(1.55)*q1(k)))) ! Eq. 7 in CB02
+                //cldfra_bl1D(K) = max(zero, min(one, myhalf+Real(0.36)*atan(Real(1.55)*q1(k)))) ! Eq. 7 in CB02
                 //Waynes LES fit  - over-diffuse, when limits removed from vt & vq & fng
-                //cldfra_bl1D(K) = max(zero, min(one, half+Real(0.36)*atan(Real(1.2)*(q1(k)+Real(0.4)))))
+                //cldfra_bl1D(K) = max(zero, min(one, myhalf+Real(0.36)*atan(Real(1.2)*(q1(k)+Real(0.4)))))
                 // Best compromise: Improves marine stratus without adding much cold bias.
                 cldfra_bl1d[k] = std::max(0.0_rt, std::min(1.0_rt, 0.5_rt + 0.36_rt * std::atan(1.8_rt * (q1[k] + 0.2_rt))));
 
@@ -2224,9 +2224,9 @@ void mym_condensation_cc(
                 }
 
                 // In saturated grid cells, use average of SGS and resolved values
-                // if ( qc[k] > Real(1.e-6) ) ql_water = half * ( ql_water + qc[k] )
+                // if ( qc[k] > Real(1.e-6) ) ql_water = myhalf * ( ql_water + qc[k] )
                 // ql_ice is actually the total frozen condensate (snow+ice),
-                // if ( (qi[k]+qs[k]) > Real(1.e-9) ) ql_ice = half * ( ql_ice + (qi[k]+qs[k]) )
+                // if ( (qi[k]+qs[k]) > Real(1.e-9) ) ql_ice = myhalf * ( ql_ice + (qi[k]+qs[k]) )
 
                 if (cldfra_bl1d[k] < 0.001_rt) {
                     ql_ice = 0.0_rt;
@@ -2741,7 +2741,7 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     pblh_tke = std::min(pblh_tke, zi + 350.0_rt);
     pblh_tke = std::max(pblh_tke, std::max(zi - 350.0_rt, 10.0_rt));
 
-    Real wt = 0.5_rt * std::tanh((zi - sbl_lim) / sbl_damp) + half;
+    Real wt = 0.5_rt * std::tanh((zi - sbl_lim) / sbl_damp) + myhalf;
     if (maxqke > Real(0.05)) {
         zi = pblh_tke * (1.0_rt - wt) + zi * wt;
     }
@@ -2850,7 +2850,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + half;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::min(elb / (elb / elt + elb / els + 1.0_rt), elf);
             }
             break;
@@ -2911,7 +2911,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + half;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::min(elb / (elb / elt + elb / els + 1.0_rt), elf);
                 el[k] = el[k] * psig_bl;
             }
@@ -2929,7 +2929,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
             zi2 = std::max(zi, minzi);
             h1 = std::max(0.3_rt * zi2, mindz);
             h1 = std::min(h1, maxdz);
-            h2 = h1 * half;
+            h2 = h1 * myhalf;
             qtke[kts] = std::max(0.5_rt * qke[kts], 0.5_rt*qkemin);
             qkw[kts] = std::sqrt(std::max(qke[kts], qkemin));
             for (k = kts+1; k <= kte; k++) {
@@ -2966,13 +2966,13 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                     elb = std::min(std::max(alp5 * qkw[k], alp6 * edmf_a1[k] * edmf_w1[k]) / bv, zwk);
                     wstar = 1.25_rt * std::pow(gtr * zi * std::max(vflx, 1.0e-4_rt), 1.0_rt / 3.0_rt);
                     tau_cloud = std::min(std::max(ctau * wstar / grav, 30.0_rt), 150.0_rt);
-                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + half;
+                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                     tau_cloud = tau_cloud * (1.0_rt - wt) + 50.0_rt * wt;
                     elf = std::min(std::max(tau_cloud * std::sqrt(std::min(qtke[k], 40.0_rt)), alp6 * edmf_a1[k] * edmf_w1[k] / bv), zwk);
                 } else {
                     wstar = 1.25_rt * std::pow(gtr * zi * std::max(vflx, 1.0e-4_rt), 1.0_rt / 3.0_rt);
                     tau_cloud = std::min(std::max(ctau * wstar / grav, 50.0_rt), 200.0_rt);
-                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + half;
+                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                     tau_cloud = tau_cloud * (1.0_rt - wt) + std::max(Real(100.0), dzk * fourth) * wt;
                     elb = std::min(tau_cloud * std::sqrt(std::min(qtke[k], 40.0_rt)), zwk);
                     elf = elb;
@@ -2985,7 +2985,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + half;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::sqrt(els * els / (1.0_rt + (els * els / elt * elt) + (els * els / elb_mf * elb_mf)));
                 el[k] = el[k] * (1.0_rt - wt) + elf * wt;
                 el_les = std::min(els / (1.0_rt + (els / 12.0_rt)), elb_mf);
@@ -3044,7 +3044,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     Real envm_u[kte+1+1],envm_v[kte+1+1],envm_sqc[kte+1+1],envm_thl[kte+1+1],envm_sqv[kte+1+1];
     bool superadiabatic;
     Real sigq, xl, rsl, cpm, a, qmq, mf_cf, aup, q1, diffqt, qsat_tk, fng, qww, alpha, beta, bb, f, pt, t, q2p, b9, satvp, rhgrid, ac_mf, ac_strat, qc_mf;
-    Real cf_thresh = half;
+    Real cf_thresh = myhalf;
     Real exneri[kte+1], dzi[kte+1], rhoz[kte+1];
     Real thp, qtp, qcp, qcs, esat, qsl;
     Real csigma, acfac, ac_wsp;
@@ -3979,7 +3979,7 @@ void mym_turbulence_cc(
         pdk[k] = elq * (sm[k] * gm[k] + sh[k] * gh[k] + gamv) + 0.5_rt * TKEprodTD[k];
         pdt[k] = elh * (sh[k] * dtl[k] + gamt) * dtl[k];
         pdq[k] = elh * (sh[k] * dqw[k] + gamq) * dqw[k];
-        pdc[k] = elh * (sh[k] * dtl[k] + gamt) * dqw[k] * 0.5_rt + elh * (sh[k] * dqw[k] + gamq) * dtl[k] * half;
+        pdc[k] = elh * (sh[k] * dtl[k] + gamt) * dqw[k] * 0.5_rt + elh * (sh[k] * dqw[k] + gamq) * dtl[k] * myhalf;
 
         // Countergradient terms
         tcd[k] = elq * gamt;
@@ -4041,7 +4041,7 @@ void mym_turbulence_cc(
 //                                    flt=-u_*Theta_*             (K m/s)
 //                                    flq=-u_*qw_*            (kg/kg m/s)
 //       ust(nx)         : Friction velocity                        (m/s)
-//       pmz(nx)         : phi_m-zeta at z1*h+z0, where z1 (=half*dz(1))
+//       pmz(nx)         : phi_m-zeta at z1*h+z0, where z1 (=myhalf*dz(1))
 //                         is the first grid point above the surafce, z0
 //                         the roughness length and zeta=(z1*h+z0)*rmo
 //       phh(nx)         : phi_h at z1*h+z0
@@ -4129,7 +4129,7 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
             pdc[k] = elq * sh[k] * dtl[k] * dqw[k];
         }
 
-        // ** Strictly, vkz*h[i,j] -> karman*( half*dz[0]*h[i,j]+z0 ) **
+        // ** Strictly, vkz*h[i,j] -> karman*( myhalf*dz[0]*h[i,j]+z0 ) **
         vkz = karman * 0.5_rt * dz[kts];
         elv = 0.5_rt * (el[kts + 1] + el[kts]) / vkz;
         if (INITIALIZE_QKE==1) {
@@ -4271,7 +4271,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
                 Real fac = (sbx.contains(i,j,k)) ? one : zero;
-                const Real Zval = gdata.ProbLo(2) + (k + half)*gdata.CellSize(2);
+                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
             });
@@ -4338,7 +4338,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             AMREX_ASSERT(l_obukhov != 0);
             int lk = amrex::max(k,0);
             const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
-                                          : gdata.ProbLo(2) + (lk + half)*gdata.CellSize(2);
+                                          : gdata.ProbLo(2) + (lk + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
@@ -4375,7 +4375,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // Master length scale
             Real Lm;
             if (mynn.config == MYNNConfigType::CHEN2021) {
-                Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -half);
+                Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
                 Lm = one / (one/l_S + one/l_T + one/l_B);

@@ -22,8 +22,8 @@
 
     Real aval = pert_periods_U * two * PI / (probhi[1] - problo[1]);
     Real bval = pert_periods_V * two * PI / (probhi[0] - problo[0]);
-    Real ufac = pert_deltaU * std::exp(half) / pert_ref_height;
-    Real vfac = pert_deltaV * std::exp(half) / pert_ref_height;
+    Real ufac = pert_deltaU * std::exp(myhalf) / pert_ref_height;
+    Real vfac = pert_deltaV * std::exp(myhalf) / pert_ref_height;
 
     if (pert_ref_height > 0) {
         if ((pert_deltaU != zero) || (pert_deltaV != zero)) {
@@ -43,10 +43,10 @@
     ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real y = prob_lo[1] + (j + half) * dx[1];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = (z_nd) ? fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                      + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
-                                   : prob_lo[2] + (k + half) * dx[2];
+                                   : prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = U_0;
@@ -60,7 +60,7 @@
         {
             const amrex::Real yl = y - prob_lo[1];
             const amrex::Real zl = z / pert_ref_height;
-            const amrex::Real damp = std::exp(-half * zl * zl);
+            const amrex::Real damp = std::exp(-myhalf * zl * zl);
             x_vel_pert(i, j, k) += ufac * damp * z * std::cos(aval * yl);
         }
     });
@@ -70,10 +70,10 @@
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real z = (z_nd) ? fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                      + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
-                                   : prob_lo[2] + (k + half) * dx[2];
+                                   : prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = V_0;
@@ -87,7 +87,7 @@
         {
             const amrex::Real xl = x - prob_lo[0];
             const amrex::Real zl = z / pert_ref_height;
-            const amrex::Real damp = std::exp(-half * zl * zl);
+            const amrex::Real damp = std::exp(-myhalf * zl * zl);
             y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
         }
     });

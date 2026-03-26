@@ -5,9 +5,9 @@
     Real rho_0 = one; pp.query("rho_0", rho_0);
 
     // Location of "center" of scalar (multiplies domain length)
-    Real xc_frac = half; pp.query("xc_frac", xc_frac);
-    Real yc_frac = half; pp.query("yc_frac", yc_frac);
-    Real zc_frac = half; pp.query("zc_frac", zc_frac);
+    Real xc_frac = myhalf; pp.query("xc_frac", xc_frac);
+    Real yc_frac = myhalf; pp.query("yc_frac", yc_frac);
+    Real zc_frac = myhalf; pp.query("zc_frac", zc_frac);
 
     int prob_type = -1;
     pp.query("prob_type", prob_type);
@@ -25,9 +25,9 @@
         const Real* prob_hi = geomdata.ProbHi();
         const Real* dx = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + half) * dx[0];
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = xc_frac * (prob_lo[0] + prob_hi[0]);
@@ -51,7 +51,7 @@
         } else if (prob_type == 11) {
             if (r2d_xz_nd < one)
             {
-                state_pert(i, j, k, RhoScalar_comp) = half * A_0 * (one + std::cos(PI*r2d_xz_nd));
+                state_pert(i, j, k, RhoScalar_comp) = myhalf * A_0 * (one + std::cos(PI*r2d_xz_nd));
             }
         } else {
             // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere

@@ -14,10 +14,10 @@
 
     // Staggered rho via linear interpolation
     Vector<Real> rho_stag(khi+2, zero);
-    rho_stag[0]     = amrex::Real(1.5)*rho_h[0]   - half*rho_h[1];
-    rho_stag[khi+1] = amrex::Real(1.5)*rho_h[khi] - half*rho_h[khi-1];
+    rho_stag[0]     = amrex::Real(1.5)*rho_h[0]   - myhalf*rho_h[1];
+    rho_stag[khi+1] = amrex::Real(1.5)*rho_h[khi] - myhalf*rho_h[khi-1];
     for (int k = 1; k <= khi; k++) {
-        rho_stag[k] = half*(rho_h[k-1]+rho_h[k]);
+        rho_stag[k] = myhalf*(rho_h[k-1]+rho_h[k]);
     }
 
     // Sinusoidal mass flux: w = 2*sin(pi*t/600)/rho for t < 600

@@ -65,9 +65,9 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = half * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + half)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -88,9 +88,9 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = half * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + half)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       Real thv = h_avg_th[k] * (1 + Real(0.61)*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
@@ -143,9 +143,9 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = half * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + half)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -297,7 +297,7 @@ ERF::derive_diag_profiles(Real /*time*/,
             Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
             Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
             Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
-            fab_arr(i, j, k, 3) = half * (upert*upert + vpert*vpert + wpert*wpert);
+            fab_arr(i, j, k, 3) = myhalf * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
@@ -531,9 +531,9 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
                                 / (   rho_arr(i,j,k  ) +   rho_arr(i,j+1,k  )
                                   +   rho_arr(i,j,k+1) +   rho_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 6) = half * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 7) = (l_use_moist) ? half * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
-            fab_arr(i, j, k, 8) = (l_use_moist) ? half * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
+            fab_arr(i, j, k, 6) = myhalf * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 7) = (l_use_moist) ? myhalf * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
+            fab_arr(i, j, k, 8) = (l_use_moist) ? myhalf * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
             fab_arr(i, j, k, 9) =  diss_arr(i,j,k) / rho_arr(i,j,k);
         });
     }

@@ -191,7 +191,7 @@ lagrange_setup (char var_type,
                 // Assume a standard atmosphere -amrex::Real(6.5) K km-1 lapse rate.
                 // Comparable to the WRF default, t_extrap_type=two
                 amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[0];
-                amrex::Real avg_of_extrap_p = half*(new_x_p[new_k]+orig_x_p[0]);
+                amrex::Real avg_of_extrap_p = myhalf*(new_x_p[new_k]+orig_x_p[0]);
                 amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), R_d/Cp_d);
                 amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/amrex::Real(100.0), CRC_const2-one);
                 amrex::Real dZ = dZdP*(depth_of_extrap_in_p/amrex::Real(100.0));
@@ -341,7 +341,7 @@ lagrange_setup (char var_type,
 #endif
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
-                new_y[new_k] = half*(new_y_l+new_y_r);
+                new_y[new_k] = myhalf*(new_y_l+new_y_r);
             } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
@@ -519,7 +519,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
             } else if (i >= imax_orig) {
                 orig_z_p[k] = orig_z_full(imax_orig-1,j,k);
             } else {
-                orig_z_p[k] = half*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
+                orig_z_p[k] = myhalf*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
             }
         } else if (stag == 'Y') {
             if (j <= jmin_orig) {
@@ -527,7 +527,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
             } else if (j >= jmax_orig) {
                 orig_z_p[k] = orig_z_full(i,jmax_orig-1,k);
             } else {
-                orig_z_p[k] = half*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
+                orig_z_p[k] = myhalf*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
             }
         }
     }
@@ -804,7 +804,7 @@ interpolate_column_metgrid_linear (const int& i,
                 orig_z_stag = orig_z(imax_orig-1,j,kk);
             }
             else {
-                orig_z_stag = half*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
+                orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
             }
         }
         else if (stag == 'Y') {
@@ -815,7 +815,7 @@ interpolate_column_metgrid_linear (const int& i,
                 orig_z_stag = orig_z(i,jmax_orig-1,kk);
             }
             else {
-                orig_z_stag = half*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
+                orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
             }
         }
 
@@ -849,7 +849,7 @@ interpolate_column_metgrid_linear (const int& i,
                     orig_z_stag = orig_z(imax_orig-1,j,kk);
                 }
                 else {
-                    orig_z_stag = half*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
+                    orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
                 }
             }
             else if (stag == 'Y') {
@@ -860,7 +860,7 @@ interpolate_column_metgrid_linear (const int& i,
                     orig_z_stag = orig_z(i,jmax_orig-1,kk);
                 }
                 else {
-                    orig_z_stag = half*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
+                    orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
                 }
             }
             amrex::Real dz = z - orig_z_stag;
@@ -889,7 +889,7 @@ interpolate_column_metgrid_linear (const int& i,
                 z0 = orig_z(imax_orig-1,j,khi0);
             }
             else {
-                z0 = half*(orig_z(i,j,khi0)+orig_z(i-1,j,khi0));
+                z0 = myhalf*(orig_z(i,j,khi0)+orig_z(i-1,j,khi0));
             }
         }
         else if (stag == 'Y') {
@@ -900,7 +900,7 @@ interpolate_column_metgrid_linear (const int& i,
                 z0 = orig_z(i,jmax_orig-1,khi0);
             }
             else {
-                z0 = half*(orig_z(i,j,khi0)+orig_z(i,j-1,khi0));
+                z0 = myhalf*(orig_z(i,j,khi0)+orig_z(i,j-1,khi0));
             }
         }
         amrex::Real y0 = orig_data(i,j,khi0,src_comp);

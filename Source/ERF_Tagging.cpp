@@ -349,8 +349,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const auto dx      = geom[levc].CellSizeArray();
                 const auto prob_lo = geom[levc].ProbLoArray();
 
-                Real eye_x = prob_lo[0] + (eye[0] + half) * dx[0];
-                Real eye_y = prob_lo[1] + (eye[1] + half) * dx[1];
+                Real eye_x = prob_lo[0] + (eye[0] + myhalf) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + myhalf) * dx[1];
 
                 tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
             }
@@ -783,15 +783,15 @@ ERF::FindInitialEye(int levc,
 
             magnitude *= Real(3.6);
 
-            Real z = prob_lo[2] + (k + half) * dx[2];
+            Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             // Check if magnitude exceeds threshold
             if (z < Real(2000.) && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
 
-                Real x = prob_lo[0] + (i + half) * dx[0];
-                Real y = prob_lo[1] + (j + half) * dx[1];
+                Real x = prob_lo[0] + (i + myhalf) * dx[0];
+                Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
@@ -841,8 +841,8 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             // Compute cell center coordinates
-            Real x = prob_lo[0] + (i + half) * dx[0];
-            Real y = prob_lo[1] + (j + half) * dx[1];
+            Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 

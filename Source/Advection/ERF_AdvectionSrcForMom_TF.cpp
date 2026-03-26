@@ -102,10 +102,10 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real xflux_hi = fourth * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i+1,j,k) * mf_uy_inv(i+1,j,0)) *
-                                       (u(i+1,j,k) + u(i,j,k)) * half * (ax(i,j,k) + ax(i+1,j,k));
+                                       (u(i+1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i+1,j,k));
 
                 Real xflux_lo = fourth * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i-1,j,k) * mf_uy_inv(i-1,j,0)) *
-                                       (u(i-1,j,k) + u(i,j,k)) * half * (ax(i,j,k) + ax(i-1,j,k));
+                                       (u(i-1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i-1,j,k));
 
                 Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterK(i,j+1,k,cellSizeInv,z_nd);
                 Real yflux_hi = fourth * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i-1,j+1,k)*mf_vx_inv(i-1,j+1,0)) *
@@ -116,16 +116,16 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
                                        (u(i,j-1,k) + u(i,j,k)) * met_h_zeta_ylo;
 
                 Real zflux_hi = fourth * (Omega(i,j,k+1) + Omega(i-1,j,k+1)) * (u(i,j,k+1) + u(i,j,k)) *
-                                        half * (az(i,j,k+1) + az(i-1,j,k+1));
+                                        myhalf * (az(i,j,k+1) + az(i-1,j,k+1));
                 Real zflux_lo = fourth * (Omega(i,j,k  ) + Omega(i-1,j,k  )) * (u(i,j,k-1) + u(i,j,k)) *
-                                        half * (az(i,j,k  ) + az(i-1,j,k  ));
+                                        myhalf * (az(i,j,k  ) + az(i-1,j,k  ));
 
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_u_rhs(i, j, k) = -advectionSrc / (half * (detJ(i,j,k) + detJ(i-1,j,k)));
+                rho_u_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i-1,j,k)));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -139,22 +139,22 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
                                        (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
 
                 Real yflux_hi = fourth * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i,j  ,k) * mf_vx_inv(i,j  ,0)) *
-                                       (v(i,j+1,k) + v(i,j,k)) * half * (ay(i,j,k) + ay(i,j+1,k));
+                                       (v(i,j+1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j+1,k));
 
                 Real yflux_lo = fourth * (rho_v(i,j  ,k)*mf_vx_inv(i,j  ,0) + rho_v(i,j-1,k) * mf_vx_inv(i,j-1,0)) *
-                                       (v(i,j-1,k) + v(i,j,k)) * half * (ay(i,j,k) + ay(i,j-1,k));
+                                       (v(i,j-1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j-1,k));
 
                 Real zflux_hi = fourth * (Omega(i,j,k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) *
-                                        half * (az(i,j,k+1) + az(i,j-1,k+1));
+                                        myhalf * (az(i,j,k+1) + az(i,j-1,k+1));
                 Real zflux_lo = fourth * (Omega(i,j,k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) *
-                                        half * (az(i,j,k  ) + az(i,j-1,k  ));
+                                        myhalf * (az(i,j,k  ) + az(i,j-1,k  ));
 
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_v_rhs(i, j, k) = -advectionSrc / (half * (detJ(i,j,k) + detJ(i,j-1,k)));
+                rho_v_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i,j-1,k)));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -178,14 +178,14 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real zflux_hi = (k == hi_z_face) ? Omega(i,j,k) * w(i,j,k)  * az(i,j,k):
                     fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
-                    half  * (az(i,j,k) + az(i,j,k+1));
+                    myhalf  * (az(i,j,k) + az(i,j,k+1));
 
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_w_rhs(i, j, k) = -advectionSrc / (half*(detJ(i,j,k) + detJ(i,j,k-1)));
+                rho_w_rhs(i, j, k) = -advectionSrc / (myhalf*(detJ(i,j,k) + detJ(i,j,k-1)));
             });
 
     // Template higher order methods

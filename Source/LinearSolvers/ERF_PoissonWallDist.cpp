@@ -49,7 +49,7 @@ void ERF::poisson_wall_dist (int lev)
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    dist_arr(i, j, k) = prob_lo[2] + (k + half) * dx[2];
+                    dist_arr(i, j, k) = prob_lo[2] + (k + myhalf) * dx[2];
                 });
             }
             return;

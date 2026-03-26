@@ -54,7 +54,7 @@ ComputeDiffusivityMYJ (Real dt,
     Real BETA    = one/Real(273.);
     Real EL0MAX  = Real(1000.);
     Real EL0MIN  = one;
-    Real ELFC    = Real(0.23)*half;
+    Real ELFC    = Real(0.23)*myhalf;
 
     Real A1  =  Real(0.659888514560862645);
     Real A2x =  Real(0.6574209922667784586);
@@ -184,7 +184,7 @@ ComputeDiffusivityMYJ (Real dt,
                 // Perform integral over PBL height
                 for (int k(klo); k<=k_arr(i,j,0); ++k) {
                     // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
-                    const Real Zval = gdata.ProbLo(2) + (k + half)*gdata.CellSize(2);
+                    const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                     Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                     Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
                 }
@@ -228,14 +228,14 @@ ComputeDiffusivityMYJ (Real dt,
                     } else {
                       Real AUBR   = (AUBM*GML+AUBH*GHL)*GHL;
                       Real BUBR   = BUBM*GML+BUBH*GHL;
-                      Real QOL2ST = (-half*BUBR+std::sqrt(BUBR*BUBR*fourth-AUBR*CUBR))*RCUBR;
+                      Real QOL2ST = (-myhalf*BUBR+std::sqrt(BUBR*BUBR*fourth-AUBR*CUBR))*RCUBR;
                       Real ELOQ2X = one/QOL2ST;
                       ELM = std::max(std::sqrt(ELOQ2X*qvel(i,j,k)*qvel(i,j,k)),EPSL);
                     }
                 } else {
                     Real ADEN   = (ADNM*GML+ADNH*GHL)*GHL;
                     Real BDEN   = BDNM*GML+BDNH*GHL;
-                    Real QOL2UN = -half*BDEN+std::sqrt(BDEN*BDEN*fourth-ADEN);
+                    Real QOL2UN = -myhalf*BDEN+std::sqrt(BDEN*BDEN*fourth-ADEN);
                     Real ELOQ2X = one/(QOL2UN+EPSRU);
                     ELM = std::max(std::sqrt(ELOQ2X*qvel(i,j,k)*qvel(i,j,k)),EPSL);
                 }
@@ -246,7 +246,7 @@ ComputeDiffusivityMYJ (Real dt,
                     L = std::min((met_h_zeta/dxInv[2])*ELFC, ELM);
                 } else {
                     const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                                                : gdata.ProbLo(2) + (k + half)*gdata.CellSize(2);
+                                                                : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                     L = std::min(l0*d_kappa*zval / (d_kappa*zval + l0), ELM);
                 }
 
@@ -254,7 +254,7 @@ ComputeDiffusivityMYJ (Real dt,
                 Real AEQU  = (AEQM*GML+AEQH*GHL)*GHL;
                 Real BEQU  = BEQM*GML+BEQH*GHL;
 
-                Real EQOL2 = -half*BEQU+std::sqrt(BEQU*BEQU*fourth-AEQU);
+                Real EQOL2 = -myhalf*BEQU+std::sqrt(BEQU*BEQU*fourth-AEQU);
 
                 if ( ((GML+GHL*GHL)<=EPSTRB) ||
                      ((GHL>=EPSGH) && ((GML/GHL)<=REQU)) ||
@@ -314,10 +314,10 @@ ComputeDiffusivityMYJ (Real dt,
                 if (k==klo) {
                     Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
                     Real q  = std::max(std::sqrt(q2),EPSQ1);
-                    qvel(i,j,k) = half * (q + qvel(i,j,k));
+                    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
                 }
                 */
-                cell_data(i,j,k,RhoKE_comp) = half*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
+                cell_data(i,j,k,RhoKE_comp) = myhalf*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
 
                 // L^n/Q^n
                 Real ELOQ2 = L*L/(qvel(i,j,k)*qvel(i,j,k));

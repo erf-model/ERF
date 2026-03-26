@@ -95,7 +95,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
                 Real fac = (sbx.contains(i,j,k)) ? one : zero;
-                const Real Zval = gdata.ProbLo(2) + (k + half)*gdata.CellSize(2);
+                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
             });
@@ -163,7 +163,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             AMREX_ASSERT(l_obukhov != 0);
             int lk = amrex::max(k,0);
             const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
-                                          : gdata.ProbLo(2) + (lk + half)*gdata.CellSize(2);
+                                          : gdata.ProbLo(2) + (lk + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
@@ -200,7 +200,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Master length scale
             Real Lm;
             if (mynn.config == MYNNConfigType::CHEN2021) {
-                Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -half);
+                Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
                 Lm = one / (one/l_S + one/l_T + one/l_B);

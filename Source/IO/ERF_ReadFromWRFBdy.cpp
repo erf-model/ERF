@@ -126,7 +126,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // NOTE: the order and number of these must match the WRFBdyVars enum!
     // WRFBdyVars:  U, V, R, T, QV, MU, PC
     //
-    // These fields are at half levels (unstaggered)
+    // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
     Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
@@ -540,7 +540,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
                 } else {
                     xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * half;
+                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
@@ -559,7 +559,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
                 } else {
                     xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * half;
+                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;

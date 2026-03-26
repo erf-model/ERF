@@ -151,7 +151,7 @@ public:
             U_inp_sound[itime][0]     = U_inp_sound_tmp[0];
             V_inp_sound[itime][0]     = V_inp_sound_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sound[itime][k+1] = half * (zlevels_stag[k] + zlevels_stag[k+1]);
+                z_inp_sound[itime][k+1] = myhalf * (zlevels_stag[k] + zlevels_stag[k+1]);
                 theta_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
                    qv_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
                     U_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
@@ -222,7 +222,7 @@ public:
 
             // Establish known constant
             rho_tot_lo = rhod_integ[k-1] * (one + qv_inp_sound[itime][k-1]);
-            C  = -pm_integ[k-1] + half*rho_tot_lo*CONST_GRAV*dz;
+            C  = -pm_integ[k-1] + myhalf*rho_tot_lo*CONST_GRAV*dz;
 
             // Initial guess and residual
             pm_integ[k]   = pm_integ[k-1];
@@ -231,7 +231,7 @@ public:
                                                   R_d/Cp_d,
                                                   qv_inp_sound[itime][k]);
             rho_tot_hi = rhod_integ[k] * (one + qv_inp_sound[itime][k]);
-            F = pm_integ[k] + half*rho_tot_hi*CONST_GRAV*dz + C;
+            F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
             if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -302,7 +302,7 @@ public:
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
 
             // Isentropic pressure at next level
-            amrex::Real qvmean = (assume_dry) ? zero : half*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
+            amrex::Real qvmean = (assume_dry) ? zero : myhalf*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
             amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
             amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
             pm_integ[k] = (Gamma-1)/Gamma *

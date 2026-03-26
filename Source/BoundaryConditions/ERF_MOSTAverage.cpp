@@ -409,7 +409,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
     if (!read_z && !read_k) {
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
-        zref_tmp = m_zlo + half * m_dz;
+        zref_tmp = m_zlo + myhalf * m_dz;
         m_zref[lev]->setVal( zref_tmp );
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
@@ -423,13 +423,13 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
         amrex::ignore_unused(m_zhi);
 
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + half * m_dz,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
                                          "Query point must be past first z-cell!");
 
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - half * m_dz,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
                                          "Query point must be below the last z-cell!");
 
-        int lk = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - half));
+        int lk = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
 
         m_zref[lev]->setVal( (lk + 0.5) * m_dz + m_zlo );
 
@@ -514,7 +514,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                          "K index must be larger than averaging radius!");
                         k_arr(i,j,0) = lk;
-                        zref_arr(i,j,0) = half * (z_hi + z_lo) - z_bot_face;
+                        zref_arr(i,j,0) = myhalf * (z_hi + z_lo) - z_bot_face;
                         found = true;
                         break;
                     }
@@ -596,7 +596,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
                                       + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
-            zref_arr(i,j,0)  = half * z_bot_face +
+            zref_arr(i,j,0)  = myhalf * z_bot_face +
                                Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                        + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             for (int lk(klo); lk<=kmax; ++lk) {
@@ -609,7 +609,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
                                                      "K index must be larger than averaging radius!");
                     amrex::ignore_unused(d_radius);
                     k_arr(i,j,0) = lk;
-                    zref_arr(i,j,0) = half * (z_hi + z_lo) - z_bot_face;
+                    zref_arr(i,j,0) = myhalf * (z_hi + z_lo) - z_bot_face;
                     break;
                 }
             }
@@ -665,14 +665,14 @@ MOSTAverage::set_z_positions_T (const int& lev)
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Final position at end of vector
-            x_pos_arr(i,j,0) = plo[0] + ((Real) i + half) * dx[0];
-            y_pos_arr(i,j,0) = plo[1] + ((Real) j + half) * dx[1];
+            x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf) * dx[0];
+            y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf) * dx[1];
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                       + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],half*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
                                              "Query point outside of proc domain!");
@@ -737,8 +737,8 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             Real delta_z =              imag * d_zref;
 
             // Position of the current node (indx:0,0,1)
-            Real x0 = plo[0] + ((Real) i + half) * dx[0];
-            Real y0 = plo[1] + ((Real) j + half) * dx[1];
+            Real x0 = plo[0] + ((Real) i + myhalf) * dx[0];
+            Real y0 = plo[1] + ((Real) j + myhalf) * dx[1];
 
             // Final position at end of vector
             x_pos_arr(i,j,0) = x0 + delta_x;
@@ -749,8 +749,8 @@ MOSTAverage::set_norm_positions_T (const int& lev)
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
             //       Here we protect against that by augmenting the normal if needed.
-            int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - half);
-            int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - half);
+            int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
+            int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf);
             Real z_new_bot_face = fourth * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
                                          + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
             if (z_pos_arr(i,j,0) < z_new_bot_face) {
@@ -760,7 +760,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             zref_arr(i,j,0) = delta_z;
 
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],half*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
                                               "Query point outside of proc domain!");
@@ -1072,8 +1072,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     int mk = k_arr(i,j,0);
                     int mj = j_arr ? j_arr(i,j,0) : j;
                     int mi = i_arr ? i_arr(i,j,0) : i;
-                    const Real u_val = half * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
-                    const Real v_val = half * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
+                    const Real u_val = myhalf * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
+                    const Real v_val = myhalf * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
                     const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1396,8 +1396,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                     for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
                       for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
-                            const Real u_val = half * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
-                            const Real v_val = half * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
+                            const Real u_val = myhalf * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
+                            const Real v_val = myhalf * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
                             const Real mag   = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                             Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,0) += val;

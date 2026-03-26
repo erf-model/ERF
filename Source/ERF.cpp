@@ -275,12 +275,12 @@ ERF::ERF_shared ()
             if (massflux_zlo == -1e34) {
                 solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
             } else {
-                solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - half));
+                solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - myhalf));
             }
             if (massflux_zhi ==  1e34) {
                 solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
             } else {
-                solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - half));
+                solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - myhalf));
             }
         } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo;
@@ -562,10 +562,10 @@ ERF::ERF_shared ()
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
-            const Real xcen = half * (ProbLoArr[0] + ProbHiArr[0]);
-            const Real ycen = half * (ProbLoArr[1] + ProbHiArr[1]);
+            const Real xcen = myhalf * (ProbLoArr[0] + ProbHiArr[0]);
+            const Real ycen = myhalf * (ProbLoArr[1] + ProbHiArr[1]);
             RealArray sphere_center = {xcen, ycen, zero};
-            EB2::SphereIF implicit_fun(half, sphere_center, false);
+            EB2::SphereIF implicit_fun(myhalf, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
                 EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,

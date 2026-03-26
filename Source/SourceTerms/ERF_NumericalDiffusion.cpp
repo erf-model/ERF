@@ -36,28 +36,28 @@ NumericalDiffusion_Scal (const Box& bx,
     {
         int n   = start_comp + m;     // conserved index
         int nm1 = (n==0) ? 0 : n - 1; // prim index
-        Real rho_x_lo = (n==0) ? one : half * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
+        Real rho_x_lo = (n==0) ? one : myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
         Real xflux_lo = rho_x_lo * calc_fifth_order_deriv(prim_data(i+2,j,k,nm1), prim_data(i+1,j,k,nm1),
                                                           prim_data(i  ,j,k,nm1), prim_data(i-1,j,k,nm1),
                                                           prim_data(i-2,j,k,nm1), prim_data(i-3,j,k,nm1));
         if ( (xflux_lo * (prim_data(i,j,k,nm1) - prim_data(i-1,j,k,nm1)) ) < zero) xflux_lo = zero;
 
 
-        Real rho_x_hi = (n==0) ? one : half * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
+        Real rho_x_hi = (n==0) ? one : myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
         Real xflux_hi = rho_x_hi * calc_fifth_order_deriv(prim_data(i+3,j,k,nm1), prim_data(i+2,j,k,nm1),
                                                           prim_data(i+1,j,k,nm1), prim_data(i  ,j,k,nm1),
                                                           prim_data(i-1,j,k,nm1), prim_data(i-2,j,k,nm1));
         if ( (xflux_hi * (prim_data(i+1,j,k,nm1) - prim_data(i,j,k,nm1)) ) < zero) xflux_hi = zero;
 
 
-        Real rho_y_lo = (n==0) ? one : half * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
+        Real rho_y_lo = (n==0) ? one : myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
         Real yflux_lo = rho_y_lo * calc_fifth_order_deriv(prim_data(i,j+2,k,nm1), prim_data(i,j+1,k,nm1),
                                                           prim_data(i,j  ,k,nm1), prim_data(i,j-1,k,nm1),
                                                           prim_data(i,j-2,k,nm1), prim_data(i,j-3,k,nm1));
         if ( (yflux_lo * (prim_data(i,j,k,nm1) - prim_data(i,j-1,k,nm1)) ) < zero) yflux_lo = zero;
 
 
-        Real rho_y_hi = (n==0) ? one : half * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
+        Real rho_y_hi = (n==0) ? one : myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
         Real yflux_hi = rho_y_hi * calc_fifth_order_deriv(prim_data(i,j+3,k,nm1), prim_data(i,j+2,k,nm1),
                                                           prim_data(i,j+1,k,nm1), prim_data(i,j  ,k,nm1),
                                                           prim_data(i,j-1,k,nm1), prim_data(i,j-2,k,nm1));

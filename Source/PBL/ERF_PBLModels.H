@@ -205,7 +205,7 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                               + three * GetThetav(i,j,k  ,cell_data,moisture_indices)
                               - amrex::Real(4.0) * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     } else {
-        dthetadz = half*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
+        dthetadz = myhalf*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
                         - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     }
 
@@ -282,7 +282,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   moisture_indices);
 
     // Notes:
-    // - We transport TKE = half*QKE rather than QKE, so the RHS terms do not
+    // - We transport TKE = myhalf*QKE rather than QKE, so the RHS terms do not
     //   have a factor of two.
     // - Transport terms due to turbulence and pressure are included when
     //   DiffusionSrcForState_* is called from ERF_slow_rhs_post.

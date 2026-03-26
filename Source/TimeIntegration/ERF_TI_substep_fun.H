@@ -217,8 +217,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                               + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
                               + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
                         } else {
-                            // dz = half * (dz[i,j,k] + dz[i,j,k+1])
-                            //    = half * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
+                            // dz = myhalf * (dz[i,j,k] + dz[i,j,k+1])
+                            //    = myhalf * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
                             dzInv = amrex::Real(8.0) / (
                                 z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
                               + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
@@ -233,7 +233,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                                   ? w_damping_const
                                   : w_damping_coeff / (dzInv * dt_advance * dt_advance);
 
-                    Real rho_on_w_face = half * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt

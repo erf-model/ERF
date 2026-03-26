@@ -121,7 +121,7 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     m_line_xcentroid.resize(m_ncell_line);
 
     for (int i = 0; i < m_ncell_line; ++i) {
-       m_line_xcentroid[i] = m_xlo + (i + half) * m_dx;
+       m_line_xcentroid[i] = m_xlo + (i + myhalf) * m_dx;
     }
 }
 
@@ -133,9 +133,9 @@ PlaneAverage::line_average_interpolated (amrex::Real x, int comp) const
     amrex::Real c = zero;
     int ind = 0;
 
-    if (x > m_xlo + half * m_dx) {
-        ind = static_cast<int>(floor((x - m_xlo) / m_dx - half));
-        const amrex::Real x1 = m_xlo + (ind + half) * m_dx;
+    if (x > m_xlo + myhalf * m_dx) {
+        ind = static_cast<int>(floor((x - m_xlo) / m_dx - myhalf));
+        const amrex::Real x1 = m_xlo + (ind + myhalf) * m_dx;
         c = (x - x1) / m_dx;
     }
 

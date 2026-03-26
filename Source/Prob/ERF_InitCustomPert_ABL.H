@@ -30,9 +30,9 @@
     const Real prob_hi_z = geomdata.ProbHi(2);
 
     // Define a point (xc,yc,zc) at the center of the domain
-    const Real xc = half * (prob_lo_x + prob_hi_x);
-    const Real yc = half * (prob_lo_y + prob_hi_y);
-    const Real zc = half * (prob_lo_z + prob_hi_z);
+    const Real xc = myhalf * (prob_lo_x + prob_hi_x);
+    const Real yc = myhalf * (prob_lo_y + prob_hi_y);
+    const Real zc = myhalf * (prob_lo_z + prob_hi_z);
 
     if (KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
@@ -54,8 +54,8 @@
 
     ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
-        const Real x = prob_lo_x + (i + half) * dx;
-        const Real y = prob_lo_y + (j + half) * dy;
+        const Real x = prob_lo_x + (i + myhalf) * dx;
+        const Real y = prob_lo_y + (j + myhalf) * dy;
         const Real z = z_cc(i,j,k);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));

@@ -112,8 +112,8 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             if(k == 0) {
-                const Real x        = prob_lo[0] + (i + half) * dx[0];
-                const Real y        = prob_lo[1] + (j + half) * dx[1];
+                const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+                const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // First interpolate where the weather data is available from
                 Real tmp_ls_mask, tmp_sst;

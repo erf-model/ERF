@@ -47,8 +47,8 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + half)*dx[0];
-                    Real y = plo[1] + (j + half)*dx[1];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
                     Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
@@ -70,9 +70,9 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + half)*dx[0];
-                    Real y = plo[1] + (j + half)*dx[1];
-                    Real z = plo[2] + (k + half)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
                     if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
@@ -113,8 +113,8 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + half)*dx[0];
-                    Real y = plo[1] + (j + half)*dx[1];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
                     Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
@@ -147,9 +147,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + half)*dx[0];
-                    Real y = plo[1] + (j + half)*dx[1];
-                    Real z = plo[2] + (k + half)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
 
                     // Extract bubble params
                     const auto& x_c = a_bubble.lo();       // center
@@ -445,9 +445,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                             p.pos(1) = pdomain.lo(1) + Random(rnd_engine) * (pdomain.hi(1) - pdomain.lo(1));
                             p.pos(2) = pdomain.lo(2) + Random(rnd_engine) * (pdomain.hi(2) - pdomain.lo(2));
                         } else {
-                            p.pos(0) = pdomain.lo(0) + half * (pdomain.hi(0) - pdomain.lo(0));
-                            p.pos(1) = pdomain.lo(1) + half * (pdomain.hi(1) - pdomain.lo(1));
-                            p.pos(2) = pdomain.lo(2) + half * (pdomain.hi(2) - pdomain.lo(2));
+                            p.pos(0) = pdomain.lo(0) + myhalf * (pdomain.hi(0) - pdomain.lo(0));
+                            p.pos(1) = pdomain.lo(1) + myhalf * (pdomain.hi(1) - pdomain.lo(1));
+                            p.pos(2) = pdomain.lo(2) + myhalf * (pdomain.hi(2) - pdomain.lo(2));
                         }
                     } else if (itype == SDInitShape::bubble) {
                         if (random_place) {
@@ -477,9 +477,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                         p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
                         p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
                     } else {
-                        p.pos(0) = plo[0] + (i + half)*dx[0];
-                        p.pos(1) = plo[1] + (j + half)*dx[1];
-                        p.pos(2) = plo[2] + (k + half)*dx[2];
+                        p.pos(0) = plo[0] + (i + myhalf)*dx[0];
+                        p.pos(1) = plo[1] + (j + myhalf)*dx[1];
+                        p.pos(2) = plo[2] + (k + myhalf)*dx[2];
                     }
                 }
 

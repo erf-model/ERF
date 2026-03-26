@@ -1183,7 +1183,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 z_lo     = new_z(i,j,0);
                 Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
                 Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)), half));
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)), myhalf));
             }
 
             // Iterations for the first CC point that is 1/2 dz off the surface
@@ -1194,11 +1194,11 @@ init_base_state_from_metgrid (const bool use_moisture,
                 thetad_lo = new_data(i,j,0,RhoTheta_comp);
                 // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
                 //       reference pressure (psurf) is at the ground.
-                Real half_dz = z_lo;
+                Real myhalf_dz = z_lo;
                 Real qvf     = one+(R_v/R_d)*qv_lo;
                 Real thetam  = thetad_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
-                    p_lo = psurf-half_dz*rd_lo*(one+qv_lo)*grav;
+                    p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
                     if (p_lo < zero) p_lo = zero;
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
@@ -1226,11 +1226,11 @@ init_base_state_from_metgrid (const bool use_moisture,
 
                 // Establish known constant
                 Real rho_tot_lo = rd_lo * (one + qv_lo);
-                Real C = -p_lo + half*rho_tot_lo*grav*dz;
+                Real C = -p_lo + myhalf*rho_tot_lo*grav*dz;
 
                 // Initial residual
                 Real rho_tot_hi = rd_hi * (one + qv_hi);
-                Real F = p_hi + half*rho_tot_hi*grav*dz + C;
+                Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
                 if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,

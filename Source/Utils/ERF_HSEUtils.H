@@ -65,7 +65,7 @@ namespace HSEutils
             rd = getRhogivenThetaPress(T, P, RdOCp, qv);
             AMREX_ALWAYS_ASSERT(rd > zero);
             Real r_tot = rd * (one + qt);
-            F = P + half*r_tot*g*dz + C;
+            F = P + myhalf*r_tot*g*dz + C;
             ++iter;
         }
         while (std::abs(F)>m_tol && iter<max_iter);
@@ -102,9 +102,9 @@ namespace HSEutils
       // r_sfc / p_0 are the density / pressure at klo
 
       // Initial guess
-      Real half_dz = half*dz;
+      Real myhalf_dz = myhalf*dz;
       r[klo] = r_sfc;
-      p[klo] = p_0 - half_dz * r[klo] * CONST_GRAV;
+      p[klo] = p_0 - myhalf_dz * r[klo] * CONST_GRAV;
 
       if (klo == 0)
       {
@@ -117,14 +117,14 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - half_dz * r[klo] * CONST_GRAV;
+              p_hse = p_0 - myhalf_dz * r[klo] * CONST_GRAV;
               p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
               Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
-              Real drho = A / (dpdr + half_dz * CONST_GRAV);
+              Real drho = A / (dpdr + myhalf_dz * CONST_GRAV);
 
               r[klo] = r[klo] + drho;
               p[klo] = getPgivenRTh(r[klo]*theta);
@@ -158,7 +158,7 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              Real r_avg = half * (r[k-1]+r[k]);
+              Real r_avg = myhalf * (r[k-1]+r[k]);
               p_hse = p[k-1] -  dz * r_avg * CONST_GRAV;
               p_eos = getPgivenRTh(r[k]*theta);
 
@@ -223,9 +223,9 @@ namespace HSEutils
         // Where we start the lower iteration
         kstart = 1;
 
-        Real half_dz = z_cc(i,j,k0);
+        Real myhalf_dz = z_cc(i,j,k0);
         r[k0] = r_sfc;
-        p[k0] = p_0 - half_dz * r[k0] * CONST_GRAV;
+        p[k0] = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
         {
             // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
             bool converged_hse = false;
@@ -234,14 +234,14 @@ namespace HSEutils
 
             for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
             {
-                p_hse = p_0 - half_dz * r[k0] * CONST_GRAV;
+                p_hse = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
                 p_eos = getPgivenRTh(r[k0]*theta);
 
                 Real A = p_hse - p_eos;
 
                 Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
 
-                Real drho = A / (dpdr + half_dz * CONST_GRAV);
+                Real drho = A / (dpdr + myhalf_dz * CONST_GRAV);
 
                 r[k0] = r[k0] + drho;
                 p[k0] = getPgivenRTh(r[k0]*theta);
@@ -278,7 +278,7 @@ namespace HSEutils
 
          for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
          {
-             p_hse = p[k-1] -  dz_loc * half * (r[k-1]+r[k]) * CONST_GRAV;
+             p_hse = p[k-1] -  dz_loc * myhalf * (r[k-1]+r[k]) * CONST_GRAV;
              p_eos = getPgivenRTh(r[k]*theta);
 
              Real A = p_hse - p_eos;
@@ -460,7 +460,7 @@ Real compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& r
     }
     else
     {
-        F = p_k - p_k_minus_1 + half * (rho_k + rho_k_minus_1)*CONST_GRAV*dz;
+        F = p_k - p_k_minus_1 + myhalf * (rho_k + rho_k_minus_1)*CONST_GRAV*dz;
     }
 
     return F;
@@ -513,10 +513,10 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     int which_zone = -1;
     Real scaled_height = zero;
 
-    // Compute the quantities at z = half*dz (first cell center)
+    // Compute the quantities at z = myhalf*dz (first cell center)
     p[0] = p_0;
     if (z_tr_1 > zero) {
-        Real z = half * dz;
+        Real z = myhalf * dz;
         if (z <= z_tr_1) {
             which_zone = 1;
         } else if (z <= z_tr_2) {
@@ -536,7 +536,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         p[k] = p[k-1];
 
         if (z_tr_1 > zero) {
-            Real z = (k+half) * dz;
+            Real z = (k+myhalf) * dz;
             if (z <= z_tr_1) {
                 which_zone = 1;
             } else if (z <= z_tr_2) {

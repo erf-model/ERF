@@ -194,7 +194,7 @@ public:
             // src is a spatial function if erf.spatial_rhotheta_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+half)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
                 src_arr(i, j, k) = zero;
             });
@@ -226,7 +226,7 @@ public:
             // src is a spatial function if erf.spatial_moisture_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+half)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoQ1 equation based on time, z_cc here
                 qsrc_arr(i, j, k) = zero;
             });
@@ -262,7 +262,7 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+half)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set vertical velocity profile based on time, z_cc here
             wbar[k] = zero;
         }
@@ -298,7 +298,7 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+half)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set RHS term of RhoTheta equation based on time, z_cc here
             u_geos[k] = zero;
             v_geos[k] = zero;

@@ -317,8 +317,8 @@ NOAHMP::Advance_With_State (const int& lev,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
-            tmp_u_phy_arr(i,j,0)   = half*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
-            tmp_v_phy_arr(i,j,0)   = half*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+            tmp_u_phy_arr(i,j,0)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
+            tmp_v_phy_arr(i,j,0)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
             tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
             tmp_qv_curr_arr(i,j,0) = qv;
             tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);

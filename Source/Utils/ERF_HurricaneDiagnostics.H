@@ -104,8 +104,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     const auto dx = geom.CellSizeArray();
     const auto prob_lo = geom.ProbLoArray();
 
-    amrex::Real eye_x =  prob_lo[0] + (global_i_min+half)*dx[0];
-    amrex::Real eye_y =  prob_lo[1] + (global_j_min+half)*dx[1];
+    amrex::Real eye_x =  prob_lo[0] + (global_i_min+myhalf)*dx[0];
+    amrex::Real eye_y =  prob_lo[1] + (global_j_min+myhalf)*dx[1];
 
     hurricane_eye_track_xy.push_back({eye_x, eye_y});
     hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
@@ -230,8 +230,8 @@ HurricaneEyeTrackerNotInitial (const amrex::Geometry& geom,
 
         amrex::ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
             if(k==0) {
-                amrex::Real x =  prob_lo[0] + (i+half)*dx[0];
-                amrex::Real y =  prob_lo[1] + (j+half)*dx[1];
+                amrex::Real x =  prob_lo[0] + (i+myhalf)*dx[0];
+                amrex::Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 amrex::Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
                 if(dist < 200e3) {
                     amrex::Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
@@ -312,8 +312,8 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
         const auto& vel_arr = mf_cc_vel.const_array(mfi);
 
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            amrex::Real x = prob_lo[0] + (i+half)*dx[0];
-            amrex::Real y = prob_lo[1] + (j+half)*dx[1];
+            amrex::Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            amrex::Real y = prob_lo[1] + (j+myhalf)*dx[1];
             amrex::Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
             if(k==1 && dist < 200e3) {
@@ -371,8 +371,8 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
         const auto& S_arr = mf_cons_var.const_array(mfi);
 
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            amrex::Real x = prob_lo[0] + (i+half)*dx[0];
-            amrex::Real y = prob_lo[1] + (j+half)*dx[1];
+            amrex::Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            amrex::Real y = prob_lo[1] + (j+myhalf)*dx[1];
             amrex::Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
             if(k==1 && dist2 < 200e3*200e3) {

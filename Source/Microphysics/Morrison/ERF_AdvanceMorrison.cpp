@@ -316,7 +316,7 @@ amrex::Real wrf_gamma (amrex::Real x)
         y1 = std::floor(y);
         res = y - y1;
         if (res != zero) {
-            if (y1 != std::floor(y1 * half) * two)
+            if (y1 != std::floor(y1 * myhalf) * two)
                 parity = true;
             Real pi=amrex::Math::pi<Real>();
             fact = -pi / std::sin(pi * res);
@@ -400,7 +400,7 @@ amrex::Real wrf_gamma (amrex::Real x)
 //                printf("wrf_gamma: Sum step %d: sum = %g\n", i+1, sum);
             }
             sum = sum / y - y + xxx;
-            sum = sum + (y - half) * std::log(y);
+            sum = sum + (y - myhalf) * std::log(y);
 //            printf("wrf_gamma: Before exp: sum = %g\n", sum);
             res = std::exp(sum);
 //            printf("wrf_gamma: After exp: res = %g\n", res);
@@ -839,7 +839,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           } else {
             // Hail parameters (Matsun and Huggins 1980)
             m_ag = Real(114.5);
-            m_bg = half;
+            m_bg = myhalf;
           }
 
           // Microphysical parameters
@@ -918,14 +918,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
             m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = half * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
+            m_f11 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
             m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
             m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
             m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = half * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
+            m_f12 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
             m_f22 = one + fourth * std::log(m_sig2);
           }
 
@@ -1000,14 +1000,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
             m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = half * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
+            m_f11 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
             m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
             m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
             m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = half * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
+            m_f12 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
             m_f22 = one + fourth * std::log(m_sig2);
           }
           // Set microphysics control parameters
@@ -1609,7 +1609,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                       morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
                                       (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
                                        two/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
-                                       half/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
+                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
                 }
                 // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
                 // ASSUME ALL RAIN COLLECTION BY GRAUPEL ABOVE FREEZING IS SHED
@@ -1636,7 +1636,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                       morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
                                       (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
                                        two/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                                       half/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
+                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
 
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
                   dum = pracg/Real(5.2e-7);
@@ -2213,7 +2213,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                 Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
                                       std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
                                                            two / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
-                                                           half / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
+                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
 
                   npracs = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - uns_local, 2) +
                                                              Real(0.3) * unr_local * uns_local) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) *
@@ -2234,7 +2234,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                   Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
                                         std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * morr_arr(i,j,k,MORRInd::lamr)) +
                                                              two / (std::pow(morr_arr(i,j,k,MORRInd::lams), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 2)) +
-                                                             half / (morr_arr(i,j,k,MORRInd::lams) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 3))));
+                                                             myhalf / (morr_arr(i,j,k,MORRInd::lams) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 3))));
                   }
                 }
 
@@ -2258,7 +2258,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                 Real(0.08) * umg_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) /
                                       std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
                                                            two / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                                                           half / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
+                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
 
                   npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - ung_local, 2) +
                                                              Real(0.3) * unr_local * ung_local) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) *
@@ -2373,7 +2373,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 // CONVERSION OF RIMED CLOUD WATER ONTO SNOW TO GRAUPEL/HAIL
                 if (psacws > zero) {
-                  // ONLY ALLOW CONVERSION IF QNI > Real(0.1) AND QC > half G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
+                  // ONLY ALLOW CONVERSION IF QNI > Real(0.1) AND QC > myhalf G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3) && morr_arr(i,j,k,MORRInd::qc3d) >= Real(0.5e-3)) {
                     // PORTION OF RIMING CONVERTED TO GRAUPEL (REISNER ET AL. 1998, ORIGINALLY IS1991)
                     pgsacw = std::min(psacws, m_cons17 * dt * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::qc3d) * morr_arr(i,j,k,MORRInd::qc3d) *
@@ -2548,7 +2548,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::qni3d) >= m_qsmall) {
                   epss = two * m_pi * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1s / (morr_arr(i,j,k,MORRInd::lams) * morr_arr(i,j,k,MORRInd::lams)) +
-                     m_f2s * std::pow(morr_arr(i,j,k,MORRInd::asn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), half) *
+                     m_f2s * std::pow(morr_arr(i,j,k,MORRInd::asn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons10 /
                      std::pow(morr_arr(i,j,k,MORRInd::lams), m_cons35));
                 }
@@ -2558,7 +2558,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::qg3d) >= m_qsmall) {
                   epsg = two * m_pi * morr_arr(i,j,k,MORRInd::n0g) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1s / (morr_arr(i,j,k,MORRInd::lamg) * morr_arr(i,j,k,MORRInd::lamg)) +
-                     m_f2s * std::pow(morr_arr(i,j,k,MORRInd::agn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), half) *
+                     m_f2s * std::pow(morr_arr(i,j,k,MORRInd::agn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons11 /
                      std::pow(morr_arr(i,j,k,MORRInd::lamg), m_cons36));
                 }
@@ -2568,7 +2568,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
                   epsr = two * m_pi * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1r / (morr_arr(i,j,k,MORRInd::lamr) * morr_arr(i,j,k,MORRInd::lamr)) +
-                     m_f2r * std::pow(morr_arr(i,j,k,MORRInd::arn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), half) *
+                     m_f2r * std::pow(morr_arr(i,j,k,MORRInd::arn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons9 /
                      std::pow(morr_arr(i,j,k,MORRInd::lamr), m_cons34));
                 }

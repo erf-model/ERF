@@ -505,11 +505,11 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real dz_k   = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                             + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                             + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                              + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : half*dz; // Dist from w-face to CC at k
+                                              + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : myhalf*dz; // Dist from w-face to CC at k
             Real dz_km1 = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k  ) - z_arr(i  ,j  ,k-1))
                                             + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
                                             + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
-                                            + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : half*dz; // Dist from w-face to CC at k-1
+                                            + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : myhalf*dz; // Dist from w-face to CC at k-1
             Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
             Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
             Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
@@ -547,7 +547,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 Real dz_kp1 = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+2) - z_arr(i  ,j  ,k+1))
                                                 + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
                                                 + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
-                                                + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : half*dz; // Dist from w-face to CC at k+1
+                                                + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : myhalf*dz; // Dist from w-face to CC at k+1
                 r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
                 rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
                 qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
@@ -1187,9 +1187,9 @@ Radiation::run_impl ()
 
     // Generate some fake liquid and ice water data. We pick values to be midway between
     // the min and max of the valid lookup table values for effective radii
-    real rel_val = half * (rrtmgp::cloud_optics_sw_k->get_min_radius_liq()
+    real rel_val = myhalf * (rrtmgp::cloud_optics_sw_k->get_min_radius_liq()
                         + rrtmgp::cloud_optics_sw_k->get_max_radius_liq());
-    real rei_val = half * (rrtmgp::cloud_optics_sw_k->get_min_radius_ice()
+    real rei_val = myhalf * (rrtmgp::cloud_optics_sw_k->get_min_radius_ice()
                         + rrtmgp::cloud_optics_sw_k->get_max_radius_ice());
 
     // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and

@@ -437,7 +437,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
-                        Real rho_at_face = half * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                        Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
                                                       rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
@@ -649,11 +649,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_rhs(i,j,k,     Rho_comp) *= half;
-                cell_rhs(i,j,k,RhoTheta_comp) *= half;
+                cell_rhs(i,j,k,     Rho_comp) *= myhalf;
+                cell_rhs(i,j,k,RhoTheta_comp) *= myhalf;
 
-                cell_rhs(i,j,k,     Rho_comp) += half / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
-                cell_rhs(i,j,k,RhoTheta_comp) += half / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                cell_rhs(i,j,k,     Rho_comp) += myhalf / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                cell_rhs(i,j,k,RhoTheta_comp) += myhalf / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
             });
         }
 
@@ -714,7 +714,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? half * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
 
             rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (one + q) + xmom_src_arr(i,j,k);
 
@@ -724,8 +724,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-              rho_u_rhs(i,j,k) *= half;
-              rho_u_rhs(i,j,k) += half / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+              rho_u_rhs(i,j,k) *= myhalf;
+              rho_u_rhs(i,j,k) += myhalf / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -733,7 +733,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? half * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
 
             rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (one + q) + ymom_src_arr(i,j,k);
 
@@ -743,8 +743,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-              rho_v_rhs(i,j,k) *= half;
-              rho_v_rhs(i,j,k) += half / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+              rho_v_rhs(i,j,k) *= myhalf;
+              rho_v_rhs(i,j,k) += myhalf / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
 
@@ -815,12 +815,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real gpz = gpz_arr(i,j,k);
 
-            Real q = (l_use_moisture) ? half * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
 
             rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (one + q) + zmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
-                 rho_w_rhs(i, j, k) *= half * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
+                 rho_w_rhs(i, j, k) *= myhalf * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });
 

@@ -147,7 +147,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
                 }
 
-                Real dtheta_dz = half * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                         - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
 
                 hfx_x(i,j,k) = zero;
@@ -208,13 +208,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
                 Real dtheta_dz;
                 if (use_thetav_grad) {
-                    dtheta_dz = half * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
+                    dtheta_dz = myhalf * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
                                       - GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else if (use_thetal_grad) {
-                    dtheta_dz = half * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
+                    dtheta_dz = myhalf * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
                                       - GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else {
-                    dtheta_dz = half * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
+                    dtheta_dz = myhalf * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
                                       - cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
                 }
 
@@ -467,18 +467,18 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                 Real dtheta_dz = zero;
 
                 if (c_cflag(i,j,k).isRegular()) {
-                    dtheta_dz = half * ( theta_kp1 - theta_km1 )*dzInv;
+                    dtheta_dz = myhalf * ( theta_kp1 - theta_km1 )*dzInv;
                 } else if (c_cflag(i,j,k).isSingleValued()) {
 
                     amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
                     if (c_cflag(i,j,k+1).isCovered()) {
                         amrex::Real theta_km2 = cell_data(i, j, k-2, RhoTheta_comp) / cell_data(i, j, k-2, Rho_comp);
-                        dtheta_dz = (three*theta - Real(4.)*theta_km1 + theta_km2) * half * dzInv;
+                        dtheta_dz = (three*theta - Real(4.)*theta_km1 + theta_km2) * myhalf * dzInv;
                     } else if (c_cflag(i,j,k-1).isCovered()) {
                         amrex::Real theta_kp2 = cell_data(i, j, k+2, RhoTheta_comp) / cell_data(i, j, k+2, Rho_comp);
-                        dtheta_dz = (-theta_kp2 + Real(4.)*theta_kp1 - three*theta) * half * dzInv;
+                        dtheta_dz = (-theta_kp2 + Real(4.)*theta_kp1 - three*theta) * myhalf * dzInv;
                     } else {
-                        dtheta_dz = half * (theta_kp1 - theta_km1) * dzInv;
+                        dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
                     }
                 }
 
@@ -630,7 +630,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
-                Real dtheta_dz = half * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
                 if (!use_ref_theta) {

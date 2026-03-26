@@ -130,7 +130,7 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
             if(SMark_array(i,j,k,0) != -one) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),half));
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
                 Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
@@ -235,7 +235,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     // Iteration procedure
 
-    Real s = half*c*B/(PI*rad);
+    Real s = myhalf*c*B/(PI*rad);
 
     Real at, an, V1, Vt, Vr, psi, L, D, Cn, Ct;
     Real ftip, fhub, F, Cl, Cd, at_new, an_new;
@@ -248,7 +248,7 @@ compute_source_terms_Fn_Ft (const Real rad,
     for(int i=0;i<100;i++) {
         V1 = avg_vel*(1-an);
         Vt = Omega*(one+at)*rad;
-        Vr = std::pow(V1*V1+Vt*Vt,half);
+        Vr = std::pow(V1*V1+Vt*Vt,myhalf);
 
         psi = std::atan2(V1,Vt);
 
@@ -295,8 +295,8 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     // Iterations converged. Now compute Ft, Fn
 
-    L = half*rho*Vr*Vr*c*Cl;
-    D = half*rho*Vr*Vr*c*Cd;
+    L = myhalf*rho*Vr*Vr*c*Cl;
+    D = myhalf*rho*Vr*Vr*c*Cd;
 
     Real Fn = L*std::cos(psi) + D*std::sin(psi);
     Real Ft = L*std::sin(psi) - D*std::cos(psi);
@@ -445,9 +445,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real x   = ProbLoArr[0] + (ii+half)*dx[0];
-            Real y   = ProbLoArr[1] + (jj+half)*dx[1];
-            Real z   = ProbLoArr[2] + (kk+half)*dx[2];
+            Real x   = ProbLoArr[0] + (ii+myhalf)*dx[0];
+            Real y   = ProbLoArr[1] + (jj+myhalf)*dx[1];
+            Real z   = ProbLoArr[2] + (kk+myhalf)*dx[2];
             // ?? Density needed here
 
             int check_int = 0;
@@ -466,7 +466,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // Find radial distance of the point and the zeta angle
                     Real rad = std::pow( (x-d_xloc_ptr[it])*(x-d_xloc_ptr[it]) +
                                          (y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) +
-                                         (z-d_hub_height)*(z-d_hub_height), half );
+                                         (z-d_hub_height)*(z-d_hub_height), myhalf );
 
                     int index = find_rad_loc_index(rad, bld_rad_loc_ptr, n_bld_sections);
 
@@ -509,9 +509,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
                         //Real dn = (
 
-                        source_x = -Fx/(two*PI*rad*dx[0])*one/std::pow(two*PI,half);
-                        source_y = -Fy/(two*PI*rad*dx[0])*one/std::pow(two*PI,half);
-                        source_z = -Fz/(two*PI*rad*dx[0])*one/std::pow(two*PI,half);
+                        source_x = -Fx/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_y = -Fy/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_z = -Fz/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
 
 
                         //printf("Val source_x, is %0.15g, %0.15g, %0.15g %0.15g %0.15g %0.15g\n", rad, Fn, Ft, source_x, source_y, source_z);

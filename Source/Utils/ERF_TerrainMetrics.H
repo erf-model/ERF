@@ -104,7 +104,7 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_zeta = half * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
+    amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
                                                     + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
     return met_h_zeta;
 }
@@ -131,7 +131,7 @@ Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_eta  = half * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
+    amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
                                                     + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
     return met_h_eta;
 }
@@ -144,7 +144,7 @@ Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_zeta = half * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
+    amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
                                                     + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
     return met_h_zeta;
 }
@@ -157,7 +157,7 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_xi   = half * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
+    amrex::Real met_h_xi   = myhalf * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
                                                     + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
     return met_h_xi;
 }
@@ -198,7 +198,7 @@ Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_xi   = half * cellSizeInv[0] * ( (z_nd(i+1,j  ,k) - z_nd(i,j  ,k))
+    amrex::Real met_h_xi   = myhalf * cellSizeInv[0] * ( (z_nd(i+1,j  ,k) - z_nd(i,j  ,k))
                                                     + (z_nd(i+1,j+1,k) - z_nd(i,j+1,k)) );
     return met_h_xi;
 }
@@ -211,7 +211,7 @@ Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real met_h_eta  = half * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
+    amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
                                                     + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
     return met_h_eta;
 }
@@ -435,22 +435,22 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
                           + amrex::Real(8.0/amrex::Real(12.0))*(z_y_p1 - z_y_m1)) * dxInv[1];
 
     // Use extrapolation instead of interpolation if at the bottom boundary
-    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - half * u_arr(i+1,j  ,k+1)  :
-                                  half * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
-    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - half * u_arr(i  ,j  ,k+1)  :
-                                  half * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - myhalf * u_arr(i+1,j  ,k+1)  :
+                                  myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
     amrex::Real mf_u_hi = mf_u(i+1,j,0);
     amrex::Real mf_u_lo = mf_u(i  ,j,0);
 
-    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - half * v_arr(i  ,j+1,k+1)  :
-                                  half * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
-    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - half * v_arr(i  ,j  ,k+1)  :
-                                  half * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
+                                  myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
     amrex::Real mf_v_hi = mf_v(i,j+1,0);
     amrex::Real mf_v_lo = mf_v(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * half * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * half * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
 
     amrex::Real omega =  w - u_met - v_met;
     return omega;
@@ -485,22 +485,22 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
                           + amrex::Real(8.0/amrex::Real(12.0))*(z_y_p1 - z_y_m1)) * dxInv[1];
 
     // Use extrapolation instead of interpolation if at the bottom boundary
-    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - half * u_arr(i+1,j  ,k+1)  :
-                                  half * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
-    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - half * u_arr(i  ,j  ,k+1)  :
-                                  half * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - myhalf * u_arr(i+1,j  ,k+1)  :
+                                  myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
     amrex::Real mf_u_hi = mf_u(i+1,j,0);
     amrex::Real mf_u_lo = mf_u(i  ,j,0);
 
-    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - half * v_arr(i  ,j+1,k+1)  :
-                                  half * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
-    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - half * v_arr(i  ,j  ,k+1)  :
-                                  half * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
+                                  myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
     amrex::Real mf_v_hi = mf_v(i,j+1,0);
     amrex::Real mf_v_lo = mf_v(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * half * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * half * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
 
     amrex::Real w = omega + u_met + v_met;
     return w;
@@ -526,30 +526,30 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
     // This is dh/dxi at hi and lo edges
     amrex::Real z_x_h  = Compute_Z_AtWFace(i+1,j,k,z_nd);
     amrex::Real z_x_l  = Compute_Z_AtWFace(i-1,j,k,z_nd);
-    amrex::Real met_xi = half * (z_x_h - z_x_l) * dxInv[0];
+    amrex::Real met_xi = myhalf * (z_x_h - z_x_l) * dxInv[0];
 
     // This is dh/deta at hi and lo edges
     amrex::Real z_y_h   = Compute_Z_AtWFace(i,j+1,k,z_nd);
     amrex::Real z_y_l   = Compute_Z_AtWFace(i,j-1,k,z_nd);
-    amrex::Real met_eta = half * (z_y_h - z_y_l) * dxInv[1];
+    amrex::Real met_eta = myhalf * (z_y_h - z_y_l) * dxInv[1];
 
     // Use extrapolation instead of interpolation if at the bottom boundary
-    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - half * u_arr(i+1,j  ,k+1)  :
-                                  half * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
-    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - half * u_arr(i  ,j  ,k+1)  :
-                                  half * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - myhalf * u_arr(i+1,j  ,k+1)  :
+                                  myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
     amrex::Real mf_u_hi = mf_u(i+1,j,0);
     amrex::Real mf_u_lo = mf_u(i  ,j,0);
 
-    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - half * v_arr(i  ,j+1,k+1)  :
-                                  half * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
-    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - half * v_arr(i  ,j  ,k+1)  :
-                                  half * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
+                                  myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
     amrex::Real mf_v_hi = mf_v(i,j+1,0);
     amrex::Real mf_v_lo = mf_v(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * half * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * half * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
 
     amrex::Real omega =  w - u_met - v_met;
     return omega;
@@ -570,30 +570,30 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
     // This is dh/dxi at hi and lo edges
     amrex::Real z_x_h  = Compute_Z_AtWFace(i+1,j,k,z_nd);
     amrex::Real z_x_l  = Compute_Z_AtWFace(i-1,j,k,z_nd);
-    amrex::Real met_xi = half * (z_x_h - z_x_l) * dxInv[0];
+    amrex::Real met_xi = myhalf * (z_x_h - z_x_l) * dxInv[0];
 
     // This is dh/deta at hi and lo edges
     amrex::Real z_y_h   = Compute_Z_AtWFace(i,j+1,k,z_nd);
     amrex::Real z_y_l   = Compute_Z_AtWFace(i,j-1,k,z_nd);
-    amrex::Real met_eta = half * (z_y_h - z_y_l) * dxInv[1];
+    amrex::Real met_eta = myhalf * (z_y_h - z_y_l) * dxInv[1];
 
     // Use extrapolation instead of interpolation if at the bottom boundary
-    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - half * u_arr(i+1,j  ,k+1)  :
-                                  half * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
-    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - half * u_arr(i  ,j  ,k+1)  :
-                                  half * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+    amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - myhalf * u_arr(i+1,j  ,k+1)  :
+                                  myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+    amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
     amrex::Real mf_u_hi = mf_u(i+1,j,0);
     amrex::Real mf_u_lo = mf_u(i  ,j,0);
 
-    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - half * v_arr(i  ,j+1,k+1)  :
-                                  half * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
-    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - half * v_arr(i  ,j  ,k+1)  :
-                                  half * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+    amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
+                                  myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+    amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
+                                  myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
     amrex::Real mf_v_hi = mf_v(i,j+1,0);
     amrex::Real mf_v_lo = mf_v(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * half * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * half * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
 
     amrex::Real w = omega + u_met + v_met;
     return w;

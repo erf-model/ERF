@@ -28,7 +28,7 @@ SHOCInterface::SHOCInterface (const int& lev,
     // Vertical velocity variance
     Real def_w2tune = one;
     // Length scale factor
-    Real def_length_fac = half;
+    Real def_length_fac = myhalf;
     // Third moment vertical velocity damping factor
     Real def_c_diag_3rd_mom = Real(7.0);
     // Eddy diffusivity coefficient for heat
@@ -439,8 +439,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : zero;
-            Real rt_avg = half * (rt + rt_lo);
-            Real qv_avg = half * (qv + qv_lo);
+            Real rt_avg = myhalf * (rt + rt_lo);
+            Real qv_avg = myhalf * (qv + qv_lo);
 
             // Delta z
             Real delz = (z_arr) ? fourth * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
@@ -449,14 +449,14 @@ SHOCInterface::mf_to_kokkos_buffers ()
                                          + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
 
             // W at cc (cannot be 0?; inspection of shoc code...)
-            Real w_cc = half * (w_arr(i,j,k) + w_arr(i,j,k+1));
+            Real w_cc = myhalf * (w_arr(i,j,k) + w_arr(i,j,k+1));
             w_cc += (w_sub) ? w_sub[k] : zero;
             Real w_limited = std::copysign(std::max(std::fabs(w_cc),Real(1.0e-6)),w_cc);
 
             // Input/Output data structures
             //=======================================================
-            horiz_wind_d(icol,0,ilay)  = half * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
-            horiz_wind_d(icol,1,ilay)  = half * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
+            horiz_wind_d(icol,0,ilay)  = myhalf * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
+            horiz_wind_d(icol,1,ilay)  = myhalf * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
             cldfrac_liq_d(icol,ilay)   = (qc>zero) ? one : zero;
             tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, zero);
             qc_d(icol,ilay)            = qc;
@@ -469,8 +469,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 int ii  = std::min(std::max(i,ilo),ihi);
                 int jj  = std::min(std::max(j,jlo),jhi);
 
-                surf_mom_flux_d(icol,0)  = half * (t13_arr(ii,jj,k) + t13_arr(ii+1,jj  ,k));
-                surf_mom_flux_d(icol,1)  = half * (t23_arr(ii,jj,k) + t23_arr(ii  ,jj+1,k));
+                surf_mom_flux_d(icol,0)  = myhalf * (t13_arr(ii,jj,k) + t13_arr(ii+1,jj  ,k));
+                surf_mom_flux_d(icol,1)  = myhalf * (t23_arr(ii,jj,k) + t23_arr(ii  ,jj+1,k));
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : zero;
@@ -505,8 +505,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,zero) : zero;
-                rt_avg = half * (rt + rt_hi);
-                qv_avg = half * (qv + qv_hi);
+                rt_avg = myhalf * (rt + rt_hi);
+                qv_avg = myhalf * (qv + qv_hi);
                 p_int_d(icol,0) = getPgivenRTh(rt_avg, qv_avg);
             }
         });
@@ -590,7 +590,7 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
             const int ilay   = kmax - k;
 
             int icolim = (j-jmin)*nx + (i-1-imin) + offset;
-            Real uvel  = half * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
+            Real uvel  = myhalf * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
             u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -601,7 +601,7 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
             const int ilay   = kmax - k;
 
             int icoljm = (j-1-jmin)*nx + (i-imin) + offset;
-            Real vvel  = half * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
+            Real vvel  = myhalf * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
             v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
         });
     }

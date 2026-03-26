@@ -180,9 +180,9 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             // Geometry (note we must include these here to get the data on device)
-            const Real x        = prob_lo[0] + (i + half) * dx[0];
-            const Real y        = prob_lo[1] + (j + half) * dx[1];
-            //const Real z        = prob_lo[2] + (k + half) * dx[2];
+            const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
+            //const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
             const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             // First interpolate where the weather data is available from
@@ -238,8 +238,8 @@ ERF::FillForecastStateMultiFabs(const int lev,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+half) * dx_erf[1];
-            //Real z = prob_lo_erf[2] + (k+half) * dx_erf[2];
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
+            //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
             const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_uvel;
@@ -253,9 +253,9 @@ ERF::FillForecastStateMultiFabs(const int lev,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+half) * dx_erf[0];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
-            //Real z = prob_lo_erf[2] + (k+half) * dx_erf[2];
+            //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
             const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_vvel;
@@ -269,8 +269,8 @@ ERF::FillForecastStateMultiFabs(const int lev,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+half) * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+half) * dx_erf[1];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
             Real z = prob_lo_erf[2] + k       * dx_erf[2];
             //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 

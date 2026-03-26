@@ -38,7 +38,7 @@ ERF::initRayleigh_at_level (const int& lev)
     Real zdamp    = solverChoice.dampingChoice.rayleigh_zdamp;
 
     for (int k = 0; k < zlen_rayleigh; k++) {
-        Real z = half * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+        Real z = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
         if (z > (ztop - zdamp)) {
             Real zfrac = one - (ztop - z) / zdamp;
             Real s = std::sin(PIoTwo*zfrac);

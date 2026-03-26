@@ -8,8 +8,8 @@
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + zero) * dx[0];
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = V_0 * sin(x) * cos(y) * cos(z);
@@ -20,9 +20,9 @@
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + zero) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = - V_0 * cos(x) * sin(y) * cos(z);

@@ -141,7 +141,7 @@ class polygon_ {
       for (int i(0); i<m_num_vertices; ++i) {
         int const j( (i+1 == m_num_vertices) ? 0 : i+1 );
         amrex::RealVect vi_cross_vj = vertex_cent[i].crossProduct(vertex_cent[j]);
-        m_area += half*vi_cross_vj.vectorLength();
+        m_area += myhalf*vi_cross_vj.vectorLength();
       }
       AMREX_ALWAYS_ASSERT( m_area > zero ); // <------------------------------- TODO remove ALWAYS
     } // void define
@@ -177,7 +177,7 @@ class polygon_ {
           amrex::RealVect const v0 (m_vertices[i+1] - m_vertices[0]);
           amrex::RealVect const v1 (m_vertices[i+2] - m_vertices[0]);
           amrex::RealVect v0_cross_v1 = v0.crossProduct(v1);
-          amrex::Real area_tri = half * v0_cross_v1.vectorLength();
+          amrex::Real area_tri = myhalf * v0_cross_v1.vectorLength();
           amrex::RealVect cent_tri = (m_vertices[0] + m_vertices[i+1] + m_vertices[i+2]) / three;
           area += area_tri;
           cent += area_tri * cent_tri;

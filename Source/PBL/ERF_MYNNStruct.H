@@ -84,8 +84,8 @@ struct MYNNLevel2 {
         Rf1 = B1*(gam1-C1) / F1;
         Rf2 = B1*gam1 / F2;
         Rfc = gam1 / (gam1 + gam2);
-        Ri1 = half*A2*F2/(A1*F1);
-        Ri2 = half*Rf1/Ri1;
+        Ri1 = myhalf*A2*F2/(A1*F1);
+        Ri2 = myhalf*Rf1/Ri1;
         Ri3 = (two*Rf2-Rf1)/Ri1;
 
         initialized = true;

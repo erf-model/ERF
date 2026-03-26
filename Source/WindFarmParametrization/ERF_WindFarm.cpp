@@ -199,7 +199,7 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 
     Real rotor_dia;
     file_turb_table >> hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
-    rotor_rad = rotor_dia*half;
+    rotor_rad = rotor_dia*myhalf;
     if(rotor_rad > hub_height) {
         Abort("The blade length is more than the hub height. Check the second line in wind-turbine-1.tbl. Aborting.....");
     }
@@ -559,7 +559,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
-    Real theta = turb_disk_angle*M_PI/Real(180.0)-half*M_PI;
+    Real theta = turb_disk_angle*M_PI/Real(180.0)-myhalf*M_PI;
 
     set_turb_disk_angle(theta);
     my_turb_disk_angle = theta;
@@ -689,8 +689,8 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom,
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
         fprintf(file_averaging_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
 
-        Real nx = std::cos(my_turb_disk_angle+half*M_PI);
-        Real ny = std::sin(my_turb_disk_angle+half*M_PI);
+        Real nx = std::cos(my_turb_disk_angle+myhalf*M_PI);
+        Real ny = std::sin(my_turb_disk_angle+myhalf*M_PI);
 
         Real nx1 = -std::cos(my_turb_disk_angle);
         Real ny1 = -std::sin(my_turb_disk_angle);

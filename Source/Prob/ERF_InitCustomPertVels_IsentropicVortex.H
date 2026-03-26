@@ -9,8 +9,8 @@
     amrex::Real beta = amrex::Real(0.01);   pp_for_pert_vels.query("beta", beta);//non-dimensional max perturbation strength [-]
     amrex::Real sigma = one;   pp_for_pert_vels.query("sigma", sigma);//Gaussian standard deviation, i.e., spreading parameter [-]
     amrex::Real R = two;       pp_for_pert_vels.query("R", R);//characteristic length scale for grid [m]
-    amrex::Real xc_frac = half; pp_for_pert_vels.query("xc", xc_frac);//normalized x-location of vortex center [-]
-    amrex::Real yc_frac = half; pp_for_pert_vels.query("yc", yc_frac);//normalized y-location of vortex center [-]
+    amrex::Real xc_frac = myhalf; pp_for_pert_vels.query("xc", xc_frac);//normalized x-location of vortex center [-]
+    amrex::Real yc_frac = myhalf; pp_for_pert_vels.query("yc", yc_frac);//normalized y-location of vortex center [-]
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -27,7 +27,7 @@
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
         const Real x =  i        * dx[0]; // face center
-        const Real y = (j + half) * dx[1]; // cell center
+        const Real y = (j + myhalf) * dx[1]; // cell center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
         x_vel_pert(i, j, k) = (M_inf * std::cos(alpha)
@@ -40,7 +40,7 @@
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
-        const Real x = (i + half) * dx[0]; // cell center
+        const Real x = (i + myhalf) * dx[0]; // cell center
         const Real y =  j        * dx[1]; // face center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 

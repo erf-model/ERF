@@ -138,20 +138,20 @@ ERF::write_1D_profiles_stag (Real time)
                   // For internal values, interpolate scalar quantities to faces
                   for (int k = 1; k < unstag_size; k++) {
                       Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
-                      Real uface  = half*(h_avg_u[k]  + h_avg_u[k-1]);
-                      Real vface  = half*(h_avg_v[k]  + h_avg_v[k-1]);
-                      Real thface = half*(h_avg_th[k] + h_avg_th[k-1]);
-                      Real pface  = half*(h_avg_p[k]  + h_avg_p[k-1]);
-                      Real qvface = half*(h_avg_qv[k] + h_avg_qv[k-1]);
-                      Real qcface = half*(h_avg_qc[k] + h_avg_qc[k-1]);
-                      Real qrface = half*(h_avg_qr[k] + h_avg_qr[k-1]);
-                      Real uuface = half*(h_avg_uu[k] + h_avg_uu[k-1]);
-                      Real vvface = half*(h_avg_vv[k] + h_avg_vv[k-1]);
+                      Real uface  = myhalf*(h_avg_u[k]  + h_avg_u[k-1]);
+                      Real vface  = myhalf*(h_avg_v[k]  + h_avg_v[k-1]);
+                      Real thface = myhalf*(h_avg_th[k] + h_avg_th[k-1]);
+                      Real pface  = myhalf*(h_avg_p[k]  + h_avg_p[k-1]);
+                      Real qvface = myhalf*(h_avg_qv[k] + h_avg_qv[k-1]);
+                      Real qcface = myhalf*(h_avg_qc[k] + h_avg_qc[k-1]);
+                      Real qrface = myhalf*(h_avg_qr[k] + h_avg_qr[k-1]);
+                      Real uuface = myhalf*(h_avg_uu[k] + h_avg_uu[k-1]);
+                      Real vvface = myhalf*(h_avg_vv[k] + h_avg_vv[k-1]);
                       Real thvface = thface * (1 + Real(0.61)*qvface - qcface - qrface);
-                      w_cc   = half*(h_avg_w[k-1]  + h_avg_w[k]);
-                      uw_cc  = half*(h_avg_uw[k-1] + h_avg_uw[k]);
-                      vw_cc  = half*(h_avg_vw[k-1] + h_avg_vw[k]);
-                      ww_cc  = half*(h_avg_ww[k-1] + h_avg_ww[k]);
+                      w_cc   = myhalf*(h_avg_w[k-1]  + h_avg_w[k]);
+                      uw_cc  = myhalf*(h_avg_uw[k-1] + h_avg_uw[k]);
+                      vw_cc  = myhalf*(h_avg_vw[k-1] + h_avg_vw[k]);
+                      ww_cc  = myhalf*(h_avg_ww[k-1] + h_avg_ww[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
@@ -195,15 +195,15 @@ ERF::write_1D_profiles_stag (Real time)
 
                   // Write top face values, extrapolating scalar quantities
                   const int k = unstag_size;
-                  Real uface  = Real(1.5)*h_avg_u[k-1]  - half*h_avg_u[k-2];
-                  Real vface  = Real(1.5)*h_avg_v[k-1]  - half*h_avg_v[k-2];
-                  Real thface = Real(1.5)*h_avg_th[k-1] - half*h_avg_th[k-2];
-                  Real pface  = Real(1.5)*h_avg_p[k-1]  - half*h_avg_p[k-2];
-                  Real qvface = Real(1.5)*h_avg_qv[k-1] - half*h_avg_qv[k-2];
-                  Real qcface = Real(1.5)*h_avg_qc[k-1] - half*h_avg_qc[k-2];
-                  Real qrface = Real(1.5)*h_avg_qr[k-1] - half*h_avg_qr[k-2];
-                  Real uuface = Real(1.5)*h_avg_uu[k-1] - half*h_avg_uu[k-2];
-                  Real vvface = Real(1.5)*h_avg_vv[k-1] - half*h_avg_vv[k-2];
+                  Real uface  = Real(1.5)*h_avg_u[k-1]  - myhalf*h_avg_u[k-2];
+                  Real vface  = Real(1.5)*h_avg_v[k-1]  - myhalf*h_avg_v[k-2];
+                  Real thface = Real(1.5)*h_avg_th[k-1] - myhalf*h_avg_th[k-2];
+                  Real pface  = Real(1.5)*h_avg_p[k-1]  - myhalf*h_avg_p[k-2];
+                  Real qvface = Real(1.5)*h_avg_qv[k-1] - myhalf*h_avg_qv[k-2];
+                  Real qcface = Real(1.5)*h_avg_qc[k-1] - myhalf*h_avg_qc[k-2];
+                  Real qrface = Real(1.5)*h_avg_qr[k-1] - myhalf*h_avg_qr[k-2];
+                  Real uuface = Real(1.5)*h_avg_uu[k-1] - myhalf*h_avg_uu[k-2];
+                  Real vvface = Real(1.5)*h_avg_vv[k-1] - myhalf*h_avg_vv[k-2];
                   Real thvface = thface * (1 + Real(0.61)*qvface - qcface - qrface);
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
@@ -361,8 +361,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_cc_arr(i,j,k) = half * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
-            v_cc_arr(i,j,k) = half * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
+            u_cc_arr(i,j,k) = myhalf * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
+            v_cc_arr(i,j,k) = myhalf * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
 
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
@@ -386,7 +386,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             fab_arr(i, j, k, 9) = v_cc_arr(i,j,k) * theta;             // v*th
             fab_arr(i, j, k,10) = theta * theta;                       // th*th
 
-            Real wcc = half * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
+            Real wcc = myhalf * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
 
             // if the number of fields is changed above, then be sure to update
             // the following def!
@@ -419,7 +419,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                                 + v_arr(i,j+1,k) + v_arr(i,j+1,k-1));
             Real theta0 = cons_arr(i,j,k  ,RhoTheta_comp) / cons_arr(i,j,k  ,Rho_comp);
             Real theta1 = cons_arr(i,j,k-1,RhoTheta_comp) / cons_arr(i,j,k-1,Rho_comp);
-            Real thface = half*(theta0 + theta1);
+            Real thface = myhalf*(theta0 + theta1);
             fab_arr_stag(i,j,k,0) =           uface * w_fc_arr(i,j,k); // u*w
             fab_arr_stag(i,j,k,1) =           vface * w_fc_arr(i,j,k); // v*w
             fab_arr_stag(i,j,k,2) = w_fc_arr(i,j,k) * w_fc_arr(i,j,k); // w*w
@@ -429,7 +429,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             if (!use_moisture) {
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp)) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp)) - p0_arr(i,j,k-1);
-                Real pface = half * (p0 + p1);
+                Real pface = myhalf * (p0 + p1);
                 fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k);       // p*w
                 fab_arr_stag(i,j,k,6) = zero;  // w*qv
                 fab_arr_stag(i,j,k,7) = zero;  // w*qc
@@ -494,17 +494,17 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                                                zero;
                 Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp) :
                                                zero;
-                Real qvface = half * (qv0 + qv1);
-                Real qcface = half * (qc0 + qc1);
-                Real qrface = half * (qr0 + qr1);
+                Real qvface = myhalf * (qv0 + qv1);
+                Real qcface = myhalf * (qc0 + qc1);
+                Real qrface = myhalf * (qr0 + qr1);
 
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp), qv0) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp), qv1) - p0_arr(i,j,k-1);
-                Real pface = half * (p0 + p1);
+                Real pface = myhalf * (p0 + p1);
 
                 Real theta0 = cons_arr(i,j,k  ,RhoTheta_comp) / cons_arr(i,j,k  ,Rho_comp);
                 Real theta1 = cons_arr(i,j,k-1,RhoTheta_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real thface = half*(theta0 + theta1);
+                Real thface = myhalf*(theta0 + theta1);
                 Real ql = qcface + qrface;
                 Real thv = thface * (1 + Real(0.61)*qvface - ql);
 
@@ -663,10 +663,10 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            Real rho_face = half * (rho_arr(i,j,k-1) + rho_arr(i,j,k));
+            Real rho_face = myhalf * (rho_arr(i,j,k-1) + rho_arr(i,j,k));
             // average from edge to face center
-            fab_arr_stag(i,j,k,0) = half*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k)) / rho_face;
-            fab_arr_stag(i,j,k,1) = half*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k)) / rho_face;
+            fab_arr_stag(i,j,k,0) = myhalf*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k)) / rho_face;
+            fab_arr_stag(i,j,k,1) = myhalf*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k)) / rho_face;
 
             fab_arr_stag(i,j,k,2) = hfx3_arr(i,j,k) / rho_face;
             fab_arr_stag(i,j,k,3) = (l_use_moist) ? q1fx3_arr(i,j,k) / rho_face : zero;

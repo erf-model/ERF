@@ -52,8 +52,8 @@ void SAM::IceFall (const SolverChoice& sc) {
                 rho_avg = rho_array(i,j,k-1);
                 qci_avg = qci_array(i,j,k-1);
             } else {
-                rho_avg = half*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                qci_avg = half*(qci_array(i,j,k-1) + qci_array(i,j,k));
+                rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
+                qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
             }
             Real vt_ice = min( Real(0.4),
                                Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );
@@ -111,8 +111,8 @@ void SAM::IceFall (const SolverChoice& sc) {
                     rho_avg = rho_array(i,j,k-1);
                     qci_avg = qci_array(i,j,k-1);
                 } else {
-                    rho_avg = half*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                    qci_avg = half*(qci_array(i,j,k-1) + qci_array(i,j,k));
+                    rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
+                    qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
                 }
                 Real vt_ice = min( Real(0.4),
                                    Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );

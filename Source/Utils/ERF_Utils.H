@@ -206,8 +206,8 @@ realbdy_compute_relaxation (const int& icomp,
                             const bool& do_upwind)
 {
     amrex::IntVect iv = bx_xlo.type();
-    amrex::Real ioff  = (iv[0]==1) ? zero : half;
-    amrex::Real joff  = (iv[1]==1) ? zero : half;
+    amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
+    amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
     const auto& dom_cc_lo = lbound(domain_cc);
     const auto& dom_cc_hi = ubound(domain_cc);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept

@@ -15,13 +15,13 @@
     pp_for_pert_vels.query("pert_ref_height", pert_ref_height);
 
     // Real aval = pert_periods_U * two * PI / (probhi[1] - problo[1]);
-    // Real ufac = pert_deltaU * std::exp(half) / pert_ref_height;
+    // Real ufac = pert_deltaU * std::exp(myhalf) / pert_ref_height;
 
     const Real* problo = geomdata.ProbLo();
     const Real* probhi = geomdata.ProbHi();
 
     Real bval = pert_periods_V * two * PI / (probhi[0] - problo[0]);
-    Real vfac = pert_deltaV * std::exp(half) / pert_ref_height;
+    Real vfac = pert_deltaV * std::exp(myhalf) / pert_ref_height;
 
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
@@ -32,7 +32,7 @@
         const Real* dx = geomdata.CellSize();
         const Real z = use_terrain ? fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
-            : prob_lo[2] + (k + half) * dx[2];
+            : prob_lo[2] + (k + myhalf) * dx[2];
 
         x_vel_pert(i, j, k) = zero;
         if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
@@ -48,10 +48,10 @@
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real z = use_terrain ? fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                           + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
-            : prob_lo[2] + (k + half) * dx[2];
+            : prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = zero;
@@ -65,7 +65,7 @@
         {
             const Real xl = x - prob_lo[0];
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-half * zl * zl);
+            const Real damp = std::exp(-myhalf * zl * zl);
             y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
         }
     });

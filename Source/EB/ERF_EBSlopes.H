@@ -182,8 +182,8 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
 
     // Set bias in the index space between the two staggered grids
     amrex::RealVect bias{zero,zero,zero};
-    bias[igrid_query-1] = half;
-    bias[igrid_data-1] = -half;
+    bias[igrid_query-1] = myhalf;
+    bias[igrid_data-1] = -myhalf;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
@@ -325,7 +325,7 @@ erf_calc_slopes_eb_staggered (int igrid_query,
 
     // Set bias in the index space between the two staggered grids
     amrex::RealVect bias{zero,zero,zero};
-    bias[igrid_query-1] = half;
+    bias[igrid_query-1] = myhalf;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
@@ -465,7 +465,7 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
 
     // Set bias in the index space between the two staggered grids
     amrex::RealVect bias{zero,zero,zero};
-    bias[igrid_query-1] = half;
+    bias[igrid_query-1] = myhalf;
 
     constexpr int dim_a = 27;
 

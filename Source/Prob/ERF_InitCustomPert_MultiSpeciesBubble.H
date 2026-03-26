@@ -97,9 +97,9 @@
             const auto prob_lo         = geomdata.ProbLo();
             const auto dx              = geomdata.CellSize();
 
-            const auto x = prob_lo[0] + (i + half) * dx[0];
-            const auto y = prob_lo[1] + (j + half) * dx[1];
-            const auto z = prob_lo[2] + (k + half) * dx[2];
+            const auto x = prob_lo[0] + (i + myhalf) * dx[0];
+            const auto y = prob_lo[1] + (j + myhalf) * dx[1];
+            const auto z = prob_lo[2] + (k + myhalf) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
@@ -141,9 +141,9 @@
             const auto prob_lo         = geomdata.ProbLo();
             const auto dx              = geomdata.CellSize();
 
-            const Real x = prob_lo[0] + (i + half) * dx[0];
-            const Real y = prob_lo[1] + (j + half) * dx[1];
-            const Real z = prob_lo[2] + (k + half) * dx[2];
+            const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+            const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             // perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                   state_pert(i, j, k, Rho_comp),
@@ -215,9 +215,9 @@
         const auto prob_lo         = geomdata.ProbLo();
         const auto dx              = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + half) * dx[0];
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         amrex::Real L = zero;
         if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);

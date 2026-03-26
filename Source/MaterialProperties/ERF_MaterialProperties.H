@@ -134,7 +134,7 @@ struct MaterialPropertiesCore { // For GPU
 
             auto mol_weight_v = s_N_av/m_Nav_by_molweight;
             auto sigma = amrex::Real(1.18e-8) * std::cbrt(mol_weight_v/m_density);
-            auto sigma_v_air = half * (sigma + s_sigma_air);
+            auto sigma_v_air = myhalf * (sigma + s_sigma_air);
 
             auto eps_v = amrex::Real(1.15) * m_Tb * s_kb;
             auto eps_v_air = std::sqrt( eps_v * s_eps_air_k * s_kb);

@@ -22,16 +22,16 @@
     Real aval = pert_periods_U * two * PI / (prob_hi_y - prob_lo_y);
     Real bval = pert_periods_V * two * PI / (prob_hi_x - prob_lo_x);
 
-    Real ufac = pert_deltaU * std::exp(half) / pert_ref_height;
-    Real vfac = pert_deltaV * std::exp(half) / pert_ref_height;
+    Real ufac = pert_deltaU * std::exp(myhalf) / pert_ref_height;
+    Real vfac = pert_deltaV * std::exp(myhalf) / pert_ref_height;
 
     // Set the x-velocity
     ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real y = prob_lo[1] + (j + half) * dx[1];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = U_0;
@@ -45,7 +45,7 @@
         {
             const amrex::Real yl = y - prob_lo[1];
             const amrex::Real zl = z / pert_ref_height;
-            const amrex::Real damp = std::exp(-half * zl * zl);
+            const amrex::Real damp = std::exp(-myhalf * zl * zl);
             x_vel_pert(i, j, k) += ufac * damp * z * std::cos(aval * yl);
         }
     });
@@ -55,8 +55,8 @@
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + half) * dx[0];
-        const Real z = prob_lo[2] + (k + half) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = V_0;
@@ -70,7 +70,7 @@
         {
             const amrex::Real xl = x - prob_lo[0];
             const amrex::Real zl = z / pert_ref_height;
-            const amrex::Real damp = std::exp(-half * zl * zl);
+            const amrex::Real damp = std::exp(-myhalf * zl * zl);
             y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
         }
     });

@@ -8,8 +8,8 @@
     auto dx = geom.CellSizeArray();
 
     // Define a point (xc,yc,zc) at the center of the domain
-    auto xc = half * (prob_lo[0] + prob_hi[0]);
-    auto yc = half * (prob_lo[1] + prob_hi[1]);
+    auto xc = myhalf * (prob_lo[0] + prob_hi[0]);
+    auto yc = myhalf * (prob_lo[1] + prob_hi[1]);
 
     // Only apply temperature source below nominal inversion height
     for (MFIter mfi(*qsrc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -21,9 +21,9 @@
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                auto x = prob_lo[0] + (i + half) * dx[0];
-                auto y = prob_lo[1] + (j + half) * dx[1];
-                auto z = prob_lo[2] + (k + half) * dx[2];
+                auto x = prob_lo[0] + (i + myhalf) * dx[0];
+                auto y = prob_lo[1] + (j + myhalf) * dx[1];
+                auto z = prob_lo[2] + (k + myhalf) * dx[2];
 
                 //const Real c = two*dx[0];
                 auto c = amrex::Real(1700.0)*amrex::Real(1700.0);

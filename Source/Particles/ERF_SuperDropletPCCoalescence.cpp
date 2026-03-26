@@ -454,7 +454,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);
-            auto scaling_factor = half*ns*(ns-1)/std::floor(half*ns);
+            auto scaling_factor = myhalf*ns*(ns-1)/std::floor(myhalf*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );

@@ -304,8 +304,8 @@ define( [[maybe_unused]] int const& a_level,
 #ifndef AMREX_USE_GPU
           if (verbose) { Print() << "\ncell: " << amrex::IntVect(i,j,k) << "\n"; }
 #endif
-          Array<Real,AMREX_SPACEDIM> lo_arr = {-half,-half,-half};
-          Array<Real,AMREX_SPACEDIM> hi_arr = { half, half, half};
+          Array<Real,AMREX_SPACEDIM> lo_arr = {-myhalf,-myhalf,-myhalf};
+          Array<Real,AMREX_SPACEDIM> hi_arr = { myhalf, myhalf, myhalf};
 
           //-----------------------
           // Low EB cut cell
@@ -335,7 +335,7 @@ define( [[maybe_unused]] int const& a_level,
 
           // High side of low cell
           lo_arr[a_idim] = zero;
-          hi_arr[a_idim] = half;
+          hi_arr[a_idim] = myhalf;
           RealBox lo_rbx(lo_arr.data(), hi_arr.data());
 
           eb_cut_cell_ lo_eb_cc(flag(iv_lo), lo_rbx, lo_point, lo_normal);
@@ -369,7 +369,7 @@ define( [[maybe_unused]] int const& a_level,
           }
 
           // Low side of high cell
-          lo_arr[a_idim] = -half;
+          lo_arr[a_idim] = -myhalf;
           hi_arr[a_idim] =  zero;
           RealBox hi_rbx(lo_arr.data(), hi_arr.data());
 
@@ -571,26 +571,26 @@ define( [[maybe_unused]] int const& a_level,
 
             // one Volume Fraction
 
-            Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= zero && lo_vol <= half);
-            Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= zero && hi_vol <= half);
+            Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= zero && lo_vol <= myhalf);
+            Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= zero && hi_vol <= myhalf);
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 
             // two Volume Centroid
 
             /* centVol() returns the coordinates based on m_rbx.
-              The coordinates in the a_idim direction are in [zero,half] for the low cell and in [-half,zero] for the hi cell.
+              The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
               Therefore, they need to be mapped to the eb_aux space, by shifting:
-              x' = x - half (low cell), x + half (hi cell) if a_idim = 0
-              y' = y - half (low cell), y + half (hi cell) if a_idim = 1
-              z' = z - half (low cell), z + half (hi cell) if a_idim = 2
+              x' = x - myhalf (low cell), x + myhalf (hi cell) if a_idim = 0
+              y' = y - myhalf (low cell), y + myhalf (hi cell) if a_idim = 1
+              z' = z - myhalf (low cell), z + myhalf (hi cell) if a_idim = 2
             */
 
             RealVect lo_vcent {lo_eb_cc.centVol()};
             RealVect hi_vcent {hi_eb_cc.centVol()};
 
-            lo_vcent[a_idim] = lo_vcent[a_idim] - half;
-            hi_vcent[a_idim] = hi_vcent[a_idim] + half;
+            lo_vcent[a_idim] = lo_vcent[a_idim] - myhalf;
+            hi_vcent[a_idim] = hi_vcent[a_idim] + myhalf;
 
             aux_vcent(i,j,k,0) = ( lo_vol * lo_vcent[0] + hi_vol * hi_vcent[0] ) / aux_vfrac(i,j,k);
             aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
@@ -629,11 +629,11 @@ define( [[maybe_unused]] int const& a_level,
             // Real(4.) Face Centroid
 
             /* fcentLo returns the coordinates based on m_rbx.
-              The coordinates in the a_idim direction are in [zero,half] for the low cell and in [-half,zero] for the hi cell.
+              The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
               Therefore, they need to be mapped to the eb_aux space, by shifting:
-              x' = x - half (low cell), x + half (hi cell) if a_idim = 0
-              y' = y - half (low cell), y + half (hi cell) if a_idim = 1
-              z' = z - half (low cell), z + half (hi cell) if a_idim = 2
+              x' = x - myhalf (low cell), x + myhalf (hi cell) if a_idim = 0
+              y' = y - myhalf (low cell), y + myhalf (hi cell) if a_idim = 1
+              z' = z - myhalf (low cell), z + myhalf (hi cell) if a_idim = 2
             */
 
             RealVect lo_centLo_x {lo_eb_cc.centLo(0)};
@@ -648,16 +648,16 @@ define( [[maybe_unused]] int const& a_level,
               aux_fcent_x(i,j,k,0) = lo_centLo_x[1];      // y
               aux_fcent_x(i,j,k,1) = lo_centLo_x[2];      // z
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > zero)   // x (mapped)
-                                    ? ( lo_areaLo_y * (lo_centLo_y[0] - half)
-                                      + hi_areaLo_y * (hi_centLo_y[0] + half) ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_areaLo_y * (lo_centLo_y[0] - myhalf)
+                                      + hi_areaLo_y * (hi_centLo_y[0] + myhalf) ) / aux_afrac_y(i,j,k)
                                     : zero;
               aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > zero)   // z
                                     ? ( lo_areaLo_y * lo_centLo_y[2]
                                       + hi_areaLo_y * hi_centLo_y[2] ) / aux_afrac_y(i,j,k)
                                     : zero;
               aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > zero)   // x (mapped)
-                                    ? ( lo_areaLo_z * (lo_centLo_z[0] - half)
-                                      + hi_areaLo_z * (hi_centLo_z[0] + half) ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_areaLo_z * (lo_centLo_z[0] - myhalf)
+                                      + hi_areaLo_z * (hi_centLo_z[0] + myhalf) ) / aux_afrac_z(i,j,k)
                                     : zero;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > zero)   // y
                                     ? ( lo_areaLo_z * lo_centLo_z[1]
@@ -665,8 +665,8 @@ define( [[maybe_unused]] int const& a_level,
                                     : zero;
             } else if (a_idim == 1) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > zero)   // y (mapped)
-                                    ? ( lo_areaLo_x * (lo_centLo_x[1] - half)
-                                      + hi_areaLo_x * (hi_centLo_x[1] + half) ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_areaLo_x * (lo_centLo_x[1] - myhalf)
+                                      + hi_areaLo_x * (hi_centLo_x[1] + myhalf) ) / aux_afrac_x(i,j,k)
                                     : zero;
               aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > zero)   // z
                                     ? ( lo_areaLo_x * lo_centLo_x[2]
@@ -679,8 +679,8 @@ define( [[maybe_unused]] int const& a_level,
                                       + hi_areaLo_z * hi_centLo_z[0] ) / aux_afrac_z(i,j,k)
                                     : zero;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > zero)   // y (mapped)
-                                    ? ( lo_areaLo_z * (lo_centLo_z[1] - half)
-                                      + hi_areaLo_z * (hi_centLo_z[1] + half) ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_areaLo_z * (lo_centLo_z[1] - myhalf)
+                                      + hi_areaLo_z * (hi_centLo_z[1] + myhalf) ) / aux_afrac_z(i,j,k)
                                     : zero;
             } else if (a_idim == 2) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > zero)   // y
@@ -688,16 +688,16 @@ define( [[maybe_unused]] int const& a_level,
                                       + hi_areaLo_x * hi_centLo_x[1] ) / aux_afrac_x(i,j,k)
                                     : zero;
               aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > zero)   // z (mapped)
-                                    ? ( lo_areaLo_x * (lo_centLo_x[2] - half)
-                                      + hi_areaLo_x * (hi_centLo_x[2] + half) ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_areaLo_x * (lo_centLo_x[2] - myhalf)
+                                      + hi_areaLo_x * (hi_centLo_x[2] + myhalf) ) / aux_afrac_x(i,j,k)
                                     : zero;
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > zero)   // x
                                     ? ( lo_areaLo_y * lo_centLo_y[0]
                                       + hi_areaLo_y * hi_centLo_y[0] ) / aux_afrac_y(i,j,k)
                                     : zero;
               aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > zero)   // z (mapped)
-                                    ? ( lo_areaLo_y * (lo_centLo_y[2] - half)
-                                      + hi_areaLo_y * (hi_centLo_y[2] + half) ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_areaLo_y * (lo_centLo_y[2] - myhalf)
+                                      + hi_areaLo_y * (hi_centLo_y[2] + myhalf) ) / aux_afrac_y(i,j,k)
                                     : zero;
               aux_fcent_z(i,j,k,0) = lo_centLo_z[0];      // x
               aux_fcent_z(i,j,k,1) = lo_centLo_z[1];      // y
@@ -713,8 +713,8 @@ define( [[maybe_unused]] int const& a_level,
                 aux_fcent_x(i+1,j,k,1) = hi_centHi_x[2];      // z
               } else if (a_idim == 1) {
                 aux_fcent_x(i+1,j,k,0) = (aux_afrac_x(i+1,j,k) > zero)   // y (mapped)
-                                      ? ( lo_areaHi_x * (lo_centHi_x[1] - half)
-                                        + hi_areaHi_x * (hi_centHi_x[1] + half) ) / aux_afrac_x(i+1,j,k)
+                                      ? ( lo_areaHi_x * (lo_centHi_x[1] - myhalf)
+                                        + hi_areaHi_x * (hi_centHi_x[1] + myhalf) ) / aux_afrac_x(i+1,j,k)
                                       : zero;
                 aux_fcent_x(i+1,j,k,1) = (aux_afrac_x(i+1,j,k) > zero)   // z
                                       ? ( lo_areaHi_x * lo_centHi_x[2]
@@ -726,8 +726,8 @@ define( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_x * hi_centHi_x[1] ) / aux_afrac_x(i+1,j,k)
                                       : zero;
                 aux_fcent_x(i+1,j,k,1) = (aux_afrac_x(i+1,j,k) > zero)   // z (mapped)
-                                      ? ( lo_areaHi_x * (lo_centHi_x[2] - half)
-                                        + hi_areaHi_x * (hi_centHi_x[2] + half) ) / aux_afrac_x(i+1,j,k)
+                                      ? ( lo_areaHi_x * (lo_centHi_x[2] - myhalf)
+                                        + hi_areaHi_x * (hi_centHi_x[2] + myhalf) ) / aux_afrac_x(i+1,j,k)
                                       : zero;
               }
             }
@@ -738,8 +738,8 @@ define( [[maybe_unused]] int const& a_level,
               RealVect hi_centHi_y {hi_eb_cc.centHi(1)};
               if (a_idim == 0) {
                 aux_fcent_y(i,j+1,k,0) = (aux_afrac_y(i,j+1,k) > zero)   // x (mapped)
-                                      ? ( lo_areaHi_y * (lo_centHi_y[0] - half)
-                                        + hi_areaHi_y * (hi_centHi_y[0] + half) ) / aux_afrac_y(i,j+1,k)
+                                      ? ( lo_areaHi_y * (lo_centHi_y[0] - myhalf)
+                                        + hi_areaHi_y * (hi_centHi_y[0] + myhalf) ) / aux_afrac_y(i,j+1,k)
                                       : zero;
                 aux_fcent_y(i,j+1,k,1) = (aux_afrac_y(i,j+1,k) > zero)   // z
                                       ? ( lo_areaHi_y * lo_centHi_y[2]
@@ -754,8 +754,8 @@ define( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_y * hi_centHi_y[0] ) / aux_afrac_y(i,j+1,k)
                                       : zero;
                 aux_fcent_y(i,j+1,k,1) = (aux_afrac_y(i,j+1,k) > zero)   // z (mapped)
-                                      ? ( lo_areaHi_y * (lo_centHi_y[2] - half)
-                                        + hi_areaHi_y * (hi_centHi_y[2] + half) ) / aux_afrac_y(i,j+1,k)
+                                      ? ( lo_areaHi_y * (lo_centHi_y[2] - myhalf)
+                                        + hi_areaHi_y * (hi_centHi_y[2] + myhalf) ) / aux_afrac_y(i,j+1,k)
                                       : zero;
               }
             }
@@ -766,8 +766,8 @@ define( [[maybe_unused]] int const& a_level,
               RealVect hi_centHi_z {hi_eb_cc.centHi(2)};
               if (a_idim == 0) {
                 aux_fcent_z(i,j,k+1,0) = (aux_afrac_z(i,j,k+1) > zero)   // x (mapped)
-                                      ? ( lo_areaHi_z * (lo_centHi_z[0] - half)
-                                        + hi_areaHi_z * (hi_centHi_z[0] + half) ) / aux_afrac_z(i,j,k+1)
+                                      ? ( lo_areaHi_z * (lo_centHi_z[0] - myhalf)
+                                        + hi_areaHi_z * (hi_centHi_z[0] + myhalf) ) / aux_afrac_z(i,j,k+1)
                                       : zero;
                 aux_fcent_z(i,j,k+1,1) = (aux_afrac_z(i,j,k+1) > zero)   // y
                                       ? ( lo_areaHi_z * lo_centHi_z[1]
@@ -779,8 +779,8 @@ define( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_z * hi_centHi_z[0] ) / aux_afrac_z(i,j,k+1)
                                       : zero;
                 aux_fcent_z(i,j,k+1,1) = (aux_afrac_z(i,j,k+1) > zero)   // y (mapped)
-                                      ? ( lo_areaHi_z * (lo_centHi_z[1] - half)
-                                        + hi_areaHi_z * (hi_centHi_z[1] + half) ) / aux_afrac_z(i,j,k+1)
+                                      ? ( lo_areaHi_z * (lo_centHi_z[1] - myhalf)
+                                        + hi_areaHi_z * (hi_centHi_z[1] + myhalf) ) / aux_afrac_z(i,j,k+1)
                                       : zero;
               } else if (a_idim == 2) {
                 aux_fcent_z(i,j,k+1,0) = lo_centHi_z[0];      // x
@@ -801,17 +801,17 @@ define( [[maybe_unused]] int const& a_level,
             RealVect hi_centBoun {hi_eb_cc.centBoun()};
 
             if (a_idim == 0) {
-              aux_bcent(i,j,k,0) = ( lo_areaBoun * (lo_centBoun[0]-half) + hi_areaBoun * (hi_centBoun[0]+half) ) / aux_barea(i,j,k);  // x (mapped)
+              aux_bcent(i,j,k,0) = ( lo_areaBoun * (lo_centBoun[0]-myhalf) + hi_areaBoun * (hi_centBoun[0]+myhalf) ) / aux_barea(i,j,k);  // x (mapped)
               aux_bcent(i,j,k,1) = ( lo_areaBoun * lo_centBoun[1] + hi_areaBoun * hi_centBoun[1] ) / aux_barea(i,j,k);              // y
               aux_bcent(i,j,k,2) = ( lo_areaBoun * lo_centBoun[2] + hi_areaBoun * hi_centBoun[2] ) / aux_barea(i,j,k);              // z
             } else if (a_idim == 1) {
               aux_bcent(i,j,k,0) = ( lo_areaBoun * lo_centBoun[0] + hi_areaBoun * hi_centBoun[0] ) / aux_barea(i,j,k);              // x
-              aux_bcent(i,j,k,1) = ( lo_areaBoun * (lo_centBoun[1]-half) + hi_areaBoun * (hi_centBoun[1]+half) ) / aux_barea(i,j,k);  // y (mapped)
+              aux_bcent(i,j,k,1) = ( lo_areaBoun * (lo_centBoun[1]-myhalf) + hi_areaBoun * (hi_centBoun[1]+myhalf) ) / aux_barea(i,j,k);  // y (mapped)
               aux_bcent(i,j,k,2) = ( lo_areaBoun * lo_centBoun[2] + hi_areaBoun * hi_centBoun[2] ) / aux_barea(i,j,k);              // z
             } else if (a_idim == 2) {
               aux_bcent(i,j,k,0) = ( lo_areaBoun * lo_centBoun[0] + hi_areaBoun * hi_centBoun[0] ) / aux_barea(i,j,k);              // x
               aux_bcent(i,j,k,1) = ( lo_areaBoun * lo_centBoun[1] + hi_areaBoun * hi_centBoun[1] ) / aux_barea(i,j,k);              // y
-              aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-half) + hi_areaBoun * (hi_centBoun[2]+half) ) / aux_barea(i,j,k);  // z (mapped)
+              aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-myhalf) + hi_areaBoun * (hi_centBoun[2]+myhalf) ) / aux_barea(i,j,k);  // z (mapped)
             }
 
             // Real(7.) Boundary Normal

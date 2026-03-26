@@ -128,7 +128,7 @@ ERF::send_to_ww3 (int lev)
     int nlevs_max = max_level + 1;
     const auto dz  = geom[lev].CellSize(2); //For 10m
     if (dz < 10){
-        k_ref = std::floor( (10 / dz) - half );
+        k_ref = std::floor( (10 / dz) - myhalf );
     }
     double clkStart, timedif;
     clkStart = (double) clock() / CLOCKS_PER_SEC;
@@ -185,7 +185,7 @@ ERF::send_to_ww3 (int lev)
         const Array4<const Real>& velx_arr = xvel_data.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
-            u_vel(i,j,k)  = half *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
+            u_vel(i,j,k)  = myhalf *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
 
             amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " ["
                                               <<velx_arr(i,j,k) << "| avg:  "
@@ -202,7 +202,7 @@ ERF::send_to_ww3 (int lev)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
-            v_vel(i,j,k)  = half *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
+            v_vel(i,j,k)  = myhalf *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
 
             amrex::AllPrintToFile("vvel.txt") << "%ld" << amrex::IntVect(i,j,k) << " ["
                                               <<vely_arr(i,j,k)<<"| avg: "

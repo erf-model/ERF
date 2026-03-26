@@ -65,8 +65,8 @@
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real z        = prob_lo[2] + (k + half) * dx[2];
-        const Real x        = prob_lo[0] + (i + half) * dx[0];
+        const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
         Real scaled_height = z / z_tr;
@@ -81,7 +81,7 @@
 
         // Introduce the warm bubble. Assume that the bubble is pressure matche with the background
 
-        rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), half);
+        rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), myhalf);
 
     if(rad <= r_c){
         delta_theta = theta_c*std::pow(cos(PI*rad/two),2);

@@ -155,13 +155,13 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                     rho_avg = rho_array(i,j,k-1);
                     qp_avg  = qp_array(i,j,k-1);
                 } else {
-                    rho_avg = half*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
-                    qp_avg = half*(qp_array(i,j,k-1)  + qp_array(i,j,k));
+                    rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
+                    qp_avg = myhalf*(qp_array(i,j,k-1)  + qp_array(i,j,k));
                 }
 
                 qp_avg = std::max(zero, qp_avg);
 
-                Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -half); // in m/s
+                Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -myhalf); // in m/s
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -216,13 +216,13 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                         rho_avg = rho_array(i,j,k-1);
                         qp_avg  = qp_array(i,j,k-1);
                     } else {
-                        rho_avg = half*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
-                        qp_avg = half*(qp_array(i,j,k-1)  + qp_array(i,j,k));
+                        rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
+                        qp_avg = myhalf*(qp_array(i,j,k-1)  + qp_array(i,j,k));
                     }
 
                     qp_avg = std::max(zero, qp_avg);
 
-                    Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -half); // in m/s
+                    Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -myhalf); // in m/s
 
                     // NOTE: Fz is the sedimentation flux from the advective operator.
                     //       In the terrain-following coordinate system, the z-deriv in

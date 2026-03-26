@@ -37,14 +37,14 @@
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
-            const Real z = (k + half) * dx[2];
+            const Real z = (k + myhalf) * dx[2];
             x_vel_pert(i, j, k) = U_0 * z / prob_hi[2];
         });
 
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
-            const Real z = (k + half) * dx[2];
+            const Real z = (k + myhalf) * dx[2];
             y_vel_pert(i, j, k) = V_0 * z / prob_hi[2];
         });
 
@@ -59,7 +59,7 @@
         {
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx      = geomdata.CellSize();
-            const Real z_h = prob_lo[2] + (k + half) *  dx[2];
+            const Real z_h = prob_lo[2] + (k + myhalf) *  dx[2];
 
             // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
             if (prob_type == 10) {
@@ -73,7 +73,7 @@
         {
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx      = geomdata.CellSize();
-            const Real z_h = prob_lo[2] + (k + half) *  dx[2];
+            const Real z_h = prob_lo[2] + (k + myhalf) *  dx[2];
 
             // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
             if (prob_type == 11) {
@@ -101,13 +101,13 @@
             const Real z = fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1) + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) );
 
             // Normalized wall-normal dist between -1 and 1
-            Real y_h = (prob_type == 20) ? two * (j + half) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
+            Real y_h = (prob_type == 20) ? two * (j + myhalf) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
                                                  : two * (z - prob_lo[2])  / (prob_hi[2] - prob_lo[2]) - one;
 
             x_vel_pert(i, j, k) = U_0 * (one - y_h * y_h);
 
             if (pert_delta_u != zero) {
-                const Real yl = (j + half) * dx[1];
+                const Real yl = (j + myhalf) * dx[1];
                 const Real scaling = std::cos(PI/two * y_h);
                 x_vel_pert(i, j, k) += pert_delta_u * scaling * std::cos(aval * yl);
             }
@@ -125,8 +125,8 @@
             const Real z = fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1) + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) );
 
             if (pert_delta_u != zero) {
-                const Real xl = (i + half) * dx[0];
-                Real y_h = (prob_type == 20) ? two * (j + half) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
+                const Real xl = (i + myhalf) * dx[0];
+                Real y_h = (prob_type == 20) ? two * (j + myhalf) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
                                                      : two * (z - prob_lo[2])  / (prob_hi[2] - prob_lo[2]) - one;
                 const Real scaling = std::cos(PI/two * y_h);
                 y_vel_pert(i, j, k) += pert_delta_v * scaling * std::cos(bval * xl);

@@ -244,7 +244,7 @@ public:
             }
             if (nrk == 1) {
                 if (no_substepping) {
-                    nsubsteps =               1; dtau = half * timestep;
+                    nsubsteps =               1; dtau = myhalf * timestep;
                 } else {
                     nsubsteps = substep_ratio/2; dtau =   sub_timestep;
                 }

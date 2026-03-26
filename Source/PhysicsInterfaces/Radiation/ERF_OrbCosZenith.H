@@ -376,7 +376,7 @@ orbital_params (int& iyear_AD,
             } else if (sinsum < zero) {
                 fvelp = amrex::Real(1.5)*PI;
             } else if (sinsum > zero) {
-                fvelp = half*PI;
+                fvelp = myhalf*PI;
             }
         } else if (cossum < zero) {
             fvelp = std::atan(sinsum/cossum) + PI;
@@ -482,7 +482,7 @@ orbital_avg_cos_zenith (real& jday,
         phi = declin;
     }
 
-    // define the cosine of the half-day length
+    // define the cosine of the myhalf-day length
     // adjust for cases of all daylight or all night
     real h;
     real cos_h = - std::tan(del) * std::tan(phi);

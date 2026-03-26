@@ -136,8 +136,8 @@ public:
         // Map position to i,j (must be same mapping in cpp file)
         amrex::Real ireal = (xp - plo[0]) * dxi[0];
         amrex::Real jreal = (yp - plo[1]) * dxi[1];
-        int i_new = (int) (ireal - half);
-        int j_new = (int) (jreal - half);
+        int i_new = (int) (ireal - myhalf);
+        int j_new = (int) (jreal - myhalf);
 
         for (int lk(0); lk<kmax; ++lk) {
             amrex::Real z_lo = fourth * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
@@ -146,7 +146,7 @@ public:
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
                 found = true;
-                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + half;
+                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
                 break;
             }
         }
@@ -155,7 +155,7 @@ public:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
-        const amrex::RealVect lx(ireal + half, jreal + half, zval);
+        const amrex::RealVect lx(ireal + myhalf, jreal + myhalf, zval);
 
         const amrex::IntVect ijk = lx.floor();
 

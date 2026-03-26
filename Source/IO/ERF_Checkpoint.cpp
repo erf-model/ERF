@@ -597,7 +597,7 @@ ERF::ReadCheckpointFile ()
             if ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
                  (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ) {
                 MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+1),RhoKE_comp,1,0);
-                vars_new[lev][Vars::cons].mult(half,RhoKE_comp,1,0);
+                vars_new[lev][Vars::cons].mult(myhalf,RhoKE_comp,1,0);
             }
 
             // Copy other components

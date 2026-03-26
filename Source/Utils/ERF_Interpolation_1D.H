@@ -77,7 +77,7 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
  * Example:
  *   Vector<Real> tmp_orig = {0,1,2};
  *   Vector<Real> tmp(4);
- *   expand_and_interpolate_1d(tmp, tmp_orig, 2, false); // tmp == {0, half, 1, amrex::Real(1.5), 2}
+ *   expand_and_interpolate_1d(tmp, tmp_orig, 2, false); // tmp == {0, myhalf, 1, amrex::Real(1.5), 2}
  *   expand_and_interpolate_1d(tmp, tmp_orig, 2, true); // tmp == {fourth, amrex::Real(0.75), amrex::Real(1.25), amrex::Real(1.75)}
  */
 AMREX_FORCE_INLINE
@@ -109,7 +109,7 @@ expand_and_interpolate_1d (amrex::Vector<amrex::Real>& znew,
     }
     if (destag) {
         for (int k=0; k < Nz_refined-1; ++k) {
-            znew[k] = half*(znew_stag[k] + znew_stag[k+1]);
+            znew[k] = myhalf*(znew_stag[k] + znew_stag[k+1]);
         }
     } else {
         znew = znew_stag;

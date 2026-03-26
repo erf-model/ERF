@@ -542,7 +542,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
 
                         // Add the time-averaged RHS to the old state
-                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + half * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);

@@ -164,8 +164,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdz = slopes_w[2];
 
                 Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                Real tau12_eb = half * (dudy + dvdx);
-                Real tau13_eb = half * (dudz + dwdx);
+                Real tau12_eb = myhalf * (dudy + dvdx);
+                Real tau13_eb = myhalf * (dudz + dwdx);
 
                 Real dudn = -(u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
 
@@ -231,8 +231,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdz = slopes_w[2];
 
                 Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                Real tau12_eb = half * (dudy + dvdx);
-                Real tau23_eb = half * (dvdz + dwdy);
+                Real tau12_eb = myhalf * (dudy + dvdx);
+                Real tau23_eb = myhalf * (dvdz + dwdy);
 
                 Real dvdn = -(v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
 
@@ -296,8 +296,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dwdz = slopes_w[2];
 
                 Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                Real tau13_eb = half * (dudz + dwdx);
-                Real tau23_eb = half * (dvdz + dwdy);
+                Real tau13_eb = myhalf * (dudz + dwdx);
+                Real tau23_eb = myhalf * (dvdz + dwdy);
 
                 Real dwdn = -(w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
 

@@ -78,9 +78,9 @@ SAM::PrecipFall (const SolverChoice& sc)
                 tab_avg = tabs_array(i,j,k-1);
                  qp_avg =   qp_array(i,j,k-1);
             } else {
-                rho_avg = half*( rho_array(i,j,k-1) +  rho_array(i,j,k));
-                tab_avg = half*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
-                 qp_avg = half*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
+                rho_avg = myhalf*( rho_array(i,j,k-1) +  rho_array(i,j,k));
+                tab_avg = myhalf*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
+                 qp_avg = myhalf*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
             }
 
             Real Pprecip = zero;
@@ -162,9 +162,9 @@ SAM::PrecipFall (const SolverChoice& sc)
                     tab_avg = tabs_array(i,j,k-1);
                      qp_avg =   qp_array(i,j,k-1);
                 } else {
-                    rho_avg = half*( rho_array(i,j,k-1) +  rho_array(i,j,k));
-                    tab_avg = half*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
-                     qp_avg = half*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
+                    rho_avg = myhalf*( rho_array(i,j,k-1) +  rho_array(i,j,k));
+                    tab_avg = myhalf*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
+                     qp_avg = myhalf*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
                 }
 
                 Real Pprecip = zero;

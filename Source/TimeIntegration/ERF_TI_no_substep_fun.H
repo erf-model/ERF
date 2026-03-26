@@ -103,8 +103,8 @@
                                                                     ssum[IntVars::xmom], ssum[IntVars::ymom],
                                                                     mf_u, mf_v, z_nd_new,dxInv);
                         } else {
-                            Real dJ_old_kface = half * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
-                            Real dJ_new_kface = half * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                            Real dJ_old_kface = myhalf * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
+                            Real dJ_new_kface = myhalf * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
                             ssum[IntVars::zmom](i,j,k) = ( dJ_old_kface *  sold[IntVars::zmom](i,j,k)
                                                              + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
                         }

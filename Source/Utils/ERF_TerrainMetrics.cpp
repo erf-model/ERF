@@ -33,7 +33,7 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
         const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_cc_arr(i,j,k) = (k + half) * dz;
+            z_cc_arr(i,j,k) = (k + myhalf) * dz;
         });
     }
 }
@@ -332,7 +332,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
         MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
         // Minimum allowed fractional grid spacing
-        Real gamma_m = half;
+        Real gamma_m = myhalf;
         pp.query("terrain_gamma_m", gamma_m);
         Real z_H     = Real(2.44)*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 

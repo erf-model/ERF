@@ -183,7 +183,7 @@ struct MYNNPBLH {
                                     && (thv  <  min_thv_arr(i,j,0) + theta_incr_land))
                         {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
-                            pblh_arr(i,j,0) = (k+half)*dz_no_terrain
+                            pblh_arr(i,j,0) = (k+myhalf)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
                                               * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
@@ -191,7 +191,7 @@ struct MYNNPBLH {
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
                         {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
-                            pblh_arr(i,j,0) = (k+half)*dz_no_terrain
+                            pblh_arr(i,j,0) = (k+myhalf)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
                                               * (min_thv_arr(i,j,0) + theta_incr_water - thv);
                         }
@@ -211,7 +211,7 @@ struct MYNNPBLH {
                         if ((tke1 <= TKEeps) && (tke > TKEeps))
                         {
                             // Interpolate to get lowest height where TKE -> 0
-                            pblh_tke_arr(i,j,0) = (k+half)*dz_no_terrain
+                            pblh_tke_arr(i,j,0) = (k+myhalf)*dz_no_terrain
                                                 + dz_no_terrain/(tke1-tke) * (TKEeps - tke);
                         }
                     }
@@ -250,7 +250,7 @@ struct MYNNPBLH {
                 //
                 amrex::Real maxqke = two * cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                 if (maxqke > amrex::Real(0.05)) {
-                    amrex::Real wt = half*std::tanh((zi - sbl_lim)/sbl_damp) + half;
+                    amrex::Real wt = myhalf*std::tanh((zi - sbl_lim)/sbl_damp) + myhalf;
                     pblh_arr(i,j,0) = (one-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);
                 }
             });

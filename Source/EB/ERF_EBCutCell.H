@@ -211,9 +211,9 @@ class eb_cut_cell_ {
 
         amrex::Real vol = volume();
 
-        vcent[0] = half * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
-        vcent[1] = half * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
-        vcent[2] = half * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
+        vcent[0] = myhalf * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
+        vcent[1] = myhalf * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
+        vcent[2] = myhalf * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
       }
       return vcent;
     }
@@ -310,9 +310,9 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
   // Cell centroid
 
-  m_cell_cent[0] = half * ( m_rbox.lo(0) + m_rbox.hi(0) );
-  m_cell_cent[1] = half * ( m_rbox.lo(1) + m_rbox.hi(1) );
-  m_cell_cent[2] = half * ( m_rbox.lo(2) + m_rbox.hi(2) );
+  m_cell_cent[0] = myhalf * ( m_rbox.lo(0) + m_rbox.hi(0) );
+  m_cell_cent[1] = myhalf * ( m_rbox.lo(1) + m_rbox.hi(1) );
+  m_cell_cent[2] = myhalf * ( m_rbox.lo(2) + m_rbox.hi(2) );
 
   // Cell size
 
@@ -330,7 +330,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
   } else { // Check that the box and plane intersect.
 
-    amrex::RealVect c = half*(v0 + v7);
+    amrex::RealVect c = myhalf*(v0 + v7);
     amrex::RealVect e = v7 - c;
 
     amrex::Real r = e[0]*amrex::Math::abs(a_normal[0]) +

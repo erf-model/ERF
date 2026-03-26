@@ -522,15 +522,15 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
                     stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
-                        stressx += half * flux_comp.compute_u_flux(i, j, k,
+                        stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, um_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressx += half * lsm_tau13_arr(i  ,j,0);
+                        stressx += myhalf * lsm_tau13_arr(i  ,j,0);
                     }
                     if (is_land_lo) {
-                        stressx += half * lsm_tau13_arr(i-1,j,0);
+                        stressx += myhalf * lsm_tau13_arr(i-1,j,0);
                     }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
@@ -554,15 +554,15 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
                     stressy = zero;
                     if (!is_land_hi || !is_land_lo) {
-                        stressy += half * flux_comp.compute_v_flux(i, j, k,
+                        stressy += myhalf * flux_comp.compute_v_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, vm_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressy += half * lsm_tau23_arr(i,j  ,0);
+                        stressy += myhalf * lsm_tau23_arr(i,j  ,0);
                     }
                     if (is_land_lo) {
-                        stressy += half * lsm_tau23_arr(i,j-1,0);
+                        stressy += myhalf * lsm_tau23_arr(i,j-1,0);
                     }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
@@ -709,7 +709,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
             if (!is_land) {
                 auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
-                                        half*dz;
+                                        myhalf*dz;
                 auto Rho  = cons_arr(i,j,k,Rho_comp);
                 auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
                 auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
