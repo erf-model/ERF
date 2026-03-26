@@ -508,6 +508,8 @@ public:
                                                     amrex::MultiFab& yvel_pert,
                                                     amrex::MultiFab& zvel_pert);
 
+    void init_custom (int lev);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -618,8 +620,6 @@ private:
 
     void init_bcs ();
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
-
-    void init_custom (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
