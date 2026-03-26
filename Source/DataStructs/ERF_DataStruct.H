@@ -643,7 +643,9 @@ struct SolverChoice {
              // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
              pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
-             if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
+             if (!implicit_thermal_diffusion &&
+                 !implicit_moisture_diffusion &&
+                 !implicit_momentum_diffusion) {
                  amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
                  vert_implicit_fac[0] = 0.0;
                  vert_implicit_fac[1] = 0.0;
@@ -882,8 +884,9 @@ struct SolverChoice {
             vert_implicit_fac[0] > 1 ||
             vert_implicit_fac[0] > 2)
         {
-            amrex::Print() << " (theta=" << implicit_thermal_diffusion
-                           << ", momenta=" << implicit_momentum_diffusion;
+            amrex::Print() << " (theta="    << implicit_thermal_diffusion
+                           << ", moisture=" << implicit_moisture_diffusion
+                           << ", momenta="  << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
             amrex::Print() << ", including w";
 #endif

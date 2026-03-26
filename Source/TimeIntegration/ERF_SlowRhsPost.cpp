@@ -436,8 +436,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (l_use_diff)
                 {
                     // Allow for implicit moisture diffusion
-                    const Real l_vert_implicit_fac = (solverChoice.vert_implicit_fac[nrk] > 0 &&
-                                                      solverChoice.implicit_moisture_diffusion);
+                    const Real l_vert_implicit_fac = (solverChoice.implicit_moisture_diffusion) ?
+                                                     solverChoice.vert_implicit_fac[nrk] : 0.0;
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
