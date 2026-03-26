@@ -37,7 +37,7 @@ ERF::init_from_ncfile (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    r_hse.setVal(1.0); p_hse.setVal(1.e5); pi_hse.setVal(1.); th_hse.setVal(300.0); qv_hse.setVal(0.0);
+    r_hse.setVal(1); p_hse.setVal(1.e5); pi_hse.setVal(1); th_hse.setVal(300); qv_hse.setVal(0);
 
     // ***********************************************************
 
@@ -92,28 +92,28 @@ ERF::init_from_ncfile (int lev)
     make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
 
     // Default all cell-centered variables to 0
-    lev_new[Vars::cons].setVal(0.0);
+    lev_new[Vars::cons].setVal(0);
 
     // Default density to 1
-    Real den_ref = 1.0;
+    Real den_ref = one;
     lev_new[Vars::cons].setVal(den_ref,Rho_comp,1);
 
     // Default theta to 300; multiply by rho below
-    Real theta_ref = 300.0;
+    Real theta_ref = Real(300.0);
     lev_new[Vars::cons].setVal(theta_ref,RhoTheta_comp,1);
 
     // Default scalar to 0; multiply by rho below
-    Real scal_ref = 0.0;
+    Real scal_ref = zero;
     lev_new[Vars::cons].setVal(scal_ref,RhoScalar_comp,1);
 
     // Default xvel to 0
-    lev_new[Vars::xvel].setVal(0.0,0,0,1);
+    lev_new[Vars::xvel].setVal(0,0,0,1);
 
     // Default yvel to 0
-    lev_new[Vars::yvel].setVal(0.0,0,0,1);
+    lev_new[Vars::yvel].setVal(0,0,0,1);
 
     // Default zvel to 0
-    lev_new[Vars::zvel].setVal(0.0,0,0,1);
+    lev_new[Vars::zvel].setVal(0,0,0,1);
 
     const int src_comp = 0;
     const int num_comp = 1;
@@ -150,21 +150,21 @@ ERF::init_from_ncfile (int lev)
             int dest_comp = 0;
             xvel_fab.template copy<RunOn::Device>(NC_xvel_fab , src_comp, dest_comp, num_comp);
         } else {
-            xvel_fab.template setVal<RunOn::Device>(0.0);
+            xvel_fab.template setVal<RunOn::Device>(0);
         }
 
         if (success[4]) {
             int dest_comp = 0;
             yvel_fab.template copy<RunOn::Device>(NC_yvel_fab , src_comp, dest_comp, num_comp);
         } else {
-            yvel_fab.template setVal<RunOn::Device>(0.0);
+            yvel_fab.template setVal<RunOn::Device>(0);
         }
 
         if (success[5]) {
             int dest_comp = 0;
             zvel_fab.template copy<RunOn::Device>(NC_zvel_fab , src_comp, dest_comp, num_comp);
         } else {
-            zvel_fab.template setVal<RunOn::Device>(0.0);
+            zvel_fab.template setVal<RunOn::Device>(0);
         }
 
         // HSE vars
@@ -245,7 +245,7 @@ ERF::init_from_ncfile (int lev)
 
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
-        Real tol = 1.0e-10;
+        Real tol = Real(1.0e-10);
         Real grav = CONST_GRAV;
         for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
             Box bx  = mfi.tilebox();
@@ -276,26 +276,26 @@ ERF::init_from_ncfile (int lev)
                 // First integrate from sea level to the height at klo
                 {
                     // Vertical grid spacing
-                    z_lo = 0.0; // corresponding to p_0
-                    z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                    z_lo = zero; // corresponding to p_0
+                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                    +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
                     dz = z_hi - z_lo;
 
                     // Establish known constant
-                    qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : 0.0;
+                    qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero;
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_lo  = p_0;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                    rho_tot_lo = R_lo * (1. + qv_lo);
-                    C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+                    rho_tot_lo = R_lo * (one + qv_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : 0.0;
+                    qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero;
                     Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_hi  = p_0;
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                    rho_tot_hi = R_hi * (1. + qv_hi);
-                    F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+                    rho_tot_hi = R_hi * (one + qv_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -315,23 +315,23 @@ ERF::init_from_ncfile (int lev)
 
                 for (int k(klo+1); k<=khi; ++k) {
                     // Vertical grid spacing
-                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
                                  +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
                   dz   = z_hi - z_lo;
 
                   // Establish known constant
-                  qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : 0.0;
+                  qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
                   Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                  rho_tot_lo = R_lo * (1. + qv_lo);
-                  C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+                  rho_tot_lo = R_lo * (one + qv_lo);
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
-                  qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : 0.0;
+                  qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
                   Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                  rho_tot_hi = R_hi * (1. + qv_hi);
-                  F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+                  rho_tot_hi = R_hi * (one + qv_hi);
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,

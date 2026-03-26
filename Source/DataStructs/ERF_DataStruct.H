@@ -142,7 +142,7 @@ struct SolverChoice {
             amrex::Error("The input use_moist_background is deprecated.  Set init_type = MoistBaseState instead.");
         }
 
-        // Do we set map scale factors to 0.5 instead of 1 for testing?
+        // Do we set map scale factors to myhalf instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
@@ -334,7 +334,7 @@ struct SolverChoice {
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
-            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
                                       "The grid stretching ratio must be greater than 1");
         }
         if (grid_stretching_ratio >= 1) {
@@ -345,7 +345,7 @@ struct SolverChoice {
                 mesh_type = MeshType::StretchedDz;
             }
             pp.query("zsurface", zsurf);
-            if (zsurf != 0.0) {
+            if (zsurf != zero) {
                 amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
                     << std::endl;
             }
@@ -368,7 +368,7 @@ struct SolverChoice {
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
-        gravity = use_gravity? CONST_GRAV: 0.0;
+        gravity = use_gravity? CONST_GRAV: zero;
 
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
@@ -469,8 +469,8 @@ struct SolverChoice {
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
-        if ((if_init_surf_temp > 0.0 && if_surf_temp_flux != 1e-8) ||
-            (if_init_surf_temp > 0.0 && if_Olen_in != 1e-8) ||
+        if ((if_init_surf_temp > zero && if_surf_temp_flux != 1e-8) ||
+            (if_init_surf_temp > zero && if_Olen_in != 1e-8) ||
             (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
@@ -510,11 +510,11 @@ struct SolverChoice {
         pert_type = PerturbationType::None; // Default
         pp.query_enum_case_insensitive("perturbation_type",pert_type);
 
-        amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
+        amrex::Vector<amrex::Real> abl_pressure_grad_in = {zero, zero, zero};
         pp.queryarr("abl_pressure_grad",abl_pressure_grad_in);
         for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_pressure_grad[i] = abl_pressure_grad_in[i];
 
-        amrex::Vector<amrex::Real> abl_geo_forcing_in = {0.0, 0.0, 0.0};
+        amrex::Vector<amrex::Real> abl_geo_forcing_in = {zero, zero, zero};
         if(pp.queryarr("abl_geo_forcing",abl_geo_forcing_in)) {
             amrex::Print() << "Specified abl_geo_forcing: (";
             for (int i = 0; i < AMREX_SPACEDIM; ++i) {
@@ -549,13 +549,13 @@ struct SolverChoice {
 
         // Use numerical diffusion?
         pp.query("num_diff_coeff",num_diff_coeff);
-        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= 0.) && (num_diff_coeff <= 1.) ),
-                                  "Numerical diffusion coefficient must be between 0 & 1.");
+        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= zero) && (num_diff_coeff <= one) ),
+                                  "Numerical diffusion coefficient must be between 0 & one");
         use_num_diff = (num_diff_coeff > 0);
         if (use_num_diff) {
             amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
                 << num_diff_coeff << std::endl;
-            num_diff_coeff *= std::pow(2.0,-6);
+            num_diff_coeff *= std::pow(two,-6);
         }
 
             advChoice.init_params(pp_prefix);
@@ -611,9 +611,9 @@ struct SolverChoice {
              bool do_vert_implicit = false;
              if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
                  // set to default here
-                 vert_implicit_fac[0] = 1.0;
-                 vert_implicit_fac[1] = 1.0;
-                 vert_implicit_fac[2] = 0.0;
+                 vert_implicit_fac[0] = one;
+                 vert_implicit_fac[1] = one;
+                 vert_implicit_fac[2] = zero;
              }
 
              // This may be one value for all RK stages or a different value in each stage
@@ -641,13 +641,13 @@ struct SolverChoice {
 
              if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
                  amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
-                 vert_implicit_fac[0] = 0.0;
-                 vert_implicit_fac[1] = 0.0;
-                 vert_implicit_fac[2] = 0.0;
+                 vert_implicit_fac[0] = zero;
+                 vert_implicit_fac[1] = zero;
+                 vert_implicit_fac[2] = zero;
              }
 
              // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
              // The default is true (i.e. that it happens before the acoustic substepping).
              pp.query("implicit_before_substep", implicit_before_substep);
          }
@@ -705,7 +705,7 @@ struct SolverChoice {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
             pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
-            if(hindcast_data_interval_in_hrs < 0.0) {
+            if(hindcast_data_interval_in_hrs < zero) {
                 amrex::Error("ERROR: Input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
                              "data files is either missing or set to less than zero");
             }
@@ -717,19 +717,19 @@ struct SolverChoice {
 
             pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
 
-            if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < 0.0) {
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
             }
 
-            if (hindcast_lateral_forcing and hindcast_lateral_sponge_length < 0.0) {
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_length < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
             }
 
-            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
             }
 
-            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
             }
         }
@@ -755,11 +755,11 @@ struct SolverChoice {
         pp_ens.query("is_init_with_correlated_pert", is_init_with_correlated_pert);
         if(is_init_with_correlated_pert) {
             pp_ens.query("pert_correlated_radius", pert_correlated_radius);
-            if(pert_correlated_radius <= 0.0) {
+            if(pert_correlated_radius <= zero) {
                 amrex::Error("You are using initialization with spatially correlated perturbations using the inputs option "
                              "ensemble.is_init_with_correlated_pert=true. In this case, there has to be an option "
                              "ensemble.pert_correlated_radius which is the value of the the spatial correlation radius, "
-                             "and has to be greater than 0.0");
+                             "and has to be greater than zero");
             }
         }
     }
@@ -790,20 +790,20 @@ struct SolverChoice {
         //
         // Wind farm checks
         //
-        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < zero) {
              amrex::Error("To use simplified actuator disks, you need to provide a variable"
                            " erf.sampling_distance_by_D in the inputs which specifies the upstream"
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
         if ( (windfarm_type==WindFarmType::SimpleAD ||
-              windfarm_type==WindFarmType::GeneralAD ) && turb_disk_angle < 0.0) {
+              windfarm_type==WindFarmType::GeneralAD ) && turb_disk_angle < zero) {
             amrex::Error("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
                           " will have turb_disk_angle value of 90 deg.");
         }
-        if (windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < 0.0 or windfarm_y_shift < 0.0)) {
+        if (windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < zero or windfarm_y_shift < zero)) {
             amrex::Error("You are using windfarms with latitude-logitude option to position the turbines."
                          " For this you should provide the inputs erf.windfarm_x_shift and"
                          " erf.windfarm_y_shift which are the values by which the bounding box of the"
@@ -821,7 +821,7 @@ struct SolverChoice {
 
         // Mesoscale diffusion -- test if LES appropriate with this dx,dy
         for (int lev = 0; lev <= max_level; lev++) {
-            if ((geom_vect[lev].CellSize(0) > 2000.) || (geom_vect[lev].CellSize(1) > 2000.))
+            if ((geom_vect[lev].CellSize(0) > amrex::Real(2000.)) || (geom_vect[lev].CellSize(1) > amrex::Real(2000.)))
             {
                 if ( (turbChoice[lev].les_type == LESType::Smagorinsky) && !turbChoice[lev].smag2d ) {
                     amrex::Warning("Should use 2-D Smagorinsky for mesoscale resolution");
@@ -987,18 +987,18 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
-        amrex::Real rot_time_period = 86400.0;
+        amrex::Real rot_time_period = amrex::Real(86400.0);
         pp.query("rotational_time_period", rot_time_period);
 
-        coriolis_factor = 2.0 * 2.0 * PI / rot_time_period;
+        coriolis_factor = two * two * PI / rot_time_period;
 
-        amrex::Real latitude = 90.0;
+        amrex::Real latitude = amrex::Real(90.0);
         pp.query("latitude", latitude);
 
         pp.query("coriolis_3d", coriolis_3d);
 
         // Convert to radians
-        latitude *= (PI/180.);
+        latitude *= (PI/amrex::Real(180.));
         sinphi = std::sin(latitude);
         if (coriolis_3d) {
             cosphi = std::cos(latitude);
@@ -1093,13 +1093,13 @@ struct SolverChoice {
 
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
-    amrex::Real beta_s = 0.1;
+    amrex::Real beta_s = amrex::Real(0.1);
 
     // This controls the time-centering of the *vertical* differences in the diffusive term for
     // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
     // 1: fully implicit
-    amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
+    amrex::Vector<amrex::Real> vert_implicit_fac = {zero, zero, zero}; // one value per RK stage
     // if any vert_implicit_fac > 0, then the following apply:
     bool implicit_thermal_diffusion  = true;
     bool implicit_momentum_diffusion = true;
@@ -1125,13 +1125,13 @@ struct SolverChoice {
     bool        forest_substep            = false;
 
     // immersed forcing parameters
-    amrex::Real if_Cd_scalar          = 10.0;
-    amrex::Real if_Cd_momentum        = 10.0;
+    amrex::Real if_Cd_scalar          = amrex::Real(10.0);
+    amrex::Real if_Cd_momentum        = amrex::Real(10.0);
     // immersed forcing MOST parameters.
-    amrex::Real if_z0                 = 0.1;   // [m]
+    amrex::Real if_z0                 = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
-    amrex::Real if_init_surf_temp     = 0.0;   // [K]
-    amrex::Real if_surf_heating_rate  = 0.0;   // [K/hr]
+    amrex::Real if_init_surf_temp     = zero;   // [K]
+    amrex::Real if_surf_heating_rate  = zero;   // [K/hr]
     amrex::Real if_Olen_in            = 1e-8;  // [m]
     bool        if_use_most           = false;
 
@@ -1145,13 +1145,13 @@ struct SolverChoice {
 
     // Staggered z levels for vertical grid stretching
     amrex::Real grid_stretching_ratio   = 0;
-    amrex::Real zsurf                   = 0.0;
+    amrex::Real zsurf                   = zero;
     amrex::Real dz0;
 
     // Coriolis forcing
-    amrex::Real coriolis_factor = 0.0;
-    amrex::Real cosphi          = 0.0;
-    amrex::Real sinphi          = 0.0;
+    amrex::Real coriolis_factor = zero;
+    amrex::Real cosphi          = zero;
+    amrex::Real sinphi          = zero;
 
     // User-specified forcings in problem definition
     bool custom_rhotheta_forcing  = false;
@@ -1185,7 +1185,7 @@ struct SolverChoice {
 
     // Numerical diffusion
     bool use_num_diff{false};
-    amrex::Real num_diff_coeff{0.};
+    amrex::Real num_diff_coeff{zero};
 
     // Rebalance wrfinput
     bool rebalance_wrfinput{false};
@@ -1214,38 +1214,38 @@ struct SolverChoice {
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
-    amrex::Real sampling_distance_by_D = -1.0;
-    amrex::Real turb_disk_angle = -1.0;
-    amrex::Real windfarm_x_shift = -1.0;
-    amrex::Real windfarm_y_shift = -1.0;
+    amrex::Real sampling_distance_by_D = -one;
+    amrex::Real turb_disk_angle = -one;
+    amrex::Real windfarm_x_shift = -one;
+    amrex::Real windfarm_y_shift = -one;
 
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
-    amrex::Real bdy_nudge_factor = 10.0;
+    amrex::Real bdy_nudge_factor = amrex::Real(10.0);
 
     // Use forest canopy model?
     bool do_forest_drag {false};
 
     // Enforce constant mass flux?
-    amrex::Real const_massflux_u = 0.0;
-    amrex::Real const_massflux_v = 0.0;
-    amrex::Real const_massflux_tau = 1.0;
+    amrex::Real const_massflux_u = zero;
+    amrex::Real const_massflux_v = zero;
+    amrex::Real const_massflux_tau = one;
     amrex::Real const_massflux_layer_lo = -1e34;
     amrex::Real const_massflux_layer_hi =  1e34;
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
     std::string hindcast_boundary_data_dir, hindcast_surface_data_dir;
-    amrex::Real hindcast_data_interval_in_hrs = -1.0;
+    amrex::Real hindcast_data_interval_in_hrs = -one;
     bool hindcast_lateral_forcing = false;
     bool hindcast_surface_bcs = false;
-    amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
-    amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
+    amrex::Real hindcast_lateral_sponge_strength = -one, hindcast_lateral_sponge_length = -one;
+    amrex::Real hindcast_zhi_sponge_strength = -one, hindcast_zhi_sponge_length = -one;
     bool hindcast_zhi_sponge_damping = false;
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
     bool is_init_with_correlated_pert = false;
-    amrex::Real pert_correlated_radius = -1.0;
+    amrex::Real pert_correlated_radius = -one;
 };
 #endif

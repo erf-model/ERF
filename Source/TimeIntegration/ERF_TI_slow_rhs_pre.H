@@ -168,7 +168,7 @@
 #endif
                          fr_as_crse, fr_as_fine);
 
-        if ((solverChoice.vert_implicit_fac[nrk] > 0.) && solverChoice.implicit_before_substep) {
+        if ((solverChoice.vert_implicit_fac[nrk] > zero) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
@@ -203,21 +203,21 @@
 
 #include "ERF_Implicit.H"
 
-            MultiFab::Saxpy(scratch, -1.0, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Saxpy(scratch, -one, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
+            scratch.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
 
             if (solverChoice.implicit_momentum_diffusion) {
-                MultiFab::Saxpy(scratch_xmom, -1.0, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_xmom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_xmom, -one, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_xmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 
-                MultiFab::Saxpy(scratch_ymom, -1.0, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_ymom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_ymom, -one, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_ymom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 #ifdef ERF_IMPLICIT_W
-                MultiFab::Saxpy(scratch_zmom, -1.0, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_zmom, -one, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_zmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 #endif
             }
@@ -294,13 +294,13 @@
                Box gbx2 = mfi.growntilebox({1,1,0});
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
-                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * 0.5 * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
-                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * 0.5 * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
+                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
 
-                   Real zflux_rt_lo = zflux_r_lo * 0.5 * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
-                   Real zflux_rt_hi = zflux_r_hi * 0.5 * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
+                   Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
 
-                   Real invdetJ = 1.0 / dJ_src_arr(i,j,k);
+                   Real invdetJ = one / dJ_src_arr(i,j,k);
 
                    Real src_r  = - invdetJ * ( zflux_r_hi  - zflux_r_lo  ) * dxInv[2];
                    Real src_rt = - invdetJ * ( zflux_rt_hi - zflux_rt_lo ) * dxInv[2];

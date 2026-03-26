@@ -9,7 +9,7 @@ using namespace amrex;
 
 /**
  * Solve the Poisson equation using MLMG
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  *
  * Important: we solve on the whole level even if there are disjoint regions
  *

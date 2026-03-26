@@ -54,7 +54,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         //   theta_s = theta_va + theta_T
         //
-        // and here the thermal excess theta_T = 0.
+        // and here the thermal excess theta_T = zero
         //
 
         // create flattened boxes to store PBL height
@@ -96,11 +96,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // height above ground level
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + 0.5) * gdata.CellSize(2);
+                     : (kpbl + myhalf) * gdata.CellSize(2);
 
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
-                const Real ws2 = 0.25 * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
@@ -110,14 +110,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
             // Empirical expression for PBLH is given by h = c u* / f
             // Garratt (1994) and Tennekes (1982)
-            // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. 2014.
-            //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
+            // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. Real(2014.)
+            //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? Real(0.16) : Real(0.60);
             //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
 
             // Fallback to first cell
             const Real pblh_emp = (use_terrain_fitted_coords)
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
+                                : gdata.ProbLo(2) + myhalf * gdata.CellSize(2);
 
             // Initial PBL Height
             // Avoiding detailed interpolation here
@@ -140,20 +140,20 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
                                            (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
-                                           -1.0 / 3.0);
+                                           -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
-            const Real t_surf   = t_layer + std::max(std::min(t_excess, 3.0), 0.0);
+            const Real t_surf   = t_layer + std::max(std::min(t_excess, three), zero);
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
             {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
+                     : gdata.ProbLo(2) + (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
-                const Real ws2 = 0.25 * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
@@ -168,10 +168,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
+                     : gdata.ProbLo(2) + (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
-                const Real ws2 = 0.25 * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
@@ -187,14 +187,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             } else {
                 // Empirical expression for PBLH is given by h = c u* / f
                 // Garratt (1994) and Tennekes (1982)
-                // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. 2014.
-                //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
+                // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. Real(2014.)
+                //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? Real(0.16) : Real(0.60);
                 //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
 
                 // Fallback to first cell
                 pblh_corr_arr(i, j, 0) = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                       : gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
+                                       : gdata.ProbLo(2) + myhalf * gdata.CellSize(2);
                      pbli_arr(i, j, 0) = klo + 1;
             }
 
@@ -228,22 +228,22 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         {
             const Real zval = (use_terrain_fitted_coords)
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
-                            : gdata.ProbLo(2) + (k + 0.5) * gdata.CellSize(2);
+                            : gdata.ProbLo(2) + (k + myhalf) * gdata.CellSize(2);
             const Real rho = cell_data(i, j, k, Rho_comp);
             const Real met_h_zeta = (use_terrain_fitted_coords)
-                                  ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : 1.0;
+                                  ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta / dz_inv;
             if (k < pbli_arr(i, j, 0)) {
                 const Real phiM = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
                                            (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
-                                           -1.0 / 3.0);
+                                           -one / three);
                 const Real phit = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
                                            (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
-                                           -1.0 / 2.0);
+                                           -one / two);
                 const Real Prt = phit / phiM + const_b * KAPPA * sf;
                 const Real wstar = u_star_arr(i, j, 0) / phiM;
                 K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
@@ -251,39 +251,39 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
             } else {
-                const Real lambda = 150.0;
+                const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                 Real dthetadz, dudz, dvdz;
-                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, 1.0 / dz_terrain,
+                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
-                const Real wind_shear = dudz * dudz + dvdz * dvdz + 1.0e-9;
+                const Real wind_shear = dudz * dudz + dvdz * dvdz + Real(1.0e-9);
                 const Real theta   = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
                 Real grad_Ri = CONST_GRAV / theta * dthetadz / wind_shear; // clear sky -- TODO: reduce stability in cloudy air
-                grad_Ri = std::max(grad_Ri, -100.0);  // Hong et al. 2006, MWR, Appendix A
+                grad_Ri = std::max(grad_Ri, -Real(100.0));  // Hong et al. 2006, MWR, Appendix A
                 /*
-                  const Real Pr = 1.5 + 3.08 * grad_Ri;
+                  const Real Pr = Real(1.5) + Real(3.08) * grad_Ri;
                   const Real fm =
                   (grad_Ri > 0)
-                  ? (std::exp(-8.5 * grad_Ri) + (0.15 / (grad_Ri + 3.0)) * Pr)
-                  : std::pow((1 - 12 * grad_Ri), -1.0 / 3.0);
+                  ? (std::exp(-Real(8.5) * grad_Ri) + (Real(0.15) / (grad_Ri + three)) * Pr)
+                  : std::pow((1 - 12 * grad_Ri), -one / three);
                   const Real ft =
                   (grad_Ri > 0)
-                  ? (std::exp(-8.5 * grad_Ri) + (0.15 / (grad_Ri + 3.0)))
-                  : std::pow((1 - 16 * grad_Ri), -1.0 / 2.0);
+                  ? (std::exp(-Real(8.5) * grad_Ri) + (Real(0.15) / (grad_Ri + three)))
+                  : std::pow((1 - 16 * grad_Ri), -one / two);
                 */
                 // Using YSU model instead of MRF model
-                Real Pr = 1.0 + 2.1 * grad_Ri;  // Hong et al. 2006, MWR, Eqn. A19
+                Real Pr = one + Real(2.1) * grad_Ri;  // Hong et al. 2006, MWR, Eqn. A19
                 const Real fm = (grad_Ri > 0)
-                              ? 1.0 / ((1.0 + 5.0 * grad_Ri) * (1.0 + 5.0 * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + 1.746 * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20b
+                              ? one / ((one + Real(5.0) * grad_Ri) * (one + Real(5.0) * grad_Ri))
+                              : 1 - 8 * grad_Ri / (1 + Real(1.746) * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20b
                 const Real ft = (grad_Ri > 0)
-                              ? 1.0 / ((1.0 + 5.0 * grad_Ri) * (1.0 + 5.0 * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + 1.286 * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20a
+                              ? one / ((one + Real(5.0) * grad_Ri) * (one + Real(5.0) * grad_Ri))
+                              : 1 - 8 * grad_Ri / (1 + Real(1.286) * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20a
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
-                Pr = std::max(0.25, std::min(Pr, 4.0));  // Hong et al. 2006, MWR, Appendix A
+                Pr = std::max(fourth, std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
@@ -292,14 +292,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // limit both diffusion coefficients
 #if 0
             // Hong et al. 2006, MWR, Appendix A
-            constexpr Real ckz  = 0.001;
-            constexpr Real Kmax = 1000.0;
+            constexpr Real ckz  = Real(0.001);
+            constexpr Real Kmax = Real(1000.0);
             const Real rhoKmin  = ckz * dz_terrain * rho;
             const Real rhoKmax  = rho * Kmax;
 #endif
             // Hong & Pan 1996, MWR
-            constexpr Real Kmin = 0.1;
-            constexpr Real Kmax = 300.0;
+            constexpr Real Kmin = Real(0.1);
+            constexpr Real Kmax = Real(300.0);
             const Real rhoKmin  = rho * Kmin;
             const Real rhoKmax  = rho * Kmax;
 

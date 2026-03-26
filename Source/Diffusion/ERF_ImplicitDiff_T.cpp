@@ -113,10 +113,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,klo  ,cellSizeInv,z_nd);
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
-                a_tmp      = 0.;
+                a_tmp      = zero;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
                 b_tmp      = detJ(i,j,klo) * cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = 1.;
+                inv_b2_tmp = one;
 
                 RHS_a(i,j,klo) = detJ(i,j,klo) * cell_data(i,j,klo,n); // NOTE: this is rho*theta; solution is theta
                 if (use_SurfLayer) {
@@ -142,7 +142,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
                 b_tmp      = detJ(i,j,k) * cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
                 RHS_a(i,j,k)    = detJ(i,j,k) * cell_data(i,j,k,n); // NOTE: this is rho*theta; solution is theta
 
@@ -161,9 +161,9 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,khi+1,cellSizeInv,z_nd);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_hi;
-                c_tmp      = 0.;
+                c_tmp      = zero;
                 b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
                 RHS_a(i,j,khi) = detJ(i,j,khi) * cell_data(i,j,khi,n); // NOTE: this is rho*theta; solution is theta
                 if (neumann_on_zhi) {
@@ -243,14 +243,14 @@ ImplicitDiffForMomLU_T (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
-                            : 2.0 * dc.dynamic_viscosity;
+    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
+                            : two * dc.dynamic_viscosity;
 
     // g(S*) coefficient
-    // stagdir==0: tau_corr = 0.5 * du/dz * mu_tot
-    // stagdir==1: tau_corr = 0.5 * dv/dz * mu_tot
+    // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
+    // stagdir==1: tau_corr = myhalf * dv/dz * mu_tot
     // stagdir==2: tau_corr =       dw/dz * mu_tot
-    constexpr Real gfac = (stagdir == 2) ? 2.0/3.0 : 1.0;
+    constexpr Real gfac = (stagdir == 2) ? two/three : one;
 
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
@@ -312,8 +312,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
           //
           // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
           //   The part that needs to be scaled is stored in `tau_corr`.
-          //   E.g., tau13 = 0.5 * (du/dz + dw/dx)
-          //         tau13_corr = 0.5 * du/dz
+          //   E.g., tau13 = myhalf * (du/dz + dw/dx)
+          //         tau13_corr = myhalf * du/dz
           //
           // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
           //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
@@ -345,18 +345,18 @@ ImplicitDiffForMomLU_T (const Box& bx,
           Real detJface, met_h_zeta_lo, met_h_zeta_hi;
           Real a_tmp, b_tmp, c_tmp, inv_b2_tmp;
           {
-              detJface = 0.5 * (detJ(i,j,klo) + detJ(i-ioff,j-joff,klo));
-              rhoface  = 0.5 * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
+              detJface = myhalf * (detJ(i,j,klo) + detJ(i-ioff,j-joff,klo));
+              rhoface  = myhalf * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
               getRhoAlphaForFaces(i, j, klo, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
+              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
+                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
+              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
+                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
 
-              a_tmp = 0.;
+              a_tmp = zero;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
 
               RHS_a(i,j,klo) = detJface * face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
@@ -365,11 +365,11 @@ ImplicitDiffForMomLU_T (const Box& bx,
               if (ext_dir_on_zlo) {
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
                   if (stagdir==2) {
-                      c_tmp = 0.;
-                      RHS_a(i,j,klo) = 0.;
+                      c_tmp = zero;
+                      RHS_a(i,j,klo) = zero;
                   } else {
-                      a_tmp = -2.0 * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-                      RHS_a(i,j,klo) += 2.0 * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv / met_h_zeta_lo;
+                      a_tmp = -two * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv / met_h_zeta_lo;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
@@ -378,7 +378,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = 1.;
+              inv_b2_tmp = one;
 
               RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
               coeffG_a(i,j,klo)  = c_tmp / b_tmp; // NOTE: this is now "gamma"
@@ -387,21 +387,21 @@ ImplicitDiffForMomLU_T (const Box& bx,
           // Build the coefficients and RHS for L decomp
           //===================================================
           for (int k(klo+1); k < khi; k++) {
-              detJface = 0.5 * (detJ(i,j,k) + detJ(i-ioff,j-joff,k));
-              rhoface  = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              detJface = myhalf * (detJ(i,j,k) + detJ(i-ioff,j-joff,k));
+              rhoface  = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
+              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
+              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+              inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = detJface * face_data(i,j,k); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k));
@@ -413,19 +413,19 @@ ImplicitDiffForMomLU_T (const Box& bx,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              detJface = 0.5 * (detJ(i,j,khi) + detJ(i-ioff,j-joff,khi));
-              rhoface  = 0.5 * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
+              detJface = myhalf * (detJ(i,j,khi) + detJ(i-ioff,j-joff,khi));
+              rhoface  = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
               getRhoAlphaForFaces(i, j, khi, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
+              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
+              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-              c_tmp = 0.;
+              c_tmp = zero;
 
               RHS_a(i,j,khi)  = detJface * face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
@@ -433,16 +433,16 @@ ImplicitDiffForMomLU_T (const Box& bx,
               // BCs: Dirichlet (u_i = val), slip wall (w = 0)
               if (ext_dir_on_zhi) {
                   if (stagdir==2) {
-                      a_tmp = 0.;
-                      RHS_a(i,j,khi) = 0.;
+                      a_tmp = zero;
+                      RHS_a(i,j,khi) = zero;
                   } else {
-                      c_tmp = -2.0 * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
-                      RHS_a(i,j,khi) += 2.0 * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv / met_h_zeta_hi;
+                      c_tmp = -two * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv / met_h_zeta_hi;
                   }
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+              inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
               // First solve
               soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_b2_tmp;
@@ -457,7 +457,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
           // Convert back to momenta
           //===================================================
           for (int k(klo); k<=khi; ++k) {
-              rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               face_data(i,j,k) = rhoface * soln_a(i,j,k);
           }
 

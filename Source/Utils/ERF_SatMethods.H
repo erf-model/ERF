@@ -37,12 +37,12 @@
 class SatMethods {
 public:
     // Get saturation specific humidity given pressure and SVP.
-    // Specific humidity is limited to range 0-1.
+    // Specific humidity is limited to range 0-one
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_to_qsat (const amrex::Real& es, const amrex::Real& p) {
-        // If pressure is less than SVP, set qs to maximum of 1.
-        if ( (p - es) <= 0. )
-            return 1.0;
+        // If pressure is less than SVP, set qs to maximum of one
+        if ( (p - es) <= zero )
+            return one;
         else
             return epsilo*es / (p - omeps*es);
     }
@@ -137,17 +137,17 @@ public:
         if (t >= (tmelt - ttrice))
             es = wv_sat_svp_water(t,idx);
         else
-            es = 0.0;
+            es = zero;
 
         // Ice
         if (t < tmelt) {
             esice = wv_sat_svp_ice(t,idx);
             if ( (tmelt - t) > ttrice )
-                weight = 1.0;
+                weight = one;
             else
                 weight = (tmelt - t)/ttrice;
 
-            es = weight*esice + (1.0 - weight)*es;
+            es = weight*esice + (one - weight)*es;
         }
         return es;
     }
@@ -157,43 +157,43 @@ public:
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_water (const amrex::Real& t) {
         // uncertain below -70 C
-        return pow(10., (-7.90298*(tboil/t-1.)+
-                         5.02808*std::log10(tboil/t)-
-                         1.3816e-7*(pow(10., (11.344*(1.-t/tboil)))-1.)+
-                         8.1328e-3*(pow(10., (-3.49149*(tboil/t-1.)))-1.)+
-                         std::log10(1013.246)))*100.;
+        return pow(amrex::Real(10.), (-amrex::Real(7.90298)*(tboil/t-one)+
+                         amrex::Real(5.02808)*std::log10(tboil/t)-
+                         amrex::Real(1.3816e-7)*(pow(amrex::Real(10.), (amrex::Real(11.344)*(one-t/tboil)))-one)+
+                         amrex::Real(8.1328e-3)*(pow(amrex::Real(10.), (-amrex::Real(3.49149)*(tboil/t-one)))-one)+
+                         std::log10(amrex::Real(1013.246))))*amrex::Real(100.);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_ice (const amrex::Real& t) {
         // good down to -100 C
-        return pow(10., (-9.09718*(h2otrip/t-1.)-3.56654*
-                         log10(h2otrip/t)+0.876793*(1.-t/h2otrip)+
-                         log10(6.1071)))*100.;
+        return pow(amrex::Real(10.), (-amrex::Real(9.09718)*(h2otrip/t-one)-amrex::Real(3.56654)*
+                         log10(h2otrip/t)+amrex::Real(0.876793)*(one-t/h2otrip)+
+                         log10(amrex::Real(6.1071))))*amrex::Real(100.);
     }
 
     // Murphy & Koop (2005)
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_water (const amrex::Real& t) {
         // (good for 123 < T < 332 K)
-        return exp(54.842763 - (6763.22 / t) - (4.210 * log(t)) +
-                   (0.000367 * t) + (tanh(0.0415 * (t - 218.8)) *
-                                     (53.878 - (1331.22 / t) - (9.44523 * log(t)) +
-                                      0.014025 * t)));
+        return exp(amrex::Real(54.842763) - (amrex::Real(6763.22) / t) - (amrex::Real(4.210) * log(t)) +
+                   (amrex::Real(0.000367) * t) + (tanh(amrex::Real(0.0415) * (t - amrex::Real(218.8))) *
+                                     (amrex::Real(53.878) - (amrex::Real(1331.22) / t) - (amrex::Real(9.44523) * log(t)) +
+                                      amrex::Real(0.014025) * t)));
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_ice (const amrex::Real& t) {
         // (good down to 110 K)
-        return exp(9.550426 - (5723.265 / t) + (3.53068 * log(t))
-                   - (0.00728332 * t));
+        return exp(amrex::Real(9.550426) - (amrex::Real(5723.265) / t) + (amrex::Real(3.53068) * log(t))
+                   - (amrex::Real(0.00728332) * t));
     }
 
 
     // Old CAM implementation, also labeled Goff & Gratch (1946)
 
     // The water formula differs only due to compiler-dependent order of
-    // operations, so differences are roundoff level, usually 0.
+    // operations, so differences are roundoff level, usually zero
 
     // The ice formula gives fairly close answers to the current
     // implementation, but has been rearranged, and uses the
@@ -205,24 +205,24 @@ public:
     // since it compensates for a systematic error in Goff & Gratch.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_water (const amrex::Real& t) {
-        auto ps = 1013.246;
-        auto e1 = 11.344*(1.0 - t/tboil);
-        auto e2 = -3.49149*(tboil/t - 1.0);
-        auto f1 = -7.90298*(tboil/t - 1.0);
-        auto f2 = 5.02808*log10(tboil/t);
-        auto f3 = -1.3816*(pow(10.0, e1) - 1.0)/10000000.0;
-        auto f4 = 8.1328*(pow(10.0, e2) - 1.0)/1000.0;
+        auto ps = amrex::Real(1013.246);
+        auto e1 = amrex::Real(11.344)*(one - t/tboil);
+        auto e2 = -amrex::Real(3.49149)*(tboil/t - one);
+        auto f1 = -amrex::Real(7.90298)*(tboil/t - one);
+        auto f2 = amrex::Real(5.02808)*log10(tboil/t);
+        auto f3 = -amrex::Real(1.3816)*(pow(amrex::Real(10.0), e1) - one)/amrex::Real(10000000.0);
+        auto f4 = amrex::Real(8.1328)*(pow(amrex::Real(10.0), e2) - one)/amrex::Real(1000.0);
         auto f5 = log10(ps);
         auto f  = f1 + f2 + f3 + f4 + f5;
-        return (pow(10.0, f))*100.0;
+        return (pow(amrex::Real(10.0), f))*amrex::Real(100.0);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_ice (const amrex::Real& t) {
-        auto term1 = 2.01889049/(tmelt/t);
-        auto term2 = 3.56654*log(tmelt/t);
-        auto term3 = 20.947031*(tmelt/t);
-        return 575.185606e10*exp(-(term1 + term2 + term3));
+        auto term1 = amrex::Real(2.01889049)/(tmelt/t);
+        auto term2 = amrex::Real(3.56654)*log(tmelt/t);
+        auto term3 = amrex::Real(20.947031)*(tmelt/t);
+        return amrex::Real(575.185606e10)*exp(-(term1 + term2 + term3));
     }
 
     // Bolton (1980)
@@ -235,9 +235,9 @@ public:
     // takes Kelvin and internally converts.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real Bolton_svp_water (const amrex::Real& t) {
-        constexpr auto c1 = 611.2;
-        constexpr auto c2 = 17.67;
-        constexpr auto c3 = 243.5;
+        constexpr auto c1 = amrex::Real(611.2);
+        constexpr auto c2 = amrex::Real(17.67);
+        constexpr auto c3 = amrex::Real(243.5);
         return c1*exp( (c2*(t - tmelt))/((t - tmelt)+c3) );
     }
 

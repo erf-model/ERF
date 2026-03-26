@@ -102,7 +102,7 @@ ERF::WriteVTKPolyline(const std::string& filename,
 
     int num_points = points_xy.size();
     if (num_points == 0) {
-        vtkfile << "# vtk DataFile Version 3.0\n";
+        vtkfile << "# vtk DataFile Version three\n";
         vtkfile << "Storm Track\n";
         vtkfile << "ASCII\n";
         vtkfile << "DATASET POLYDATA\n";
@@ -115,7 +115,7 @@ ERF::WriteVTKPolyline(const std::string& filename,
     }
     num_points = points_xy.size();
 
-    vtkfile << "# vtk DataFile Version 3.0\n";
+    vtkfile << "# vtk DataFile Version three\n";
     vtkfile << "Storm Track\n";
     vtkfile << "ASCII\n";
     vtkfile << "DATASET POLYDATA\n";
@@ -123,7 +123,7 @@ ERF::WriteVTKPolyline(const std::string& filename,
     // Write points (Z=0 assumed)
     vtkfile << "POINTS " << num_points << " float\n";
     for (const auto& pt : points_xy) {
-        vtkfile << pt[0] << " " << pt[1] << " 10000.0\n";
+        vtkfile << pt[0] << " " << pt[1] << " Real(10000.0)\n";
     }
 
     // Write polyline connectivity

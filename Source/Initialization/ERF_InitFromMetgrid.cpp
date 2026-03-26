@@ -137,7 +137,7 @@ ERF::init_from_metgrid (int lev)
 
     auto& lev_new = vars_new[lev];
 
-    z_phys_nd[lev]->setVal(0.);
+    z_phys_nd[lev]->setVal(0);
 
     AMREX_ALWAYS_ASSERT(SolverChoice::terrain_type != TerrainType::None);
 
@@ -215,10 +215,10 @@ ERF::init_from_metgrid (int lev)
                     bdy_data_ylo[itime][nvar].resize(ylo_plane_no_stag, 1, Arena_Used);
                     bdy_data_yhi[itime][nvar].resize(yhi_plane_no_stag, 1, Arena_Used);
                 }
-                bdy_data_xlo[itime][nvar].template setVal<RunOn::Device>(0.0);
-                bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0.0);
-                bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0.0);
-                bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0.0);
+                bdy_data_xlo[itime][nvar].template setVal<RunOn::Device>(0);
+                bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0);
+                bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0);
+                bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0);
             }
         } // itime
     } // lev==0
@@ -258,8 +258,8 @@ ERF::init_from_metgrid (int lev)
                 Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
                         << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
 #endif
-                t_new[lev] = 0.;
-                t_old[lev] = -1.e200;
+                t_new[lev] = zero;
+                t_old[lev] = -Real(1.e200);
             } else {
                 // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
                 AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
@@ -286,12 +286,12 @@ ERF::init_from_metgrid (int lev)
 
 
         // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
-        Real tol   = 1.0e-3;
+        Real tol   = Real(1.0e-3);
         AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[0]-NC_dx) < tol);
         AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[1]-NC_dy) < tol);
-        // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
+        // NC_nx-2 because NC_nx is the number of staggered grid points indexed from one
         AMREX_ALWAYS_ASSERT(i_hi-i_lo == NC_nx-2);
-        // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
+        // NC_ny-2 because NC_ny is the number of staggered grid points indexed from one
         AMREX_ALWAYS_ASSERT(j_hi-j_lo == NC_ny-2);
 
         if (itime == 0) {
@@ -392,7 +392,7 @@ ERF::init_from_metgrid (int lev)
                     int lj = min(max(j, j_lo), j_hi);
                     dst_arr(i,j,0) = src_arr(li,lj,0);
 
-                    Real lat_rad = dst_arr(i,j,0) * (PI/180.);
+                    Real lat_rad = dst_arr(i,j,0) * (PI/Real(180.));
                     sin_arr(i,j,0) = std::sin(lat_rad);
                     cos_arr(i,j,0) = std::cos(lat_rad);
                 });
@@ -471,7 +471,7 @@ ERF::init_from_metgrid (int lev)
             // Fill state data using origin data (initialization and BC arrays)
             //     x_vel   interpolated from origin levels
             //     y_vel   interpolated from origin levels
-            //     z_vel   set to 0.0
+            //     z_vel   set to zero
             //     theta   (metgrid_interp_theta) calculate on origin levels then interpolate
             //             (!metgrid_interp_theta) interpolate P and T then calculate on ERF levels
             //     mxrat   convert RH -> Q on origin levels then interpolate
@@ -605,7 +605,7 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
    {
        int ii = std::max(std::min(i,ihi-1),ilo+1);
        int jj = std::max(std::min(j,jhi-1),jlo+1);
-       z_arr(i,j,k) =  0.25 * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
+       z_arr(i,j,k) =  fourth * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
                                 nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
    });
 }
@@ -617,9 +617,9 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param itime int
  * @param use_moisture bool True if solverChoice.moisture_type != MoistureType::None
  * @param metgrid_interp_theta bool calculate theta on origin levels, then interpolate
- * @param metgrid_debug_quiescent bool overwrite u and v with 0.0
- * @param metgrid_debug_isothermal bool overwrite theta with 300.0
- * @param metgrid_debug_dry bool overwrite qv with 0.0
+ * @param metgrid_debug_quiescent bool overwrite u and v with zero
+ * @param metgrid_debug_isothermal bool overwrite theta with Real(300.0)
+ * @param metgrid_debug_dry bool overwrite qv with zero
  * @param metgrid_basic_linear bool linear interpolation without quality control
  * @param metgrid_use_below_sfc bool quality control includes points below the surface
  * @param metgrid_use_sfc bool quality control includes the point at the surface
@@ -714,7 +714,7 @@ init_state_from_metgrid (const int  lev,
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                if (itime == 0) new_data(i,j,k,dst_indx) = 0.0;
+                if (itime == 0) new_data(i,j,k,dst_indx) = zero;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
@@ -753,7 +753,7 @@ init_state_from_metgrid (const int  lev,
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                if (itime == 0) new_data(i,j,k,dst_indx) = 0.0;
+                if (itime == 0) new_data(i,j,k,dst_indx) = zero;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
@@ -774,7 +774,7 @@ init_state_from_metgrid (const int  lev,
     // W
     // ********************************************************
     if (itime == 0) { // update at initialization
-        z_vel_fab.template setVal<RunOn::Device>(0.0);
+        z_vel_fab.template setVal<RunOn::Device>(0);
     }
 
 
@@ -782,7 +782,7 @@ init_state_from_metgrid (const int  lev,
     // Initialize all state_fab variables to zero
     // ********************************************************
     if (itime == 0) { // update at initialization
-        state_fab.template setVal<RunOn::Device>(0.0);
+        state_fab.template setVal<RunOn::Device>(0);
     }
 
 
@@ -825,7 +825,7 @@ init_state_from_metgrid (const int  lev,
         {
             if (metgrid_debug_isothermal) { // Debugging option to run isothermal.
                 for (int k(0); k<=kmax; k++) {
-                    if (itime == 0) new_data(i,j,k,dst_indx) = 300.0;
+                    if (itime == 0) new_data(i,j,k,dst_indx) = Real(300.0);
                 }
             } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                 for (int k(0); k<=kmax; k++) {
@@ -920,7 +920,7 @@ init_state_from_metgrid (const int  lev,
         ParallelFor(tbxc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real Calc_Val = getThgivenTandP(tmp_dst_arr(i,j,k,T_indx),tmp_dst_arr(i,j,k,P_indx),l_rdOcp);
-            if (metgrid_debug_isothermal) Calc_Val = 300.0; // Debugging option to run isothermal.
+            if (metgrid_debug_isothermal) Calc_Val = Real(300.0); // Debugging option to run isothermal.
             if (itime == 0) new_data(i,j,k,dst_indx) = Calc_Val;
         });
         }
@@ -969,7 +969,7 @@ init_state_from_metgrid (const int  lev,
             {
                 if (metgrid_debug_dry) { // Debugging option to run dry.
                     for (int k(0); k<=kmax; k++) {
-                        if (itime == 0) new_data(i,j,k,dst_indx)   = 0.0;
+                        if (itime == 0) new_data(i,j,k,dst_indx)   = zero;
                     }
                 } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                     for (int k(0); k<=kmax; k++) {
@@ -986,7 +986,7 @@ init_state_from_metgrid (const int  lev,
         }
     } // use_moisture
 
-    // Store boundary data if on level 0.
+    // Store boundary data if on level zero
     if (lev == 0) {
 
         { // U
@@ -1164,7 +1164,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             const int maxiter = 10;
-            const amrex::Real tol = 1.0e-10;
+            const amrex::Real tol = Real(1.0e-10);
 
             // Low and Hi column variables
             Real psurf;
@@ -1181,25 +1181,25 @@ init_base_state_from_metgrid (const bool use_moisture,
                 psurf = orig_psfc(i,j,0);
             } else {
                 z_lo     = new_z(i,j,0);
-                Real t_0 = 290.0; // WRF's model_config_rec%base_temp
-                Real a   = 50.0;  // WRF's model_config_rec%base_lapse
-                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2.)-2.0*grav*z_lo/(a*R_d)), 0.5));
+                Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
+                Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)), myhalf));
             }
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {
                 z_lo      = new_z(i,j,0);
-                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : 0.0;
-                rd_lo     = 0.0; // initial guess
+                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo     = zero; // initial guess
                 thetad_lo = new_data(i,j,0,RhoTheta_comp);
                 // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
                 //       reference pressure (psurf) is at the ground.
-                Real half_dz = z_lo;
-                Real qvf     = 1.0+(R_v/R_d)*qv_lo;
+                Real myhalf_dz = z_lo;
+                Real qvf     = one+(R_v/R_d)*qv_lo;
                 Real thetam  = thetad_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
-                    p_lo = psurf-half_dz*rd_lo*(1.0+qv_lo)*grav;
-                    if (p_lo < 0.0) p_lo = 0.0;
+                    p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
+                    if (p_lo < zero) p_lo = zero;
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
                  p_hse_arr(i,j,0) =  p_lo;
@@ -1211,7 +1211,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             for (int k(1); k<=kmax; k++) {
                 // Known hi data
                 z_hi  = new_z(i,j,k);
-                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
+                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
                 thetad_hi = new_data(i,j,k,RhoTheta_comp);
 
                 // Initial guesses for hi data
@@ -1225,12 +1225,12 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Real dz = z_hi - z_lo;
 
                 // Establish known constant
-                Real rho_tot_lo = rd_lo * (1. + qv_lo);
-                Real C = -p_lo + 0.5*rho_tot_lo*grav*dz;
+                Real rho_tot_lo = rd_lo * (one + qv_lo);
+                Real C = -p_lo + myhalf*rho_tot_lo*grav*dz;
 
                 // Initial residual
-                Real rho_tot_hi = rd_hi * (1. + qv_hi);
-                Real F = p_hi + 0.5*rho_tot_hi*grav*dz + C;
+                Real rho_tot_hi = rd_hi * (one + qv_hi);
+                Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
                 if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -1254,7 +1254,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Multiply by Rho to get conserved vars
-            Real Qv = 0.0;
+            Real Qv = zero;
             new_data(i,j,k,Rho_comp)       = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoTheta_comp) *= r_hse_arr(i,j,k);
             if (use_moisture) {
@@ -1262,11 +1262,11 @@ init_base_state_from_metgrid (const bool use_moisture,
                 new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
             }
             for (int n(0); n < NSCALARS; n++) {
-                new_data(i,j,k,RhoScalar_comp+n) = 0.0;
+                new_data(i,j,k,RhoScalar_comp+n) = zero;
             }
 
             // r_hse needs to include the moisture (account for that here)
-            r_hse_arr(i,j,k) *= (1.0 + Qv);
+            r_hse_arr(i,j,k) *= (one + Qv);
 
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / new_data(i,j,k,Rho_comp);
@@ -1369,11 +1369,11 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
         msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab);
     } else {
 #ifndef AMREX_USE_GPU
-        Print() << " map factors are not present in met_em files. Setting to 1.0" << std::endl;
+        Print() << " map factors are not present in met_em files. Setting to one" << std::endl;
 #endif
-        msfm_fab.template setVal<RunOn::Device>(1.0);
-        msfu_fab.template setVal<RunOn::Device>(1.0);
-        msfv_fab.template setVal<RunOn::Device>(1.0);
+        msfm_fab.template setVal<RunOn::Device>(1);
+        msfu_fab.template setVal<RunOn::Device>(1);
+        msfv_fab.template setVal<RunOn::Device>(1);
     }
 }
 #endif // ERF_USE_NETCDF

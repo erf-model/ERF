@@ -1,4 +1,5 @@
 #include <ERF_ForestDrag.H>
+#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -58,7 +59,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     {
         // Expose CPU data for GPU capture
         Real af; // Depends upon the type of forest (tf)
-        Real treeZm = 0.0; // Only for forest type 2
+        Real treeZm = zero; // Only for forest type 2
         int  tf = int(m_type_forest[ii]);
         Real hf = m_height_forest[ii];
         Real xf = m_x_forest[ii];
@@ -81,11 +82,11 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             for (int k(0); k<nk; ++k) {
                 ratio = (hf - treeZm) / (hf - ztree);
                 if (ztree < treeZm) {
-                    expFun += std::pow(ratio, 6.0) *
+                    expFun += std::pow(ratio, Real(6.0)) *
                               std::exp(6 * (1 - ratio));
                 } else {
-                    expFun += std::pow(ratio, 0.5) *
-                              std::exp(0.5 * (1 - ratio));
+                    expFun += std::pow(ratio, myhalf) *
+                              std::exp(myhalf * (1 - ratio));
                 }
                 ztree += dz;
             }
@@ -102,13 +103,13 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Physical positions of cell-centers
-                const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+                const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+                const Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // "z" is measured as distance from cell center to ground
-                const Real z_sfc = 0.25 * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
+                const Real z_sfc = fourth * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
                                            +z_nd(i,j+1,0) + z_nd(i+1,j+1,0));
-                const Real z = std::max((z_cc(i,j,k)-z_sfc),0.0);
+                const Real z = std::max((z_cc(i,j,k)-z_sfc),zero);
 
                 // Proximity to the forest
                 const Real radius = std::sqrt((x - xf) * (x - xf) +
@@ -116,15 +117,15 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
                 // Hit for canopy region
                 Real factor = 1;
-                if ((z <= hf) && (radius <= (0.5 * df))) {
+                if ((z <= hf) && (radius <= (myhalf * df))) {
                     if (tf == 2) {
                         Real ratio = (hf - treeZm) / (hf - z);
                         if (z < treeZm) {
-                            factor = std::pow(ratio, 6.0) *
-                                     std::exp(6.0 * (1.0 - ratio));
+                            factor = std::pow(ratio, Real(6.0)) *
+                                     std::exp(Real(6.0) * (one - ratio));
                         } else if (z <= hf) {
-                            factor = std::pow(ratio, 0.5) *
-                                     std::exp(0.5 * (1.0 - ratio));
+                            factor = std::pow(ratio, myhalf) *
+                                     std::exp(myhalf * (one - ratio));
                         }
                     }
                     levelDrag(i, j, k) = cdf * af * factor;

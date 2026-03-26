@@ -45,12 +45,12 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
             // x-face
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apx(i,j,k) == Real(0.0)) {
+                if (apx(i,j,k) == zero) {
                     if (!u_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i-1,j,k).isCovered()) {
-                            fx(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - 3.*p_arr(i-2,j,k) + 2.*p_arr(i-1,j,k));
+                            fx(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three*p_arr(i-2,j,k) + two*p_arr(i-1,j,k));
                         } else if (cflag(i-1,j,k).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fx(i,j,k) = dxInv[0] * (3.*p_arr(i+1,j,k) - p_arr(i+2,j,k) - 2.*p_arr(i,j,k));
+                            fx(i,j,k) = dxInv[0] * (three*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two*p_arr(i,j,k));
                         }
                     }
                 }
@@ -58,12 +58,12 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
             // y-face
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apy(i,j,k) == Real(0.0)) {
+                if (apy(i,j,k) == zero) {
                     if (!v_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i,j-1,k).isCovered()) {
-                            fy(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - 3.*p_arr(i,j-2,k) + 2.*p_arr(i,j-1,k));
+                            fy(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three*p_arr(i,j-2,k) + two*p_arr(i,j-1,k));
                         } else if (cflag(i,j-1,k).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fy(i,j,k) = dxInv[1] * (3.*p_arr(i,j+1,k) - p_arr(i,j+2,k) - 2.*p_arr(i,j,k));
+                            fy(i,j,k) = dxInv[1] * (three*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two*p_arr(i,j,k));
                         }
                     }
                 }
@@ -71,12 +71,12 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
             // z-face
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apz(i,j,k) == Real(0.0)) {
+                if (apz(i,j,k) == zero) {
                     if (!w_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i,j,k-1).isCovered()) {
-                            fz(i,j,k) = dxInv[2] * (p_arr(i,j,k-3) - 3.*p_arr(i,j,k-2) + 2.*p_arr(i,j,k-1));
+                            fz(i,j,k) = dxInv[2] * (p_arr(i,j,k-3) - three*p_arr(i,j,k-2) + two*p_arr(i,j,k-1));
                         } else if (cflag(i,j,k-1).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fz(i,j,k) = dxInv[2] * (3.*p_arr(i,j,k+1) - p_arr(i,j,k+2) - 2.*p_arr(i,j,k));
+                            fz(i,j,k) = dxInv[2] * (three*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two*p_arr(i,j,k));
                         }
                     }
                 }

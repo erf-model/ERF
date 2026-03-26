@@ -1,10 +1,10 @@
     // Parse params
     ParmParse pp("prob");
-    Real x_c =      0.; pp.query("x_c", x_c);
-    Real z_c =   3000.; pp.query("z_c", z_c);
-    Real x_r =   4000.; pp.query("x_r", x_r);
-    Real z_r =   2000.; pp.query("z_r", z_r);
-    Real T_pert = -15.; pp.query("T_pert", T_pert);
+    Real x_c =      zero; pp.query("x_c", x_c);
+    Real z_c =   amrex::Real(3000.); pp.query("z_c", z_c);
+    Real x_r =   amrex::Real(4000.); pp.query("x_r", x_r);
+    Real z_r =   amrex::Real(2000.); pp.query("z_r", z_r);
+    Real T_pert = -amrex::Real(15.); pp.query("T_pert", T_pert);
 
     const bool const_rho    = (sc.fixed_density[lev] == 1);
 
@@ -16,16 +16,16 @@
         const auto prob_lo = geomdata.ProbLo();
         const auto dx      = geomdata.CellSize();
 
-        const Real x = ( prob_lo[0] + (i + 0.5) * dx[0] ) / mf_m(i,j,0);
+        const Real x = ( prob_lo[0] + (i + myhalf) * dx[0] ) / mf_m(i,j,0);
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(
             std::pow((x - x_c)/x_r, 2) +
             std::pow((z - z_c)/z_r, 2));
 
-        if (L <= 1.0)
+        if (L <= one)
         {
-            Real dT = T_pert * (std::cos(PI*L) + 1.0)/2.0;
+            Real dT = T_pert * (std::cos(PI*L) + one)/two;
             Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation

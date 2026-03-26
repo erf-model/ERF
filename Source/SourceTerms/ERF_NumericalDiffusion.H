@@ -15,8 +15,8 @@ calc_fifth_order_deriv (const amrex::Real& dnp2,
                         const amrex::Real& dnm2,
                         const amrex::Real& dnm3)
 {
-    amrex::Real interp = 10. * (dn   - dnm1)
-                        - 5. * (dnp1 - dnm2)
+    amrex::Real interp = amrex::Real(10.) * (dn   - dnm1)
+                        - amrex::Real(5.) * (dnp1 - dnm2)
                              + (dnp2 - dnm3);
     return interp;
 }

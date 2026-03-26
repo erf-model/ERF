@@ -83,16 +83,16 @@ NOAHMP::Init (const int& lev,
 
         // NOTE: Radiation steps first so we set values
         //       to reasonable initialization for coupling
-        Real val_to_set = 0.0;
+        Real val_to_set = zero;
         if (ivar == LsmData_NOAHMP::t_sfc) {
-            val_to_set = 300.0;
+            val_to_set = Real(300.0);
         } else if (ivar == LsmData_NOAHMP::sfc_emis) {
-            val_to_set = 0.9;
+            val_to_set = Real(0.9);
         } else if ( (ivar>=LsmData_NOAHMP::sfc_alb_dir_vis) &&
                     (ivar<=LsmData_NOAHMP::sfc_alb_dif_nir) ) {
-            val_to_set = 0.06;
+            val_to_set = Real(0.06);
         } else {
-            val_to_set = 0.0;
+            val_to_set = zero;
         }
         lsm_fab_data[ivar]->setVal(val_to_set);
     }
@@ -316,9 +316,9 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : 0.0;
-            tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
-            tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+            Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
+            tmp_u_phy_arr(i,j,0)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
+            tmp_v_phy_arr(i,j,0)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
             tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
             tmp_qv_curr_arr(i,j,0) = qv;
             tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);

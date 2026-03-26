@@ -12,12 +12,12 @@ SAM::Precip (const SolverChoice& sc)
 
     if (sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
 
-    Real powr1 = (3.0 + b_rain) / 4.0;
-    Real powr2 = (5.0 + b_rain) / 8.0;
-    Real pows1 = (3.0 + b_snow) / 4.0;
-    Real pows2 = (5.0 + b_snow) / 8.0;
-    Real powg1 = (3.0 + b_grau) / 4.0;
-    Real powg2 = (5.0 + b_grau) / 8.0;
+    Real powr1 = (three + b_rain) / Real(4.0);
+    Real powr2 = (Real(5.0) + b_rain) / Real(8.0);
+    Real pows1 = (three + b_snow) / Real(4.0);
+    Real pows2 = (Real(5.0) + b_snow) / Real(8.0);
+    Real powg1 = (three + b_grau) / Real(4.0);
+    Real powg2 = (Real(5.0) + b_grau) / Real(8.0);
 
     auto accrrc_t  = accrrc.table();
     auto accrsc_t  = accrsc.table();
@@ -94,15 +94,15 @@ SAM::Precip (const SolverChoice& sc)
             Real accrcr, accrcs, accris, accrcg, accrig;
 
             // Work to be done for autoc/accr or evap
-            if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
+            if (qn_array(i,j,k)+qp_array(i,j,k) > zero) {
                 if (SAM_moisture_type == 2) {
-                    omn = 1.0;
-                    omp = 1.0;
-                    omg = 0.0;
+                    omn = one;
+                    omp = one;
+                    omg = zero;
                 } else {
-                    omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
-                    omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-                    omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                    omn = std::max(zero,std::min(one,(tabs_array(i,j,k)-tbgmin)*a_bg));
+                    omp = std::max(zero,std::min(one,(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(zero,std::min(one,(tabs_array(i,j,k)-tgrmin)*a_gr));
                 }
 
                 qcc = qcl_array(i,j,k);
@@ -115,35 +115,35 @@ SAM::Precip (const SolverChoice& sc)
                 //==================================================
                 // Autoconversion (A30/A31) and accretion (A27)
                 //==================================================
-                if (qn_array(i,j,k) > 0.0) {
-                    accrcr = 0.0;
-                    accrcs = 0.0;
-                    accris = 0.0;
-                    accrcg = 0.0;
-                    accrig = 0.0;
+                if (qn_array(i,j,k) > zero) {
+                    accrcr = zero;
+                    accrcs = zero;
+                    accris = zero;
+                    accrcg = zero;
+                    accrig = zero;
 
                     if (qcc > qcw0) {
                         auto_r = alphaelq;
                     } else {
-                        auto_r = 0.0;
+                        auto_r = zero;
                     }
 
                     if (qii > qci0) {
                         autos = betaelq*coefice_t(k);
                     } else {
-                        autos = 0.0;
+                        autos = zero;
                     }
 
-                    if (omp > 0.001) {
+                    if (omp > Real(0.001)) {
                         accrcr = accrrc_t(k);
                     }
 
-                    if (omp < 0.999 && omg < 0.999) {
+                    if (omp < Real(0.999) && omg < Real(0.999)) {
                         accrcs = accrsc_t(k);
                         accris = accrsi_t(k);
                     }
 
-                    if (omp < 0.999 && omg > 0.001) {
+                    if (omp < Real(0.999) && omg > Real(0.001)) {
                         accrcg = accrgc_t(k);
                         accrig = accrgi_t(k);
                     }
@@ -176,8 +176,8 @@ SAM::Precip (const SolverChoice& sc)
 
                     // Partition formed precip componentss
                     dqpr = (dqca + dqia) * omp + dprc;
-                    dqps = (dqca + dqia) * (1.0 - omp) * (1.0 - omg) + dpsc + dpsi;
-                    dqpg = (dqca + dqia) * (1.0 - omp) * omg         + dpgc + dpgi;
+                    dqps = (dqca + dqia) * (one - omp) * (one - omg) + dpsc + dpsi;
+                    dqpg = (dqca + dqia) * (one - omp) * omg         + dpgc + dpgi;
 
                     // Update the primitive state variables
                     qcl_array(i,j,k) -= dqc;
@@ -192,10 +192,10 @@ SAM::Precip (const SolverChoice& sc)
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
                     // Update temperature
-                    tabs_array(i,j,k) += fac_fus * ( dqca * (1.0 - omp) - dqia * omp );
+                    tabs_array(i,j,k) += fac_fus * ( dqca * (one - omp) - dqia * omp );
 
                     // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
                 }
 
                 //==================================================
@@ -203,20 +203,20 @@ SAM::Precip (const SolverChoice& sc)
                 //==================================================
                 erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
                 erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
-                qsat = qsatw * omn + qsati * (1.0-omn);
-                if((qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat)) {
+                qsat = qsatw * omn + qsati * (one-omn);
+                if((qp_array(i,j,k) > zero) && (qv_array(i,j,k) < qsat)) {
 
                     dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
                     dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
                     dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
 
                     // NOTE: This is always a sink for precipitating comps
-                    //       since qv<qsat and thus (1 - qv/qsat)>0. If we are
+                    //       since qv<qsat and thus (1 - qv/qsat)>zero If we are
                     //       in a super-saturated state (qv>qsat) the Newton
                     //       iterations in Cloud() will have handled condensation.
-                    dqpr *= dtn * (1.0 - qv_array(i,j,k)/qsat);
-                    dqps *= dtn * (1.0 - qv_array(i,j,k)/qsat);
-                    dqpg *= dtn * (1.0 - qv_array(i,j,k)/qsat);
+                    dqpr *= dtn * (one - qv_array(i,j,k)/qsat);
+                    dqps *= dtn * (one - qv_array(i,j,k)/qsat);
+                    dqpg *= dtn * (one - qv_array(i,j,k)/qsat);
 
                     // Limit to avoid negative moisture fractions
                     dqpr = std::min(qpr_array(i,j,k),dqpr);
@@ -238,7 +238,7 @@ SAM::Precip (const SolverChoice& sc)
                     tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
 
                     // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
                 }
             }
         });

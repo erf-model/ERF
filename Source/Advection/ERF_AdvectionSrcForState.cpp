@@ -9,7 +9,7 @@ using namespace amrex;
  * Function for computing the advective tendency for the update equations for rho and (rho theta)
  * This routine has explicit expressions for all cases (terrain or not) when
  * the horizontal and vertical spatial orders are <= 2, and calls more specialized
- * functions when either (or both) spatial order(s) is greater than 2.
+ * functions when either (or both) spatial order(s) is greater than two
  *
  * @param[in] bx box over which the scalars are updated
  * @param[out] advectionSrc tendency for the scalar update equation
@@ -74,20 +74,20 @@ AdvectionSrcForRho (const Box& bx,
     if (fixed_rho) {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            advectionSrc(i,j,k,0) = 0.0;
+            advectionSrc(i,j,k,0) = zero;
         });
     } else
     {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (detJ(i,j,k) > 0.) {
+            if (detJ(i,j,k) > zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                 advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
                   ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
                   ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
                   ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
             } else {
-                advectionSrc(i,j,k,0) = 0.;
+                advectionSrc(i,j,k,0) = zero;
             }
         });
     }
@@ -97,7 +97,7 @@ AdvectionSrcForRho (const Box& bx,
  * Function for computing the advective tendency for the update equations for all scalars other than rho and (rho theta)
  * This routine has explicit expressions for all cases (terrain or not) when
  * the horizontal and vertical spatial orders are <= 2, and calls more specialized
- * functions when either (or both) spatial order(s) is greater than 2.
+ * functions when either (or both) spatial order(s) is greater than two
  *
  * @param[in] bx box over which the scalars are updated if no external boundary conditions
  * @param[in] icomp component of first scalar to be updated
@@ -177,19 +177,19 @@ AdvectionSrcForScalars (const Box& bx,
             ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
                 (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * prim_on_face;
             });
             ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
                 (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * prim_on_face;
             });
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
                 (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * prim_on_face;
             });
 
@@ -268,9 +268,9 @@ AdvectionSrcForScalars (const Box& bx,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (detJ(i,j,k) > 0.)
+            if (detJ(i,j,k) > zero)
             {
-                Real invdetJ = 1.0 / detJ(i,j,k);
+                Real invdetJ = one / detJ(i,j,k);
                 Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
@@ -278,7 +278,7 @@ AdvectionSrcForScalars (const Box& bx,
                   ( (flx_arr[1])(i,j+1,k) - (flx_arr[1])(i,j,k) ) * dyInv +
                   ( (flx_arr[2])(i,j,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
             } else {
-                advectionSrc(i,j,k,cons_index) = 0.;
+                advectionSrc(i,j,k,cons_index) = zero;
             }
         });
 

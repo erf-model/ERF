@@ -206,8 +206,8 @@ realbdy_compute_relaxation (const int& icomp,
                             const bool& do_upwind)
 {
     amrex::IntVect iv = bx_xlo.type();
-    amrex::Real ioff  = (iv[0]==1) ? 0.0 : 0.5;
-    amrex::Real joff  = (iv[1]==1) ? 0.0 : 0.5;
+    amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
+    amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
     const auto& dom_cc_lo = lbound(domain_cc);
     const auto& dom_cc_hi = ubound(domain_cc);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -219,8 +219,8 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real xi     = (x_end - x) / (x_end - ProbLo[0]);
-        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
-        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
@@ -231,9 +231,9 @@ realbdy_compute_relaxation (const int& icomp,
         } else {
             int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
             int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
-            if ( (u_xlo(dom_cc_lo.x,jju,k) >= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            if ( (u_xlo(dom_cc_lo.x,jju,k) >= zero) ||
+                 ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= zero)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= zero)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -247,8 +247,8 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real xi     = (x - x_strt) / (ProbHi[0] - x_strt);
-        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
-        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
@@ -259,9 +259,9 @@ realbdy_compute_relaxation (const int& icomp,
         } else {
             int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
             int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
-            if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= zero) ||
+                 ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= zero)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= zero)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -281,7 +281,7 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
             int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
-            if (v_ylo(iiv,dom_cc_lo.y,k) >= 0.0) {
+            if (v_ylo(iiv,dom_cc_lo.y,k) >= zero) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -300,7 +300,7 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
             int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
-            if (v_yhi(iiv,dom_cc_hi.y+1,k) >= 0.0) {
+            if (v_yhi(iiv,dom_cc_hi.y+1,k) >= zero) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }

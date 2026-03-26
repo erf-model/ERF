@@ -152,7 +152,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
 
     last_file_read = -1;
 
-    m_tinterp = -1.;
+    m_tinterp = -one;
 
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
@@ -384,7 +384,7 @@ void ReadBndryPlanes::read_file (const int idx,
             Array4<Real> d_arr = d.array();
             ParallelFor(
                 bx, ncomp_for_bc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                d_arr(i,j,k,n) = 0.;
+                d_arr(i,j,k,n) = zero;
             });
         }
     }
@@ -485,7 +485,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                                                     0.5 * (R1*Th1 + R2*Th2);
+                                                                     myhalf * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -494,14 +494,14 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                 0.5 * ( R1 * bndry_read_arr(i, j, k, 0) +
+                                 myhalf * ( R1 * bndry_read_arr(i, j, k, 0) +
                                          R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    } else if (var_name == "density") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                    0.5 * ( bndry_read_arr(i, j, k, 0) +
+                                    myhalf * ( bndry_read_arr(i, j, k, 0) +
                                             bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    }
@@ -516,7 +516,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                                                     0.5 * (R1*Th1 + R2*Th2);
+                                                                     myhalf * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -525,7 +525,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                0.5 * (R1 * bndry_read_arr(i, j, k, 0) +
+                                myhalf * (R1 * bndry_read_arr(i, j, k, 0) +
                                        R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                   }
@@ -536,7 +536,7 @@ void ReadBndryPlanes::read_file (const int idx,
                     ParallelFor(
                         bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                                 bndry_mf_arr(i, j, k, n) = (real_bcs) ? bndry_read_arr(i, j, k, n) :
-                                  0.5 * (bndry_read_arr(i, j, k, n) +
+                                  myhalf * (bndry_read_arr(i, j, k, n) +
                                          bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
                         });
                 }

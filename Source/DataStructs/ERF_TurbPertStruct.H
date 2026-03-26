@@ -55,8 +55,8 @@ struct TurbulentPerturbation {
 
     {
         // Initialization for some 0 dependent terms
-        tpi_Ti = 0.;
-        tpi_Tinf = 300.;
+        tpi_Ti = zero;
+        tpi_Tinf = amrex::Real(300.);
 
         ref_ratio = refRatio;
 
@@ -79,10 +79,10 @@ struct TurbulentPerturbation {
         for (int i = 0; i < tpi_boxDim.size(); i++) {
             if (tpi_boxDim[i] == 0) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
-        if (tpi_nonDim < 0.) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = 0.042)"); }
-        if (input_Ug < 0.) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = 10.0 m/s)"); }
-        if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
-        if (tpi_Ti < 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
+        if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
+        if (input_Ug < zero) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = amrex::Real(10.0) m/s)"); }
+        if (tpi_Tinf < zero) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
+        if (tpi_Ti < zero) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-one)"); }
 
         // Creating perturbation regions and initializing with generic size. Temporary size for now
         amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
@@ -172,14 +172,14 @@ struct TurbulentPerturbation {
         }
 
         // Initializing mean magnitude and direction vectors
-        pb_mag[lev].resize(pb_ba[lev].size(), 0.);
-        pb_dir[lev].resize(pb_ba[lev].size(), 0.);
-        pb_netZero[lev].resize(pb_ba[lev].size(), 0.);
+        pb_mag[lev].resize(pb_ba[lev].size(), zero);
+        pb_dir[lev].resize(pb_ba[lev].size(), zero);
+        pb_netZero[lev].resize(pb_ba[lev].size(), zero);
 
         // Set size of vector and initialize
-        pb_interval[lev].resize(pb_ba[lev].size(), -1.0);
-        pb_local_etime[lev].resize(pb_ba[lev].size(), 0.0);
-        pb_amp[lev].resize(pb_ba[lev].size(), 0.0);
+        pb_interval[lev].resize(pb_ba[lev].size(), -one);
+        pb_local_etime[lev].resize(pb_ba[lev].size(), zero);
+        pb_amp[lev].resize(pb_ba[lev].size(), zero);
 
         // Creating data array for perturbation amplitude storage
         pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
@@ -191,8 +191,8 @@ struct TurbulentPerturbation {
         tpi_Hpb[lev] = tpi_boxDim[2]*dx[2];
         tpi_lref[lev] = sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
 
-        tpi_pert_adjust = 0.;
-        tpi_net_buoyant = 0.;
+        tpi_pert_adjust = zero;
+        tpi_net_buoyant = zero;
 
         /*
         // Function check point message
@@ -227,7 +227,7 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_cons)
     {
         // Resetting the net buoyant force value
-        tpi_net_buoyant = 0.;
+        tpi_net_buoyant = zero;
 
         // Setting random number generator for update interval
         srand( (unsigned) time(NULL) );
@@ -252,9 +252,9 @@ struct TurbulentPerturbation {
             // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
             if (pt_type == 2) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
-                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -1.0);
+                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
             } else {
-                update_box = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -1.0 );
+                update_box = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -one );
             }
             if ( update_box ) {
 
@@ -263,25 +263,25 @@ struct TurbulentPerturbation {
 
                 // Only the rank owning the box will be able to access the storage location
                 // Done for parallelism to avoid Inf being stored in array
-                if (pb_mag[lev][boxIdx] !=0.) {
-                    amrex::Real interval = 0.0;
+                if (pb_mag[lev][boxIdx] !=zero) {
+                    amrex::Real interval = zero;
                     if (pt_type == 2) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
                         if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
                         // CPM only cares about the side length of a box, min call maintains flexibility.
-                        interval = 1.0 / std::cos(wind_direction) * std::min(tpi_Lpb[lev], tpi_Wpb[lev]) / pb_mag[lev][boxIdx];
+                        interval = one / std::cos(wind_direction) * std::min(tpi_Lpb[lev], tpi_Wpb[lev]) / pb_mag[lev][boxIdx];
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(0.9*interval,1.1*interval); // 10% variation
+                    pb_interval[lev][boxIdx] = RandomReal(0.9*interval,amrex::Real(1.1)*interval); // 10% variation
 
                     // Reset local elapsed time
-                    pb_local_etime[lev][boxIdx] = 0.;
+                    pb_local_etime[lev][boxIdx] = zero;
                 } else {
                     // this box is not on this rank, we shouldn't enter it again.
                     // Technically, all boxes are looped through on the very first step of a simulation and this is when this is set
-                    pb_local_etime[lev][boxIdx] = -1.0;
+                    pb_local_etime[lev][boxIdx] = -one;
                 }
 
                 // Trigger amplitude calculation per perturbation box
@@ -295,12 +295,12 @@ struct TurbulentPerturbation {
                 if (pt_type == 2) { zero_amp(boxIdx, lev, m_ixtype); }
 
                 // Increase by timestep of level 0 (but only if the box is owned by this rank)
-                if (pb_local_etime[lev][boxIdx] != -1.0) { pb_local_etime[lev][boxIdx] += dt; }
+                if (pb_local_etime[lev][boxIdx] != -one) { pb_local_etime[lev][boxIdx] += dt; }
             } // if
 
             if (pt_type < 2) { // box perturbation method only
                 // Per iteration operation of net-zero buoyant force check
-                if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdd(boxIdx, lev);
+                if (pb_mag[lev][boxIdx] !=zero) netZeroBuoyantAdd(boxIdx, lev);
                 tpi_net_buoyant += pb_netZero[lev][boxIdx];
             }
         } // for
@@ -313,7 +313,7 @@ struct TurbulentPerturbation {
 
             // Per iteration operation of net-zero buoyant force adjustment
             for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-                if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev);
+                if (pb_mag[lev][boxIdx] !=zero) netZeroBuoyantAdjust(boxIdx, lev);
             }
         }
     }
@@ -337,7 +337,7 @@ struct TurbulentPerturbation {
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
+                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + amrex::Real(5.));
                     #endif
                 });
             }
@@ -349,14 +349,14 @@ struct TurbulentPerturbation {
                        const int& boxIdx,
                        const amrex::Real& interval)
     {
-        pb_amp[lev][boxIdx] = 0.; // Safety step
+        pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type == 2) { // CPM
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
-            amrex::Real Ec = 0.2; // Eckert number
+            amrex::Real Ec = amrex::Real(0.2); // Eckert number
             pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
-            amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
+            amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
             amrex::Real g = CONST_GRAV;
@@ -366,7 +366,7 @@ struct TurbulentPerturbation {
                 total_ref_ratio *= ref_ratio[level-1][2];
             }
             // calculation needs to be scale-aware since the formulation relies on the physical size of the box
-            if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb[lev]) * 1 / total_ref_ratio;
+            if (tpi_Ti > zero) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
             // Ma and Senocak (2023) Eq. 8, solving for delta phi
             pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
@@ -396,14 +396,14 @@ struct TurbulentPerturbation {
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
                 if (pt_type == 2) { // CPM
-                    amrex::Real rand_number_const = RandomReal(-1.0, 1.0);
+                    amrex::Real rand_number_const = RandomReal(-one, one);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
                     });
                 } else {
                     ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                         amrex::Real rand_double = amrex::Random(engine);
-                        pert_cell(i,j,k) = (rand_double*2.0 - 1.0) * amp_copy;
+                        pert_cell(i,j,k) = (rand_double*two - one) * amp_copy;
                     });
                 }
 
@@ -424,7 +424,7 @@ struct TurbulentPerturbation {
             if (ubx.ok()) {
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    pert_cell(i,j,k) = 0.0;
+                    pert_cell(i,j,k) = zero;
                 });
             }
         }
@@ -439,8 +439,8 @@ struct TurbulentPerturbation {
         amrex::Real* m_pb_netZero = pb_netZero[lev].data();
 
         // Create device array for summation
-        amrex::Vector<amrex::Real> avg_h(1,0.);
-        amrex::Gpu::DeviceVector<amrex::Real> avg_d(1,0.);
+        amrex::Vector<amrex::Real> avg_h(1,zero);
+        amrex::Gpu::DeviceVector<amrex::Real> avg_d(1,zero);
         amrex::Real* avg = avg_d.data();
 
         // Iterates through the cells of each box and sum the white noise perturbation
@@ -450,7 +450,7 @@ struct TurbulentPerturbation {
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 const amrex::Array4<const amrex::Real>& pert_cell = pb_cell[lev].const_array(mfi);
-                amrex::Real norm = 1.0 / static_cast<amrex::Real>(ubx.numPts());
+                amrex::Real norm = one / static_cast<amrex::Real>(ubx.numPts());
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
                     amrex::Gpu::deviceReduceSum(&avg[0], pert_cell(i,j,k)*norm, handler);
@@ -499,15 +499,15 @@ struct TurbulentPerturbation {
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
         amrex::Real* m_pb_mag = pb_mag[lev].data();
         amrex::Real* m_pb_dir = pb_dir[lev].data();
-        m_pb_mag[boxIdx] = 0.; // Safety step
-        m_pb_dir[boxIdx] = 0.; // Safety step
+        m_pb_mag[boxIdx] = zero; // Safety step
+        m_pb_dir[boxIdx] = zero; // Safety step
 
         // Storage of averages per PB
         // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
         //        2=u (slab_hi),     3=v (slab_hi)
         int n_avg = 4;
-        amrex::Vector<amrex::Real> avg_h(n_avg,0.);
-        amrex::Gpu::DeviceVector<amrex::Real> avg_d(n_avg,0.);
+        amrex::Vector<amrex::Real> avg_h(n_avg,zero);
+        amrex::Gpu::DeviceVector<amrex::Real> avg_d(n_avg,zero);
         amrex::Real* avg = avg_d.data();
 
         // Averaging u & v components in single MFIter
@@ -533,7 +533,7 @@ struct TurbulentPerturbation {
                 const amrex::Array4<const amrex::Real>& xvel_arry = mf_xvel.const_array(mfi);
 
                 #ifdef USE_VOLUME_AVERAGE
-                amrex::Real norm = 1.0 / static_cast<amrex::Real>(ubx_u.numPts());
+                amrex::Real norm = one / static_cast<amrex::Real>(ubx_u.numPts());
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_u, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
                     amrex::Gpu::deviceReduceSum(&avg[0], xvel_arry(i,j,k)*norm, handler);
@@ -543,8 +543,8 @@ struct TurbulentPerturbation {
                 #ifdef USE_SLAB_AVERAGE
                 amrex::Box ubxSlab_lo = makeSlab(ubx_u,2,ubx_u.smallEnd(2));
                 amrex::Box ubxSlab_hi = makeSlab(ubx_u,2,ubx_u.bigEnd(2));
-                amrex::Real norm_lo = 1.0 / static_cast<amrex::Real>(ubxSlab_lo.numPts());
-                amrex::Real norm_hi = 1.0 / static_cast<amrex::Real>(ubxSlab_hi.numPts());
+                amrex::Real norm_lo = one / static_cast<amrex::Real>(ubxSlab_lo.numPts());
+                amrex::Real norm_hi = one / static_cast<amrex::Real>(ubxSlab_hi.numPts());
 
                 // Average u in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
@@ -565,7 +565,7 @@ struct TurbulentPerturbation {
                 const amrex::Array4<const amrex::Real>& yvel_arry = mf_yvel.const_array(mfi);
 
                 #ifdef USE_VOLUME_AVERAGE
-                amrex::Real norm = 1.0 / static_cast<amrex::Real>(ubx_v.numPts());
+                amrex::Real norm = one / static_cast<amrex::Real>(ubx_v.numPts());
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_v, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
                     amrex::Gpu::deviceReduceSum(&avg[1], yvel_arry(i,j,k)*norm, handler);
@@ -575,8 +575,8 @@ struct TurbulentPerturbation {
                 #ifdef USE_SLAB_AVERAGE
                 amrex::Box ubxSlab_lo = makeSlab(ubx_v,2,ubx_v.smallEnd(2));
                 amrex::Box ubxSlab_hi = makeSlab(ubx_v,2,ubx_v.bigEnd(2));
-                amrex::Real norm_lo = 1.0 / static_cast<amrex::Real>(ubxSlab_lo.numPts());
-                amrex::Real norm_hi = 1.0 / static_cast<amrex::Real>(ubxSlab_hi.numPts());
+                amrex::Real norm_lo = one / static_cast<amrex::Real>(ubxSlab_lo.numPts());
+                amrex::Real norm_hi = one / static_cast<amrex::Real>(ubxSlab_hi.numPts());
 
                 // Average v in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
@@ -603,9 +603,9 @@ struct TurbulentPerturbation {
         #endif
 
         #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = 0.5*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
+        m_pb_mag[boxIdx] = myhalf*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
                                + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
-        m_pb_dir[boxIdx] = std::atan(std::abs(0.5*(avg_h[0]+avg_h[2])) / std::abs(0.5*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
+        m_pb_dir[boxIdx] = std::atan(std::abs(myhalf*(avg_h[0]+avg_h[2])) / std::abs(myhalf*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
     }
 
