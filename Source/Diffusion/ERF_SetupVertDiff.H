@@ -1,5 +1,6 @@
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
+    amrex::ignore_unused(dom_lo, dom_hi);
 
     DiffChoice diffChoice = solverChoice.diffChoice;
     TurbChoice turbChoice = solverChoice.turbChoice[level];

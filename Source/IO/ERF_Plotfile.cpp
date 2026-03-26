@@ -388,13 +388,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // Array of MultiFabs for cell-centered velocity
     Vector<MultiFab> mf_cc_vel(finest_level+1);
 
-    if (containerHasElement(plot_var_names, "x_velocity" ) ||
-        containerHasElement(plot_var_names, "y_velocity" ) ||
-        containerHasElement(plot_var_names, "z_velocity" ) ||
-        containerHasElement(plot_var_names, "magvel"     ) ||
-        containerHasElement(plot_var_names, "vorticity_x") ||
-        containerHasElement(plot_var_names, "vorticity_y") ||
-        containerHasElement(plot_var_names, "vorticity_z") ) {
+    if (containerHasElement(plot_var_names, "x_velocity"    ) ||
+        containerHasElement(plot_var_names, "y_velocity"    ) ||
+        containerHasElement(plot_var_names, "z_velocity"    ) ||
+        containerHasElement(plot_var_names, "magvel"        ) ||
+        containerHasElement(plot_var_names, "helicity"      ) ||
+        containerHasElement(plot_var_names, "local_helicity") ||
+        containerHasElement(plot_var_names, "vorticity_x"   ) ||
+        containerHasElement(plot_var_names, "vorticity_y"   ) ||
+        containerHasElement(plot_var_names, "vorticity_z"   ) ) {
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
@@ -526,8 +528,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
         }
 
+        // ***************************************************************************************
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
+        // ***************************************************************************************
         auto calculate_derived = [&](const std::string& der_name,
                                      MultiFab& src_mf,
                                      decltype(derived::erf_dernull)& der_function)
@@ -542,19 +546,20 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
                     auto& sfab = src_mf[mfi];
-                    der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
+                    auto& zfab = (*z_phys_cc[lev])[mfi];
+                    der_function(bx, dfab, 0, 1, sfab, zfab, Geom(lev), t_new[0], nullptr, lev);
                 }
 
                 mf_comp++;
             }
-        };
+        }; // end calculate_derived
+        // ***************************************************************************************
 
         // *****************************************************************************************
         // NOTE: All derived variables computed below **MUST MATCH THE ORDER** of "derived_names"
         //       defined in ERF.H
         // *****************************************************************************************
 
-        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
         if (use_moisture) {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
         } else {
@@ -563,14 +568,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
         calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
         calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
-        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
-        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
-        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
-        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
+        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
+
+        if (solverChoice.moisture_type == MoistureType::Morrison) {
+            calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
+            calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
+        }
+
+        calculate_derived("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
+        calculate_derived("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
+        calculate_derived("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
+        calculate_derived("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
+        calculate_derived("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
+        calculate_derived("magvel",         mf_cc_vel[lev], derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
         {
-            // TODO TODO TODO  -- we need to convert w to omega here!!
             MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
             Array<MultiFab const*, AMREX_SPACEDIM> u;
             u[0] = &(vars_new[lev][Vars::xvel]);
@@ -660,7 +673,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp ++;
         }
-
 
         if (containerHasElement(plot_var_names, "VPD"))
         {
@@ -1205,7 +1217,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     mf_comp += 1;
                 }
             }
-            else if(solverChoice.moisture_type == MoistureType::SuperDroplets) {
+            else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
+            {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
                     mf_comp += 1;
@@ -1220,74 +1233,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
 
-            if (containerHasElement(plot_var_names, "reflectivity")) {
-                if (solverChoice.moisture_type == MoistureType::Morrison) {
-
-                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const Box& bx = mfi.tilebox();
-                        const Array4<Real>& derdat  = mf[lev].array(mfi);
-                        const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
-                            Real rho = S_arr(i,j,k,Rho_comp);
-                            Real qv  = std::max(zero,S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qpr = std::max(zero,S_arr(i,j,k,RhoQ4_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qps = std::max(zero,S_arr(i,j,k,RhoQ5_comp)/S_arr(i,j,k,Rho_comp));
-                            Real qpg = std::max(zero,S_arr(i,j,k,RhoQ6_comp)/S_arr(i,j,k,Rho_comp));
-
-                            Real temp  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),
-                                                     S_arr(i,j,k,RhoTheta_comp),
-                                                     qv);
-                            derdat(i, j, k, mf_comp) = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
-                                                                                1, 1, 1, 1) ;
-                        });
-                    }
-                    mf_comp ++;
-                }
-            }
-
-           if (solverChoice.moisture_type == MoistureType::Morrison) {
-                if (containerHasElement(plot_var_names, "max_reflectivity")) {
-                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const Box& bx = mfi.tilebox();
-
-                        const Array4<Real>& derdat  = mf[lev].array(mfi);
-                        const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-
-                        // collapse to i,j box (ignore vertical for now)
-                        Box b2d = bx;
-                        b2d.setSmall(2,0);
-                        b2d.setBig(2,0);
-
-                        ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-
-                            Real max_dbz = -Real(1.0e30);
-
-                            // find max reflectivity over k
-                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-                                Real rho = S_arr(i,j,k,Rho_comp);
-                                Real qv  = std::max(zero, S_arr(i,j,k,RhoQ1_comp)/rho);
-                                Real qpr = std::max(zero, S_arr(i,j,k,RhoQ4_comp)/rho);
-                                Real qps = std::max(zero, S_arr(i,j,k,RhoQ5_comp)/rho);
-                                Real qpg = std::max(zero, S_arr(i,j,k,RhoQ6_comp)/rho);
-
-                                Real temp = getTgivenRandRTh(rho, S_arr(i,j,k,RhoTheta_comp), qv);
-
-                                Real dbz = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
-                                                                        1, 1, 1, 1);
-                                max_dbz = amrex::max(max_dbz, dbz);
-                            }
-
-                            // store max_dbz into *all* levels for this (i,j)
-                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-                                derdat(i, j, k, mf_comp) = max_dbz;
-                            }
-                        });
-                    }
-                    mf_comp++;
-                }
-            }
-        } // use_moisture
+        } // if use_moisture
 
         if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
@@ -1539,9 +1485,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
         }
-
-
-    }
+    } // lev
 
     if (solverChoice.terrain_type == TerrainType::EB)
     {

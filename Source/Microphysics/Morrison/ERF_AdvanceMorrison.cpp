@@ -468,8 +468,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         } else {
             // Goff-Gratch formula for ice at cold temperatures
             polysvp = std::pow(Real(10.0), (-Real(9.09718)*(Real(273.16)/T-one) - Real(3.56654)*std::log10(Real(273.16)/T) +
-                                      Real(0.876793)*(one-T/Real(273.16)) + std::log10(Real(6.1071)))) * Real(100.0);
-            polysvp = zero;
+                                             Real(0.876793)*(one-T/Real(273.16)) + std::log10(Real(6.1071)))) * Real(100.0);
         } // T
     } else {  // Water (lines ~5648-5665)
       if (T >= Real(202.0)) {
@@ -523,6 +522,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if (box.bigEnd(0)   == i_hi) { box.growHi(0,-m_real_width); }
           if (box.smallEnd(1) == j_lo) { box.growLo(1,-m_real_width); }
           if (box.bigEnd(1)   == j_hi) { box.growHi(1,-m_real_width); }
+
+          if (!box.ok()) { // Avoid going farther if the box is inverted (i.e., ilo > ihi or jlo > jhi).
+              continue;
+          }
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
