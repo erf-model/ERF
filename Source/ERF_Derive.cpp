@@ -401,10 +401,10 @@ erf_derreflectivity ( const Box& bx,
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         Real rho = dat(i,j,k,Rho_comp);
-        Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
-        Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
-        Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
-        Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+        Real qv  = std::max(zero,dat(i,j,k,RhoQ1_comp)/rho);
+        Real qpr = std::max(zero,dat(i,j,k,RhoQ4_comp)/rho);
+        Real qps = std::max(zero,dat(i,j,k,RhoQ5_comp)/rho);
+        Real qpg = std::max(zero,dat(i,j,k,RhoQ6_comp)/rho);
 
         Real temp  = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
 
@@ -444,10 +444,10 @@ erf_dermaxreflectivity (
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
 
             Real rho = dat(i,j,k,Rho_comp);
-            Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
-            Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
-            Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
-            Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+            Real qv  = std::max(zero,dat(i,j,k,RhoQ1_comp)/rho);
+            Real qpr = std::max(zero,dat(i,j,k,RhoQ4_comp)/rho);
+            Real qps = std::max(zero,dat(i,j,k,RhoQ5_comp)/rho);
+            Real qpg = std::max(zero,dat(i,j,k,RhoQ6_comp)/rho);
 
             Real temp = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
 
@@ -523,7 +523,7 @@ erf_derhelicity ( const Box& bx,
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
-        Real int_hel = Real(0.0);
+        Real int_hel = zero;
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
         {
             Real z = z_arr(i,j,k);
