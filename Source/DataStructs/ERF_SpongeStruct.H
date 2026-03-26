@@ -60,7 +60,7 @@ struct SpongeChoice {
     amrex::Real xlo_sponge_end, xhi_sponge_start;
     amrex::Real ylo_sponge_end, yhi_sponge_start;
     amrex::Real zlo_sponge_end, zhi_sponge_start;
-    amrex::Real sponge_density = -1.0;
+    amrex::Real sponge_density = -one;
     amrex::Real sponge_x_velocity, sponge_y_velocity, sponge_z_velocity;
 };
 #endif

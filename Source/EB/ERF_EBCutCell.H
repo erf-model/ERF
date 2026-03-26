@@ -23,14 +23,14 @@ intersect_plane_edge ( amrex::RealVect const& a_plane_point,
   amrex::RealVect const edge(a_edge_point1 - a_edge_point0);
   amrex::Real const edge_length = edge.vectorLength();
 
-  AMREX_ALWAYS_ASSERT(edge_length > 0.);
+  AMREX_ALWAYS_ASSERT(edge_length > zero);
 
   amrex::RealVect edge_normal = edge / edge_length;
 
   amrex::Real np_dot_ne = a_plane_normal.dotProduct(edge_normal);
 
   // if ( amrex::Math::abs(np_dot_ne) < std::numeric_limits<amrex::Real>::min() )
-  if ( amrex::Math::abs(np_dot_ne) < 10.0 * std::numeric_limits<amrex::Real>::epsilon() )
+  if ( amrex::Math::abs(np_dot_ne) < amrex::Real(10.0) * std::numeric_limits<amrex::Real>::epsilon() )
   { return 0; }
 
   a_intersection_dist = a_plane_normal.dotProduct(a_plane_point)
@@ -39,7 +39,7 @@ intersect_plane_edge ( amrex::RealVect const& a_plane_point,
 
   a_intersection_point = a_edge_point0 + a_intersection_dist*edge_normal;
 
-  if (0. <= a_intersection_dist && a_intersection_dist <= edge_length) { return 1;}
+  if (zero <= a_intersection_dist && a_intersection_dist <= edge_length) { return 1;}
 
   return 0;
 }
@@ -82,17 +82,17 @@ class eb_cut_cell_ {
       m_F5.set_area( m_rbox.length(0)*m_rbox.length(2) );
       m_F6.set_area( m_rbox.length(0)*m_rbox.length(2) );
 
-      m_F7.set_area(0.);
+      m_F7.set_area(zero);
 
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real volume () const {
 
-      if (m_flag.isCovered() ) { return 0.; }
+      if (m_flag.isCovered() ) { return zero; }
       if (m_flag.isRegular() ) { return m_rbox.volume(); }
 
-      amrex::Real volume(0.);
+      amrex::Real volume(zero);
 
       amrex::Real const* lo = m_rbox.lo();
       amrex::RealVect v0(lo[0], lo[1], lo[2]);
@@ -102,27 +102,27 @@ class eb_cut_cell_ {
       if (m_F6.ok() ) { volume += m_F6.area() * m_F6.distance(v0); }
       if (m_F7.ok() ) { volume += m_F7.area() * m_F7.distance(v0); }
 
-      volume /= 3.;
+      volume /= three;
 
-      return m_invert*volume + (1.-m_invert)*(m_rbox.volume()-volume);
+      return m_invert*volume + (one-m_invert)*(m_rbox.volume()-volume);
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaLo ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
-      if (m_flag.isCovered() ) { return 0.; }
+      if (m_flag.isCovered() ) { return zero; }
       if (m_flag.isRegular() ) { return m_lo_faces[idir]->area(); }
       amrex::Real const area(m_lo_faces[idir]->area());
-      return m_invert*area + (1.-m_invert)*(m_rbox_area[idir] - area);
+      return m_invert*area + (one-m_invert)*(m_rbox_area[idir] - area);
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaHi ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >= 0 && idir < AMREX_SPACEDIM );
-      if (m_flag.isCovered() ) { return 0.; }
+      if (m_flag.isCovered() ) { return zero; }
       if (m_flag.isRegular() ) { return m_hi_faces[idir]->area(); }
       amrex::Real const area(m_hi_faces[idir]->area());
-      return m_invert*area + (1.-m_invert)*(m_rbox_area[idir] - area);
+      return m_invert*area + (one-m_invert)*(m_rbox_area[idir] - area);
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -138,13 +138,13 @@ class eb_cut_cell_ {
         // Default cent
       } else {
         amrex::Real const area_R = m_lo_faces[idir]->area();
-        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
+        if (amrex::almostEqual(area_R,zero) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
           // Default cent
         } else {
           amrex::RealVect   cent_O = cent;
           amrex::RealVect   cent_R = m_lo_faces[idir]->get_centroid();
           amrex::Real const area_C = m_rbox_area[idir] - area_R;
-          cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
+          cent = m_invert * cent_R + (one-m_invert) * ((one+area_R/area_C)*cent_O - area_R/area_C*cent_R);
         }
       }
       return cent;
@@ -158,13 +158,13 @@ class eb_cut_cell_ {
         // Default cent
       } else {
         amrex::Real const area_R = m_hi_faces[idir]->area();
-        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
+        if (amrex::almostEqual(area_R,zero) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
           // Default cent
         } else {
           amrex::RealVect   cent_O = cent;
           amrex::RealVect   cent_R = m_hi_faces[idir]->get_centroid();
           amrex::Real const area_C = m_rbox_area[idir] - area_R;
-          cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
+          cent = m_invert * cent_R + (one-m_invert) * ((one+area_R/area_C)*cent_O - area_R/area_C*cent_R);
         }
       }
       return cent;
@@ -172,7 +172,7 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centBoun () const noexcept {
-      amrex::RealVect cent{0.,0.,0.};
+      amrex::RealVect cent{zero,zero,zero};
       if (m_flag.isSingleValued()) {
         cent = m_F7.get_centroid();
       }
@@ -181,7 +181,7 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect normBoun () const noexcept {
-      amrex::RealVect normal{0.,0.,0.};
+      amrex::RealVect normal{zero,zero,zero};
       if (m_flag.isSingleValued()) {
         normal = m_eb_normal;
       }
@@ -211,9 +211,9 @@ class eb_cut_cell_ {
 
         amrex::Real vol = volume();
 
-        vcent[0] = 0.5 * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
-        vcent[1] = 0.5 * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
-        vcent[2] = 0.5 * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
+        vcent[0] = myhalf * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
+        vcent[1] = myhalf * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
+        vcent[2] = myhalf * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
       }
       return vcent;
     }
@@ -274,15 +274,15 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   : m_rbox(a_rbox)
   , m_eb_point(a_point)
   , m_eb_normal(a_normal)
-  , m_invert(0.0)
+  , m_invert(zero)
   , m_F1(a_point, a_normal)
   , m_F2(a_point, a_normal)
   , m_F3(a_point, a_normal)
   , m_F4(a_point, a_normal)
   , m_F5(a_point, a_normal)
   , m_F6(a_point, a_normal)
-  , m_cellface_cent({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
-                 amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
+  , m_cellface_cent({amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero),
+                     amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero)})
 {
   using namespace amrex;
 
@@ -301,18 +301,18 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
   // Centroids of cell faces
 
-  m_cellface_cent[0] = 0.25 * ( v0 + v2 + v5 + v1 ); // F1
-  m_cellface_cent[1] = 0.25 * ( v1 + v5 + v7 + v4 ); // F2
-  m_cellface_cent[2] = 0.25 * ( v3 + v4 + v7 + v6 ); // F3
-  m_cellface_cent[3] = 0.25 * ( v0 + v3 + v6 + v2 ); // F4
-  m_cellface_cent[4] = 0.25 * ( v0 + v1 + v4 + v3 ); // F5
-  m_cellface_cent[5] = 0.25 * ( v2 + v5 + v7 + v6 ); // F6
+  m_cellface_cent[0] = fourth * ( v0 + v2 + v5 + v1 ); // F1
+  m_cellface_cent[1] = fourth * ( v1 + v5 + v7 + v4 ); // F2
+  m_cellface_cent[2] = fourth * ( v3 + v4 + v7 + v6 ); // F3
+  m_cellface_cent[3] = fourth * ( v0 + v3 + v6 + v2 ); // F4
+  m_cellface_cent[4] = fourth * ( v0 + v1 + v4 + v3 ); // F5
+  m_cellface_cent[5] = fourth * ( v2 + v5 + v7 + v6 ); // F6
 
   // Cell centroid
 
-  m_cell_cent[0] = 0.5 * ( m_rbox.lo(0) + m_rbox.hi(0) );
-  m_cell_cent[1] = 0.5 * ( m_rbox.lo(1) + m_rbox.hi(1) );
-  m_cell_cent[2] = 0.5 * ( m_rbox.lo(2) + m_rbox.hi(2) );
+  m_cell_cent[0] = myhalf * ( m_rbox.lo(0) + m_rbox.hi(0) );
+  m_cell_cent[1] = myhalf * ( m_rbox.lo(1) + m_rbox.hi(1) );
+  m_cell_cent[2] = myhalf * ( m_rbox.lo(2) + m_rbox.hi(2) );
 
   // Cell size
 
@@ -330,7 +330,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
   } else { // Check that the box and plane intersect.
 
-    amrex::RealVect c = 0.5*(v0 + v7);
+    amrex::RealVect c = myhalf*(v0 + v7);
     amrex::RealVect e = v7 - c;
 
     amrex::Real r = e[0]*amrex::Math::abs(a_normal[0]) +
@@ -341,14 +341,14 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
                - a_point.dotProduct(a_normal));
 
     if (s > r) {
-      if ((a_normal.dotProduct(v0) - a_normal.dotProduct(a_point)) > 0.)
+      if ((a_normal.dotProduct(v0) - a_normal.dotProduct(a_point)) > zero)
       { set_covered(); } else { set_regular(); }
     } else { m_flag.setSingleValued(); }
   }
 
   if ( m_flag.isSingleValued() ) {
 
-    m_invert = ((m_eb_normal.dotProduct(v0) - m_eb_normal.dotProduct(m_eb_point)) > 0.) ? 0.0 : 1.0;
+    m_invert = ((m_eb_normal.dotProduct(v0) - m_eb_normal.dotProduct(m_eb_point)) > zero) ? zero : one;
 
     calc_edge_intersections();
 
@@ -389,7 +389,7 @@ struct eb_cut_cell_::path_data
           const amrex::RealVect& v_start,
           const amrex::RealVect& v_end)
   {
-    constexpr amrex::Real tol = 1.e-15;
+    constexpr amrex::Real tol = amrex::Real(1.e-15);
     amrex::RealVect v_intersect;
     amrex::Real    dist_intersect;
     intersected = intersect_plane_edge(
@@ -423,9 +423,9 @@ calc_edge_intersections ()
 
 // #ifndef AMREX_USE_GPU
 
-  bool print_initial = ( Math::abs(m_eb_point[0]-1.666667e-01)<1.e-4 &&
-                         Math::abs(m_eb_point[1]+4.194018e-01)<1.e-4 &&
-                         Math::abs(m_eb_point[2]+1.666667e-01)<1.e-4 );
+  bool print_initial = ( Math::abs(m_eb_point[0]-Real(1.666667e-01))<Real(1.e-4) &&
+                         Math::abs(m_eb_point[1]+Real(4.194018e-01))<Real(1.e-4) &&
+                         Math::abs(m_eb_point[2]+Real(1.666667e-01))<Real(1.e-4) );
   const bool print_F1 = print_initial && false;
   const bool print_F2 = print_initial && false;
   const bool print_F3 = print_initial && false;

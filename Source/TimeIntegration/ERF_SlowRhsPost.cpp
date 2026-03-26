@@ -149,7 +149,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     // Set gravity as a vector
     // *************************************************************************
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
@@ -227,7 +227,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             } else {
                 flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars,The_Async_Arena());
             }
-            flux[dir].setVal<RunOn::Device>(0.);
+            flux[dir].setVal<RunOn::Device>(0);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
@@ -436,7 +436,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (l_use_diff)
                 {
                     // Here we hardwire this to 0 because we only use vert_implicit_fac for (rho_theta)
-                    const Real l_vert_implicit_fac = 0.0;;
+                    const Real l_vert_implicit_fac = zero;;
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
@@ -542,12 +542,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
 
                         // Add the time-averaged RHS to the old state
-                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + 0.5 * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
                         }
                     });
 
@@ -561,7 +561,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
                         }
                     });
 

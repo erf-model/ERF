@@ -77,8 +77,8 @@ void erf_make_tau_terms (int level, int nrk,
         // if using constant alpha (mu = rho * alpha), then first divide by the
         // reference density -- mu_eff will be scaled by the instantaneous
         // local density later when ComputeStress*Visc_*() is called
-        Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
-                                         : 2.0 * dc.dynamic_viscosity;
+        Real mu_eff = (l_use_constAlpha) ? two * dc.dynamic_viscosity / dc.rho0_trans
+                                         : two * dc.dynamic_viscosity;
 
         auto dz_ptr = stretched_dz_d.data();
 
@@ -225,15 +225,15 @@ void erf_make_tau_terms (int level, int nrk,
             //
             // These are the steps taken below...
             //
-            // 1. Calculate expansion rate
+            // one Calculate expansion rate
             //    - will be added to the normal strain rates in ComputeStress
             //
-            // 2. Call ComputeStrain
+            // two Call ComputeStrain
             //    - IMPLICIT path: s31_corr and s32_corr are modified in here
             //
-            // 3. Call ComputeSmnSmn, if needed for turbulence model
+            // three Call ComputeSmnSmn, if needed for turbulence model
             //
-            // 4. Call ComputeStress
+            // Real(4.) Call ComputeStress
             //    - add expansion rates to terms on diagonal
             //    - multiply strain rates by diffusivities, with the total
             //      viscosity calculated as the sum of a constant viscosity (or
@@ -241,7 +241,7 @@ void erf_make_tau_terms (int level, int nrk,
             //      from the turbulence model
             //    - IMPLICIT path: s33_corr is modified in here
             //
-            // 5. Copy temp Sij fabs into Tau_lev multifabs
+            // Real(5.) Copy temp Sij fabs into Tau_lev multifabs
             //    - stress tensor is symmetric if no terrain and no implicit diffusion
             //    - otherwise, stress tensor is asymmetric
             //
@@ -391,7 +391,7 @@ void erf_make_tau_terms (int level, int nrk,
                 Array4<Real> omega_arr = Omega.array();
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,
+                    omega_arr(i,j,k) = (k == 0) ? zero : OmegaFromW(i,j,k,w(i,j,k),u,v,
                                                                   mf_ux,mf_vy,z_nd,dxInv);
                 });
 
@@ -535,7 +535,7 @@ void erf_make_tau_terms (int level, int nrk,
                 } else {
                     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (cflag(i,j,k).isSingleValued()) {
-                            er_arr(i,j,k) = (Real(1.0)/vfrac(i,j,k)) * (
+                            er_arr(i,j,k) = (one/vfrac(i,j,k)) * (
                             dxInv[0] * ( apx(i+1,j,k)*u(i+1,j,k) - apx(i,j,k)*u(i,j,k) )
                             + dxInv[1] * ( apy(i,j+1,k)*v(i,j+1,k) - apy(i,j,k)*v(i,j,k) )
                             + dxInv[2] * ( apz(i,j,k+1)*w(i,j,k+1) - apz(i,j,k)*w(i,j,k) ) );
@@ -544,7 +544,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
                                             (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                         } else {
-                            er_arr(i,j,k) = 0.0;
+                            er_arr(i,j,k) = zero;
                         }
                     });
                 }

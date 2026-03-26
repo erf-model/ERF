@@ -13,12 +13,12 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
                               const bool do_lo)
 {
     // NOTE: Klemp, J. B., and R. Wilhelmson, 1978: The simulation of three-dimensional
-    //       convective storm dynamics, J. Atmos. Sci., 35, 1070-1096.
+    //       convective storm dynamics, J. Atmos. Sci., 35, 1070-Real(1096.)
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
-    //       by flipping sgn = -1.
+    //       by flipping sgn = -one
     // NOTE: Indices (i,j,k) correspond to data that is ON the open bdy.
     int sgn = 1; if (do_lo) sgn = -1;
-    Real c_o_star = Real(sgn)*30.0;
+    Real c_o_star = Real(sgn)*Real(30.0);
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         IntVect ivu1(i,j,k); if ( do_lo) ivu1[dir] -= sgn; // Vel indexed into domain for do_lo
@@ -27,8 +27,8 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
         IntVect ivr1(i,j,k); if (!do_lo) ivr1[dir] -= sgn; // Rho indexed into domain for do_hi
         IntVect ivr2(i,j,k); if ( do_lo) ivr2[dir] += sgn; // Rho indexed out  domain for do_lo
 
-        Real rho_face  = 0.5 * ( cell_data_arr(ivr1,Rho_comp) + cell_data_arr(ivr2,Rho_comp) );
-        Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), 0.0 );
+        Real rho_face  = myhalf * ( cell_data_arr(ivr1,Rho_comp) + cell_data_arr(ivr2,Rho_comp) );
+        Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), zero );
         Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir];
         Real flux      = -( mom_star * vel_grad );
         rhs_arr(i,j,k) = flux;
@@ -56,21 +56,21 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const Box& bxx,
 
     ParallelFor(bxx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (ax(i,j,k) > 0.) {
-            Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i+1,j,k));
-            Real xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i-1,j,k));
+        if (ax(i,j,k) > zero) {
+            Real xflux_hi = fourth * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i+1,j,k));
+            Real xflux_lo = fourth * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i-1,j,k));
 
-            Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k)) * az(i,j,k+1);
-            Real zflux_lo = 0.25 * (Omega(i, j, k  ) + Omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k)) * az(i,j,k  );
+            Real zflux_hi = fourth * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k)) * az(i,j,k+1);
+            Real zflux_lo = fourth * (Omega(i, j, k  ) + Omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k)) * az(i,j,k  );
 
             Real x_src = (xflux_hi - xflux_lo) * dxInv;
             Real y_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, u, rho_v, dyInv, do_lo);
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
 
-            rho_u_rhs(i, j, k) = -advectionSrc / (0.5 * (detJ(i,j,k) + detJ(i-1,j,k)));
+            rho_u_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i-1,j,k)));
         } else {
-            rho_u_rhs(i, j, k) = 0.0;
+            rho_u_rhs(i, j, k) = zero;
         }
     });
 }
@@ -96,21 +96,21 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
 
     ParallelFor(bxy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (ay(i,j,k) > 0.) {
-            Real yflux_hi = 0.25 * (rho_v(i  ,j+1,k) + rho_v(i  ,j  ,k)) * (v(i,j+1,k) + v(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j+1,k));
-            Real yflux_lo = 0.25 * (rho_v(i  ,j  ,k) + rho_v(i  ,j-1,k)) * (v(i,j-1,k) + v(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j-1,k));
+        if (ay(i,j,k) > zero) {
+            Real yflux_hi = fourth * (rho_v(i  ,j+1,k) + rho_v(i  ,j  ,k)) * (v(i,j+1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j+1,k));
+            Real yflux_lo = fourth * (rho_v(i  ,j  ,k) + rho_v(i  ,j-1,k)) * (v(i,j-1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j-1,k));
 
-            Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) * az(i,j,k+1);
-            Real zflux_lo = 0.25 * (Omega(i, j, k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) * az(i,j,k  );
+            Real zflux_hi = fourth * (Omega(i, j, k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) * az(i,j,k+1);
+            Real zflux_lo = fourth * (Omega(i, j, k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) * az(i,j,k  );
 
             Real x_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, v, rho_u, dxInv, do_lo);
             Real y_src = (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
 
-            rho_v_rhs(i, j, k) = -advectionSrc / (0.5 * (detJ(i,j,k) + detJ(i,j-1,k)));
+            rho_v_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i,j-1,k)));
         } else {
-            rho_v_rhs(i, j, k) = 0.0;
+            rho_v_rhs(i, j, k) = zero;
         }
     });
 }
@@ -141,25 +141,25 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 
     ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (az(i,j,k) > 0.) {
-            Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) *
-                            0.5 *(ax(i+1,j,k) + ax(i+1,j,k-1));
+        if (az(i,j,k) > zero) {
+            Real xflux_hi = fourth*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) *
+                            myhalf *(ax(i+1,j,k) + ax(i+1,j,k-1));
 
-            Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k)) *
-                            0.5 *(ax(i,j,k) + ax(i,j,k-1));
+            Real xflux_lo = fourth*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k)) *
+                            myhalf *(ax(i,j,k) + ax(i,j,k-1));
 
-            Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k)) *
-                            0.5 *(ay(i,j+1,k) + ay(i,j+1,k-1));
+            Real yflux_hi = fourth*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k)) *
+                            myhalf *(ay(i,j+1,k) + ay(i,j+1,k-1));
 
-            Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) *
-                            0.5 *(ay(i,j,k) + ay(i,j,k-1));
+            Real yflux_lo = fourth*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) *
+                            myhalf *(ay(i,j,k) + ay(i,j,k-1));
 
-            Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1)) *
-                            0.5 *(az(i,j,k) + az(i,j,k-1));
+            Real zflux_lo = fourth * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1)) *
+                            myhalf *(az(i,j,k) + az(i,j,k-1));
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) * az(i,j,k):
-                                               0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
-                                               0.5  * (az(i,j,k) + az(i,j,k+1));
+                                               fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
+                                               myhalf  * (az(i,j,k) + az(i,j,k+1));
 
             Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, w, rho_u, dxInv, do_lo) :
                                    (xflux_hi - xflux_lo) * dxInv;
@@ -168,9 +168,9 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
 
-            rho_w_rhs(i, j, k) = -advectionSrc / (0.5*(detJ(i,j,k) + detJ(i,j,k-1)));
+            rho_w_rhs(i, j, k) = -advectionSrc / (myhalf*(detJ(i,j,k) + detJ(i,j,k-1)));
         } else {
-            rho_w_rhs(i, j, k) = 0.0;
+            rho_w_rhs(i, j, k) = zero;
         }
     });
 }
@@ -199,21 +199,21 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
 
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
-        if (detJ(i,j,k) > 0.) {
+        if (detJ(i,j,k) > zero) {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
-            Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
-            Real prim_xhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
+            Real prim_xlo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
+            Real prim_xhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
             Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
             Real xflux_hi = avg_xmom(i+1,j,k) * prim_xhi;
 
-            Real prim_ylo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
-            Real prim_yhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j+1,k,prim_index));
+            Real prim_ylo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
+            Real prim_yhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j+1,k,prim_index));
             Real yflux_lo = avg_ymom(i,j  ,k) * prim_ylo;
             Real yflux_hi = avg_ymom(i,j+1,k) * prim_yhi;
 
-            Real prim_zlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
-            Real prim_zhi = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index));
+            Real prim_zlo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
+            Real prim_zhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index));
             Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
             Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
 
@@ -247,9 +247,9 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
                                const bool do_lo)
 {
     // NOTE: Klemp, J. B., and R. Wilhelmson, 1978: The simulation of three-dimensional
-    //       convective storm dynamics, J. Atmos. Sci., 35, 1070-1096.
+    //       convective storm dynamics, J. Atmos. Sci., 35, 1070-Real(1096.)
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
-    //       by flipping sgn = -1.
+    //       by flipping sgn = -one
     // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
     //       Therefore, momentum indexing (ivm1/2) have 1 extra cell on the high
     //       side that should be accessed while scalar indexing (ivs1/2) does not.
@@ -261,8 +261,8 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
     IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
 
-    Real mom_at_cc = 0.5 * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
-    Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
+    Real mom_at_cc = myhalf * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
+    Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, zero );
     Real mom_grad  = ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
     Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 

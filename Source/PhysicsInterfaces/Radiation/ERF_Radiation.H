@@ -6,7 +6,7 @@
  * The original code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * Please reference to the following paper,
- *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
+ *                        https://agupubs.onlinelibrary.wiley.com/doi/amrex::Real(10.1029)/2019MS001621
  * NOTE: we use the C++ version of RTE-RRTMGP, which is the implementation of the original Fortran
  * code using C++ KOKKOS for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
@@ -271,8 +271,8 @@ private:
     amrex::MultiFab* m_lon = nullptr;
 
     // Constant lat/lon if the above MFs are not valid
-    amrex::Real m_lat_cons =  39.809860;
-    amrex::Real m_lon_cons = -98.555183;
+    amrex::Real m_lat_cons =  amrex::Real(39.809860);
+    amrex::Real m_lon_cons = -amrex::Real(98.555183);
 
     // Holds output from KOKKOS views used in the datalog
     amrex::MultiFab datalog_mf;
@@ -292,19 +292,19 @@ private:
     int m_ngas = 8;
     const std::vector<std::string> m_gas_names = {"H2O", "CO2", "O3", "N2O",
                                                   "CO" , "CH4", "O2", "N2" };
-    const std::vector<amrex::Real> m_mol_weight_gas = {18.01528, 44.00950, 47.9982, 44.0128,
-                                                       28.01010, 16.04246, 31.9980, 28.0134}; // g/mol
+    const std::vector<amrex::Real> m_mol_weight_gas = {amrex::Real(18.01528), amrex::Real(44.00950), amrex::Real(47.9982), amrex::Real(44.0128),
+                                                       amrex::Real(28.01010), amrex::Real(16.04246), amrex::Real(31.9980), amrex::Real(28.0134)}; // g/mol
 
     // Prescribed greenhouse gas surface concentrations in moles / moles air
-    amrex::Real m_co2vmr = 388.717e-6;
+    amrex::Real m_co2vmr = amrex::Real(388.717e-6);
     amrex::Vector<amrex::Real> m_o3vmr;
-    amrex::Real m_n2ovmr = 323.141e-9;
-    amrex::Real m_covmr  = 1.0e-7;
-    amrex::Real m_ch4vmr = 1807.851e-9;
-    amrex::Real m_o2vmr  = 0.209448;
-    amrex::Real m_n2vmr  = 0.7906;
-    //amrex::Real m_f11vmr = 768.7644e-12;
-    //amrex::Real m_f12vmr = 531.2820e-12;
+    amrex::Real m_n2ovmr = amrex::Real(323.141e-9);
+    amrex::Real m_covmr  = amrex::Real(1.0e-7);
+    amrex::Real m_ch4vmr = amrex::Real(1807.851e-9);
+    amrex::Real m_o2vmr  = amrex::Real(0.209448);
+    amrex::Real m_n2vmr  = amrex::Real(0.7906);
+    //amrex::Real m_f11vmr = amrex::Real(768.7644e-12);
+    //amrex::Real m_f12vmr = amrex::Real(531.2820e-12);
 
     int m_o3_size;
     real1d_k  m_gas_mol_weights;
@@ -341,18 +341,18 @@ private:
     // If >= 0, bypass computation based on orbital year and use fixed parameters
     // If <  0, compute based on orbital year, specified above
     bool m_fixed_orbital_year   = false;
-    amrex::Real m_orbital_eccen = -9999.;  // Eccentricity
-    amrex::Real m_orbital_obliq = -9999.;  // Obliquity
-    amrex::Real m_orbital_mvelp = -9999.;  // Vernal Equinox Mean Longitude of Perihelion
+    amrex::Real m_orbital_eccen = -amrex::Real(9999.);  // Eccentricity
+    amrex::Real m_orbital_obliq = -amrex::Real(9999.);  // Obliquity
+    amrex::Real m_orbital_mvelp = -amrex::Real(9999.);  // Vernal Equinox Mean Longitude of Perihelion
 
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance
     // at TOA).  Used for idealized experiments such as RCE. This is only used when a
     // positive value is supplied.
-    amrex::Real m_fixed_total_solar_irradiance = -9999.;
+    amrex::Real m_fixed_total_solar_irradiance = -amrex::Real(9999.);
 
     // Fixed solar zenith angle to use for shortwave calculations
     // This is only used if a positive value is supplied
-    amrex::Real m_fixed_solar_zenith_angle = -9999.;
+    amrex::Real m_fixed_solar_zenith_angle = -amrex::Real(9999.);
 
     // Dimensions to be read from lookup data
     int m_nswbands;

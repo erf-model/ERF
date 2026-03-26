@@ -22,9 +22,9 @@ struct CollisionKernel
     RT golovin ( const RT a_r1, /*!< radius of droplet 1 */
                  const RT a_r2  /*!< radius of droplet 2 */ ) const noexcept
     {
-        RT b = 1.5e03;
-        auto X_1 = (4.0*PI/3.0) * a_r1*a_r1*a_r1;
-        auto X_2 = (4.0*PI/3.0) * a_r2*a_r2*a_r2;
+        RT b = amrex::Real(1.5e03);
+        auto X_1 = (amrex::Real(4.0)*PI/three) * a_r1*a_r1*a_r1;
+        auto X_2 = (amrex::Real(4.0)*PI/three) * a_r2*a_r2*a_r2;
         return b * (X_1 + X_2);
     }
 
@@ -49,7 +49,7 @@ struct CollisionKernel
                         const RT* const a_v2 ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
-        auto E = 0.5*p*p / ((1.0+p)*(1.0+p));
+        auto E = myhalf*p*p / ((one+p)*(one+p));
         RT dv = 0;
         for (int d = 0; d < SPACEDIM; d++) {
             dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
@@ -67,7 +67,7 @@ struct CollisionKernel
      * effective for smaller cloud droplets where hydrodynamic effects are important.
      *
      * Reference: Long, A. B., 1974: Solutions to the droplet collection equation
-     * for polynomial kernels. J. Atmos. Sci., 31, 1040-1052.
+     * for polynomial kernels. J. Atmos. Sci., 31, 1040-amrex::Real(1052.)
      *
      * \param[in] a_r1 Radius of particle 1 (m)
      * \param[in] a_r2 Radius of particle 2 (m)
@@ -85,9 +85,9 @@ struct CollisionKernel
         auto r2 = std::min( a_r1, a_r2 );  // small
         auto sumr = r1 + r2;
 
-        RT c_rate = 1.0;
-        if( r1 <= 5.E-5 ) {
-            c_rate = 4.5E+8 * ( r1*r1 ) * ( 1.0 - 3.E-6/(std::max(3.01E-6,r1)) );
+        RT c_rate = one;
+        if( r1 <= amrex::Real(5.E-5) ) {
+            c_rate = amrex::Real(4.5E+8) * ( r1*r1 ) * ( one - amrex::Real(3.E-6)/(std::max(amrex::Real(3.01E-6),r1)) );
         }
         c_rate *= (PI*sumr*sumr);
 
@@ -106,21 +106,21 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_r0col (const int a_i /*!< index */) const noexcept
     {
-        static const RT vec[15] = {  6.0,
-                                     8.0,
-                                    10.0,
-                                    15.0,
-                                    20.0,
-                                    25.0,
-                                    30.0,
-                                    40.0,
-                                    50.0,
-                                    60.0,
-                                    70.0,
-                                   100.0,
-                                   150.0,
-                                   200.0,
-                                   300.0};
+        static const RT vec[15] = {  amrex::Real(6.0),
+                                     amrex::Real(8.0),
+                                    amrex::Real(10.0),
+                                    amrex::Real(15.0),
+                                    amrex::Real(20.0),
+                                    amrex::Real(25.0),
+                                    amrex::Real(30.0),
+                                    amrex::Real(40.0),
+                                    amrex::Real(50.0),
+                                    amrex::Real(60.0),
+                                    amrex::Real(70.0),
+                                   amrex::Real(100.0),
+                                   amrex::Real(150.0),
+                                   amrex::Real(200.0),
+                                   amrex::Real(300.0)};
         return vec[a_i];
     }
 
@@ -130,7 +130,7 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int Halls_data_r0col ( const RT a_r /*!< radius */) const noexcept
     {
-        auto radius_microns = a_r*1.0e6; // [m] -> [mu-m]
+        auto radius_microns = a_r*amrex::Real(1.0e6); // [m] -> [mu-m]
         int i;
         for (i = 0; i < 15; i++) {
             if (radius_microns <= Halls_data_r0col(i)) { return i; }
@@ -144,27 +144,27 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_ratcol ( const int a_i /*!< index */) const noexcept
     {
-        static const RT vec[21] = {0.00,
-                                   0.05,
-                                   0.10,
-                                   0.15,
-                                   0.20,
-                                   0.25,
-                                   0.30,
-                                   0.35,
-                                   0.40,
-                                   0.45,
-                                   0.50,
-                                   0.55,
-                                   0.60,
-                                   0.65,
-                                   0.70,
-                                   0.75,
-                                   0.80,
-                                   0.85,
-                                   0.90,
-                                   0.95,
-                                   1.00};
+        static const RT vec[21] = {amrex::Real(0.00),
+                                   amrex::Real(0.05),
+                                   amrex::Real(0.10),
+                                   amrex::Real(0.15),
+                                   amrex::Real(0.20),
+                                   fourth,
+                                   amrex::Real(0.30),
+                                   amrex::Real(0.35),
+                                   amrex::Real(0.40),
+                                   amrex::Real(0.45),
+                                   amrex::Real(0.50),
+                                   amrex::Real(0.55),
+                                   amrex::Real(0.60),
+                                   amrex::Real(0.65),
+                                   amrex::Real(0.70),
+                                   amrex::Real(0.75),
+                                   amrex::Real(0.80),
+                                   amrex::Real(0.85),
+                                   amrex::Real(0.90),
+                                   amrex::Real(0.95),
+                                   amrex::Real(1.00)};
         return vec[a_i];
     }
 
@@ -189,27 +189,27 @@ struct CollisionKernel
                           const int a_j /*!< column index */) const noexcept
     {
         const RT ecoll[21][15] =
-            { {0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010},
-              {0.0030,0.0030,0.0030,0.0040,0.0050,0.0050,0.0050,0.0100,0.1000,0.0500,0.2000,0.5000,0.7700,0.8700,0.9700},
-              {0.0070,0.0070,0.0070,0.0080,0.0090,0.0100,0.0100,0.0700,0.4000,0.4300,0.5800,0.7900,0.9300,0.9600,1.0000},
-              {0.0090,0.0090,0.0090,0.0120,0.0150,0.0100,0.0200,0.2800,0.6000,0.6400,0.7500,0.9100,0.9700,0.9800,1.0000},
-              {0.0140,0.0140,0.0140,0.0150,0.0160,0.0300,0.0600,0.5000,0.7000,0.7700,0.8400,0.9500,0.9700,1.0000,1.0000},
-              {0.0170,0.0170,0.0170,0.0200,0.0220,0.0600,0.1000,0.6200,0.7800,0.8400,0.8800,0.9500,1.0000,1.0000,1.0000},
-              {0.0300,0.0300,0.0240,0.0220,0.0320,0.0620,0.2000,0.6800,0.8300,0.8700,0.9000,0.9500,1.0000,1.0000,1.0000},
-              {0.0250,0.0250,0.0250,0.0360,0.0430,0.1300,0.2700,0.7400,0.8600,0.8900,0.9200,1.0000,1.0000,1.0000,1.0000},
-              {0.0270,0.0270,0.0270,0.0400,0.0520,0.2000,0.4000,0.7800,0.8800,0.9000,0.9400,1.0000,1.0000,1.0000,1.0000},
-              {0.0300,0.0300,0.0300,0.0470,0.0640,0.2500,0.5000,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0400,0.0400,0.0330,0.0370,0.0680,0.2400,0.5500,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0350,0.0350,0.0350,0.0550,0.0790,0.2900,0.5800,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0620,0.0820,0.2900,0.5900,0.7800,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0600,0.0800,0.2900,0.5800,0.7700,0.8900,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0410,0.0750,0.2500,0.5400,0.7600,0.8800,0.9200,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0520,0.0670,0.2500,0.5100,0.7700,0.8800,0.9300,0.9700,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0470,0.0570,0.2500,0.4900,0.7700,0.8900,0.9500,1.0000,1.0000,1.0000,1.0000,1.0000},
-              {0.0360,0.0360,0.0360,0.0420,0.0480,0.2300,0.4700,0.7800,0.9200,1.0000,1.0200,1.0200,1.0200,1.0200,1.0200},
-              {0.0400,0.0400,0.0350,0.0330,0.0400,0.1120,0.4500,0.7900,1.0100,1.0300,1.0400,1.0400,1.0400,1.0400,1.0400},
-              {0.0330,0.0330,0.0330,0.0330,0.0330,0.1190,0.4700,0.9500,1.3000,1.7000,2.3000,2.3000,2.3000,2.3000,2.3000},
-              {0.0270,0.0270,0.0270,0.0270,0.0270,0.1250,0.5200,1.4000,2.3000,3.0000,4.0000,4.0000,4.0000,4.0000,4.0000} };
+            { {amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010),amrex::Real(0.0010)},
+              {amrex::Real(0.0030),amrex::Real(0.0030),amrex::Real(0.0030),amrex::Real(0.0040),amrex::Real(0.0050),amrex::Real(0.0050),amrex::Real(0.0050),amrex::Real(0.0100),amrex::Real(0.1000),amrex::Real(0.0500),amrex::Real(0.2000),amrex::Real(0.5000),amrex::Real(0.7700),amrex::Real(0.8700),amrex::Real(0.9700)},
+              {amrex::Real(0.0070),amrex::Real(0.0070),amrex::Real(0.0070),amrex::Real(0.0080),amrex::Real(0.0090),amrex::Real(0.0100),amrex::Real(0.0100),amrex::Real(0.0700),amrex::Real(0.4000),amrex::Real(0.4300),amrex::Real(0.5800),amrex::Real(0.7900),amrex::Real(0.9300),amrex::Real(0.9600),amrex::Real(1.0000)},
+              {amrex::Real(0.0090),amrex::Real(0.0090),amrex::Real(0.0090),amrex::Real(0.0120),amrex::Real(0.0150),amrex::Real(0.0100),amrex::Real(0.0200),amrex::Real(0.2800),amrex::Real(0.6000),amrex::Real(0.6400),amrex::Real(0.7500),amrex::Real(0.9100),amrex::Real(0.9700),amrex::Real(0.9800),amrex::Real(1.0000)},
+              {amrex::Real(0.0140),amrex::Real(0.0140),amrex::Real(0.0140),amrex::Real(0.0150),amrex::Real(0.0160),amrex::Real(0.0300),amrex::Real(0.0600),amrex::Real(0.5000),amrex::Real(0.7000),amrex::Real(0.7700),amrex::Real(0.8400),amrex::Real(0.9500),amrex::Real(0.9700),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0170),amrex::Real(0.0170),amrex::Real(0.0170),amrex::Real(0.0200),amrex::Real(0.0220),amrex::Real(0.0600),amrex::Real(0.1000),amrex::Real(0.6200),amrex::Real(0.7800),amrex::Real(0.8400),amrex::Real(0.8800),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0300),amrex::Real(0.0300),amrex::Real(0.0240),amrex::Real(0.0220),amrex::Real(0.0320),amrex::Real(0.0620),amrex::Real(0.2000),amrex::Real(0.6800),amrex::Real(0.8300),amrex::Real(0.8700),amrex::Real(0.9000),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0250),amrex::Real(0.0250),amrex::Real(0.0250),amrex::Real(0.0360),amrex::Real(0.0430),amrex::Real(0.1300),amrex::Real(0.2700),amrex::Real(0.7400),amrex::Real(0.8600),amrex::Real(0.8900),amrex::Real(0.9200),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.0400),amrex::Real(0.0520),amrex::Real(0.2000),amrex::Real(0.4000),amrex::Real(0.7800),amrex::Real(0.8800),amrex::Real(0.9000),amrex::Real(0.9400),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0300),amrex::Real(0.0300),amrex::Real(0.0300),amrex::Real(0.0470),amrex::Real(0.0640),amrex::Real(0.2500),amrex::Real(0.5000),amrex::Real(0.8000),amrex::Real(0.9000),amrex::Real(0.9100),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0400),amrex::Real(0.0400),amrex::Real(0.0330),amrex::Real(0.0370),amrex::Real(0.0680),amrex::Real(0.2400),amrex::Real(0.5500),amrex::Real(0.8000),amrex::Real(0.9000),amrex::Real(0.9100),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0350),amrex::Real(0.0350),amrex::Real(0.0350),amrex::Real(0.0550),amrex::Real(0.0790),amrex::Real(0.2900),amrex::Real(0.5800),amrex::Real(0.8000),amrex::Real(0.9000),amrex::Real(0.9100),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0620),amrex::Real(0.0820),amrex::Real(0.2900),amrex::Real(0.5900),amrex::Real(0.7800),amrex::Real(0.9000),amrex::Real(0.9100),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0600),amrex::Real(0.0800),amrex::Real(0.2900),amrex::Real(0.5800),amrex::Real(0.7700),amrex::Real(0.8900),amrex::Real(0.9100),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0410),amrex::Real(0.0750),amrex::Real(0.2500),amrex::Real(0.5400),amrex::Real(0.7600),amrex::Real(0.8800),amrex::Real(0.9200),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0520),amrex::Real(0.0670),amrex::Real(0.2500),amrex::Real(0.5100),amrex::Real(0.7700),amrex::Real(0.8800),amrex::Real(0.9300),amrex::Real(0.9700),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0370),amrex::Real(0.0470),amrex::Real(0.0570),amrex::Real(0.2500),amrex::Real(0.4900),amrex::Real(0.7700),amrex::Real(0.8900),amrex::Real(0.9500),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000),amrex::Real(1.0000)},
+              {amrex::Real(0.0360),amrex::Real(0.0360),amrex::Real(0.0360),amrex::Real(0.0420),amrex::Real(0.0480),amrex::Real(0.2300),amrex::Real(0.4700),amrex::Real(0.7800),amrex::Real(0.9200),amrex::Real(1.0000),amrex::Real(1.0200),amrex::Real(1.0200),amrex::Real(1.0200),amrex::Real(1.0200),amrex::Real(1.0200)},
+              {amrex::Real(0.0400),amrex::Real(0.0400),amrex::Real(0.0350),amrex::Real(0.0330),amrex::Real(0.0400),amrex::Real(0.1120),amrex::Real(0.4500),amrex::Real(0.7900),amrex::Real(1.0100),amrex::Real(1.0300),amrex::Real(1.0400),amrex::Real(1.0400),amrex::Real(1.0400),amrex::Real(1.0400),amrex::Real(1.0400)},
+              {amrex::Real(0.0330),amrex::Real(0.0330),amrex::Real(0.0330),amrex::Real(0.0330),amrex::Real(0.0330),amrex::Real(0.1190),amrex::Real(0.4700),amrex::Real(0.9500),amrex::Real(1.3000),amrex::Real(1.7000),amrex::Real(2.3000),amrex::Real(2.3000),amrex::Real(2.3000),amrex::Real(2.3000),amrex::Real(2.3000)},
+              {amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.0270),amrex::Real(0.1250),amrex::Real(0.5200),amrex::Real(1.4000),amrex::Real(2.3000),amrex::Real(3.0000),amrex::Real(4.0000),amrex::Real(4.0000),amrex::Real(4.0000),amrex::Real(4.0000),amrex::Real(4.0000)} };
         return ecoll[a_i][a_j];
     }
 
@@ -231,29 +231,29 @@ struct CollisionKernel
         int irr = Halls_data_r0col(r1);
         int iqq = Halls_data_ratcol(ratio);
 
-        RT c_rate = 1.0;
+        RT c_rate = one;
 
         if( irr >= 15 ) {
 
             RT q  =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                     / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            RT ek =   (1.0-q) * Halls_data_ecoll(iqq-1,14)
+            RT ek =   (one-q) * Halls_data_ecoll(iqq-1,14)
                     + q       * Halls_data_ecoll(iqq  ,14);
 
-            c_rate = std::min( ek, 1.0 );
+            c_rate = std::min( ek, amrex::Real(1.0) );
 
         } else if ((irr >= 1) && (irr < 15)) {
 
-            RT p =   ( r1*1.0e6              - Halls_data_r0col(irr-1) )
+            RT p =   ( r1*amrex::Real(1.0e6)              - Halls_data_r0col(irr-1) )
                    / ( Halls_data_r0col(irr) - Halls_data_r0col(irr-1) );
 
             RT q =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                    / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (1.0-p) * (1.0-q) * Halls_data_ecoll(iqq-1,irr-1)
-                     + p       * (1.0-q) * Halls_data_ecoll(iqq-1,irr  )
-                     + (1.0-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
+            c_rate =   (one-p) * (one-q) * Halls_data_ecoll(iqq-1,irr-1)
+                     + p       * (one-q) * Halls_data_ecoll(iqq-1,irr  )
+                     + (one-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
                      + p       * q       * Halls_data_ecoll(iqq  ,irr  );
 
         } else {
@@ -261,7 +261,7 @@ struct CollisionKernel
             RT q =  ( ratio                  - Halls_data_ratcol(iqq-1) )
                   / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (1.0-q) * Halls_data_ecoll(iqq-1,0)
+            c_rate =   (one-q) * Halls_data_ecoll(iqq-1,0)
                      + q       * Halls_data_ecoll(iqq  ,0);
 
         }
@@ -295,57 +295,57 @@ struct CollisionKernel
         RT t_crs = a_temperature; // [K]
 
         // dynamic viscosity [Pa*s] (Pruppacher & Klett,1997)
-        RT T_degC = t_crs - 273.15; // [K] => [degC]
-        RT vis_crs = 0.0;
-        if( T_degC >= 0.0 ) {
-            vis_crs = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+        RT T_degC = t_crs - amrex::Real(273.15); // [K] => [degC]
+        RT vis_crs = zero;
+        if( T_degC >= zero ) {
+            vis_crs = ( amrex::Real(1.7180) + amrex::Real(4.9E-3)*T_degC ) * amrex::Real(1.E-5);
         } else {
-            vis_crs = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+            vis_crs = ( amrex::Real(1.7180) + amrex::Real(4.9E-3)*T_degC -amrex::Real(1.2E-5)*T_degC*T_degC ) * amrex::Real(1.E-5);
         }
 
         //air mean free path [m]
-        RT lambda_crs = (2.0*vis_crs) / (p_crs*std::sqrt(8.0*mwdair*1.E-3/(PI*R_d*t_crs)));
+        RT lambda_crs = (two*vis_crs) / (p_crs*std::sqrt(amrex::Real(8.0)*mwdair*amrex::Real(1.E-3)/(PI*R_d*t_crs)));
 
         // temporary var
-        RT dtmp = 0.0;
+        RT dtmp = zero;
 
         // slip correction of droplets [-]
-        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_1/lambda_crs);
-        RT slip_corr_1 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_1);
-        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_2/lambda_crs);
-        RT slip_corr_2 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_2);
+        dtmp   = amrex::Real(1.2570) + amrex::Real(0.40) * exp(-amrex::Real(0.550)*diameter_1/lambda_crs);
+        RT slip_corr_1 = one + (two*lambda_crs*dtmp)/(diameter_1);
+        dtmp   = amrex::Real(1.2570) + amrex::Real(0.40) * exp(-amrex::Real(0.550)*diameter_2/lambda_crs);
+        RT slip_corr_2 = one + (two*lambda_crs*dtmp)/(diameter_2);
 
         // diffusion term [m*m/s]
-        dtmp = (boltz*t_crs)/(3.0*PI*vis_crs);
+        dtmp = (boltz*t_crs)/(three*PI*vis_crs);
         RT diff_term_1 = dtmp * (slip_corr_1/diameter_1);
         RT diff_term_2 = dtmp * (slip_corr_2/diameter_2);
 
         // velocity term [m/s]
-        dtmp = (8.0*boltz*t_crs)/PI;
+        dtmp = (amrex::Real(8.0)*boltz*t_crs)/PI;
         RT vel_term_1 = std::sqrt(dtmp/a_mass_1);
         RT vel_term_2 = std::sqrt(dtmp/a_mass_2);
 
         // mean free path of droplets [m]
-        dtmp = 8.0/PI;
+        dtmp = amrex::Real(8.0)/PI;
         RT lambda_1 = dtmp * (diff_term_1/vel_term_1);
         RT lambda_2 = dtmp * (diff_term_2/vel_term_2);
 
         //length term [m]
         dtmp = (diameter_1+lambda_1)*(diameter_1+lambda_1)*(diameter_1+lambda_1)
-               - std::exp(1.5*std::log(diameter_1*diameter_1+lambda_1*lambda_1));
-        RT length_term_1 = dtmp/(3.0*diameter_1*lambda_1) - diameter_1;
+               - std::exp(amrex::Real(1.5)*std::log(diameter_1*diameter_1+lambda_1*lambda_1));
+        RT length_term_1 = dtmp/(three*diameter_1*lambda_1) - diameter_1;
         dtmp = (diameter_2+lambda_2)*(diameter_2+lambda_2)*(diameter_2+lambda_2)
-               - std::exp(1.5*std::log(diameter_2*diameter_2+lambda_2*lambda_2));
-        RT length_term_2 = dtmp/(3.0*diameter_2*lambda_2) - diameter_2;
+               - std::exp(amrex::Real(1.5)*std::log(diameter_2*diameter_2+lambda_2*lambda_2));
+        RT length_term_2 = dtmp/(three*diameter_2*lambda_2) - diameter_2;
 
         // Brownian Coagulation Coefficient K12 [m3/s]
         RT sumdia = diameter_1 + diameter_2;
         RT sumd   = diff_term_1   + diff_term_2;
         RT sumc   = std::sqrt( vel_term_1*vel_term_1 + vel_term_2*vel_term_2 );
-        RT sumg   = std::sqrt( 2.0*length_term_1*length_term_1 + 2.0*length_term_2*length_term_2 );
+        RT sumg   = std::sqrt( two*length_term_1*length_term_1 + two*length_term_2*length_term_2 );
 
-        dtmp = sumdia/(sumdia+2.0*sumg) + (8.0*sumd)/(sumdia*sumc);
-        RT k12 = 2.0*PI * sumdia*sumd/dtmp;
+        dtmp = sumdia/(sumdia+two*sumg) + (amrex::Real(8.0)*sumd)/(sumdia*sumc);
+        RT k12 = two*PI * sumdia*sumd/dtmp;
 
         return k12;
     }

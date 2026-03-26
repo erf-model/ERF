@@ -44,7 +44,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
-    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+    Real inv_sigma_k = one / turbChoice.sigma_k;
 
     bool use_thetav_grad = (turbChoice.strat_type == StratType::thetav);
     bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
@@ -92,7 +92,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // =====================================================================
-                // 1. STRAIN RATE MAGNITUDE CALCULATION
+                // one STRAIN RATE MAGNITUDE CALCULATION
                 // =====================================================================
                 Real SmnSmn;
                 if (smag2d) {
@@ -100,10 +100,10 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 } else {
                     SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                 }
-                Real strain_rate_magnitude = std::sqrt(2.0 * SmnSmn);
+                Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
                 // =====================================================================
-                // 2. GRID SCALE CALCULATION (filter width Δ)
+                // two GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
@@ -115,12 +115,12 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real Delta;
                 Real DeltaH;
                 if (isotropic) {
-                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
                     Delta = std::cbrt(cellVolMsf);
                     DeltaH = Delta;
                 } else {
-                    Delta = 1.0 / dzInv;
-                    DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    Delta = one / dzInv;
+                    DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
                 }
 
                 Real rho = cell_data(i, j, k, Rho_comp);
@@ -130,7 +130,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
 
-                Real stability_factor = 1.0;
+                Real stability_factor = one;
 
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                     Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
@@ -147,11 +147,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
                 }
 
-                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                         - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
 
-                hfx_x(i,j,k) = 0.0;
-                hfx_y(i,j,k) = 0.0;
+                hfx_x(i,j,k) = zero;
+                hfx_y(i,j,k) = zero;
                 hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
             });
         }
@@ -163,11 +163,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real l_C_k        = turbChoice.Ck;
         const Real l_C_e        = turbChoice.Ce;
         const Real l_C_e_wall   = turbChoice.Ce_wall;
-        const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+        const Real Ce_lcoeff    = amrex::max(zero, l_C_e - Real(1.9)*l_C_k);
         const Real l_abs_g      = const_grav;
 
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
+        const Real l_inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -200,26 +200,26 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 }
                 Real Delta;
                 if (isotropic) {
-                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
                     Delta = std::cbrt(cellVolMsf);
                 } else {
-                    Delta = 1.0 / dzInv;
+                    Delta = one / dzInv;
                 }
 
                 Real dtheta_dz;
                 if (use_thetav_grad) {
-                    dtheta_dz = 0.5 * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
+                    dtheta_dz = myhalf * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
                                       - GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else if (use_thetal_grad) {
-                    dtheta_dz = 0.5 * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
+                    dtheta_dz = myhalf * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
                                       - GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else {
-                    dtheta_dz = 0.5 * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
+                    dtheta_dz = myhalf * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
                                       - cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
                 }
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980, Eqn. 10a)
-                Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
+                Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),zero);
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
                 if (!use_ref_theta) {
                     // l_inv_theta0 == 1, divide by actual theta
@@ -234,16 +234,16 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 if (stratification <= eps) {
                     length = Delta;  // cbrt(dx*dy*dz) -or- dz
                 } else {
-                    length = 0.76 * std::sqrt(E / amrex::max(stratification,eps));
+                    length = Real(0.76) * std::sqrt(E / amrex::max(stratification,eps));
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, Delta);
                     // following WRF, make sure the mixing length isn't too small
-                    length = amrex::max(length, 0.001 * Delta);
+                    length = amrex::max(length, Real(0.001) * Delta);
                 }
 
-                Real DeltaH = (isotropic) ? length : std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                Real DeltaH = (isotropic) ? length : std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
 
-                Real Pr_inv_v = (1. + 2.*length/Delta);
+                Real Pr_inv_v = (one + two*length/Delta);
                 Real Pr_inv_h  = (isotropic) ? Pr_inv_v : inv_Pr_t;
 
                 // Calculate eddy diffusivities
@@ -262,15 +262,15 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 if ((l_C_e_wall > 0) && (k==0)) {
                     Ce = l_C_e_wall;
                 } else {
-                    Ce = 1.9*l_C_k + Ce_lcoeff*length / Delta;
+                    Ce = Real(1.9)*l_C_k + Ce_lcoeff*length / Delta;
                 }
-                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
+                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,Real(1.5)) / length;
 
                 // - heat flux
                 //   (Note: If using SurfaceLayer, the value at k=0 will
                 //    be overwritten)
-                hfx_x(i,j,k) = 0.0;
-                hfx_y(i,j,k) = 0.0;
+                hfx_x(i,j,k) = zero;
+                hfx_y(i,j,k) = zero;
                 hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
             });
         }
@@ -355,7 +355,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
-    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+    Real inv_sigma_k = one / turbChoice.sigma_k;
 
     bool isotropic = turbChoice.mix_isotropic;
 
@@ -407,28 +407,28 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // =====================================================================
-                // 1. STRAIN RATE MAGNITUDE CALCULATION
+                // one STRAIN RATE MAGNITUDE CALCULATION
                 // =====================================================================
-                Real SmnSmn=0.0;
+                Real SmnSmn=zero;
                 if (c_cflag(i,j,k).isRegular()) {
                     SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                 } else if (c_cflag(i,j,k).isSingleValued()) {
                     SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
                 }
-                Real strain_rate_magnitude = std::sqrt(2.0 * SmnSmn);
+                Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
                 // =====================================================================
-                // 2. GRID SCALE CALCULATION (filter width Δ)
+                // two GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
                 Real Delta;
                 Real DeltaH;
                 if (isotropic) {
-                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
                     Delta = std::cbrt(cellVolMsf);
                     DeltaH = Delta;
                 } else {
-                    Delta = 1.0 / dzInv;
-                    DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    Delta = one / dzInv;
+                    DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
                 }
 
                 Real rho = cell_data(i, j, k, Rho_comp);
@@ -438,11 +438,11 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                 Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
 
-                Real stability_factor = 1.0;
+                Real stability_factor = one;
 
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
-                    Real N2 = 0.0;
-                    Real S2_vert = 0.0;
+                    Real N2 = zero;
+                    Real S2_vert = zero;
                     if (c_cflag(i,j,k).isRegular()) {
                         N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                         S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
@@ -464,26 +464,26 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 
                 amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
                 amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
-                Real dtheta_dz = 0.0;
+                Real dtheta_dz = zero;
 
                 if (c_cflag(i,j,k).isRegular()) {
-                    dtheta_dz = 0.5 * ( theta_kp1 - theta_km1 )*dzInv;
+                    dtheta_dz = myhalf * ( theta_kp1 - theta_km1 )*dzInv;
                 } else if (c_cflag(i,j,k).isSingleValued()) {
 
                     amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
                     if (c_cflag(i,j,k+1).isCovered()) {
                         amrex::Real theta_km2 = cell_data(i, j, k-2, RhoTheta_comp) / cell_data(i, j, k-2, Rho_comp);
-                        dtheta_dz = (3.*theta - 4.*theta_km1 + theta_km2) * 0.5 * dzInv;
+                        dtheta_dz = (three*theta - Real(4.)*theta_km1 + theta_km2) * myhalf * dzInv;
                     } else if (c_cflag(i,j,k-1).isCovered()) {
                         amrex::Real theta_kp2 = cell_data(i, j, k+2, RhoTheta_comp) / cell_data(i, j, k+2, Rho_comp);
-                        dtheta_dz = (-theta_kp2 + 4.*theta_kp1 - 3.*theta) * 0.5 * dzInv;
+                        dtheta_dz = (-theta_kp2 + Real(4.)*theta_kp1 - three*theta) * myhalf * dzInv;
                     } else {
-                        dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+                        dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
                     }
                 }
 
-                hfx_x(i,j,k) = 0.0;
-                hfx_y(i,j,k) = 0.0;
+                hfx_x(i,j,k) = zero;
+                hfx_y(i,j,k) = zero;
                 hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
             });
         }
@@ -582,7 +582,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
-    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+    Real inv_sigma_k = one / turbChoice.sigma_k;
 
     // One-Equation k model (Axell & Liungman 2001, Environ Fluid Mech)
     //***********************************************************************************
@@ -590,14 +590,14 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
     {
         const Real Cmu0       = turbChoice.Cmu0;
         const Real Cmu0_pow3  = Cmu0 * Cmu0 * Cmu0;
-        const Real inv_Cb_sq  = 1.0 / (turbChoice.Cb * turbChoice.Cb);
+        const Real inv_Cb_sq  = one / (turbChoice.Cb * turbChoice.Cb);
         const Real Rt_crit    = turbChoice.Rt_crit;
         const Real Rt_min     = turbChoice.Rt_min;
         const Real l_g_max    = turbChoice.l_g_max;
         const Real abs_g      = const_grav;
 
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
+        const Real inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -630,7 +630,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
-                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
                 if (!use_ref_theta) {
@@ -652,40 +652,37 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                     length = l_g;
                 } else if (N2 > eps) {
                     // Stable (AL01, Eqn. 26)
-                    length = std::sqrt(1.0 /
-                            (1.0 / (l_g * l_g) + inv_Cb_sq * N2 / tke));
+                    length = std::sqrt(one /
+                            (one / (l_g * l_g) + inv_Cb_sq * N2 / tke));
                 } else {
-                    Real diss0 = Cmu0_pow3 * std::pow(tke,1.5) / l_g; // approx
+                    Real diss0 = Cmu0_pow3 * std::pow(tke,Real(1.5)) / l_g; // approx
                     Rt = tke*tke * N2 / (diss0*diss0);
 
                     // Unstable (AL01, Eqn. 28)
                     // - predict
-                    length = l_g * std::sqrt(1.0 - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
+                    length = l_g * std::sqrt(one - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
                     // - correct
-                    diss0 = Cmu0_pow3 * std::pow(tke,1.5) / length;
+                    diss0 = Cmu0_pow3 * std::pow(tke,Real(1.5)) / length;
                     Rt = tke*tke * N2 / (diss0*diss0);
-                    length  = l_g * std::sqrt(1.0 - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
+                    length  = l_g * std::sqrt(one - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
                 }
                 mu_turb(i, j, k, EddyDiff::Turb_lengthscale) = length;
 
                 // Dissipation rate (AL01, Eqn. 19)
-                diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,1.5) / length;
+                diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,Real(1.5)) / length;
 
                 // Turbulent Richardson number (AL01, Eqn. 29)
                 //Real Rt = tke*tke * N2 / (diss(i,j,k)*diss(i,j,k));
                 Rt = length*length * N2 / (tke * Cmu0_pow3 * Cmu0_pow3); // combined with Eqn. 19
 
                 // Burchard & Petersen smoothing function
-                Rt = (Rt >= Rt_crit) ? Rt
-                                     : std::max(Rt,
-                                                Rt - std::pow(Rt - Rt_crit, 2) /
-                                                     (Rt + Rt_min - 2*Rt_crit));
+                Rt = (Rt >= Rt_crit) ? Rt : std::max(Rt, Rt - (Rt - Rt_crit)*(Rt - Rt_crit) / (Rt + Rt_min - 2*Rt_crit));
 
                 // Stability functions
                 // Note: These use the smoothed turbulent Richardson number
-                Real cmu = (Cmu0 + 0.108*Rt)
-                         / (1.0 + 0.308*Rt + 0.00837*Rt*Rt); // (AL01, Eqn. 31)
-                Real cmu_prime = Cmu0 / (1 + 0.277*Rt); // (AL01, Eqn. 32)
+                Real cmu = (Cmu0 + Real(0.108)*Rt)
+                         / (one + Real(0.308)*Rt + Real(0.00837)*Rt*Rt); // (AL01, Eqn. 31)
+                Real cmu_prime = Cmu0 / (1 + Real(0.277)*Rt); // (AL01, Eqn. 32)
 
                 // Calculate eddy diffusivities
                 // K = rho * nu_t = rho * c_mu * tke^(1/2) * length
@@ -697,8 +694,8 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
 
                 // Calculate heat flux
                 // - If using SurfaceLayer, the value at k=0 will be overwritten
-                hfx_x(i, j, k) = 0.0;
-                hfx_y(i, j, k) = 0.0;
+                hfx_x(i, j, k) = zero;
+                hfx_y(i, j, k) = zero;
                 // Note: buoyant production = g/theta0 * hfx == -nut_prime * N^2 (c.f. AL01 Eqn. 15)
                 //                          = nut_prime * g/theta0 * dtheta/dz
                 //                  ==> hfx = nut_prime * dtheta/dz

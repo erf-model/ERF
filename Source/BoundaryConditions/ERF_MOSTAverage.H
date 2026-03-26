@@ -130,23 +130,23 @@ public:
         // Search to get z/k
         bool found = false;
         int kmax   = ubound(z_arr).z;
-        amrex::Real zval     = 0.0;
+        amrex::Real zval     = zero;
         amrex::Real z_target = zp;
 
         // Map position to i,j (must be same mapping in cpp file)
         amrex::Real ireal = (xp - plo[0]) * dxi[0];
         amrex::Real jreal = (yp - plo[1]) * dxi[1];
-        int i_new = (int) (ireal - 0.5);
-        int j_new = (int) (jreal - 0.5);
+        int i_new = (int) (ireal - myhalf);
+        int j_new = (int) (jreal - myhalf);
 
         for (int lk(0); lk<kmax; ++lk) {
-            amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
+            amrex::Real z_lo = fourth * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
-            amrex::Real z_hi = 0.25 * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
+            amrex::Real z_hi = fourth * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
                 found = true;
-                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
+                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
                 break;
             }
         }
@@ -155,7 +155,7 @@ public:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
-        const amrex::RealVect lx(ireal + 0.5, jreal + 0.5, zval);
+        const amrex::RealVect lx(ireal + myhalf, jreal + myhalf, zval);
 
         const amrex::IntVect ijk = lx.floor();
 
@@ -168,7 +168,7 @@ public:
 
         // Weights
         const amrex::RealVect sx_hi = lx  - ijk_r;
-        const amrex::RealVect sx_lo = 1.0 - sx_hi;
+        const amrex::RealVect sx_lo = one - sx_hi;
 
         for (int n = 0; n < interp_comp; n++) {
             interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
@@ -230,7 +230,7 @@ protected:
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
-    amrex::Real m_time_window{1.0e-16};                              // Width of the exp filter function
+    amrex::Real m_time_window{amrex::Real(1.0e-16)};                              // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
 
     // Surface velocity correction
@@ -240,6 +240,6 @@ protected:
 
     // Default values
     //--------------------------------------------
-    const amrex::Real zref_default = 10.0;
+    const amrex::Real zref_default = amrex::Real(10.0);
 };
 #endif

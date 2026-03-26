@@ -45,7 +45,7 @@ namespace saturation_funcs
                             {
                                 // pressure is in Pa; formula takes pressure in hPa
                                 erf_qsatw(  temperature_arr(i,j,k,0),
-                                            pressure_arr(i,j,k,0)/100.0,
+                                            pressure_arr(i,j,k,0)/Real(100.0),
                                             qsat_arr(i,j,k,0) );
                             } );
         }
@@ -104,10 +104,10 @@ void MaterialProperties::setProperties_H2O()
     m_density = rhor; // ERF_Constants.H
 
     m_ionization = 0;
-    m_mol_weight = 1.802e-02; // kg mol^-1
+    m_mol_weight = Real(1.802e-02); // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
-    m_Tb = 373.15; // K
+    m_Tb = Real(373.15); // K
     m_Nav_by_molweight = s_N_av / m_mol_weight;
     m_is_water = true;
 
@@ -133,10 +133,10 @@ void MaterialProperties::setProperties_agua()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NaCl()
 {
-    m_density = 2170.0;
+    m_density = Real(2170.0);
 
     m_ionization = 2;
-    m_mol_weight = 5.844e-02; //kg mol^-1
+    m_mol_weight = Real(5.844e-02); //kg mol^-1
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
@@ -145,10 +145,10 @@ void MaterialProperties::setProperties_NaCl()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NH42SO4()
 {
-    m_density = 1770.0;
+    m_density = Real(1770.0);
 
     m_ionization = 3; // 2xNH4 + 1xSO4
-    m_mol_weight = 1.3214e-01; //kg mol^-1
+    m_mol_weight = Real(1.3214e-01); //kg mol^-1
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
@@ -157,10 +157,10 @@ void MaterialProperties::setProperties_NH42SO4()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NH4HSO4()
 {
-    m_density = 1780.0;
+    m_density = Real(1780.0);
 
     m_ionization = 2; // NH4+ and HSO4-
-    m_mol_weight = 1.1511e-01; //kg mol^-1
+    m_mol_weight = Real(1.1511e-01); //kg mol^-1
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
@@ -169,7 +169,7 @@ void MaterialProperties::setProperties_NH4HSO4()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_soil()
 {
-    m_density = 1220.0; // loose dry dirt
+    m_density = Real(1220.0); // loose dry dirt
 
     m_ionization = 0;
 

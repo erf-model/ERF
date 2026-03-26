@@ -756,7 +756,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
 
     // Maximum value of terrain read in from wrfinput at level 0
-    amrex::Real z_top = 0.;
+    amrex::Real z_top = zero;
 
 #endif // ERF_USE_NETCDF
 
@@ -1027,8 +1027,8 @@ private:
     // Output control
     const int datwidth = 14;
     const int datprecision = 6;
-    const int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
-                                  // epoch time for 2030-01-01 00:00:00 is 1,893,456,000 s with dt ~ 0.01 ==> min prec = 12
+    const int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ amrex::Real(0.01) ==> min prec = 10
+                                  // epoch time for 2030-01-01 00:00:00 is 1,893,456,000 s with dt ~ amrex::Real(0.01) ==> min prec = 12
 
     ////////////////
     // runtime parameters
@@ -1082,10 +1082,10 @@ private:
     amrex::Vector<int> m_subvol_int;
     amrex::Vector<amrex::Real> m_subvol_per;
 
-    amrex::Real m_plot3d_per_1 = -1.0;
-    amrex::Real m_plot3d_per_2 = -1.0;
-    amrex::Real m_plot2d_per_1 = -1.0;
-    amrex::Real m_plot2d_per_2 = -1.0;
+    amrex::Real m_plot3d_per_1 = -one;
+    amrex::Real m_plot3d_per_2 = -one;
+    amrex::Real m_plot2d_per_1 = -one;
+    amrex::Real m_plot2d_per_2 = -one;
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
@@ -1097,7 +1097,7 @@ private:
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
     int m_check_int = -1;
-    amrex::Real m_check_per = -1.0;
+    amrex::Real m_check_per = -one;
 
     amrex::Vector<std::string> subvol3d_var_names;
 
@@ -1252,7 +1252,7 @@ private:
     bool        metgrid_use_below_sfc{true};
     bool        metgrid_use_sfc{true};
     bool        metgrid_retain_sfc{false};
-    amrex::Real metgrid_proximity{500.0};
+    amrex::Real metgrid_proximity{amrex::Real(500.0)};
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
 
@@ -1592,8 +1592,8 @@ private:
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
-    amrex::Real line_sampling_per = -1.0;
-    amrex::Real plane_sampling_per = -1.0;
+    amrex::Real line_sampling_per = -one;
+    amrex::Real plane_sampling_per = -one;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 

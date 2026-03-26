@@ -33,7 +33,7 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
         const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_cc_arr(i,j,k) = (k + 0.5) * dz;
+            z_cc_arr(i,j,k) = (k + myhalf) * dz;
         });
     }
 }
@@ -53,7 +53,7 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domhi_z = domain.bigEnd(2) + 1;
 
     // Just in case ...
-    z_phys_nd.setDomainBndry(1.234e20,0,1,geom);
+    z_phys_nd.setDomainBndry(Real(1.234e20),0,1,geom);
 
     // ****************************************************************************
 
@@ -267,7 +267,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 // Fill lateral boundaries below the bottom surface
                 ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
                 {
-                    z_arr(i,j,-1) = 2.0*z_arr(i,j,0) - z_arr(i,j,1);
+                    z_arr(i,j,-1) = two*z_arr(i,j,0) - z_arr(i,j,1);
                 });
             }
         } // mfi
@@ -332,9 +332,9 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
         MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
         // Minimum allowed fractional grid spacing
-        Real gamma_m = 0.5;
+        Real gamma_m = myhalf;
         pp.query("terrain_gamma_m", gamma_m);
-        Real z_H     = 2.44*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
+        Real z_H     = Real(2.44)*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
@@ -357,7 +357,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
             unsigned maxIter = 50; // M_k in paper
             unsigned iter    = 0;
             Real threshold   = gamma_m;
-            Real diff        = 1.e20;
+            Real diff        = Real(1.e20);
             while (iter < maxIter && diff > threshold)
             {
 
@@ -368,7 +368,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     const auto & h_s     = ma_h_s[box_no];
                     const auto & h_s_old = ma_h_s_old[box_no];
 
-                    Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient (Eqn. 8)
+                    Real beta_k = Real(0.2)*std::min(zz/(2*h_m),one); //smoothing coefficient (Eqn. 8)
 
                     // Clip indices for ghost-cells
                     int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -425,7 +425,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill below the bottom surface
                     if (k == 1) {
-                        z_arr(i,j,k0-1) = 2.0*z_arr(i,j,k0) - z_arr(i,j,k);
+                        z_arr(i,j,k0-1) = two*z_arr(i,j,k0) - z_arr(i,j,k);
                     }
                 });
             } // mfi
@@ -459,14 +459,14 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
 
                     // Fill lateral boundaries and below the bottom surface
                     if (k == k0) {
                         z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
                     }
                     if (k == 1) {
-                        z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
+                        z_arr(i,j,k0-1) = two*z_arr(ii,jj,k0) - z_arr(i,j,k);
                     }
                 });
             } // mfi
@@ -500,13 +500,13 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     } else {
                         // Fill levels using model from Sullivan et. al. 2014
                         int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                        z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                        z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
                     }
                 });
                 gbx.setBig(2,0);
                 ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    z_arr(i,j,k  ) = 0.0;
+                    z_arr(i,j,k  ) = zero;
                     z_arr(i,j,k-1) = -z_arr(i,j,k+1);
                 });
             } // mfi
@@ -524,7 +524,7 @@ make_J (const Geometry& geom,
         MultiFab& detJ_cc)
 {
     const auto *dx = geom.CellSize();
-    Real dzInv = 1.0/dx[2];
+    Real dzInv = one/dx[2];
 
     // Domain valid box (z_nd is nodal)
     const Box& domain = geom.Domain();
@@ -545,7 +545,7 @@ make_J (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > detJ = detJ_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-           detJ(i, j, k) = .25 * dzInv * (
+           detJ(i, j, k) = Real(.25) * dzInv * (
                    z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                   -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
         });
@@ -564,7 +564,7 @@ make_areas (const Geometry& geom,
             MultiFab& az)
 {
     const auto* dx = geom.CellSize();
-    Real dzInv = 1.0/dx[2];
+    Real dzInv = one/dx[2];
 
     // Domain valid box (z_nd is nodal)
     const Box& domain = geom.Domain();
@@ -589,7 +589,7 @@ make_areas (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > ax_arr = ax.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-               ax_arr(i, j, k) = .5 * dzInv * (
+               ax_arr(i, j, k) = Real(.5) * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k));
         });
     }
@@ -610,7 +610,7 @@ make_areas (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > ay_arr = ay.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-               ay_arr(i, j, k) = .5 * dzInv * (
+               ay_arr(i, j, k) = Real(.5) * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k));
         });
     }
@@ -637,7 +637,7 @@ make_zcc (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-           z_cc(i, j, k) = .125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+           z_cc(i, j, k) = Real(.125) * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                    +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
        });
     }

@@ -1,8 +1,8 @@
     ParmParse pp_prob("prob");
 
-    Real advection_moisture_rate      = 0.0; pp_prob.query("advection_moisture_rate", advection_moisture_rate);
-    Real moisture_cutoff            = 500.0; pp_prob.query("moisture_source_cutoff", moisture_cutoff);
-    Real moisture_cutoff_transition =  50.0; pp_prob.query("moisture_source_cutoff_transition", moisture_cutoff_transition);
+    Real advection_moisture_rate      = zero; pp_prob.query("advection_moisture_rate", advection_moisture_rate);
+    Real moisture_cutoff            = amrex::Real(500.0); pp_prob.query("moisture_source_cutoff", moisture_cutoff);
+    Real moisture_cutoff_transition =  amrex::Real(50.0); pp_prob.query("moisture_source_cutoff_transition", moisture_cutoff_transition);
 
     // Only apply moisture source below nominal inversion height
     for (MFIter mfi(*qsrc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -19,7 +19,7 @@
                     Real slope = -advection_moisture_rate / moisture_cutoff_transition;
                     qsrc_arr(i, j, k) = (z_cc-moisture_cutoff) * slope + advection_moisture_rate;
                 } else {
-                    qsrc_arr(i, j, k) = 0.0;
+                    qsrc_arr(i, j, k) = zero;
                 }
             });
         }

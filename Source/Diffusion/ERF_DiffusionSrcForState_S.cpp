@@ -72,7 +72,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_S()",DiffusionSrcForState_S);
 
-    const Real explicit_fac = 1.0 - implicit_fac;
+    const Real explicit_fac = one - implicit_fac;
 
 #include "ERF_SetupDiff.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
@@ -91,9 +91,9 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -109,9 +109,9 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -127,9 +127,9 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
@@ -148,12 +148,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -161,23 +161,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  1.0 / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  1.0 / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -209,7 +209,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -225,7 +225,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -241,7 +241,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
@@ -259,12 +259,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -272,23 +272,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  1.0 / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  1.0 / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -321,7 +321,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -336,7 +336,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -351,7 +351,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real GradCz;
@@ -369,12 +369,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -382,23 +382,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  1.0 / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  1.0 / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -476,12 +476,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -489,23 +489,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  1.0 / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  1.0 / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -557,7 +557,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-        Real dzk_inv = 1.0 / dz_ptr[k];
+        Real dzk_inv = one / dz_ptr[k];
         Real stateContrib = (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mfsq  // Diffusive flux in x-dir
                            +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mfsq  // Diffusive flux in y-dir
                            +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dzk_inv;       // Diffusive flux in z-dir

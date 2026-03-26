@@ -5,6 +5,7 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <ERF_Constants.H>
 
 struct ERFParticlesIntIdxAoS
 {
@@ -84,13 +85,13 @@ void update_location_idata (  P& a_p,
                                a_p.idata(ERFParticlesIntIdxAoS::k) );
             amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(iv[0]);
             amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iv[1]);
-            auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+            auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (one-lx) * (one-ly) +
+                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (one-ly) +
+                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (one-lx) * ly +
                        a_height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-            auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+            auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (one-lx) * (one-ly) +
+                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (one-ly) +
+                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (one-lx) * ly +
                        a_height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
 
             if (a_p.pos(2) > zhi) {

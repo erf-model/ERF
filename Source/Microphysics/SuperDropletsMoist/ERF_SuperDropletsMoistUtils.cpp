@@ -13,11 +13,11 @@ using namespace amrex;
  * such as pressure, temperature, and saturation ratios for all defined species.
  *
  * The function performs:
- * 1. Copy of density and potential temperature from state variables
- * 2. Copy and computation of water-related variables (vapor, total water)
- * 3. Copy and computation of other species variables
- * 4. Computation of pressure and temperature fields
- * 5. Computation of saturation ratios for all species
+ * one Copy of density and potential temperature from state variables
+ * two Copy and computation of water-related variables (vapor, total water)
+ * three Copy and computation of other species variables
+ * Real(4.) Computation of pressure and temperature fields
+ * Real(5.) Computation of saturation ratios for all species
  *
  * \param[in] a_cons_vars MultiFab containing the conserved state variables
  */
@@ -148,9 +148,9 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
  *
  * This function copies moisture-related variables from the internal member MultiFabs
  * to the conserved state vector. It updates:
- * 1. Potential temperature field in conserved variables
- * 2. Water-related fields (vapor, cloud, rain) in conserved variables
- * 3. Other species fields in conserved variables
+ * one Potential temperature field in conserved variables
+ * two Water-related fields (vapor, cloud, rain) in conserved variables
+ * three Other species fields in conserved variables
  *
  * All mixing ratios are converted to density-weighted variables (rho*q) when
  * stored in the conserved state vector.
@@ -228,11 +228,11 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
  * This function computes various derived quantities such as cloud water,
  * total water, and accumulation values, then updates the conserved state
  * variables if not in kinematic mode. It performs:
- * 1. Computation of cloud/rain water and total water for water
- * 2. Calculation of rain accumulation at the ground surface
- * 3. Computation of condensate and total for other species
- * 4. Calculation of species and aerosol accumulation at the ground
- * 5. Update of conserved state variables with computed values (if not in kinematic mode)
+ * one Computation of cloud/rain water and total water for water
+ * two Calculation of rain accumulation at the ground surface
+ * three Computation of condensate and total for other species
+ * Real(4.) Calculation of species and aerosol accumulation at the ground
+ * Real(5.) Update of conserved state variables with computed values (if not in kinematic mode)
  *
  * \param[in,out] a_cons_vars MultiFab containing conserved state variables to be updated
  */
@@ -315,10 +315,10 @@ void SuperDropletsMoist::ratioToDensity (MultiFab& a_var,
  *
  * This function computes cloud and rain water mixing ratios based on the current
  * superdroplet population. It:
- * 1. Calculates cloud water density (droplets smaller than rain threshold)
- * 2. Calculates rain water density (droplets larger than rain threshold)
- * 3. Handles special dimensionality case for 1D simulations
- * 4. Converts density values to mixing ratios
+ * one Calculates cloud water density (droplets smaller than rain threshold)
+ * two Calculates rain water density (droplets larger than rain threshold)
+ * three Handles special dimensionality case for 1D simulations
+ * Real(4.) Converts density values to mixing ratios
  *
  * The distinction between cloud and rain water is based on the configured rain threshold
  * radius (m_r_rain).
@@ -333,7 +333,7 @@ void SuperDropletsMoist::computeQcQrWater ()
     m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
                                           m_idx_w,
                                           m_r_rain,
-                                          1.0 );
+                                          one );
 
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_c]); mfi.isValid(); ++mfi) {
@@ -400,8 +400,8 @@ void SuperDropletsMoist::rainAccumulation ()
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k == k_lo) {
-                auto rain_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
-                rain_accum_arr(i,j,k) += (rain_accum * 1000.0 /* [m] -> [mm] */);
+                auto rain_accum = std::max(zero, -zflux_arr(i,j,k)*dt/mat_density);
+                rain_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
             }
         });
     }
@@ -470,7 +470,7 @@ void SuperDropletsMoist::speciesAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(zero, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });
@@ -503,7 +503,7 @@ void SuperDropletsMoist::aerosolAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(zero, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });

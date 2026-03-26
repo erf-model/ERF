@@ -69,12 +69,12 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
 
     while (file >> value1 >> value2 >> value3) {
 
-        if(std::fabs(value1) > 90.0) {
+        if(std::fabs(value1) > Real(90.0)) {
             amrex::Error("The value of latitude for entry " + std::to_string(lat.size() + 1) +
                          " in " + windfarm_loc_table + " should be within -90 and 90");
         }
 
-        if(std::fabs(value2) > 180.0) {
+        if(std::fabs(value2) > Real(180.0)) {
             amrex::Error("The value of longitude for entry " + std::to_string(lat.size() + 1) +
                          " in " + windfarm_loc_table + " should be within -180 and 180");
         }
@@ -83,8 +83,8 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     }
     file.close();
 
-    Real rad_earth = 6371.0e3; // Radius of the earth
-    Real m_per_deg_lat = rad_earth*2.0*M_PI/(2.0*180.0);
+    Real rad_earth = Real(6371.0e3); // Radius of the earth
+    Real m_per_deg_lat = rad_earth*two*M_PI/(two*Real(180.0));
 
     // Find the coordinates of average of min and max of the farm
     // Rotate about that point
@@ -97,27 +97,27 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         std::ifstream file_usgs(fname_usgs);
         file_usgs >> lon_ref >> lat_ref;
         file_usgs.close();
-        lon_ref = lon_ref*M_PI/180.0;
-        lat_ref = lat_ref*M_PI/180.0;
+        lon_ref = lon_ref*M_PI/Real(180.0);
+        lat_ref = lat_ref*M_PI/Real(180.0);
     } else {
         Real lat_min = *std::min_element(lat.begin(), lat.end());
         Real lon_min = *std::min_element(lon.begin(), lon.end());
 
-        lon_ref = lon_min*M_PI/180.0;
-        lat_ref = lat_min*M_PI/180.0;
+        lon_ref = lon_min*M_PI/Real(180.0);
+        lat_ref = lat_min*M_PI/Real(180.0);
     }
 
 
     for(int it=0;it<lat.size();it++){
-        lat[it] = lat[it]*M_PI/180.0;
-        lon[it] = lon[it]*M_PI/180.0;
+        lat[it] = lat[it]*M_PI/Real(180.0);
+        lon[it] = lon[it]*M_PI/Real(180.0);
         Real delta_lat = (lat[it] - lat_ref);
         Real delta_lon = (lon[it] - lon_ref);
 
-        Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_ref)*std::pow(sin(delta_lon/2.0),2);
-        Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = delta_lat * m_per_deg_lat * 180.0/M_PI ;
+        Real term1 = std::pow(sin(delta_lat/two),2);
+        Real term2 = cos(lat[it])*cos(lat_ref)*std::pow(sin(delta_lon/two),2);
+        Real dist =  two*rad_earth*std::asin(std::sqrt(term1 + term2));
+        Real dy_turb = delta_lat * m_per_deg_lat * Real(180.0)/M_PI ;
 
         if(dist<dy_turb){
             if(std::fabs(dist-dy_turb)<1e-8){
@@ -130,12 +130,12 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         Real tmp = std::pow(dist,2) - std::pow(dy_turb,2);
 
         if(std::fabs(tmp)<1e-8){
-            tmp = 0.0;
+            tmp = zero;
         }
         Real dx_turb = std::sqrt(tmp);
 
 
-        if(delta_lon >= 0.0) {
+        if(delta_lon >= zero) {
             xloc.push_back(dx_turb);
         }
         else {
@@ -199,18 +199,18 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 
     Real rotor_dia;
     file_turb_table >> hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
-    rotor_rad = rotor_dia*0.5;
+    rotor_rad = rotor_dia*myhalf;
     if(rotor_rad > hub_height) {
         Abort("The blade length is more than the hub height. Check the second line in wind-turbine-1.tbl. Aborting.....");
     }
-    if(thrust_coeff_standing > 1.0) {
-        Abort("The standing thrust coefficient is greater than 1. Check the second line in wind-turbine-1.tbl. Aborting.....");
+    if(thrust_coeff_standing > one) {
+        Abort("The standing thrust coefficient is greater than one. Check the second line in wind-turbine-1.tbl. Aborting.....");
     }
 
     for(int iline=0;iline<nlines;iline++){
         file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline];
-        if(thrust_coeff[iline] > 1.0) {
-            Abort("The thrust coefficient is greater than 1. Check wind-turbine-1.tbl. Aborting.....");
+        if(thrust_coeff[iline] > one) {
+            Abort("The thrust coefficient is greater than one. Check wind-turbine-1.tbl. Aborting.....");
         }
     }
     file_turb_table.close();
@@ -378,7 +378,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_nd)
 {
 
-    zloc.resize(xloc.size(),0.0);
+    zloc.resize(xloc.size(),zero);
     Vector<int> is_counted;
     is_counted.resize(xloc.size(),0);
 
@@ -521,7 +521,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
 
                 Real zturb = z_nd_arr(li,lj,k0) + d_hub_height;
                 if (zturb+1e-3 > z1 and zturb+1e-3 < z2) {
-                    SMark_array(i,j,k,0) = 1.0;
+                    SMark_array(i,j,k,0) = one;
                 }
             }
         });
@@ -544,7 +544,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
 
     Real d_rotor_rad = rotor_rad;
     Real d_hub_height = hub_height;
-    Real d_sampling_distance = sampling_distance_by_D*2.0*rotor_rad;
+    Real d_sampling_distance = sampling_distance_by_D*two*rotor_rad;
 
     Real* d_xloc_ptr     = d_xloc.data();
     Real* d_yloc_ptr     = d_yloc.data();
@@ -559,7 +559,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
-    Real theta = turb_disk_angle*M_PI/180.0-0.5*M_PI;
+    Real theta = turb_disk_angle*M_PI/Real(180.0)-myhalf*M_PI;
 
     set_turb_disk_angle(theta);
     my_turb_disk_angle = theta;
@@ -648,7 +648,7 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom,
                                     const Real& sampling_distance_by_D)
 {
 
-    Real sampling_distance = sampling_distance_by_D*2.0*rotor_rad;
+    Real sampling_distance = sampling_distance_by_D*two*rotor_rad;
 
     if (ParallelDescriptor::IOProcessor()){
         FILE *file_actuator_disks_all, *file_actuator_disks_in_dom, *file_averaging_disks_in_dom;
@@ -689,8 +689,8 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom,
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
         fprintf(file_averaging_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
 
-        Real nx = std::cos(my_turb_disk_angle+0.5*M_PI);
-        Real ny = std::sin(my_turb_disk_angle+0.5*M_PI);
+        Real nx = std::cos(my_turb_disk_angle+myhalf*M_PI);
+        Real ny = std::sin(my_turb_disk_angle+myhalf*M_PI);
 
         Real nx1 = -std::cos(my_turb_disk_angle);
         Real ny1 = -std::sin(my_turb_disk_angle);
@@ -698,7 +698,7 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom,
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<100;pt++){
                 Real x, y, z, xavg, yavg;
-                Real theta = 2.0*M_PI/npts*pt;
+                Real theta = two*M_PI/npts*pt;
                 x = xloc[it] + rotor_rad*cos(theta)*nx;
                 y = yloc[it] + rotor_rad*cos(theta)*ny;
                 z = hub_height + zloc[it] + rotor_rad*sin(theta);

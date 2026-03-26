@@ -18,7 +18,7 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
 {
     const amrex::Real dz        = geom.CellSize()[2];
 
-    const amrex::Real T_sfc    = 300.;
+    const amrex::Real T_sfc    = amrex::Real(300.);
     const amrex::Real rho_sfc  = p_0 / (R_d*T_sfc);
     const amrex::Real Thetabar = T_sfc;
 
@@ -127,22 +127,22 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     amrex::Vector<amrex::Real> h_q_v(khi+2);
 
     amrex::ParmParse pp("prob");
-    amrex::Real q_t = 0.02;
+    amrex::Real q_t = amrex::Real(0.02);
     pp.query("qt_init",q_t);
 
-    amrex::Real eq_pot_temp = 320.0;
+    amrex::Real eq_pot_temp = amrex::Real(320.0);
     pp.query("eq_pot_temp",eq_pot_temp);
 
     bool use_empirical = false;
     pp.query("use_empirical_psat",use_empirical);
 
-    amrex::Real z_tr_1 = -1.;
-    amrex::Real z_tr_2 = -1.;
+    amrex::Real z_tr_1 = -one;
+    amrex::Real z_tr_2 = -one;
     pp.query("height", z_tr_1);
     pp.query("z_tr", z_tr_2);
 
     // We only set them to zero to make sure they are initialized
-    amrex::Real T_tr = 0.0, theta_tr = 0.0, theta_0 = 0.0;
+    amrex::Real T_tr = zero, theta_tr = zero, theta_0 = zero;
 
     bool T_from_theta = false;
     pp.query("T_from_theta_in_moist_init", T_from_theta);
@@ -199,7 +199,7 @@ erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hs
     amrex::Real   T_0 = base_parms.T_0;
 
     amrex::ParmParse pp_prob("prob");
-    amrex::Real dtheta_dz = 0.0; pp_prob.query("dtheta_dz",dtheta_dz);
+    amrex::Real dtheta_dz = zero; pp_prob.query("dtheta_dz",dtheta_dz);
 
     rho_hse.setVal(rho_0);
     th_hse.setVal(T_0);
@@ -227,7 +227,7 @@ erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab
     amrex::Real   T_0 = base_parms.T_0;
 
     amrex::ParmParse pp_prob("prob");
-    amrex::Real dtheta_dz = 0.0; pp_prob.query("dtheta_dz",dtheta_dz);
+    amrex::Real dtheta_dz = zero; pp_prob.query("dtheta_dz",dtheta_dz);
 
     rho_hse.setVal(rho_0);
 

@@ -185,25 +185,25 @@ void make_sources (int level,
     int klo = domain.smallEnd(0);
     int khi = domain.bigEnd(2);
     int nk  = khi - klo + 2;
-    Gpu::DeviceVector<Real> radiation_flux(nk,0.0);
-    Gpu::DeviceVector<Real> q_integral(nk,0.0);
+    Gpu::DeviceVector<Real> radiation_flux(nk,zero);
+    Gpu::DeviceVector<Real> q_integral(nk,zero);
     Real* rad_flux = radiation_flux.data();
     Real* q_int    = q_integral.data();
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
-    //    1. user-defined source terms for (rho theta) and (rho q_t)
-    //    2. radiation           for (rho theta)
-    //    3. Rayleigh damping    for (rho theta)
-    //    4. custom forcing      for (rho theta) and (rho Q1)
-    //    5. custom subsidence   for (rho theta) and (rho Q1)
-    //    6. numerical diffusion for (rho theta)
-    //    7. sponging
-    //    8. turbulent perturbation
-    //    9. nudging towards input sounding values (only for theta)
+    //    one user-defined source terms for (rho theta) and (rho q_t)
+    //    two radiation           for (rho theta)
+    //    three Rayleigh damping    for (rho theta)
+    //    Real(4.) custom forcing      for (rho theta) and (rho Q1)
+    //    Real(5.) custom subsidence   for (rho theta) and (rho Q1)
+    //    Real(6.) numerical diffusion for (rho theta)
+    //    Real(7.) sponging
+    //    Real(8.) turbulent perturbation
+    //    Real(9.) nudging towards input sounding values (only for theta)
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
-    //   11. Four stream radiation source for (rho theta)
+    //   Real(11.) Four stream radiation source for (rho theta)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -230,7 +230,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // 2. Add radiation source terms to (rho theta)
+        // two Add radiation source terms to (rho theta)
         // *************************************************************************************
         if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
@@ -243,7 +243,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // 3. Add Rayleigh damping for (rho theta)
+        // three Add Rayleigh damping for (rho theta)
         // *************************************************************************************
         Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -263,7 +263,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 4. Add custom forcing for (rho theta)
+        // Real(4.) Add custom forcing for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
@@ -299,7 +299,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 4. Add custom forcing for RhoQ1
+        // Real(4.) Add custom forcing for RhoQ1
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
@@ -335,7 +335,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 5. Add custom subsidence for (rho theta)
+        // Real(5.) Add custom subsidence for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
@@ -343,26 +343,26 @@ void make_sources (int level,
                 const int nr = Rho_comp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             } else {
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, n) -= wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             }
         }
 
         // *************************************************************************************
-        // 5. Add custom subsidence for RhoQ1 and RhoQ2
+        // Real(5.) Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
@@ -370,24 +370,24 @@ void make_sources (int level,
                 const int nr = Rho_comp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
                     cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
             } else {
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, nv  ) -= wbar_cc * (Qv_hi - Qv_lo) * dzInv;
                     cell_src(i, j, k, nv+1) -= wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
@@ -395,7 +395,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 6. Add numerical diffusion for rho and (rho theta)
+        // Real(6.) Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step) {
             int sc;
@@ -423,7 +423,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 7. Add sponging
+        // Real(7.) Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
@@ -436,7 +436,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // 8. Add perturbation
+        // Real(8.) Add perturbation
         // *************************************************************************************
         if (solverChoice.pert_type == PerturbationType::Source && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
@@ -445,16 +445,16 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 9. Add nudging towards value specified in input sounding
+        // Real(9.) Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
             int itime_np1  = 0;
-            Real coeff_n   = Real(1.0);
-            Real coeff_np1 = Real(0.0);
+            Real coeff_n   = one;
+            Real coeff_np1 = zero;
 
-            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+            Real tau_inv = one / input_sounding_data.tau_nudging;
 
             int n_sounding_times = input_sounding_data.input_sounding_time.size();
 
@@ -467,7 +467,7 @@ void make_sources (int level,
                 itime_np1 = itime_n+1;
                 coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
                             (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = Real(1.0) - coeff_np1;
+                coeff_n   = one - coeff_np1;
             }
 
             const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr();
@@ -500,9 +500,9 @@ void make_sources (int level,
             const Real dx_z = dx_arr[2];
 
             const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
+            const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real U_s              = 1.0; // unit velocity scale
+            const Real U_s              = one; // unit velocity scale
 
             // MOST parameters
             similarity_funs sfuns;
@@ -518,16 +518,16 @@ void make_sources (int level,
             {
                 const Real t_blank       = t_blank_arr(i, j, k);
                 const Real t_blank_above = t_blank_arr(i, j, k+1);
-                const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = 0.5 * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
+                const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
+                const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
                 const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
 
                 const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
                 const Real theta_neighbor = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > 0.0) {
-                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
+                if (init_surf_temp > zero) {
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
                         cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
@@ -536,31 +536,31 @@ void make_sources (int level,
 
                 // SURFACE HEAT FLUX
                 if (tflux != 1e-8){
-                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
-                        Real psi_m           = 0.0;
-                        Real psi_h           = 0.0;
-                        Real psi_h_neighbor  = 0.0;
-                        Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
+                        Real psi_m           = zero;
+                        Real psi_h           = zero;
+                        Real psi_h_neighbor  = zero;
+                        Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
                         const Real Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
-                        const Real zeta          = (0.5) * dx_z / Olen;
-                        const Real zeta_neighbor = (1.5) * dx_z / Olen;
+                        const Real zeta          = (myhalf) * dx_z / Olen;
+                        const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
 
                         // similarity functions
                         psi_m          = sfuns.calc_psi_m(zeta);
                         psi_h          = sfuns.calc_psi_h(zeta);
                         psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                        ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
+                        ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                         // prevent some unphysical math
-                        if (!(ustar > 0.0 && !std::isnan(ustar))) { ustar = 0.0; }
-                        if (!(ustar < 2.0 && !std::isnan(ustar))) { ustar = 2.0; }
-                        if (psi_h_neighbor > std::log(1.5 * dx_z / z0)) { psi_h_neighbor = std::log(1.5 * dx_z / z0); }
-                        if (psi_h > std::log(0.5 * dx_z / z0)) { psi_h = std::log(0.5 * dx_z / z0); }
+                        if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
+                        if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
+                        if (psi_h_neighbor > std::log(Real(1.5) * dx_z / z0)) { psi_h_neighbor = std::log(Real(1.5) * dx_z / z0); }
+                        if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
 
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * dx_z / z0) - psi_h);
+                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
@@ -569,21 +569,21 @@ void make_sources (int level,
 
                 // OBUKHOV LENGTH
                 if (Olen_in != 1e-8){
-                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real Olen  = Olen_in;
-                        const Real zeta          = (0.5) * dx_z / Olen;
-                        const Real zeta_neighbor = (1.5) * dx_z / Olen;
+                        const Real zeta          = (myhalf) * dx_z / Olen;
+                        const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
 
                         // similarity functions
                         const Real psi_m          = sfuns.calc_psi_m(zeta);
                         const Real psi_h          = sfuns.calc_psi_h(zeta);
                         const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                        const Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
+                        const Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * dx_z / z0) - psi_h);
+                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
@@ -605,8 +605,8 @@ void make_sources (int level,
             const Real dx_y = dx_arr[1];
 
             const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real U_s              = 1.0; // unit velocity scale
-            const Real min_t_blank      = 0.005;
+            const Real U_s              = one; // unit velocity scale
+            const Real min_t_blank      = Real(0.005);
 
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
@@ -620,50 +620,50 @@ void make_sources (int level,
                 Real t_blank_south  = t_blank_arr(i  , j-1, k);
                 Real t_blank_east   = t_blank_arr(i+1, j  , k);
                 Real t_blank_west   = t_blank_arr(i-1, j  , k);
-                if (t_blank < min_t_blank) { t_blank = 0.0; } // deal with situations where very small volfrac exist
-                if (t_blank_below < min_t_blank) { t_blank_below = 0.0; }
-                if (t_blank_north < min_t_blank) { t_blank_north = 0.0; }
-                if (t_blank_south < min_t_blank) { t_blank_south = 0.0; }
-                if (t_blank_east < min_t_blank) { t_blank_east = 0.0; }
-                if (t_blank_west < min_t_blank) { t_blank_west = 0.0; }
+                if (t_blank < min_t_blank) { t_blank = zero; } // deal with situations where very small volfrac exist
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
+                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
+                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
+                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
 
                 Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
-                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > 0.0) {
+                if (init_surf_temp > zero) {
                     const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
-                    if (t_blank > 0 && (t_blank_above == 0.0) && (t_blank_below == 1.0)) { // building roof
+                    if (t_blank > 0 && (t_blank_above == zero) && (t_blank_below == one)) { // building roof
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
 
-                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) ||
-                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == 0.0) ||
-                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == 0.0) ||
-                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == 0.0))) {
+                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == zero))) {
                         // this should enter for just building walls
                         // walls are currently separated to allow for flexible in the future to heat walls differently
 
                         // south face
-                        if ((t_blank < t_blank_north) && (t_blank_north == 1.0)) {
+                        if ((t_blank < t_blank_north) && (t_blank_north == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // north face
-                        if ((t_blank < t_blank_south) && (t_blank_south == 1.0)) {
+                        if ((t_blank < t_blank_south) && (t_blank_south == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // west face
-                        if ((t_blank < t_blank_east) && (t_blank_east == 1.0)) {
+                        if ((t_blank < t_blank_east) && (t_blank_east == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // east face
-                        if ((t_blank < t_blank_west) && (t_blank_west == 1.0)) {
+                        if ((t_blank < t_blank_west) && (t_blank_west == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
@@ -674,34 +674,34 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 11. Add 4 stream radiation src to RhoTheta
+        // Real(11.) Add 4 stream radiation src to RhoTheta
         // *************************************************************************************
         if (solverChoice.four_stream_radiation && has_moisture && is_slow_step)
         {
             AMREX_ALWAYS_ASSERT((bx.smallEnd(2) == klo) && (bx.bigEnd(2) == khi));
-            Real D    = 3.75e-6; // [s^-1]
+            Real D    = Real(3.75e-6); // [s^-1]
             Real F0   = 70;      // [W/m^2]
             Real F1   = 22;      // [W/m^2]
             Real krad = 85;      // [m^2 kg^-1]
-            Real qt_i = 0.008;
+            Real qt_i = Real(0.008);
 
             Box xybx = makeSlab(bx,2,klo);
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // Inclusive scan at w-faces for the Q integral (also find "i" values)
-                q_int[0] = 0.0;
-                Real zi   = 0.5 * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
-                Real rhoi = 0.5 * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
+                q_int[0] = zero;
+                Real zi   = myhalf * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
+                Real rhoi = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
                     int lk    = k - klo;
                     // Average to w-faces when looping w-faces
-                    Real dz    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
+                    Real dz    = (z_cc_arr) ? myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
                     q_int[lk]  = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
                     Real qt_hi = cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp);
                     Real qt_lo = cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp);
                     if ( (qt_lo > qt_i) && (qt_hi < qt_i) ) {
-                        zi   = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
-                        rhoi = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                        zi   = myhalf * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                        rhoi = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                     }
                 }
 
@@ -709,10 +709,10 @@ void make_sources (int level,
                 Real q_int_inf = q_int[khi+1];
                 for (int k(klo); k<=khi+1; ++k) {
                     int lk       = k - klo;
-                    Real z       = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                    Real z       = myhalf * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
                     rad_flux[lk] = F1*std::exp(-q_int[lk]) + F0*std::exp(-(q_int_inf - q_int[lk]));
                     if (z > zi) {
-                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,4./3.)/4. + zi*std::pow(z-zi,1./3.) ) ;
+                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z-zi,one/three) ) ;
                     }
                 }
 
@@ -720,12 +720,12 @@ void make_sources (int level,
                 for (int k(klo); k<=khi; ++k) {
                     int lk       = k - klo;
                     // Average to w-faces when looping CC
-                    Real dzInv   = (z_cc_arr) ? 1.0/ (0.5 * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
+                    Real dzInv   = (z_cc_arr) ? one/ (myhalf * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
                     // NOTE: Fnet  = Up - Dn (all fluxes are up here)
                     //       dT/dt = dF/dz * (1/(-rho*Cp))
                     Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
                     Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
-                    Real iexner  = 1./getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d/Cp_d, qv);
+                    Real iexner  = one/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d/Cp_d, qv);
                     // Convert dT/dt to dTheta/dt and multiply rho
                     cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
                 }

@@ -20,7 +20,7 @@ GeneralAD::advance (const Geometry& geom,
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_vars_generalAD.nComp() > 0);
-    AMREX_ALWAYS_ASSERT(time > -1.0);
+    AMREX_ALWAYS_ASSERT(time > -one);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD);
     update(dt_advance, cons_in, U_old, V_old, W_old, mf_vars_generalAD);
@@ -44,7 +44,7 @@ GeneralAD::compute_power_output (const Real& time)
             std::cerr << "Error opening file!" << std::endl;
             Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
         }
-        Real total_power = 0.0;
+        Real total_power = zero;
         for(int it=0; it<xloc.size(); it++){
             Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
             Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
@@ -79,15 +79,15 @@ GeneralAD::update (const Real& dt_advance,
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (generalAD_array(i-1,j,k,0) + generalAD_array(i,j,k,0))/2.0*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (generalAD_array(i-1,j,k,0) + generalAD_array(i,j,k,0))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (generalAD_array(i,j-1,k,1) + generalAD_array(i,j,k,1))/2.0*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (generalAD_array(i,j-1,k,1) + generalAD_array(i,j,k,1))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j,k-1,2) + generalAD_array(i,j,k,2))/2.0*dt_advance;
+            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j,k-1,2) + generalAD_array(i,j,k,2))/two*dt_advance;
         });
 
     }
@@ -102,9 +102,9 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
      freestream_velocity.clear();
      freestream_phi.clear();
      disk_cell_count.clear();
-     freestream_velocity.resize(xloc.size(),0.0);
-     freestream_phi.resize(xloc.size(),0.0);
-     disk_cell_count.resize(xloc.size(),0.0);
+     freestream_velocity.resize(xloc.size(),zero);
+     freestream_phi.resize(xloc.size(),zero);
+     disk_cell_count.resize(xloc.size(),zero);
 
      Gpu::DeviceVector<Real> d_freestream_velocity(xloc.size());
      Gpu::DeviceVector<Real> d_freestream_phi(yloc.size());
@@ -127,11 +127,11 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) != -1.0) {
+            if(SMark_array(i,j,k,0) != -one) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5));
-                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],1.0);
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
+                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
         });
@@ -177,9 +177,9 @@ int find_rad_loc_index (const Real rad,
 {
       // Find the index of the radial location
     int index=-1;
-    Real rhub = 2.0;
+    Real rhub = two;
     Real rad_from_hub = rad - rhub;
-    if(rad_from_hub < 0.0) {
+    if(rad_from_hub < zero) {
         index = 0;
     }
     else {
@@ -223,59 +223,59 @@ compute_source_terms_Fn_Ft (const Real rad,
     Real rpm = interpolate_1d(velocity, rotor_RPM, avg_vel, n_spec_extra);
     Real pitch = interpolate_1d(velocity, blade_pitch, avg_vel, n_spec_extra);
 
-    Real Omega = rpm/60.0*2.0*PI;
-    Real rho = 1.226;
+    Real Omega = rpm/Real(60.0)*two*PI;
+    Real rho = Real(1.226);
 
-    Real B = 3.0;
-    Real rhub = 2.0;
-    Real rtip = 63.5;
+    Real B = three;
+    Real rhub = two;
+    Real rtip = Real(63.5);
 
     Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
     Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
 
     // Iteration procedure
 
-    Real s = 0.5*c*B/(PI*rad);
+    Real s = myhalf*c*B/(PI*rad);
 
     Real at, an, V1, Vt, Vr, psi, L, D, Cn, Ct;
     Real ftip, fhub, F, Cl, Cd, at_new, an_new;
 
-    at = 0.1;
-    an = 0.1;
+    at = Real(0.1);
+    an = Real(0.1);
 
     bool is_converged = false;
 
     for(int i=0;i<100;i++) {
         V1 = avg_vel*(1-an);
-        Vt = Omega*(1.0+at)*rad;
-        Vr = std::pow(V1*V1+Vt*Vt,0.5);
+        Vt = Omega*(one+at)*rad;
+        Vr = std::pow(V1*V1+Vt*Vt,myhalf);
 
         psi = std::atan2(V1,Vt);
 
-        Real aoa = psi*180.0/PI - twist + pitch;
+        Real aoa = psi*Real(180.0)/PI - twist + pitch;
 
         Cl = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cl, aoa, n_pts_airfoil);
         Cd = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cd, aoa, n_pts_airfoil);
 
-        //Cl = 1.37;
-        //Cd = 0.014;
+        //Cl = Real(1.37);
+        //Cd = Real(0.014);
 
         //printf("rad, aoa, Cl, Cd    = %0.15g %0.15g %0.15g %0.15g\n", rad, aoa, Cl, Cd);
 
         Cn = Cl*std::cos(psi) + Cd*std::sin(psi);
         Ct = Cl*std::sin(psi) - Cd*std::cos(psi);
 
-        ftip = B*(rtip-rad)/(2.0*rad*std::sin(psi)+1e-10);
-        fhub = B*(rad-rhub)/(2.0*rad*std::sin(psi)+1e-10);
+        ftip = B*(rtip-rad)/(two*rad*std::sin(psi)+1e-10);
+        fhub = B*(rad-rhub)/(two*rad*std::sin(psi)+1e-10);
 
-        AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-fhub))<=1.0);
-        AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-ftip))<=1.0);
+        AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-fhub))<=one);
+        AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-ftip))<=one);
 
-        F = 2.0/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
+        F = two/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
 
-        at_new = 1.0/ ( 4.0*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - 1.0 );
-        an_new = 1.0/ ( 1.0 + 4.0*F*std::pow(std::sin(psi),2)/(s*Cn + 1e-10) );
-        at_new = std::max(0.0, at_new);
+        at_new = one/ ( Real(4.0)*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - one );
+        an_new = one/ ( one + Real(4.0)*F*std::pow(std::sin(psi),2)/(s*Cn + 1e-10) );
+        at_new = std::max(zero, at_new);
 
         if(std::fabs(at_new-at) < 1e-5 and std::fabs(an_new-an) < 1e-5) {
             //printf("Converged at, an = %d %0.15g %0.15g %0.15g\n",i, at, an, psi);
@@ -295,8 +295,8 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     // Iterations converged. Now compute Ft, Fn
 
-    L = 0.5*rho*Vr*Vr*c*Cl;
-    D = 0.5*rho*Vr*Vr*c*Cd;
+    L = myhalf*rho*Vr*Vr*c*Cl;
+    D = myhalf*rho*Vr*Vr*c*Cd;
 
     Real Fn = L*std::cos(psi) + D*std::sin(psi);
     Real Ft = L*std::sin(psi) - D*std::cos(psi);
@@ -445,14 +445,14 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real x   = ProbLoArr[0] + (ii+0.5)*dx[0];
-            Real y   = ProbLoArr[1] + (jj+0.5)*dx[1];
-            Real z   = ProbLoArr[2] + (kk+0.5)*dx[2];
+            Real x   = ProbLoArr[0] + (ii+myhalf)*dx[0];
+            Real y   = ProbLoArr[1] + (jj+myhalf)*dx[1];
+            Real z   = ProbLoArr[2] + (kk+myhalf)*dx[2];
             // ?? Density needed here
 
             int check_int = 0;
 
-            Real source_x = 0.0, source_y = 0.0, source_z = 0.0;
+            Real source_x = zero, source_y = zero, source_z = zero;
             std::array<Real,2> Fn_and_Ft;
 
             for(long unsigned int it=0;it<nturbs;it++) {
@@ -466,25 +466,25 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // Find radial distance of the point and the zeta angle
                     Real rad = std::pow( (x-d_xloc_ptr[it])*(x-d_xloc_ptr[it]) +
                                          (y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) +
-                                         (z-d_hub_height)*(z-d_hub_height), 0.5 );
+                                         (z-d_hub_height)*(z-d_hub_height), myhalf );
 
                     int index = find_rad_loc_index(rad, bld_rad_loc_ptr, n_bld_sections);
 
                     // This if check makes sure it is a point with radial distance
                     // between the hub radius and the rotor radius.
                     // ?? hub radius needed here
-                    if(rad >= 2.0 and rad <= d_rotor_rad) {
+                    if(rad >= two and rad <= d_rotor_rad) {
                         //AMREX_ASSERT( (z-d_hub_height) <= rad );
                         // Consider the vector that joines the point and the turbine center.
                         // Dot it on to the vector that joins the turbine center and along
-                        // the plane of the disk. See fig. 10 in Mirocha et. al. 2014.
+                        // the plane of the disk. See fig. 10 in Mirocha et. al. Real(2014.)
 
                         Real vec_proj = (x-d_xloc_ptr[it])*(std::sin(phi)) +
                                         (y-d_yloc_ptr[it])*(-std::cos(phi));
 
 
                         Real zeta = std::atan2(z-d_hub_height, vec_proj);
-                        //printf("zeta val is %0.15g\n", zeta*180.0/PI);
+                        //printf("zeta val is %0.15g\n", zeta*Real(180.0)/PI);
                         Fn_and_Ft = compute_source_terms_Fn_Ft(rad, avg_vel,
                                                                bld_rad_loc_ptr,
                                                                bld_twist_ptr,
@@ -499,8 +499,8 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                d_blade_pitch_ptr,
                                                                n_spec_extra);
 
-                        Real Fn = 3.0*Fn_and_Ft[0];
-                        Real Ft = 3.0*Fn_and_Ft[1];
+                        Real Fn = three*Fn_and_Ft[0];
+                        Real Ft = three*Fn_and_Ft[1];
                         // Compute the source terms - pass in radial distance, free stream velocity
 
                         Real Fx = Fn*std::cos(phi) + Ft*std::sin(zeta)*std::sin(phi);
@@ -509,9 +509,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
                         //Real dn = (
 
-                        source_x = -Fx/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
-                        source_y = -Fy/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
-                        source_z = -Fz/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
+                        source_x = -Fx/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_y = -Fy/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_z = -Fz/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
 
 
                         //printf("Val source_x, is %0.15g, %0.15g, %0.15g %0.15g %0.15g %0.15g\n", rad, Fn, Ft, source_x, source_y, source_z);

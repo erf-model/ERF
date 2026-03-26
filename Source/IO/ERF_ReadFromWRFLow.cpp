@@ -234,7 +234,7 @@ update_sst_tsk (const int itime,
 
             bool is_land = (lmask_arr) ? lmask_arr(li,lj,0) : true;
             sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), rdOcp);
-            if (!is_land && std::abs(sst_arr(i,j,0)) < 400.0) {
+            if (!is_land && std::abs(sst_arr(i,j,0)) < Real(400.0)) {
                 tsk_arr(i,j,0) = sst_arr(i,j,0);
             }
         });

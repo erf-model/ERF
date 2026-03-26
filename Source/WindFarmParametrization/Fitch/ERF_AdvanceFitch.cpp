@@ -14,8 +14,8 @@ Real compute_A (const Real z,
 
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
     Real theta = std::acos(d/rotor_rad);
-    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(std::max(rotor_rad*rotor_rad - d*d,0.0), 0.5);
-    Real A = PI*rotor_rad*rotor_rad/2.0 - A_s;
+    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(std::max(rotor_rad*rotor_rad - d*d,zero), myhalf);
+    Real A = PI*rotor_rad*rotor_rad/two - A_s;
 
     return A;
 }
@@ -58,7 +58,7 @@ Fitch::advance (const Geometry& geom,
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
-    AMREX_ALWAYS_ASSERT(time > -1.0);
+    AMREX_ALWAYS_ASSERT(time > -one);
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
     compute_power_output(cons_in, U_old, V_old, mf_SMark, mf_Nturb, time);
@@ -85,11 +85,11 @@ Fitch::update (const Real& dt_advance,
         ParallelFor(tbx, tby, bx,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (fitch_array(i-1,j,k,2) + fitch_array(i,j,k,2))/2.0*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (fitch_array(i-1,j,k,2) + fitch_array(i,j,k,2))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (fitch_array(i,j-1,k,3) + fitch_array(i,j,k,3))/2.0*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (fitch_array(i,j-1,k,3) + fitch_array(i,j,k,3))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -117,7 +117,7 @@ Fitch::compute_power_output (const MultiFab& cons_in,
      Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
      Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
 
-    Gpu::DeviceScalar<Real> d_total_power(0.0);
+    Gpu::DeviceScalar<Real> d_total_power(zero);
     Real* d_total_power_ptr = d_total_power.dataPtr();
 
      const Real* d_wind_speed_ptr  = d_wind_speed.dataPtr();
@@ -133,8 +133,8 @@ Fitch::compute_power_output (const MultiFab& cons_in,
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) == 1.0) {
-                Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5);
+            if(SMark_array(i,j,k,0) == one) {
+                Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf);
                 Real turb_power = interpolate_1d(d_wind_speed_ptr, d_power_ptr, avg_vel, n_spec_table);
                 turb_power = turb_power*Nturb_array(i,j,k,0);
                 Gpu::Atomic::Add(d_total_power_ptr,turb_power);
@@ -142,7 +142,7 @@ Fitch::compute_power_output (const MultiFab& cons_in,
         });
     }
 
-    Real h_total_power = 0.0;
+    Real h_total_power = zero;
     Gpu::copy(Gpu::deviceToHost, d_total_power.dataPtr(), d_total_power.dataPtr()+1, &h_total_power);
 
     amrex::ParallelAllReduce::Sum(&h_total_power, 1, amrex::ParallelContext::CommunicatorAll());
@@ -180,7 +180,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
   int domhi_z = domain.bigEnd(2) + 1;
 
 
-  //Real sum = 0.0;
+  //Real sum = zero;
   //Real *sum_area = &sum;
 
   // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
@@ -219,16 +219,16 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
             Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                  v_vel(i,j,k)*v_vel(i,j,k) +
-                                 w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
+                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf);
 
             Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
-            Real C_TKE = 0.0;
+            Real C_TKE = zero;
 
             fitch_array(i,j,k,0) = Vabs;
-            fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,1) =  -myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
             fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
             fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-            fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
         });
