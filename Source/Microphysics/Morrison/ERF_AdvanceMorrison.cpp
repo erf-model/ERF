@@ -523,6 +523,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if (box.smallEnd(1) == j_lo) { box.growLo(1,-m_real_width); }
           if (box.bigEnd(1)   == j_hi) { box.growHi(1,-m_real_width); }
 
+          if (!box.ok()) { // Avoid going farther if the box is inverted (i.e., ilo > ihi or jlo > jhi).
+              continue;
+          }
+
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
           auto const& qv_arr    = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
