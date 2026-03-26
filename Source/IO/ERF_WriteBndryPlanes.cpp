@@ -175,9 +175,11 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             {
                 const Box& bx = mfi.tilebox();
                 if (is_moist) {
-                    derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                    // NOTE: we send in S[mfi] where we should send in (*z_phys_cc[lev])[mfi] because we know this routine doesn't use it
+                    derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
                 } else {
-                    derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                    // NOTE: we send in S[mfi] where we should send in (*z_phys_cc[lev])[mfi] because we know this routine doesn't use it
+                    derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
                 }
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());

@@ -447,85 +447,98 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Array4<amrex::Real>& tau13i,
                       amrex::Array4<amrex::Real>& tau23i);
 
-void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
+void ImplicitDiffForStateLU_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
+                               const amrex::Real dt,
+                               /*int start_comp, int num_comp,*/
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
+                               const amrex::Array4<      amrex::Real>& cell_data,
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                               const amrex::Array4<const amrex::Real>& hfx_z,
+                               const amrex::Array4<const amrex::Real>& mu_turb,
+                               const SolverChoice& solverChoice,
+                               const amrex::BCRec* bc_ptr,
+                               const bool use_SurfLayer,
+                               const amrex::Real implicit_fac);
+
+void ImplicitDiffForStateLU_S (const amrex::Box& bx,
+                               const amrex::Box& domain,
+                               const int level,
+                               const amrex::Real dt,
+                               /*int start_comp, int num_comp,*/
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
+                               const amrex::Array4<      amrex::Real>& cell_data,
+                               const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                               const amrex::Array4<const amrex::Real>& hfx_z,
+                               const amrex::Array4<const amrex::Real>& mu_turb,
+                               const SolverChoice& solverChoice,
+                               const amrex::BCRec* bc_ptr,
+                               const bool use_SurfLayer,
+                               const amrex::Real implicit_fac);
+
+void ImplicitDiffForStateLU_T (const amrex::Box& bx,
+                               const amrex::Box& domain,
+                               const int level,
+                               const amrex::Real dt,
+                               /*int start_comp, int num_comp,*/
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
+                               const amrex::Array4<      amrex::Real>& cell_data,
+                               const amrex::Array4<const amrex::Real>& z_nd,
+                               const amrex::Array4<const amrex::Real>& detJ,
+                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                               const amrex::Array4<const amrex::Real>& hfx_z,
+                               const amrex::Array4<const amrex::Real>& mu_turb,
+                               const SolverChoice& solverChoice,
+                               const amrex::BCRec* bc_ptr,
+                               const bool use_SurfLayer,
+                               const amrex::Real implicit_fac);
+
+template <int stagdir>
+void ImplicitDiffForMomLU_N (const amrex::Box& bx,
+                             const amrex::Box& domain,
+                             const int level,
                              const amrex::Real dt,
-                             /*int start_comp, int num_comp,*/
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
-                             const amrex::Array4<      amrex::Real>& cell_data,
+                             const amrex::Array4<const amrex::Real>& cell_data,
+                             const amrex::Array4<      amrex::Real>& face_data,
+                             const amrex::Array4<const amrex::Real>& tau,
+                             const amrex::Array4<const amrex::Real>& tau_corr,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                             const amrex::Array4<const amrex::Real>& hfx_z,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac);
 
-void ImplicitDiffForState_S (const amrex::Box& bx, const amrex::Box& domain, const int level,
+template <int stagdir>
+void ImplicitDiffForMomLU_S (const amrex::Box& bx,
+                             const amrex::Box& domain,
+                             const int level,
                              const amrex::Real dt,
-                             /*int start_comp, int num_comp,*/
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
-                             const amrex::Array4<      amrex::Real>& cell_data,
+                             const amrex::Array4<const amrex::Real>& cell_data,
+                             const amrex::Array4<      amrex::Real>& face_data,
+                             const amrex::Array4<const amrex::Real>& tau,
+                             const amrex::Array4<const amrex::Real>& tau_corr,
                              const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                             const amrex::Array4<const amrex::Real>& hfx_z,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac);
 
-void ImplicitDiffForState_T (const amrex::Box& bx, const amrex::Box& domain, const int level,
+template <int stagdir>
+void ImplicitDiffForMomLU_T (const amrex::Box& bx,
+                             const amrex::Box& domain,
+                             const int level,
                              const amrex::Real dt,
-                             /*int start_comp, int num_comp,*/
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
-                             const amrex::Array4<      amrex::Real>& cell_data,
+                             const amrex::Array4<const amrex::Real>& cell_data,
+                             const amrex::Array4<      amrex::Real>& face_data,
+                             const amrex::Array4<const amrex::Real>& tau,
+                             const amrex::Array4<const amrex::Real>& tau_corr,
                              const amrex::Array4<const amrex::Real>& z_nd,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                             const amrex::Array4<const amrex::Real>& hfx_z,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac);
-
-template <int stagdir>
-void ImplicitDiffForMom_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
-                           const amrex::Real dt,
-                           const amrex::Array4<const amrex::Real>& cell_data,
-                           const amrex::Array4<      amrex::Real>& face_data,
-                           const amrex::Array4<const amrex::Real>& tau_corr,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& mu_turb,
-                           const SolverChoice& solverChoice,
-                           const amrex::BCRec* bc_ptr,
-                           const bool use_SurfLayer,
-                           const amrex::Real implicit_fac);
-
-template <int stagdir>
-void ImplicitDiffForMom_S (const amrex::Box& bx, const amrex::Box& domain, const int level,
-                           const amrex::Real dt,
-                           const amrex::Array4<const amrex::Real>& cell_data,
-                           const amrex::Array4<      amrex::Real>& face_data,
-                           const amrex::Array4<const amrex::Real>& tau_corr,
-                           const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                           const amrex::Array4<const amrex::Real>& mu_turb,
-                           const SolverChoice& solverChoice,
-                           const amrex::BCRec* bc_ptr,
-                           const bool use_SurfLayer,
-                           const amrex::Real implicit_fac);
-
-template <int stagdir>
-void ImplicitDiffForMom_T (const amrex::Box& bx, const amrex::Box& domain, const int level,
-                           const amrex::Real dt,
-                           const amrex::Array4<const amrex::Real>& cell_data,
-                           const amrex::Array4<      amrex::Real>& face_data,
-                           const amrex::Array4<const amrex::Real>& tau_corr,
-                           const amrex::Array4<const amrex::Real>& z_nd,
-                           const amrex::Array4<const amrex::Real>& detJ,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& mu_turb,
-                           const SolverChoice& solverChoice,
-                           const amrex::BCRec* bc_ptr,
-                           const bool use_SurfLayer,
-                           const amrex::Real implicit_fac);
 #endif

@@ -1115,6 +1115,7 @@ private:
     const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
                                                     "reflectivity","max_reflectivity",
                                                     "vorticity_x","vorticity_y","vorticity_z",
+                                                    "helicity", "local_helicity",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
                                                     "eq_pot_temp", "VPD",
