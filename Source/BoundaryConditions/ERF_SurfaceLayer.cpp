@@ -635,17 +635,17 @@ void
 SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         Vector<const MultiFab*> mfs,
                                         Vector<std::unique_ptr<MultiFab>>& Tau_EB,
-                                        MultiFab* xheat_flux,
-                                        MultiFab* yheat_flux,
+                                        [[maybe_unused]] MultiFab* xheat_flux,
+                                        [[maybe_unused]] MultiFab* yheat_flux,
                                         MultiFab* Hfx3_EB,
-                                        MultiFab* xqv_flux,
-                                        MultiFab* yqv_flux,
-                                        MultiFab* zqv_flux,
+                                        [[maybe_unused]] MultiFab* xqv_flux,
+                                        [[maybe_unused]] MultiFab* yqv_flux,
+                                        [[maybe_unused]] MultiFab* zqv_flux,
                                         const eb_& ebfact,
                                         const FluxCalc& flux_comp)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    // const auto& dxInv = m_geom[lev].InvCellSizeArray();
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Get field arrays
@@ -690,7 +690,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
 
         if (bx.smallEnd(2) != klo) { continue; }
         bx.makeSlab(2,klo);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
             int mk = k_arr(i,j,0);
 
@@ -704,7 +704,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
-        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
             int mk = k_arr(i,j,0);
 
@@ -717,7 +717,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Rho*v flux
         //============================================================================
         Box bxy = surroundingNodes(bx,1);
-        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
             int mk = k_arr(i,j,0);
 
