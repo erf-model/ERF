@@ -220,32 +220,42 @@ ERF::init_from_wrfinput (int lev,
 
             Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
             Box subdomain_crse(subdomain_to_fill_typed);
-            // if (ref_ratio[lev-1][2] > 1) {
             if (lev > 0) {
                 subdomain_crse.coarsen(IntVect(1,1,ref_ratio[lev-1][2]));
+                if (ref_ratio[lev-1][2] > 1) {
+                    amrex::Abort("This pathway in init_from_wrfinput not ready yet");
+                }
             }
-//#ifdef AMREX_USE_GPU
-//            FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
-//            FArrayBOx var_fab_crse(subdomain_crse,1,amrex::The_Pinned_Arena());
-//#else
+#ifdef AMREX_USE_GPU
+            FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
+            FArrayBOx var_fab_crse(subdomain_crse,1,amrex::The_Pinned_Arena());
+#else
             FArrayBox var_fab(subdomain_to_fill_typed,1);
             FArrayBox var_fab_crse(subdomain_crse,1);
-//#endif
+#endif
             if (success) {
                 Box intersection = var_fab.box() & var_fab_from_file.box();
                 if (intersection.ok()) {
-                    if (ref_ratio[lev-1][2] == 1) {
+#if 0
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+#else
+                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
                         var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
                     } else {
                         var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
                     }
+#endif
                 } else if (nx == 1 and ny == 1) {
                     Print() << " Copying 1D FAB from " << var_fab_from_file.box() << " to " << var_fab.box() << std::endl;
-                    if (ref_ratio[lev-1][2] == 1) {
+#if 0
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+#else
+                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
                         var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
                     } else {
                         var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
                     }
+#endif
                 } else {
                     Print() <<"var_fab_crse.box()      " << subdomain_crse << std::endl;
                     Print() <<"var_fab_from_file.box() " << var_fab_from_file.box() << std::endl;

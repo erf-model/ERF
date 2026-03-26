@@ -2,6 +2,7 @@
 #define ERF_TERRAINPOISSON_3D_K_H_
 
 #include <AMReX_FArrayBox.H>
+#include "ERF_Constants.H"
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
