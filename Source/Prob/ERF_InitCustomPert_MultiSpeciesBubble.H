@@ -1,27 +1,27 @@
 
     ParmParse pp_prob("prob");
-    Real T_0 = 300.0; pp_prob.query("T_0", T_0);
+    Real T_0 = amrex::Real(300.0); pp_prob.query("T_0", T_0);
 
     // center of thermal perturbation
-    Real x_c = 0.0; pp_prob.query("x_c", x_c);
-    Real y_c = 0.0; pp_prob.query("y_c", y_c);
-    Real z_c = 0.0; pp_prob.query("z_c", z_c);
+    Real x_c = zero; pp_prob.query("x_c", x_c);
+    Real y_c = zero; pp_prob.query("y_c", y_c);
+    Real z_c = zero; pp_prob.query("z_c", z_c);
 
     // radial extent of thermal perturbation
-    Real x_r = 0.0; pp_prob.query("x_r", x_r);
-    Real y_r = 0.0; pp_prob.query("y_r", y_r);
-    Real z_r = 0.0; pp_prob.query("z_r", z_r);
+    Real x_r = zero; pp_prob.query("x_r", x_r);
+    Real y_r = zero; pp_prob.query("y_r", y_r);
+    Real z_r = zero; pp_prob.query("z_r", z_r);
 
     // perturbation temperature
-    Real T_pert            = -15.0; pp_prob.query("T_pert", T_pert);
+    Real T_pert            = -amrex::Real(15.0); pp_prob.query("T_pert", T_pert);
     bool T_pert_is_airtemp = true ; pp_prob.query("T_pert_is_airtemp", T_pert_is_airtemp);
     bool perturb_rho = true       ; pp_prob.query("perturb_rho", perturb_rho);
 
     // Moist bubble params
     bool do_moist_bubble = false; pp_prob.query("do_moist_bubble", do_moist_bubble);
-    Real theta_pert  = 2.0; pp_prob.query("theta_pert", theta_pert);
-    Real eq_pot_temp = 320.0; pp_prob.query("eq_pot_temp",eq_pot_temp);
-    Real qt_init = 0.02; pp_prob.query("qt_init", qt_init);
+    Real theta_pert  = two; pp_prob.query("theta_pert", theta_pert);
+    Real eq_pot_temp = amrex::Real(320.0); pp_prob.query("eq_pot_temp",eq_pot_temp);
+    Real qt_init = amrex::Real(0.02); pp_prob.query("qt_init", qt_init);
     bool use_empirical = false; pp_prob.query("use_empircal_psat",use_empirical);
 
     std::vector<std::string> m_species;
@@ -44,7 +44,7 @@
 
     m_num_species = m_species.size();
 
-    std::vector<amrex::Real> m_qv_init_species = std::vector<amrex::Real>(m_num_species,0.0);
+    std::vector<amrex::Real> m_qv_init_species = std::vector<amrex::Real>(m_num_species,zero);
     for (int i = 0; i < m_num_species; i++) {
         std::string key_str = "qv_init_" + m_species[i];
         pp_prob.query(key_str.c_str(), m_qv_init_species[i]);
@@ -97,39 +97,39 @@
             const auto prob_lo         = geomdata.ProbLo();
             const auto dx              = geomdata.CellSize();
 
-            const auto x = prob_lo[0] + (i + 0.5) * dx[0];
-            const auto y = prob_lo[1] + (j + 0.5) * dx[1];
-            const auto z = prob_lo[2] + (k + 0.5) * dx[2];
+            const auto x = prob_lo[0] + (i + myhalf) * dx[0];
+            const auto y = prob_lo[1] + (j + myhalf) * dx[1];
+            const auto z = prob_lo[2] + (k + myhalf) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
             // Introduce the warm bubble.
             // Assume that the bubble is pressure matched with the background
-            rad = 0.0;
+            rad = zero;
             if (x_r > 0) rad += std::pow((x - x_c)/x_r, 2);
             if (y_r > 0) rad += std::pow((y - y_c)/y_r, 2);
             if (z_r > 0) rad += std::pow((z - z_c)/z_r, 2);
             rad = std::sqrt(rad);
 
-            if (rad <= 1.0){
-                delta_theta = theta_pert*std::pow(cos(PI*rad/2.0),2);
+            if (rad <= one){
+                delta_theta = theta_pert*std::pow(cos(PI*rad/two),2);
             } else {
-                delta_theta = 0.0;
+                delta_theta = zero;
             }
 
-            theta_total  = theta_back[k]*(delta_theta/300.0 + 1);
+            theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
             Real T = getTgivenPandTh(p_back[k], theta_total, (R_d/Cp_d));
-            rho    = p_back[k]/(R_d*T*(1.0 + (R_v/R_d)*q_v_back[k]));
-            RH     = 1.0; // compute_relative_humidity();
+            rho    = p_back[k]/(R_d*T*(one + (R_v/R_d)*q_v_back[k]));
+            RH     = one; // compute_relative_humidity();
             Real q_v_hot = HSEutils::vapor_mixing_ratio(p_back[k], T, RH, use_empirical, which_zone);
 
             // Compute background quantities
             Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], (R_d/Cp_d));
-            Real rho_back = p_back[k]/(R_d*T_back*(1.0 + (R_v/R_d)*q_v_back[k]));
+            Real rho_back = p_back[k]/(R_d*T_back*(one + (R_v/R_d)*q_v_back[k]));
 
             // This version perturbs rho but not p
-            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
-            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + qt_init);
+            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one + (R_v/R_d)*q_v_back[k]);
+            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + qt_init);
 
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
@@ -141,9 +141,9 @@
             const auto prob_lo         = geomdata.ProbLo();
             const auto dx              = geomdata.CellSize();
 
-            const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-            const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+            const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+            const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             // perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                   state_pert(i, j, k, Rho_comp),
@@ -153,17 +153,17 @@
             // - The bubble is either cylindrical (for 2-D problems, if two
             //   radial extents are specified) or an ellipsoid (if all three
             //   radial extents are specified).
-            Real L = 0.0;
+            Real L = zero;
             if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
             if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
             if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
             L = std::sqrt(L);
             Real dT;
-            if (L > 1.0) {
-                dT = 0.0;
+            if (L > one) {
+                dT = zero;
             }
             else {
-                dT = T_pert * std::pow(cos(PI*L/2.0),2);
+                dT = T_pert * std::pow(cos(PI*L/two),2);
             }
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
@@ -184,13 +184,13 @@
                 // this version perturbs rho but not p (i.e., rho*theta)
                 // - hydrostatic rebalance is needed (TODO: is this true?)
                 // - this is the approach taken in the density current problem
-                state_pert(i,j,k,RhoTheta_comp) = 0.0; // i.e., hydrostatically balanced pressure stays const
+                state_pert(i,j,k,RhoTheta_comp) = zero; // i.e., hydrostatically balanced pressure stays const
                 state_pert(i,j,k,Rho_comp     ) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
             }
             else
             {
                 // this version perturbs rho*theta (i.e., p) but not rho
-                state_pert(i,j,k,Rho_comp)      = 0.0; // i.e., hydrostatically balanced density stays const
+                state_pert(i,j,k,Rho_comp)      = zero; // i.e., hydrostatically balanced density stays const
                 state_pert(i,j,k,RhoTheta_comp) = r_hse(i,j,k) * theta_perturbed - getRhoThetagivenP(p_hse(i,j,k));
             }
 
@@ -215,21 +215,21 @@
         const auto prob_lo         = geomdata.ProbLo();
         const auto dx              = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
-        amrex::Real L = 0.0;
+        amrex::Real L = zero;
         if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
         if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
         if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
         L = std::sqrt(L);
 
-        if (L < 1.0) {
+        if (L < one) {
             auto rho = state(i,j,k,Rho_comp) + state_pert(i,j,k,Rho_comp);
             for (int ns = 0; ns < n_sp; ns++) {
                 state_pert(i, j, k, nstart+2*ns)   = rho*qv_arr[ns];
-                state_pert(i, j, k, nstart+2*ns+1) = 0.0;
+                state_pert(i, j, k, nstart+2*ns+1) = zero;
             }
         }
     });

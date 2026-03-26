@@ -1,8 +1,8 @@
     ParmParse pp_prob("prob");
 
-    Real advection_heating_rate =   0.0; pp_prob.query("advection_heating_rate", advection_heating_rate);
-    Real cutoff                 = 500.0; pp_prob.query("source_cutoff", cutoff);
-    Real cutoff_transition      =  50.0; pp_prob.query("source_cutoff_transition", cutoff_transition);
+    Real advection_heating_rate =   zero; pp_prob.query("advection_heating_rate", advection_heating_rate);
+    Real cutoff                 = amrex::Real(500.0); pp_prob.query("source_cutoff", cutoff);
+    Real cutoff_transition      =  amrex::Real(50.0); pp_prob.query("source_cutoff_transition", cutoff_transition);
 
     for (MFIter mfi(*src, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -20,7 +20,7 @@
                     Real slope = -advection_heating_rate / cutoff_transition;
                     src_arr(i, j, k) = (z_cc-cutoff) * slope + advection_heating_rate;
                 } else {
-                    src_arr(i, j, k) = 0.0;
+                    src_arr(i, j, k) = zero;
                 }
             });
         }

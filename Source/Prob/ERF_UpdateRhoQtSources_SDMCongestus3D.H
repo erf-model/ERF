@@ -1,15 +1,15 @@
     ParmParse pp_prob("prob");
 
-    Real advection_moisture_rate      = 1.0e-8; pp_prob.query("advection_moisture_rate"     , advection_moisture_rate);
-    Real advection_moisture_rate_base = 1.0e-8; pp_prob.query("advection_moisture_rate_base", advection_moisture_rate_base);
+    Real advection_moisture_rate      = amrex::Real(1.0e-8); pp_prob.query("advection_moisture_rate"     , advection_moisture_rate);
+    Real advection_moisture_rate_base = amrex::Real(1.0e-8); pp_prob.query("advection_moisture_rate_base", advection_moisture_rate_base);
 
     auto prob_lo = geom.ProbLoArray();
     auto prob_hi = geom.ProbHiArray();
     auto dx = geom.CellSizeArray();
 
     // Define a point (xc,yc,zc) at the center of the domain
-    auto xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    auto yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+    auto xc = myhalf * (prob_lo[0] + prob_hi[0]);
+    auto yc = myhalf * (prob_lo[1] + prob_hi[1]);
 
     // Only apply temperature source below nominal inversion height
     for (MFIter mfi(*qsrc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -21,12 +21,12 @@
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                auto x = prob_lo[0] + (i + 0.5) * dx[0];
-                auto y = prob_lo[1] + (j + 0.5) * dx[1];
-                auto z = prob_lo[2] + (k + 0.5) * dx[2];
+                auto x = prob_lo[0] + (i + myhalf) * dx[0];
+                auto y = prob_lo[1] + (j + myhalf) * dx[1];
+                auto z = prob_lo[2] + (k + myhalf) * dx[2];
 
-                //const Real c = 2.0*dx[0];
-                auto c = 1700.0*1700.0;
+                //const Real c = two*dx[0];
+                auto c = amrex::Real(1700.0)*amrex::Real(1700.0);
                 auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 auto rsqr = r*r;
                 if (time < 3600) {
@@ -38,7 +38,7 @@
         } else {
             // src is a function over Z
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                qsrc_arr(i, j, k) = 0.0;
+                qsrc_arr(i, j, k) = zero;
             });
         }
     }

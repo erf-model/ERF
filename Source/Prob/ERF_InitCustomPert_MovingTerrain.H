@@ -1,11 +1,11 @@
 
     // Parse params
     ParmParse pp("prob");
-    Real Ampl = 0.       ; pp.query("Ampl", Ampl);
-    Real wavelength = 1.0; pp.get("wavelength", wavelength);
+    Real Ampl = zero       ; pp.query("Ampl", Ampl);
+    Real wavelength = one; pp.get("wavelength", wavelength);
 
     Real H           = geomdata.ProbHi()[2];
-    Real kp          = 2.0 * PI / wavelength;
+    Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
@@ -13,7 +13,7 @@
     {
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
 
         Real z = z_cc(i,j,k);
         Real z_base = Ampl * std::sin(kp * x);

@@ -200,7 +200,7 @@ private:
     int m_nz_lsm = 1;
 
     // Size of grid spacing in z
-    amrex::Real m_dz_lsm = 1.0;
+    amrex::Real m_dz_lsm = one;
 
     // LSM data variables
     amrex::Array<FabPtr, LsmData_NOAHMP::NumVars> lsm_fab_data;

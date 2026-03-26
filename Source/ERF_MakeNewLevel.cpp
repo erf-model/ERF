@@ -113,7 +113,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), 0.0); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), zero); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -239,7 +239,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
@@ -318,7 +318,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_old[lev] = time - Real(1.e200);
 
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
@@ -393,7 +393,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
@@ -478,7 +478,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
-        Real dummy_dt = 1.0;
+        Real dummy_dt = one;
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }
@@ -495,7 +495,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), 0.0); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), zero); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -693,7 +693,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_old[lev] = time - Real(1.e200);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -709,7 +709,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {

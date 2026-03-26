@@ -38,24 +38,24 @@ ERF::initRayleigh_at_level (const int& lev)
     Real zdamp    = solverChoice.dampingChoice.rayleigh_zdamp;
 
     for (int k = 0; k < zlen_rayleigh; k++) {
-        Real z = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+        Real z = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
         if (z > (ztop - zdamp)) {
-            Real zfrac = 1.0 - (ztop - z) / zdamp;
+            Real zfrac = one - (ztop - z) / zdamp;
             Real s = std::sin(PIoTwo*zfrac);
             h_sinesq_ptrs[lev][k] = s*s;
         } else {
-            h_sinesq_ptrs[lev][k] = 0.0;
+            h_sinesq_ptrs[lev][k] = zero;
         }
     }
 
     for (int k = 0; k < zlen_rayleigh+1; k++) {
         Real z = zlevels_stag[lev][k];
         if (z > (ztop - zdamp)) {
-            Real zfrac = 1.0 - (ztop - z) / zdamp;
+            Real zfrac = one - (ztop - z) / zdamp;
             Real s = std::sin(PIoTwo*zfrac);
             h_sinesq_stag_ptrs[lev][k] = s*s;
         } else {
-            h_sinesq_stag_ptrs[lev][k] = 0.0;
+            h_sinesq_stag_ptrs[lev][k] = zero;
         }
     }
 
@@ -121,7 +121,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         {
             h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
             h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = Real(0.0);
+            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = zero;
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
         }
 

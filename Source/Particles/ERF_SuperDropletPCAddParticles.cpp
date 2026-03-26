@@ -47,9 +47,9 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
                                       height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
@@ -70,9 +70,9 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
                     if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
@@ -113,9 +113,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
                                       height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
@@ -124,13 +124,13 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     const auto& x_c = a_bubble.lo(); // center
                     const auto& x_r = a_bubble.hi(); // radius
 
-                    Real rad = 0.0;
+                    Real rad = zero;
                     if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
                     if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
                     if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
                     rad = std::sqrt(rad);
 
-                    if(rad <= 1.0) { flag = true; }
+                    if(rad <= one) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
@@ -147,21 +147,21 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
 
                     // Extract bubble params
                     const auto& x_c = a_bubble.lo();       // center
                     const auto& x_r = a_bubble.hi();       // radius
 
-                    Real rad = 0.0;
+                    Real rad = zero;
                     if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
                     if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
                     if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
                     rad = std::sqrt(rad);
 
-                    if(rad <= 1.0) { flag = true; }
+                    if(rad <= one) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
@@ -307,7 +307,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
         Gpu::DeviceVector<Real> species_mass_d(num_sp*np);
         {
-            Vector<Real> multiplicity_h(np, 0.0);
+            Vector<Real> multiplicity_h(np, zero);
             for (int i = 0; i < num_sp; i++) {
                 Vector<Real> species_mass_h;
                 if (sampled_multiplicity) {
@@ -334,7 +334,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
         Gpu::DeviceVector<Real> multiplicity_d(np);
         {
-            Vector<Real> multiplicity_h(np, 0.0);
+            Vector<Real> multiplicity_h(np, zero);
             for (int i = 0; i < num_ae; i++) {
                 Vector<Real> aerosol_mass_h;
                 if (sampled_multiplicity) {
@@ -423,9 +423,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             Real num_to_add = num_par_per_cell;
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
 
-            Real mult_scale = 1.0;
+            Real mult_scale = one;
             if (sampled_multiplicity) {
-                Real mult_sum = 0.0;
+                Real mult_sum = zero;
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
                 mult_scale = num_par_per_cell / mult_sum;
@@ -445,9 +445,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                             p.pos(1) = pdomain.lo(1) + Random(rnd_engine) * (pdomain.hi(1) - pdomain.lo(1));
                             p.pos(2) = pdomain.lo(2) + Random(rnd_engine) * (pdomain.hi(2) - pdomain.lo(2));
                         } else {
-                            p.pos(0) = pdomain.lo(0) + 0.5 * (pdomain.hi(0) - pdomain.lo(0));
-                            p.pos(1) = pdomain.lo(1) + 0.5 * (pdomain.hi(1) - pdomain.lo(1));
-                            p.pos(2) = pdomain.lo(2) + 0.5 * (pdomain.hi(2) - pdomain.lo(2));
+                            p.pos(0) = pdomain.lo(0) + myhalf * (pdomain.hi(0) - pdomain.lo(0));
+                            p.pos(1) = pdomain.lo(1) + myhalf * (pdomain.hi(1) - pdomain.lo(1));
+                            p.pos(2) = pdomain.lo(2) + myhalf * (pdomain.hi(2) - pdomain.lo(2));
                         }
                     } else if (itype == SDInitShape::bubble) {
                         if (random_place) {
@@ -477,15 +477,15 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                         p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
                         p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
                     } else {
-                        p.pos(0) = plo[0] + (i + 0.5)*dx[0];
-                        p.pos(1) = plo[1] + (j + 0.5)*dx[1];
-                        p.pos(2) = plo[2] + (k + 0.5)*dx[2];
+                        p.pos(0) = plo[0] + (i + myhalf)*dx[0];
+                        p.pos(1) = plo[1] + (j + myhalf)*dx[1];
+                        p.pos(2) = plo[2] + (k + myhalf)*dx[2];
                     }
                 }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
                 active_ptr[n] = 1;
-                vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
+                vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
                 Real mult_this_sd = 0;
                 if (sampled_multiplicity) {
@@ -516,9 +516,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                                                      sp_rho_arr, ae_rho_arr );
                 mass_ptr[n] = SD_total_mass( n, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
 
-                vterm_ptr[n] = 0.0;
+                vterm_ptr[n] = zero;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-                condt_ptr[n] = 0.0;
+                condt_ptr[n] = zero;
 #endif
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
@@ -539,11 +539,11 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                               (y-plo[1])/dx[1] - j,
                               (z-plo[2])/dx[2] - k };
 
-                Real sx[] = { amrex::Real(1.) - r[0], r[0]};
-                Real sy[] = { amrex::Real(1.) - r[1], r[1]};
+                Real sx[] = { one - r[0], r[0]};
+                Real sy[] = { one - r[1], r[1]};
 
-                Real height_at_pxy_lo = 0.;
-                Real height_at_pxy_hi = 0.;
+                Real height_at_pxy_lo = zero;
+                Real height_at_pxy_hi = zero;
                 for (int ii = 0; ii < 2; ++ii) {
                     for (int jj = 0; jj < 2; ++jj) {
                         height_at_pxy_lo += sx[ii] * sy[jj]

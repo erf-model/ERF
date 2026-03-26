@@ -3,8 +3,8 @@
 // saturation vapor pressure and related calculations to CAM.
 //
 // The original wv_saturation codes were introduced by J. J. Hack,
-// February 1990. The code has been extensively rewritten since then,
-// including a total refactoring in Summer 2012.
+// February amrex::Real(1990.) The code has been extensively rewritten since then,
+// including a total refactoring in Summer amrex::Real(2012.)
 //
 // Methods:
 //
@@ -29,19 +29,19 @@ class WaterVaporSat {
 public:
     // Make these public parameters in case another module wants to see the
     // extent of the table.
-    static constexpr amrex::Real tmin = 127.16;
-    static constexpr amrex::Real tmax = 375.16;
+    static constexpr amrex::Real tmin = amrex::Real(127.16);
+    static constexpr amrex::Real tmax = amrex::Real(375.16);
 
     // Set coefficients for polynomial approximation of difference
     // between saturation vapor press over water and saturation pressure
     // over ice for -ttrice < t < 0 (degrees C). NOTE: polynomial is
     // valid in the range -40 < t < 0 (degrees C).
     static constexpr int npcf = 5;
-    static constexpr const amrex::Real pcf[npcf] = {5.04469588506e-01,
-                                                   -5.47288442819e+00,
-                                                   -3.67471858735e-01,
-                                                   -8.95963532403e-03,
-                                                   -7.78053686625e-05};
+    static constexpr const amrex::Real pcf[npcf] = {amrex::Real(5.04469588506e-01),
+                                                   -amrex::Real(5.47288442819e+00),
+                                                   -amrex::Real(3.67471858735e-01),
+                                                   -amrex::Real(8.95963532403e-03),
+                                                   -amrex::Real(7.78053686625e-05)};
 
     // Compute saturation vapor pressure over water
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -78,7 +78,7 @@ public:
         hltalt = lat_vap;
         // Account for change of lat_vap with t above freezing where
         // constant slope is given by -2369 j/(kg c) = cpv - cw
-        if (t >= tmelt) hltalt = hltalt - 2369.0*(t-tmelt);
+        if (t >= tmelt) hltalt = hltalt - amrex::Real(2369.0)*(t-tmelt);
     }
 
     //  Calculate latent heat of vaporization of water at a given
@@ -110,7 +110,7 @@ public:
                 }
             }
             else {
-                weight = 1.0;
+                weight = one;
             }
 
             hltalt = hltalt + weight*lat_ice;
@@ -132,8 +132,8 @@ public:
         amrex::Real desdt;        // d(es)/dt
         amrex::Real dqsdt_loc;    // local copy of dqsdt
 
-        if (qs == 1.0) {
-            dqsdt_loc = 0.;
+        if (qs == one) {
+            dqsdt_loc = zero;
         }
         else {
             desdt = hltalt*es/(R_v*t*t) + tterm;
@@ -158,7 +158,7 @@ public:
                       amrex::Real* enthalpy = nullptr) {
         // Local variables
         amrex::Real hltalt;       // Modified latent heat for T derivatives
-        amrex::Real tterm = 0.0;        // Account for d(es)/dT in transition region
+        amrex::Real tterm = zero;        // Account for d(es)/dT in transition region
 
         es = svp_trans(t); //estblf(t);
 
@@ -169,7 +169,7 @@ public:
 
         // Calculate optional arguments.
         // "generalized" analytic expression for t derivative of es
-        // accurate to within 1 percent for 173.16 < t < 373.16
+        // accurate to within 1 percent for amrex::Real(173.16) < t < amrex::Real(373.16)
         calc_hltalt(t, hltalt, &tterm);
 
         if (enthalpy)
@@ -201,7 +201,7 @@ public:
         SatMethods::wv_sat_qsat_water(t, p, es, qs);
 
         // "generalized" analytic expression for t derivative of es
-        // accurate to within 1 percent for 173.16 < t < 373.16
+        // accurate to within 1 percent for amrex::Real(173.16) < t < amrex::Real(373.16)
 
         no_ip_hltalt(t, hltalt);
 
@@ -212,8 +212,8 @@ public:
 
         if (gam && dqsdt)
         {
-            // For pure water/ice transition term is 0.
-            deriv_outputs(t, p, es, qs, hltalt, 0., *gam, *dqsdt);
+            // For pure water/ice transition term is zero
+            deriv_outputs(t, p, es, qs, hltalt, zero, *gam, *dqsdt);
         }
     }
 
@@ -239,8 +239,8 @@ public:
 
         enthalpy = tq_enthalpy(t, qs, hltalt);
 
-        // For pure water/ice transition term is 0.
-        deriv_outputs(t, p, es, qs, hltalt, 0., gam, dqsdt);
+        // For pure water/ice transition term is zero
+        deriv_outputs(t, p, es, qs, hltalt, zero, gam, dqsdt);
     }
 
     //   find the wet bulb temperature for a given t and q
@@ -283,11 +283,11 @@ public:
         amrex::Real t1, q1, dt, dq;
         amrex::Real qvd;
         amrex::Real r1b, c1, c2, c3;
-        constexpr amrex::Real dttol = 1.e-4; // the relative temp error tolerance required to quit the iteration
-        constexpr amrex::Real dqtol = 1.e-4; // the relative moisture error tolerance required to quit the iteration
+        constexpr amrex::Real dttol = amrex::Real(1.e-4); // the relative temp error tolerance required to quit the iteration
+        constexpr amrex::Real dqtol = amrex::Real(1.e-4); // the relative moisture error tolerance required to quit the iteration
         amrex::Real enin, enout;
 
-        c3 = 287.04*(7.5*log(10.))/Cp_d;
+        c3 = amrex::Real(287.04)*(amrex::Real(7.5)*log(amrex::Real(10.)))/Cp_d;
 
         // Saturation specific humidity at this temperature
         if (use_ice) {
@@ -298,13 +298,13 @@ public:
         }
 
         // make sure a meaningful calculation is possible
-        if (p <= 5.*es || qs <= 0. || qs >= 0.5 || t < tmin || t > tmax) {
+        if (p <= amrex::Real(5.)*es || qs <= zero || qs >= myhalf || t < tmin || t > tmax) {
             status = 1;
             // Keep initial parameters when conditions aren't suitable
             tsp = t;
             qsp = q;
-            enin = 1.;
-            enout = 1.;
+            enin = one;
+            enout = one;
             return;
         }
 
@@ -321,7 +321,7 @@ public:
 
         // make a guess at the wet bulb temp using a UKMO algorithm (from J. Petch)
         c1 = hltalt*c3;
-        c2 = std::pow(t + 36., 2);
+        c2 = std::pow(t + amrex::Real(36.), 2);
         r1b = c2/(c2 + c1*qs);
         qvd = r1b * (q - qs);
         tsp = t + ((hltalt/Cp_d)*qvd);
@@ -365,7 +365,7 @@ public:
             else
                 qsat_water(tsp, p, es, q1, &gam, &enout);
 
-            dq = abs(q1 - qsp)/std::max(q1,1.e-12);
+            dq = abs(q1 - qsp)/std::max(q1,amrex::Real(1.e-12));
             qsp = q1;
 
             // if converged at this point, exclude it from more iterations
@@ -375,7 +375,7 @@ public:
             }
         }
         // Test for enthalpy conservation
-        if (abs((enin-enout)/(enin+enout)) > 1.e-4) status = 8;
+        if (abs((enin-enout)/(enin+enout)) > amrex::Real(1.e-4)) status = 8;
         return;
     }
 };

@@ -223,14 +223,14 @@ ImplicitDiffForMomLU_N (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
-                            : 2.0 * dc.dynamic_viscosity;
+    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
+                            : two * dc.dynamic_viscosity;
 
     // g(S*) coefficient
-    // stagdir==0: tau_corr = 0.5 * du/dz * mu_tot
-    // stagdir==1: tau_corr = 0.5 * dv/dz * mu_tot
+    // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
+    // stagdir==1: tau_corr = myhalf * dv/dz * mu_tot
     // stagdir==2: tau_corr =       dw/dz * mu_tot
-    constexpr Real gfac = (stagdir == 2) ? 2.0/3.0 : 1.0;
+    constexpr Real gfac = (stagdir == 2) ? two/three : one;
 
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;

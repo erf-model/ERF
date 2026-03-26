@@ -22,7 +22,7 @@ namespace LsmVar_SLM {
   };
 }
 
-/* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
+/* See Chen & Dudhia (2001) https://doi.org/amrex::Real(10.1175)/1520-0493(2001)129<0569:CAALSH>two.CO;2 */
 class SLM : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -146,16 +146,16 @@ private:
     int m_nz_lsm = 30;
 
     // Size of grid spacing in z
-    amrex::Real m_dz_lsm = 0.1; // 3 [m] below surface
+    amrex::Real m_dz_lsm = amrex::Real(0.1); // 3 [m] below surface
 
     // Specific heat
-    amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]
+    amrex::Real m_cp_soil =  amrex::Real(1.26e6); // [J/m^3 K]
 
     // Conductivity
-    amrex::Real m_k_soil = 0.2; // dry soil [W/m K]
+    amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = 400.0; // [K]
+    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]

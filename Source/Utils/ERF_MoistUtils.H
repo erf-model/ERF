@@ -20,7 +20,7 @@ void GetMoistureVars (int i, int j, int k,
                       amrex::Real& qc_ice,
                       const MoistureComponentIndices& moisture_indices)
 {
-    qv = 0.0; qc_liquid = 0.0; qc_ice = 0.0;
+    qv = zero; qc_liquid = zero; qc_ice = zero;
 
     // Water vapor
     if (moisture_indices.qv >= 0) {
@@ -61,7 +61,7 @@ amrex::Real ComputeVirtualPotentialTemperature (amrex::Real theta,
                                                 amrex::Real qc_ice)
 {
     amrex::Real qc_total = qc_liquid + qc_ice;
-    return theta * (1.0 + 0.61*qv - qc_total);
+    return theta * (one + amrex::Real(0.61)*qv - qc_total);
 }
 
 /**
@@ -135,7 +135,7 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
     amrex::Real theta_v_upper = GetThetav(i, j, k+1, cell_data, moisture_indices);
     amrex::Real theta_v_lower = GetThetav(i, j, k-1, cell_data, moisture_indices);
 
-    amrex::Real dthetav_dz = 0.5 * (theta_v_upper - theta_v_lower) * dzInv;
+    amrex::Real dthetav_dz = myhalf * (theta_v_upper - theta_v_lower) * dzInv;
     amrex::Real stratification = abs_g * dthetav_dz * inv_theta0;
 
     // Apply conditional instability correction
@@ -146,12 +146,12 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
 
         // Phase-weighted effective latent heat
         amrex::Real liquid_fraction = qc_liquid / (total_condensate + 1e-12);
-        amrex::Real ice_fraction = 1.0 - liquid_fraction;
+        amrex::Real ice_fraction = one - liquid_fraction;
         amrex::Real L_eff = liquid_fraction * L_v + ice_fraction * (L_v + lat_ice);
 
         // Phase-weighted saturation mixing ratio
-        amrex::Real qsat_liquid = 0.0, qsat_ice = 0.0;
-        amrex::Real pres_current = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp), qv) * 0.01;
+        amrex::Real qsat_liquid = zero, qsat_ice = zero;
+        amrex::Real pres_current = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp), qv) * amrex::Real(0.01);
 
         erf_qsatw(T_current, pres_current, qsat_liquid);
         erf_qsati(T_current, pres_current, qsat_ice);
@@ -159,8 +159,8 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
         amrex::Real qsat_eff = liquid_fraction * qsat_liquid + ice_fraction * qsat_ice;
 
         // Moist adiabatic lapse rate correction
-        amrex::Real gamma_moist_factor = (1.0 + L_eff*qsat_eff/(R_d*T_current)) /
-                                         (1.0 + L_eff*L_eff*qsat_eff/(Cp_d*R_v*T_current*T_current));
+        amrex::Real gamma_moist_factor = (one + L_eff*qsat_eff/(R_d*T_current)) /
+                                         (one + L_eff*L_eff*qsat_eff/(Cp_d*R_v*T_current*T_current));
 
         stratification *= gamma_moist_factor;
     }
@@ -189,7 +189,7 @@ amrex::Real ComputeStratificationForSmagorinsky (int i, int j, int k,
         // Dry stratification (original approach)
         amrex::Real theta_hi = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
         amrex::Real theta_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-        amrex::Real dtheta_dz = 0.5 * (theta_hi - theta_lo) * dzInv;
+        amrex::Real dtheta_dz = myhalf * (theta_hi - theta_lo) * dzInv;
         return abs_g * dtheta_dz * inv_theta0;
     }
 }

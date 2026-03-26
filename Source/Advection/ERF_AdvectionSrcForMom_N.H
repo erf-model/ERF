@@ -39,29 +39,29 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     amrex::Real yflux_hi; amrex::Real yflux_lo;
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    amrex::Real interp_hi(0.), interp_lo(0.);
+    amrex::Real interp_hi(zero), interp_lo(zero);
 
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j,0) + rho_u(i, j, k) * mf_uy_inv(i,j,0));
+    rho_u_avg_hi = myhalf * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j,0) + rho_u(i, j, k) * mf_uy_inv(i,j,0));
     interp_u_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
 
-    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_uy_inv(i-1,j,0) + rho_u(i, j, k) * mf_uy_inv(i,j,0));
+    rho_u_avg_lo = myhalf * (rho_u(i-1, j, k) * mf_uy_inv(i-1,j,0) + rho_u(i, j, k) * mf_uy_inv(i,j,0));
     interp_u_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
-    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_vx_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0));
+    rho_v_avg_hi = myhalf * (rho_v(i, j+1, k) * mf_vx_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0));
     interp_u_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
 
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_vx_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0));
+    rho_v_avg_lo = myhalf * (rho_v(i, j  , k) * mf_vx_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0));
     interp_u_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
-    rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+    rho_w_avg_hi = myhalf * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
     interp_u_v.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi);
     zflux_hi = rho_w_avg_hi * interp_hi;
 
-    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i-1, j, k  ));
+    rho_w_avg_lo = myhalf * (rho_w(i, j, k  ) + rho_w(i-1, j, k  ));
     interp_u_v.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo);
     zflux_lo = rho_w_avg_lo * interp_lo;
 
@@ -112,29 +112,29 @@ AdvectionSrcForYMom_N (int i, int j, int k,
     amrex::Real yflux_hi; amrex::Real yflux_lo;
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    amrex::Real interp_hi(0.), interp_lo(0.);
+    amrex::Real interp_hi(zero), interp_lo(zero);
 
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j  ,0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1,j-1,0));
+    rho_u_avg_hi = myhalf * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j  ,0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1,j-1,0));
     interp_v_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
 
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_uy_inv(i  ,j  ,0) + rho_u(i  , j-1, k) * mf_uy_inv(i  ,j-1,0));
+    rho_u_avg_lo = myhalf * (rho_u(i  , j, k) * mf_uy_inv(i  ,j  ,0) + rho_u(i  , j-1, k) * mf_uy_inv(i  ,j-1,0));
     interp_v_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
-    rho_v_avg_hi = 0.5 * (rho_v(i, j, k) * mf_vx_inv(i  ,j  ,0) + rho_v(i, j+1, k) * mf_vx_inv(i  ,j+1,0));
+    rho_v_avg_hi = myhalf * (rho_v(i, j, k) * mf_vx_inv(i  ,j  ,0) + rho_v(i, j+1, k) * mf_vx_inv(i  ,j+1,0));
     interp_v_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
 
-    rho_v_avg_lo = 0.5 * (rho_v(i, j, k) * mf_vx_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_vx_inv(i  ,j-1,0));
+    rho_v_avg_lo = myhalf * (rho_v(i, j, k) * mf_vx_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_vx_inv(i  ,j-1,0));
     interp_v_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
-    rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+    rho_w_avg_hi = myhalf * (rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
     interp_v_v.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi);
     zflux_hi = rho_w_avg_hi * interp_hi;
 
-    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i, j-1, k  ));
+    rho_w_avg_lo = myhalf * (rho_w(i, j, k  ) + rho_w(i, j-1, k  ));
     interp_v_v.InterpolateInZ(i,j,k  ,0,interp_lo,rho_w_avg_lo);
     zflux_lo = rho_w_avg_lo * interp_lo;
 
@@ -193,21 +193,21 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     amrex::Real yflux_hi; amrex::Real yflux_lo;
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    amrex::Real interp_hi(0.), interp_lo(0.);
+    amrex::Real interp_hi(zero), interp_lo(zero);
 
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0);
+    rho_u_avg_hi = myhalf * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0);
     interp_w_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
 
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0);
+    rho_u_avg_lo = myhalf * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0);
     interp_w_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
-    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0);
+    rho_v_avg_hi = myhalf * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0);
     interp_w_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
 
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0);
+    rho_v_avg_lo = myhalf * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0);
     interp_w_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
@@ -219,7 +219,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     if (k == hi_z_face) {
         zflux_hi =  rho_w(i,j,k) * w(i,j,k);
     } else {
-        rho_w_avg_hi = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
+        rho_w_avg_hi = myhalf * (rho_w(i,j,k) + rho_w(i,j,k+1));
         if (k == hi_z_face-1) {
             interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
         } else if (k == hi_z_face-2 || k == lo_z_face+1) {
@@ -242,7 +242,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     if (k == lo_z_face) {
         zflux_lo = rho_w(i,j,k) * w(i,j,k);
     } else {
-        rho_w_avg_lo = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
+        rho_w_avg_lo = myhalf * (rho_w(i,j,k) + rho_w(i,j,k-1));
         if (k == lo_z_face+1) {
             interp_w_wall.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_2nd);
         } else if (k == lo_z_face+2 || k == hi_z_face-1) {
@@ -267,7 +267,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
 }
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ * Wrapper function for computing the advective tendency w/ spatial order > two
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 void
@@ -308,7 +308,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 1.0/dz_ptr[k];
+        auto dzInv = one/dz_ptr[k];
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_u_h, interp_u_v,
                                                     mf_ux_inv, mf_uy_inv, mf_vx_inv,
@@ -318,7 +318,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 1.0/dz_ptr[k];
+        auto dzInv = one/dz_ptr[k];
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_v_h, interp_v_v,
                                                     mf_uy_inv, mf_vx_inv, mf_vy_inv,
@@ -328,7 +328,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0/(dz_ptr[k] + dz_ptr[k-1]);
+        auto dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     mf_mx, mf_my, mf_uy_inv, mf_vx_inv,
@@ -338,7 +338,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
 }
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ * Wrapper function for computing the advective tendency w/ spatial order > two
  */
 template<typename InterpType_H>
 void

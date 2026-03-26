@@ -17,15 +17,15 @@ SAM::PrecipFall (const SolverChoice& sc)
 {
     if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
 
-    Real rho_0 = 1.29;
+    Real rho_0 = Real(1.29);
 
-    Real gamr3 = erf_gammafff(4.0+b_rain);
-    Real gams3 = erf_gammafff(4.0+b_snow);
-    Real gamg3 = erf_gammafff(4.0+b_grau);
+    Real gamr3 = erf_gammafff(Real(4.0)+b_rain);
+    Real gams3 = erf_gammafff(Real(4.0)+b_snow);
+    Real gamg3 = erf_gammafff(Real(4.0)+b_grau);
 
-    Real vrain = (a_rain*gamr3/6.0)*pow((PI*rhor*nzeror),-crain);
-    Real vsnow = (a_snow*gams3/6.0)*pow((PI*rhos*nzeros),-csnow);
-    Real vgrau = (a_grau*gamg3/6.0)*pow((PI*rhog*nzerog),-cgrau);
+    Real vrain = (a_rain*gamr3/Real(6.0))*pow((PI*rhor*nzeror),-crain);
+    Real vsnow = (a_snow*gams3/Real(6.0))*pow((PI*rhos*nzeros),-csnow);
+    Real vgrau = (a_grau*gamg3/Real(6.0))*pow((PI*rhog*nzerog),-cgrau);
 
     Real dtn  = dt;
     Real coef = dtn/m_dzmin;
@@ -78,27 +78,27 @@ SAM::PrecipFall (const SolverChoice& sc)
                 tab_avg = tabs_array(i,j,k-1);
                  qp_avg =   qp_array(i,j,k-1);
             } else {
-                rho_avg = 0.5*( rho_array(i,j,k-1) +  rho_array(i,j,k));
-                tab_avg = 0.5*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
-                 qp_avg = 0.5*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
+                rho_avg = myhalf*( rho_array(i,j,k-1) +  rho_array(i,j,k));
+                tab_avg = myhalf*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
+                 qp_avg = myhalf*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
             }
 
-            Real Pprecip = 0.0;
+            Real Pprecip = zero;
             if(qp_avg > qp_threshold) {
                 Real omp, omg;
                 if (SAM_moisture_type == 2) {
-                    omp = 1.0;
-                    omg = 0.0;
+                    omp = one;
+                    omg = zero;
                 } else {
-                    omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-                    omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                    omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
+                    omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
                 }
                 Real qrr = omp*qp_avg;
-                Real qss = (1.0-omp)*(1.0-omg)*qp_avg;
-                Real qgg = (1.0-omp)*(omg)*qp_avg;
-                Pprecip = omp*vrain*std::pow(rho_avg*qrr,1.0+crain)
-                        + (1.0-omp)*( (1.0-omg)*vsnow*std::pow(rho_avg*qss,1.0+csnow)
-                                    +      omg *vgrau*std::pow(rho_avg*qgg,1.0+cgrau) );
+                Real qss = (one-omp)*(one-omg)*qp_avg;
+                Real qgg = (one-omp)*(omg)*qp_avg;
+                Pprecip = omp*vrain*std::pow(rho_avg*qrr,one+crain)
+                        + (one-omp)*( (one-omg)*vsnow*std::pow(rho_avg*qss,one+csnow)
+                                    +      omg *vgrau*std::pow(rho_avg*qgg,one+cgrau) );
             }
 
             // NOTE: Fz is the sedimentation flux from the advective operator.
@@ -162,27 +162,27 @@ SAM::PrecipFall (const SolverChoice& sc)
                     tab_avg = tabs_array(i,j,k-1);
                      qp_avg =   qp_array(i,j,k-1);
                 } else {
-                    rho_avg = 0.5*( rho_array(i,j,k-1) +  rho_array(i,j,k));
-                    tab_avg = 0.5*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
-                     qp_avg = 0.5*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
+                    rho_avg = myhalf*( rho_array(i,j,k-1) +  rho_array(i,j,k));
+                    tab_avg = myhalf*(tabs_array(i,j,k-1) + tabs_array(i,j,k));
+                     qp_avg = myhalf*(  qp_array(i,j,k-1) +   qp_array(i,j,k));
                 }
 
-                Real Pprecip = 0.0;
+                Real Pprecip = zero;
                 if(qp_avg > qp_threshold) {
                     Real omp, omg;
                     if (SAM_moisture_type == 2) {
-                        omp = 1.0;
-                        omg = 0.0;
+                        omp = one;
+                        omg = zero;
                     } else {
-                        omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-                        omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                        omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
+                        omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
                     }
                     Real qrr = omp*qp_avg;
-                    Real qss = (1.0-omp)*(1.0-omg)*qp_avg;
-                    Real qgg = (1.0-omp)*(omg)*qp_avg;
-                    Pprecip = omp*vrain*std::pow(rho_avg*qrr,1.0+crain)
-                            + (1.0-omp)*( (1.0-omg)*vsnow*std::pow(rho_avg*qss,1.0+csnow)
-                                        +      omg *vgrau*std::pow(rho_avg*qgg,1.0+cgrau) );
+                    Real qss = (one-omp)*(one-omg)*qp_avg;
+                    Real qgg = (one-omp)*(omg)*qp_avg;
+                    Pprecip = omp*vrain*std::pow(rho_avg*qrr,one+crain)
+                            + (one-omp)*( (one-omg)*vsnow*std::pow(rho_avg*qss,one+csnow)
+                                        +      omg *vgrau*std::pow(rho_avg*qgg,one+cgrau) );
                 }
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
@@ -196,15 +196,15 @@ SAM::PrecipFall (const SolverChoice& sc)
                 if(k==k_lo){
                     Real omp, omg;
                     if (SAM_moisture_type == 2) {
-                        omp = 1.0;
-                        omg = 0.0;
+                        omp = one;
+                        omg = zero;
                     } else {
-                        omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-                        omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                        omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
+                        omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
                     }
-                    rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
-                    snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vsnow*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
-                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vgrau*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
+                    rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + rho_avg*(omp*qp_avg)*vrain*dtn/rhor*Real(1000.0); // Divide by rho_water and convert to mm
+                    snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + rho_avg*(one-omp)*(one-omg)*qp_avg*vsnow*dtn/rhos*Real(1000.0); // Divide by rho_snow and convert to mm
+                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(one-omp)*(omg)*qp_avg*vgrau*dtn/rhog*Real(1000.0); // Divide by rho_graupel and convert to mm
                 }
             });
 
@@ -212,24 +212,24 @@ SAM::PrecipFall (const SolverChoice& sc)
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Jacobian determinant
-                Real dJinv = (dJ_array) ? 1.0/dJ_array(i,j,k) : 1.0;
+                Real dJinv = (dJ_array) ? one/dJ_array(i,j,k) : one;
 
                 //==================================================
                 // Precipitating sedimentation (A19)
                 //==================================================
-                Real dqp = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
+                Real dqp = dJinv * (one/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
                 Real omp, omg;
                 if (SAM_moisture_type == 2) {
-                    omp = 1.0;
-                    omg = 0.0;
+                    omp = one;
+                    omg = zero;
                 } else {
-                    omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-                    omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                    omp = std::max(zero,std::min(one,(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(zero,std::min(one,(tabs_array(i,j,k)-tgrmin)*a_gr));
                 }
 
-                qpr_array(i,j,k) = std::max(0.0, qpr_array(i,j,k) + dqp*omp);
-                qps_array(i,j,k) = std::max(0.0, qps_array(i,j,k) + dqp*(1.0-omp)*(1.0-omg));
-                qpg_array(i,j,k) = std::max(0.0, qpg_array(i,j,k) + dqp*(1.0-omp)*omg);
+                qpr_array(i,j,k) = std::max(zero, qpr_array(i,j,k) + dqp*omp);
+                qps_array(i,j,k) = std::max(zero, qps_array(i,j,k) + dqp*(one-omp)*(one-omg));
+                qpg_array(i,j,k) = std::max(zero, qpg_array(i,j,k) + dqp*(one-omp)*omg);
                  qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
                  // NOTE: Sedimentation does not affect the potential temperature,

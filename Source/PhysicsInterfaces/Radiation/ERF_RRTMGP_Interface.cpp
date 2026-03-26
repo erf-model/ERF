@@ -115,7 +115,7 @@ get_subsampled_clouds (const int ncol,
     // even when separated by layers with no cloud properties, when in fact those layers should be
     // randomly overlapped.
     real2d_k cldfrac_rad("cldfrac_rad", ncol, nlay);
-    Kokkos::deep_copy(cldfrac_rad, 0.0);
+    Kokkos::deep_copy(cldfrac_rad, zero);
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
@@ -136,7 +136,7 @@ get_subsampled_clouds (const int ncol,
     int1d_k seeds("seeds", ncol);
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
-        seeds(icol) = 1.0e9 * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
+        seeds(icol) = amrex::Real(1.0e9) * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
     });
     auto cldmask = get_subcolumn_mask(ncol, nlay, ngpt, cldfrac_rad, overlap, seeds);
 
@@ -183,7 +183,7 @@ get_subsampled_clouds (const int ncol,
     // even when separated by layers with no cloud properties, when in fact those layers should be
     // randomly overlapped.
     real2d_k cldfrac_rad("cldfrac_rad", ncol, nlay);
-    Kokkos::deep_copy(cldfrac_rad, 0.0);
+    Kokkos::deep_copy(cldfrac_rad, zero);
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
@@ -295,8 +295,8 @@ compute_band_by_band_surface_albedos (const int ncol,
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nswbands}),
                          KOKKOS_LAMBDA (int icol, int ibnd)
     {
-        // Threshold between visible and infrared is 0.7 micron, or 14286 cm^-1.
-        const RealT visible_wavenumber_threshold = 14286.0;
+        // Threshold between visible and infrared is amrex::Real(0.7) micron, or 14286 cm^-one
+        const RealT visible_wavenumber_threshold = amrex::Real(14286.0);
 
         // Wavenumber is in the visible if it is above the visible wavenumber
         // threshold, and in the infrared if it is below the threshold
@@ -315,8 +315,8 @@ compute_band_by_band_surface_albedos (const int ncol,
             // Band straddles the visible to near-infrared transition, so we take
             // the albedo to be the average of the visible and near-infrared
             // broadband albedos
-            sfc_alb_dir(icol,ibnd) = 0.5*(sfc_alb_dir_vis(icol) + sfc_alb_dir_nir(icol));
-            sfc_alb_dif(icol,ibnd) = 0.5*(sfc_alb_dif_vis(icol) + sfc_alb_dif_nir(icol));
+            sfc_alb_dir(icol,ibnd) = myhalf*(sfc_alb_dir_vis(icol) + sfc_alb_dir_nir(icol));
+            sfc_alb_dif(icol,ibnd) = myhalf*(sfc_alb_dif_vis(icol) + sfc_alb_dif_nir(icol));
         }
     });
 }
@@ -337,10 +337,10 @@ compute_broadband_surface_fluxes (const int ncol,
     // TODO: Hard-coding these band indices is really bad practice. If the bands ever were to change (like when
     // the RRTMG bands were re-ordered for RRTMGP), we would be using the wrong bands for the IR and UV/VIS. This
     // should be refactored to grab the correct bands by specifying appropriate wavenumber rather than index.
-    //sfc_flux_dir_nir(i) = sum(sw_bnd_flux_dir(i+1,kbot,1:9))   + 0.5 * sw_bnd_flux_dir(i+1,kbot,10);
-    //sfc_flux_dir_vis(i) = sum(sw_bnd_flux_dir(i+1,kbot,11:14)) + 0.5 * sw_bnd_flux_dir(i+1,kbot,10);
-    //sfc_flux_dif_nir(i) = sum(sw_bnd_flux_dif(i+1,kbot,1:9))   + 0.5 * sw_bnd_flux_dif(i+1,kbot,10);
-    //sfc_flux_dif_vis(i) = sum(sw_bnd_flux_dif(i+1,kbot,11:14)) + 0.5 * sw_bnd_flux_dif(i+1,kbot,10);
+    //sfc_flux_dir_nir(i) = sum(sw_bnd_flux_dir(i+1,kbot,1:9))   + myhalf * sw_bnd_flux_dir(i+1,kbot,10);
+    //sfc_flux_dir_vis(i) = sum(sw_bnd_flux_dir(i+1,kbot,11:14)) + myhalf * sw_bnd_flux_dir(i+1,kbot,10);
+    //sfc_flux_dif_nir(i) = sum(sw_bnd_flux_dif(i+1,kbot,1:9))   + myhalf * sw_bnd_flux_dif(i+1,kbot,10);
+    //sfc_flux_dif_vis(i) = sum(sw_bnd_flux_dif(i+1,kbot,11:14)) + myhalf * sw_bnd_flux_dif(i+1,kbot,10);
 
     // Initialize sums over bands
     Kokkos::deep_copy(sfc_flux_dir_nir, 0);
@@ -348,8 +348,8 @@ compute_broadband_surface_fluxes (const int ncol,
     Kokkos::deep_copy(sfc_flux_dif_nir, 0);
     Kokkos::deep_copy(sfc_flux_dif_vis, 0);
 
-    // Threshold between visible and infrared is 0.7 micron, or 14286 cm^-1.
-    const RealT visible_wavenumber_threshold = 14286.0;
+    // Threshold between visible and infrared is amrex::Real(0.7) micron, or 14286 cm^-one
+    const RealT visible_wavenumber_threshold = amrex::Real(14286.0);
     auto wavenumber_limits = k_dist_sw_k->get_band_lims_wavenumber();
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(const int icol)
     {
@@ -368,12 +368,12 @@ compute_broadband_surface_fluxes (const int ncol,
                 sfc_flux_dir_nir(icol) += sw_bnd_flux_dir(icol,kbot,ibnd);
                 sfc_flux_dif_nir(icol) += sw_bnd_flux_dif(icol,kbot,ibnd);
             } else {
-                // Band straddles the visible to near-infrared transition, so put half
-                // the flux in visible and half in near-infrared fluxes
-                sfc_flux_dir_vis(icol) += 0.5 * sw_bnd_flux_dir(icol,kbot,ibnd);
-                sfc_flux_dif_vis(icol) += 0.5 * sw_bnd_flux_dif(icol,kbot,ibnd);
-                sfc_flux_dir_nir(icol) += 0.5 * sw_bnd_flux_dir(icol,kbot,ibnd);
-                sfc_flux_dif_nir(icol) += 0.5 * sw_bnd_flux_dif(icol,kbot,ibnd);
+                // Band straddles the visible to near-infrared transition, so put myhalf
+                // the flux in visible and myhalf in near-infrared fluxes
+                sfc_flux_dir_vis(icol) += myhalf * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_vis(icol) += myhalf * sw_bnd_flux_dif(icol,kbot,ibnd);
+                sfc_flux_dir_nir(icol) += myhalf * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_nir(icol) += myhalf * sw_bnd_flux_dif(icol,kbot,ibnd);
             }
         }
     });
@@ -555,7 +555,7 @@ get_subcolumn_mask (const int ncol,
     } else {  // Default case, maximum-random overlap
         // Maximum-random overlap:
         // Uses essentially the algorithm described in eq (14) in Raisanen et al. 2004,
-        // https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1256/qj.03.99. Also the same
+        // https://rmets.onlinelibrary.wiley.com/doi/epdf/amrex::Real(10.1256)/qj.03.99. Also the same
         // algorithm used in RRTMG implementation of maximum-random overlap (see
         // https://github.com/AER-RC/RRTMG_SW/blob/master/src/mcica_subcol_gen_sw.f90)
         //
@@ -573,17 +573,17 @@ get_subcolumn_mask (const int ncol,
         {
             for (int ilay = 1; ilay < nlay; ilay++) {
                 // Check cldx in level above and see if it satisfies conditions to create a cloudy subcolumn
-                if (cldx(icol,ilay-1,igpt) > 1.0 - cldf(icol,ilay-1)) {
+                if (cldx(icol,ilay-1,igpt) > one - cldf(icol,ilay-1)) {
                     // Cloudy subcolumn above, use same random number here so that clouds in these two adjacent
                     // layers are maximimally overlapped
                     cldx(icol,ilay,igpt) = cldx(icol,ilay-1,igpt);
                 } else {
                     // Cloud-less above, use new random number so that clouds are distributed
                     // randomly in this layer. Need to scale new random number to range
-                    // [0, 1.0 - cldf(ilay-1)] because we have artificially changed the distribution
+                    // [0, one - cldf(ilay-1)] because we have artificially changed the distribution
                     // of random numbers in this layer with the above branch of the conditional,
                     // which would otherwise inflate cloud fraction in this layer.
-                    cldx(icol,ilay,igpt) = cldx(icol,ilay  ,igpt) * (1.0 - cldf(icol,ilay-1));
+                    cldx(icol,ilay,igpt) = cldx(icol,ilay  ,igpt) * (one - cldf(icol,ilay-1));
                 }
             }
         });
@@ -593,7 +593,7 @@ get_subcolumn_mask (const int ncol,
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
                              KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
-        if (cldx(icol,ilay,igpt) > 1.0 - cldf(icol,ilay)) {
+        if (cldx(icol,ilay,igpt) > one - cldf(icol,ilay)) {
             subcolumn_mask(icol,ilay,igpt) = 1;
         } else {
             subcolumn_mask(icol,ilay,igpt) = 0;
@@ -992,23 +992,23 @@ rrtmgp_lw (const int ncol,
     {
         emis_sfc_T(ibnd,icol) = sfc_emis(icol);
     });
-    //Kokkos::deep_copy(emis_sfc_T, 0.98);
+    //Kokkos::deep_copy(emis_sfc_T, amrex::Real(0.98));
 
     // Get Gaussian quadrature weights
     // Weights and angle secants for first order (k=1) Gaussian quadrature.
-    //   Values from Table 2, Clough et al, 1992, doi:10.1029/92JD01419
+    //   Values from Table 2, Clough et al, 1992, doi:Real(10.1029)/92JD01419
     //   after Abramowitz & Stegun 1972, page 921
     int constexpr max_gauss_pts = 4;
-    RealT gauss_Ds_host_raw[max_gauss_pts][max_gauss_pts] = { {1.66, 1.18350343, 1.09719858, 1.06056257},
-                                                              {0.  , 2.81649655, 1.69338507, 1.38282560},
-                                                              {0.  , 0.        , 4.70941630, 2.40148179},
-                                                              {0.  , 0.        , 0.        , 7.15513024} };
+    RealT gauss_Ds_host_raw[max_gauss_pts][max_gauss_pts] = { {amrex::Real(1.66), amrex::Real(1.18350343), amrex::Real(1.09719858), amrex::Real(1.06056257)},
+                                                              {zero  , amrex::Real(2.81649655), amrex::Real(1.69338507), amrex::Real(1.38282560)},
+                                                              {zero  , zero        , amrex::Real(4.70941630), amrex::Real(2.40148179)},
+                                                              {zero  , zero        , zero        , amrex::Real(7.15513024)} };
     realHost2d_k gauss_Ds_host(&gauss_Ds_host_raw[0][0], max_gauss_pts, max_gauss_pts);
 
-    RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {0.5, 0.3180413817, 0.2009319137, 0.1355069134},
-                                                               {0. , 0.1819586183, 0.2292411064, 0.2034645680},
-                                                               {0. , 0.          , 0.0698269799, 0.1298475476},
-                                                               {0. , 0.          , 0.          , 0.0311809710} };
+    RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {myhalf, amrex::Real(0.3180413817), amrex::Real(0.2009319137), amrex::Real(0.1355069134)},
+                                                               {zero , amrex::Real(0.1819586183), amrex::Real(0.2292411064), amrex::Real(0.2034645680)},
+                                                               {zero , zero          , amrex::Real(0.0698269799), amrex::Real(0.1298475476)},
+                                                               {zero , zero          , zero          , amrex::Real(0.0311809710)} };
     realHost2d_k gauss_wts_host(&gauss_wts_host_raw[0][0],max_gauss_pts,max_gauss_pts);
 
     real2d_k gauss_Ds ("gauss_Ds" ,max_gauss_pts,max_gauss_pts);
@@ -1072,18 +1072,18 @@ compute_cloud_area (int ncol,
     // Subcolumn binary cld mask; if any layers with pressure between pmin and pmax are cloudy
     // then 2d subcol mask is 1, otherwise it is 0
     real2d_k subcol_mask("subcol_mask", ncol, ngpt);
-    Kokkos::deep_copy(subcol_mask, 0.0);
+    Kokkos::deep_copy(subcol_mask, zero);
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
                          KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         // NOTE: using plev would need to assume level ordering (top to bottom or bottom to top), but
         // using play/pmid does not
         if (cld_tau_gpt(icol,ilay,igpt) > 0 && pmid(icol,ilay) >= pmin && pmid(icol,ilay) < pmax) {
-            subcol_mask(icol,igpt) = 1.0;
+            subcol_mask(icol,igpt) = one;
         }
     });
     // Compute average over subcols to get cloud area
-    auto ngpt_inv = 1.0 / ngpt;
+    auto ngpt_inv = one / ngpt;
     Kokkos::deep_copy(cld_area, 0);
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
@@ -1151,24 +1151,24 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
      * equation 13, the column counterpart.
      */
     // Set outputs to zero
-    Kokkos::deep_copy(T_mid_at_cldtop, 0.0);
-    Kokkos::deep_copy(p_mid_at_cldtop, 0.0);
-    Kokkos::deep_copy(cldfrac_ice_at_cldtop, 0.0);
-    Kokkos::deep_copy(cldfrac_liq_at_cldtop, 0.0);
-    Kokkos::deep_copy(cldfrac_tot_at_cldtop, 0.0);
-    Kokkos::deep_copy(cdnc_at_cldtop, 0.0);
-    Kokkos::deep_copy(eff_radius_qc_at_cldtop, 0.0);
-    Kokkos::deep_copy(eff_radius_qi_at_cldtop, 0.0);
+    Kokkos::deep_copy(T_mid_at_cldtop, zero);
+    Kokkos::deep_copy(p_mid_at_cldtop, zero);
+    Kokkos::deep_copy(cldfrac_ice_at_cldtop, zero);
+    Kokkos::deep_copy(cldfrac_liq_at_cldtop, zero);
+    Kokkos::deep_copy(cldfrac_tot_at_cldtop, zero);
+    Kokkos::deep_copy(cdnc_at_cldtop, zero);
+    Kokkos::deep_copy(eff_radius_qc_at_cldtop, zero);
+    Kokkos::deep_copy(eff_radius_qi_at_cldtop, zero);
 
     // Initialize the 1D "clear fraction" as 1 (totally clear)
     real1d_k aerocom_clr("aerocom_clr", ncol);
-    Kokkos::deep_copy(aerocom_clr, 1.0);
+    Kokkos::deep_copy(aerocom_clr, one);
 
     // TODO: move tunable constant to namelist
-    constexpr RealT q_threshold = 0.0;  // BAD_CONSTANT!
+    constexpr RealT q_threshold = zero;  // BAD_CONSTANT!
 
     // TODO: move tunable constant to namelist
-    constexpr RealT cldfrac_tot_threshold = 0.001;  // BAD_CONSTANT!
+    constexpr RealT cldfrac_tot_threshold = amrex::Real(0.001);  // BAD_CONSTANT!
 
     // Loop over all columns in parallel
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
@@ -1185,10 +1185,10 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
                 // probability of this level, where aerocom_clr is that of
                 // the previous level
                 auto aerocom_tmp = aerocom_clr(icol) *
-                                   (1.0 - std::max(cldfrac_tot(icol, ilay - 1),
+                                   (one - std::max(cldfrac_tot(icol, ilay - 1),
                                                    cldfrac_tot(icol, ilay))) /
-                                   (1.0 - std::min(cldfrac_tot(icol, ilay - 1),
-                                                   1.0 - cldfrac_tot_threshold));
+                                   (one - std::min(cldfrac_tot(icol, ilay - 1),
+                                                   one - cldfrac_tot_threshold));
                 // Temporary variable for probability "weights"
                 auto aerocom_wts = aerocom_clr(icol) - aerocom_tmp;
                 // Temporary variable for liquid "phase"
@@ -1202,7 +1202,7 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
                 // p_mid_at_cldtop
                 p_mid_at_cldtop(icol) += pmid(icol, ilay) * aerocom_wts;
                 // cldfrac_ice_at_cldtop
-                cldfrac_ice_at_cldtop(icol) += (1.0 - aerocom_phi) * aerocom_wts;
+                cldfrac_ice_at_cldtop(icol) += (one - aerocom_phi) * aerocom_wts;
                 // cldfrac_liq_at_cldtop
                 cldfrac_liq_at_cldtop(icol) += aerocom_phi * aerocom_wts;
                 // cdnc_at_cldtop
@@ -1217,7 +1217,7 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
                 // eff_radius_qc_at_cldtop
                 eff_radius_qc_at_cldtop(icol) += rel(icol, ilay) * aerocom_phi * aerocom_wts;
                 // eff_radius_qi_at_cldtop
-                eff_radius_qi_at_cldtop(icol) += rei(icol, ilay) * (1.0 - aerocom_phi) * aerocom_wts;
+                eff_radius_qi_at_cldtop(icol) += rei(icol, ilay) * (one - aerocom_phi) * aerocom_wts;
                 // Reset aerocom_clr to aerocom_tmp to accumulate
                 aerocom_clr(icol) = aerocom_tmp;
             }
@@ -1226,7 +1226,7 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
         // defined as (1 - aerocom_clr). This is true because
         // aerocom_clr is the result of accumulative probabilities
         // (their products)
-        cldfrac_tot_at_cldtop(icol) = 1.0 - aerocom_clr(icol);
+        cldfrac_tot_at_cldtop(icol) = one - aerocom_clr(icol);
     });
 }
 

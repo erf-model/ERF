@@ -1,7 +1,7 @@
     ParmParse pp_prob("prob");
-    Real U_0 = 0.0; pp_prob.query("U_0", U_0);
-    Real V_0 = 0.0; pp_prob.query("V_0", V_0);
-    Real W_0 = 0.0; pp_prob.query("W_0", W_0);
+    Real U_0 = zero; pp_prob.query("U_0", U_0);
+    Real V_0 = zero; pp_prob.query("V_0", V_0);
+    Real W_0 = zero; pp_prob.query("W_0", W_0);
 
     // Set the x-velocity
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

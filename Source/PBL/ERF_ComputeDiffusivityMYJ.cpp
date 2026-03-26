@@ -38,69 +38,69 @@ ComputeDiffusivityMYJ (Real dt,
     Real d_kappa = KAPPA;
 
     // Closure coefficients (from Janjic (2002), NCEP Office Note 437)
-    Real EPS1    = 1.0e-12;
-    Real EPS2    = 0.;
-    Real EPSRS   = 1.0e-7;
-    Real EPSRU   = 1.0e-7;
-    Real EPSTRB  = 1.0e-24;
-    Real EPSL    = 0.32;
-    Real EPSQ2   = 0.2;
+    Real EPS1    = Real(1.0e-12);
+    Real EPS2    = zero;
+    Real EPSRS   = Real(1.0e-7);
+    Real EPSRU   = Real(1.0e-7);
+    Real EPSTRB  = Real(1.0e-24);
+    Real EPSL    = Real(0.32);
+    Real EPSQ2   = Real(0.2);
     Real EPSQ1   = std::sqrt(EPSQ2);
-    Real ESQHF   = 2.5;
-    Real FH      = 1.01;
+    Real ESQHF   = Real(2.5);
+    Real FH      = Real(1.01);
 
     Real G       = CONST_GRAV;
-    Real ALPHA   = 0.3;
-    Real BETA    = 1./273.;
-    Real EL0MAX  = 1000.;
-    Real EL0MIN  = 1.;
-    Real ELFC    = 0.23*0.5;
+    Real ALPHA   = Real(0.3);
+    Real BETA    = one/Real(273.);
+    Real EL0MAX  = Real(1000.);
+    Real EL0MIN  = one;
+    Real ELFC    = Real(0.23)*myhalf;
 
-    Real A1  =  0.659888514560862645;
-    Real A2x =  0.6574209922667784586;
-    Real B1  = 11.87799326209552761;
-    Real B2  =  7.226971804046074028;
-    Real C1  =  0.000830955950095854396;
+    Real A1  =  Real(0.659888514560862645);
+    Real A2x =  Real(0.6574209922667784586);
+    Real B1  = Real(11.87799326209552761);
+    Real B2  =  Real(7.226971804046074028);
+    Real C1  =  Real(0.000830955950095854396);
 
     Real BTG    = BETA*G;
-    Real RB1    = 1./B1;
+    Real RB1    = one/B1;
 
-    Real ADNH  = 9.*A1*A2x*A2x*(12.*A1+3.*B2)*BTG*BTG;
-    Real ADNM  = 18.*A1*A1*A2x*(B2-3.*A2x)*BTG;
-    Real ANMH  = -9.*A1*A2x*A2x*BTG*BTG;
-    Real ANMM  = -3.*A1*A2x*(3.*A2x+3.*B2*C1+18.*A1*C1-B2)*BTG;
-    Real BDNH  = 3.*A2x*(7.*A1+B2)*BTG;
-    Real BDNM  = 6.*A1*A1;
-    Real BEQH  = A2x*B1*BTG+3.*A2x*(7.*A1+B2)*BTG;
-    Real BEQM  = -A1*B1*(1.-3.*C1)+6.*A1*A1;
+    Real ADNH  = Real(9.)*A1*A2x*A2x*(Real(12.)*A1+three*B2)*BTG*BTG;
+    Real ADNM  = Real(18.)*A1*A1*A2x*(B2-three*A2x)*BTG;
+    Real ANMH  = -Real(9.)*A1*A2x*A2x*BTG*BTG;
+    Real ANMM  = -three*A1*A2x*(three*A2x+three*B2*C1+Real(18.)*A1*C1-B2)*BTG;
+    Real BDNH  = three*A2x*(Real(7.)*A1+B2)*BTG;
+    Real BDNM  = Real(6.)*A1*A1;
+    Real BEQH  = A2x*B1*BTG+three*A2x*(Real(7.)*A1+B2)*BTG;
+    Real BEQM  = -A1*B1*(one-three*C1)+Real(6.)*A1*A1;
     Real BNMH  = -A2x*BTG;
-    Real BNMM  = A1*(1.-3.*C1);
-    Real BSHH  = 9.*A1*A2x*A2x*BTG;
-    Real BSHM  = 18.*A1*A1*A2x*C1;
-    Real BSMH  = -3.*A1*A2x*(3.*A2x+3.*B2*C1+12.*A1*C1-B2)*BTG;
+    Real BNMM  = A1*(one-three*C1);
+    Real BSHH  = Real(9.)*A1*A2x*A2x*BTG;
+    Real BSHM  = Real(18.)*A1*A1*A2x*C1;
+    Real BSMH  = -three*A1*A2x*(three*A2x+three*B2*C1+Real(12.)*A1*C1-B2)*BTG;
     Real CESH  = A2x;
-    Real CESM  = A1*(1.-3.*C1);
+    Real CESM  = A1*(one-three*C1);
 
-    Real AEQH = 9.*A1*A2x*A2x*B1*BTG*BTG
-              + 9.*A1*A2x*A2x*(12.*A1+3.*B2)*BTG*BTG;
-    Real AEQM =  3.*A1*A2x*B1*(3.*A2x+3.*B2*C1+18.*A1*C1-B2)*BTG
-              + 18.*A1*A1*A2x*(B2-3.*A2x)*BTG;
+    Real AEQH = Real(9.)*A1*A2x*A2x*B1*BTG*BTG
+              + Real(9.)*A1*A2x*A2x*(Real(12.)*A1+three*B2)*BTG*BTG;
+    Real AEQM =  three*A1*A2x*B1*(three*A2x+three*B2*C1+Real(18.)*A1*C1-B2)*BTG
+              + Real(18.)*A1*A1*A2x*(B2-three*A2x)*BTG;
 
     Real REQU  = -AEQH/AEQM;
-    Real EPSGH = 1.E-9;
+    Real EPSGH = Real(1.E-9);
     Real EPSGM = REQU*EPSGH;
 
-    Real UBRYL = (18.*REQU*A1*A1*A2x*B2*C1*BTG + 9.*A1*A2x*A2x*B2*BTG*BTG)
+    Real UBRYL = (Real(18.)*REQU*A1*A1*A2x*B2*C1*BTG + Real(9.)*A1*A2x*A2x*B2*BTG*BTG)
                / (REQU*ADNM+ADNH);
-    Real UBRY  = (1.+EPSRS)*UBRYL;
-    Real UBRY3 = 3.*UBRY;
+    Real UBRY  = (one+EPSRS)*UBRYL;
+    Real UBRY3 = three*UBRY;
 
-    Real AUBH  = 27.*A1*A2x*A2x*B2*BTG*BTG-ADNH*UBRY3;
-    Real AUBM  = 54.*A1*A1*A2x*B2*C1*BTG-ADNM*UBRY3;
-    Real BUBH  = (9.*A1*A2x+3.*A2x*B2)*BTG-BDNH*UBRY3;
-    Real BUBM  = 18.*A1*A1*C1-BDNM*UBRY3;
-    Real CUBR  = 1.-UBRY3;
-    Real RCUBR = 1./CUBR;
+    Real AUBH  = Real(27.)*A1*A2x*A2x*B2*BTG*BTG-ADNH*UBRY3;
+    Real AUBM  = Real(54.)*A1*A1*A2x*B2*C1*BTG-ADNM*UBRY3;
+    Real BUBH  = (Real(9.)*A1*A2x+three*A2x*B2)*BTG-BDNH*UBRY3;
+    Real BUBM  = Real(18.)*A1*A1*C1-BDNM*UBRY3;
+    Real CUBR  = one-UBRY3;
+    Real RCUBR = one/CUBR;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -130,7 +130,7 @@ ComputeDiffusivityMYJ (Real dt,
         FArrayBox qturb(bx,1);
         FArrayBox qintegral(xybx,2);
         IArrayBox pbl_k(xybx,1);
-        qintegral.setVal<RunOn::Device>(0.0);
+        qintegral.setVal<RunOn::Device>(0);
         pbl_k.setVal<RunOn::Device>(khi);
         const Array4<Real> qint  = qintegral.array();
         const Array4<Real> qvel  = qturb.array();
@@ -152,8 +152,8 @@ ComputeDiffusivityMYJ (Real dt,
             {
                 // Locate PBL k index and set qvel
                 for (int k(klo); k<=khi; ++k) {
-                    Real q2 = 2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > 0.0, "KE must have a positive value");
+                    Real q2 = two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > zero, "KE must have a positive value");
                     qvel(i,j,k) = std::sqrt(q2);
                     if (q2<=EPSQ2*FH) {
                         k_arr(i,j,0) = std::min(k,k_arr(i,j,0));
@@ -173,8 +173,8 @@ ComputeDiffusivityMYJ (Real dt,
             {
                 // Locate PBL k index and set qvel
                 for (int k(klo); k<=khi; ++k) {
-                    Real q2 = 2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > 0.0, "KE must have a positive value");
+                    Real q2 = two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > zero, "KE must have a positive value");
                     qvel(i,j,k) = std::sqrt(q2);
                     if (q2<=EPSQ2*FH) {
                         k_arr(i,j,0) = std::min(k,k_arr(i,j,0));
@@ -184,7 +184,7 @@ ComputeDiffusivityMYJ (Real dt,
                 // Perform integral over PBL height
                 for (int k(klo); k<=k_arr(i,j,0); ++k) {
                     // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
-                    const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                    const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                     Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                     Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
                 }
@@ -203,7 +203,7 @@ ComputeDiffusivityMYJ (Real dt,
             // Compute diffusivities in each column
             for (int k(klo); k<=khi; ++k) {
                 // Gradients for shear and buoy production
-                const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
+                const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
                 Real dthetavdz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k,
                                               uvel, vvel, cell_data, izmin, izmax, dxInv[2]/met_h_zeta,
@@ -228,15 +228,15 @@ ComputeDiffusivityMYJ (Real dt,
                     } else {
                       Real AUBR   = (AUBM*GML+AUBH*GHL)*GHL;
                       Real BUBR   = BUBM*GML+BUBH*GHL;
-                      Real QOL2ST = (-0.5*BUBR+std::sqrt(BUBR*BUBR*0.25-AUBR*CUBR))*RCUBR;
-                      Real ELOQ2X = 1./QOL2ST;
+                      Real QOL2ST = (-myhalf*BUBR+std::sqrt(BUBR*BUBR*fourth-AUBR*CUBR))*RCUBR;
+                      Real ELOQ2X = one/QOL2ST;
                       ELM = std::max(std::sqrt(ELOQ2X*qvel(i,j,k)*qvel(i,j,k)),EPSL);
                     }
                 } else {
                     Real ADEN   = (ADNM*GML+ADNH*GHL)*GHL;
                     Real BDEN   = BDNM*GML+BDNH*GHL;
-                    Real QOL2UN = -0.5*BDEN+std::sqrt(BDEN*BDEN*0.25-ADEN);
-                    Real ELOQ2X = 1./(QOL2UN+EPSRU);
+                    Real QOL2UN = -myhalf*BDEN+std::sqrt(BDEN*BDEN*fourth-ADEN);
+                    Real ELOQ2X = one/(QOL2UN+EPSRU);
                     ELM = std::max(std::sqrt(ELOQ2X*qvel(i,j,k)*qvel(i,j,k)),EPSL);
                 }
 
@@ -246,7 +246,7 @@ ComputeDiffusivityMYJ (Real dt,
                     L = std::min((met_h_zeta/dxInv[2])*ELFC, ELM);
                 } else {
                     const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                                                : gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                                                                : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                     L = std::min(l0*d_kappa*zval / (d_kappa*zval + l0), ELM);
                 }
 
@@ -254,7 +254,7 @@ ComputeDiffusivityMYJ (Real dt,
                 Real AEQU  = (AEQM*GML+AEQH*GHL)*GHL;
                 Real BEQU  = BEQM*GML+BEQH*GHL;
 
-                Real EQOL2 = -0.5*BEQU+std::sqrt(BEQU*BEQU*0.25-AEQU);
+                Real EQOL2 = -myhalf*BEQU+std::sqrt(BEQU*BEQU*fourth-AEQU);
 
                 if ( ((GML+GHL*GHL)<=EPSTRB) ||
                      ((GHL>=EPSGH) && ((GML/GHL)<=REQU)) ||
@@ -267,21 +267,21 @@ ComputeDiffusivityMYJ (Real dt,
 
                     Real ADEN=(ADNM*GML+ADNH*GHL)*GHL;
                     Real BDEN= BDNM*GML+BDNH*GHL;
-                    Real CDEN= 1.;
+                    Real CDEN= one;
 
-                    Real ARHS=-(ANUM*BDEN-BNUM*ADEN)*2.;
-                    Real BRHS=- ANUM*4.;
-                    Real CRHS=- BNUM*2.;
+                    Real ARHS=-(ANUM*BDEN-BNUM*ADEN)*two;
+                    Real BRHS=- ANUM*Real(4.);
+                    Real CRHS=- BNUM*two;
 
                     Real DLOQ1=L/qvel(i,j,k);
 
-                    Real ELOQ21=1./EQOL2;
+                    Real ELOQ21=one/EQOL2;
                     Real ELOQ11=std::sqrt(ELOQ21);
                     Real ELOQ31=ELOQ21*ELOQ11;
                     Real ELOQ41=ELOQ21*ELOQ21;
                     Real ELOQ51=ELOQ21*ELOQ31;
 
-                    Real RDEN1=1./(ADEN*ELOQ41+BDEN*ELOQ21+CDEN);
+                    Real RDEN1=one/(ADEN*ELOQ41+BDEN*ELOQ21+CDEN);
 
                     Real RHSP1=(ARHS*ELOQ51+BRHS*ELOQ31+CRHS*ELOQ11)*RDEN1*RDEN1;
 
@@ -293,7 +293,7 @@ ComputeDiffusivityMYJ (Real dt,
                     Real ELOQ42=ELOQ22*ELOQ22;
                     Real ELOQ52=ELOQ22*ELOQ32;
 
-                    Real RDEN2=1./(ADEN*ELOQ42+BDEN*ELOQ22+CDEN);
+                    Real RDEN2=one/(ADEN*ELOQ42+BDEN*ELOQ22+CDEN);
                     Real RHS2 =-(ANUM*ELOQ42+BNUM*ELOQ22)*RDEN2+RB1;
                     Real RHSP2= (ARHS*ELOQ52+BRHS*ELOQ32+CRHS*ELOQ12)*RDEN2*RDEN2;
                     Real RHST2=RHS2/RHSP2;
@@ -312,12 +312,12 @@ ComputeDiffusivityMYJ (Real dt,
                 /*
                 // Boundary condition
                 if (k==klo) {
-                    Real q2 = std::pow(B1,(2./3.))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
+                    Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
                     Real q  = std::max(std::sqrt(q2),EPSQ1);
-                    qvel(i,j,k) = 0.5 * (q + qvel(i,j,k));
+                    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
                 }
                 */
-                cell_data(i,j,k,RhoKE_comp) = 0.5*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
+                cell_data(i,j,k,RhoKE_comp) = myhalf*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
 
                 // L^n/Q^n
                 Real ELOQ2 = L*L/(qvel(i,j,k)*qvel(i,j,k));
@@ -326,7 +326,7 @@ ComputeDiffusivityMYJ (Real dt,
                 // COEFFICIENTS OF THE TERMS IN THE DENOMINATOR
                 Real ADEN=(ADNM*GML+ADNH*GHL)*GHL;
                 Real BDEN= BDNM*GML+BDNH*GHL;
-                Real CDEN= 1.;
+                Real CDEN= one;
 
                 // COEFFICIENTS FOR THE SM DETERMINANT
                 Real BESM=BSMH*GHL;
@@ -334,8 +334,8 @@ ComputeDiffusivityMYJ (Real dt,
                 // COEFFICIENTS FOR THE SH DETERMINANT
                 Real BESH=BSHM*GML+BSHH*GHL;
 
-                // 1./DENOMINATOR
-                Real RDEN=1./(ADEN*ELOQ4+BDEN*ELOQ2+CDEN);
+                // one/DENOMINATOR
+                Real RDEN=one/(ADEN*ELOQ4+BDEN*ELOQ2+CDEN);
 
                 // SM, SH, SQ
                 Real SM=(BESM*ELOQ2+CESM)*RDEN;

@@ -130,7 +130,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     //
 
     // Relaxation constants
-    Real F1 = 1./(nudge_factor*delta_t);
+    Real F1 = one/(nudge_factor*delta_t);
 
     // Time interpolation
     Real dT = bdy_time_interval;
@@ -143,15 +143,15 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     if (time >= final_bdy_time) {
       n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
       n_time_p1 = n_time;
-      alpha     = 0.0;
+      alpha     = zero;
     }
 
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     /*
     // UNIT TEST DEBUG
-    oma = 1.0; alpha = 0.0;
+    oma = one; alpha = zero;
     */
 
     // Temporary FABs for storage (owned/filled on all ranks)
@@ -287,9 +287,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -312,9 +312,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -339,9 +339,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -364,9 +364,9 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -448,7 +448,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             tbx_ylo, tbx_yhi);
             ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-              if (std::fabs(arr_xlo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
+              if (std::fabs(arr_xlo(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
                 Print() << "ERROR XLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                 Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xlo(i,j,k) << "\n";
                 exit(0);
@@ -456,7 +456,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             });
             ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-              if (std::fabs(arr_xhi(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
+              if (std::fabs(arr_xhi(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
                 Print() << "ERROR XHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                 Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xhi(i,j,k) << "\n";
                 exit(0);
@@ -464,7 +464,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             });
             ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-              if (std::fabs(arr_ylo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
+              if (std::fabs(arr_ylo(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
                 Print() << "ERROR YLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                 Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_ylo(i,j,k) << "\n";
                 exit(0);
@@ -472,7 +472,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             });
             ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-              if (std::fabs(arr_yhi(i,j,k)-data_arr(i,j,k,icomp)) > 0.01) {
+              if (std::fabs(arr_yhi(i,j,k)-data_arr(i,j,k,icomp)) > Real(0.01)) {
                 Print() << "ERROR YHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                 Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_yhi(i,j,k) << "\n";
                 exit(0);
@@ -518,8 +518,8 @@ fine_compute_interior_ghost_rhs (const Real& time,
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
     // Relaxation constants
-    Real F1 = 1./(10.*delta_t);
-    Real F2 = 1./(50.*delta_t);
+    Real F1 = one/(Real(10.)*delta_t);
+    Real F2 = one/(Real(50.)*delta_t);
 
     // Vector of MFs to hold data (dm differs w/ fine patch)
     Vector<MultiFab> fmf_p_v;
@@ -582,7 +582,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -609,7 +609,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -636,7 +636,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -660,7 +660,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
-                    rhs_arr(i,j,k) = 0.0;
+                    rhs_arr(i,j,k) = zero;
                 }
             });
         } // mfi
@@ -727,15 +727,15 @@ fine_compute_interior_ghost_rhs (const Real& time,
 
                    // Found a nearby masked cell (valid n_ind)
                    if (mask_x_found && mask_y_found) {
-                       n_ind = std::min(ii,jj) + 1.0;
+                       n_ind = std::min(ii,jj) + one;
                    } else if (mask_x_found) {
-                       n_ind = ii + 1.0;
+                       n_ind = ii + one;
                    } else if (mask_y_found) {
-                       n_ind = jj + 1.0;
+                       n_ind = jj + one;
                    // Pesky corner cell
                    } else {
                        if (near_x_lo_wall || near_x_hi_wall) {
-                           Real dj_min{width-1.0};
+                           Real dj_min{width-one};
                            int j_lb = std::max(vbx_lo.y,j-width);
                            int j_ub = std::min(vbx_hi.y,j+width);
                            int li   = (near_x_lo_wall) ? vbx_lo.x : vbx_hi.x;
@@ -747,12 +747,12 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            }
                            if (mask_y_found) {
                                Real mag = sqrt( Real(dj_min*dj_min + ii*ii) );
-                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near x wall!");
                            }
                        } else if (near_y_lo_wall || near_y_hi_wall) {
-                           Real di_min{width-1.0};
+                           Real di_min{width-one};
                            int i_lb = std::max(vbx_lo.x,i-width);
                            int i_ub = std::min(vbx_hi.x,i+width);
                            int lj   = (near_y_lo_wall) ? vbx_lo.y : vbx_hi.y;
@@ -764,7 +764,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            }
                            if (mask_x_found) {
                                Real mag = sqrt( Real(di_min*di_min + jj*jj) );
-                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near y wall!");
                            }
@@ -784,7 +784,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                   Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+                   Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - Real(4.0)*delta;
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
                }
             });

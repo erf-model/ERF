@@ -1,6 +1,6 @@
     ParmParse pp_prob("prob");
 
-    Real advection_heating_rate =   0.0; pp_prob.query("advection_heating_rate", advection_heating_rate);
+    Real advection_heating_rate =   zero; pp_prob.query("advection_heating_rate", advection_heating_rate);
 
     // If the z coordinate varies in time and or space, then the the height
     // needs to be calculated at each time step. Here, we assume that only

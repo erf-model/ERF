@@ -90,7 +90,7 @@ read_from_wrfinput (int lev,
                 Warning("Fewer vertical levels in ERF domain than the wrfinput");
             }
 
-            Real rtol  = 1.0e-7;
+            Real rtol  = Real(1.0e-7);
             Real Len_x = NC_dx * Real(NC_nx-1);
             Real Len_y = NC_dy * Real(NC_ny-1);
             if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {

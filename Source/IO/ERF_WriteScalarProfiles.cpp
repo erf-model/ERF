@@ -23,10 +23,10 @@ ERF::sum_integrated_quantities (Real time)
     Real mass_sl;
 
     // Multilevel sums
-    Real mass_ml = 0.0;
-    Real rhth_ml = 0.0;
-    Real scal_ml = 0.0;
-    Real mois_ml = 0.0;
+    Real mass_ml = zero;
+    Real rhth_ml = zero;
+    Real scal_ml = zero;
+    Real mois_ml = zero;
 
     bool local = true;
 
@@ -45,7 +45,7 @@ ERF::sum_integrated_quantities (Real time)
 
     Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,dJ0,mfx0,mfy0,false);
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,dJ0,mfx0,mfy0,false);
-    Real mois_sl = 0.0;
+    Real mois_sl = zero;
     if (solverChoice.moisture_type != MoistureType::None) {
         int n_qstate_moist = micro->Get_Qstate_Moist_Size();
         for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
@@ -84,9 +84,9 @@ ERF::sum_integrated_quantities (Real time)
         h_avg_olen[0]  /= area_z;
 
     } else {
-        h_avg_ustar[0] = 0.;
-        h_avg_tstar[0] = 0.;
-        h_avg_olen[0]  = 0.;
+        h_avg_ustar[0] = zero;
+        h_avg_tstar[0] = zero;
+        h_avg_olen[0]  = zero;
     }
 
     const int nfoo = 8;
@@ -136,7 +136,7 @@ ERF::sum_integrated_quantities (Real time)
             int n_d = 0;
             std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
-                if (time == 0.0) {
+                if (time == zero) {
                     data_log1 << std::setw(datwidth) << "          time";
                     data_log1 << std::setw(datwidth) << "          u_star";
                     data_log1 << std::setw(datwidth) << "          t_star";
@@ -288,7 +288,7 @@ ERF::sum_derived_quantities (Real time)
 
         std::ostream& data_log_der = DerDataLog(0);
 
-        if (time == 0.0) {
+        if (time == zero) {
             data_log_der << std::setw(datwidth) << "          time";
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
@@ -363,13 +363,13 @@ ERF::sum_energy_quantities (Real time)
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : 0.0;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : 0.0;
+            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
+            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
             Real Qt   = Qv + Qc;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
-            Real Rhot = Rhod * (1.0 + Qt);
+            Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
-            Real TKE  = 0.5 * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+            Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
             Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
@@ -380,7 +380,7 @@ ERF::sum_energy_quantities (Real time)
 
             tot_mass_arr(i,j,k)   = Rhot;
             tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
-                                           + (1.0 + Qt)*TKE + (1.0 + Qt)*CONST_GRAV*zval );
+                                           + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
 
@@ -431,7 +431,7 @@ ERF::sum_energy_quantities (Real time)
 
         std::ostream& data_log_energy = *tot_e_datalog[0];
 
-        if (time == 0.0) {
+        if (time == zero) {
             data_log_energy << std::setw(datwidth) << "          time";
             data_log_energy << std::setw(datwidth) << "      tot_mass";
             data_log_energy << std::setw(datwidth) << "    tot_energy";
@@ -656,7 +656,7 @@ ERF::is_it_time_for_action (int nstep, Real time, Real dtlev, int action_interva
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 
   bool per_test = false;
-  if (action_per > 0.0) {
+  if (action_per > zero) {
     const int num_per_old = static_cast<int>(amrex::Math::floor((time - dtlev) / action_per));
     const int num_per_new = static_cast<int>(amrex::Math::floor((time) / action_per));
 

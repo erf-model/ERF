@@ -21,32 +21,32 @@
     Gpu::DeviceVector<Real> d_q_v(khi+2);
 
     ParmParse pp_prob("prob");
-    Real q_t = 0.02;
+    Real q_t = amrex::Real(0.02);
     pp_prob.query("qt_init",q_t);
 
-    Real eq_pot_temp = 320.0;
+    Real eq_pot_temp = amrex::Real(320.0);
     pp_prob.query("eq_pot_temp",eq_pot_temp);
 
     bool use_empirical = false;
     pp_prob.query("use_empirical_psat",use_empirical);
 
-    Real height = 1200.0;
+    Real height = amrex::Real(1200.0);
     pp_prob.query("height",height);
 
-    Real z_tr = 12000.0;
+    Real z_tr = amrex::Real(12000.0);
     pp_prob.query("z_tr",z_tr);
 
-    Real x_c  = 0.0  ; pp_prob.query("x_c", x_c);
-    Real z_c  = 1.5e3; pp_prob.query("z_c", z_c);
-    Real x_r  = 4.0e3; pp_prob.query("x_r", x_r);
-    Real z_r  = 1.5e3; pp_prob.query("z_r", z_r);
-    Real T_tr = 213.0; pp_prob.query("T_tr", T_tr);
-    Real theta_c = 3.0; pp_prob.query("theta_c", theta_c);
+    Real x_c  = zero  ; pp_prob.query("x_c", x_c);
+    Real z_c  = amrex::Real(1.5e3); pp_prob.query("z_c", z_c);
+    Real x_r  = amrex::Real(4.0e3); pp_prob.query("x_r", x_r);
+    Real z_r  = amrex::Real(1.5e3); pp_prob.query("z_r", z_r);
+    Real T_tr = amrex::Real(213.0); pp_prob.query("T_tr", T_tr);
+    Real theta_c = three; pp_prob.query("theta_c", theta_c);
 
-    Real theta_0  = 300.0; pp_prob.query("theta_0", theta_0);
-    Real theta_tr = 343.0; pp_prob.query("theta_tr", theta_tr);
+    Real theta_0  = amrex::Real(300.0); pp_prob.query("theta_0", theta_0);
+    Real theta_tr = amrex::Real(343.0); pp_prob.query("theta_tr", theta_tr);
 
-    Real r_c = 1.0;
+    Real r_c = one;
 
     HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
                                               q_t,eq_pot_temp,use_empirical,true,height,z_tr,
@@ -65,8 +65,8 @@
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
-        const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
         Real scaled_height = z / z_tr;
@@ -81,15 +81,15 @@
 
         // Introduce the warm bubble. Assume that the bubble is pressure matche with the background
 
-        rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), 0.5);
+        rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), myhalf);
 
     if(rad <= r_c){
-        delta_theta = theta_c*std::pow(cos(PI*rad/2.0),2);
-        scalar = std::pow(cos(PI*rad/2.0),2);
+        delta_theta = theta_c*std::pow(cos(PI*rad/two),2);
+        scalar = std::pow(cos(PI*rad/two),2);
     }
     else{
-        delta_theta = 0.0;
-        scalar = 0.0;
+        delta_theta = zero;
+        scalar = zero;
     }
 
     theta_total     = t[k] + delta_theta;
@@ -101,12 +101,12 @@
 
     Real q_v_hot;
     if (z < height) {
-        q_v_hot = 0.014;
+        q_v_hot = amrex::Real(0.014);
     } else {
         q_v_hot = HSEutils::vapor_mixing_ratio(p[k], T_b, RH, use_empirical, which_zone);
     }
 
-    rho = p[k]/(R_d*temperature*(1.0 + (R_v/R_d)*q_v_hot));
+    rho = p[k]/(R_d*temperature*(one + (R_v/R_d)*q_v_hot));
 
     // Compute background quantities
     Real temperature_back = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
@@ -116,15 +116,15 @@
 
     Real q_v_back;
     if (z < height) {
-        q_v_back = 0.014;
+        q_v_back = amrex::Real(0.014);
     } else {
         q_v_back = HSEutils::vapor_mixing_ratio(p[k], T_back, RH_back, use_empirical, which_zone);
     }
-    Real rho_back         = p[k]/(R_d*temperature_back*(1.0 + (R_v/R_d)*q_v_back));
+    Real rho_back         = p[k]/(R_d*temperature_back*(one + (R_v/R_d)*q_v_back));
 
     // This version perturbs rho but not p
-    state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(1.0 + (R_v/R_d)*q_v_back);// rho*d_t[k]*(1.0 + R_v_by_R_d*q_v_hot);
-    state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + q_v_back);
+    state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(one + (R_v/R_d)*q_v_back);// rho*d_t[k]*(one + R_v_by_R_d*q_v_hot);
+    state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + q_v_back);
 
     // Set scalar = 0 everywhere
     state_pert(i, j, k, RhoScalar_comp) = rho*scalar;
@@ -132,7 +132,7 @@
     // mean states
     if (use_moisture) {
         state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = zero;
     }
 
   });

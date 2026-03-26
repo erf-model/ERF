@@ -29,8 +29,8 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
                 amrex::Real& tmp_var)
 {
 
-    if(z < 0.0){
-        tmp_var = 0.0;
+    if(z < zero){
+        tmp_var = zero;
         return;
     }
 

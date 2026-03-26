@@ -30,7 +30,7 @@ ERF::ComputeDt (int step)
     // Limit level 0 time step if requested
     if (step == 0) {
         dt_0 *= init_shrink;
-        if (verbose && init_shrink != 1.0) {
+        if (verbose && init_shrink != one) {
             Print() << "Timestep 0: shrink level 0 initial dt by " << init_shrink << std::endl;
         }
     }
@@ -39,7 +39,7 @@ ERF::ComputeDt (int step)
     // Recall that stop_time is total time, but t_new is elapsed time,
     //     so we must add start_time to t_new
     //
-    const Real eps = 1.e-3*dt_0;
+    const Real eps = Real(1.e-3)*dt_0;
     if (t_new[0] + dt_0 > (stop_time - start_time) - eps) {
         dt_0 = (stop_time - start_time) - t_new[0];
     }
@@ -61,15 +61,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
-    Real estdt_comp = 1.e20;
-    Real estdt_lowM = 1.e20;
+    Real estdt_comp = Real(1.e20);
+    Real estdt_lowM = Real(1.e20);
 
     // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
     const int nxc = geom[0].Domain().length(0);
     const int nyc = geom[0].Domain().length(1);
 
     auto const dxinv = geom[level].InvCellSizeArray();
-    auto const dzinv = 1.0 / dz_min[level];
+    auto const dzinv = one / dz_min[level];
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -104,10 +104,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                    Array4<Real const> const& u,
                                    Array4<Real const> const& vf) -> Real
         {
-           Real new_comp_dt = -1.e100;
+           Real new_comp_dt = -Real(1.e100);
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
-               if (vf(i,j,k) > 0.)
+               if (vf(i,j,k) > zero)
                {
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
@@ -162,7 +162,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u) -> Real
        {
-           Real new_comp_dt = -1.e100;
+           Real new_comp_dt = -Real(1.e100);
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                {
@@ -221,7 +221,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& u) -> Real
        {
-           Real new_lm_dt = -1.e100;
+           Real new_lm_dt = -Real(1.e100);
            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
            {
                new_lm_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
@@ -242,7 +242,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     Array4<Real const> const& s,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_comp_dt = -1.e100;
+             Real new_comp_dt = -Real(1.e100);
              amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
              {
                  {
@@ -266,7 +266,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_lowM_dt = -1.e100;
+             Real new_lowM_dt = -Real(1.e100);
              amrex::Loop(b, [=,&new_lowM_dt] (int i, int j, int k) noexcept
              {
                  new_lowM_dt = amrex::max((amrex::Math::abs(u(i,j,k,2))) * dzinv, new_lowM_dt);
@@ -279,9 +279,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      }
 
      if (verbose) {
-         if (fixed_dt[level] <= 0.0) {
+         if (fixed_dt[level] <= zero) {
              Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
-               1.0/dxinv[0] << " " << 1.0/dxinv[1] << " " << dz_min[level] << std::endl;
+               one/dxinv[0] << " " << one/dxinv[1] << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
                  Print() << "Anelastic dt at level " << level << ":  " << estdt_lowM << std::endl;
@@ -290,8 +290,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              }
          }
 
-         if (fixed_dt[level] > 0.0) {
-             Print() << "Based on cfl of 1.0 " << std::endl;
+         if (fixed_dt[level] > zero) {
+             Print() << "Based on cfl of one " << std::endl;
              Print() << "Compressible dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
                  Print() << "Anelastic dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
@@ -299,26 +299,26 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  Print() << "Anelastic dt at level " << level << " would be undefined " << std::endl;
              }
              Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt[level] << std::endl;
-             if (fixed_fast_dt[level] > 0.0) {
+             if (fixed_fast_dt[level] > zero) {
                  Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt[level] << std::endl;
              }
          }
      }
 
      if (solverChoice.substepping_type[level] != SubsteppingType::None) {
-         if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
+         if (fixed_dt[level] > zero && fixed_fast_dt[level] > zero) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
              if (dt_fast_ratio < 1) {
                  Abort("Invalid fixed_fast_dt: must be <= fixed_dt so mri_dt_ratio >= 1");
              }
-         } else if (fixed_dt[level] > 0.) {
-             // Max CFL_c = 1.0 for substeps by default, but we enforce a min of 4 substeps
+         } else if (fixed_dt[level] > zero) {
+             // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
              auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
-             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/dt_sub_max,4.) );
+             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/dt_sub_max,Real(4.)) );
          } else {
              // auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
-             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp/dt_sub_max,4.) );
-             dt_fast_ratio = static_cast<long>( std::max(cfl / sub_cfl, 4.) );
+             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp/dt_sub_max,Real(4.)) );
+             dt_fast_ratio = static_cast<long>( std::max(cfl / sub_cfl, Real(4.)) );
          }
 
          // Force time step ratio to be an even value
@@ -328,7 +328,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              if ( dt_fast_ratio%6 != 0) {
                  Print() << "mri_dt_ratio = " << dt_fast_ratio
                          << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
-                 dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
+                 dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/Real(6.0)) * 6);
              }
          }
 
@@ -340,8 +340,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      // Print out some extra diagnostics -- dt calcs are repeated so as to not
      // disrupt the overall code flow...
      if (l_comp_substepping_diag) {
-         Real dt_diag = (fixed_dt[level] > 0.0) ? fixed_dt[level] : estdt_comp;
-         int  ns      = (fixed_mri_dt_ratio > 0.0) ? fixed_mri_dt_ratio : dt_fast_ratio;
+         Real dt_diag = (fixed_dt[level] > zero) ? fixed_dt[level] : estdt_comp;
+         int  ns      = (fixed_mri_dt_ratio > zero) ? fixed_mri_dt_ratio : dt_fast_ratio;
 
          // horizontal acoustic CFL must be < 1 (fully explicit)
          // vertical   acoustic CFL may  be > 1
@@ -354,7 +354,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             << dt_diag * estdt_vert_lowM_inv << std::endl;
      }
 
-     if (fixed_dt[level] > 0.0) {
+     if (fixed_dt[level] > zero) {
          return fixed_dt[level];
      } else {
          // Anelastic (substepping is not allowed)

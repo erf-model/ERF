@@ -45,9 +45,9 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
     const Real sponge_density_tmp = spongeChoice.sponge_density;
     const Real sponge_rhotheta_tmp = spongeChoice.sponge_rhotheta;
     const Real sponge_rhomoist_tmp = spongeChoice.sponge_rhomoist;
-    const bool use_base_density = (sponge_density_tmp < 0.);
-    const bool use_base_rhotheta = (sponge_rhotheta_tmp < 0.);
-    const bool use_base_rhomoist = (sponge_rhomoist_tmp < 0.);
+    const bool use_base_density = (sponge_density_tmp < zero);
+    const bool use_base_rhotheta = (sponge_rhotheta_tmp < zero);
+    const bool use_base_rhomoist = (sponge_rhomoist_tmp < zero);
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -68,8 +68,8 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
-        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
         Real sponge_density = (use_base_density) ? r0(i,j,k) : sponge_density_tmp;
@@ -213,7 +213,7 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
     const Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
 
     const Real sponge_density_tmp = spongeChoice.sponge_density;
-    const bool use_base = (sponge_density_tmp < 0.);
+    const bool use_base = (sponge_density_tmp < zero);
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -235,10 +235,10 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
         Real x = ProbLoArr[0] + ii * dx[0];
-        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
-        Real sponge_density = (use_base) ? 0.5 * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -294,11 +294,11 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
         Real z = z_phys_cc(i,j,k);
 
-        Real sponge_density = (use_base) ?  0.5 * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ?  myhalf * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -354,11 +354,11 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
-        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_nd(i,j,k);
 
-        Real sponge_density = (use_base) ? 0.5 * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
 
         // x left sponge
         if(use_xlo_sponge_damping){

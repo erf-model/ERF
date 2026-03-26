@@ -47,7 +47,7 @@ ERF::write_1D_profiles (Real time)
                                  h_avg_wthv);
         }
 
-        if (NumDataLogs() > 3 && time > 0.) {
+        if (NumDataLogs() > 3 && time > zero) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                    h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
@@ -65,9 +65,9 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -88,11 +88,11 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
-                      Real thv = h_avg_th[k] * (1 + 0.61*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
+                      Real thv = h_avg_th[k] * (1 + Real(0.61)*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -136,16 +136,16 @@ ERF::write_1D_profiles (Real time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3 && time > 0.) {
+            if (NumDataLogs() > 3 && time > zero) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -241,9 +241,9 @@ ERF::derive_diag_profiles(Real /*time*/,
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
-    Gpu::DeviceVector<Real> d_avg_u(hu_size, Real(0.0));
-    Gpu::DeviceVector<Real> d_avg_v(hu_size, Real(0.0));
-    Gpu::DeviceVector<Real> d_avg_w(hu_size, Real(0.0));
+    Gpu::DeviceVector<Real> d_avg_u(hu_size, zero);
+    Gpu::DeviceVector<Real> d_avg_v(hu_size, zero);
+    Gpu::DeviceVector<Real> d_avg_w(hu_size, zero);
 
 #if 0
     auto* avg_u_ptr = d_avg_u.data();
@@ -279,7 +279,7 @@ ERF::derive_diag_profiles(Real /*time*/,
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 1) = theta;
-            Real ksgs = 0.0;
+            Real ksgs = zero;
             if (l_use_KE) {
                 ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
@@ -289,15 +289,15 @@ ERF::derive_diag_profiles(Real /*time*/,
                 fab_arr(i, j, k, 3) = eta_arr(i,j,k,EddyDiff::Mom_v); // Kmv
                 fab_arr(i, j, k, 4) = eta_arr(i,j,k,EddyDiff::Theta_v); // Khv
             } else {
-                fab_arr(i, j, k, 3) = 0.0;
-                fab_arr(i, j, k, 4) = 0.0;
+                fab_arr(i, j, k, 3) = zero;
+                fab_arr(i, j, k, 4) = zero;
             }
 #else
             // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
             Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
             Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
             Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
-            fab_arr(i, j, k, 3) = 0.5 * (upert*upert + vpert*vpert + wpert*wpert);
+            fab_arr(i, j, k, 3) = myhalf * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
@@ -324,16 +324,16 @@ ERF::derive_diag_profiles(Real /*time*/,
                 fab_arr(i, j, k,19) = p * u_cc_arr(i,j,k);     // p*u
                 fab_arr(i, j, k,20) = p * v_cc_arr(i,j,k);     // p*v
                 fab_arr(i, j, k,21) = p * w_cc_arr(i,j,k);     // p*w
-                fab_arr(i, j, k,22) = 0.;  // qv
-                fab_arr(i, j, k,23) = 0.;  // qc
-                fab_arr(i, j, k,24) = 0.;  // qr
-                fab_arr(i, j, k,25) = 0.;  // w*qv
-                fab_arr(i, j, k,26) = 0.;  // w*qc
-                fab_arr(i, j, k,27) = 0.;  // w*qr
-                fab_arr(i, j, k,28) = 0.;  // qi
-                fab_arr(i, j, k,29) = 0.;  // qs
-                fab_arr(i, j, k,30) = 0.;  // qg
-                fab_arr(i, j, k,31) = 0.;  // w*thv
+                fab_arr(i, j, k,22) = zero;  // qv
+                fab_arr(i, j, k,23) = zero;  // qc
+                fab_arr(i, j, k,24) = zero;  // qr
+                fab_arr(i, j, k,25) = zero;  // w*qv
+                fab_arr(i, j, k,26) = zero;  // w*qc
+                fab_arr(i, j, k,27) = zero;  // w*qr
+                fab_arr(i, j, k,28) = zero;  // qi
+                fab_arr(i, j, k,29) = zero;  // qs
+                fab_arr(i, j, k,30) = zero;  // qg
+                fab_arr(i, j, k,31) = zero;  // w*thv
             }
         });
     } // mfi
@@ -359,7 +359,7 @@ ERF::derive_diag_profiles(Real /*time*/,
                 Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
-                                               Real(0.0);
+                                               zero;
                 Real p  = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
 
                 p -= p0_arr(i,j,k);
@@ -378,13 +378,13 @@ ERF::derive_diag_profiles(Real /*time*/,
                     fab_arr(i, j, k,29) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,30) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
                 } else {
-                    fab_arr(i, j, k,28) = 0.0;  // qi
-                    fab_arr(i, j, k,29) = 0.0;  // qs
-                    fab_arr(i, j, k,30) = 0.0;  // qg
+                    fab_arr(i, j, k,28) = zero;  // qi
+                    fab_arr(i, j, k,29) = zero;  // qs
+                    fab_arr(i, j, k,30) = zero;  // qg
                 }
                 Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv   = theta * (1 + 0.61*qv - ql);
+                Real thv   = theta * (1 + Real(0.61)*qv - ql);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
             });
         } // mfi
@@ -462,7 +462,7 @@ ERF::derive_diag_profiles(Real /*time*/,
 
 #if 0
     // Here we print the integrated total kinetic energy as computed in the 1D profile above
-    Real sum = 0.;
+    Real sum = zero;
     Real dz = geom[0].ProbHi(2) / static_cast<Real>(h_avg_u_size);
     for (int k = 0; k < h_avg_u_size; ++k) {
         sum += h_avg_kturb[k] * h_avg_rho[k] * dz;
@@ -531,9 +531,9 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
                                 / (   rho_arr(i,j,k  ) +   rho_arr(i,j+1,k  )
                                   +   rho_arr(i,j,k+1) +   rho_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 6) = 0.5 * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 7) = (l_use_moist) ? 0.5 * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : 0.0;
-            fab_arr(i, j, k, 8) = (l_use_moist) ? 0.5 * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : 0.0;
+            fab_arr(i, j, k, 6) = myhalf * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 7) = (l_use_moist) ? myhalf * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
+            fab_arr(i, j, k, 8) = (l_use_moist) ? myhalf * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
             fab_arr(i, j, k, 9) =  diss_arr(i,j,k) / rho_arr(i,j,k);
         });
     }
