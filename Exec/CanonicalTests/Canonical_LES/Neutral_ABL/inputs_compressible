@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL"
+
 ##### erf.anelastic = 1
 ##### erf.use_fft   = true # for anelastic
 
