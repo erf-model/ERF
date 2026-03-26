@@ -2,6 +2,7 @@
 #define ERF_TURB_STRUCT_H_
 
 #include <ERF_MYNNStruct.H>
+#include <ERF_Constants.H>
 
 AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 

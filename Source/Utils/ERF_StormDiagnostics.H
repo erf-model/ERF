@@ -41,8 +41,8 @@ amrex::Real compute_max_reflectivity_dbz (amrex::Real rho_air, amrex::Real tmk,
     constexpr amrex::Real ron_min    = Real(8.e6);
     constexpr amrex::Real ron_qr0    = Real(1.0e-4);
     constexpr amrex::Real ron_delqr0 = fourth * ron_qr0;
-    constexpr amrex::Real ron_const1r = (ron2 - ron_min) * half;
-    constexpr amrex::Real ron_const2r = (ron2 + ron_min) * half;
+    constexpr amrex::Real ron_const1r = (ron2 - ron_min) * Real(0.5);
+    constexpr amrex::Real ron_const2r = (ron2 + ron_min) * Real(0.5);
 
     // Precompute factors
     const amrex::Real factor_r = gamma_seven * Real(1.e18) * std::pow(one / (pi * rho_r), Real(1.75));

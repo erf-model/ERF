@@ -50,7 +50,7 @@ constexpr amrex::Real b_rain       = amrex::Real(0.8);    // Fall speed exponent
 constexpr amrex::Real a_snow       = amrex::Real(4.84);   // Coeff.for snow term vel
 constexpr amrex::Real b_snow       = fourth;   // Fall speed exponent for snow
 constexpr amrex::Real a_grau       = amrex::Real(94.5);   // Lin (1983) (rhog=400)
-constexpr amrex::Real b_grau       = half;    // Fall speed exponent for graupel
+constexpr amrex::Real b_grau       = amrex::Real(0.5);    // Fall speed exponent for graupel
 
 // Autoconversion
 constexpr amrex::Real qcw0         = amrex::Real(1.e-3);  // Threshold for water autoconversion, g/g

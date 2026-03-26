@@ -1,6 +1,8 @@
 #ifndef ERF_MYNN_STRUCT_H_
 #define ERF_MYNN_STRUCT_H_
 
+#include "ERF_Constants.H"
+
 enum struct MYNNConfigType {
     NN09 = 0, // Nakanishi & Niino 2009, J Met Soc Japan
     CHEN2021  // Chen & Bryan 2021, JAS
