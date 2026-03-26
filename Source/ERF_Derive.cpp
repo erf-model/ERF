@@ -78,7 +78,7 @@ erf_dersoundspeed (const Box& bx,
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > Real(0.0);
+        AMREX_ALWAYS_ASSERT(rhotheta > 0);
         cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
