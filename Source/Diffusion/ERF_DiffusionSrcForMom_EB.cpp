@@ -252,7 +252,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     dvdn = - mu_eff * (v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
 
                 } else if (l_surface_layer) {
-                    
+
                     dvdn = - tau_eb23(i,j,k);
                 }
 

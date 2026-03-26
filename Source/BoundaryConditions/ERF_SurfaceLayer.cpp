@@ -682,23 +682,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         const auto t_surf_arr = t_surf[lev]->array(mfi);
         const auto q_surf_arr = q_surf[lev]->array(mfi);
 
-
-        
-
-        // // Get LSM fluxes
-        // auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
-        //                                               Array4<int> {};
-        // auto lsm_t_flux_arr = Array4<Real> {};
-        // auto lsm_q_flux_arr = Array4<Real> {};
-        // auto lsm_tau13_arr  = Array4<Real> {};
-        // auto lsm_tau23_arr  = Array4<Real> {};
-        // for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-        //     if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-        //     if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-        //     if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-        //     if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-        // }
-
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
