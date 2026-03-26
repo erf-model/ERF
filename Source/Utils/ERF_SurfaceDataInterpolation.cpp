@@ -112,8 +112,8 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             if(k == 0) {
-                const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-                const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+                const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+                const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // First interpolate where the weather data is available from
                 Real tmp_ls_mask, tmp_sst;
@@ -130,7 +130,7 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
                                           x, y,
                                           sst_d_ptr, tmp_sst);
 
-                surf_arr(i, j, 0) = std::min(tmp_ls_mask, 1.0);
+                surf_arr(i, j, 0) = std::min(tmp_ls_mask, one);
                 surf_arr(i, j, 1) = tmp_sst;
             }
         });
@@ -150,16 +150,16 @@ ERF::SurfaceDataInterpolation(const int lev,
 
     const int nlevs = a_z_phys_nd.size();
 
-    Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*3600.0;
+    Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*Real(3600.0);
 
     // Initialize static vectors once
     if (next_read_forecast_time.empty()) {
-        next_read_forecast_time.resize(nlevs, -1.0);
-        last_read_forecast_time.resize(nlevs, -1.0);
+        next_read_forecast_time.resize(nlevs, -one);
+        last_read_forecast_time.resize(nlevs, -one);
         Print() << "Initializing the time vector values here by " << lev << std::endl;
     }
 
-    if (next_read_forecast_time[lev] < 0.0) {
+    if (next_read_forecast_time[lev] < zero) {
         int next_multiple = static_cast<int>(time / hindcast_data_interval);
         next_read_forecast_time[lev] = next_multiple * hindcast_data_interval;
         last_read_forecast_time[lev] = next_read_forecast_time[lev];
@@ -219,13 +219,13 @@ ERF::SurfaceDataInterpolation(const int lev,
     }
 
     Real prev_read_time = last_read_forecast_time[lev];
-    Real alpha1 = 1.0 - (time - prev_read_time)/hindcast_data_interval;
-    Real alpha2 = 1.0 - alpha1;
+    Real alpha1 = one - (time - prev_read_time)/hindcast_data_interval;
+    Real alpha2 = one - alpha1;
 
     amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;
 
-    if (alpha1 < 0.0 || alpha1 > 1.0 ||
-    alpha2 < 0.0 || alpha2 > 1.0)
+    if (alpha1 < zero || alpha1 > one ||
+    alpha2 < zero || alpha2 > one)
     {
         std::stringstream ss;
         ss << "Interpolation weights for hindcast files are incorrect: "

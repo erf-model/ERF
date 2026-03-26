@@ -17,18 +17,18 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
                  amrex::Real diff1, amrex::Real diff2, amrex::Real diff3,
                  amrex::Real scaled_upw, const AdvType adv_type)
 {
-    amrex::Real myInterpolatedVal(0.);
+    amrex::Real myInterpolatedVal(zero);
     if (adv_type == AdvType::Centered_2nd) {
-        myInterpolatedVal = 0.5 * avg1;
+        myInterpolatedVal = myhalf * avg1;
     } else if (adv_type == AdvType::Upwind_3rd) {
-        myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2 + (scaled_upw/12.0)*(diff2 - 3.0*diff1);
+        myInterpolatedVal = (amrex::Real(7.0)/amrex::Real(12.0))*avg1 -(one/amrex::Real(12.0))*avg2 + (scaled_upw/amrex::Real(12.0))*(diff2 - three*diff1);
     } else if (adv_type == AdvType::Centered_4th) {
-        myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2;
+        myInterpolatedVal = (amrex::Real(7.0)/amrex::Real(12.0))*avg1 -(one/amrex::Real(12.0))*avg2;
     } else if (adv_type == AdvType::Upwind_5th) {
-        myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3
-                          -(scaled_upw/60.0)*(diff3 - 5.0*diff2 + 10.0*diff1);
+        myInterpolatedVal = (amrex::Real(37.0)/amrex::Real(60.0))*avg1 -(two/amrex::Real(15.0))*avg2 +(one/amrex::Real(60.0))*avg3
+                          -(scaled_upw/amrex::Real(60.0))*(diff3 - amrex::Real(5.0)*diff2 + amrex::Real(10.0)*diff1);
     } else if (adv_type == AdvType::Centered_6th) {
-        myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3;
+        myInterpolatedVal = (amrex::Real(37.0)/amrex::Real(60.0))*avg1 -(two/amrex::Real(15.0))*avg2 +(one/amrex::Real(60.0))*avg3;
     }
     return myInterpolatedVal;
 }
@@ -41,15 +41,15 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
 {
 
     if (adv_type == AdvType::Centered_2nd) {
-        return 0.5 * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
     } else {
 
-        amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
-        amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
-        amrex::Real scaled_upw = 0.;
+        amrex::Real avg1 = zero; amrex::Real avg2 = zero; amrex::Real avg3 = zero;
+        amrex::Real diff1 = zero; amrex::Real diff2 = zero; amrex::Real diff3 = zero;
+        amrex::Real scaled_upw = zero;
         //
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
+        if (upw != zero) { scaled_upw = (upw > 0) ? one : -one; }
 
         avg1  = (qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index));
         diff1 = (qty(i, j, k, qty_index) - qty(i-1, j, k, qty_index));
@@ -71,15 +71,15 @@ InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
                 int qty_index, amrex::Real upw, const AdvType adv_type)
 {
     if (adv_type == AdvType::Centered_2nd) {
-        return 0.5 * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
     } else {
 
-        amrex::Real avg1; amrex::Real avg2; amrex::Real avg3 = 0.;
-        amrex::Real diff1; amrex::Real diff2; amrex::Real diff3 = 0.;
-        amrex::Real scaled_upw = 0.;
+        amrex::Real avg1; amrex::Real avg2; amrex::Real avg3 = zero;
+        amrex::Real diff1; amrex::Real diff2; amrex::Real diff3 = zero;
+        amrex::Real scaled_upw = zero;
 
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
+        if (upw != zero) { scaled_upw = (upw > 0) ? one : -one; }
 
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
@@ -101,14 +101,14 @@ InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
                 int qty_index, amrex::Real upw, const AdvType adv_type)
 {
     if (adv_type == AdvType::Centered_2nd) {
-        return 0.5 * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
+        return myhalf * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
     } else {
 
-        amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
-        amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
-        amrex::Real scaled_upw = 0.;
+        amrex::Real avg1 = zero; amrex::Real avg2 = zero; amrex::Real avg3 = zero;
+        amrex::Real diff1 = zero; amrex::Real diff2 = zero; amrex::Real diff3 = zero;
+        amrex::Real scaled_upw = zero;
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
+        if (upw != zero) { scaled_upw = (upw > 0) ? one : -one; }
 
         avg1  = (qty(i, j, k  , qty_index) + qty(i, j, k-1, qty_index));
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
@@ -131,12 +131,12 @@ InterpolatePertFromCell (int i, int j, int k,
                          int qty_index, amrex::Real upw, Coord coordDir,
                          const AdvType adv_type, const amrex::Array4<const amrex::Real>& r0_arr)
 {
-    amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
-    amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
-    amrex::Real scaled_upw = 0.;
+    amrex::Real avg1 = zero; amrex::Real avg2 = zero; amrex::Real avg3 = zero;
+    amrex::Real diff1 = zero; amrex::Real diff2 = zero; amrex::Real diff3 = zero;
+    amrex::Real scaled_upw = zero;
 
     // The value that comes in has not been normalized so we do that here
-    if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
+    if (upw != zero) { scaled_upw = (upw > 0) ? one : -one; }
 
     if (coordDir == Coord::x) {
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));

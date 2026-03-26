@@ -1,9 +1,9 @@
     ParmParse pp_prob("prob");
-    Real Ampl = 0.;        pp_prob.query("Ampl", Ampl);
-    Real wavelength = 1.0; pp_prob.get("wavelength", wavelength);
+    Real Ampl = zero;        pp_prob.query("Ampl", Ampl);
+    Real wavelength = one; pp_prob.get("wavelength", wavelength);
 
     Real H           = geomdata.ProbHi()[2];
-    Real kp          = 2.0 * PI / wavelength;
+    Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
@@ -14,7 +14,7 @@
         const auto dx       = geomdata.CellSize();
 
         const Real x = prob_lo[0] + i * dx[0];
-        Real z = 0.25 * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
+        Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
 
         Real z_base = Ampl * std::sin(kp * x);
         z -= z_base;
@@ -29,8 +29,8 @@
     {
         const auto dx         = geomdata.CellSize();
 
-        Real x   = (i + 0.5) * dx[0];
-        Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
+        Real x   = (i + myhalf) * dx[0];
+        Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
         Real z_base = Ampl * std::sin(kp * x);
 
         z -= z_base;

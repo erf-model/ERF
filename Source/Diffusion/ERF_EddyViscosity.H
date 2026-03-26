@@ -91,15 +91,15 @@ ComputeSmnSmn (int& i, int& j, int& k,
     amrex::Real s11bar = tau11(i,j,k);
     amrex::Real s22bar = tau22(i,j,k);
     amrex::Real s33bar = tau33(i,j,k);
-    amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                                + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-    amrex::Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
-                                + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
-    amrex::Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
-                                + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+    amrex::Real s12bar = fourth * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                                  + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+    amrex::Real s13bar = fourth * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
+                                  + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
+    amrex::Real s23bar = fourth * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
+                                  + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
 
     amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
-                       + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
+                       + two*s12bar*s12bar + two*s13bar*s13bar + two*s23bar*s23bar;
 
     return SmnSmn;
 }
@@ -119,80 +119,80 @@ ComputeSmnSmn_EB (int& i, int& j, int& k,
                const amrex::Array4<const amrex::EBCellFlag>& v_cflag,
                const amrex::Array4<const amrex::EBCellFlag>& w_cflag)
 {
-    amrex::Real SmnSmn = 0.0;
+    amrex::Real SmnSmn = zero;
     if (!c_cflag(i,j,k).isCovered()) {
         amrex::Real s11bar = tau11(i,j,k);
         amrex::Real s22bar = tau22(i,j,k);
         amrex::Real s33bar = tau33(i,j,k);
-        amrex::Real s12bar = 0.0;
-        amrex::Real s13bar = 0.0;
-        amrex::Real s23bar = 0.0;
+        amrex::Real s12bar = zero;
+        amrex::Real s13bar = zero;
+        amrex::Real s23bar = zero;
 
-        amrex::Real count_s12 = 0.0;
+        amrex::Real count_s12 = zero;
         if (!u_cflag(i,j,k).isCovered() || !v_cflag(i,j,k).isCovered()) {
             s12bar += tau12(i,j,k);
-            count_s12 += 1.0;
+            count_s12 += one;
         }
         if (!u_cflag(i+1,j,k).isCovered() || !v_cflag(i,j,k).isCovered()) {
             s12bar += tau12(i+1,j,k);
-            count_s12 += 1.0;
+            count_s12 += one;
         }
         if (!u_cflag(i,j,k).isCovered() || !v_cflag(i,j+1,k).isCovered()) {
             s12bar += tau12(i,j+1,k);
-            count_s12 += 1.0;
+            count_s12 += one;
         }
         if (!u_cflag(i+1,j,k).isCovered() || !v_cflag(i,j+1,k).isCovered()) {
             s12bar += tau12(i+1,j+1,k);
-            count_s12 += 1.0;
+            count_s12 += one;
         }
-        if (count_s12 > 0.0) {
+        if (count_s12 > zero) {
             s12bar /= count_s12;
         }
 
-        amrex::Real count_s13 = 0.0;
+        amrex::Real count_s13 = zero;
         if (!u_cflag(i,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
             s13bar += tau13(i, j, k);
-            count_s13 += 1.0;
+            count_s13 += one;
         }
         if (!u_cflag(i,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
             s13bar += tau13(i, j, k+1);
-            count_s13 += 1.0;
+            count_s13 += one;
         }
         if (!u_cflag(i+1,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
             s13bar += tau13(i+1, j, k);
-            count_s13 += 1.0;
+            count_s13 += one;
         }
         if (!u_cflag(i+1,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
             s13bar += tau13(i+1, j, k+1);
-            count_s13 += 1.0;
+            count_s13 += one;
         }
-        if (count_s13 > 0.0) {
+        if (count_s13 > zero) {
             s13bar /= count_s13;
         }
 
-        amrex::Real count_s23 = 0.0;
+        amrex::Real count_s23 = zero;
         if (!v_cflag(i,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
             s23bar += tau23(i, j, k);
-            count_s23 += 1.0;
+            count_s23 += one;
         }
         if (!v_cflag(i,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
             s23bar += tau23(i, j, k+1);
-            count_s23 += 1.0;
+            count_s23 += one;
         }
         if (!v_cflag(i,j+1,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
             s23bar += tau23(i, j+1, k);
-            count_s23 += 1.0;
+            count_s23 += one;
         }
         if (!v_cflag(i,j+1,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
             s23bar += tau23(i, j+1, k+1);
-            count_s23 += 1.0;
+            count_s23 += one;
         }
-        if (count_s23 > 0.0) {
+        if (count_s23 > zero) {
             s23bar /= count_s23;
         }
 
         SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
-               + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
+               + two*s12bar*s12bar + two*s13bar*s13bar + two*s23bar*s23bar;
     }
 
     return SmnSmn;
@@ -207,8 +207,8 @@ ComputeSmnSmn2D (int& i, int& j, int& k,
                  const amrex::Array4<amrex::Real const>& tau12)
 {
     amrex::Real sdiff = tau11(i,j,k) - tau22(i,j,k);
-    amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                                + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-    return 0.5 * sdiff*sdiff + 2.0*s12bar*s12bar;
+    amrex::Real s12bar = fourth * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                                  + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+    return myhalf * sdiff*sdiff + two*s12bar*s12bar;
 }
 #endif

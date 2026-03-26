@@ -23,13 +23,13 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them
         // Per p2902 of Klemp-Skamarock-Dudhia-2007
-        // beta_s = -1.0 : fully explicit
-        // beta_s =  1.0 : fully implicit
+        // beta_s = -one : fully explicit
+        // beta_s =  one : fully implicit
         Real beta_s;
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = solverChoice.beta_s;
         } else { // Fully explicit
-            beta_s = -1.0;
+            beta_s = -one;
         }
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -169,7 +169,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[nrk] > 0.) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[nrk] > zero) && !solverChoice.implicit_before_substep &&
              (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
@@ -205,21 +205,21 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                     if (z_nd_arr) {
                         // average z_nd to face then diff
                         if (k == domain.smallEnd(2)) {
-                            dzInv = 4.0 / (
+                            dzInv = amrex::Real(4.0) / (
                                 z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k)
                               + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)
                               + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k)
                               + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k) );
                         } else if (k == domain.bigEnd(2)+1) {
-                            dzInv = 4.0 / (
+                            dzInv = amrex::Real(4.0) / (
                                 z_nd_arr(i  ,j  ,k) - z_nd_arr(i  ,j  ,k-1)
                               + z_nd_arr(i+1,j  ,k) - z_nd_arr(i+1,j  ,k-1)
                               + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
                               + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
                         } else {
-                            // dz = 0.5 * (dz[i,j,k] + dz[i,j,k+1])
-                            //    = 0.5 * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
-                            dzInv = 8.0 / (
+                            // dz = myhalf * (dz[i,j,k] + dz[i,j,k+1])
+                            //    = myhalf * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
+                            dzInv = amrex::Real(8.0) / (
                                 z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
                               + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
                               + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k-1)
@@ -233,14 +233,14 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                                   ? w_damping_const
                                   : w_damping_coeff / (dzInv * dt_advance * dt_advance);
 
-                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt
                     Real cflw = wmag * dt_advance * dzInv;
 
                     if (cflw > cflw_lim) {
-                        Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
+                        Real sgn_w = (rho_w(i,j,k) > 0) ? one : -one;
                         rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
                         // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU

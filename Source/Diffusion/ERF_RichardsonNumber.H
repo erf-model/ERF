@@ -12,27 +12,27 @@
  *
  * KEY EQUATIONS:
  * --------------
- * 1. Moist Brunt-Väisälä frequency:
+ * 1) Moist Brunt-Väisälä frequency:
  *    N²_moist = (g/θ_v) * ∂θ_v/∂z  (unsaturated)
  *    N²_moist = (g/θ_l) * ∂θ_l/∂z  (saturated, in clouds)
  *
- * 2. Moist Richardson number:
+ * 2) Moist Richardson number:
  *    Ri_moist = N²_moist / S²_vert
  *    where S²_vert = (∂u/∂z)² + (∂v/∂z)²
  *
- * 3. Mason (1989) stability function:
+ * 3) Mason (1989) stability function:
  *    f(Ri) = 0                        if Ri ≥ Ri_crit (complete suppression)
  *          = sqrt(1 - Ri/Ri_crit)     if 0 < Ri < Ri_crit (partial suppression)
  *          = 1                        if Ri ≤ 0 (no suppression, unstable/neutral)
  *
- * 4. Corrected vertical eddy viscosity:
+ * 4) Corrected vertical eddy viscosity:
  *    μ_t,v = ρ(C_s·Δ)²|S| · f(Ri_moist)
  *
  * PHYSICAL INTERPRETATION:
  * ------------------------
- * - In cloud updrafts: ∂θ_l/∂z < 0 → Ri < 0 → f(Ri) = 1.0 → full mixing (correct!)
- * - In stable regions: ∂θ_v/∂z > 0 → Ri > 0 → f(Ri) < 1.0 → reduced mixing
- * - In neutral regions: Ri ≈ 0 → f(Ri) ≈ 1.0 → standard Smagorinsky
+ * - In cloud updrafts: ∂θ_l/∂z < 0 → Ri < 0 → f(Ri) = 1 → full mixing (correct!)
+ * - In stable regions: ∂θ_v/∂z > 0 → Ri > 0 → f(Ri) < 1 → reduced mixing
+ * - In neutral regions: Ri ≈ 0 → f(Ri) ≈ 1 → standard Smagorinsky
  *
  * CUDA-CONSERVATIVE DESIGN:
  * --------------------------
@@ -84,7 +84,7 @@ IsSaturated(int i, int j, int k,
     if (qc_index >= 0) {
         amrex::Real rho = cell_data(i, j, k, Rho_comp);
         amrex::Real qc = cell_data(i, j, k, qc_index) / rho;
-        return (qc > 1.0e-8);  // 0.01 g/kg threshold
+        return (qc > amrex::Real(1.0e-8));  // 0.01 g/kg threshold
     }
     return false;
 }
@@ -146,24 +146,24 @@ ComputeN2(int i, int j, int k,
         amrex::Real theta_l_kp1= GetThetal(i, j, k+1, cell_data, moisture_indices);
         amrex::Real theta_l_km1= GetThetal(i, j, k-1, cell_data, moisture_indices);
 
-        inv_theta = 1.0 / theta_l;
-        dtheta_dz = 0.5 * (theta_l_kp1 - theta_l_km1) * dzInv;
+        inv_theta = one / theta_l;
+        dtheta_dz = myhalf * (theta_l_kp1 - theta_l_km1) * dzInv;
 
     } else if (qv_index >= 0) {
         amrex::Real theta_v    = GetThetav(i, j, k  , cell_data, moisture_indices);
         amrex::Real theta_v_kp1= GetThetav(i, j, k+1, cell_data, moisture_indices);
         amrex::Real theta_v_km1= GetThetav(i, j, k-1, cell_data, moisture_indices);
 
-        inv_theta = 1.0 / theta_v;
-        dtheta_dz = 0.5 * (theta_v_kp1 - theta_v_km1) * dzInv;
+        inv_theta = one / theta_v;
+        dtheta_dz = myhalf * (theta_v_kp1 - theta_v_km1) * dzInv;
 
     } else {
         amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
         amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
         amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
 
-        inv_theta = 1.0 / theta;
-        dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+        inv_theta = one / theta;
+        dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
     }
 
     return const_grav * inv_theta * dtheta_dz;
@@ -199,16 +199,16 @@ ComputeN2_EB(int i, int j, int k,
         amrex::Real theta_l_kp1= GetThetal(i, j, k+1, cell_data, moisture_indices);
         amrex::Real theta_l_km1= GetThetal(i, j, k-1, cell_data, moisture_indices);
 
-        inv_theta = 1.0 / theta_l;
+        inv_theta = one / theta_l;
 
         if (is_covered_kp1) {
             amrex::Real theta_l_km2= GetThetal(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (3.*theta_l -4.*theta_l_km1 + theta_l_km2) * 0.5 * dzInv;
+            dtheta_dz = (three*theta_l - four*theta_l_km1 + theta_l_km2) * myhalf * dzInv;
         } else if (is_covered_km1) {
             amrex::Real theta_l_kp2= GetThetal(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_l_kp2 + 4.*theta_l_kp1 - 3.*theta_l) * 0.5 * dzInv;
+            dtheta_dz = (-theta_l_kp2 + four*theta_l_kp1 - three*theta_l) * myhalf * dzInv;
         } else {
-            dtheta_dz = 0.5 * (theta_l_kp1 - theta_l_km1) * dzInv;
+            dtheta_dz = myhalf * (theta_l_kp1 - theta_l_km1) * dzInv;
         }
 
     } else if (qv_index >= 0) {
@@ -216,16 +216,16 @@ ComputeN2_EB(int i, int j, int k,
         amrex::Real theta_v_kp1= GetThetav(i, j, k+1, cell_data, moisture_indices);
         amrex::Real theta_v_km1= GetThetav(i, j, k-1, cell_data, moisture_indices);
 
-        inv_theta = 1.0 / theta_v;
+        inv_theta = one / theta_v;
 
         if (is_covered_kp1) {
             amrex::Real theta_v_km2= GetThetav(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (3.*theta_v -4.*theta_v_km1 + theta_v_km2) * 0.5 * dzInv;
+            dtheta_dz = (three*theta_v - four*theta_v_km1 + theta_v_km2) * myhalf * dzInv;
         } else if (is_covered_km1) {
             amrex::Real theta_v_kp2= GetThetav(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_v_kp2 + 4.*theta_v_kp1 - 3.*theta_v) * 0.5 * dzInv;
+            dtheta_dz = (-theta_v_kp2 + four*theta_v_kp1 - three*theta_v) * myhalf * dzInv;
         } else {
-            dtheta_dz = 0.5 * (theta_v_kp1 - theta_v_km1) * dzInv;
+            dtheta_dz = myhalf * (theta_v_kp1 - theta_v_km1) * dzInv;
         }
 
     } else {
@@ -233,16 +233,16 @@ ComputeN2_EB(int i, int j, int k,
         amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
         amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
 
-        inv_theta = 1.0 / theta;
+        inv_theta = one / theta;
 
         if (is_covered_kp1) {
             amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
-            dtheta_dz = (3.*theta - 4.*theta_km1 + theta_km2) * 0.5 * dzInv;
+            dtheta_dz = (three*theta - four*theta_km1 + theta_km2) * myhalf * dzInv;
         } else if (is_covered_km1) {
             amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
-            dtheta_dz = (-theta_kp2 + 4.*theta_kp1 - 3.*theta) * 0.5 * dzInv;
+            dtheta_dz = (-theta_kp2 + four*theta_kp1 - three*theta) * myhalf * dzInv;
         } else {
-            dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+            dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
         }
     }
 
@@ -268,7 +268,7 @@ ComputeN2_EB(int i, int j, int k,
  *
  * To get shear at cell center (i,j,k), interpolate velocities to center then difference:
  *   ∂u/∂z|_{i,j,k} ≈ (u_{i,j,k+1} - u_{i,j,k-1}) / (2Δz)
- *   where u_{i,j,k} = 0.5 * (u_{i-1/2,j,k} + u_{i+1/2,j,k})
+ *   where u_{i,j,k} = myhalf * (u_{i-1/2,j,k} + u_{i+1/2,j,k})
  *
  * UNITS:
  * ------
@@ -283,14 +283,14 @@ ComputeVerticalShear2(int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v)
 {
-    amrex::Real u_c_km1 = 0.5 * (u(i, j, k-1) + u(i+1, j, k-1));
-    amrex::Real u_c_kp1 = 0.5 * (u(i, j, k+1) + u(i+1, j, k+1));
+    amrex::Real u_c_km1 = myhalf * (u(i, j, k-1) + u(i+1, j, k-1));
+    amrex::Real u_c_kp1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
 
-    amrex::Real v_c_km1 = 0.5 * (v(i, j, k-1) + v(i, j+1, k-1));
-    amrex::Real v_c_kp1 = 0.5 * (v(i, j, k+1) + v(i, j+1, k+1));
+    amrex::Real v_c_km1 = myhalf * (v(i, j, k-1) + v(i, j+1, k-1));
+    amrex::Real v_c_kp1 = myhalf * (v(i, j, k+1) + v(i, j+1, k+1));
 
-    amrex::Real du_dz = 0.5 * (u_c_kp1 - u_c_km1) * dzInv;
-    amrex::Real dv_dz = 0.5 * (v_c_kp1 - v_c_km1) * dzInv;
+    amrex::Real du_dz = myhalf * (u_c_kp1 - u_c_km1) * dzInv;
+    amrex::Real dv_dz = myhalf * (v_c_kp1 - v_c_km1) * dzInv;
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
 
@@ -325,8 +325,8 @@ ComputeVerticalShear2_EB(int i, int j, int k,
                             / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
         amrex::Real v_c_km2 = ( v_vfrac(i,j,k-2) * v(i, j, k-2) + v_vfrac(i,j+1,k-2) * v(i, j+1, k-2) )
                             / ( v_vfrac(i,j,k-2) + v_vfrac(i,j+1,k-2) );
-        du_dz = (3.*u_c - 4.*u_c_km1 + u_c_km2) * 0.5 * dzInv;
-        dv_dz = (3.*v_c - 4.*v_c_km1 + v_c_km2) * 0.5 * dzInv;
+        du_dz = (three*u_c - four*u_c_km1 + u_c_km2) * myhalf * dzInv;
+        dv_dz = (three*v_c - four*v_c_km1 + v_c_km2) * myhalf * dzInv;
 
     } else if (c_cflag(i,j,k-1).isCovered()) {
         amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
@@ -337,8 +337,8 @@ ComputeVerticalShear2_EB(int i, int j, int k,
                             / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
         amrex::Real v_c_kp2 = ( v_vfrac(i,j,k+2) * v(i, j, k+2) + v_vfrac(i,j+1,k+2) * v(i, j+1, k+2) )
                             / ( v_vfrac(i,j,k+2) + v_vfrac(i,j+1,k+2) );
-        du_dz = (-u_c_kp2 + 4.*u_c_kp1 - 3.*u_c) * 0.5 * dzInv;
-        dv_dz = (-v_c_kp2 + 4.*v_c_kp1 - 3.*v_c) * 0.5 * dzInv;
+        du_dz = (-u_c_kp2 + four*u_c_kp1 - three*u_c) * myhalf * dzInv;
+        dv_dz = (-v_c_kp2 + four*v_c_kp1 - three*v_c) * myhalf * dzInv;
     } else {
         amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) )
                             / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
@@ -348,8 +348,8 @@ ComputeVerticalShear2_EB(int i, int j, int k,
                             / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
         amrex::Real v_c_kp1 = ( v_vfrac(i,j,k+1) * v(i, j, k+1) + v_vfrac(i,j+1,k+1) * v(i, j+1, k+1) )
                             / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
-        du_dz = 0.5 * (u_c_kp1 - u_c_km1) * dzInv;
-        dv_dz = 0.5 * (v_c_kp1 - v_c_km1) * dzInv;
+        du_dz = myhalf * (u_c_kp1 - u_c_km1) * dzInv;
+        dv_dz = myhalf * (v_c_kp1 - v_c_km1) * dzInv;
     }
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
@@ -369,7 +369,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 ComputeRichardson(amrex::Real N2_moist, amrex::Real S2_vert)
 {
-    amrex::Real S2_safe = amrex::max(S2_vert, 1.0e-10);
+    amrex::Real S2_safe = amrex::max(S2_vert, amrex::Real(1.0e-10));
     return N2_moist / S2_safe;
 }
 
@@ -386,11 +386,11 @@ amrex::Real
 StabilityFunction(amrex::Real Ri, amrex::Real Ri_crit)
 {
     if (Ri >= Ri_crit) {
-        return 0.0;
-    } else if (Ri > 0.0) {
-        return std::sqrt(1.0 - Ri / Ri_crit);
+        return zero;
+    } else if (Ri > zero) {
+        return std::sqrt(one - Ri / Ri_crit);
     } else {
-        return 1.0;
+        return one;
     }
 }
 

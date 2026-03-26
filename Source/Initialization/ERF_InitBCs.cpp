@@ -22,33 +22,33 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
     auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
-        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -1.0; // It is important to set this negative
+        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  one;
+        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -one; // It is important to set this negative
                                                                  // because the sign is tested on below
         for (int n = BCVars::RhoKE_bc_comp; n < BCVars::xvel_bc; n++) {
-            m_bc_extdir_vals[n][ori]                     = 0.0;
+            m_bc_extdir_vals[n][ori]                     = zero;
         }
 
-        m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
-        m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero; // default
+        m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
+        m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
 
         // These are simply defaults for Neumann gradients -- they should be over-written below
-        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = 0.0;
-        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = 0.0;
+        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = zero;
+        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = zero;
 
-        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = 0.0;
+        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = zero;
 
-        m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
+        m_bc_neumann_vals[BCVars::xvel_bc][ori] = zero;
+        m_bc_neumann_vals[BCVars::yvel_bc][ori] = zero;
+        m_bc_neumann_vals[BCVars::zvel_bc][ori] = zero;
 
         std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
@@ -102,9 +102,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 
             std::vector<Real> v;
             if (input_bndry_planes && m_r2d->ingested_velocity()) {
-                m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.;
-                m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.;
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.;
+                m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero;
+                m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
             } else {
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
@@ -120,9 +120,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
                 }
             }
 
-            Real rho_in = 0.;
+            Real rho_in = zero;
             if (input_bndry_planes && m_r2d->ingested_density()) {
-                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero;
             } else {
                 if (!pp.query("density", rho_in)) {
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
@@ -131,9 +131,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
             }
 
             bool th_read  = (th_bc_data[0].data()!=nullptr);
-            Real theta_in = 0.;
+            Real theta_in = zero;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero;
             } else if (!th_read) {
                 if (rho_in > 0) {
                     pp.get("theta", theta_in);
@@ -141,34 +141,34 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
 
-            Real scalar_in = 0.;
+            Real scalar_in = zero;
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
-                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
             } else {
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qv_in = 0.;
+                Real qv_in = zero;
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.;
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero;
                 } else {
                     if (pp.query("qv", qv_in))
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
                 }
-                Real qc_in = 0.;
+                Real qc_in = zero;
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.;
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero;
                 } else {
                     if (pp.query("qc", qc_in))
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
                 }
             }
 
-            Real KE_in = 0.;
+            Real KE_in = zero;
             if (input_bndry_planes && m_r2d->ingested_KE()) {
-                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero;
             } else {
                 if (pp.query("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
@@ -182,11 +182,11 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 
             std::vector<Real> v;
 
-            // The values of m_bc_extdir_vals default to 0.
+            // The values of m_bc_extdir_vals default to zero
             // But if we find "velocity" in the inputs file, use those values instead.
             if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM))
             {
-                v[ori.coordDir()] = 0.0;
+                v[ori.coordDir()] = zero;
                 m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
                 m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
@@ -291,9 +291,9 @@ void ERF::init_bcs ()
 
     init_phys_bcs(rho_read, read_prim_theta);
 
-    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
-    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
-    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
+    Vector<Real> cons_dir_init(NBCVAR_max,zero);
+    cons_dir_init[BCVars::Rho_bc_comp] = one;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -one;
 
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
@@ -518,7 +518,7 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
@@ -532,7 +532,7 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
                 }
@@ -550,10 +550,10 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
@@ -567,10 +567,10 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
                 }
@@ -694,14 +694,14 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     const Real ztop = zlevels_stag[0][khi+1];
 
     // Flag if theta input
-    Real th_init = -300.0;
+    Real th_init = -Real(300.0);
     bool th_read{false};
 
     // Add surface
     z_inp_tmp.push_back(zbot); // height above sea level [m]
-    u_inp_tmp.push_back(0.);
-    v_inp_tmp.push_back(0.);
-    w_inp_tmp.push_back(0.);
+    u_inp_tmp.push_back(zero);
+    v_inp_tmp.push_back(zero);
+    w_inp_tmp.push_back(zero);
     th_inp_tmp.push_back(th_init);
 
     // Read the vertical profile at each given height
@@ -779,20 +779,20 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         // Size of Nz (domain grid)
         Vector<Real> zcc_inp(Nz  );
         Vector<Real> znd_inp(Nz+1);
-        Vector<Real> u_inp(Nz  ); xvel_bc_data[lev].resize(Nz  ,0.0);
-        Vector<Real> v_inp(Nz  ); yvel_bc_data[lev].resize(Nz  ,0.0);
-        Vector<Real> w_inp(Nz+1); zvel_bc_data[lev].resize(Nz+1,0.0);
+        Vector<Real> u_inp(Nz  ); xvel_bc_data[lev].resize(Nz  ,zero);
+        Vector<Real> v_inp(Nz  ); yvel_bc_data[lev].resize(Nz  ,zero);
+        Vector<Real> w_inp(Nz+1); zvel_bc_data[lev].resize(Nz+1,zero);
         Vector<Real> th_inp;
         if (th_read) {
             th_inp.resize(Nz);
-            th_bc_data[lev].resize(Nz, 0.0);
+            th_bc_data[lev].resize(Nz, zero);
         }
 
         // At this point, we have an input from zbot up to
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+            zcc_inp[k] = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
             znd_inp[k] = zlevels_stag[lev][k+1];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);

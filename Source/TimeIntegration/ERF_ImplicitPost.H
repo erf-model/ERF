@@ -4,7 +4,7 @@
         const bool l_do_implicit_moist = solverChoice.implicit_moisture_diffusion;
         const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
         if ( (l_do_implicit_moist) &&
-             (l_vert_implicit_fac > 0.) &&
+             (l_vert_implicit_fac > zero) &&
              (solverChoice.moisture_type != MoistureType::None) ) {
 
             // BCs

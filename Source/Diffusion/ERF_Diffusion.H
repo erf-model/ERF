@@ -6,6 +6,7 @@
 #include "AMReX_BCRec.H"
 
 #include "ERF_DataStruct.H"
+#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_EB.H"

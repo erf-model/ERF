@@ -52,10 +52,11 @@ void SAM::IceFall (const SolverChoice& sc) {
                 rho_avg = rho_array(i,j,k-1);
                 qci_avg = qci_array(i,j,k-1);
             } else {
-                rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                qci_avg = 0.5*(qci_array(i,j,k-1) + qci_array(i,j,k));
+                rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
+                qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
             }
-            Real vt_ice = min( 0.4 , 8.66 * pow( (std::max(0.,qci_avg)+1.e-10) , 0.24) );
+            Real vt_ice = min( Real(0.4),
+                               Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );
 
             // NOTE: Fz is the sedimentation flux from the advective operator.
             //       In the terrain-following coordinate system, the z-deriv in
@@ -110,10 +111,11 @@ void SAM::IceFall (const SolverChoice& sc) {
                     rho_avg = rho_array(i,j,k-1);
                     qci_avg = qci_array(i,j,k-1);
                 } else {
-                    rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                    qci_avg = 0.5*(qci_array(i,j,k-1) + qci_array(i,j,k));
+                    rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
+                    qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
                 }
-                Real vt_ice = min( 0.4 , 8.66 * pow( (std::max(0.,qci_avg)+1.e-10) , 0.24) );
+                Real vt_ice = min( Real(0.4),
+                                   Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -128,12 +130,12 @@ void SAM::IceFall (const SolverChoice& sc) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Jacobian determinant
-                Real dJinv = (dJ_array) ? 1.0/dJ_array(i,j,k) : 1.0;
+                Real dJinv = (dJ_array) ? one/dJ_array(i,j,k) : one;
 
                 //==================================================
                 // Cloud ice sedimentation (A32)
                 //==================================================
-                Real dqi  = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
+                Real dqi  = dJinv * (one/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
                 dqi = std::max(-qci_array(i,j,k), dqi);
 
                 // Add this increment to both non-precipitating and total water.

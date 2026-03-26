@@ -101,7 +101,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             else if (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momx(i,j,k) >= 0.) {
+                    if (momx(i,j,k) >= zero) {
                         momx(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
                     } else {
                         momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -121,7 +121,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             else if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momx(i,j,k) <= 0.) {
+                    if (momx(i,j,k) <= zero) {
                         momx(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
                     } else {
                         momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -141,7 +141,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             else if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momy(i,j,k) >= 0.) {
+                    if (momy(i,j,k) >= zero) {
                         momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
                     } else {
                         momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -161,7 +161,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             else if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momy(i,j,k) <= 0.) {
+                    if (momy(i,j,k) <= zero) {
                         momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
                     } else {
                         momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -181,7 +181,7 @@ void compute_influx_outflux(
     const Geometry& geom,
     Real& influx, Real& outflux)
 {
-    influx = 0.0, outflux = 0.0;
+    influx = zero, outflux = zero;
 
     const Box domain = geom.Domain();
     const auto& domlo = lbound(domain);
@@ -204,11 +204,11 @@ void compute_influx_outflux(
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (i == domlo.x   && vel_x[box_no](i,j,k) > 0.0) ||
-                 (i == domhi.x+1 && vel_x[box_no](i,j,k) < 0.0) ) {
+            if ( (i == domlo.x   && vel_x[box_no](i,j,k) > zero) ||
+                 (i == domhi.x+1 && vel_x[box_no](i,j,k) < zero) ) {
                 return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { 0. };
+                return { zero };
             }
         });
 
@@ -219,11 +219,11 @@ void compute_influx_outflux(
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (i == domlo.x   && vel_x[box_no](i,j,k) < 0.0) ||
-                 (i == domhi.x+1 && vel_x[box_no](i,j,k) > 0.0) ) {
+            if ( (i == domlo.x   && vel_x[box_no](i,j,k) < zero) ||
+                 (i == domhi.x+1 && vel_x[box_no](i,j,k) > zero) ) {
                 return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { 0. };
+                return { zero };
             }
         });
 
@@ -237,11 +237,11 @@ void compute_influx_outflux(
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (j == domlo.y   && vel_y[box_no](i,j,k) > 0.0) ||
-                 (j == domhi.y+1 && vel_y[box_no](i,j,k) < 0.0) ) {
+            if ( (j == domlo.y   && vel_y[box_no](i,j,k) > zero) ||
+                 (j == domhi.y+1 && vel_y[box_no](i,j,k) < zero) ) {
                 return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { 0. };
+                return { zero };
             }
         });
 
@@ -252,11 +252,11 @@ void compute_influx_outflux(
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (j == domlo.y   && vel_y[box_no](i,j,k) < 0.0) ||
-                 (j == domhi.y+1 && vel_y[box_no](i,j,k) > 0.0) ) {
+            if ( (j == domlo.y   && vel_y[box_no](i,j,k) < zero) ||
+                 (j == domhi.y+1 && vel_y[box_no](i,j,k) > zero) ) {
                 return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { 0. };
+                return { zero };
             }
         });
 
@@ -328,13 +328,13 @@ void enforceInOutSolvability (int /*lev*/,
     Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
     const Geometry& geom)
 {
-    Real small_vel = 1.e-8;
+    Real small_vel = Real(1.e-8);
 
-    Real influx = 0.0, outflux = 0.0;
+    Real influx = zero, outflux = zero;
 
     const Box domain = geom.Domain();
 
-    Real influx_lev = 0.0, outflux_lev = 0.0;
+    Real influx_lev = zero, outflux_lev = zero;
     compute_influx_outflux(vels_vec, area_vec, geom, influx_lev, outflux_lev);
     influx += influx_lev;
     outflux += outflux_lev;
@@ -349,7 +349,7 @@ void enforceInOutSolvability (int /*lev*/,
         correct_outflow(geom, vels_vec, domain, alpha_fcf);
 
         // Just for diagnostic purposes!
-        // Real influx_lev = 0.0, outflux_lev = 0.0;
+        // Real influx_lev = zero, outflux_lev = zero;
         // compute_influx_outflux(vels_vec, area_vec, geom, influx_lev, outflux_lev);
         // amrex::Print() <<" TOTAL INFLUX / OUTFLOW " << influx_lev << " " << outflux_lev << std::endl;
     }

@@ -91,32 +91,32 @@ extern "C" void mym_initialize_cc(const int &kts,const int &kte,const Real &xlan
 //----------------------------------------constants-------------------------------------------
 
 // constants
-const Real no_threshold = 10.0;     // for anthropogenic sources
-const Real frp_threshold = 10.0;    // increased the frp threshold to enhance mixing over big fires
-const Real pblh_threshold = 100.0;
+const Real no_threshold = Real(10.0);     // for anthropogenic sources
+const Real frp_threshold = Real(10.0);    // increased the frp threshold to enhance mixing over big fires
+const Real pblh_threshold = Real(100.0);
 
-const Real t0c = 273.15; // assuming t0c is 273.15
-const Real tice = 240.0; // assuming tice is 240 based on the comment
+const Real t0c = Real(273.15); // assuming t0c is Real(273.15)
+const Real tice = Real(240.0); // assuming tice is 240 based on the comment
 
 // assuming Real corresponds to Real precision
-const Real cphm_st = 5.0, cphm_unst = 16.0,
-                 cphh_st = 5.0, cphh_unst = 16.0;
-//    1.1800000667572021       0.1370676159858704       0.6645210385322571       0.5641299486160278
-//       0.2710000276565552       0.6599999666213989      19.7362747192382812       1.9125051498413086       0.8616270422935486       2.5500068664550781       8.3544006347656250,
+const Real cphm_st = Real(5.0), cphm_unst = Real(16.0),
+                 cphh_st = Real(5.0), cphh_unst = Real(16.0);
+//    Real(1.1800000667572021)       Real(0.1370676159858704)       Real(0.6645210385322571)       Real(0.5641299486160278)
+//       Real(0.2710000276565552)       Real(0.6599999666213989)      Real(19.7362747192382812)       Real(1.9125051498413086)       Real(0.8616270422935486)       Real(2.5500068664550781)       Real(8.3544006347656250),
 
 // closure constants
-constexpr Real pr = 0.7400000095367432,
-                 g1 = 0.2349999994039536, // nn2009 = 0.235
-                 b1 = 24.0,
-                 b2 = 15.0, // ckmod     nn2009
-                 c2 = 0.7289999723434448, // 0.729, //0.75,
-                 c3 = 0.3400000035762787, // 0.340, //0.352,
-                 c4 = 0.0,
-                 c5 = 0.2,
-                 a1 = 1.1800000667572021,
-                 c1 = 0.1370676159858704,
-                 a2 = 0.6645210385322571,
-                 g2 = 0.5641299486160278;
+constexpr Real pr = Real(0.7400000095367432),
+                 g1 = Real(0.2349999994039536), // nn2009 = Real(0.235)
+                 b1 = Real(24.0),
+                 b2 = Real(15.0), // ckmod     nn2009
+                 c2 = Real(0.7289999723434448), // Real(0.729), //Real(0.75),
+                 c3 = Real(0.3400000035762787), // Real(0.340), //Real(0.352),
+                 c4 = zero,
+                 c5 = Real(0.2),
+                 a1 = Real(1.1800000667572021),
+                 c1 = Real(0.1370676159858704),
+                 a2 = Real(0.6645210385322571),
+                 g2 = Real(0.5641299486160278);
 
   constexpr Real cc2 = 1.0_rt - c2,
                  cc3 = 1.0_rt - c3,
@@ -128,46 +128,46 @@ constexpr Real pr = 0.7400000095367432,
 
 // constants for min tke in elt integration (qmin), max z/l in els (zmax),
 // and factor for eddy viscosity for tke (kq = sqfac*km):
-constexpr Real qmin = 0.0, zmax = 1.0, sqfac = 3.0;
+constexpr Real qmin = zero, zmax = one, sqfac = three;
 
-constexpr Real gpw = 5.0_rt / 3.0, qcgmin = 1e-8, qkemin = 1e-3;
-constexpr Real tliq = 269.0; // all hydrometeors are liquid when t > tliq
+constexpr Real gpw = 5.0_rt / three, qcgmin = 1e-8, qkemin = 1e-3;
+constexpr Real tliq = Real(269.0); // all hydrometeors are liquid when t > tliq
 
 // constants for cloud pdf (mym_condensation)
-constexpr Real rr2 = 0.7071068, rrp = 0.3989423;
+constexpr Real rr2 = Real(0.7071068), rrp = Real(0.3989423);
 
 // use canuto/kitamura mod (remove ric and negative tke) (1:yes, 0:no)
-constexpr Real ckmod = 1.0;
+constexpr Real ckmod = one;
 
 // option to activate environmental subsidence in mass-flux scheme
 constexpr bool env_subs = false;
 
 //---------------------------------------------------------------------------------------------
-Real vsc = 1.0e-5;
-Real elt = 1.0e-5;
+Real vsc = Real(1.0e-5);
+Real elt = Real(1.0e-5);
 
 Real esat_blend_cc(Real t) {
     // constants for liquid
-    const Real j0 = .611583699e03;
-    const Real j1 = .444606896e02;
-    const Real j2 = .143177157e01;
-    const Real j3 = .264224321e-1;
-    const Real j4 = .299291081e-3;
-    const Real j5 = .203154182e-5;
-    const Real j6 = .702620698e-8;
-    const Real j7 = .379534310e-11;
-    const Real j8 = -.321582393e-13;
+    const Real j0 = Real(.611583699e03);
+    const Real j1 = Real(.444606896e02);
+    const Real j2 = Real(.143177157e01);
+    const Real j3 = Real(.264224321e-1);
+    const Real j4 = Real(.299291081e-3);
+    const Real j5 = Real(.203154182e-5);
+    const Real j6 = Real(.702620698e-8);
+    const Real j7 = Real(.379534310e-11);
+    const Real j8 = -Real(.321582393e-13);
 
     // constants for ice
-    const Real k0 = .609868993e03;
-    const Real k1 = .499320233e02;
-    const Real k2 = .184672631e01;
-    const Real k3 = .402737184e-1;
-    const Real k4 = .565392987e-3;
-    const Real k5 = .521693933e-5;
-    const Real k6 = .307839583e-7;
-    const Real k7 = .105785160e-9;
-    const Real k8 = .161444444e-12;
+    const Real k0 = Real(.609868993e03);
+    const Real k1 = Real(.499320233e02);
+    const Real k2 = Real(.184672631e01);
+    const Real k3 = Real(.402737184e-1);
+    const Real k4 = Real(.565392987e-3);
+    const Real k5 = Real(.521693933e-5);
+    const Real k6 = Real(.307839583e-7);
+    const Real k7 = Real(.105785160e-9);
+    const Real k8 = Real(.161444444e-12);
 
     Real xc = std::max(-80.0_rt, t - t0c);
     Real esat_blend_cc;
@@ -189,31 +189,31 @@ Real esat_blend_cc(Real t) {
 
 Real qsat_blend_cc(Real t, Real p) {
     // constants for liquid
-    const Real j0 = .611583699e03;
-    const Real j1 = .444606896e02;
-    const Real j2 = .143177157e01;
-    const Real j3 = .264224321e-1;
-    const Real j4 = .299291081e-3;
-    const Real j5 = .203154182e-5;
-    const Real j6 = .702620698e-8;
-    const Real j7 = .379534310e-11;
-    const Real j8 = -.321582393e-13;
+    const Real j0 = Real(.611583699e03);
+    const Real j1 = Real(.444606896e02);
+    const Real j2 = Real(.143177157e01);
+    const Real j3 = Real(.264224321e-1);
+    const Real j4 = Real(.299291081e-3);
+    const Real j5 = Real(.203154182e-5);
+    const Real j6 = Real(.702620698e-8);
+    const Real j7 = Real(.379534310e-11);
+    const Real j8 = -Real(.321582393e-13);
 
     // constants for ice
-    const Real k0 = .609868993e03;
-    const Real k1 = .499320233e02;
-    const Real k2 = .184672631e01;
-    const Real k3 = .402737184e-1;
-    const Real k4 = .565392987e-3;
-    const Real k5 = .521693933e-5;
-    const Real k6 = .307839583e-7;
-    const Real k7 = .105785160e-9;
-    const Real k8 = .161444444e-12;
+    const Real k0 = Real(.609868993e03);
+    const Real k1 = Real(.499320233e02);
+    const Real k2 = Real(.184672631e01);
+    const Real k3 = Real(.402737184e-1);
+    const Real k4 = Real(.565392987e-3);
+    const Real k5 = Real(.521693933e-5);
+    const Real k6 = Real(.307839583e-7);
+    const Real k7 = Real(.105785160e-9);
+    const Real k8 = Real(.161444444e-12);
 
 
     // temperature thresholds
-    const Real t0c = 273.15; // assuming 0 for t0c (temperature in celsius)
-    const Real tice = 240.00; // assuming -273.15_rt for tice (std::absolute zero, could be different)
+    const Real t0c = Real(273.15); // assuming 0 for t0c (temperature in celsius)
+    const Real tice = Real(240.00); // assuming -273.15_rt for tice (std::absolute zero, could be different)
     Real xc = std::max(-80.0_rt, t - t0c);
     Real qsat_blend_cc, esl, esi, rslf, rsif, chi;
 
@@ -241,7 +241,7 @@ Real qsat_blend_cc(Real t, Real p) {
 
 Real xl_blend_cc(Real t,Real xlv, Real xls, Real cpv, Real cliq, Real cice) {
     Real xl_blend_cc, xlvt, xlst, chi;
-    // t0c = 273.15, tice is set elsewhere
+    // t0c = Real(273.15), tice is set elsewhere
     if (t >= t0c) {
         xl_blend_cc = xlv + (cpv - cliq) * (t - t0c); // vaporization/condensation
     } else if (t <= tice) {
@@ -257,7 +257,7 @@ Real xl_blend_cc(Real t,Real xlv, Real xls, Real cpv, Real cliq, Real cice) {
 
 void condensation_edmf_cc(Real qt, Real thl, Real p, Real zagl, Real& thv, Real& qc, Real p1000mb, Real rcp, Real xlvcp, Real rvovrd) {
     const int niter = 50;
-    const Real diff = 1.e-6;
+    const Real diff = Real(1.e-6);
     Real exn = std::pow((p / p1000mb), rcp);
     // qc is assumed to be initialized before calling this function
     for (int i = 0; i < niter; ++i) {
@@ -271,7 +271,7 @@ void condensation_edmf_cc(Real qt, Real thl, Real p, Real zagl, Real& thv, Real&
     Real qs = qsat_blend_cc(t, p);
     qc = std::max(qt - qs, 0.0_rt);
     // do not allow saturation below 1.0_rt m
-    if (zagl < 100.0_rt) qc = 0.0;
+    if (zagl < 100.0_rt) qc = zero;
     thv = (thl + xlvcp * qc) * (1.0_rt + qt * (rvovrd - 1.0_rt) - rvovrd * qc);
 }
 
@@ -282,7 +282,7 @@ void condensation_edmf_cc(Real qt, Real thl, Real p, Real zagl, Real& thv, Real&
 // d - is initially rhs on the output becomes a solution std::vector
 void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
     Real q[n];
-    c[n-1] = 0.0;
+    c[n-1] = zero;
     q[0] = -c[0] / b[0];
     d[0] = d[0] / b[0];
 
@@ -369,14 +369,14 @@ void boulac_length_cc(int kts, int kte,
     int iz, izz, found;
     Real dlu[kte-kts];
     Real dld[kte-kts];
-    const Real lmax = 2000.0;
+    const Real lmax = Real(2000.0);
     Real dzt, zup, beta, zup_inf, bbb, tl, zdo, zdo_sup, zzz;
 
     for (iz = kts; iz <= kte; iz++) {
-        zup = 0.0;
-        dlu[iz] = zw[kte + 1] - zw[iz] - dz[iz] * 0.5;
-        zzz = 0.0;
-        zup_inf = 0.0;
+        zup = zero;
+        dlu[iz] = zw[kte + 1] - zw[iz] - dz[iz] * myhalf;
+        zzz = zero;
+        zup_inf = zero;
         beta = gtr;
 
         if (iz < kte) {
@@ -386,7 +386,7 @@ void boulac_length_cc(int kts, int kte,
                 if (izz < kte) {
                     dzt = dz[izz];
                     zup = zup - beta * theta[iz] * dzt;
-                    zup = zup + beta * (theta[izz + 1] + theta[izz]) * dzt * 0.5;
+                    zup = zup + beta * (theta[izz + 1] + theta[izz]) * dzt * myhalf;
                     zzz = zzz + dzt;
 
                     if (qtke[iz] < zup && qtke[iz] >= zup_inf) {
@@ -398,7 +398,7 @@ void boulac_length_cc(int kts, int kte,
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zup_inf) / (beta * (theta[izz] - theta[iz]));
                             } else {
-                                tl = 0.0;
+                                tl = zero;
                             }
                         }
 
@@ -414,10 +414,10 @@ void boulac_length_cc(int kts, int kte,
             }
         }
 
-        zdo = 0.0;
-        zdo_sup = 0.0;
+        zdo = zero;
+        zdo_sup = zero;
         dld[iz] = zw[iz];
-        zzz = 0.0;
+        zzz = zero;
 
         if (iz > kts) {
             found = 0;
@@ -426,7 +426,7 @@ void boulac_length_cc(int kts, int kte,
                 if (izz > kts) {
                     dzt = dz[izz - 1];
                     zdo = zdo + beta * theta[iz] * dzt;
-                    zdo = zdo - beta * (theta[izz - 1] + theta[izz]) * dzt * 0.5;
+                    zdo = zdo - beta * (theta[izz - 1] + theta[izz]) * dzt * myhalf;
                     zzz = zzz + dzt;
 
                     if (qtke[iz] < zdo && qtke[iz] >= zdo_sup) {
@@ -438,7 +438,7 @@ void boulac_length_cc(int kts, int kte,
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zdo_sup) / (beta * (theta[izz] - theta[iz]));
                             } else {
-                                tl = 0.0;
+                                tl = zero;
                             }
                         }
 
@@ -644,26 +644,26 @@ void mym_length_cc(
     Real afk, abk, zwk, zwk1, dzk, qdz, vflx, bv, tau_cloud, wstar, elb, els, elf, el_stab, el_mf, el_stab_mf, elb_mf, pblh_plus_ent, uonset, ugrid, wt_u, el_les;
     const Real ctau = 1000._rt; // constant for tau_cloud
 
-    const Real grav = 9.8100004196166992, karman = 0.4000000059604645;
-    const Real twothirds = 0.6666666865348816, onethird = 0.3333333432674408;
+    const Real grav = Real(9.8100004196166992), karman = Real(0.4000000059604645);
+    const Real twothirds = Real(0.6666666865348816), onethird = Real(0.3333333432674408);
     const Real qmin = 0.0_rt;
 
     switch(bl_mynn_mixlength) {
 
         /* Original MYNN Mixing Length + BouLac */
         case 0:
-            cns = 2.7;
-            alp1 = 0.23;
-            alp2 = 1.0;
-            alp3 = 5.0;
-            alp4 = 100.0;
-            alp5 = 0.3;
+            cns = Real(2.7);
+            alp1 = Real(0.23);
+            alp2 = one;
+            alp3 = Real(5.0);
+            alp4 = Real(100.0);
+            alp5 = Real(0.3);
 
             // Impose limits on the height integration for elt and the transition layer depth
             zi2 = std::min(10000.0_rt, Real(zw[kte-2]));  // originally integrated to model top, not just 10 km.
             h1 = std::max(0.3_rt * Real(zi2), Real(mindz));
             h1 = std::min(Real(h1), Real(maxdz));         // 1/2 transition layer depth
-            h2 = h1 / 2.0;                                  // 1/4 transition layer depth
+            h2 = h1 / two;                                  // 1/4 transition layer depth
 
             qkw[kts] = std::sqrt(std::max(Real(qke[kts]), qkemin));
             for (k = kts+1; k <= kte; k++) {
@@ -672,8 +672,8 @@ void mym_length_cc(
                 qkw[k] = std::sqrt(std::max(Real(qke[k] * abk + qke[k-1] * afk), qkemin));
             }
 
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
 
             // ** Strictly, zwk*h[i,j] -> ( zwk*h[i,j]+z0 ) **
             k = kts + 1;
@@ -692,7 +692,7 @@ void mym_length_cc(
             vsc = std::cbrt(gtr * elt * std::max(Real(vflx), 0.0_rt));
 
             // ** Strictly, el[i,k=0] is not zero. **
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
 
             for (k = kts+1; k <= kte; k++) {
@@ -704,7 +704,7 @@ void mym_length_cc(
                     elb = alp2 * qkw[k] / bv * (1.0_rt + alp3 / alp2 * std::sqrt(vsc / (bv * elt)));
                     elf = alp2 * qkw[k] / bv;
                 } else {
-                    elb = 1.0e10;
+                    elb = Real(1.0e10);
                     elf = elb;
                 }
 
@@ -724,15 +724,15 @@ void mym_length_cc(
         /* Nonlocal (using BouLac) Form of Mixing Length */
         case 1:
             ugrid = std::sqrt(u1[kts] * u1[kts] + v1[kts] * v1[kts]);
-            uonset = 15.0;
+            uonset = Real(15.0);
             wt_u = (1.0_rt - std::min(std::max(Real(ugrid - uonset), 0.0_rt) / 30.0_rt, 0.5_rt));
-            cns = 3.5;
-            alp1 = 0.23;
-            alp2 = 0.3;
+            cns = Real(3.5);
+            alp1 = Real(0.23);
+            alp2 = Real(0.3);
             alp3 = 2.5_rt * wt_u; // taper off buoyancy enhancement in shear-driven pbls
-            alp4 = 5.0;
-            alp5 = 0.3;
-            alp6 = 50.0;
+            alp4 = Real(5.0);
+            alp5 = Real(0.3);
+            alp6 = Real(50.0);
 
             // Impose limits on the height integration for elt and the transition layer depth
             zi2 = std::max(Real(zi), 300._rt);
@@ -752,8 +752,8 @@ void mym_length_cc(
                 thetaw[k] = theta[k] * abk + theta[k-1] * afk;
             }
 
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
 
             // ** Strictly, zwk*h[i,j] -> ( zwk*h[i,j]+z0 ) **
             k = kts + 1;
@@ -772,7 +772,7 @@ void mym_length_cc(
             vsc = std::cbrt(gtr * elt * std::max(Real(vflx), 0.0_rt));
 
             // ** Strictly, el[i,j,0] is not zero **
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
 
             // Compute BouLac mixing length
@@ -789,7 +789,7 @@ void mym_length_cc(
                     elf = 1.0_rt * std::max(qkw[k],qke_elb_min) / bv;
                     elblavg[k] = std::max(Real(elblavg[k]), Real(alp6 * edmf_a1[k-1] * edmf_w1[k-1] / bv));
                 } else {
-                    elb = 1.0e10;
+                    elb = Real(1.0e10);
                     elf = elb;
                 }
                 if (rmo > 0.0_rt) {
@@ -810,13 +810,13 @@ void mym_length_cc(
         case 2:
             uonset = 3.5_rt + dz[kts] * 0.1_rt;
             ugrid = std::sqrt(u1[kts] * u1[kts] + v1[kts] * v1[kts]);
-            cns = 3.5;
-            alp1 = 0.22;
-            alp2 = 0.30;
-            alp3 = 2.0;
-            alp4 = 5.0;
+            cns = Real(3.5);
+            alp1 = Real(0.22);
+            alp2 = Real(0.30);
+            alp3 = two;
+            alp4 = Real(5.0);
             alp5 = alp2; // like alp2, but for free atmosphere
-            alp6 = 50.0; // used for MF mixing length
+            alp6 = Real(50.0); // used for MF mixing length
             zi2 = std::max(Real(zi), Real(minzi));
 
             // Impose limits on the height integration for elt and the transition layer depth
@@ -833,8 +833,8 @@ void mym_length_cc(
                 qtke[k] = 0.5_rt * qkw[k] * qkw[k];
             }
 
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
 
             // ** Strictly, zwk*h[i,j] -> ( zwk*h[i,j]+z0 ) **
             pblh_plus_ent = std::max(zi+h1, 100._rt);
@@ -854,7 +854,7 @@ void mym_length_cc(
             vsc = std::cbrt(gtr * elt * std::max(Real(vflx), 0.0_rt));
 
             // ** Strictly, el[i,j,0] is not zero **
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
 
             for (k = kts+1; k <= kte; k++) {
@@ -881,11 +881,11 @@ void mym_length_cc(
                      * JAYMES-
                      * tau_cloud is an eddy turnover timescale;
                      * see Teixeira and Cheinet (2004), Eq. 1, and
-                     * Cheinet and Teixeira (2003), Eq. 7.  The
-                     * coefficient 0.5 is tuneable. Expression in
+                     * Cheinet and Teixeira (2003), Eq. Real(7.)  The
+                     * coefficient myhalf is tuneable. Expression in
                      * denominator is identical to vsc (a convective
                      * velocity scale), except that elt is replaced
-                     * by zi, and zero is replaced by 1.0e-4 to
+                     * by zi, and zero is replaced by Real(1.0e-4) to
                      * prevent division by zero.
                      */
                     wstar = 1.25_rt * std::cbrt(gtr * zi * std::max(Real(vflx), 1.0e-4_rt));
@@ -934,7 +934,7 @@ void moisture_check_cc(int kte, Real delt, Real* dp, const Real* exner,
                     Real xlvcp, Real xlscp) {
 
     // constants (assuming xlvcp and xlscp are defined elsewhere)
-    const Real qvmin = 1e-20, qcmin = 0.0, qimin = 0.0;
+    const Real qvmin = 1e-20, qcmin = zero, qimin = zero;
     Real dqv2;
 
     for (int k = kte; k >= 0; --k) { // from the top to the surface
@@ -970,10 +970,10 @@ void moisture_check_cc(int kte, Real delt, Real* dp, const Real* exner,
         qs[k] = std::max(Real(qs[k]), Real(qimin));
     }
 
-        Real sum = 0.0;
+        Real sum = zero;
     Real aa, dum;
 
-    // only execute if dqv2 > 1.e-20, which indicates adjustment was made at the top layer
+    // only execute if dqv2 > Real(1.e-20), which indicates adjustment was made at the top layer
     if(dqv2 > 1e-20) {
         for (int k = 0; k <= kte; ++k) { // loop through all layers
             if (qv[k] > 2.0_rt * qvmin) {
@@ -1064,9 +1064,9 @@ void mym_predict_cc(
     Real* qwt1d, Real* qdiss1d, int& tke_budget,
     /* end tke_budget */
     // model constants:
-    Real& xlvcp,  // == xlv/cp       (kind_phys); xlv=2.5e6, cp=7.*287./2. (real)
-    Real& xlscp,  // == (xlv+xlf)/cp (kind_phys); xlf=3.50e5               (real)
-    Real& karman) // == 0.4          (real)
+    Real& xlvcp,  // == xlv/cp       (kind_phys); xlv=Real(2.5e6), cp=Real(7.)*Real(287.)/two (real)
+    Real& xlscp,  // == (xlv+xlf)/cp (kind_phys); xlf=Real(3.50e5)               (real)
+    Real& karman) // == Real(0.4)          (real)
 {
     Real vkz, pdk1, phm, pdt1, pdq1, pdc1, b1l, b2l, onoff;
     Real dtz[kte-kts+1];
@@ -1088,9 +1088,9 @@ void mym_predict_cc(
 
     // regulate the momentum mixing from the mass-flux scheme (on or off)
     if (bl_mynn_edmf_tke == 0) {
-        onoff = 0.0;
+        onoff = zero;
     } else {
-        onoff = 1.0;
+        onoff = one;
     }
 
     // calculate vkz
@@ -1164,9 +1164,9 @@ void mym_predict_cc(
         c[k] = -dtz[k] * df3q[k+1] - 0.5_rt * dtz[k] * s_aw[k+1] * onoff;
         d[k] = rp[k] * delt + qke[k] + dtz[k] * (s_awqke[k] - s_awqke[k+1]) * onoff;
         }*/
-    a[kte] = 0.0;
-    b[kte] = 1.0;
-    c[kte] = 0.0;
+    a[kte] = zero;
+    b[kte] = one;
+    c[kte] = zero;
     d[kte] = qke[kte];
 
     tridiag2_cc(kte, a, b, c, d, x);
@@ -1201,7 +1201,7 @@ void mym_predict_cc(
         }
     }
 
-    if (closure > 2.5) {
+    if (closure > Real(2.5)) {
         // prediction of the moisture variance
         for (int k = kts; k <= kte-1; k++) {
             b2l = b2 * 0.5_rt * (el[k+1] + el[k]);
@@ -1214,10 +1214,10 @@ void mym_predict_cc(
             c[k] = -dtz[k] * kmdz[k+1] * rhoinv[k];
             d[k] = rp[k] * delt + qsq[k];
         }
-        a[kte] = -1.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
-        d[kte] = 0.0;
+        a[kte] = -one;
+        b[kte] = one;
+        c[kte] = zero;
+        d[kte] = zero;
         tridiag2_cc(kte, a, b, c, d, x);
         for (int k = kts; k <= kte; k++) {
             qsq[k] = std::max(x[k], 1e-17_rt);
@@ -1226,7 +1226,7 @@ void mym_predict_cc(
         // level 2.5_rt - use level 2 diagnostic
         for (int k = kts; k <= kte-1; k++) {
             if (qkw[k] <= 0.0_rt) {
-                b2l = 0.0;
+                b2l = zero;
             } else {
                 b2l = b2 * 0.25_rt * (el[k+1] + el[k]) / qkw[k];
             }
@@ -1248,9 +1248,9 @@ void mym_predict_cc(
             c[k] = -dtz[k] * kmdz[k+1] * rhoinv[k];
             d[k] = rp[k] * delt + tsq[k];
         }
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
         d[kte] = tsq[kte];
         tridiag2_cc(kte, a, b, c, d, x);
         for (int k = kts; k <= kte; k++) {
@@ -1269,10 +1269,10 @@ void mym_predict_cc(
             c[k] = -dtz[k] * kmdz[k+1] * rhoinv[k];
             d[k] = rp[k] * delt + cov[k];
         }
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
-        d[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
+        d[kte] = zero;
         tridiag2_cc(kte, a, b, c, d, x);
         for (int k = kts; k <= kte; k++) {
             cov[k] = x[k];
@@ -1281,7 +1281,7 @@ void mym_predict_cc(
         // not level 3 - default to level 2 diagnostic
         for (int k = kts; k <= kte-1; k++) {
             if (qkw[k] <= 0.0_rt) {
-                b2l = 0.0;
+                b2l = zero;
             } else {
                 b2l = b2 * 0.25_rt * (el[k+1] + el[k]) / qkw[k];
             }
@@ -1360,9 +1360,9 @@ void mynn_mix_chem_cc(int kts, int kte, int i,
             d[k - kts] = chem1[k - 1][ic] + dtz[k - kts] * rhoinv[k - kts] * (s_awchem[k - kts][ic] - s_awchem[k - kts + 1][ic]);
         }
         // prescribed value at top
-        a[kte - kts] = 0.0;
-        b[kte - kts] = 1.0;
-        c[kte - kts] = 0.0;
+        a[kte - kts] = zero;
+        b[kte - kts] = one;
+        c[kte - kts] = zero;
         d[kte - kts] = chem1[kte - 1][ic];
         tridiag3_cc(kte, a, b, c, d, x);
         for (k = kts; k <= kte; ++k) {
@@ -1475,11 +1475,11 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
     printf("\n");
   */
 
-    Real nonloc = 1.0;
+    Real nonloc = one;
 
     Real dztop = 0.5_rt * (dz[kte-1] + dz[kte-2]);
     Real onoff = bl_mynn_edmf_mom;
-    onoff = (onoff == 0) ? 0.0_rt : 1.0;
+    onoff = (onoff == 0) ? 0.0_rt : one;
     Real rhosfc = *psfc / (r_d * (tk[kts] + p608 * qv[kts]));
 
     Real dtz[kte+2];
@@ -1541,7 +1541,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
     Real ustdiff = std::min(ust_v * ust_v, 0.01_rt) / wspd;
 
     for (int k = kts; k <= kte; k++) {
-        dth[k] = 0.0;
+        dth[k] = zero;
     }
 
     int k = kts;
@@ -1557,9 +1557,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         d[k] = u[k] + dtz[k] * rhoinv[k] * (s_awu[k] - s_awu[k+1]) * onoff - dtz[k] * rhoinv[k] * (sd_awu[k] - sd_awu[k+1]) * onoff + sub_u[k] * delt + det_u[k] * delt;
     }
 
-    a[kte] = 0.0;
-    b[kte] = 1.0;
-    c[kte] = 0.0;
+    a[kte] = zero;
+    b[kte] = one;
+    c[kte] = zero;
     d[kte] = u[kte];
     tridiag2_cc(kte, a, b, c, d, x);
     for (int k = kts; k <= kte; k++) {
@@ -1579,9 +1579,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         d[k] = v[k] + dtz[k] * rhoinv[k] * (s_awv[k] - s_awv[k+1]) * onoff - dtz[k] * rhoinv[k] * (sd_awv[k] - sd_awv[k+1]) * onoff + sub_v[k] * delt + det_v[k] * delt;
     }
 
-    a[kte] = 0.0;
-    b[kte] = 1.0;
-    c[kte] = 0.0;
+    a[kte] = zero;
+    b[kte] = one;
+    c[kte] = zero;
     d[kte] = v[kte];
     tridiag2_cc(kte, a, b, c, d, x);
     for (int k = kts; k <= kte; k++) {
@@ -1601,9 +1601,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         d[k] = thl[k] + tcd[k] * delt + dtz[k] * rhoinv[k] * (s_awthl[k] - s_awthl[k+1]) + dtz[k] * rhoinv[k] * (sd_awthl[k] - sd_awthl[k+1]) + diss_heat[k] * delt + sub_thl[k] * delt + det_thl[k] * delt;
     }
 
-    a[kte] = 0.0;
-    b[kte] = 1.0;
-    c[kte] = 0.0;
+    a[kte] = zero;
+    b[kte] = one;
+    c[kte] = zero;
     d[kte] = thl[kte];
     tridiag2_cc(kte, a, b, c, d, x);
 
@@ -1625,9 +1625,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
             d[k] = sqw[k] + qcd[k] * delt + dtz[k] * rhoinv[k] * (s_awqt[k] - s_awqt[k+1]) + dtz[k] * rhoinv[k] * (sd_awqt[k] - sd_awqt[k+1]);
         }
 
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
         d[kte] = sqw[kte];
         tridiag2_cc(kte, a, b, c, d, sqw2);
     } else {
@@ -1651,9 +1651,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
                 d[k] = sqc[k] + qcd[k] * delt + dtz[k] * rhoinv[k] * (s_awqc[k] - s_awqc[k+1]) + dtz[k] * rhoinv[k] * (sd_awqc[k] - sd_awqc[k+1]) + det_sqc[k] * delt;
             }
 
-            a[kte] = 0.0;
-            b[kte] = 1.0;
-            c[kte] = 0.0;
+            a[kte] = zero;
+            b[kte] = one;
+            c[kte] = zero;
             d[kte] = sqc[kte];
             tridiag2_cc(kte, a, b, c, d, sqc2);
         } else {
@@ -1679,9 +1679,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
             d[k] = sqv[k] + qcd[k] * delt + dtz[k] * rhoinv[k] * (s_awqv[k] - s_awqv[k+1]) + dtz[k] * rhoinv[k] * (sd_awqv[k] - sd_awqv[k+1]) + sub_sqv[k] * delt + det_sqv[k] * delt;
         }
 
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
         d[kte] = sqv[kte];
         tridiag2_cc(kte, a, b, c, d, sqv2);
     } else {
@@ -1706,9 +1706,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
             d[k] = sqi[k];
         }
 
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
         d[kte] = sqi[kte];
         tridiag2_cc(kte, a, b, c, d, sqi2);
     } else {
@@ -1733,9 +1733,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
             d[k] = sqs[k];
         }
 
-        a[kte] = 0.0;
-        b[kte] = 1.0;
-        c[kte] = 0.0;
+        a[kte] = zero;
+        b[kte] = one;
+        c[kte] = zero;
         d[kte] = sqs[kte];
         tridiag2_cc(kte, a, b, c, d, sqs2);
     } else {
@@ -1758,9 +1758,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
                 d[k] = qni[k] + dtz[k] * rhoinv[k] * (s_awqni[k] - s_awqni[k+1]) * nonloc;
             }
 
-            a[kte] = 0.0;
-            b[kte] = 1.0;
-            c[kte] = 0.0;
+            a[kte] = zero;
+            b[kte] = one;
+            c[kte] = zero;
             d[kte] = qni[kte];
             tridiag2_cc(kte, a, b, c, d, x);
             for (int k = kts; k <= kte; k++) {
@@ -1786,9 +1786,9 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
                 d[k] = qnc[k] + dtz[k] * rhoinv[k] * (s_awqnc[k] - s_awqnc[k+1]) * nonloc;
             }
 
-            a[kte] = 0.0;
-            b[kte] = 1.0;
-            c[kte] = 0.0;
+            a[kte] = zero;
+            b[kte] = one;
+            c[kte] = zero;
             d[kte] = qnc[kte];
             tridiag2_cc(kte, a, b, c, d, x);
             for (int k = kts; k <= kte; k++) {
@@ -1816,7 +1816,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         }
       } else {
         for (int k = kts; k <= kte; k++) {
-          dqc[k] = 0.0;
+          dqc[k] = zero;
         }
       }
 
@@ -1826,7 +1826,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         }
       } else {
         for (int k = kts; k <= kte; k++) {
-          dqnc[k] = 0.0;
+          dqnc[k] = zero;
         }
       }
 
@@ -1836,7 +1836,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         }
       } else {
         for (int k = kts; k <= kte; k++) {
-          dqi[k] = 0.0;
+          dqi[k] = zero;
         }
       }
 
@@ -1846,7 +1846,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         }
       } else {
         for (int k = kts; k <= kte; k++) {
-          dqs[k] = 0.0;
+          dqs[k] = zero;
         }
       }
 
@@ -1856,16 +1856,16 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
         }
       } else {
         for (int k = kts; k <= kte; k++) {
-          dqni[k] = 0.0;
+          dqni[k] = zero;
         }
       }
     } else {
         for (int k = kts; k <= kte; k++) {
-          dqc[k] = 0.0;
-          dqnc[k] = 0.0;
-          dqi[k] = 0.0;
-          dqni[k] = 0.0;
-          dqs[k] = 0.0;
+          dqc[k] = zero;
+          dqnc[k] = zero;
+          dqi[k] = zero;
+          dqni[k] = zero;
+          dqs[k] = zero;
         }
     }
     if(kts != 0) {
@@ -1879,7 +1879,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
     //skip ozone for now
 
     for (int k = kts; k <= kte; k++) {
-      dozone[k]=0.0;
+      dozone[k]=zero;
       if(dozone[k]*delt+ozone[k]<0.0_rt)
         dozone[k]=-ozone[k]*0.99_rt/delt;
         }
@@ -2022,11 +2022,11 @@ void mym_condensation_cc(
     int k;
     Real t3sq, r3sq, c3sq;
     Real qsl, esat, qsat, dqsl, cld0, q1k, qlk, eq1, qll, q2p, pt, rac, qt, t, xl, rsl, cpm, fng, qww, alpha, beta, bb, ls, wt, wt2, qpct, cld_factor, fac_damp, liq_frac, ql_ice, ql_water, qmq, qsat_tk, q1_rh, rh_hack, dzm1, zsl, maxqc;
-    const Real qpct_sfc = 0.025;
-    const Real qpct_pbl = 0.030;
-    const Real qpct_trp = 0.040;
-    const Real rhcrit = 0.83;
-    const Real rhmax = 1.02;
+    const Real qpct_sfc = Real(0.025);
+    const Real qpct_pbl = Real(0.030);
+    const Real qpct_trp = Real(0.040);
+    const Real rhcrit = Real(0.83);
+    const Real rhmax = Real(1.02);
     Real erf;
     Real dth, dtl, dqw, dzk, els;
     Real zagl, damp, pblh2;
@@ -2048,14 +2048,14 @@ void mym_condensation_cc(
     for (k = kte - 3; k >= kts; k--) {
         theta1 = th[k];
         theta2 = th[k + 2];
-        ht1 = 44307.692_rt * (1.0_rt - pow(p[k] / 101325.0, 0.190));
-        ht2 = 44307.692_rt * (1.0_rt - pow(p[k + 2] / 101325.0, 0.190));
+        ht1 = 44307.692_rt * (1.0_rt - pow(p[k] / Real(101325.0), Real(0.190)));
+        ht2 = 44307.692_rt * (1.0_rt - pow(p[k + 2] / Real(101325.0), Real(0.190)));
         if ((((theta2 - theta1) / (ht2 - ht1)) < 10.0_rt / 1500.0_rt) && (ht1 < 19000.0_rt) && (ht1 > 4000.0_rt)) {
             break;
         }
     }
     k_tropo = std::max(kts + 2, k + 2);
-    zagl = 0.0;
+    zagl = zero;
 
     switch (bl_mynn_cloudpdf) {
         case 0: // original mynn partial-condensation scheme
@@ -2108,7 +2108,7 @@ void mym_condensation_cc(
                 }
                 dth = 0.5_rt * (thl[k + 1] + thl[k]) - 0.5_rt * (thl[k] + thl[std::max(k - 1, kts)]);
                 dqw = 0.5_rt * (qw[k + 1] + qw[k]) - 0.5_rt * (qw[k] + qw[std::max(k - 1, kts)]);
-                sgm[k] = std::sqrt(std::max(Real((pow(alp[k], 2) * std::max(pow(el[k], 2), 0.1) * b2 * std::max(sh[k], 0.03_rt)) / 4.0_rt * pow((dqw / dzk - bet[k] * (dth / dzk)), 2)), 1.0e-10_rt));
+                sgm[k] = std::sqrt(std::max(Real((pow(alp[k], 2) * std::max(pow(el[k], 2), Real(0.1)) * b2 * std::max(sh[k], 0.03_rt)) / 4.0_rt * pow((dqw / dzk - bet[k] * (dth / dzk)), 2)), 1.0e-10_rt));
                 qmq = qw[k] - qsl;
                 q1[k] = qmq / sgm[k];
                 cldfra_bl1d[k] = 0.5_rt * (1.0_rt + std::erf(q1[k] * rr2));
@@ -2183,7 +2183,7 @@ void mym_condensation_cc(
                 rh_hack= rh[k];
                 wt2    = std::min(std::max( zagl - pblh2, 0.0_rt )/300.0_rt, 1.0_rt);
                 // ensure adequate RH & q1 when qi is at least 1e-9 (above the PBLH)
-                if ((qi[k]+qs[k])>1.e-9 && (zagl > pblh2)) {
+                if ((qi[k]+qs[k])>Real(1.e-9) && (zagl > pblh2)) {
                   rh_hack =std::min(rhmax, rhcrit + wt2*0.045_rt*(9.0_rt + std::log10(qi[k]+qs[k])));
                   rh[k]   =std::max(rh[k], rh_hack);
 
@@ -2191,7 +2191,7 @@ void mym_condensation_cc(
                   q1[k]   =std::max(q1_rh, q1[k] );
                 }
                 // ensure adequate RH & q1 when qi is at least 1e-6 (above the PBLH)
-                if (qc[k]>1.e-6 && (zagl > pblh2)) {
+                if (qc[k]>Real(1.e-6) && (zagl > pblh2)) {
                   rh_hack =std::min(rhmax, rhcrit + wt2*0.08_rt*(6.0_rt + std::log10(qc[k])));
                   rh[k]   =std::max(rh[k], rh_hack);
 
@@ -2202,10 +2202,10 @@ void mym_condensation_cc(
                 q1k = q1[k]; // backup q1 for later modification
 
                 // Specify cloud fraction
-                //Original C-B cloud fraction, allows cloud fractions out to q1 = -3.5
-                //cldfra_bl1D(K) = max(0., min(1., 0.5+0.36*atan(1.55*q1(k)))) ! Eq. 7 in CB02
+                //Original C-B cloud fraction, allows cloud fractions out to q1 = -Real(3.5)
+                //cldfra_bl1D(K) = max(zero, min(one, myhalf+Real(0.36)*atan(Real(1.55)*q1(k)))) ! Eq. 7 in CB02
                 //Waynes LES fit  - over-diffuse, when limits removed from vt & vq & fng
-                //cldfra_bl1D(K) = max(0., min(1., 0.5+0.36*atan(1.2*(q1(k)+0.4))))
+                //cldfra_bl1D(K) = max(zero, min(one, myhalf+Real(0.36)*atan(Real(1.2)*(q1(k)+Real(0.4)))))
                 // Best compromise: Improves marine stratus without adding much cold bias.
                 cldfra_bl1d[k] = std::max(0.0_rt, std::min(1.0_rt, 0.5_rt + 0.36_rt * std::atan(1.8_rt * (q1[k] + 0.2_rt))));
 
@@ -2224,9 +2224,9 @@ void mym_condensation_cc(
                 }
 
                 // In saturated grid cells, use average of SGS and resolved values
-                // if ( qc[k] > 1.e-6 ) ql_water = 0.5 * ( ql_water + qc[k] )
+                // if ( qc[k] > Real(1.e-6) ) ql_water = myhalf * ( ql_water + qc[k] )
                 // ql_ice is actually the total frozen condensate (snow+ice),
-                // if ( (qi[k]+qs[k]) > 1.e-9 ) ql_ice = 0.5 * ( ql_ice + (qi[k]+qs[k]) )
+                // if ( (qi[k]+qs[k]) > Real(1.e-9) ) ql_ice = myhalf * ( ql_ice + (qi[k]+qs[k]) )
 
                 if (cldfra_bl1d[k] < 0.001_rt) {
                     ql_ice = 0.0_rt;
@@ -2259,7 +2259,7 @@ void mym_condensation_cc(
                 //
                 // Use the form of "Fng" from Bechtold and Siebesma (1998, JAS)
                 if(q1k >= 1.0_rt) {
-                    fng = 1.0;
+                    fng = one;
                 } else if(q1k >= -1.7_rt && q1k < 1.0_rt) {
                     fng = exp(-0.4_rt*(q1k-1.0_rt));
                 } else if(q1k >= -2.5_rt && q1k < -1.7_rt) {
@@ -2300,17 +2300,17 @@ void mym_condensation_cc(
 
     if (bl_mynn_cloudpdf < 0) {
       for( k = kts;k<=kte-1;k++) {
-        cldfra_bl1d[k] = 0.0;
-        qc_bl1d[k] = 0.0;
-        qi_bl1d[k] = 0.0;
+        cldfra_bl1d[k] = zero;
+        qc_bl1d[k] = zero;
+        qi_bl1d[k] = zero;
       }
     }
     ql[kte] = ql[kte - 1];
     vt[kte] = vt[kte - 1];
     vq[kte] = vq[kte - 1];
-    qc_bl1d[kte] = 0.0;
-    qi_bl1d[kte] = 0.0;
-    cldfra_bl1d[kte] = 0.0;
+    qc_bl1d[kte] = zero;
+    qi_bl1d[kte] = zero;
+    cldfra_bl1d[kte] = zero;
 }
 
 
@@ -2352,13 +2352,13 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
     Real minrad, zminrad, radflux, f0, wst_rad, wst_dd;
     bool cloudflg;
     Real sigq, xl, rsl, cpm, a, mf_cf, diffqt, fng, qww, alpha, beta, bb, f, pt, t, q2p, b9, satvp, rhgrid;
-    Real wa = 1.0, wb = 1.5, z00 = 100.0, bcoeff = 0.2;
-    Real l0 = 80, ent0 = 0.2;
+    Real wa = one, wb = Real(1.5), z00 = Real(100.0), bcoeff = Real(0.2);
+    Real l0 = 80, ent0 = Real(0.2);
     Real dp, dl, adn;
     int debug_mf = 0;
     dl = (1000.0_rt - 500.0_rt) / ndown;
-    pwmin = -3.0;
-    pwmax = -1.0;
+    pwmin = -three;
+    pwmax = -one;
     for(k=kts;k<=kte+1;k++) {
     for(i=0;i<ndown;i++) {
     downw[k][i] = 0.0_rt;
@@ -2394,17 +2394,17 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
     }
     }
     for (int i = 0; i < ndown; i++) {
-        dd_initk[i] = 0.0;
+        dd_initk[i] = zero;
     }
     cloudflg = false;
-    minrad = 100.0;
+    minrad = Real(100.0);
     kminrad = kpbl;
     zminrad = pblh;
     qltop = 0;
     qlbase = 0;
     wthv = wthl + svp1 * wqt;
     for (int i = std::max(2, kpbl - 2); i <= kpbl + 3; i++) {
-        if (qc[i] > 1.0e-6 && cldfra_bl1d[i] > 0.5_rt) {
+        if (qc[i] > Real(1.0e-6) && cldfra_bl1d[i] > 0.5_rt) {
             cloudflg = true;
             qltop = i;
         }
@@ -2419,7 +2419,7 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
         dd_initk[i] = qltop;
     }
 
-    f0 = 0.0;
+    f0 = zero;
     for (int i = 0; i <= qltop; i++) {
         radflux = rthraten[i] * exner[i];
         radflux = radflux * cp / grav * (p[i] - p[i + 1]);
@@ -2447,13 +2447,13 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
         refthl = thl[qltop];
         refthv = thv[qltop];
         refqt = qt[qltop];
-        wst_rad = pow(grav * zw[qltop] * f0 / (refthl * rho[qltop] * cp), 0.333);
+        wst_rad = pow(grav * zw[qltop] * f0 / (refthl * rho[qltop] * cp), Real(0.333));
         wst_rad = std::max(wst_rad, 0.1_rt);
-        wstar = std::max(0.0, pow(grav / thv[1] * wthv * pblh, onethird));
+        wstar = std::max(zero, pow(grav / thv[1] * wthv * pblh, onethird));
         went = thv[1] / (grav * jump_thetav * zw[qltop]) * (0.15_rt * (pow(wstar, 3) + 5 * pow(ust, 3)) + 0.35_rt * pow(wst_rad, 3));
         qstar = std::abs(went * jump_qt / wst_rad);
         thstar = f0 / (rho[qltop] * cp * wst_rad) - went * jump_thetav / wst_rad;
-        wst_dd = pow(0.15_rt * (pow(wstar, 3) + 5 * pow(ust, 3)) + 0.35_rt * pow(wst_rad, 3), 0.333);
+        wst_dd = pow(0.15_rt * (pow(wstar, 3) + 5 * pow(ust, 3)) + 0.35_rt * pow(wst_rad, 3), Real(0.333));
 
         sigmaw = 0.2_rt * wst_dd;
         sigmaqt = 40 * qstar;
@@ -2477,7 +2477,7 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
             downthl[ki][i] = refthl + 0.01_rt * downw[ki][i] * sigmath / sigmaw;
 
         for (int k = dd_initk[i] - 1; k >= kts + 1; k--) {
-            wmin = 0.3_rt + dp * 0.0005;
+            wmin = 0.3_rt + dp * Real(0.0005);
             ent[k+1][i] = 0.33_rt / (std::min(std::max(-1.0_rt * downw[k + 1][i], wmin), 0.9_rt) * dp);
             entexp = ent[k+1][i] * dz[k];
             entexp_m = ent[k+1][i] * 0.333_rt * dz[k];
@@ -2563,23 +2563,23 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
 void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Real& fltv, Real& xland, int& kpbl, Real& pblh, const Real* sqc, const Real* sqi, const Real* sqw, const Real* thl, const Real* th1, const Real* ex1, const Real* p1, const Real*  rho1, const Real* thetav, const Real* cldfra_bl1d, const Real* rthraten, Real& maxkhtopdown, Real* khtopdown, Real* tkeprodtd) {
     // constants
   /*
-    const Real pfac = 2.0, zfmin = 0.01, phifac = 8.0;
-    const Real grav = 9.81, cp = 1004.0, xlv = 2.5e6, xlvcp = xlv / cp, r_d = 287.0, ep_2 = 0.622, p608 = 0.608, karman = 0.4;
-    const Real twothirds = 2.0_rt / 3.0, onethird = 1.0_rt / 3.0;
+    const Real pfac = two, zfmin = Real(0.01), phifac = Real(8.0);
+    const Real grav = Real(9.81), cp = Real(1004.0), xlv = Real(2.5e6), xlvcp = xlv / cp, r_d = Real(287.0), ep_2 = Real(0.622), p608 = Real(0.608), karman = Real(0.4);
+    const Real twothirds = 2.0_rt / three, onethird = 1.0_rt / three;
   */
-  //Main meaningful difference is cp=1004.5 vs cp=1004
-    const Real pfac = 2.0, zfmin = 0.0099999997764826, phifac = 8.0;
-    const Real grav = 9.8100004196166992, cp = 1004.5, xlv = 2.5e6, xlvcp = 2488.8002929687500000, r_d = 287.0, ep_2 = 0.6217504143714905, p608 = 0.6083624362945557, karman = 0.4000000059604645;
-    const Real twothirds = 0.6666666865348816, onethird = 0.3333333432674408;
+  //Main meaningful difference is cp=Real(1004.5) vs cp=1004
+    const Real pfac = two, zfmin = Real(0.0099999997764826), phifac = Real(8.0);
+    const Real grav = Real(9.8100004196166992), cp = Real(1004.5), xlv = Real(2.5e6), xlvcp = Real(2488.8002929687500000), r_d = Real(287.0), ep_2 = Real(0.6217504143714905), p608 = Real(0.6083624362945557), karman = Real(0.4000000059604645);
+    const Real twothirds = Real(0.6666666865348816), onethird = Real(0.3333333432674408);
     // local variables
     Real zfac[kte - kts + 1], wscalek2[kte - kts + 1], zfacent[kte - kts + 1];
     Real bfx0, wm3, bfxpbl, dthvx, tmp1;
     Real temps, templ, zl1, wstar3_2;
-    Real ent_eff, radsum, radflux, we, rcldb, rvls, minrad = 100., zminrad = pblh;
+    Real ent_eff, radsum, radflux, we, rcldb, rvls, minrad = Real(100.), zminrad = pblh;
     int k, kk, kminrad = kpbl;
     bool cloudflg = false;
 
-    maxkhtopdown = 0.0;
+    maxkhtopdown = zero;
     for (kk = kts; kk <= kte; ++kk) {
       khtopdown[kk] = 0.0_rt;
       tkeprodtd[kk] = 0.0_rt;
@@ -2587,7 +2587,7 @@ void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Re
 
     // check for stratocumulus-topped boundary layers
     for (kk = std::max(0, kpbl + 1 - 2) - 1; kk <= kpbl + 1 + 3 - 1; ++kk) {
-        if (sqc[kk - kts] > 1.e-6 || sqi[kk - kts] > 1.e-6 || cldfra_bl1d[kk - kts] > 0.5_rt) {
+        if (sqc[kk - kts] > Real(1.e-6) || sqi[kk - kts] > Real(1.e-6) || cldfra_bl1d[kk - kts] > 0.5_rt) {
             cloudflg = true;
         }
         if (rthraten[kk - kts] < minrad) {
@@ -2603,15 +2603,15 @@ void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Re
         zl1 = dz1[kts];
         k = std::max(kpbl - 1, kminrad - 1);
         templ = thl[k - kts] * ex1[k - kts];
-        rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (templ - 273.16) / (templ - 29.65)) * (ep_2 / p1[k + 1 - kts]);
+        rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (templ - Real(273.16)) / (templ - Real(29.65))) * (ep_2 / p1[k + 1 - kts]);
         temps = templ + (sqw[k - kts] - rvls) / (cp / xlv + ep_2 * xlv * rvls / (r_d * std::pow(templ, 2)));
-        rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (temps - 273.15) / (temps - 29.65)) * (ep_2 / p1[k + 1 - kts]);
+        rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (temps - Real(273.15)) / (temps - Real(29.65))) * (ep_2 / p1[k + 1 - kts]);
         rcldb = std::max(sqw[k - kts] - rvls, 0.0_rt);
         dthvx = (thl[k + 2 - kts] + th1[k + 2 - kts] * p608 * sqw[k + 2 - kts]) - (thl[k - kts] + th1[k - kts] * p608 * sqw[k - kts]);
         dthvx = std::max(dthvx, 0.1_rt);
         tmp1 = xlvcp * rcldb / (ex1[k - kts] * dthvx);
         ent_eff = 0.2_rt + 0.2_rt * 8._rt * tmp1;
-        radsum = 0.0;
+        radsum = zero;
         for (kk = std::max(0, kpbl - 3) ; kk <= kpbl + 1 + 3 - 1; ++kk) {
             radflux = rthraten[kk - kts] * ex1[kk - kts]; // converts theta/s to temp/s
             radflux = radflux * cp / grav * (p1[kk - kts] - p1[kk + 1 - kts]); // converts temp/s to w/m^2
@@ -2670,7 +2670,7 @@ void scale_aware_cc(Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates hybrid diagnostic boundary-layer height (pblh).
 //
-// notes on the pblh formulation: the 1.5-theta-increase method defines
+// notes on the pblh formulation: the Real(1.5)-theta-increase method defines
 //pbl heights as the level at.
 //which the potential temperature first exceeds the minimum potential.
 //temperature within the boundary layer by 1.5_rt k. when applied to.
@@ -2689,8 +2689,8 @@ void scale_aware_cc(Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
 void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real *zw1d, Real* dz1d, Real &landsea, int &kzi) {
     // HR: SEGFAULTS WHEN ACCESSING VECTORS, need to look into how to pass 1d arrays to c++ from fortran
     // constants
-    const Real sbl_lim = 200.0;
-    const Real sbl_damp = 400.0;
+    const Real sbl_lim = Real(200.0);
+    const Real sbl_damp = Real(400.0);
 
     // local variables
     Real pblh_tke, qtke, qtkem1, maxqke, tkeeps, minthv, delt_thv;
@@ -2701,7 +2701,7 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     // find min thetav in the lowest 200 m agl
     kthv = 1;
     minthv = 9e9;
-    for (int k = kts + 1; k <= kte && zw1d[k - kts] <= 200.; ++k) {
+    for (int k = kts + 1; k <= kte && zw1d[k - kts] <= Real(200.); ++k) {
         if (minthv > thetav1d[k - kts]) {
             minthv = thetav1d[k - kts];
             kthv = k;
@@ -2709,7 +2709,7 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     }
 
     // find thetav-based pblh (best for daytime)
-    zi = 0.0;
+    zi = zero;
     delt_thv = (landsea - 1.5_rt) >= 0 ? 1.0_rt : 1.25_rt;
     //for (int k = kthv + 1; k < kte; ++k) {
     for (int k = kts + 1; k < kte; ++k) {
@@ -2721,9 +2721,9 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     }
 
     // for stable boundary layers, use tke method to complement the thetav-based definition
-    pblh_tke = 0.0;
+    pblh_tke = zero;
     maxqke = std::max(qke1d[kts - kts], 0.0_rt);
-    tkeeps = maxqke / 40.0;
+    tkeeps = maxqke / Real(40.0);
     tkeeps = std::max(tkeeps, 0.02_rt);
 
     for (int k = kts + 1; k < kte; ++k) {
@@ -2741,8 +2741,8 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     pblh_tke = std::min(pblh_tke, zi + 350.0_rt);
     pblh_tke = std::max(pblh_tke, std::max(zi - 350.0_rt, 10.0_rt));
 
-    Real wt = 0.5_rt * std::tanh((zi - sbl_lim) / sbl_damp) + 0.5;
-    if (maxqke > 0.05) {
+    Real wt = 0.5_rt * std::tanh((zi - sbl_lim) / sbl_damp) + myhalf;
+    if (maxqke > Real(0.05)) {
         zi = pblh_tke * (1.0_rt - wt) + zi * wt;
     }
 
@@ -2757,8 +2757,8 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
 
 void retrieve_exchange_coeffs_cc(int& kts, int& kte, Real* dfm, Real* dfh, const Real* dz, Real* k_m, Real* k_h) {
     Real dzk;
-    k_m[kts] = 0.0;
-    k_h[kts] = 0.0;
+    k_m[kts] = zero;
+    k_h[kts] = zero;
     for (int k = kts + 1; k <= kte; ++k) {
         dzk = 0.5_rt * (dz[k] + dz[k - 1]);
         k_m[k] = dfm[k] * dzk;
@@ -2791,35 +2791,35 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
     Real qtke[kte+1], elblmin[kte+1], elblavg[kte+1], thetaw[kte+1];
     Real wt, wt2, zi2, h1, h2, hs, elblmin0, elblavg0, cldavg;
     Real cns, alp1, alp2, alp3, alp4, alp5, alp6;
-    Real minzi = 300.0;
-    Real maxdz = 750.0;
-    Real mindz = 300.0;
-    Real zslh = 100.0;
-    Real csl = 2.0;
+    Real minzi = Real(300.0);
+    Real maxdz = Real(750.0);
+    Real mindz = Real(300.0);
+    Real zslh = Real(100.0);
+    Real csl = two;
     Real qke_elb_min = 0.018_rt;
     Real afk, abk, zwk, zwk1, dzk, qdz, vflx, bv, tau_cloud, wstar, elb, els, elf, el_stab, el_mf, el_stab_mf, elb_mf, pblh_plus_ent, uonset, ugrid, wt_u, el_les;
-    Real ctau = 1000.0;
+    Real ctau = Real(1000.0);
 
     switch(bl_mynn_mixlength) {
         case 0:
-            cns = 2.7;
-            alp1 = 0.23;
-            alp2 = 1.0;
-            alp3 = 5.0;
-            alp4 = 100.0;
-            alp5 = 0.3;
+            cns = Real(2.7);
+            alp1 = Real(0.23);
+            alp2 = one;
+            alp3 = Real(5.0);
+            alp4 = Real(100.0);
+            alp5 = Real(0.3);
             zi2 = std::min(10000.0_rt, zw[kte-2]);
             h1 = std::max(0.3_rt * zi2, mindz);
             h1 = std::min(h1, maxdz);
-            h2 = h1 / 2.0;
+            h2 = h1 / two;
             qkw[kts] = std::sqrt(std::max(qke[kts], 1.0e-10_rt));
             for (k = kts+1; k <= kte; k++) {
                 afk = dz[k] / (dz[k] + dz[k-1]);
                 abk = 1.0_rt - afk;
                 qkw[k] = std::sqrt(std::max(qke[k] * abk + qke[k-1] * afk, 1.0e-3_rt));
             }
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
             k = kts + 1;
             zwk = zw[k];
             while (zwk <= zi2 + h1) {
@@ -2833,7 +2833,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
             elt = alp1 * elt / vsc;
             vflx = (vt[kts] + 1.0_rt) * flt + (vq[kts] + tv0) * flq;
             vsc = std::pow(gtr * elt * std::max(vflx, 0.0_rt), 1.0_rt / 3.0_rt);
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
             for (k = kts+1; k <= kte; k++) {
                 zwk = zw[k];
@@ -2842,7 +2842,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                     elb = alp2 * qkw[k] / bv * (1.0_rt + alp3 / alp2 * std::sqrt(vsc / (bv * elt)));
                     elf = alp2 * qkw[k] / bv;
                 } else {
-                    elb = 1.0e10;
+                    elb = Real(1.0e10);
                     elf = elb;
                 }
                 if (rmo > 0.0_rt) {
@@ -2850,25 +2850,25 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + 0.5;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::min(elb / (elb / elt + elb / els + 1.0_rt), elf);
             }
             break;
         case 1:
             ugrid = std::sqrt(u1[kts] * u1[kts] + v1[kts] * v1[kts]);
-            uonset = 15.0;
+            uonset = Real(15.0);
             wt_u = (1.0_rt - std::min(std::max(ugrid - uonset, 0.0_rt) / 30.0_rt, 0.5_rt));
-            cns = 2.7;
-            alp1 = 0.23;
-            alp2 = 0.3;
+            cns = Real(2.7);
+            alp1 = Real(0.23);
+            alp2 = Real(0.3);
             alp3 = 2.5_rt * wt_u;
-            alp4 = 5.0;
-            alp5 = 0.3;
-            alp6 = 50.0;
+            alp4 = Real(5.0);
+            alp5 = Real(0.3);
+            alp6 = Real(50.0);
             zi2 = std::max(zi, 300.0_rt);
             h1 = std::max(0.3_rt * zi2, 300.0_rt);
             h1 = std::min(h1, 600.0_rt);
-            h2 = h1 / 2.0;
+            h2 = h1 / two;
             qkw[kts] = std::sqrt(std::max(qke[kts], 1.0e-10_rt));
             for (k = kts+1; k <= kte; k++) {
                 afk = dz[k] / (dz[k] + dz[k-1]);
@@ -2877,8 +2877,8 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 qtke[k] = 0.5_rt * (qkw[k] * qkw[k]);
                 thetaw[k] = theta[k] * abk + theta[k-1] * afk;
             }
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
             k = kts + 1;
             zwk = zw[k];
             while (zwk <= zi2 + h1) {
@@ -2892,7 +2892,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
             elt = std::min(std::max(alp1 * elt / vsc, 10.0_rt), 400.0_rt);
             vflx = fltv;
             vsc = std::pow(gtr * elt * std::max(vflx, 0.0_rt), 1.0_rt / 3.0_rt);
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
             for (k = kts+1; k <= kte; k++) {
                 zwk = zw[k];
@@ -2903,7 +2903,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                     elf = 1.0_rt * qkw[k] / bv;
                     elblavg[k] = std::max(elblavg[k], alp6 * edmf_a1[k-1] * edmf_w1[k-1] / bv);
                 } else {
-                    elb = 1.0e10;
+                    elb = Real(1.0e10);
                     elf = elb;
                 }
                 if (rmo > 0.0_rt) {
@@ -2911,25 +2911,25 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + 0.5;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::min(elb / (elb / elt + elb / els + 1.0_rt), elf);
                 el[k] = el[k] * psig_bl;
             }
             break;
         case 2:
-            uonset = 3.5_rt + dz[kts] * 0.1;
+            uonset = 3.5_rt + dz[kts] * Real(0.1);
             ugrid = std::sqrt(u1[kts] * u1[kts] + v1[kts] * v1[kts]);
-            cns = 3.5;
-            alp1 = 0.22;
-            alp2 = 0.30;
-            alp3 = 2.0;
-            alp4 = 5.0;
+            cns = Real(3.5);
+            alp1 = Real(0.22);
+            alp2 = Real(0.30);
+            alp3 = two;
+            alp4 = Real(5.0);
             alp5 = alp2;
-            alp6 = 50.0;
+            alp6 = Real(50.0);
             zi2 = std::max(zi, minzi);
             h1 = std::max(0.3_rt * zi2, mindz);
             h1 = std::min(h1, maxdz);
-            h2 = h1 * 0.5;
+            h2 = h1 * myhalf;
             qtke[kts] = std::max(0.5_rt * qke[kts], 0.5_rt*qkemin);
             qkw[kts] = std::sqrt(std::max(qke[kts], qkemin));
             for (k = kts+1; k <= kte; k++) {
@@ -2939,8 +2939,8 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 qtke[k] = 0.5_rt * qkw[k] * qkw[k];
                 thetaw[k] = theta[k] * abk + theta[k-1] * afk;
             }
-            elt = 1.0e-5;
-            vsc = 1.0e-5;
+            elt = Real(1.0e-5);
+            vsc = Real(1.0e-5);
             k = kts + 1;
             zwk = zw[k];
             while (zwk <= zi2 + h1) {
@@ -2954,7 +2954,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
             elt = std::min(std::max(alp1 * elt / vsc, 10.0_rt), 400.0_rt);
             vflx = fltv;
             vsc = std::pow(gtr * elt * std::max(vflx, 0.0_rt), 1.0_rt / 3.0_rt);
-            el[kts] = 0.0;
+            el[kts] = zero;
             zwk1 = zw[kts+1];
             for (k = kts+1; k <= kte; k++) {
                 zwk = zw[k];
@@ -2966,14 +2966,14 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                     elb = std::min(std::max(alp5 * qkw[k], alp6 * edmf_a1[k] * edmf_w1[k]) / bv, zwk);
                     wstar = 1.25_rt * std::pow(gtr * zi * std::max(vflx, 1.0e-4_rt), 1.0_rt / 3.0_rt);
                     tau_cloud = std::min(std::max(ctau * wstar / grav, 30.0_rt), 150.0_rt);
-                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + 0.5;
+                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                     tau_cloud = tau_cloud * (1.0_rt - wt) + 50.0_rt * wt;
                     elf = std::min(std::max(tau_cloud * std::sqrt(std::min(qtke[k], 40.0_rt)), alp6 * edmf_a1[k] * edmf_w1[k] / bv), zwk);
                 } else {
                     wstar = 1.25_rt * std::pow(gtr * zi * std::max(vflx, 1.0e-4_rt), 1.0_rt / 3.0_rt);
                     tau_cloud = std::min(std::max(ctau * wstar / grav, 50.0_rt), 200.0_rt);
-                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + 0.5;
-                    tau_cloud = tau_cloud * (1.0_rt - wt) + std::max(100.0, dzk * 0.25) * wt;
+                    wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
+                    tau_cloud = tau_cloud * (1.0_rt - wt) + std::max(Real(100.0), dzk * fourth) * wt;
                     elb = std::min(tau_cloud * std::sqrt(std::min(qtke[k], 40.0_rt)), zwk);
                     elf = elb;
                     elb_mf = elb;
@@ -2985,7 +2985,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
                 } else {
                     els = karman * zwk * std::pow(1.0_rt - alp4 * zwk * rmo, 0.2_rt);
                 }
-                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + 0.5;
+                wt = 0.5_rt * std::tanh((zwk - (zi2 + h1)) / h2) + myhalf;
                 el[k] = std::sqrt(els * els / (1.0_rt + (els * els / elt * elt) + (els * els / elb_mf * elb_mf)));
                 el[k] = el[k] * (1.0_rt - wt) + elf * wt;
                 el_les = std::min(els / (1.0_rt + (els / 12.0_rt)), elb_mf);
@@ -3025,16 +3025,16 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     int k, i, k50;
     Real fltv2, wstar, qstar, thstar, sigmaw, sigmaqt, sigmath, z0, pwmin, pwmax, wmin, wmax, wlv, psig_w, maxw, wpbl;
     Real b, qtn, thln, thvn, qcn, un, vn, qken, qncn, qnin, qnwfan, qnifan, qnbcan, wn2, wn, entexp, entexm, entw, bcoeff, thvkm1, thvk, pk, rho_int;
-    Real wa = 0.6666666865348816; //2./3.
-    Real wb = 0.0020000000949949, wc = 1.5;
-    Real l0 = 100., ent0 =  0.1000000014901161;
-    Real atot = 0.1000000014901161;
-    Real lmax = 1000.;
-    Real lmin = 300.;
-    Real dlmin = 0.;
+    Real wa = Real(0.6666666865348816); //two/three
+    Real wb = Real(0.0020000000949949), wc = Real(1.5);
+    Real l0 = Real(100.), ent0 =  Real(0.1000000014901161);
+    Real atot = Real(0.1000000014901161);
+    Real lmax = Real(1000.);
+    Real lmin = Real(300.);
+    Real dlmin = zero;
     Real minwidth;
     Real dl;
-    Real dcut = 1.2000000476837158;
+    Real dcut = Real(1.2000000476837158);
     Real d;
     Real cn, c, l, n, an2, hux, wspd_pbl, cloud_base, width_flx;
     Real chemn[nchem];
@@ -3044,104 +3044,104 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     Real envm_u[kte+1+1],envm_v[kte+1+1],envm_sqc[kte+1+1],envm_thl[kte+1+1],envm_sqv[kte+1+1];
     bool superadiabatic;
     Real sigq, xl, rsl, cpm, a, qmq, mf_cf, aup, q1, diffqt, qsat_tk, fng, qww, alpha, beta, bb, f, pt, t, q2p, b9, satvp, rhgrid, ac_mf, ac_strat, qc_mf;
-    Real cf_thresh = 0.5;
+    Real cf_thresh = myhalf;
     Real exneri[kte+1], dzi[kte+1], rhoz[kte+1];
     Real thp, qtp, qcp, qcs, esat, qsl;
     Real csigma, acfac, ac_wsp;
     int overshoot;
     Real bvf, frz, dzp;
     Real adjustment, flx1, flt2;
-    Real fluxportion = 0.75;
+    Real fluxportion = Real(0.75);
     Real sublim, qc_ent, qv_ent, qt_ent, thl_ent, detrate, detrateuv, oow, exc_fac, aratio, detturb, qc_grid, qc_sgs, exc_heat, exc_moist, tk_int, tvs, qc_plume;
-    Real cdet = 0.0222222227603197;//1./45.;
-    Real dzpmax = 300.;
-    Real csub = 0.25;
-    Real pgfac = 0.00;
+    Real cdet = Real(0.0222222227603197);//one/Real(45.);
+    Real dzpmax = Real(300.);
+    Real csub = fourth;
+    Real pgfac = Real(0.00);
     Real uk, ukm1, vk, vkm1, dxsa;
 
     for (int i = 0; i < nup; i++) {
         for (int j = kts; j <= kte+1; j++) {
-            upw[j][i] = 0.0;
-            upthl[j][i] = 0.0;
-            upqt[j][i] = 0.0;
-            upqc[j][i] = 0.0;
-            upqv[j][i] = 0.0;
-            upa[j][i] = 0.0;
-            upu[j][i] = 0.0;
-            upv[j][i] = 0.0;
-            upthv[j][i] = 0.0;
-            upqke[j][i] = 0.0;
-            upqnc[j][i] = 0.0;
-            upqni[j][i] = 0.0;
-            upqnwfa[j][i] = 0.0;
-            upqnifa[j][i] = 0.0;
-            upqnbca[j][i] = 0.0;
+            upw[j][i] = zero;
+            upthl[j][i] = zero;
+            upqt[j][i] = zero;
+            upqc[j][i] = zero;
+            upqv[j][i] = zero;
+            upa[j][i] = zero;
+            upu[j][i] = zero;
+            upv[j][i] = zero;
+            upthv[j][i] = zero;
+            upqke[j][i] = zero;
+            upqnc[j][i] = zero;
+            upqni[j][i] = zero;
+            upqnwfa[j][i] = zero;
+            upqnifa[j][i] = zero;
+            upqnbca[j][i] = zero;
             if(mix_chem)
               for(int nchemi = 0; nchemi < nchem; nchemi++)
-                upchem[j][i][nchemi] = 0.0;
+                upchem[j][i][nchemi] = zero;
         }
     }
     for (int i = kts; i <= kte; i++) {
         for (int j = 0; j < nup; j++) {
-            ent[i][j] = 0.001;
+            ent[i][j] = Real(0.001);
             enti[i][j] = 0;
         }
     }
     for (int k = kts; k <= kte; k++) {
-      edmf_a[k] = 0.0;
-      edmf_w[k] = 0.0;
-      edmf_qt[k] = 0.0;
-      edmf_thl[k] = 0.0;
-      edmf_ent[k] = 0.0;
-      edmf_qc[k] = 0.0;
+      edmf_a[k] = zero;
+      edmf_w[k] = zero;
+      edmf_qt[k] = zero;
+      edmf_thl[k] = zero;
+      edmf_ent[k] = zero;
+      edmf_qc[k] = zero;
       if(mix_chem)
         for(int nchemi = 0; nchemi < nchem; nchemi++) {
-          edmf_chem[k][nchemi] = 0.0;
+          edmf_chem[k][nchemi] = zero;
         }
     }
 
     for (int k = kts; k <= kte+1; k++) {
-      s_aw[k] = 0.0;
-      s_awthl[k] = 0.0;
-      s_awqt[k] = 0.0;
-      s_awqv[k] = 0.0;
-      s_awqc[k] = 0.0;
-      s_awu[k] = 0.0;
-      s_awv[k] = 0.0;
-      s_awqke[k] = 0.0;
-      s_awqnc[k] = 0.0;
-      s_awqni[k] = 0.0;
-      s_awqnwfa[k] = 0.0;
-      s_awqnifa[k] = 0.0;
-      s_awqnbca[k] = 0.0;
+      s_aw[k] = zero;
+      s_awthl[k] = zero;
+      s_awqt[k] = zero;
+      s_awqv[k] = zero;
+      s_awqc[k] = zero;
+      s_awu[k] = zero;
+      s_awv[k] = zero;
+      s_awqke[k] = zero;
+      s_awqnc[k] = zero;
+      s_awqni[k] = zero;
+      s_awqnwfa[k] = zero;
+      s_awqnifa[k] = zero;
+      s_awqnbca[k] = zero;
       if(mix_chem)
         for(int nchemi = 0; nchemi < nchem; nchemi++)
-          s_awchem[k][nchemi] = 0.0;
+          s_awchem[k][nchemi] = zero;
     }
     //    printf("missing sub_thl in dmp_mf\n");
     //   exit(1);
     /*
     for (int k = kts; k <= kte; k++) {
-      sub_thl[k] = 0.0;
-      sub_sqv[k] = 0.0;
-      sub_u[k] = 0.0;
-      sub_v[k] = 0.0;
-      det_thl[k] = 0.0;
-      det_sqv[k] = 0.0;
-      det_u[k] = 0.0;
-      det_v[k] = 0.0;
+      sub_thl[k] = zero;
+      sub_sqv[k] = zero;
+      sub_u[k] = zero;
+      sub_v[k] = zero;
+      det_thl[k] = zero;
+      det_sqv[k] = zero;
+      det_u[k] = zero;
+      det_v[k] = zero;
       nup2[k] = nup[k];
     }
     */
-    maxw = 0.0;
-    cloud_base = 9000.0;
+    maxw = zero;
+    cloud_base = Real(9000.0);
     for (int k = kts; k < kte-1; k++) {
         if (zw[k] > pblh + 500._rt) {
             break;
         }
         wpbl = w[k];
         if (w[k] < 0._rt) {
-            wpbl = 2.*w[k];
+            wpbl = two*w[k];
         }
         maxw = std::max(maxw, Real(std::abs(wpbl)));
         if (zw[k] <= 50._rt) {
@@ -3157,10 +3157,10 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     psig_w = std::min(psig_w, psig_shcu);
     fltv2 = fltv;
     if (psig_w == 0.0_rt && fltv > 0.0_rt) {
-        fltv2 = -1.*fltv;
+        fltv2 = -one*fltv;
     }
     superadiabatic = false;
-    tvs = ts*(1.0+p608*qv[kts]);
+    tvs = ts*(one+p608*qv[kts]);
     for (int k = 0; k < std::max(1, k50-1); k++) {
         if (k == 0) {
             if ((thv[k]-tvs)/(0.5_rt*dz[k]) < hux) {
@@ -3198,14 +3198,14 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     }
     if (maxwidth <= minwidth) {
         nup2 = 0;
-        maxwidth = 0.0;
+        maxwidth = zero;
     }
     ktop = 0;
-    ztop = 0.0;
-    maxmf = 0.0;
-    if (fltv2 > 0.002 && maxwidth > minwidth && superadiabatic) {
-        Real cn = 0.;
-        Real d = -1.9;
+    ztop = zero;
+    maxmf = zero;
+    if (fltv2 > Real(0.002) && maxwidth > minwidth && superadiabatic) {
+        Real cn = zero;
+        Real d = -Real(1.9);
         Real dl = (maxwidth - minwidth)/Real(nup-1);
         for (int i = 0; i < nup; i++) {
             Real l = minwidth + dl*Real(i);
@@ -3217,12 +3217,12 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
 
         Real ac_wsp;
         if (wspd_pbl <= 10._rt) {
-            ac_wsp = 1.0;
+            ac_wsp = one;
         } else {
             ac_wsp = 1.0_rt - std::min((wspd_pbl - 10.0_rt)/15._rt, 1.0_rt);
         }
         acfac = acfac * ac_wsp;
-        Real an2 = 0.;
+        Real an2 = zero;
         for (int i = 0; i < nup; i++) {
             Real l = minwidth + dl*Real(i);
             Real n = c*l*l*l * (l*l)/(dx*dx) * dl;
@@ -3230,32 +3230,32 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
             upa[kts][i] = upa[kts][i]*acfac;
             an2 = an2 + upa[kts][i];
         }
-        Real z0 = 50.;
-        Real pwmin = 0.1;
-        Real pwmax = 0.4;
-        Real wstar = std::max(1.e-2, pow(gtr*fltv2*pblh, 1./3._rt));
+        Real z0 = Real(50.);
+        Real pwmin = Real(0.1);
+        Real pwmax = Real(0.4);
+        Real wstar = std::max(Real(1.e-2), pow(gtr*fltv2*pblh, one/3._rt));
         Real qstar = std::max(flq, 1.0e-5_rt)/wstar;
         Real thstar = flt/wstar;
         Real csigma;
         if (landsea-1.5_rt >= 0) {
-            csigma = 1.34;
+            csigma = Real(1.34);
         } else {
-            csigma = 1.34;
+            csigma = Real(1.34);
         }
         Real exc_fac;
         if (env_subs) {
-            exc_fac = 0.0;
+            exc_fac = zero;
         } else {
             if (landsea-1.5_rt >= 0) {
-                exc_fac = 0.58*4.0;
+                exc_fac = Real(0.58)*Real(4.0);
             } else {
-                exc_fac = 0.58;
+                exc_fac = Real(0.58);
             }
         }
         exc_fac = exc_fac * ac_wsp;
-        Real sigmaw = csigma*wstar*pow(z0/pblh, 1./3._rt)*(1 - 0.8*z0/pblh);
-        Real sigmaqt = csigma*qstar*pow(z0/pblh, 1./3._rt);
-        Real sigmath = csigma*thstar*pow(z0/pblh, 1./3._rt);
+        Real sigmaw = csigma*wstar*pow(z0/pblh, one/3._rt)*(1 - Real(0.8)*z0/pblh);
+        Real sigmaqt = csigma*qstar*pow(z0/pblh, one/3._rt);
+        Real sigmath = csigma*thstar*pow(z0/pblh, one/3._rt);
         Real wmin = std::min(sigmaw*pwmin, 0.1_rt);
         Real wmax = std::min(sigmaw*pwmax, 0.5_rt);
         for (int i = 0; i < nup; i++) {
@@ -3263,7 +3263,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
             upw[kts][i] = wmin + Real(i+1)/Real(nup)*(wmax-wmin);
             upu[kts][i] = (u[kts]*dz[kts+1]+u[kts+1]*dz[kts])/(dz[kts]+dz[kts+1]);
             upv[kts][i] = (v[kts]*dz[kts+1]+v[kts+1]*dz[kts])/(dz[kts]+dz[kts+1]);
-            upqc[kts][i] = 0.0;
+            upqc[kts][i] = zero;
             Real exc_heat = exc_fac*upw[kts][i]*sigmath/sigmaw;
             upthv[kts][i] = (thv[kts]*dz[kts+1]+thv[kts+1]*dz[kts])/(dz[kts]+dz[kts+1]) + exc_heat;
             upthl[kts][i] = (thl[kts]*dz[kts+1]+thl[kts+1]*dz[kts])/(dz[kts]+dz[kts+1]) + exc_heat;
@@ -3296,12 +3296,12 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
         rhoz[kte] = rho[kte];
         dxsa = 1._rt - std::min(std::max((12000.0_rt-dx)/(12000.0_rt-3000.0_rt), 0._rt), 1._rt);
         for (int i = 0; i < nup; i++) {
-            Real qc_ent = 0.0;
+            Real qc_ent = zero;
             int overshoot = 0;
             Real l = minwidth + dl*Real(i);
             for (int k = kts+1; k < kte-1; k++) {
-                Real wmin = 0.3_rt + l*0.0005;
-                ent[k][i] = 0.33/(std::min(std::max(upw[k-1][i], wmin), 0.9_rt)*l);
+                Real wmin = 0.3_rt + l*Real(0.0005);
+                ent[k][i] = Real(0.33)/(std::min(std::max(upw[k-1][i], wmin), 0.9_rt)*l);
                 ent[k][i] = std::max(ent[k][i], 0.0003_rt);
                 if (zw[k] >= std::min(pblh+1500._rt, 4000._rt)) {
                     ent[k][i] = ent[k][i] + (zw[k]-std::min(pblh+1500._rt,4000._rt))*5.0e-6_rt;
@@ -3313,23 +3313,23 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
                 Real vk = (v[k]*dz[k+1]+v[k+1]*dz[k])/(dz[k+1]+dz[k]);
                 Real vkm1 = (v[k-1]*dz[k]+v[k]*dz[k-1])/(dz[k-1]+dz[k]);
                 Real entexp = ent[k][i]*(zw[k+1]-zw[k]);
-                Real entexm = entexp*0.3333;
-                Real qtn = upqt[k-1][i]*(1.-entexp) + qt[k]*entexp;
-                Real thln = upthl[k-1][i]*(1.-entexp) + thl[k]*entexp;
-                Real un = upu[k-1][i]*(1.-entexm) + u[k]*entexm + dxsa*pgfac*(uk - ukm1);
-                Real vn = upv[k-1][i]*(1.-entexm) + v[k]*entexm + dxsa*pgfac*(vk - vkm1);
-                Real qken = upqke[k-1][i]*(1.-entexp) + qke[k]*entexp;
-                Real qncn = upqnc[k-1][i]*(1.-entexp) + qnc[k]*entexp;
-                Real qnin = upqni[k-1][i]*(1.-entexp) + qni[k]*entexp;
-                Real qnwfan = upqnwfa[k-1][i]*(1.-entexp) + qnwfa[k]*entexp;
-                Real qnifan = upqnifa[k-1][i]*(1.-entexp) + qnifa[k]*entexp;
-                Real qnbcan = upqnbca[k-1][i]*(1.-entexp) + qnbca[k]*entexp;
+                Real entexm = entexp*Real(0.3333);
+                Real qtn = upqt[k-1][i]*(one-entexp) + qt[k]*entexp;
+                Real thln = upthl[k-1][i]*(one-entexp) + thl[k]*entexp;
+                Real un = upu[k-1][i]*(one-entexm) + u[k]*entexm + dxsa*pgfac*(uk - ukm1);
+                Real vn = upv[k-1][i]*(one-entexm) + v[k]*entexm + dxsa*pgfac*(vk - vkm1);
+                Real qken = upqke[k-1][i]*(one-entexp) + qke[k]*entexp;
+                Real qncn = upqnc[k-1][i]*(one-entexp) + qnc[k]*entexp;
+                Real qnin = upqni[k-1][i]*(one-entexp) + qni[k]*entexp;
+                Real qnwfan = upqnwfa[k-1][i]*(one-entexp) + qnwfa[k]*entexp;
+                Real qnifan = upqnifa[k-1][i]*(one-entexp) + qnifa[k]*entexp;
+                Real qnbcan = upqnbca[k-1][i]*(one-entexp) + qnbca[k]*entexp;
                 Real qc_ent = qcn;
                 Real qt_ent = qtn;
                 Real thl_ent = thln;
                 if (mix_chem) {
                     for (int ic = 0; ic < nchem; ic++) {
-                        chemn[ic] = upchem[k-1][i][ic]*(1.-entexp) + chem1[k][ic]*entexp;
+                        chemn[ic] = upchem[k-1][i][ic]*(one-entexp) + chem1[k][ic]*entexp;
                     }
                 }
                 Real pk = (p[k]*dz[k+1]+p[k+1]*dz[k])/(dz[k+1]+dz[k]);
@@ -3338,9 +3338,9 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
                 Real thvkm1 = (thv[k-1]*dz[k]+thv[k]*dz[k-1])/(dz[k-1]+dz[k]);
                 Real b = grav*(thvn/thvk - 1.0_rt);
                 if (b > 0._rt) {
-                    bcoeff = 0.15;
+                    bcoeff = Real(0.15);
                 } else {
-                    bcoeff = 0.2;
+                    bcoeff = Real(0.2);
                 }
                 if (upw[k-1][i] < 0.2_rt) {
                     wn = upw[k-1][i] + (-2._rt * ent[k][i] * upw[k-1][i] + bcoeff*b / std::max(upw[k-1][i], 0.2_rt)) * std::min(zw[k]-zw[k-1], 250._rt);
@@ -3377,8 +3377,8 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
                     dzp = dz[k];
                 }
                 Real aratio = std::min(upa[k-1][i]/(1._rt-upa[k-1][i]), 0.5_rt);
-                Real detturb = 0.00008;
-                Real oow = -0.060/std::max(1.0_rt, (0.5_rt*(wn+upw[k-1][i])));
+                Real detturb = Real(0.00008);
+                Real oow = -Real(0.060)/std::max(1.0_rt, (0.5_rt*(wn+upw[k-1][i])));
                 Real detrate = std::min(std::max(oow*(wn-upw[k-1][i])/dz[k], detturb), 0.0002_rt);
                 Real detrateuv = std::min(std::max(oow*(wn-upw[k-1][i])/dz[k], detturb), 0.0001_rt);
                 envm_thl[k-kts] = envm_thl[k-kts] + (0.5_rt*(thl_ent + upthl[k-1][i]) - thl[k])*detrate*aratio*std::min(dzp, dzpmax);
@@ -3454,7 +3454,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     }
     ktop = std::min(ktop, kte-1);
     if (ktop == 0) {
-        ztop = 0.0;
+        ztop = zero;
     } else {
         ztop = zw[ktop];
     }
@@ -3509,9 +3509,9 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
         dzi[kts] = 0.5_rt*(dz[kts] + dz[kts+1]);
         flx1 = std::max(s_aw[kts+1]*(th[kts] - th[kts+1])/dzi[kts], 1.0e-5_rt);
     } else {
-        flx1 = 0.0;
+        flx1 = zero;
     }
-    adjustment = 1.0;
+    adjustment = one;
     flt2=std::max(flt,0.0_rt);
     if (flx1 > fluxportion*flt2/dz[kts] && flx1 > 0.0_rt) {
         adjustment = fluxportion*flt2/dz[kts]/flx1;
@@ -3590,8 +3590,8 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
                     maxqc = edmf_qc[ii];
                 }
         }
-        if (maxqc < 1.0e-8) {
-            maxmf = -1.0*maxmf;
+        if (maxqc < Real(1.0e-8)) {
+            maxmf = -one*maxmf;
         }
     }
     if (edmf_w[0] > 4.0_rt) {
@@ -3628,7 +3628,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
 //     SUBROUTINE  mym_turbulence:
 //
 //     Input variables:    see subroutine mym_initialize
-//       closure        : closure level (2.5, 2.6, or 3.0_rt)
+//       closure        : closure level (Real(2.5), Real(2.6), or 3.0_rt)
 //
 //     # ql, vt, vq, qke, tsq, qsq and cov are changed to input variables.
 //
@@ -3708,7 +3708,7 @@ void mym_turbulence_cc(
     Real auh, aum, adh, adm, aeh, aem, Req, Rsl, Rsl2, gmelq, sm20, sh20, sm25max, sh25max, sm25min, sh25min, sm_pbl, sh_pbl, zi2, wt, slht, wtpr;
     double q2sq, t2sq, r2sq, c2sq, elsq, gmel, ghel, q3sq, t3sq, r3sq, c3sq, dlsq, qdiv, e1, e2, e3, e4, enumc, eden, wden;
     Real Prnum, shb;
-    const Real Prlimit = 5.0;
+    const Real Prlimit = Real(5.0);
     // outputs from mym_level2:
     Real dtv[kte-kts];
     Real gm[kte-kts];
@@ -3762,7 +3762,7 @@ void mym_turbulence_cc(
         if (ckmod == 1) {
             a2fac = 1.0_rt / (1.0_rt + std::max(ri, 0.0_rt));
         } else {
-            a2fac = 1.0;
+            a2fac = one;
         }
 
         Prnum = std::min(0.76_rt + 4.0_rt * std::max(ri, 0.0_rt), Prlimit);
@@ -3772,7 +3772,7 @@ void mym_turbulence_cc(
 
         if (debug_code) {
             if (sh[k] < 0.0_rt || sm[k] < 0.0_rt) {
-                std::cout << "MYNN; mym_turbulence 2.0; sh=" << sh[k] << " k=" << k << std::endl;
+                std::cout << "MYNN; mym_turbulence two; sh=" << sh[k] << " k=" << k << std::endl;
                 std::cout << " gm=" << gm[k] << " gh=" << gh[k] << " sm=" << sm[k] << std::endl;
                 std::cout << " q2sq=" << q2sq << " q3sq=" << q3sq << " q3/q2=" << q3sq / q2sq << std::endl;
                 std::cout << " qke=" << qke[k] << " el=" << el[k] << " ri=" << ri << std::endl;
@@ -3780,9 +3780,9 @@ void mym_turbulence_cc(
             }
         }
 
-        // ** Since qkw is set to more than 0.0, q3sq > 0.0 **
+        // ** Since qkw is set to more than zero, q3sq > zero **
 
-        // new stability criteria in level 2.5 (as well as level 3) - little/no impact
+        // new stability criteria in level Real(2.5) (as well as level 3) - little/no impact
         // ** Limitation on q, instead of L/q **
         dlsq = elsq;
         if (q3sq / dlsq < -gh[k]) q3sq = -dlsq * gh[k];
@@ -3791,7 +3791,7 @@ void mym_turbulence_cc(
             // Apply Helfand & Labraga mod
             qdiv = sqrt(q3sq / q2sq); // HL89: (1-alfa)
 
-            // Use level 2.0 functions as in original MYNN
+            // Use level two functions as in original MYNN
             sh[k] = sh[k] * qdiv;
             sm[k] = sm[k] * qdiv;
             //      printf("sh[k] %d %g %g\n",k,sh[k],qdiv);
@@ -3802,7 +3802,7 @@ void mym_turbulence_cc(
             e3 = e1 + e3c * ghel * a2fac * a2fac * qdiv * qdiv;
             e4 = e1 - e4c * ghel * a2fac * qdiv * qdiv;
             eden = e2 * e4 + e3 * e5c * gmel * qdiv * qdiv;
-            eden = std::max(eden, 1.0e-20);
+            eden = std::max(eden, Real(1.0e-20));
         } else {
             // JOE-Canuto/Kitamura mod
             e1 = q3sq - e1c * ghel * a2fac;
@@ -3810,10 +3810,10 @@ void mym_turbulence_cc(
             e3 = e1 + e3c * ghel * a2fac * a2fac;
             e4 = e1 - e4c * ghel * a2fac;
             eden = e2 * e4 + e3 * e5c * gmel;
-            eden = std::max(eden, 1.0e-20);
-            qdiv = 1.0;
+            eden = std::max(eden, Real(1.0e-20));
+            qdiv = one;
 
-            // Use level 2.5 stability functions
+            // Use level Real(2.5) stability functions
             sm[k] = q3sq * a1 * (e3 - 3.0_rt * c1 * e4) / eden;
             sh[k] = q3sq * (a2 * a2fac) * (e2 + 3.0_rt * c1 * e5c * gmel) / eden;
             //      printf("sh[k] %d %g %g %g %g %g %g %g %g %g\n",k,sh[k],q3sq,a2,a2fac,e2,c1,e5c,gmel,eden);
@@ -3821,14 +3821,14 @@ void mym_turbulence_cc(
 
         // Impose broad limits on Sh and Sm
         gmelq = std::max(gmel / q3sq, 1e-8);
-        sm25max = 4.0;
-        sh25max = 4.0;
-        sm25min = 0.0;
-        sh25min = 0.0;
+        sm25max = Real(4.0);
+        sh25max = Real(4.0);
+        sm25min = zero;
+        sh25min = zero;
 
         if (debug_code) {
             if (sh[k] < sh25min || sm[k] < sm25min || sh[k] > sh25max || sm[k] > sm25max) {
-                std::cout << "In mym_turbulence 2.5: k=" << k << std::endl;
+                std::cout << "In mym_turbulence Real(2.5): k=" << k << std::endl;
                 std::cout << " sm=" << sm[k] << " sh=" << sh[k] << std::endl;
                 std::cout << " ri=" << ri << " Pr=" << sm[k] / std::max(sh[k], 1e-8_rt) << std::endl;
                 std::cout << " gm=" << gm[k] << " gh=" << gh[k] << std::endl;
@@ -3840,7 +3840,7 @@ void mym_turbulence_cc(
             }
         }
 
-        // Enforce constraints for level 2.5 functions
+        // Enforce constraints for level Real(2.5) functions
         if (sh[k] > sh25max) sh[k] = sh25max;
         if (sh[k] < sh25min) sh[k] = sh25min;
         //      printf("sh[k] %d %g\n",k,sh[k]);
@@ -3864,10 +3864,10 @@ void mym_turbulence_cc(
 
             t2sq = vtt * t2sq + vqq * c2sq;
             r2sq = vtt * c2sq + vqq * r2sq;
-            c2sq = std::max(vtt * t2sq + vqq * r2sq, 0.0);
+            c2sq = std::max(vtt * t2sq + vqq * r2sq, zero);
             t3sq = vtt * t3sq + vqq * c3sq;
             r3sq = vtt * c3sq + vqq * r3sq;
-            c3sq = std::max(vtt * t3sq + vqq * r3sq, 0.0);
+            c3sq = std::max(vtt * t3sq + vqq * r3sq, zero);
 
             cw25 = e1 * (e2 + 3.0_rt * c1 * e5c * gmel * qdiv * qdiv) / (3.0_rt * eden);
 
@@ -3875,7 +3875,7 @@ void mym_turbulence_cc(
             dlsq = elsq;
             if (q3sq / dlsq < -gh[k]) q3sq = -dlsq * gh[k];
 
-            // ** Limitation on c3sq (0.12 =< cw =< 0.76) **
+            // ** Limitation on c3sq (Real(0.12) =< cw =< Real(0.76)) **
             auh = 27.0_rt * a1 * ((a2 * a2fac) * (a2 * a2fac)) * b2 * (gtr) * (gtr);
             aum = 54.0_rt * (a1 * a1) * (a2 * a2fac) * b2 * c1 * (gtr);
             adh = 9.0_rt * a1 * ((a2 * a2fac) * (a2 * a2fac)) * (12.0_rt * a1 + 3.0_rt * b2) * (gtr) * (gtr);
@@ -3887,7 +3887,7 @@ void mym_turbulence_cc(
             Req = -aeh / aem;
             Rsl = (auh + aum * Req) / (3.0_rt * adh + 3.0_rt * adm * Req);
             // For now, use default values, since tests showed little/no sensitivity
-            Rsl = 0.12;
+            Rsl = Real(0.12);
             Rsl2 = 1.0_rt - 2.0_rt * Rsl;
 
             // JOE-Canuto/Kitamura mod
@@ -3909,29 +3909,29 @@ void mym_turbulence_cc(
             }
 
             e1 = e2 + e5c * gmel * qdiv * qdiv;
-            eden = std::max(eden, 1.0e-20);
+            eden = std::max(eden, Real(1.0e-20));
 
             // JOE-Canuto/Kitamura mod
             e6c = 3.0_rt * (a2 * a2fac) * cc3 * gtr * dlsq / elsq;
 
             // ** for Gamma_theta **
             if (t2sq >= 0.0_rt) {
-                enumc = std::max(qdiv * e6c * (t3sq - t2sq), 0.0);
+                enumc = std::max(qdiv * e6c * (t3sq - t2sq), zero);
             } else {
-                enumc = std::min(qdiv * e6c * (t3sq - t2sq), 0.0);
+                enumc = std::min(qdiv * e6c * (t3sq - t2sq), zero);
             }
             gamt = -e1 * enumc / eden;
 
             // ** for Gamma_q **
             if (r2sq >= 0.0_rt) {
-                enumc = std::max(qdiv * e6c * (r3sq - r2sq), 0.0);
+                enumc = std::max(qdiv * e6c * (r3sq - r2sq), zero);
             } else {
-                enumc = std::min(qdiv * e6c * (r3sq - r2sq), 0.0);
+                enumc = std::min(qdiv * e6c * (r3sq - r2sq), zero);
             }
             gamq = -e1 * enumc / eden;
 
             // ** for Sm' and Sh'd(Theta_V)/dz **
-            enumc = std::max(qdiv * e6c * (c3sq - c2sq), 0.0);
+            enumc = std::max(qdiv * e6c * (c3sq - c2sq), zero);
 
             // JOE-Canuto/Kitamura mod
             smd = dlsq * enumc * gtr / eden * qdiv * qdiv * (e3c * a2fac * a2fac + e4c * a2fac) * a1 / (a2 * a2fac);
@@ -3940,7 +3940,7 @@ void mym_turbulence_cc(
             sm[k] = sm[k] + smd;
 
             // ** For elh (see below), qdiv at Level 3 is reset to 1.0. **
-            qdiv = 1.0;
+            qdiv = one;
 
             if (debug_code) {
                 if (sh[k] < -0.3_rt || sm[k] < -0.3_rt || qke[k] < -0.1_rt || std::abs(smd) > 2.0_rt) {
@@ -3954,16 +3954,16 @@ void mym_turbulence_cc(
 
         /**** Level 3 : end ****/
         } else {
-            // ** At Level 2.5, qdiv is not reset **
-            gamt = 0.0;
-            gamq = 0.0;
-            gamv = 0.0;
+            // ** At Level Real(2.5), qdiv is not reset **
+            gamt = zero;
+            gamq = zero;
+            gamv = zero;
         }
 
         // Add min background stability function (diffusivity) within model levels
         // with active plumes and clouds
         cldavg = 0.5_rt * (cldfra_bl1D[k - 1] + cldfra_bl1D[k]);
-        if (edmf_a1[k] > 0.001 || cldavg > 0.02) {
+        if (edmf_a1[k] > Real(0.001) || cldavg > Real(0.02)) {
             sm[k] = std::max(sm[k], 0.03_rt * std::min(10.0_rt * edmf_a1[k] * edmf_w1[k], 1.0_rt));
             sh[k] = std::max(sh[k], 0.03_rt * std::min(10.0_rt * edmf_a1[k] * edmf_w1[k], 1.0_rt));
             sm[k] = std::max(sm[k], 0.05_rt * std::min(cldavg, 1.0_rt));
@@ -3979,7 +3979,7 @@ void mym_turbulence_cc(
         pdk[k] = elq * (sm[k] * gm[k] + sh[k] * gh[k] + gamv) + 0.5_rt * TKEprodTD[k];
         pdt[k] = elh * (sh[k] * dtl[k] + gamt) * dtl[k];
         pdq[k] = elh * (sh[k] * dqw[k] + gamq) * dqw[k];
-        pdc[k] = elh * (sh[k] * dtl[k] + gamt) * dqw[k] * 0.5_rt + elh * (sh[k] * dqw[k] + gamq) * dtl[k] * 0.5;
+        pdc[k] = elh * (sh[k] * dtl[k] + gamt) * dqw[k] * 0.5_rt + elh * (sh[k] * dqw[k] + gamq) * dtl[k] * myhalf;
 
         // Countergradient terms
         tcd[k] = elq * gamt;
@@ -3996,13 +3996,13 @@ void mym_turbulence_cc(
         }
     }
 
-    dfm[kts] = 0.0;
-    dfh[kts] = 0.0;
-    dfq[kts] = 0.0;
-    tcd[kts] = 0.0;
-    qcd[kts] = 0.0;
-    tcd[kte] = 0.0;
-    qcd[kte] = 0.0;
+    dfm[kts] = zero;
+    dfh[kts] = zero;
+    dfq[kts] = zero;
+    tcd[kts] = zero;
+    qcd[kts] = zero;
+    tcd[kte] = zero;
+    qcd[kte] = zero;
     for (int k = kts; k <= kte - 1; k++) {
         dzk = dz[k];
         tcd[k] = (tcd[k + 1] - tcd[k]) / dzk;
@@ -4041,7 +4041,7 @@ void mym_turbulence_cc(
 //                                    flt=-u_*Theta_*             (K m/s)
 //                                    flq=-u_*qw_*            (kg/kg m/s)
 //       ust(nx)         : Friction velocity                        (m/s)
-//       pmz(nx)         : phi_m-zeta at z1*h+z0, where z1 (=0.5*dz(1))
+//       pmz(nx)         : phi_m-zeta at z1*h+z0, where z1 (=myhalf*dz(1))
 //                         is the first grid point above the surafce, z0
 //                         the roughness length and zeta=(z1*h+z0)*rmo
 //       phh(nx)         : phi_h at z1*h+z0
@@ -4076,7 +4076,7 @@ void mym_turbulence_cc(
 //\section gen_mym_ini GSD MYNN-EDMF mym_initialize General Algorithm
 //> @{
 void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz, Real &dx, Real *zw, Real *u, Real *v, Real *thl, Real *qw,const Real &zi, Real *theta, Real *thetav, Real *sh, Real *sm, const Real& ust, const Real &rmo, Real* el, Real *qke, Real* tsq, Real* qsq, Real* cov, const Real& Psig_bl, Real *cldfra_bl1D, int &bl_mynn_mixlength, Real *edmf_w1, Real *edmf_a1, int &INITIALIZE_QKE, int &spp_pbl, Real *rstoch_col,const Real & karman,const Real& tv0,const Real& gtr) {
-    Real phm, vkz, elq, elv, b1l, b2l, pmz = 1.0, phh = 1.0, flt = 0.0, fltv = 0.0, flq = 0.0, tmpq;
+    Real phm, vkz, elq, elv, b1l, b2l, pmz = one, phh = one, flt = zero, fltv = zero, flq = zero, tmpq;
     int k, l, lmax;
     Real ql[kte-kts];
     Real vt[kte-kts];
@@ -4085,18 +4085,18 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
 
     // At first ql, vt and vq are set to zero.
     for (k = kts; k <= kte; k++) {
-        ql[k-kts] = 0.0;
-        vt[k-kts] = 0.0;
-        vq[k-kts] = 0.0;
+        ql[k-kts] = zero;
+        vt[k-kts] = zero;
+        vq[k-kts] = zero;
     }
-    // Call mym_level2() to calculate the stability functions at level 2.
+    // Call mym_level2() to calculate the stability functions at level two
     mym_level2_cc(kts, kte, dz, u, v, thl, thetav, qw, ql, vt, vq, dtl, dqw, dtv, gm, gh, sm, sh, tv0, gtr);
 
     // Preliminary setting
-    el[kts] = 0.0;
+    el[kts] = zero;
 
     if (INITIALIZE_QKE==1) {
-        // WRF has (b1*pmz)**(2.0/3.0), not the `two_third` constant
+        // WRF has (b1*pmz)**(two/three), not the `two_third` constant
         qke[kts] = 1.5_rt * ust*ust * std::cbrt((b1*pmz) * (b1*pmz));
         for (k = kts + 1; k <= kte; k++) {
             qke[k] = qke[kts] * std::max((ust * 700.0_rt - zw[k]) / (std::max(ust, 0.01_rt) * 700.0_rt), 0.01_rt);
@@ -4110,9 +4110,9 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
     for (k = kts + 1; k <= kte; k++) {
         vkz = karman * zw[k];
         el[k] = vkz / (1.0_rt + vkz / 100.0_rt);
-        tsq[k] = 0.0;
-        qsq[k] = 0.0;
-        cov[k] = 0.0;
+        tsq[k] = zero;
+        qsq[k] = zero;
+        cov[k] = zero;
     }
 
     // Initialization with an iterative manner
@@ -4129,11 +4129,11 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
             pdc[k] = elq * sh[k] * dtl[k] * dqw[k];
         }
 
-        // ** Strictly, vkz*h[i,j] -> karman*( 0.5*dz[0]*h[i,j]+z0 ) **
+        // ** Strictly, vkz*h[i,j] -> karman*( myhalf*dz[0]*h[i,j]+z0 ) **
         vkz = karman * 0.5_rt * dz[kts];
         elv = 0.5_rt * (el[kts + 1] + el[kts]) / vkz;
         if (INITIALIZE_QKE==1) {
-            // WRF has (b1*pmz*elv)**(2.0/3.0), not the `two_third` constant
+            // WRF has (b1*pmz*elv)**(two/three), not the `two_third` constant
             qke[kts] = 1.0_rt * std::max(ust, 0.02_rt) * std::max(ust, 0.02_rt) * std::cbrt((b1 * pmz * elv) * (b1 * pmz * elv));
         }
 
@@ -4151,7 +4151,7 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
             }
 
             if (qke[k] <= 0.0_rt) {
-                b2l = 0.0;
+                b2l = zero;
             } else {
                 b2l = b2 * (b1l / b1) / sqrt(qke[k]);
             }
@@ -4206,7 +4206,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? 0.1 : 0.23;
+    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -4242,7 +4242,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
         FArrayBox qintegral(xybx,2);
-        qintegral.setVal<RunOn::Device>(0.0);
+        qintegral.setVal<RunOn::Device>(0);
         FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
@@ -4253,10 +4253,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                qvel(i,j,k) = std::sqrt(two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
+                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > zero, "KE must have a positive value");
 
-                Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
+                Real fac = (sbx.contains(i,j,k)) ? one : zero;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                 const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
@@ -4265,13 +4265,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                qvel(i,j,k) = std::sqrt(two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
+                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > zero, "KE must have a positive value");
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
-                Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
-                const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                Real fac = (sbx.contains(i,j,k)) ? one : zero;
+                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
             });
@@ -4304,7 +4304,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         {
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
-            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
+            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
             Real dthetadz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
                                           uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
@@ -4322,8 +4322,8 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             if (use_moisture) {
                 // Compute buoyancy flux (Stull Eqn. 4.4.5d)
                 surface_latent_heat = -u_star_arr(i,j,0) * q_star_arr(i,j,0);
-                surface_heat_flux *= (1.0 + 0.61*qv0);
-                surface_heat_flux += 0.61 * theta0 * surface_latent_heat;
+                surface_heat_flux *= (one + Real(0.61)*qv0);
+                surface_heat_flux += Real(0.61) * theta0 * surface_latent_heat;
             }
 
             Real l_obukhov;
@@ -4338,20 +4338,20 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             AMREX_ASSERT(l_obukhov != 0);
             int lk = amrex::max(k,0);
             const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
-                                          : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
+                                          : gdata.ProbLo(2) + (lk + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
-            if (zeta >= 1.0) {
-                l_S = KAPPA*zval/3.7;
+            if (zeta >= one) {
+                l_S = KAPPA*zval/Real(3.7);
             } else if (zeta >= 0) {
-                l_S = KAPPA*zval/(1+2.7*zeta);
+                l_S = KAPPA*zval/(1+Real(2.7)*zeta);
             } else {
-                l_S = KAPPA*zval*std::pow(1.0 - 100.0 * zeta, 0.2);
+                l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
             }
 
             // ABL-depth length scale (NN09, Eqn. 54)
             Real l_T;
-            if (qint(i,j,0,1) > 0.0) {
+            if (qint(i,j,0,1) > zero) {
                 l_T = Lt_alpha*qint(i,j,0,0)/qint(i,j,0,1);
             } else {
                 l_T = std::numeric_limits<Real>::max();
@@ -4363,8 +4363,8 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                 Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetadz);
                 if (zeta < 0) {
                     Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
-                    qc = std::pow(qc,1.0/3.0);
-                    l_B = (1.0 + 5.0*std::sqrt(qc/(N_brunt_vaisala * l_T))) * qvel(i,j,k)/N_brunt_vaisala;
+                    qc = std::pow(qc,one/three);
+                    l_B = (one + Real(5.0)*std::sqrt(qc/(N_brunt_vaisala * l_T))) * qvel(i,j,k)/N_brunt_vaisala;
                 } else {
                     l_B = qvel(i,j,k) / N_brunt_vaisala;
                 }
@@ -4375,10 +4375,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // Master length scale
             Real Lm;
             if (mynn.config == MYNNConfigType::CHEN2021) {
-                Lm = std::pow(1.0/(l_S*l_S) + 1.0/(l_T*l_T) + 1.0/(l_B*l_B), -0.5);
+                Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
-                Lm = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
+                Lm = one / (one/l_S + one/l_T + one/l_B);
             }
 
             // Calculate nondimensional production terms
@@ -4391,13 +4391,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
-            Real qe2 = mynn.B1*Lm*Lm*SM2*(1.0-Rf)*shearProd;
-            Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
+            Real qe2 = mynn.B1*Lm*Lm*SM2*(one-Rf)*shearProd;
+            Real qe  = (qe2 < zero) ? zero : std::sqrt(qe2);
 
             // Level 2 limiting (Helfand and Labraga 1988)
-            Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+            Real alphac  = (qvel(i,j,k) > qe) ? one : qvel(i,j,k) / (qe + eps);
 
-            // Level 2.5 stability functions
+            // Level Real(2.5) stability functions
             Real SM, SH, SQ;
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 

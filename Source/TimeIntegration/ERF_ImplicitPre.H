@@ -4,7 +4,7 @@
         {
             const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
-            if (l_vert_implicit_fac > 0.) {
+            if (l_vert_implicit_fac > zero) {
 
                 const bool l_do_implicit_theta = solverChoice.implicit_thermal_diffusion;
                 const bool l_do_implicit_mom = solverChoice.implicit_momentum_diffusion;

@@ -90,7 +90,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
             const auto *const dx = geom[lev].CellSize();
             for (int k = 0; k <= khi; k++)
             {
-                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
+                zcc[k] = prob_lo[2] + (k+myhalf) * dx[2];
             }
         }
 

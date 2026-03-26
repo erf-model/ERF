@@ -212,7 +212,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
             }
 
-            ParticleReal solute_moles = 0.0;
+            ParticleReal solute_moles = zero;
             if (a_is_water) {
                 for (int j = 0; j < num_sp; j++) {
                     if (j != idx_vap) {
@@ -282,10 +282,10 @@ void SuperDropletPC::MassChange ( int                                         a_
             } else {
                 // update particle attributes
                 auto r_new = std::sqrt(r_sq);
-                auto d_mass = (4.0/3.0)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
+                auto d_mass = (Real(4.0)/three)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
-                sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],0.0);
+                sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],zero);
 
                 radius_ptr[i] = SD_effective_radius( i, idx_w,
                                                      rho_w,

@@ -329,12 +329,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
             ParmParse ppr(ref_prefix);
 
-            Real ref_start_time = -1.0;
+            Real ref_start_time = -one;
             ppr.query("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
 
-                Real max_radius = -1.0;
+                Real max_radius = -one;
                 ppr.get("max_radius", max_radius);
 
                 // Create the volume-weighted sum of (rho qv) in each column
@@ -349,8 +349,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const auto dx      = geom[levc].CellSizeArray();
                 const auto prob_lo = geom[levc].ProbLoArray();
 
-                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
-                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+                Real eye_x = prob_lo[0] + (eye[0] + myhalf) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + myhalf) * dx[1];
 
                 tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
             }
@@ -764,7 +764,7 @@ ERF::FindInitialEye(int levc,
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
-    Gpu::DeviceVector<Real> d_coords(2, 0.0);
+    Gpu::DeviceVector<Real> d_coords(2, zero);
     Gpu::DeviceVector<int>  d_found(1,0);
 
     Real* d_coords_ptr = d_coords.data();
@@ -781,17 +781,17 @@ ERF::FindInitialEye(int levc,
                                        vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
                                        vel_arr(i,j,k,2) * vel_arr(i,j,k,2));
 
-            magnitude *= 3.6;
+            magnitude *= Real(3.6);
 
-            Real z = prob_lo[2] + (k + 0.5) * dx[2];
+            Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             // Check if magnitude exceeds threshold
-            if (z < 2000. && magnitude > velmag_threshold) {
+            if (z < Real(2000.) && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
 
-                Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+                Real x = prob_lo[0] + (i + myhalf) * dx[0];
+                Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
@@ -819,8 +819,8 @@ ERF::FindInitialEye(int levc,
 
     } else {
         // Random large negative numbers so we don't trigger refinement in this case
-        eye_x = -1.e20;
-        eye_y = -1.e20;
+        eye_x = -Real(1.e20);
+        eye_y = -Real(1.e20);
     }
 
     return (h_found[0] > 0);
@@ -841,8 +841,8 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             // Compute cell center coordinates
-            Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
@@ -866,7 +866,7 @@ ERF::HurricaneTracker(int levc,
 
     Real eye_x, eye_y;
 
-    if (time==0.0) {
+    if (time==zero) {
         is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
     } else {
         is_found = true;
@@ -876,7 +876,7 @@ ERF::HurricaneTracker(int levc,
     }
 
     if (is_found) {
-        Real rad_tag = 4.e5 * std::pow(2, max_level-1-levc);
+        Real rad_tag = Real(4.e5) * std::pow(2, max_level-1-levc);
         tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }

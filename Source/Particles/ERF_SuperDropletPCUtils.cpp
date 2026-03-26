@@ -394,7 +394,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
                 {
                     auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
                     if ((radius < a_rmin) || (radius >= a_rmax)) {
-                        return 0.0;
+                        return zero;
                     } else {
                         auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -497,7 +497,7 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,  /*!< Effective radius m
                               if (nd_arr(i,j,k,0) > 0) {
                                   mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0);
                               } else {
-                                  mf_arr(i,j,k,a_comp) = 0.0;
+                                  mf_arr(i,j,k,a_comp) = zero;
                               }
                           } );
     }

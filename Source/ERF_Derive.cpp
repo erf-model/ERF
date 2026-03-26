@@ -72,13 +72,13 @@ erf_dersoundspeed (const Box& bx,
     auto cfab      = derfab.array();
 
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
-    Real qv = 0.;
+    Real qv = zero;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
@@ -109,7 +109,7 @@ erf_dertemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
     });
 }
@@ -132,7 +132,7 @@ erf_dermoisttemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > zero);
         const Real qv = dat(i, j, k, RhoQ1_comp) / rho;
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta,qv);
     });
@@ -223,7 +223,7 @@ erf_dervortx ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity x-component
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real two_dy = Real(2.0) * geomdata.CellSize(1);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -252,7 +252,7 @@ erf_dervorty ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity y-component
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real two_dx = Real(2.0) * geomdata.CellSize(0);
+    const Real two_dx = two * geomdata.CellSize(0);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -285,8 +285,8 @@ erf_dervortz ( const Box& bx,
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
     });
 }
 
@@ -309,8 +309,8 @@ erf_derenstrophysq ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity x-component
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real two_dx = Real(2.0) * geomdata.CellSize(0);
-    const Real two_dy = Real(2.0) * geomdata.CellSize(1);
+    const Real two_dx = two * geomdata.CellSize(0);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -401,10 +401,10 @@ erf_derreflectivity ( const Box& bx,
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         Real rho = dat(i,j,k,Rho_comp);
-        Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
-        Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
-        Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
-        Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+        Real qv  = std::max(zero,dat(i,j,k,RhoQ1_comp)/rho);
+        Real qpr = std::max(zero,dat(i,j,k,RhoQ4_comp)/rho);
+        Real qps = std::max(zero,dat(i,j,k,RhoQ5_comp)/rho);
+        Real qpg = std::max(zero,dat(i,j,k,RhoQ6_comp)/rho);
 
         Real temp  = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
 
@@ -444,10 +444,10 @@ erf_dermaxreflectivity (
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
 
             Real rho = dat(i,j,k,Rho_comp);
-            Real qv  = std::max(0.0,dat(i,j,k,RhoQ1_comp)/rho);
-            Real qpr = std::max(0.0,dat(i,j,k,RhoQ4_comp)/rho);
-            Real qps = std::max(0.0,dat(i,j,k,RhoQ5_comp)/rho);
-            Real qpg = std::max(0.0,dat(i,j,k,RhoQ6_comp)/rho);
+            Real qv  = std::max(zero,dat(i,j,k,RhoQ1_comp)/rho);
+            Real qpr = std::max(zero,dat(i,j,k,RhoQ4_comp)/rho);
+            Real qps = std::max(zero,dat(i,j,k,RhoQ5_comp)/rho);
+            Real qpg = std::max(zero,dat(i,j,k,RhoQ6_comp)/rho);
 
             Real temp = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
 
@@ -523,7 +523,7 @@ erf_derhelicity ( const Box& bx,
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
-        Real int_hel = Real(0.0);
+        Real int_hel = zero;
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
         {
             Real z = z_arr(i,j,k);
