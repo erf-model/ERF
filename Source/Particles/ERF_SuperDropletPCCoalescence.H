@@ -241,7 +241,7 @@ struct CollisionKernel
             RT ek =   (one-q) * Halls_data_ecoll(iqq-1,14)
                     + q       * Halls_data_ecoll(iqq  ,14);
 
-            c_rate = std::min( ek, one );
+            c_rate = std::min( ek, amrex::Real(1.0) );
 
         } else if ((irr >= 1) && (irr < 15)) {
 
