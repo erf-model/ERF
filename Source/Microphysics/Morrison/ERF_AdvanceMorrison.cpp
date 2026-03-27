@@ -309,14 +309,14 @@ amrex::Real wrf_gamma (amrex::Real x)
 
 //    printf("wrf_gamma: Initial y = %g\n", y);
 
-    if (y <= zero) {
+    if (y <= Real(0)) {
         // Argument is negative
 //        printf("wrf_gamma: Handling negative argument\n");
         y = -x;
         y1 = std::floor(y);
         res = y - y1;
-        if (res != zero) {
-            if (y1 != std::floor(y1 * myhalf) * two)
+        if (res != Real(0)) {
+            if (y1 != std::floor(y1 * myhalf) * Real(2))
                 parity = true;
             Real pi=amrex::Math::pi<Real>();
             fact = -pi / std::sin(pi * res);
@@ -350,7 +350,7 @@ amrex::Real wrf_gamma (amrex::Real x)
 //        printf("wrf_gamma: Medium range branch (eps <= y < 12)\n");
         y1 = y;
         if (y < one) {
-            // zero < argument < one
+            // Real(0) < argument < one
 //            printf("wrf_gamma: Sub-branch: 0 < y < 1\n");
             z = y;
             y = y + one;
@@ -365,7 +365,7 @@ amrex::Real wrf_gamma (amrex::Real x)
 
         // Evaluate approximation
 //        printf("wrf_gamma: Before approximation: z = %g, y = %g\n", z, y);
-        xnum = zero;
+        xnum = Real(0);
         xden = one;
         for (i = 0; i < 8; i++) {
             xnum = (xnum + p[i]) * z;
@@ -375,7 +375,7 @@ amrex::Real wrf_gamma (amrex::Real x)
 //        printf("wrf_gamma: After approximation: res = %g\n", res);
 
         if (y1 < y) {
-            // Adjust result for case zero < argument < one
+            // Adjust result for case Real(0) < argument < one
             res = res / y1;
 //            printf("wrf_gamma: Adjusted for y < 1: res = %g\n", res);
         }
@@ -443,7 +443,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
   amrex::Real
   calc_saturation_vapor_pressure (const amrex::Real T, const int type)
   {
-    amrex::Real polysvp = zero;
+    amrex::Real polysvp = Real(0);
     amrex::Real del_T = T - Real(273.15);  // Convert to Celsius
 
     if (type == 1) {  // Ice (lines ~5631-5644)
@@ -603,19 +603,19 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           auto const& snowncv_arr = snowncv_fab.array();
           auto const& graupelncv_arr = graupelncv_fab.array();
 
-          // Initialize precipitation rate arrays to zero
+          // Initialize precipitation rate arrays to Real(0)
           ParallelFor(grown_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainncv_arr(i,j,k) = zero;
-            sr_arr(i,j,k) = zero;
-            snowncv_arr(i,j,k) = zero;
-            graupelncv_arr(i,j,k) = zero;
+            rainncv_arr(i,j,k) = Real(0);
+            sr_arr(i,j,k) = Real(0);
+            snowncv_arr(i,j,k) = Real(0);
+            graupelncv_arr(i,j,k) = Real(0);
           });
 
           // Create terrain height array (not actually used by Morrison scheme)
           FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1);
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
           ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            ht_arr(i,j,k) = zero;  // Not used by Morrison scheme
+            ht_arr(i,j,k) = Real(0);  // Not used by Morrison scheme
           });
 
 #ifdef ERF_USE_MORR_FORT
@@ -627,11 +627,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           auto const& qscuten_arr = qscuten_fab.array();
           auto const& qicuten_arr = qicuten_fab.array();
 
-          // Initialize tendencies to zero (no cumulus parameterization in this example)
+          // Initialize tendencies to Real(0) (no cumulus parameterization in this example)
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            qrcuten_arr(i,j,k) = zero;
-            qscuten_arr(i,j,k) = zero;
-            qicuten_arr(i,j,k) = zero;
+            qrcuten_arr(i,j,k) = Real(0);
+            qscuten_arr(i,j,k) = Real(0);
+            qicuten_arr(i,j,k) = Real(0);
           });
 
           // WRF-Chem related variables (optional)
@@ -654,22 +654,22 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           auto const& precs_arr = precs_fab.array();
           auto const& precg_arr = precg_fab.array();
 
-          // Initialize WRF-Chem arrays to zero
+          // Initialize WRF-Chem arrays to Real(0)
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainprod_arr(i,j,k) = zero;
-            evapprod_arr(i,j,k) = zero;
-            qlsink_arr(i,j,k) = zero;
-            precr_arr(i,j,k) = zero;
-            preci_arr(i,j,k) = zero;
-            precs_arr(i,j,k) = zero;
-            precg_arr(i,j,k) = zero;
+            rainprod_arr(i,j,k) = Real(0);
+            evapprod_arr(i,j,k) = Real(0);
+            qlsink_arr(i,j,k) = Real(0);
+            precr_arr(i,j,k) = Real(0);
+            preci_arr(i,j,k) = Real(0);
+            precs_arr(i,j,k) = Real(0);
+            precg_arr(i,j,k) = Real(0);
           });
 #endif
 
 #ifdef ERF_USE_MORR_FORT
           // Prepare data pointers for Fortran call
           // These would be passed directly to the Fortran interface
-          double dummy_reflectivity = zero;
+          double dummy_reflectivity = Real(0);
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
 #endif
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
@@ -795,7 +795,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_R = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rd = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rv = Real(461.6);        // Gas constant for water vapor (J/kg/K)
-          m_cp = Real(7.0)*Real(287.0)/two;        // Specific heat at constant pressure (J/kg/K)
+          m_cp = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
           m_g = Real(9.81);           // Gravitational acceleration (m/s^2)
           m_ep_2 = m_Rd / m_Rv;     // Molecular weight ratio (Rd/Rv)
 
@@ -821,7 +821,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           // Cloud droplets
           m_ac = Real(3.0E7);
-          m_bc = two;
+          m_bc = Real(2);
 
           // Snow
           m_as = Real(11.72);
@@ -883,7 +883,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           // Set lambda limits for size distributions
           // Maximum and minimum values for lambda parameter in size distributions
           m_lammaxi = one/Real(1.0E-6);
-          m_lammini = one/(two*m_dcs + Real(100.0E-6));
+          m_lammini = one/(Real(2)*m_dcs + Real(100.0E-6));
           m_lammaxr = one/Real(20.0E-6);
           m_lamminr = one/Real(2800.0E-6);
           m_lammaxs = one/Real(10.0E-6);
@@ -938,17 +938,17 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_cons6 = gamma_function(one + m_br);
           m_cons7 = gamma_function(Real(4.0) + m_bg) / Real(6.0);
           m_cons8 = gamma_function(one + m_bg);
-          m_cons9 = gamma_function(Real(5.0)/two + m_br/two);
-          m_cons10 = gamma_function(Real(5.0)/two + m_bs/two);
-          m_cons11 = gamma_function(Real(5.0)/two + m_bg/two);
+          m_cons9 = gamma_function(Real(5.0)/Real(2) + m_br/Real(2));
+          m_cons10 = gamma_function(Real(5.0)/Real(2) + m_bs/Real(2));
+          m_cons11 = gamma_function(Real(5.0)/Real(2) + m_bg/Real(2));
           m_cons12 = gamma_function(one + m_di) * m_ci;
           m_cons13 = gamma_function(m_bs + three) * m_pi / Real(4.0) * m_eci;
           m_cons14 = gamma_function(m_bg + three) * m_pi / Real(4.0) * m_eci;
           m_cons15 = -Real(1108.0) * m_eii * std::pow(m_pi, (one-m_bs)/three) *
-            std::pow(m_rhosn, (-two-m_bs)/three) / (Real(4.0)*Real(720.0));
+            std::pow(m_rhosn, (-Real(2)-m_bs)/three) / (Real(4.0)*Real(720.0));
           m_cons16 = gamma_function(m_bi + three) * m_pi / Real(4.0) * m_eci;
-          m_cons17 = Real(4.0) * two * three * m_rhosu * m_pi * m_eci * m_eci *
-            gamma_function(two*m_bs + two) / (Real(8.0)*(m_rhog-m_rhosn));
+          m_cons17 = Real(4.0) * Real(2) * three * m_rhosu * m_pi * m_eci * m_eci *
+            gamma_function(Real(2)*m_bs + Real(2)) / (Real(8.0)*(m_rhog-m_rhosn));
           m_cons18 = m_rhosn * m_rhosn;
           m_cons19 = m_rhow * m_rhow;
           m_cons20 = Real(20.0) * m_pi * m_pi * m_rhow * m_bimm;
@@ -963,11 +963,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_cons29 = Real(4.0)/three * m_pi * m_rhow * std::pow(Real(25.0E-6), 3);
           m_cons30 = Real(4.0)/three * m_pi * m_rhow;
           m_cons31 = m_pi * m_pi * m_ecr * m_rhosn;
-          m_cons32 = m_pi / two * m_ecr;
+          m_cons32 = m_pi / Real(2) * m_ecr;
           m_cons33 = m_pi * m_pi * m_ecr * m_rhog;
-          m_cons34 = Real(5.0)/two + m_br/two;
-          m_cons35 = Real(5.0)/two + m_bs/two;
-          m_cons36 = Real(5.0)/two + m_bg/two;
+          m_cons34 = Real(5.0)/Real(2) + m_br/Real(2);
+          m_cons35 = Real(5.0)/Real(2) + m_bs/Real(2);
+          m_cons36 = Real(5.0)/Real(2) + m_bg/Real(2);
           m_cons37 = Real(4.0) * m_pi * Real(1.38E-23) / (Real(6.0) * m_pi * m_rin);
           m_cons38 = m_pi * m_pi / three * m_rhow;
           m_cons39 = m_pi * m_pi / Real(36.0) * m_rhow * m_bimm;
@@ -1214,15 +1214,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             [[maybe_unused]] Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
 
             // NC3DTEN LOCAL ARRAY INITIALIZED
-            morr_arr(i,j,k,MORRInd::nc3dten) = zero;
+            morr_arr(i,j,k,MORRInd::nc3dten) = Real(0);
 
             // INITIALIZE VARIABLES FOR WRF-CHEM OUTPUT TO ZERO
-            c2prec = zero;
-            csed = zero;
-            ised = zero;
-            ssed = zero;
-            gsed = zero;
-            rsed = zero;
+            c2prec = Real(0);
+            csed = Real(0);
+            ised = Real(0);
+            ssed = Real(0);
+            gsed = Real(0);
+            rsed = Real(0);
 
             // LATENT HEAT OF VAPORIZATION
             morr_arr(i,j,k,MORRInd::xxlv) = Real(3.1484E6) - Real(2370.0) * morr_arr(i,j,k,MORRInd::t3d);
@@ -1281,29 +1281,29 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               if (morr_arr(i,j,k,MORRInd::qr3d) < Real(1.0e-8)) {
                 morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qr3d); // budget equation: transfer rain to vapor
                 morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: adjust temperature
-                morr_arr(i,j,k,MORRInd::qr3d) = zero; // temporary update: set rain to zero
+                morr_arr(i,j,k,MORRInd::qr3d) = Real(0); // temporary update: set rain to Real(0)
               }
               if (morr_arr(i,j,k,MORRInd::qc3d) < Real(1.0e-8)) {
                 morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qc3d); // budget equation: transfer cloud water to vapor
                 morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qc3d) * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: adjust temperature
-                morr_arr(i,j,k,MORRInd::qc3d) = zero; // temporary update: set cloud water to zero
+                morr_arr(i,j,k,MORRInd::qc3d) = Real(0); // temporary update: set cloud water to Real(0)
               }
             }
             if (qvqvsi < Real(0.9)) {
               if (morr_arr(i,j,k,MORRInd::qi3d) < Real(1.0e-8)) {
                 morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qi3d); // budget equation: transfer cloud ice to vapor
                 morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qi3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: adjust temperature
-                morr_arr(i,j,k,MORRInd::qi3d) = zero; // temporary update: set cloud ice to zero
+                morr_arr(i,j,k,MORRInd::qi3d) = Real(0); // temporary update: set cloud ice to Real(0)
               }
               if (morr_arr(i,j,k,MORRInd::qni3d) < Real(1.0e-8)) {
                 morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qni3d); // budget equation: transfer snow to vapor
                 morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qni3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: adjust temperature
-                morr_arr(i,j,k,MORRInd::qni3d) = zero; // temporary update: set snow to zero
+                morr_arr(i,j,k,MORRInd::qni3d) = Real(0); // temporary update: set snow to Real(0)
               }
               if (morr_arr(i,j,k,MORRInd::qg3d) < Real(1.0e-8)) {
                 morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qg3d); // budget equation: transfer graupel to vapor
                 morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qg3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: adjust temperature
-                morr_arr(i,j,k,MORRInd::qg3d) = zero; // temporary update: set graupel to zero
+                morr_arr(i,j,k,MORRInd::qg3d) = Real(0); // temporary update: set graupel to Real(0)
               }
             }
             // HEAT OF FUSION
@@ -1314,36 +1314,36 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             const Real QSMALL = m_qsmall;
 
             if (morr_arr(i,j,k,MORRInd::qc3d) < QSMALL) {
-              morr_arr(i,j,k,MORRInd::qc3d) = zero;
-              morr_arr(i,j,k,MORRInd::nc3d) = zero;
-              morr_arr(i,j,k,MORRInd::effc) = zero;
+              morr_arr(i,j,k,MORRInd::qc3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::nc3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::effc) = Real(0);
             }
             if (morr_arr(i,j,k,MORRInd::qr3d) < QSMALL) {
-              morr_arr(i,j,k,MORRInd::qr3d) = zero;
-              morr_arr(i,j,k,MORRInd::nr3d) = zero;
-              morr_arr(i,j,k,MORRInd::effr) = zero;
+              morr_arr(i,j,k,MORRInd::qr3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::nr3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::effr) = Real(0);
             }
             if (morr_arr(i,j,k,MORRInd::qi3d) < QSMALL) {
-              morr_arr(i,j,k,MORRInd::qi3d) = zero;
-              morr_arr(i,j,k,MORRInd::ni3d) = zero;
-              morr_arr(i,j,k,MORRInd::effi) = zero;
+              morr_arr(i,j,k,MORRInd::qi3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::ni3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::effi) = Real(0);
             }
             if (morr_arr(i,j,k,MORRInd::qni3d) < QSMALL) {
-              morr_arr(i,j,k,MORRInd::qni3d) = zero;
-              morr_arr(i,j,k,MORRInd::ns3d) = zero;
-              morr_arr(i,j,k,MORRInd::effs) = zero;
+              morr_arr(i,j,k,MORRInd::qni3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::ns3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::effs) = Real(0);
             }
             if (morr_arr(i,j,k,MORRInd::qg3d) < QSMALL) {
-              morr_arr(i,j,k,MORRInd::qg3d) = zero;
-              morr_arr(i,j,k,MORRInd::ng3d) = zero;
-              morr_arr(i,j,k,MORRInd::effg) = zero;
+              morr_arr(i,j,k,MORRInd::qg3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::ng3d) = Real(0);
+              morr_arr(i,j,k,MORRInd::effg) = Real(0);
             }
             // INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qrsten) = zero;  // temporary update: initialize QRSTEN
-            morr_arr(i,j,k,MORRInd::qisten) = zero;  // temporary update: initialize QISTEN
-            morr_arr(i,j,k,MORRInd::qnisten) = zero; // temporary update: initialize QNISTEN
-            morr_arr(i,j,k,MORRInd::qcsten) = zero;  // temporary update: initialize QCSTEN
-            morr_arr(i,j,k,MORRInd::qgsten) = zero;  // temporary update: initialize QGSTEN
+            morr_arr(i,j,k,MORRInd::qrsten) = Real(0);  // temporary update: initialize QRSTEN
+            morr_arr(i,j,k,MORRInd::qisten) = Real(0);  // temporary update: initialize QISTEN
+            morr_arr(i,j,k,MORRInd::qnisten) = Real(0); // temporary update: initialize QNISTEN
+            morr_arr(i,j,k,MORRInd::qcsten) = Real(0);  // temporary update: initialize QCSTEN
+            morr_arr(i,j,k,MORRInd::qgsten) = Real(0);  // temporary update: initialize QGSTEN
 
             // MICROPHYSICS PARAMETERS VARYING IN TIME/HEIGHT
             morr_arr(i,j,k,MORRInd::mu) = Real(1.496e-6) * std::pow(morr_arr(i,j,k,MORRInd::t3d), Real(1.5)) / (morr_arr(i,j,k,MORRInd::t3d) + Real(120.0)); // budget equation: calculate air viscosity
@@ -1361,8 +1361,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             // HM ADD GRAUPEL 8/28/06
             morr_arr(i,j,k,MORRInd::agn) = dum * m_ag; // budget equation: calculate graupel fall speed parameter
-            // hm 4/7/09 bug fix, initialize morr_arr(i,j,k,MORRInd::lami) to prevent later division by zero
-            morr_arr(i,j,k,MORRInd::lami) = zero; // temporary update: initialize LAMI
+            // hm 4/7/09 bug fix, initialize morr_arr(i,j,k,MORRInd::lami) to prevent later division by Real(0)
+            morr_arr(i,j,k,MORRInd::lami) = Real(0); // temporary update: initialize LAMI
 
             // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
             bool skipMicrophysics = false;
@@ -1411,26 +1411,26 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::qr3d) = morr_arr(i,j,k,MORRInd::qr3d) + morr_arr(i,j,k,MORRInd::qni3d);         // Transfer snow to rain
                 morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::nr3d) + morr_arr(i,j,k,MORRInd::ns3d);          // Transfer snow number to rain
                 morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) - morr_arr(i,j,k,MORRInd::qni3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm); // Adjust temperature
-                morr_arr(i,j,k,MORRInd::qni3d) = zero;                 // Set snow to zero
-                morr_arr(i,j,k,MORRInd::ns3d) = zero;                  // Set snow number to zero
+                morr_arr(i,j,k,MORRInd::qni3d) = Real(0);                 // Set snow to Real(0)
+                morr_arr(i,j,k,MORRInd::ns3d) = Real(0);                  // Set snow number to Real(0)
               }
 
               if (morr_arr(i,j,k,MORRInd::qg3d) < Real(1.0e-6)) {
                 morr_arr(i,j,k,MORRInd::qr3d) = morr_arr(i,j,k,MORRInd::qr3d) + morr_arr(i,j,k,MORRInd::qg3d);          // Transfer graupel to rain
                 morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::nr3d) + morr_arr(i,j,k,MORRInd::ng3d);          // Transfer graupel number to rain
                 morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) - morr_arr(i,j,k,MORRInd::qg3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm);  // Adjust temperature
-                morr_arr(i,j,k,MORRInd::qg3d) = zero;                  // Set graupel to zero
-                morr_arr(i,j,k,MORRInd::ng3d) = zero;                  // Set graupel number to zero
+                morr_arr(i,j,k,MORRInd::qg3d) = Real(0);                  // Set graupel to Real(0)
+                morr_arr(i,j,k,MORRInd::ng3d) = Real(0);                  // Set graupel number to Real(0)
               }
               // Skip to label 300 if concentrations are below thresholds
               if (morr_arr(i,j,k,MORRInd::qc3d) < m_qsmall && morr_arr(i,j,k,MORRInd::qni3d) < Real(1.0e-8) && morr_arr(i,j,k,MORRInd::qr3d) < m_qsmall && morr_arr(i,j,k,MORRInd::qg3d) < Real(1.0e-8)) {
                 skipConcentrations=true;//                goto label_300;
               }
               if(!skipConcentrations) {
-                morr_arr(i,j,k,MORRInd::ns3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::ns3d));
-                morr_arr(i,j,k,MORRInd::nc3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::nc3d));
-                morr_arr(i,j,k,MORRInd::nr3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::nr3d));
-                morr_arr(i,j,k,MORRInd::ng3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::ng3d));
+                morr_arr(i,j,k,MORRInd::ns3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ns3d));
+                morr_arr(i,j,k,MORRInd::nc3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::nc3d));
+                morr_arr(i,j,k,MORRInd::nr3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::nr3d));
+                morr_arr(i,j,k,MORRInd::ng3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ng3d));
 
                 // ========================================================================
                 // USING WRF APPROACH FOR SIZE DISTRIBUTION PARAMETERS
@@ -1461,7 +1461,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                   morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714)*(morr_arr(i,j,k,MORRInd::nc3d)/Real(1.0e6)*dum) + Real(0.2714);
                   morr_arr(i,j,k,MORRInd::pgam) = one/(morr_arr(i,j,k,MORRInd::pgam)*morr_arr(i,j,k,MORRInd::pgam)) - one;
-                  morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), two);
+                  morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                   morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
                   // Calculate gamma function values
@@ -1533,28 +1533,28 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
                 ////////////////////// First instance of ZERO OUT PROCESS RATES
                 // Zero out process rates
-                prc = zero;         // Cloud water to rain conversion rate (PRC)
-                nprc = zero;        // Change in cloud droplet number due to autoconversion (NPRC)
-                nprc1 = zero;       // Change in rain number due to autoconversion (NPRC1)
-                pra = zero;         // Accretion of cloud water by rain (PRA)
-                npra = zero;        // Change in cloud droplet number due to accretion by rain (NPRA)
-                nragg = zero;       // Self-collection/breakup of rain (NRAGG)
-                nsmlts = zero;      // Loss of snow number during melting (NSMLTS)
-                nsmltr = zero;      // Change in rain number due to snow melting (NSMLTR)
-                evpms = zero;       // Melting snow evaporation rate (EVPMS)
-                pcc = zero;         // Condensation/evaporation of cloud water (PCC)
-                pre = zero;         // Evaporation of rain (PRE)
-                nsubc = zero;       // Loss of cloud droplet number during evaporation (NSUBC)
-                nsubr = zero;       // Loss of rain number during evaporation (NSUBR)
-                pracg = zero;       // Collection of rain by graupel (PRACG)
-                npracg = zero;      // Change in number due to collection of rain by graupel (NPRACG)
-                psmlt = zero;       // Melting of snow (PSMLT)
-                pgmlt = zero;       // Melting of graupel (PGMLT)
-                evpmg = zero;       // Evaporation of melting graupel (EVPMG)
-                pracs = zero;       // Collection of snow by rain (PRACS)
-                npracs = zero;      // Change in number due to collection of snow by rain (NPRACS)
-                ngmltg = zero;      // Loss of graupel number during melting (NGMLTG)
-                ngmltr = zero;      // Change in rain number due to graupel melting (NGMLTR)
+                prc = Real(0);         // Cloud water to rain conversion rate (PRC)
+                nprc = Real(0);        // Change in cloud droplet number due to autoconversion (NPRC)
+                nprc1 = Real(0);       // Change in rain number due to autoconversion (NPRC1)
+                pra = Real(0);         // Accretion of cloud water by rain (PRA)
+                npra = Real(0);        // Change in cloud droplet number due to accretion by rain (NPRA)
+                nragg = Real(0);       // Self-collection/breakup of rain (NRAGG)
+                nsmlts = Real(0);      // Loss of snow number during melting (NSMLTS)
+                nsmltr = Real(0);      // Change in rain number due to snow melting (NSMLTR)
+                evpms = Real(0);       // Melting snow evaporation rate (EVPMS)
+                pcc = Real(0);         // Condensation/evaporation of cloud water (PCC)
+                pre = Real(0);         // Evaporation of rain (PRE)
+                nsubc = Real(0);       // Loss of cloud droplet number during evaporation (NSUBC)
+                nsubr = Real(0);       // Loss of rain number during evaporation (NSUBR)
+                pracg = Real(0);       // Collection of rain by graupel (PRACG)
+                npracg = Real(0);      // Change in number due to collection of rain by graupel (NPRACG)
+                psmlt = Real(0);       // Melting of snow (PSMLT)
+                pgmlt = Real(0);       // Melting of graupel (PGMLT)
+                evpmg = Real(0);       // Evaporation of melting graupel (EVPMG)
+                pracs = Real(0);       // Collection of snow by rain (PRACS)
+                npracs = Real(0);      // Change in number due to collection of snow by rain (NPRACS)
+                ngmltg = Real(0);      // Loss of graupel number during melting (NGMLTG)
+                ngmltr = Real(0);      // Change in rain number due to graupel melting (NGMLTR)
 
                 // CALCULATION OF MICROPHYSICAL PROCESS RATES, T > Real(273.15) K
 
@@ -1608,7 +1608,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                 Real(0.08)*ums_local*umr_local) * morr_arr(i,j,k,MORRInd::rho) *
                                       morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
                                       (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
-                                       two/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
+                                       Real(2)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
                                        myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
                 }
                 // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
@@ -1635,7 +1635,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                 Real(0.08)*umg_local*umr_local) * morr_arr(i,j,k,MORRInd::rho) *
                                       morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
                                       (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                                       two/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
+                                       Real(2)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
                                        myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
 
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
@@ -1673,26 +1673,26 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   if (one/morr_arr(i,j,k,MORRInd::lamr) < dum1) {
                     dum = one;
                   } else {
-                    dum = two - std::exp(Real(2300.0) * (one/morr_arr(i,j,k,MORRInd::lamr) - dum1));
+                    dum = Real(2) - std::exp(Real(2300.0) * (one/morr_arr(i,j,k,MORRInd::lamr) - dum1));
                   }
                   nragg = -Real(5.78) * dum * morr_arr(i,j,k,MORRInd::nr3d) * morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::rho);
                 }
                 // CALCULATE EVAP OF RAIN (RUTLEDGE AND HOBBS 1983)
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
-                  epsr = two * m_pi * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                  epsr = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1r/(morr_arr(i,j,k,MORRInd::lamr)*morr_arr(i,j,k,MORRInd::lamr)) +
                      m_f2r * std::sqrt(morr_arr(i,j,k,MORRInd::arn)*morr_arr(i,j,k,MORRInd::rho)/morr_arr(i,j,k,MORRInd::mu)) *
                      std::pow(sc_schmidt, one/three) * m_cons9 /
                      std::pow(morr_arr(i,j,k,MORRInd::lamr), m_cons34));
                 } else {
-                  epsr = zero;
+                  epsr = Real(0);
                 }
                 // NO CONDENSATION ONTO RAIN, ONLY EVAP ALLOWED
                 if (morr_arr(i,j,k,MORRInd::qv3d) < qvs) {
                   pre = epsr * (morr_arr(i,j,k,MORRInd::qv3d) - qvs) / ab;
-                  pre = std::min(pre, zero);
+                  pre = std::min(pre, Real(0));
                 } else {
-                  pre = zero;
+                  pre = Real(0);
                 }
                 // MELTING OF SNOW
                 // SNOW MAY PERSIST ABOVE FREEZING, FORMULA FROM RUTLEDGE AND HOBBS, 1984
@@ -1704,7 +1704,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   dum = -m_cpw/morr_arr(i,j,k,MORRInd::xlf) * (morr_arr(i,j,k,MORRInd::t3d) - Real(273.15)) * pracs;
 
                   // hm fix 1/20/15
-                  psmlt = two * m_pi * morr_arr(i,j,k,MORRInd::n0s) * kap * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d)) /
+                  psmlt = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0s) * kap * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d)) /
                     morr_arr(i,j,k,MORRInd::xlf) * (m_f1s/(morr_arr(i,j,k,MORRInd::lams)*morr_arr(i,j,k,MORRInd::lams)) +
                            m_f2s * std::sqrt(morr_arr(i,j,k,MORRInd::asn)*morr_arr(i,j,k,MORRInd::rho)/morr_arr(i,j,k,MORRInd::mu)) *
                            std::pow(sc_schmidt, one/three) * m_cons10 /
@@ -1712,7 +1712,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                   // IN WATER SUBSATURATION, SNOW MELTS AND EVAPORATES
                   if (qvqvs < one) {
-                    epss = two * m_pi * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                    epss = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::rho) * dv *
                       (m_f1s/(morr_arr(i,j,k,MORRInd::lams)*morr_arr(i,j,k,MORRInd::lams)) +
                        m_f2s * std::sqrt(morr_arr(i,j,k,MORRInd::asn)*morr_arr(i,j,k,MORRInd::rho)/morr_arr(i,j,k,MORRInd::mu)) *
                        std::pow(sc_schmidt, one/three) * m_cons10 /
@@ -1735,7 +1735,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   dum = -m_cpw/morr_arr(i,j,k,MORRInd::xlf) * (morr_arr(i,j,k,MORRInd::t3d) - Real(273.15)) * pracg;
 
                   // hm fix 1/20/15
-                  pgmlt = two * m_pi * morr_arr(i,j,k,MORRInd::n0g) * kap * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d)) /
+                  pgmlt = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0g) * kap * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d)) /
                     morr_arr(i,j,k,MORRInd::xlf) * (m_f1s/(morr_arr(i,j,k,MORRInd::lamg)*morr_arr(i,j,k,MORRInd::lamg)) +
                            m_f2s * std::sqrt(morr_arr(i,j,k,MORRInd::agn)*morr_arr(i,j,k,MORRInd::rho)/morr_arr(i,j,k,MORRInd::mu)) *
                            std::pow(sc_schmidt, one/three) * m_cons11 /
@@ -1743,7 +1743,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                   // IN WATER SUBSATURATION, GRAUPEL MELTS AND EVAPORATES
                   if (qvqvs < one) {
-                    epsg = two * m_pi * morr_arr(i,j,k,MORRInd::n0g) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                    epsg = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0g) * morr_arr(i,j,k,MORRInd::rho) * dv *
                       (m_f1s/(morr_arr(i,j,k,MORRInd::lamg)*morr_arr(i,j,k,MORRInd::lamg)) +
                        m_f2s * std::sqrt(morr_arr(i,j,k,MORRInd::agn)*morr_arr(i,j,k,MORRInd::rho)/morr_arr(i,j,k,MORRInd::mu)) *
                        std::pow(sc_schmidt, one/three) * m_cons11 /
@@ -1760,8 +1760,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // TRANSFER OF MASS FROM SNOW AND GRAUPEL TO RAIN DIRECTLY FROM COLLECTION
                 // ABOVE FREEZING, IT IS ONLY USED FOR ENHANCEMENT OF MELTING AND SHEDDING
 
-                pracg = zero;
-                pracs = zero;
+                pracg = Real(0);
+                pracs = Real(0);
                 // CONSERVATION OF QC
                 dum = (prc + pra) * dt;
 
@@ -1822,31 +1822,31 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
                 c2prec = pra + prc;
 
-                if (pre < zero) {
+                if (pre < Real(0)) {
                   dum = pre * dt / morr_arr(i,j,k,MORRInd::qr3d);
                   dum = std::max(-one, dum);
                   nsubr = dum * morr_arr(i,j,k,MORRInd::nr3d) / dt;
                 }
 
-                if (evpms + psmlt < zero) {
+                if (evpms + psmlt < Real(0)) {
                   dum = (evpms + psmlt) * dt / morr_arr(i,j,k,MORRInd::qni3d);
                   dum = std::max(-one, dum);
                   nsmlts = dum * morr_arr(i,j,k,MORRInd::ns3d) / dt;
                 }
 
-                if (psmlt < zero) {
+                if (psmlt < Real(0)) {
                   dum = psmlt * dt / morr_arr(i,j,k,MORRInd::qni3d);
                   dum = std::max(-one, dum);
                   nsmltr = dum * morr_arr(i,j,k,MORRInd::ns3d) / dt;
                 }
 
-                if (evpmg + pgmlt < zero) {
+                if (evpmg + pgmlt < Real(0)) {
                   dum = (evpmg + pgmlt) * dt / morr_arr(i,j,k,MORRInd::qg3d);
                   dum = std::max(-one, dum);
                   ngmltg = dum * morr_arr(i,j,k,MORRInd::ng3d) / dt;
                 }
 
-                if (pgmlt < zero) {
+                if (pgmlt < Real(0)) {
                   dum = pgmlt * dt / morr_arr(i,j,k,MORRInd::qg3d);
                   dum = std::max(-one, dum);
                   ngmltr = dum * morr_arr(i,j,k,MORRInd::ng3d) / dt;
@@ -1867,16 +1867,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               dum = std::min(Real(0.99) * morr_arr(i,j,k,MORRInd::pres), calc_saturation_vapor_pressure(dumt, 0));
               dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
               dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
-              dumqc = std::max(dumqc, zero);
+              dumqc = std::max(dumqc, Real(0));
 
               // Saturation adjustment for liquid
               dums = dumqv - dumqss;
               pcc = dums / (one + std::pow(morr_arr(i,j,k,MORRInd::xxlv), 2) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * std::pow(dumt, 2))) / dt;
-              if (pcc * dt + dumqc < zero) {
+              if (pcc * dt + dumqc < Real(0)) {
                 pcc = -dumqc / dt;
               }
 
-              if (!do_cond) { pcc = zero; }
+              if (!do_cond) { pcc = Real(0); }
 
               // Update tendencies
               morr_arr(i,j,k,MORRInd::qv3dten) -= pcc;
@@ -1894,11 +1894,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho); // Set cloud droplet number concentration
               }
 
-              morr_arr(i,j,k,MORRInd::ni3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::ni3d));
-              morr_arr(i,j,k,MORRInd::ns3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::ns3d));
-              morr_arr(i,j,k,MORRInd::nc3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::nc3d));
-              morr_arr(i,j,k,MORRInd::nr3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::nr3d));
-              morr_arr(i,j,k,MORRInd::ng3d) = amrex::max(zero,morr_arr(i,j,k,MORRInd::ng3d));
+              morr_arr(i,j,k,MORRInd::ni3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ni3d));
+              morr_arr(i,j,k,MORRInd::ns3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ns3d));
+              morr_arr(i,j,k,MORRInd::nc3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::nc3d));
+              morr_arr(i,j,k,MORRInd::nr3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::nr3d));
+              morr_arr(i,j,k,MORRInd::ng3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ng3d));
 
               // ========================================================================
               // USING WRF APPROACH FOR SIZE DISTRIBUTION PARAMETERS
@@ -1932,7 +1932,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                 morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714)*(morr_arr(i,j,k,MORRInd::nc3d)/Real(1.0e6)*dum) + Real(0.2714);
                 morr_arr(i,j,k,MORRInd::pgam) = one/(std::pow(morr_arr(i,j,k,MORRInd::pgam), 2)) - one;
-                morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), two);
+                morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
                 // Calculate gamma function values
@@ -2027,67 +2027,67 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               }
                 ////////////////////// Second instance of ZERO OUT PROCESS RATES
                 // Zero out process rates
-                mnuccc = zero;      // Change Q due to contact freezing droplets (MNUCCC)
-                nnuccc = zero;      // Change N due to contact freezing droplets (NNUCCC)
-                prc = zero;         // Autoconversion droplets (PRC)
-                nprc = zero;        // Change NC autoconversion droplets (NPRC)
-                nprc1 = zero;       // Change NR autoconversion droplets (NPRC1)
-                nsagg = zero;       // Self-collection of snow (NSAGG)
-                psacws = zero;      // Change Q droplet accretion by snow (PSACWS)
-                npsacws = zero;     // Change N droplet accretion by snow (NPSACWS)
-                psacwi = zero;      // Change Q droplet accretion by cloud ice (PSACWI)
-                npsacwi = zero;     // Change N droplet accretion by cloud ice (NPSACWI)
-                pracs = zero;       // Change Q rain-snow collection (PRACS)
-                npracs = zero;      // Change N rain-snow collection (NPRACS)
-                nmults = zero;      // Ice multiplication due to riming droplets by snow (NMULTS)
-                qmults = zero;      // Change Q due to ice multiplication droplets/snow (QMULTS)
-                nmultr = zero;      // Ice multiplication due to riming rain by snow (NMULTR)
-                qmultr = zero;      // Change Q due to ice multiplication rain/snow (QMULTR)
-                nmultg = zero;      // Ice multiplication due to accretion droplets by graupel (NMULTG)
-                qmultg = zero;      // Change Q due to ice multiplication droplets/graupel (QMULTG)
-                nmultrg = zero;     // Ice multiplication due to accretion rain by graupel (NMULTRG)
-                qmultrg = zero;     // Change Q due to ice multiplication rain/graupel (QMULTRG)
-                mnuccr = zero;      // Change Q due to contact freezing rain (MNUCCR)
-                nnuccr = zero;      // Change N due to contact freezing rain (NNUCCR)
-                pra = zero;         // Accretion droplets by rain (PRA)
-                npra = zero;        // Change N due to droplet accretion by rain (NPRA)
-                nragg = zero;       // Self-collection/breakup of rain (NRAGG)
-                prci = zero;        // Change Q autoconversion cloud ice to snow (PRCI)
-                nprci = zero;       // Change N autoconversion cloud ice by snow (NPRCI)
-                prai = zero;        // Change Q accretion cloud ice by snow (PRAI)
-                nprai = zero;       // Change N accretion cloud ice (NPRAI)
-                nnuccd = zero;      // Change N freezing aerosol (primary ice nucleation) (NNUCCD)
-                mnuccd = zero;      // Change Q freezing aerosol (primary ice nucleation) (MNUCCD)
-                pcc = zero;         // Condensation/evaporation droplets (PCC)
-                pre = zero;         // Evaporation of rain (PRE)
-                prd = zero;         // Deposition cloud ice (PRD)
-                prds = zero;        // Deposition snow (PRDS)
-                eprd = zero;        // Sublimation cloud ice (EPRD)
-                eprds = zero;       // Sublimation snow (EPRDS)
-                nsubc = zero;       // Loss of NC during evaporation (NSUBC)
-                nsubi = zero;       // Loss of NI during sublimation (NSUBI)
-                nsubs = zero;       // Loss of NS during sublimation (NSUBS)
-                nsubr = zero;       // Loss of NR during evaporation (NSUBR)
-                piacr = zero;       // Change QR, ice-rain collection (PIACR)
-                niacr = zero;       // Change N, ice-rain collection (NIACR)
-                praci = zero;       // Change QI, ice-rain collection (PRACI)
-                piacrs = zero;      // Change QR, ice rain collision, added to snow (PIACRS)
-                niacrs = zero;      // Change N, ice rain collision, added to snow (NIACRS)
-                pracis = zero;      // Change QI, ice rain collision, added to snow (PRACIS)
+                mnuccc = Real(0);      // Change Q due to contact freezing droplets (MNUCCC)
+                nnuccc = Real(0);      // Change N due to contact freezing droplets (NNUCCC)
+                prc = Real(0);         // Autoconversion droplets (PRC)
+                nprc = Real(0);        // Change NC autoconversion droplets (NPRC)
+                nprc1 = Real(0);       // Change NR autoconversion droplets (NPRC1)
+                nsagg = Real(0);       // Self-collection of snow (NSAGG)
+                psacws = Real(0);      // Change Q droplet accretion by snow (PSACWS)
+                npsacws = Real(0);     // Change N droplet accretion by snow (NPSACWS)
+                psacwi = Real(0);      // Change Q droplet accretion by cloud ice (PSACWI)
+                npsacwi = Real(0);     // Change N droplet accretion by cloud ice (NPSACWI)
+                pracs = Real(0);       // Change Q rain-snow collection (PRACS)
+                npracs = Real(0);      // Change N rain-snow collection (NPRACS)
+                nmults = Real(0);      // Ice multiplication due to riming droplets by snow (NMULTS)
+                qmults = Real(0);      // Change Q due to ice multiplication droplets/snow (QMULTS)
+                nmultr = Real(0);      // Ice multiplication due to riming rain by snow (NMULTR)
+                qmultr = Real(0);      // Change Q due to ice multiplication rain/snow (QMULTR)
+                nmultg = Real(0);      // Ice multiplication due to accretion droplets by graupel (NMULTG)
+                qmultg = Real(0);      // Change Q due to ice multiplication droplets/graupel (QMULTG)
+                nmultrg = Real(0);     // Ice multiplication due to accretion rain by graupel (NMULTRG)
+                qmultrg = Real(0);     // Change Q due to ice multiplication rain/graupel (QMULTRG)
+                mnuccr = Real(0);      // Change Q due to contact freezing rain (MNUCCR)
+                nnuccr = Real(0);      // Change N due to contact freezing rain (NNUCCR)
+                pra = Real(0);         // Accretion droplets by rain (PRA)
+                npra = Real(0);        // Change N due to droplet accretion by rain (NPRA)
+                nragg = Real(0);       // Self-collection/breakup of rain (NRAGG)
+                prci = Real(0);        // Change Q autoconversion cloud ice to snow (PRCI)
+                nprci = Real(0);       // Change N autoconversion cloud ice by snow (NPRCI)
+                prai = Real(0);        // Change Q accretion cloud ice by snow (PRAI)
+                nprai = Real(0);       // Change N accretion cloud ice (NPRAI)
+                nnuccd = Real(0);      // Change N freezing aerosol (primary ice nucleation) (NNUCCD)
+                mnuccd = Real(0);      // Change Q freezing aerosol (primary ice nucleation) (MNUCCD)
+                pcc = Real(0);         // Condensation/evaporation droplets (PCC)
+                pre = Real(0);         // Evaporation of rain (PRE)
+                prd = Real(0);         // Deposition cloud ice (PRD)
+                prds = Real(0);        // Deposition snow (PRDS)
+                eprd = Real(0);        // Sublimation cloud ice (EPRD)
+                eprds = Real(0);       // Sublimation snow (EPRDS)
+                nsubc = Real(0);       // Loss of NC during evaporation (NSUBC)
+                nsubi = Real(0);       // Loss of NI during sublimation (NSUBI)
+                nsubs = Real(0);       // Loss of NS during sublimation (NSUBS)
+                nsubr = Real(0);       // Loss of NR during evaporation (NSUBR)
+                piacr = Real(0);       // Change QR, ice-rain collection (PIACR)
+                niacr = Real(0);       // Change N, ice-rain collection (NIACR)
+                praci = Real(0);       // Change QI, ice-rain collection (PRACI)
+                piacrs = Real(0);      // Change QR, ice rain collision, added to snow (PIACRS)
+                niacrs = Real(0);      // Change N, ice rain collision, added to snow (NIACRS)
+                pracis = Real(0);      // Change QI, ice rain collision, added to snow (PRACIS)
 
                 // Graupel processes
-                pracg = zero;       // Change in Q collection rain by graupel (PRACG)
-                psacr = zero;       // Conversion due to collection of snow by rain (PSACR)
-                psacwg = zero;      // Change in Q collection droplets by graupel (PSACWG)
-                pgsacw = zero;      // Conversion Q to graupel due to collection droplets by snow (PGSACW)
-                pgracs = zero;      // Conversion Q to graupel due to collection rain by snow (PGRACS)
-                prdg = zero;        // Deposition of graupel (PRDG)
-                eprdg = zero;       // Sublimation of graupel (EPRDG)
-                npracg = zero;      // Change N collection rain by graupel (NPRACG)
-                npsacwg = zero;     // Change N collection droplets by graupel (NPSACWG)
-                nscng = zero;       // Change N conversion to graupel due to collection droplets by snow (NSCNG)
-                ngracs = zero;      // Change N conversion to graupel due to collection rain by snow (NGRACS)
-                nsubg = zero;       // Change N sublimation/deposition of graupel (NSUBG)
+                pracg = Real(0);       // Change in Q collection rain by graupel (PRACG)
+                psacr = Real(0);       // Conversion due to collection of snow by rain (PSACR)
+                psacwg = Real(0);      // Change in Q collection droplets by graupel (PSACWG)
+                pgsacw = Real(0);      // Conversion Q to graupel due to collection droplets by snow (PGSACW)
+                pgracs = Real(0);      // Conversion Q to graupel due to collection rain by snow (PGRACS)
+                prdg = Real(0);        // Deposition of graupel (PRDG)
+                eprdg = Real(0);       // Sublimation of graupel (EPRDG)
+                npracg = Real(0);      // Change N collection rain by graupel (NPRACG)
+                npsacwg = Real(0);     // Change N collection droplets by graupel (NPSACWG)
+                nscng = Real(0);       // Change N conversion to graupel due to collection droplets by snow (NSCNG)
+                ngracs = Real(0);      // Change N conversion to graupel due to collection rain by snow (NGRACS)
+                nsubg = Real(0);       // Change N sublimation/deposition of graupel (NSUBG)
 
                 ////////////////////// CALCULATION OF MICROPHYSICAL PROCESS RATES
                 // FREEZING OF CLOUD DROPLETS - ONLY ALLOWED BELOW -4C
@@ -2107,8 +2107,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // CONTACT FREEZING
                   mnuccc = m_cons38 * dap * nacnt * std::exp(std::log(morr_arr(i,j,k,MORRInd::cdist1)) +
                                                              std::log(gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(5.0))) - Real(4.0) * std::log(morr_arr(i,j,k,MORRInd::lamc)));
-                  nnuccc = two * m_pi * dap * nacnt * morr_arr(i,j,k,MORRInd::cdist1) *
-                    gamma_function(morr_arr(i,j,k,MORRInd::pgam) + two) / morr_arr(i,j,k,MORRInd::lamc);
+                  nnuccc = Real(2) * m_pi * dap * nacnt * morr_arr(i,j,k,MORRInd::cdist1) *
+                    gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(2)) / morr_arr(i,j,k,MORRInd::lamc);
 
                   // IMMERSION FREEZING (BIGG 1953)
                   // hm 7/15/13 fix for consistency w/ original formula
@@ -2150,8 +2150,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // SNOW AGGREGATION FROM PASSARELLI, 1978, USED BY REISNER, 1998
                 // THIS IS HARD-WIRED FOR BS = Real(0.4) FOR NOW
                 if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(1.0e-8)) {
-                  nsagg = m_cons15 * morr_arr(i,j,k,MORRInd::asn) * std::pow(morr_arr(i,j,k,MORRInd::rho), ((two + m_bs) / three)) *
-                    std::pow(morr_arr(i,j,k,MORRInd::qni3d), ((two + m_bs) / three)) *
+                  nsagg = m_cons15 * morr_arr(i,j,k,MORRInd::asn) * std::pow(morr_arr(i,j,k,MORRInd::rho), ((Real(2) + m_bs) / three)) *
+                    std::pow(morr_arr(i,j,k,MORRInd::qni3d), ((Real(2) + m_bs) / three)) *
                     std::pow((morr_arr(i,j,k,MORRInd::ns3d) * morr_arr(i,j,k,MORRInd::rho)), ((Real(4.0) - m_bs) / three)) / morr_arr(i,j,k,MORRInd::rho);
                 }
 
@@ -2212,7 +2212,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   pracs = m_cons41 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * ums_local, 2) +
                                                 Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
                                       std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
-                                                           two / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
+                                                           Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
                                                            myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
 
                   npracs = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - uns_local, 2) +
@@ -2233,7 +2233,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                     psacr = m_cons31 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * ums_local, 2) +
                                                   Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
                                         std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * morr_arr(i,j,k,MORRInd::lamr)) +
-                                                             two / (std::pow(morr_arr(i,j,k,MORRInd::lams), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 2)) +
+                                                             Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lams), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 2)) +
                                                              myhalf / (morr_arr(i,j,k,MORRInd::lams) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 3))));
                   }
                 }
@@ -2257,7 +2257,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   pracg = m_cons41 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * umg_local, 2) +
                                                 Real(0.08) * umg_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) /
                                       std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                                                           two / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
+                                                           Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
                                                            myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
 
                   npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - ung_local, 2) +
@@ -2281,23 +2281,23 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 //v1.4
                 if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3)) {
                   if (morr_arr(i,j,k,MORRInd::qc3d) >= Real(0.5e-3) || morr_arr(i,j,k,MORRInd::qr3d) >= Real(0.1e-3)) {
-                    if (psacws > zero || pracs > zero) {
+                    if (psacws > Real(0) || pracs > Real(0)) {
                       if (morr_arr(i,j,k,MORRInd::t3d) < Real(270.16) && morr_arr(i,j,k,MORRInd::t3d) > Real(265.16)) {
-                        Real fmult = zero;
+                        Real fmult = Real(0);
 
                         if (morr_arr(i,j,k,MORRInd::t3d) > Real(270.16)) {
-                          fmult = zero;
+                          fmult = Real(0);
                         } else if (morr_arr(i,j,k,MORRInd::t3d) <= Real(270.16) && morr_arr(i,j,k,MORRInd::t3d) > Real(268.16)) {
-                          fmult = (Real(270.16) - morr_arr(i,j,k,MORRInd::t3d)) / two;
+                          fmult = (Real(270.16) - morr_arr(i,j,k,MORRInd::t3d)) / Real(2);
                         } else if (morr_arr(i,j,k,MORRInd::t3d) >= Real(265.16) && morr_arr(i,j,k,MORRInd::t3d) <= Real(268.16)) {
                           fmult = (morr_arr(i,j,k,MORRInd::t3d) - Real(265.16)) / three;
                         } else if (morr_arr(i,j,k,MORRInd::t3d) < Real(265.16)) {
-                          fmult = zero;
+                          fmult = Real(0);
                         }
 
                         // 1000 IS TO CONVERT FROM KG TO G
                         // SPLINTERING FROM DROPLETS ACCRETED ONTO SNOW
-                        if (psacws > zero) {
+                        if (psacws > Real(0)) {
                           nmults = Real(35.0e4) * psacws * fmult * Real(1000.0);
                           qmults = nmults * m_mmult;
 
@@ -2308,7 +2308,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                         }
 
                         // RIMING AND SPLINTERING FROM ACCRETED RAINDROPS
-                        if (pracs > zero) {
+                        if (pracs > Real(0)) {
                           nmultr = Real(35.0e4) * pracs * fmult * Real(1000.0);
                           qmultr = nmultr * m_mmult;
 
@@ -2330,23 +2330,23 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // v1.4
                 if (morr_arr(i,j,k,MORRInd::qg3d) >= Real(0.1e-3)) {
                   if (morr_arr(i,j,k,MORRInd::qc3d) >= Real(0.5e-3) || morr_arr(i,j,k,MORRInd::qr3d) >= Real(0.1e-3)) {
-                    if (psacwg > zero || pracg > zero) {
+                    if (psacwg > Real(0) || pracg > Real(0)) {
                       if (morr_arr(i,j,k,MORRInd::t3d) < Real(270.16) && morr_arr(i,j,k,MORRInd::t3d) > Real(265.16)) {
-                        Real fmult = zero;
+                        Real fmult = Real(0);
 
                         if (morr_arr(i,j,k,MORRInd::t3d) > Real(270.16)) {
-                          fmult = zero;
+                          fmult = Real(0);
                         } else if (morr_arr(i,j,k,MORRInd::t3d) <= Real(270.16) && morr_arr(i,j,k,MORRInd::t3d) > Real(268.16)) {
-                          fmult = (Real(270.16) - morr_arr(i,j,k,MORRInd::t3d)) / two;
+                          fmult = (Real(270.16) - morr_arr(i,j,k,MORRInd::t3d)) / Real(2);
                         } else if (morr_arr(i,j,k,MORRInd::t3d) >= Real(265.16) && morr_arr(i,j,k,MORRInd::t3d) <= Real(268.16)) {
                           fmult = (morr_arr(i,j,k,MORRInd::t3d) - Real(265.16)) / three;
                         } else if (morr_arr(i,j,k,MORRInd::t3d) < Real(265.16)) {
-                          fmult = zero;
+                          fmult = Real(0);
                         }
 
                         // 1000 IS TO CONVERT FROM KG TO G
                         // SPLINTERING FROM DROPLETS ACCRETED ONTO GRAUPEL
-                        if (psacwg > zero) {
+                        if (psacwg > Real(0)) {
                           nmultg = Real(35.0e4) * psacwg * fmult * Real(1000.0);
                           qmultg = nmultg * m_mmult;
 
@@ -2357,7 +2357,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                         }
 
                         // RIMING AND SPLINTERING FROM ACCRETED RAINDROPS
-                        if (pracg > zero) {
+                        if (pracg > Real(0)) {
                           nmultrg = Real(35.0e4) * pracg * fmult * Real(1000.0);
                           qmultrg = nmultrg * m_mmult;
 
@@ -2372,16 +2372,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
 
                 // CONVERSION OF RIMED CLOUD WATER ONTO SNOW TO GRAUPEL/HAIL
-                if (psacws > zero) {
+                if (psacws > Real(0)) {
                   // ONLY ALLOW CONVERSION IF QNI > Real(0.1) AND QC > myhalf G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3) && morr_arr(i,j,k,MORRInd::qc3d) >= Real(0.5e-3)) {
                     // PORTION OF RIMING CONVERTED TO GRAUPEL (REISNER ET AL. 1998, ORIGINALLY IS1991)
                     pgsacw = std::min(psacws, m_cons17 * dt * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::qc3d) * morr_arr(i,j,k,MORRInd::qc3d) *
                                       morr_arr(i,j,k,MORRInd::asn) * morr_arr(i,j,k,MORRInd::asn) /
-                                      (morr_arr(i,j,k,MORRInd::rho) * std::pow(morr_arr(i,j,k,MORRInd::lams), (two * m_bs + two))));
+                                      (morr_arr(i,j,k,MORRInd::rho) * std::pow(morr_arr(i,j,k,MORRInd::lams), (Real(2) * m_bs + Real(2)))));
 
                     // MIX RAT CONVERTED INTO GRAUPEL AS EMBRYO (REISNER ET AL. 1998, ORIG M1990)
-                    dum = std::max(m_rhosn / (m_rhog - m_rhosn) * pgsacw, zero);
+                    dum = std::max(m_rhosn / (m_rhog - m_rhosn) * pgsacw, Real(0));
 
                     // NUMBER CONCENTRAITON OF EMBRYO GRAUPEL FROM RIMING OF SNOW
                     nscng = dum / m_mg0 * morr_arr(i,j,k,MORRInd::rho);
@@ -2394,15 +2394,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
 
                 // CONVERSION OF RIMED RAINWATER ONTO SNOW CONVERTED TO GRAUPEL
-                if (pracs > zero) {
+                if (pracs > Real(0)) {
                   // ONLY ALLOW CONVERSION IF QNI > Real(0.1) AND QR > Real(0.1) G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3) && morr_arr(i,j,k,MORRInd::qr3d) >= Real(0.1e-3)) {
                     // PORTION OF COLLECTED RAINWATER CONVERTED TO GRAUPEL (REISNER ET AL. 1998)
                     dum = m_cons18 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) /
                       (m_cons18 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) +
                        m_cons19 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr), 3));
-                    dum = std::min(dum, one);
-                    dum = std::max(dum, zero);
+                    dum = std::min(dum, Real(1));
+                    dum = std::max(dum, Real(0));
 
                     pgracs = (one - dum) * pracs;
                     ngracs = (one - dum) * npracs;
@@ -2456,7 +2456,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   if (one / morr_arr(i,j,k,MORRInd::lamr) < dum1) {
                     dum = one;
                   } else if (one / morr_arr(i,j,k,MORRInd::lamr) >= dum1) {
-                    dum = two - std::exp(Real(2300.0) * (one / morr_arr(i,j,k,MORRInd::lamr) - dum1));
+                    dum = Real(2) - std::exp(Real(2300.0) * (one / morr_arr(i,j,k,MORRInd::lamr) - dum1));
                   }
                   nragg = -Real(5.78) * dum * morr_arr(i,j,k,MORRInd::nr3d) * morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::rho);
                 }
@@ -2519,7 +2519,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                     kc2 = Real(0.005) * std::exp(Real(0.304) * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d))) * Real(1000.0); // CONVERT FROM L-1 TO M-3
                     // LIMIT TO 500 L-1
                     kc2 = std::min(kc2, Real(500.0e3));
-                    kc2 = std::max(kc2 / morr_arr(i,j,k,MORRInd::rho), zero);  // CONVERT TO KG-1
+                    kc2 = std::max(kc2 / morr_arr(i,j,k,MORRInd::rho), Real(0));  // CONVERT TO KG-1
 
                     if (kc2 > morr_arr(i,j,k,MORRInd::ni3d) + morr_arr(i,j,k,MORRInd::ns3d) + morr_arr(i,j,k,MORRInd::ng3d)) {
                       nnuccd = (kc2 - morr_arr(i,j,k,MORRInd::ni3d) - morr_arr(i,j,k,MORRInd::ns3d) - morr_arr(i,j,k,MORRInd::ng3d)) / dt;
@@ -2538,15 +2538,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 // CALCULATE EVAP/SUB/DEP TERMS FOR QI,QNI,QR
                 // NO VENTILATION FOR CLOUD ICE
-                epsi = zero;
+                epsi = Real(0);
                 if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall) {
-                  epsi = two * m_pi * morr_arr(i,j,k,MORRInd::n0i) * morr_arr(i,j,k,MORRInd::rho) * dv / (morr_arr(i,j,k,MORRInd::lami) * morr_arr(i,j,k,MORRInd::lami));
+                  epsi = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0i) * morr_arr(i,j,k,MORRInd::rho) * dv / (morr_arr(i,j,k,MORRInd::lami) * morr_arr(i,j,k,MORRInd::lami));
                 }
 
                 // VENTILATION FOR SNOW
-                epss = zero;
+                epss = Real(0);
                 if (morr_arr(i,j,k,MORRInd::qni3d) >= m_qsmall) {
-                  epss = two * m_pi * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                  epss = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0s) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1s / (morr_arr(i,j,k,MORRInd::lams) * morr_arr(i,j,k,MORRInd::lams)) +
                      m_f2s * std::pow(morr_arr(i,j,k,MORRInd::asn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons10 /
@@ -2554,9 +2554,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
 
                 // Ventilation for graupel
-                epsg = zero;
+                epsg = Real(0);
                 if (morr_arr(i,j,k,MORRInd::qg3d) >= m_qsmall) {
-                  epsg = two * m_pi * morr_arr(i,j,k,MORRInd::n0g) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                  epsg = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0g) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1s / (morr_arr(i,j,k,MORRInd::lamg) * morr_arr(i,j,k,MORRInd::lamg)) +
                      m_f2s * std::pow(morr_arr(i,j,k,MORRInd::agn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons11 /
@@ -2564,9 +2564,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
 
                 // VENTILATION FOR RAIN
-                epsr = zero;
+                epsr = Real(0);
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
-                  epsr = two * m_pi * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::rho) * dv *
+                  epsr = Real(2) * m_pi * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::rho) * dv *
                     (m_f1r / (morr_arr(i,j,k,MORRInd::lamr) * morr_arr(i,j,k,MORRInd::lamr)) +
                      m_f2r * std::pow(morr_arr(i,j,k,MORRInd::arn) * morr_arr(i,j,k,MORRInd::rho) / morr_arr(i,j,k,MORRInd::mu), myhalf) *
                      std::pow(sc_schmidt, (one / three)) * m_cons9 /
@@ -2580,7 +2580,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   dum = (one - std::exp(-morr_arr(i,j,k,MORRInd::lami) * m_dcs) * (one + morr_arr(i,j,k,MORRInd::lami) * m_dcs));
                   prd = epsi * (morr_arr(i,j,k,MORRInd::qv3d) - qvi) / abi * dum;
                 } else {
-                  dum = zero;
+                  dum = Real(0);
                 }
 
                 // ADD DEPOSITION IN TAIL OF ICE SIZE DIST TO SNOW IF SNOW IS PRESENT
@@ -2598,9 +2598,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // NO CONDENSATION ONTO RAIN, ONLY EVAP
                 if (morr_arr(i,j,k,MORRInd::qv3d) < qvs) {
                   pre = epsr * (morr_arr(i,j,k,MORRInd::qv3d) - qvs) / ab;
-                  pre = std::min(pre, zero);
+                  pre = std::min(pre, Real(0));
                 } else {
-                  pre = zero;
+                  pre = Real(0);
                 }
 
                 // MAKE SURE NOT PUSHED INTO ICE SUPERSAT/SUBSAT
@@ -2610,8 +2610,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 fudgef = Real(0.9999);
                 sum_dep = prd + prds + mnuccd + prdg;
 
-                if ((dum > zero && sum_dep > dum * fudgef) ||
-                    (dum < zero && sum_dep < dum * fudgef)) {
+                if ((dum > Real(0) && sum_dep > dum * fudgef) ||
+                    (dum < Real(0) && sum_dep < dum * fudgef)) {
                   mnuccd = fudgef * mnuccd * dum / sum_dep;
                   prd = fudgef * prd * dum / sum_dep;
                   prds = fudgef * prds * dum / sum_dep;
@@ -2619,17 +2619,17 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 }
 
                 // IF CLOUD ICE/SNOW/GRAUPEL VAP DEPOSITION IS NEG, THEN ASSIGN TO SUBLIMATION PROCESSES
-                if (prd < zero) {
+                if (prd < Real(0)) {
                   eprd = prd;
-                  prd = zero;
+                  prd = Real(0);
                 }
-                if (prds < zero) {
+                if (prds < Real(0)) {
                   eprds = prds;
-                  prds = zero;
+                  prds = Real(0);
                 }
-                if (prdg < zero) {
+                if (prdg < Real(0)) {
                   eprdg = prdg;
-                  prdg = zero;
+                  prdg = Real(0);
                 }
                 // CONSERVATION OF WATER
                 // THIS IS ADOPTED LOOSELY FROM MM5 RESINER CODE. HOWEVER, HERE WE
@@ -2646,42 +2646,42 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 // ****SENSITIVITY - NO ICE
                 if (m_iliq == 1) {
-                  mnuccc = zero;
-                  nnuccc = zero;
-                  mnuccr = zero;
-                  nnuccr = zero;
-                  mnuccd = zero;
-                  nnuccd = zero;
+                  mnuccc = Real(0);
+                  nnuccc = Real(0);
+                  mnuccr = Real(0);
+                  nnuccr = Real(0);
+                  mnuccd = Real(0);
+                  nnuccd = Real(0);
                 }
 
                 // ****SENSITIVITY - NO GRAUPEL
                 if (m_igraup == 1) {
-                  pracg = zero;
-                  psacr = zero;
-                  psacwg = zero;
-                  prdg = zero;
-                  eprdg = zero;
-                  evpmg = zero;
-                  pgmlt = zero;
-                  npracg = zero;
-                  npsacwg = zero;
-                  nscng = zero;
-                  ngracs = zero;
-                  nsubg = zero;
-                  ngmltg = zero;
-                  ngmltr = zero;
+                  pracg = Real(0);
+                  psacr = Real(0);
+                  psacwg = Real(0);
+                  prdg = Real(0);
+                  eprdg = Real(0);
+                  evpmg = Real(0);
+                  pgmlt = Real(0);
+                  npracg = Real(0);
+                  npsacwg = Real(0);
+                  nscng = Real(0);
+                  ngracs = Real(0);
+                  nsubg = Real(0);
+                  ngmltg = Real(0);
+                  ngmltr = Real(0);
 
                   // fix 053011
                   piacrs = piacrs + piacr;
-                  piacr = zero;
+                  piacr = Real(0);
 
                   // fix 070713
                   pracis = pracis + praci;
-                  praci = zero;
+                  praci = Real(0);
                   psacws = psacws + pgsacw;
-                  pgsacw = zero;
+                  pgsacw = Real(0);
                   pracs = pracs + pgracs;
-                  pgracs = zero;
+                  pgracs = Real(0);
                 }
 
                 // CONSERVATION OF QC
@@ -2832,14 +2832,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
 
                 dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
-                dumqc = std::max(dumqc, zero);
+                dumqc = std::max(dumqc, Real(0));
 
                 // SATURATION ADJUSTMENT FOR LIQUID
                 dums = dumqv - dumqss;
 
                 pcc = dums / (one + std::pow(morr_arr(i,j,k,MORRInd::xxlv), 2) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * std::pow(dumt, 2))) / dt;
 
-                if (pcc * dt + dumqc < zero) {
+                if (pcc * dt + dumqc < Real(0)) {
                   pcc = -dumqc / dt;
                 }
 
@@ -2849,25 +2849,25 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // SUBLIMATE, MELT, OR EVAPORATE NUMBER CONCENTRATION
                 // THIS FORMULATION ASSUMES 1:1 RATIO BETWEEN MASS LOSS AND
                 // LOSS OF NUMBER CONCENTRATION
-                if (eprd < zero) {
+                if (eprd < Real(0)) {
                   dum = eprd * dt / morr_arr(i,j,k,MORRInd::qi3d);
                   dum = std::max(-one, dum);
                   nsubi = dum * morr_arr(i,j,k,MORRInd::ni3d) / dt;
                 }
 
-                if (eprds < zero) {
+                if (eprds < Real(0)) {
                   dum = eprds * dt / morr_arr(i,j,k,MORRInd::qni3d);
                   dum = std::max(-one, dum);
                   nsubs = dum * morr_arr(i,j,k,MORRInd::ns3d) / dt;
                 }
 
-                if (pre < zero) {
+                if (pre < Real(0)) {
                   dum = pre * dt / morr_arr(i,j,k,MORRInd::qr3d);
                   dum = std::max(-one, dum);
                   nsubr = dum * morr_arr(i,j,k,MORRInd::nr3d) / dt;
                 }
 
-                if (eprdg < zero) {
+                if (eprdg < Real(0)) {
                   dum = eprdg * dt / morr_arr(i,j,k,MORRInd::qg3d);
                   dum = std::max(-one, dum);
                   nsubg = dum * morr_arr(i,j,k,MORRInd::ng3d) / dt;
@@ -2886,11 +2886,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
            }
             for(int k=klo; k<=khi; k++) {
             // INITIALIZE PRECIP AND SNOW RATES
-            morr_arr(i,j,k,MORRInd::precrt) = zero;
-            morr_arr(i,j,k,MORRInd::snowrt) = zero;
+            morr_arr(i,j,k,MORRInd::precrt) = Real(0);
+            morr_arr(i,j,k,MORRInd::snowrt) = Real(0);
         // hm added 7/13/13
-            morr_arr(i,j,k,MORRInd::snowprt) = zero;
-            morr_arr(i,j,k,MORRInd::grplprt) = zero;
+            morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
+            morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
             }
             nstep = 1;
             if(ltrue != 0) {
@@ -2932,11 +2932,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               }
 
               // MAKE SURE NUMBER CONCENTRATIONS ARE POSITIVE
-              morr_arr(i,j,k,MORRInd::dumfni) = amrex::max(zero, morr_arr(i,j,k,MORRInd::dumfni));
-              morr_arr(i,j,k,MORRInd::dumfns) = amrex::max(zero, morr_arr(i,j,k,MORRInd::dumfns));
-              morr_arr(i,j,k,MORRInd::dumfnc) = amrex::max(zero, morr_arr(i,j,k,MORRInd::dumfnc));
-              morr_arr(i,j,k,MORRInd::dumfnr) = amrex::max(zero, morr_arr(i,j,k,MORRInd::dumfnr));
-              morr_arr(i,j,k,MORRInd::dumfng) = amrex::max(zero, morr_arr(i,j,k,MORRInd::dumfng));
+              morr_arr(i,j,k,MORRInd::dumfni) = amrex::max(Real(0), morr_arr(i,j,k,MORRInd::dumfni));
+              morr_arr(i,j,k,MORRInd::dumfns) = amrex::max(Real(0), morr_arr(i,j,k,MORRInd::dumfns));
+              morr_arr(i,j,k,MORRInd::dumfnc) = amrex::max(Real(0), morr_arr(i,j,k,MORRInd::dumfnc));
+              morr_arr(i,j,k,MORRInd::dumfnr) = amrex::max(Real(0), morr_arr(i,j,k,MORRInd::dumfnr));
+              morr_arr(i,j,k,MORRInd::dumfng) = amrex::max(Real(0), morr_arr(i,j,k,MORRInd::dumfng));
 
               // CLOUD ICE
               if (morr_arr(i,j,k,MORRInd::dumi) >= m_qsmall) {
@@ -2957,7 +2957,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 dum = morr_arr(i,j,k,MORRInd::pres) / (Real(287.15) * morr_arr(i,j,k,MORRInd::t3d));
                 morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714) * (morr_arr(i,j,k,MORRInd::nc3d) / Real(1.0e6) * dum) + Real(0.2714);
                 morr_arr(i,j,k,MORRInd::pgam) = one / (morr_arr(i,j,k,MORRInd::pgam) * morr_arr(i,j,k,MORRInd::pgam)) - one;
-                morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), two);
+                morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
                 morr_arr(i,j,k,MORRInd::dlamc) = std::pow(m_cons26 * morr_arr(i,j,k,MORRInd::dumfnc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.0)) /
@@ -2990,8 +2990,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::umc) = morr_arr(i,j,k,MORRInd::acn) * gamma_function(Real(4.) + m_bc + morr_arr(i,j,k,MORRInd::pgam)) /
                              (std::pow(morr_arr(i,j,k,MORRInd::dlamc), m_bc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.)));
               } else {
-                morr_arr(i,j,k,MORRInd::umc) = zero;
-                morr_arr(i,j,k,MORRInd::unc) = zero;
+                morr_arr(i,j,k,MORRInd::umc) = Real(0);
+                morr_arr(i,j,k,MORRInd::unc) = Real(0);
               }
 
               // CLOUD ICE
@@ -2999,8 +2999,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::uni) = morr_arr(i,j,k,MORRInd::ain) * m_cons27 / std::pow(morr_arr(i,j,k,MORRInd::dlami), m_bi);
                 morr_arr(i,j,k,MORRInd::umi) = morr_arr(i,j,k,MORRInd::ain) * m_cons28 / std::pow(morr_arr(i,j,k,MORRInd::dlami), m_bi);
               } else {
-                morr_arr(i,j,k,MORRInd::umi) = zero;
-                morr_arr(i,j,k,MORRInd::uni) = zero;
+                morr_arr(i,j,k,MORRInd::umi) = Real(0);
+                morr_arr(i,j,k,MORRInd::uni) = Real(0);
               }
 
               // RAIN
@@ -3008,8 +3008,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::unr) = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::dlamr), m_br);
                 morr_arr(i,j,k,MORRInd::umr) = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::dlamr), m_br);
               } else {
-                morr_arr(i,j,k,MORRInd::umr) = zero;
-                morr_arr(i,j,k,MORRInd::unr) = zero;
+                morr_arr(i,j,k,MORRInd::umr) = Real(0);
+                morr_arr(i,j,k,MORRInd::unr) = Real(0);
               }
 
               // SNOW
@@ -3017,8 +3017,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::ums) = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::dlams), m_bs);
                 morr_arr(i,j,k,MORRInd::uns) = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::dlams), m_bs);
               } else {
-                morr_arr(i,j,k,MORRInd::ums) = zero;
-                morr_arr(i,j,k,MORRInd::uns) = zero;
+                morr_arr(i,j,k,MORRInd::ums) = Real(0);
+                morr_arr(i,j,k,MORRInd::uns) = Real(0);
               }
 
               // GRAUPEL
@@ -3026,8 +3026,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::umg) = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::dlamg), m_bg);
                 morr_arr(i,j,k,MORRInd::ung) = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::dlamg), m_bg);
               } else {
-                morr_arr(i,j,k,MORRInd::umg) = zero;
-                morr_arr(i,j,k,MORRInd::ung) = zero;
+                morr_arr(i,j,k,MORRInd::umg) = Real(0);
+                morr_arr(i,j,k,MORRInd::ung) = Real(0);
               }
 
               // SET REALISTIC LIMITS ON FALLSPEED
@@ -3230,7 +3230,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
               // bug fix
               if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall && morr_arr(i,j,k,MORRInd::t3d) < Real(273.15) && morr_arr(i,j,k,MORRInd::lami) >= Real(1.e-10)) {
-                if (one/morr_arr(i,j,k,MORRInd::lami) >= two*m_dcs) {
+                if (one/morr_arr(i,j,k,MORRInd::lami) >= Real(2)*m_dcs) {
                   morr_arr(i,j,k,MORRInd::qni3dten) = morr_arr(i,j,k,MORRInd::qni3dten) + morr_arr(i,j,k,MORRInd::qi3d)/dt + morr_arr(i,j,k,MORRInd::qi3dten);
                   morr_arr(i,j,k,MORRInd::ns3dten) = morr_arr(i,j,k,MORRInd::ns3dten) + morr_arr(i,j,k,MORRInd::ni3d)/dt + morr_arr(i,j,k,MORRInd::ni3dten);
                   morr_arr(i,j,k,MORRInd::qi3dten) = -morr_arr(i,j,k,MORRInd::qi3d)/dt;
@@ -3278,56 +3278,56 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::qr3d) < Real(1.0e-8)) {
                   morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qr3d);
                   morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qr3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qr3d) = Real(0);
                 }
                 if (morr_arr(i,j,k,MORRInd::qc3d) < Real(1.0e-8)) {
                   morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qc3d);
                   morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qc3d) * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qc3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qc3d) = Real(0);
                 }
               }
               if (qvqvsi < Real(0.9)) {
                 if (morr_arr(i,j,k,MORRInd::qi3d) < Real(1.0e-8)) {
                   morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qi3d);
                   morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qi3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qi3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qi3d) = Real(0);
                 }
                 if (morr_arr(i,j,k,MORRInd::qni3d) < Real(1.0e-8)) {
                   morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qni3d);
                   morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qni3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qni3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qni3d) = Real(0);
                 }
                 if (morr_arr(i,j,k,MORRInd::qg3d) < Real(1.0e-8)) {
                   morr_arr(i,j,k,MORRInd::qv3d) += morr_arr(i,j,k,MORRInd::qg3d);
                   morr_arr(i,j,k,MORRInd::t3d) -= morr_arr(i,j,k,MORRInd::qg3d) * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qg3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qg3d) = Real(0);
                 }
               }
               // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
               if (morr_arr(i,j,k,MORRInd::qc3d) < m_qsmall) {
-                morr_arr(i,j,k,MORRInd::qc3d) = zero;
-                morr_arr(i,j,k,MORRInd::nc3d) = zero;
-                morr_arr(i,j,k,MORRInd::effc) = zero;
+                morr_arr(i,j,k,MORRInd::qc3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::nc3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::effc) = Real(0);
               }
               if (morr_arr(i,j,k,MORRInd::qr3d) < m_qsmall) {
-                morr_arr(i,j,k,MORRInd::qr3d) = zero;
-                morr_arr(i,j,k,MORRInd::nr3d) = zero;
-                morr_arr(i,j,k,MORRInd::effr) = zero;
+                morr_arr(i,j,k,MORRInd::qr3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::nr3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::effr) = Real(0);
               }
               if (morr_arr(i,j,k,MORRInd::qi3d) < m_qsmall) {
-                morr_arr(i,j,k,MORRInd::qi3d) = zero;
-                morr_arr(i,j,k,MORRInd::ni3d) = zero;
-                morr_arr(i,j,k,MORRInd::effi) = zero;
+                morr_arr(i,j,k,MORRInd::qi3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::ni3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::effi) = Real(0);
               }
               if (morr_arr(i,j,k,MORRInd::qni3d) < m_qsmall) {
-                morr_arr(i,j,k,MORRInd::qni3d) = zero;
-                morr_arr(i,j,k,MORRInd::ns3d) = zero;
-                morr_arr(i,j,k,MORRInd::effs) = zero;
+                morr_arr(i,j,k,MORRInd::qni3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::ns3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::effs) = Real(0);
               }
               if (morr_arr(i,j,k,MORRInd::qg3d) < m_qsmall) {
-                morr_arr(i,j,k,MORRInd::qg3d) = zero;
-                morr_arr(i,j,k,MORRInd::ng3d) = zero;
-                morr_arr(i,j,k,MORRInd::effg) = zero;
+                morr_arr(i,j,k,MORRInd::qg3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::ng3d) = Real(0);
+                morr_arr(i,j,k,MORRInd::effg) = Real(0);
               }
               /*
               // Skip calculations if there is no cloud/precipitation water
@@ -3349,9 +3349,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall && morr_arr(i,j,k,MORRInd::t3d) >= Real(273.15)) {
                 morr_arr(i,j,k,MORRInd::qr3d) = morr_arr(i,j,k,MORRInd::qr3d) + morr_arr(i,j,k,MORRInd::qi3d);
                 morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) - morr_arr(i,j,k,MORRInd::qi3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm);
-                morr_arr(i,j,k,MORRInd::qi3d) = zero;
+                morr_arr(i,j,k,MORRInd::qi3d) = Real(0);
                 morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::nr3d) + morr_arr(i,j,k,MORRInd::ni3d);
-                morr_arr(i,j,k,MORRInd::ni3d) = zero;
+                morr_arr(i,j,k,MORRInd::ni3d) = Real(0);
               }
               // ****SENSITIVITY - NO ICE
               if ((m_iliq != 1)) {
@@ -3360,26 +3360,26 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::t3d) <= Real(233.15) && morr_arr(i,j,k,MORRInd::qc3d) >= m_qsmall) {
                   morr_arr(i,j,k,MORRInd::qi3d) = morr_arr(i,j,k,MORRInd::qi3d) + morr_arr(i,j,k,MORRInd::qc3d);
                   morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) + morr_arr(i,j,k,MORRInd::qc3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm);
-                  morr_arr(i,j,k,MORRInd::qc3d) = zero;
+                  morr_arr(i,j,k,MORRInd::qc3d) = Real(0);
                   morr_arr(i,j,k,MORRInd::ni3d) = morr_arr(i,j,k,MORRInd::ni3d) + morr_arr(i,j,k,MORRInd::nc3d);
-                  morr_arr(i,j,k,MORRInd::nc3d) = zero;
+                  morr_arr(i,j,k,MORRInd::nc3d) = Real(0);
                 }
                 // HOMOGENEOUS FREEZING OF RAIN
                 if (m_igraup == 0) {
                   if (morr_arr(i,j,k,MORRInd::t3d) <= Real(233.15) && morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
                     morr_arr(i,j,k,MORRInd::qg3d) = morr_arr(i,j,k,MORRInd::qg3d) + morr_arr(i,j,k,MORRInd::qr3d);
                     morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) + morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm);
-                    morr_arr(i,j,k,MORRInd::qr3d) = zero;
+                    morr_arr(i,j,k,MORRInd::qr3d) = Real(0);
                     morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::ng3d) + morr_arr(i,j,k,MORRInd::nr3d);
-                    morr_arr(i,j,k,MORRInd::nr3d) = zero;
+                    morr_arr(i,j,k,MORRInd::nr3d) = Real(0);
                   }
                 } else if (m_igraup == 1) {
                   if (morr_arr(i,j,k,MORRInd::t3d) <= Real(233.15) && morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
                     morr_arr(i,j,k,MORRInd::qni3d) = morr_arr(i,j,k,MORRInd::qni3d) + morr_arr(i,j,k,MORRInd::qr3d);
                     morr_arr(i,j,k,MORRInd::t3d) = morr_arr(i,j,k,MORRInd::t3d) + morr_arr(i,j,k,MORRInd::qr3d) * morr_arr(i,j,k,MORRInd::xlf) / morr_arr(i,j,k,MORRInd::cpm);
-                    morr_arr(i,j,k,MORRInd::qr3d) = zero;
+                    morr_arr(i,j,k,MORRInd::qr3d) = Real(0);
                     morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::ns3d) + morr_arr(i,j,k,MORRInd::nr3d);
-                    morr_arr(i,j,k,MORRInd::nr3d) = zero;
+                    morr_arr(i,j,k,MORRInd::nr3d) = Real(0);
                   }
                 }
 
@@ -3389,11 +3389,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
 //            label_778:
                 // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
-                morr_arr(i,j,k,MORRInd::ni3d) = std::max(zero, morr_arr(i,j,k,MORRInd::ni3d));
-                morr_arr(i,j,k,MORRInd::ns3d) = std::max(zero, morr_arr(i,j,k,MORRInd::ns3d));
-                morr_arr(i,j,k,MORRInd::nc3d) = std::max(zero, morr_arr(i,j,k,MORRInd::nc3d));
-                morr_arr(i,j,k,MORRInd::nr3d) = std::max(zero, morr_arr(i,j,k,MORRInd::nr3d));
-                morr_arr(i,j,k,MORRInd::ng3d) = std::max(zero, morr_arr(i,j,k,MORRInd::ng3d));
+                morr_arr(i,j,k,MORRInd::ni3d) = std::max(Real(0), morr_arr(i,j,k,MORRInd::ni3d));
+                morr_arr(i,j,k,MORRInd::ns3d) = std::max(Real(0), morr_arr(i,j,k,MORRInd::ns3d));
+                morr_arr(i,j,k,MORRInd::nc3d) = std::max(Real(0), morr_arr(i,j,k,MORRInd::nc3d));
+                morr_arr(i,j,k,MORRInd::nr3d) = std::max(Real(0), morr_arr(i,j,k,MORRInd::nr3d));
+                morr_arr(i,j,k,MORRInd::ng3d) = std::max(Real(0), morr_arr(i,j,k,MORRInd::ng3d));
 
                 // CLOUD ICE
                 if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall) {
@@ -3434,7 +3434,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   Real dum = morr_arr(i,j,k,MORRInd::pres) / (Real(287.15) * morr_arr(i,j,k,MORRInd::t3d));
                   morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714) * (morr_arr(i,j,k,MORRInd::nc3d) / Real(1.0e6) * dum) + Real(0.2714);
                   morr_arr(i,j,k,MORRInd::pgam) = one/(std::pow(morr_arr(i,j,k,MORRInd::pgam), 2)) - one;
-                  morr_arr(i,j,k,MORRInd::pgam) = std::max(morr_arr(i,j,k,MORRInd::pgam), two);
+                  morr_arr(i,j,k,MORRInd::pgam) = std::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                   morr_arr(i,j,k,MORRInd::pgam) = std::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
                   // CALCULATE LAMC
@@ -3495,31 +3495,31 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 //            label_500:
               // CALCULATE EFFECTIVE RADIUS
               if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::effi) = three / morr_arr(i,j,k,MORRInd::lami) / two * Real(1.0e6);
+                morr_arr(i,j,k,MORRInd::effi) = three / morr_arr(i,j,k,MORRInd::lami) / Real(2) * Real(1.0e6);
               } else {
                 morr_arr(i,j,k,MORRInd::effi) = Real(25.0);
               }
 
               if (morr_arr(i,j,k,MORRInd::qni3d) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::effs) = three / morr_arr(i,j,k,MORRInd::lams) / two * Real(1.0e6);
+                morr_arr(i,j,k,MORRInd::effs) = three / morr_arr(i,j,k,MORRInd::lams) / Real(2) * Real(1.0e6);
               } else {
                 morr_arr(i,j,k,MORRInd::effs) = Real(25.0);
               }
 
               if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::effr) = three / morr_arr(i,j,k,MORRInd::lamr) / two * Real(1.0e6);
+                morr_arr(i,j,k,MORRInd::effr) = three / morr_arr(i,j,k,MORRInd::lamr) / Real(2) * Real(1.0e6);
               } else {
                 morr_arr(i,j,k,MORRInd::effr) = Real(25.0);
               }
 
               if (morr_arr(i,j,k,MORRInd::qc3d) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::effc) = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.0)) / gamma_function(morr_arr(i,j,k,MORRInd::pgam) + three) / morr_arr(i,j,k,MORRInd::lamc) / two * Real(1.0e6);
+                morr_arr(i,j,k,MORRInd::effc) = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.0)) / gamma_function(morr_arr(i,j,k,MORRInd::pgam) + three) / morr_arr(i,j,k,MORRInd::lamc) / Real(2) * Real(1.0e6);
               } else {
                 morr_arr(i,j,k,MORRInd::effc) = Real(25.0);
               }
 
               if (morr_arr(i,j,k,MORRInd::qg3d) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::effg) = three / morr_arr(i,j,k,MORRInd::lamg) / two * Real(1.0e6);
+                morr_arr(i,j,k,MORRInd::effg) = three / morr_arr(i,j,k,MORRInd::lamg) / Real(2) * Real(1.0e6);
               } else {
                 morr_arr(i,j,k,MORRInd::effg) = Real(25.0);
               }

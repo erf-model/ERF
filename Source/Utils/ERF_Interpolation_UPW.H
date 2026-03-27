@@ -114,7 +114,7 @@ struct UPWIND3
         amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -140,7 +140,7 @@ struct UPWIND3
         amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -166,7 +166,7 @@ struct UPWIND3
         amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -202,7 +202,7 @@ private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1=(amrex::Real(7.0)/amrex::Real(12.0));
-    static constexpr amrex::Real g2=(one/amrex::Real(12.0));
+    static constexpr amrex::Real g2=(amrex::Real(1)/amrex::Real(12.0));
 };
 
 
@@ -227,7 +227,7 @@ struct UPWIND3SL
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -240,7 +240,7 @@ struct UPWIND3SL
         amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -254,7 +254,7 @@ struct UPWIND3SL
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -267,7 +267,7 @@ struct UPWIND3SL
         amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -281,7 +281,7 @@ struct UPWIND3SL
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -294,7 +294,7 @@ struct UPWIND3SL
         amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -305,8 +305,8 @@ struct UPWIND3SL
               const amrex::Real& sm2) const
     {
         amrex::Real rmh = (s - sm1) / ((sm1 - sm2) + eps);
-        amrex::Real K   = l2 + two*l2*rmh;
-        amrex::Real phi = std::max(zero,std::min(two*rmh,std::min(two,K)));
+        amrex::Real K   = l2 + amrex::Real(2)*l2*rmh;
+        amrex::Real phi = std::max(amrex::Real(0),std::min(amrex::Real(2)*rmh,std::min(amrex::Real(2),K)));
         return (sm1 + myhalf * phi * (sm1 - sm2));
     }
 
@@ -315,8 +315,8 @@ struct UPWIND3SL
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real eps=(amrex::Real(1.0e-16));
-    static constexpr amrex::Real l1 =(one/amrex::Real(6.0));
-    static constexpr amrex::Real l2 =(one/three);
+    static constexpr amrex::Real l1 =(amrex::Real(1)/amrex::Real(6.0));
+    static constexpr amrex::Real l2 =(amrex::Real(1)/three);
 };
 
 
@@ -410,7 +410,7 @@ struct CENTERED4
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(amrex::Real(7.0)/amrex::Real(12.0));
-    static constexpr amrex::Real g2=(one/amrex::Real(12.0));
+    static constexpr amrex::Real g2=(amrex::Real(1)/amrex::Real(12.0));
 };
 
 /**
@@ -443,7 +443,7 @@ struct UPWIND5
         amrex::Real sm3 = m_phi(i-3, j  , k  , qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -471,7 +471,7 @@ struct UPWIND5
         amrex::Real sm3 = m_phi(i  , j-3, k  , qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -499,7 +499,7 @@ struct UPWIND5
         amrex::Real sm3 = m_phi(i  , j  , k-3, qty_index);
 
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Add blending
         upw_lo *= m_upw_frac;
@@ -539,8 +539,8 @@ private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1=(amrex::Real(37.0)/amrex::Real(60.0));
-    static constexpr amrex::Real g2=(two/amrex::Real(15.0));
-    static constexpr amrex::Real g3=(one/amrex::Real(60.0));
+    static constexpr amrex::Real g2=(amrex::Real(2)/amrex::Real(15.0));
+    static constexpr amrex::Real g3=(amrex::Real(1)/amrex::Real(60.0));
 };
 
 /**
@@ -642,8 +642,8 @@ struct CENTERED6
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(amrex::Real(37.0)/amrex::Real(60.0));
-    static constexpr amrex::Real g2=(two/amrex::Real(15.0));
-    static constexpr amrex::Real g3=(one/amrex::Real(60.0));
+    static constexpr amrex::Real g2=(amrex::Real(2)/amrex::Real(15.0));
+    static constexpr amrex::Real g3=(amrex::Real(1)/amrex::Real(60.0));
 };
 
 /**
@@ -673,15 +673,15 @@ struct UPWINDALL
             return;
         } else {
             // Data to interpolate on
-            amrex::Real sp2 = (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th ) ? m_phi(i  , j  , k+2, qty_index): zero;
+            amrex::Real sp2 = (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th ) ? m_phi(i  , j  , k+2, qty_index): amrex::Real(0);
             amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
             amrex::Real s   = m_phi(i  , j  , k  , qty_index);
             amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
             amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
-            amrex::Real sm3 = (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th ) ? m_phi(i  , j  , k-3, qty_index) : zero;
+            amrex::Real sm3 = (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th ) ? m_phi(i  , j  , k-3, qty_index) : amrex::Real(0);
 
             // Upwinding flags
-            if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+            if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
             // Add blending
             upw_lo *= m_upw_frac;
@@ -712,7 +712,7 @@ struct UPWINDALL
         amrex::Real d3 = (sp2 - sm3);
 
         // Interpolated value
-        amrex::Real iv(zero);
+        amrex::Real iv(amrex::Real(0));
         if (adv_type == AdvType::Centered_2nd) {
             iv = myhalf * a1;
         } else if (adv_type == AdvType::Upwind_3rd) {
@@ -731,9 +731,9 @@ private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1_3_4=( amrex::Real(7.0)/amrex::Real(12.0));
-    static constexpr amrex::Real g2_3_4=( one/amrex::Real(12.0));
+    static constexpr amrex::Real g2_3_4=( amrex::Real(1)/amrex::Real(12.0));
     static constexpr amrex::Real g1_5_6=(amrex::Real(37.0)/amrex::Real(60.0));
-    static constexpr amrex::Real g2_5_6=( two/amrex::Real(15.0));
-    static constexpr amrex::Real g3_5_6=( one/amrex::Real(60.0));
+    static constexpr amrex::Real g2_5_6=( amrex::Real(2)/amrex::Real(15.0));
+    static constexpr amrex::Real g3_5_6=( amrex::Real(1)/amrex::Real(60.0));
 };
 #endif

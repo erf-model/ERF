@@ -56,7 +56,7 @@ void SAM::IceFall (const SolverChoice& sc) {
                 qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
             }
             Real vt_ice = min( Real(0.4),
-                               Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );
+                               Real(8.66)*std::pow( (amrex::max(Real(0),qci_avg)+Real(1.e-10)) , Real(0.24)) );
 
             // NOTE: Fz is the sedimentation flux from the advective operator.
             //       In the terrain-following coordinate system, the z-deriv in
@@ -115,7 +115,7 @@ void SAM::IceFall (const SolverChoice& sc) {
                     qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
                 }
                 Real vt_ice = min( Real(0.4),
-                                   Real(8.66)*std::pow( (amrex::max(zero,qci_avg)+Real(1.e-10)) , Real(0.24)) );
+                                   Real(8.66)*std::pow( (amrex::max(Real(0),qci_avg)+Real(1.e-10)) , Real(0.24)) );
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in

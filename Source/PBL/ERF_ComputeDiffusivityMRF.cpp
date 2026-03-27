@@ -143,7 +143,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                            -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
-            const Real t_surf   = t_layer + std::max(std::min(t_excess, three), zero);
+            const Real t_surf   = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
@@ -283,7 +283,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                               : 1 - 8 * grad_Ri / (1 + Real(1.286) * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20a
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
-                Pr = std::max(fourth, std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A
+                Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;

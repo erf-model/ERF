@@ -38,8 +38,8 @@ amrex::Real erf_esati (amrex::Real t) {
     AMREX_ALWAYS_ASSERT(dtt>-90);
 
     amrex::Real esati;
-    if (dtt > zero) {
-        esati = zero;
+    if (dtt > amrex::Real(0)) {
+        esati = amrex::Real(0);
     } else {
         esati = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     }
@@ -110,8 +110,8 @@ amrex::Real erf_dtesati (amrex::Real t) {
     amrex::Real dtt = t-amrex::Real(273.16);
     AMREX_ALWAYS_ASSERT(dtt>-85);
     amrex::Real dtesati;
-    if (dtt > zero) {
-        dtesati = zero;
+    if (dtt > amrex::Real(0)) {
+        dtesati = amrex::Real(0);
     } else {
         dtesati = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     }
@@ -198,17 +198,17 @@ void z0_est (amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar
     amrex::Real bm   = amrex::Real(19.3);
     amrex::Real c1   = amrex::Real(3.14159)/two - three*log(two);
     amrex::Real rlmo = -bflx*vonk/(ustar*ustar*ustar+eps);
-    amrex::Real zeta = std::min(one,z*rlmo);
+    amrex::Real zeta = std::min(amrex::Real(1),z*rlmo);
     amrex::Real x;
     amrex::Real psi1;
-    if(zeta >= zero) {
+    if(zeta >= amrex::Real(0)) {
         psi1 = -am*zeta;
     }
     else {
-        x = std::sqrt(sqrt(one-bm*zeta));
-        psi1 = two*std::log(one+x) + std::log(one+x*x) -two*std::atan(x) + c1;
+        x = std::sqrt(sqrt(amrex::Real(1)-bm*zeta));
+        psi1 = two*std::log(amrex::Real(1)+x) + std::log(amrex::Real(1)+x*x) -two*std::atan(x) + c1;
     }
-    amrex::Real lnz = std::max(zero, vonk*wnd/(ustar+eps) +psi1);
+    amrex::Real lnz = std::max(amrex::Real(0), vonk*wnd/(ustar+eps) +psi1);
     z0 = z*std::exp(-lnz);
 }
 
@@ -220,15 +220,15 @@ amrex::Real term_vel_qp (amrex::Real qploc,
                          amrex::Real rho,
                          amrex::Real tabs)
 {
-    amrex::Real term_vel = zero;
+    amrex::Real term_vel = amrex::Real(0);
     if(qploc > qp_threshold) {
-        amrex::Real omp = std::max(zero,std::min(one,(tabs-tprmin)*a_pr));
-        amrex::Real omg = std::max(zero,std::min(one,(tabs-tgrmin)*a_gr));
+        amrex::Real omp = std::max(amrex::Real(0),std::min(amrex::Real(1),(tabs-tprmin)*a_pr));
+        amrex::Real omg = std::max(amrex::Real(0),std::min(amrex::Real(1),(tabs-tgrmin)*a_gr));
         amrex::Real qrr = omp*qploc;
-        amrex::Real qss = (one-omp)*(one-omg)*qploc;
-        amrex::Real qgg = (one-omp)*(omg)*qploc;
+        amrex::Real qss = (amrex::Real(1)-omp)*(amrex::Real(1)-omg)*qploc;
+        amrex::Real qgg = (amrex::Real(1)-omp)*(omg)*qploc;
         term_vel = omp*vrain*std::pow(rho*qrr,crain)
-                 + (one-omp)*( (one-omg)*vsnow*std::pow(rho*qss,csnow)
+                 + (amrex::Real(1)-omp)*( (amrex::Real(1)-omg)*vsnow*std::pow(rho*qss,csnow)
                              +      omg *vgrau*std::pow(rho*qgg,cgrau) );
     }
     return term_vel;
@@ -236,11 +236,11 @@ amrex::Real term_vel_qp (amrex::Real qploc,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pp (amrex::Real y) {
-    return std::max(zero,y);
+    return std::max(amrex::Real(0),y);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pn (amrex::Real y) {
-    return -std::min(zero,y);
+    return -std::min(amrex::Real(0),y);
 }
 #endif
