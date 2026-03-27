@@ -12,10 +12,10 @@ Real compute_A (const Real z,
                 const Real rotor_rad)
 {
 
-    Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
+    Real d     = std::min(std::fabs(z - hub_height), rotor_rad);
     Real theta = std::acos(d/rotor_rad);
-    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(std::max(rotor_rad*rotor_rad - d*d,zero), myhalf);
-    Real A = PI*rotor_rad*rotor_rad/two - A_s;
+    Real A_s   = rotor_rad*rotor_rad*theta - d*std::pow(std::max(rotor_rad*rotor_rad - d*d,Real(0.)), Real(0.5));
+    Real A     = PI*rotor_rad*rotor_rad/two - A_s;
 
     return A;
 }
@@ -34,7 +34,7 @@ Real compute_Aijk (const Real z_k,
     Real check = (z_k - hub_height)*(z_kp1 - hub_height);
     Real A_ijk;
     if(check > 0){
-        A_ijk = std::fabs(A_k -A_kp1);
+        A_ijk = std::fabs(A_k - A_kp1);
     }
     else{
         A_ijk = A_k + A_kp1;
