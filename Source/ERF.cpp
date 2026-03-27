@@ -2577,7 +2577,7 @@ ERF::ReadParameters ()
         }
 
         if (nsr > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -one;
+            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -static_cast<int>(one);
             if ( nsr == 1) {
                 m_subvol_per[0] = -one;
                 pp.get("subvol_per" , m_subvol_per[0]);
