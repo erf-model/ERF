@@ -291,7 +291,8 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
                 const Box& tbx = mfi.tilebox();
                 auto& dfab = dmf[mfi];
                 auto& sfab = src_mf[mfi];
-                der_function(tbx, dfab, 0, 1, sfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
+                auto& zfab = (*z_phys_cc[lev_for_sub])[mfi];
+                der_function(tbx, dfab, 0, 1, sfab, zfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
             }
             mf.ParallelCopy(dmf,0,mf_comp,1,0,0);
             mf_comp++;

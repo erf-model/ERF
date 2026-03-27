@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL"
+
 stop_time = 3600.0
 
 # PROBLEM SIZE & GEOMETRY

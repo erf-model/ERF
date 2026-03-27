@@ -212,7 +212,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = mf_cc_vel[0][mfi];
-                derived::erf_dervortz(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                auto& zfab = (*z_phys_cc[levc])[mfi];
+                derived::erf_dervortz(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
             }
 
         // This allows dynamic refinement based on the value of the scalar/theta
@@ -224,10 +225,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const Box& bx = mfi.growntilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
+                auto& zfab = (*z_phys_cc[levc])[mfi];
                 if (ref_tags[j].Field() == "scalar") {
-                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 } else if (ref_tags[j].Field() == "theta") {
-                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
         // This allows dynamic refinement based on the value of the density
@@ -266,7 +268,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     const Box& bx = mfi.tilebox();
                     auto& dfab = (*mf)[mfi];
                     auto& sfab = mf_cc_vel[0][mfi];
-                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    auto& zfab = (*z_phys_cc[levc])[mfi];
+                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             }
 

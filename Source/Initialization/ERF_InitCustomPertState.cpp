@@ -84,6 +84,40 @@ ERF::init_custom (int lev)
                                     xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                     z_nd_arr, geom[lev].data(), mf_u, mf_v,
                                     solverChoice, lev);
+
+        // Zero out perturbations in covered cells in EB
+        if (solverChoice.terrain_type == TerrainType::EB) {
+
+            Array4<const EBCellFlag> c_cellflg = (get_eb(lev).get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> u_cellflg = (get_eb(lev).get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> v_cellflg = (get_eb(lev).get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> w_cellflg = (get_eb(lev).get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+            ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (c_cellflg(i,j,k).isCovered()) {
+                    cons_pert_arr(i,j,k) = 0.0;
+                }
+            });
+
+            ParallelFor(xbx, ybx, zbx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (u_cellflg(i,j,k).isCovered()) {
+                    xvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (v_cellflg(i,j,k).isCovered()) {
+                    yvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (w_cellflg(i,j,k).isCovered()) {
+                    zvel_pert_arr(i,j,k) = 0.0;
+                }
+            });
+        }
+
     } //mfi
 
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density
