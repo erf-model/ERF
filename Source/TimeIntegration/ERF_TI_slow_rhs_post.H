@@ -29,6 +29,8 @@
         }
 #endif
 
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
@@ -66,6 +68,9 @@
 #endif
                           fr_as_crse, fr_as_fine,
                           m_r2d);
+
+        // Implicit diffusion of moisture
+        #include "ERF_ImplicitPost.H"
 
         // Apply state redistribution for cons states
 
