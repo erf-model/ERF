@@ -95,25 +95,25 @@
             if (z_r > 0) rad += std::pow((z - z_c)/z_r, 2);
             rad = std::sqrt(rad);
 
-            if (rad <= one) {
+            if (rad <= amrex::Real(1)) {
                 delta_theta = theta_pert*std::pow(cos(PI*rad/two),2);
             } else {
-                 delta_theta = zero;
+                 delta_theta = amrex::Real(0);
             }
 
             theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
             Real T = getTgivenPandTh(p_back[k], theta_total, (R_d/Cp_d));
-            rho    = p_back[k]/(R_d*T*(one + (R_v/R_d)*q_v_back[k]));
+            rho    = p_back[k]/(R_d*T*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]));
             RH     = compute_relative_humidity(use_empirical);
             Real q_v_hot = vapor_mixing_ratio(p_back[k], T, RH);
 
             // Compute background quantities
             Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], (R_d/Cp_d));
-            Real rho_back = p_back[k]/(R_d*T_back*(one + (R_v/R_d)*q_v_back[k]));
+            Real rho_back = p_back[k]/(R_d*T_back*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]));
 
             // This version perturbs rho but not p
-            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one + (R_v/R_d)*q_v_back[k]);
-            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + qt_init);
+            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]);
+            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(amrex::Real(1) + qt_init);
 
             // Set scalar = 0 everywhere
             state_pert(i, j, k, RhoScalar_comp) = zero;
@@ -127,16 +127,16 @@
             if (nstate == NVAR_max) {
                 Real omn;
                 if(moisture_type == 1) {
-                    omn = std::max(zero,std::min(one,(T-tbgmin)*a_bg));
+                    omn = std::max(amrex::Real(0),std::min(amrex::Real(1),(T-tbgmin)*a_bg));
                 } else if(moisture_type == 2) {
-                    omn = one;
+                    omn = amrex::Real(1);
                 } else {
                     omn = zero;
                     Abort("Invalid moisture type specified");
                 }
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
-                state_pert(i, j, k, RhoQ3_comp) = qn * (one-omn);
+                state_pert(i, j, k, RhoQ3_comp) = qn * (amrex::Real(1)-omn);
             }
         });
     } else {
@@ -164,7 +164,7 @@
             if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
             L = std::sqrt(L);
             Real dT;
-            if (L > one) {
+            if (L > amrex::Real(1)) {
                 dT = zero;
             } else {
                 dT = T_pert * std::pow(cos(PI*L/two),2);
