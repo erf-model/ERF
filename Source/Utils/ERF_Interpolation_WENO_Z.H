@@ -23,7 +23,7 @@ struct WENO_Z3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -36,7 +36,7 @@ struct WENO_Z3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -50,7 +50,7 @@ struct WENO_Z3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -63,7 +63,7 @@ struct WENO_Z3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -77,7 +77,7 @@ struct WENO_Z3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -90,7 +90,7 @@ struct WENO_Z3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -106,25 +106,25 @@ struct WENO_Z3
 
         // Weight factors
         amrex::Real t5 = std::abs(b2 - b1);
-        amrex::Real w1 = g1 * ( one + (t5*t5) / ((eps + b1) * (eps + b1)) );
-        amrex::Real w2 = g2 * ( one + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real w1 = g1 * ( amrex::Real(1) + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real w2 = g2 * ( amrex::Real(1) + (t5*t5) / ((eps + b2) * (eps + b2)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2;
 
         // Taylor expansions
-        amrex::Real v1 = -sm1 + three * s;
+        amrex::Real v1 = -sm1 + amrex::Real(3) * s;
         amrex::Real v2 =  s   + sp1;
 
         // Interpolated value
-        return ( (w1 * v1 + w2 * v2) / (two * wsum) );
+        return ( (w1 * v1 + w2 * v2) / (amrex::Real(2) * wsum) );
     }
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     const amrex::Real eps=amrex::Real(1.0e-40);
-    static constexpr amrex::Real g1=(one/three);
-    static constexpr amrex::Real g2=(two/three);
+    static constexpr amrex::Real g1=(amrex::Real(1)/amrex::Real(3));
+    static constexpr amrex::Real g2=(amrex::Real(2)/amrex::Real(3));
 };
 
 /**
@@ -147,7 +147,7 @@ struct WENO_MZQ3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -160,7 +160,7 @@ struct WENO_MZQ3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -174,7 +174,7 @@ struct WENO_MZQ3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -187,7 +187,7 @@ struct WENO_MZQ3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -201,7 +201,7 @@ struct WENO_MZQ3
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -214,7 +214,7 @@ struct WENO_MZQ3
         amrex::Real Flo = Evaluate(sp1,s  ,sm1);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -227,22 +227,22 @@ struct WENO_MZQ3
         // Smoothing factors
         amrex::Real b1 = (s - sm1) * (s - sm1);
         amrex::Real b2 = (sp1 - s) * (sp1 - s);
-        amrex::Real b3 = ( (amrex::Real(13.0) / amrex::Real(12.0)) * ((sm1 - two*s + sp1)*(sm1 - two*s + sp1)) ) + ( ((sp1 - sm1)*(sp1 - sm1)) / amrex::Real(4.0) );
+        amrex::Real b3 = ( (amrex::Real(13.0) / amrex::Real(12.0)) * ((sm1 - amrex::Real(2)*s + sp1)*(sm1 - amrex::Real(2)*s + sp1)) ) + ( ((sp1 - sm1)*(sp1 - sm1)) / amrex::Real(4.0) );
 
         // Weight factors
         amrex::Real t5 = ( std::abs(b3 - b1) + std::abs(b3 - b2) ) / amrex::Real(32.0);
-        amrex::Real a1 = g1 * ( one + (t5*t5) / ((eps + b1) * (eps + b1)) );
-        amrex::Real a2 = g2 * ( one + (t5*t5) / ((eps + b2) * (eps + b2)) );
-        amrex::Real a3 = g3 * ( one + (t5*t5) / ((eps + b3) * (eps + b3)) );
+        amrex::Real a1 = g1 * ( amrex::Real(1) + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real a2 = g2 * ( amrex::Real(1) + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real a3 = g3 * ( amrex::Real(1) + (t5*t5) / ((eps + b3) * (eps + b3)) );
         amrex::Real asum = a1 + a2 + a3;
         amrex::Real w1 = a1 / asum;
         amrex::Real w2 = a2 / asum;
         amrex::Real w3 = a3 / asum;
 
         // Taylor expansions
-        amrex::Real v1 = (-sm1 + three * s) / two;
-        amrex::Real v2 = (  s  +  sp1) / two;
-        amrex::Real v3 = (-sm1 + amrex::Real(5.0) * s + two * sp1) / amrex::Real(6.0);
+        amrex::Real v1 = (-sm1 + amrex::Real(3) * s) / amrex::Real(2);
+        amrex::Real v2 = (  s  +  sp1) / amrex::Real(2);
+        amrex::Real v3 = (-sm1 + amrex::Real(5.0) * s + amrex::Real(2) * sp1) / amrex::Real(6.0);
 
         // Interpolated value
         return ( (w3 / g3) * (v3 - g1 * v1 - g2 * v2) + w1 * v1 + w2 * v2 );
@@ -251,9 +251,9 @@ struct WENO_MZQ3
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     const amrex::Real eps=amrex::Real(1.0e-40);
-    static constexpr amrex::Real g1=(one/three);
-    static constexpr amrex::Real g2=(one/three);
-    static constexpr amrex::Real g3=(one/three);
+    static constexpr amrex::Real g1=(amrex::Real(1)/amrex::Real(3));
+    static constexpr amrex::Real g2=(amrex::Real(1)/amrex::Real(3));
+    static constexpr amrex::Real g3=(amrex::Real(1)/amrex::Real(3));
 };
 
 /**
@@ -276,7 +276,7 @@ struct WENO_Z5
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -291,7 +291,7 @@ struct WENO_Z5
         amrex::Real Flo = Evaluate(sp2,sp1,s  ,sm1,sm2);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -305,7 +305,7 @@ struct WENO_Z5
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -320,7 +320,7 @@ struct WENO_Z5
         amrex::Real Flo = Evaluate(sp2,sp1,s  ,sm1,sm2);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -334,7 +334,7 @@ struct WENO_Z5
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -349,7 +349,7 @@ struct WENO_Z5
         amrex::Real Flo = Evaluate(sp2,sp1,s  ,sm1,sm2);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -362,26 +362,26 @@ struct WENO_Z5
               const amrex::Real& sp2) const
     {
         // Smoothing factors
-        amrex::Real b1 = c1 * (sm2 - two * sm1 + s) * (sm2 - two * sm1 + s) +
-                       fourth * (sm2 - amrex::Real(4.0) * sm1 + three * s) * (sm2 - amrex::Real(4.0) * sm1 + three * s);
-        amrex::Real b2 = c1 * (sm1 - two * s + sp1) * (sm1 - two * s + sp1) +
-                       fourth * (sm1 - sp1) * (sm1 - sp1);
-        amrex::Real b3 = c1 * (s - two * sp1 + sp2) * (s - two * sp1 + sp2) +
-                       fourth * (three * s - amrex::Real(4.0) * sp1 + sp2) * (three * s - amrex::Real(4.0) * sp1 + sp2);
+        amrex::Real b1 = c1 * (sm2 - amrex::Real(2) * sm1 + s) * (sm2 - amrex::Real(2) * sm1 + s) +
+                       amrex::Real(0.25) * (sm2 - amrex::Real(4.0) * sm1 + amrex::Real(3) * s) * (sm2 - amrex::Real(4.0) * sm1 + amrex::Real(3) * s);
+        amrex::Real b2 = c1 * (sm1 - amrex::Real(2) * s + sp1) * (sm1 - amrex::Real(2) * s + sp1) +
+                       amrex::Real(0.25) * (sm1 - sp1) * (sm1 - sp1);
+        amrex::Real b3 = c1 * (s - amrex::Real(2) * sp1 + sp2) * (s - amrex::Real(2) * sp1 + sp2) +
+                       amrex::Real(0.25) * (amrex::Real(3) * s - amrex::Real(4.0) * sp1 + sp2) * (amrex::Real(3) * s - amrex::Real(4.0) * sp1 + sp2);
 
         // Weight factors
         amrex::Real t5 = std::abs(b3 - b1);
-        amrex::Real w1 = g1 * ( one + (t5*t5) / ((eps + b1) * (eps + b1)) );
-        amrex::Real w2 = g2 * ( one + (t5*t5) / ((eps + b2) * (eps + b2)) );
-        amrex::Real w3 = g3 * ( one + (t5*t5) / ((eps + b3) * (eps + b3)) );
+        amrex::Real w1 = g1 * ( amrex::Real(1) + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real w2 = g2 * ( amrex::Real(1) + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real w3 = g3 * ( amrex::Real(1) + (t5*t5) / ((eps + b3) * (eps + b3)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2 + w3;
 
         // Taylor expansions
-        amrex::Real v1 = two * sm2 - amrex::Real(7.0) * sm1 + amrex::Real(11.0) * s;
-        amrex::Real v2 = -sm1 + amrex::Real(5.0) * s + two * sp1;
-        amrex::Real v3 = two * s + amrex::Real(5.0) * sp1 - sp2;
+        amrex::Real v1 = amrex::Real(2) * sm2 - amrex::Real(7.0) * sm1 + amrex::Real(11.0) * s;
+        amrex::Real v2 = -sm1 + amrex::Real(5.0) * s + amrex::Real(2) * sp1;
+        amrex::Real v3 = amrex::Real(2) * s + amrex::Real(5.0) * sp1 - sp2;
 
         // Interpolated value
         return ( (w1 * v1 + w2 * v2 + w3 * v3) / (amrex::Real(6.0) * wsum) );
@@ -391,9 +391,9 @@ private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     const amrex::Real eps=amrex::Real(1.0e-40);
     static constexpr amrex::Real c1=(amrex::Real(13.0)/amrex::Real(12.0));
-    static constexpr amrex::Real g1=(one/amrex::Real(10.0));
-    static constexpr amrex::Real g2=(three/amrex::Real(5.0));
-    static constexpr amrex::Real g3=(three/amrex::Real(10.0));
+    static constexpr amrex::Real g1=(amrex::Real(1)/amrex::Real(10.0));
+    static constexpr amrex::Real g2=(amrex::Real(3)/amrex::Real(5.0));
+    static constexpr amrex::Real g3=(amrex::Real(3)/amrex::Real(10.0));
 };
 
 /**
@@ -416,7 +416,7 @@ struct WENO_Z7
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i+3, j  , k  , qty_index);
@@ -433,7 +433,7 @@ struct WENO_Z7
         amrex::Real Flo = Evaluate(sp3,sp2,sp1,s  ,sm1,sm2,sm3);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -447,7 +447,7 @@ struct WENO_Z7
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j+3, k  , qty_index);
@@ -464,7 +464,7 @@ struct WENO_Z7
         amrex::Real Flo = Evaluate(sp3,sp2,sp1,s  ,sm1,sm2,sm3);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -478,7 +478,7 @@ struct WENO_Z7
                     amrex::Real upw_lo) const
     {
         // Upwinding flags
-        if (upw_lo != zero) upw_lo = (upw_lo > 0) ? one : -one;
+        if (upw_lo != amrex::Real(0)) upw_lo = (upw_lo > 0) ? amrex::Real(1) : -amrex::Real(1);
 
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j  , k+3, qty_index);
@@ -495,7 +495,7 @@ struct WENO_Z7
         amrex::Real Flo = Evaluate(sp3,sp2,sp1,s  ,sm1,sm2,sm3);
 
         // Numerical flux
-        val_lo = (one + upw_lo)/two * Fhi + (one - upw_lo)/two * Flo;
+        val_lo = (amrex::Real(1) + upw_lo)/amrex::Real(2) * Fhi + (amrex::Real(1) - upw_lo)/amrex::Real(2) * Flo;
     }
 
     AMREX_GPU_DEVICE
@@ -553,10 +553,10 @@ struct WENO_Z7
 
         // Weight factors
         amrex::Real t5 = std::abs(b1 - b2 - b3 + b4);
-        amrex::Real w1 = g1 * ( one + (t5*t5) / ((eps + b1) * (eps + b1)) );
-        amrex::Real w2 = g2 * ( one + (t5*t5) / ((eps + b2) * (eps + b2)) );
-        amrex::Real w3 = g3 * ( one + (t5*t5) / ((eps + b3) * (eps + b3)) );
-        amrex::Real w4 = g4 * ( one + (t5*t5) / ((eps + b4) * (eps + b4)) );
+        amrex::Real w1 = g1 * ( amrex::Real(1) + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real w2 = g2 * ( amrex::Real(1) + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real w3 = g3 * ( amrex::Real(1) + (t5*t5) / ((eps + b3) * (eps + b3)) );
+        amrex::Real w4 = g4 * ( amrex::Real(1) + (t5*t5) / ((eps + b4) * (eps + b4)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2 + w3 + w4;
@@ -574,7 +574,7 @@ struct WENO_Z7
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     const amrex::Real eps=amrex::Real(1.0e-40);
-    static constexpr amrex::Real g1=( one/amrex::Real(64.0));
+    static constexpr amrex::Real g1=( amrex::Real(1)/amrex::Real(64.0));
     static constexpr amrex::Real g2=(amrex::Real(21.0)/amrex::Real(64.0));
     static constexpr amrex::Real g3=(amrex::Real(35.0)/amrex::Real(64.0));
     static constexpr amrex::Real g4=( amrex::Real(7.0)/amrex::Real(64.0));

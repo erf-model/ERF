@@ -368,7 +368,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     const auto & h_s     = ma_h_s[box_no];
                     const auto & h_s_old = ma_h_s_old[box_no];
 
-                    Real beta_k = Real(0.2)*std::min(zz/(2*h_m),one); //smoothing coefficient (Eqn. 8)
+                    Real beta_k = Real(0.2)*std::min(zz/(2*h_m),Real(1.0)); //smoothing coefficient (Eqn. 8)
 
                     // Clip indices for ghost-cells
                     int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);

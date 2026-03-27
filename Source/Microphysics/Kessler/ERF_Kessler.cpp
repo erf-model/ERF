@@ -51,9 +51,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                qv_array(i,j,k) = std::max(zero, qv_array(i,j,k));
-                qc_array(i,j,k) = std::max(zero, qc_array(i,j,k));
-                qp_array(i,j,k) = std::max(zero, qp_array(i,j,k));
+                qv_array(i,j,k) = std::max(Real(0), qv_array(i,j,k));
+                qc_array(i,j,k) = std::max(Real(0), qc_array(i,j,k));
+                qp_array(i,j,k) = std::max(Real(0), qp_array(i,j,k));
 
                 //------- Autoconversion/accretion
                 Real qcc, auto_r, accrr;
@@ -64,19 +64,19 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat);
                 erf_dtqsatw(tabs_array(i,j,k), pressure, dtqsat);
 
-                if (qsat <= zero) {
-                    amrex::Warning("qsat computed as non-positive; setting to zero!");
-                    qsat = zero;
+                if (qsat <= Real(0)) {
+                    amrex::Warning("qsat computed as non-positive; setting to Real(0)!");
+                    qsat = Real(0);
                 }
 
                 // If there is precipitating water (i.e. rain), and the cell is not saturated
                 // then the rain water can evaporate leading to extraction of latent heat, hence
                 // reducing temperature and creating negative buoyancy
 
-                dq_clwater_to_rain  = zero;
-                dq_rain_to_vapor    = zero;
-                dq_vapor_to_clwater = zero;
-                dq_clwater_to_vapor = zero;
+                dq_clwater_to_rain  = Real(0);
+                dq_rain_to_vapor    = Real(0);
+                dq_vapor_to_clwater = Real(0);
+                dq_clwater_to_vapor = Real(0);
 
                 //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-Real(36.0),2));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
@@ -84,18 +84,18 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if ( (qv_array(i,j,k) > qsat) && do_cond ) {
-                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(one + fac));
+                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(Real(1) + fac));
                 }
 
                 // If water vapor is less than the saturated value, then the cloud water can evaporate,
                 // leading to evaporative cooling and reducing temperature
-                if ( (qv_array(i,j,k) < qsat) && (qc_array(i,j,k) > zero) && do_cond ) {
-                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(one + fac));
+                if ( (qv_array(i,j,k) < qsat) && (qc_array(i,j,k) > Real(0)) && do_cond ) {
+                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(Real(1) + fac));
                 }
 
-                if (( qp_array(i,j,k) > zero) && (qv_array(i,j,k) < qsat) ) {
+                if (( qp_array(i,j,k) > Real(0)) && (qv_array(i,j,k) < qsat) ) {
                     Real C = Real(1.6) + Real(124.9)*std::pow(Real(0.001)*rho_array(i,j,k)*qp_array(i,j,k),Real(0.2046));
-                    dq_rain_to_vapor = one/(Real(0.001)*rho_array(i,j,k))*(one - qv_array(i,j,k)/qsat)*C*std::pow(Real(0.001)*rho_array(i,j,k)*qp_array(i,j,k),Real(0.525))/
+                    dq_rain_to_vapor = Real(1)/(Real(0.001)*rho_array(i,j,k))*(Real(1) - qv_array(i,j,k)/qsat)*C*std::pow(Real(0.001)*rho_array(i,j,k)*qp_array(i,j,k),Real(0.525))/
                         (Real(5.4e5) + Real(2.55e6)/(pressure*qsat))*dtn;
                     // The negative sign is to make this variable (vapor formed from evaporation)
                     // a positive quantity (as qv/qs < 1)
@@ -105,15 +105,15 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 }
 
                 // If there is cloud water present then do accretion and autoconversion to rain
-                if (qc_array(i,j,k) > zero) {
+                if (qc_array(i,j,k) > Real(0)) {
                     qcc = qc_array(i,j,k);
 
-                    auto_r = zero;
+                    auto_r = Real(0);
                     if (qcc > qcw0) {
                         auto_r = alphaelq;
                     }
 
-                    accrr = zero;
+                    accrr = Real(0);
                     accrr = Real(2.2) * std::pow(qp_array(i,j,k) , Real(0.875));
                     dq_clwater_to_rain = dtn *(accrr*qcc + auto_r*(qcc - qcw0));
 
@@ -128,9 +128,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real theta_over_T = theta_array(i,j,k)/tabs_array(i,j,k);
                 theta_array(i,j,k) += theta_over_T * d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
 
-                qv_array(i,j,k) = std::max(zero, qv_array(i,j,k));
-                qc_array(i,j,k) = std::max(zero, qc_array(i,j,k));
-                qp_array(i,j,k) = std::max(zero, qp_array(i,j,k));
+                qv_array(i,j,k) = std::max(Real(0), qv_array(i,j,k));
+                qc_array(i,j,k) = std::max(Real(0), qc_array(i,j,k));
+                qp_array(i,j,k) = std::max(Real(0), qp_array(i,j,k));
 
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
             });
@@ -159,14 +159,14 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                     qp_avg = myhalf*(qp_array(i,j,k-1)  + qp_array(i,j,k));
                 }
 
-                qp_avg = std::max(zero, qp_avg);
+                qp_avg = std::max(Real(0), qp_avg);
 
                 Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -myhalf); // in m/s
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
                 //       the divergence uses the normal velocity (Omega). However,
-                //       there are no u/v components to the sedimentation velocity.
+                //       there are no u/v compReal(1)nts to the sedimentation velocity.
                 //       Therefore, we simply end up with a division by detJ when
                 //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
                 fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
@@ -220,14 +220,14 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                         qp_avg = myhalf*(qp_array(i,j,k-1)  + qp_array(i,j,k));
                     }
 
-                    qp_avg = std::max(zero, qp_avg);
+                    qp_avg = std::max(Real(0), qp_avg);
 
                     Real V_terminal = Real(36.34)*std::pow(rho_avg*Real(0.001)*qp_avg, Real(0.1346))*std::pow(rho_avg/Real(1.16), -myhalf); // in m/s
 
                     // NOTE: Fz is the sedimentation flux from the advective operator.
                     //       In the terrain-following coordinate system, the z-deriv in
                     //       the divergence uses the normal velocity (Omega). However,
-                    //       there are no u/v components to the sedimentation velocity.
+                    //       there are no u/v compReal(1)nts to the sedimentation velocity.
                     //       Therefore, we simply end up with a division by detJ when
                     //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
                     fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
@@ -241,15 +241,15 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     // Jacobian determinant
-                    Real dJinv = (dJ_array) ? one/dJ_array(i,j,k) : one;
+                    Real dJinv = (dJ_array) ? Real(1)/dJ_array(i,j,k) : Real(1);
 
-                    if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = zero;
-                    if(std::fabs(fz_array(i,j,k  )) < 1e-14) fz_array(i,j,k  ) = zero;
-                    Real dq_sed = dJinv * (one/rho_array(i,j,k)) * (fz_array(i,j,k+1) - fz_array(i,j,k)) * coef;
-                    if(std::fabs(dq_sed) < 1e-14) dq_sed = zero;
+                    if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = Real(0);
+                    if(std::fabs(fz_array(i,j,k  )) < 1e-14) fz_array(i,j,k  ) = Real(0);
+                    Real dq_sed = dJinv * (Real(1)/rho_array(i,j,k)) * (fz_array(i,j,k+1) - fz_array(i,j,k)) * coef;
+                    if(std::fabs(dq_sed) < 1e-14) dq_sed = Real(0);
 
                     qp_array(i,j,k) +=  dq_sed;
-                    qp_array(i,j,k)  = std::max(zero, qp_array(i,j,k));
+                    qp_array(i,j,k)  = std::max(Real(0), qp_array(i,j,k));
                 });
             } // mfi
         } // nsub
@@ -278,7 +278,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                qc_array(i,j,k) = std::max(zero, qc_array(i,j,k));
+                qc_array(i,j,k) = std::max(Real(0), qc_array(i,j,k));
 
                 //------- Autoconversion/accretion
                 Real qsat, dtqsat;
@@ -292,8 +292,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 // then the rain water can evaporate leading to extraction of latent heat, hence
                 // reducing temperature and creating negative buoyancy
 
-                dq_vapor_to_clwater = zero;
-                dq_clwater_to_vapor = zero;
+                dq_vapor_to_clwater = Real(0);
+                dq_clwater_to_vapor = Real(0);
 
                 //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-Real(36.0),2));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
@@ -301,12 +301,12 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if (qv_array(i,j,k) > qsat){
-                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(one + fac));
+                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(Real(1) + fac));
                 }
                 // If water vapor is less than the saturated value, then the cloud water can evaporate, leading to evaporative cooling and
                 // reducing temperature
-                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > zero){
-                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(one + fac));
+                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > Real(0)){
+                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(Real(1) + fac));
                 }
 
                 qv_array(i,j,k) += -dq_vapor_to_clwater + dq_clwater_to_vapor;
@@ -316,8 +316,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 theta_array(i,j,k) += theta_over_T * d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor);
 
-                qv_array(i,j,k) = std::max(zero, qv_array(i,j,k));
-                qc_array(i,j,k) = std::max(zero, qc_array(i,j,k));
+                qv_array(i,j,k) = std::max(Real(0), qv_array(i,j,k));
+                qc_array(i,j,k) = std::max(Real(0), qc_array(i,j,k));
 
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
             });

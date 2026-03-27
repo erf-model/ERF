@@ -37,12 +37,12 @@
 class SatMethods {
 public:
     // Get saturation specific humidity given pressure and SVP.
-    // Specific humidity is limited to range 0-one
+    // Specific humidity is limited to range 0-1
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_to_qsat (const amrex::Real& es, const amrex::Real& p) {
-        // If pressure is less than SVP, set qs to maximum of one
-        if ( (p - es) <= zero )
-            return one;
+        // If pressure is less than SVP, set qs to maximum of amrex::Real(1)
+        if ( (p - es) <= amrex::Real(0) )
+            return amrex::Real(1);
         else
             return epsilo*es / (p - omeps*es);
     }
@@ -137,17 +137,17 @@ public:
         if (t >= (tmelt - ttrice))
             es = wv_sat_svp_water(t,idx);
         else
-            es = zero;
+            es = amrex::Real(0);
 
         // Ice
         if (t < tmelt) {
             esice = wv_sat_svp_ice(t,idx);
             if ( (tmelt - t) > ttrice )
-                weight = one;
+                weight = amrex::Real(1);
             else
                 weight = (tmelt - t)/ttrice;
 
-            es = weight*esice + (one - weight)*es;
+            es = weight*esice + (amrex::Real(1) - weight)*es;
         }
         return es;
     }
@@ -157,18 +157,18 @@ public:
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_water (const amrex::Real& t) {
         // uncertain below -70 C
-        return pow(amrex::Real(10.), (-amrex::Real(7.90298)*(tboil/t-one)+
+        return pow(amrex::Real(10.), (-amrex::Real(7.90298)*(tboil/t-amrex::Real(1))+
                          amrex::Real(5.02808)*std::log10(tboil/t)-
-                         amrex::Real(1.3816e-7)*(pow(amrex::Real(10.), (amrex::Real(11.344)*(one-t/tboil)))-one)+
-                         amrex::Real(8.1328e-3)*(pow(amrex::Real(10.), (-amrex::Real(3.49149)*(tboil/t-one)))-one)+
+                         amrex::Real(1.3816e-7)*(pow(amrex::Real(10.), (amrex::Real(11.344)*(amrex::Real(1)-t/tboil)))-amrex::Real(1))+
+                         amrex::Real(8.1328e-3)*(pow(amrex::Real(10.), (-amrex::Real(3.49149)*(tboil/t-amrex::Real(1))))-amrex::Real(1))+
                          std::log10(amrex::Real(1013.246))))*amrex::Real(100.);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_ice (const amrex::Real& t) {
         // good down to -100 C
-        return pow(amrex::Real(10.), (-amrex::Real(9.09718)*(h2otrip/t-one)-amrex::Real(3.56654)*
-                         log10(h2otrip/t)+amrex::Real(0.876793)*(one-t/h2otrip)+
+        return pow(amrex::Real(10.), (-amrex::Real(9.09718)*(h2otrip/t-amrex::Real(1))-amrex::Real(3.56654)*
+                         log10(h2otrip/t)+amrex::Real(0.876793)*(amrex::Real(1)-t/h2otrip)+
                          log10(amrex::Real(6.1071))))*amrex::Real(100.);
     }
 
@@ -206,12 +206,12 @@ public:
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_water (const amrex::Real& t) {
         auto ps = amrex::Real(1013.246);
-        auto e1 = amrex::Real(11.344)*(one - t/tboil);
-        auto e2 = -amrex::Real(3.49149)*(tboil/t - one);
-        auto f1 = -amrex::Real(7.90298)*(tboil/t - one);
+        auto e1 = amrex::Real(11.344)*(amrex::Real(1) - t/tboil);
+        auto e2 = -amrex::Real(3.49149)*(tboil/t - amrex::Real(1));
+        auto f1 = -amrex::Real(7.90298)*(tboil/t - amrex::Real(1));
         auto f2 = amrex::Real(5.02808)*log10(tboil/t);
-        auto f3 = -amrex::Real(1.3816)*(pow(amrex::Real(10.0), e1) - one)/amrex::Real(10000000.0);
-        auto f4 = amrex::Real(8.1328)*(pow(amrex::Real(10.0), e2) - one)/amrex::Real(1000.0);
+        auto f3 = -amrex::Real(1.3816)*(pow(amrex::Real(10.0), e1) - amrex::Real(1))/amrex::Real(10000000.0);
+        auto f4 = amrex::Real(8.1328)*(pow(amrex::Real(10.0), e2) - amrex::Real(1))/amrex::Real(1000.0);
         auto f5 = log10(ps);
         auto f  = f1 + f2 + f3 + f4 + f5;
         return (pow(amrex::Real(10.0), f))*amrex::Real(100.0);
