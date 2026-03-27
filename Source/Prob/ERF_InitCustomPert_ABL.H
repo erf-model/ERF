@@ -1,9 +1,9 @@
 
     ParmParse pp("prob");
 
-    Real rho_0 = zero; pp.query("rho_0", rho_0);
-    Real T_0   = zero; pp.query("T_0", T_0);
-    Real A_0   = one; pp.query("A_0", A_0);
+    Real rho_0 = amrex::Real(0); pp.query("rho_0", rho_0);
+    Real T_0   = amrex::Real(0); pp.query("T_0", T_0);
+    Real A_0   = amrex::Real(1); pp.query("A_0", A_0);
     Real KE_0  = amrex::Real(0.1); pp.query("KE_0", KE_0);
     Real rhoKE_0 = -1; pp.query("rhoKE_0", rhoKE_0);
 
@@ -11,12 +11,12 @@
     Real KE_decay_order  =  1; pp.query("KE_decay_order", KE_decay_order);
 
     // random initial perturbations (legacy code)
-    Real T_0_Pert_Mag = zero; pp.query("T_0_Pert_Mag", T_0_Pert_Mag);
+    Real T_0_Pert_Mag = amrex::Real(0); pp.query("T_0_Pert_Mag", T_0_Pert_Mag);
     bool pert_rhotheta = true; pp.query("pert_rhotheta", pert_rhotheta);
 
     // divergence-free initial perturbations
-    Real pert_deltaU = zero; pp.query("pert_deltaU", pert_deltaU);
-    Real pert_deltaV = zero; pp.query("pert_deltaV", pert_deltaV);
+    Real pert_deltaU = amrex::Real(0); pp.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV = amrex::Real(0); pp.query("pert_deltaV", pert_deltaV);
     Real pert_ref_height = amrex::Real(100.0); pp.query("pert_ref_height", pert_ref_height);
 
     // Capture by value for GPU
@@ -42,7 +42,7 @@
 
 #ifndef AMREX_USE_GPU
     if (pert_ref_height > 0) {
-        if (T_0_Pert_Mag != zero) {
+        if (T_0_Pert_Mag != amrex::Real(0)) {
             if (pert_rhotheta) {
                 amrex::Print() << "Adding random rho*theta perturbations" << std::endl;
             } else {
@@ -61,9 +61,9 @@
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
+        if ((z <= pert_ref_height) && (T_0_Pert_Mag != amrex::Real(0))) {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*amrex::Real(2) - amrex::Real(1))*T_0_Pert_Mag;
             if (!pert_rhotheta) {
                 // we're perturbing theta, not rho*theta
                 state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
@@ -84,7 +84,7 @@
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
                 state_pert(i, j, k, RhoKE_comp) *= amrex::max(
-                    std::pow(1 - amrex::min(z/KE_decay_height,one), KE_decay_order), Real(1e-12));
+                    std::pow(1 - amrex::min(z/KE_decay_height,amrex::Real(1)), KE_decay_order), Real(1e-12));
             }
         }
     });

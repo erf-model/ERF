@@ -696,7 +696,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Real P     = p_arr(i,j,k);
                     const Real e_act = P * qv / (Real(0.622) + qv);
 
-                    derdat(i,j,k,mf_comp) = std::max(zero, e_sat - e_act) * Real(0.001);
+                    derdat(i,j,k,mf_comp) = std::max(amrex::Real(0), e_sat - e_act) * Real(0.001);
                 });
             }
             mf_comp ++;

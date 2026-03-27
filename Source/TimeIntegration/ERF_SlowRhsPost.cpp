@@ -547,7 +547,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
                     });
 
@@ -561,7 +561,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
                     });
 

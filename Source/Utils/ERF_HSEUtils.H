@@ -59,11 +59,11 @@ namespace HSEutils
             Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
             P -= F/dFdp;
             if (P < Real(1.0e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
-            AMREX_ALWAYS_ASSERT(P > zero);
+            AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
             rd = getRhogivenThetaPress(T, P, RdOCp, qv);
-            AMREX_ALWAYS_ASSERT(rd > zero);
+            AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
             F = P + myhalf*r_tot*g*dz + C;
             ++iter;
@@ -454,7 +454,7 @@ Real compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& r
     compute_rho(p_k, theta_k, rho_k, q_v_k, T_dp, T_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height,
                 T_from_theta, theta_0, theta_tr, z_tr, T_tr);
 
-    if(rho_k_minus_1 == zero) // This loop is for the first point above the ground
+    if(rho_k_minus_1 == amrex::Real(0)) // This loop is for the first point above the ground
     {
         F = p_k - p_k_minus_1 + rho_k*CONST_GRAV*dz/two;
     }
@@ -506,16 +506,16 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real eq_pot_temp, const bool use_empirical,
                                const bool T_from_theta = false,
                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
-                               const Real theta_0 = zero, const Real theta_tr = zero, const Real T_tr = zero)
+                               const Real theta_0 = amrex::Real(0), const Real theta_tr = amrex::Real(0), const Real T_tr = amrex::Real(0))
 {
     Real T_b, T_dp;
 
     int which_zone = -1;
-    Real scaled_height = zero;
+    Real scaled_height = amrex::Real(0);
 
     // Compute the quantities at z = myhalf*dz (first cell center)
     p[0] = p_0;
-    if (z_tr_1 > zero) {
+    if (z_tr_1 > amrex::Real(0)) {
         Real z = myhalf * dz;
         if (z <= z_tr_1) {
             which_zone = 1;
@@ -527,7 +527,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         scaled_height = z/z_tr_2;
     }
 
-    compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, zero, q_t, eq_pot_temp,
+    compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, amrex::Real(0), q_t, eq_pot_temp,
                 use_empirical, which_zone, scaled_height, T_from_theta,
                 theta_0, theta_tr, z_tr_2, T_tr);
 
@@ -535,7 +535,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     {
         p[k] = p[k-1];
 
-        if (z_tr_1 > zero) {
+        if (z_tr_1 > amrex::Real(0)) {
             Real z = (k+myhalf) * dz;
             if (z <= z_tr_1) {
                 which_zone = 1;
