@@ -130,7 +130,7 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
                                           x, y,
                                           sst_d_ptr, tmp_sst);
 
-                surf_arr(i, j, 0) = std::min(tmp_ls_mask, one);
+                surf_arr(i, j, 0) = std::min(tmp_ls_mask, amrex::Real(1.0));
                 surf_arr(i, j, 1) = tmp_sst;
             }
         });

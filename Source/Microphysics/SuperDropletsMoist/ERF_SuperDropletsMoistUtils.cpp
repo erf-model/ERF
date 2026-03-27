@@ -400,7 +400,7 @@ void SuperDropletsMoist::rainAccumulation ()
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k == k_lo) {
-                auto rain_accum = std::max(zero, -zflux_arr(i,j,k)*dt/mat_density);
+                auto rain_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
                 rain_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
             }
         });
@@ -470,7 +470,7 @@ void SuperDropletsMoist::speciesAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(zero, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(Real(0), -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });
@@ -503,7 +503,7 @@ void SuperDropletsMoist::aerosolAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(zero, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(Real(0), -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });

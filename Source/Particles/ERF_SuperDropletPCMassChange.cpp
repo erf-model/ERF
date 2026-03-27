@@ -285,7 +285,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 auto d_mass = (Real(4.0)/three)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
-                sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],zero);
+                sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],amrex::Real(0));
 
                 radius_ptr[i] = SD_effective_radius( i, idx_w,
                                                      rho_w,

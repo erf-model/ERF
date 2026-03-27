@@ -82,7 +82,7 @@ class eb_cut_cell_ {
       m_F5.set_area( m_rbox.length(0)*m_rbox.length(2) );
       m_F6.set_area( m_rbox.length(0)*m_rbox.length(2) );
 
-      m_F7.set_area(zero);
+      m_F7.set_area(amrex::Real(0));
 
     }
 

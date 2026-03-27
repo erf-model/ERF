@@ -90,8 +90,8 @@ SAM::PrecipFall (const SolverChoice& sc)
                     omp = one;
                     omg = zero;
                 } else {
-                    omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
-                    omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
+                    omp = std::max(Real(0),std::min(Real(1),(tab_avg-tprmin)*a_pr));
+                    omg = std::max(Real(0),std::min(Real(1),(tab_avg-tgrmin)*a_gr));
                 }
                 Real qrr = omp*qp_avg;
                 Real qss = (one-omp)*(one-omg)*qp_avg;
@@ -174,8 +174,8 @@ SAM::PrecipFall (const SolverChoice& sc)
                         omp = one;
                         omg = zero;
                     } else {
-                        omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
-                        omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
+                        omp = std::max(Real(0),std::min(Real(1),(tab_avg-tprmin)*a_pr));
+                        omg = std::max(Real(0),std::min(Real(1),(tab_avg-tgrmin)*a_gr));
                     }
                     Real qrr = omp*qp_avg;
                     Real qss = (one-omp)*(one-omg)*qp_avg;
@@ -199,8 +199,8 @@ SAM::PrecipFall (const SolverChoice& sc)
                         omp = one;
                         omg = zero;
                     } else {
-                        omp = std::max(zero,std::min(one,(tab_avg-tprmin)*a_pr));
-                        omg = std::max(zero,std::min(one,(tab_avg-tgrmin)*a_gr));
+                        omp = std::max(Real(0),std::min(Real(1),(tab_avg-tprmin)*a_pr));
+                        omg = std::max(Real(0),std::min(Real(1),(tab_avg-tgrmin)*a_gr));
                     }
                     rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + rho_avg*(omp*qp_avg)*vrain*dtn/rhor*Real(1000.0); // Divide by rho_water and convert to mm
                     snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + rho_avg*(one-omp)*(one-omg)*qp_avg*vsnow*dtn/rhos*Real(1000.0); // Divide by rho_snow and convert to mm
@@ -223,13 +223,13 @@ SAM::PrecipFall (const SolverChoice& sc)
                     omp = one;
                     omg = zero;
                 } else {
-                    omp = std::max(zero,std::min(one,(tabs_array(i,j,k)-tprmin)*a_pr));
-                    omg = std::max(zero,std::min(one,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                    omp = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tgrmin)*a_gr));
                 }
 
-                qpr_array(i,j,k) = std::max(zero, qpr_array(i,j,k) + dqp*omp);
-                qps_array(i,j,k) = std::max(zero, qps_array(i,j,k) + dqp*(one-omp)*(one-omg));
-                qpg_array(i,j,k) = std::max(zero, qpg_array(i,j,k) + dqp*(one-omp)*omg);
+                qpr_array(i,j,k) = std::max(Real(0), qpr_array(i,j,k) + dqp*omp);
+                qps_array(i,j,k) = std::max(Real(0), qps_array(i,j,k) + dqp*(one-omp)*(one-omg));
+                qpg_array(i,j,k) = std::max(Real(0), qpg_array(i,j,k) + dqp*(one-omp)*omg);
                  qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
                  // NOTE: Sedimentation does not affect the potential temperature,

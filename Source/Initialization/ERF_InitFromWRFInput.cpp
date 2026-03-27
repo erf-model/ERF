@@ -228,7 +228,7 @@ ERF::init_from_wrfinput (int lev,
             }
 #ifdef AMREX_USE_GPU
             FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
-            FArrayBOx var_fab_crse(subdomain_crse,1,amrex::The_Pinned_Arena());
+            FArrayBox var_fab_crse(subdomain_crse,1,amrex::The_Pinned_Arena());
 #else
             FArrayBox var_fab(subdomain_to_fill_typed,1);
             FArrayBox var_fab_crse(subdomain_crse,1);
