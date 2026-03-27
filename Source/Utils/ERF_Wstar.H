@@ -16,11 +16,11 @@ calc_wstar (const amrex::Real& ust,
             const amrex::Real& pblh,
             const amrex::Real& th,
             const amrex::Real& thv,
-            const amrex::Real& qv = zero)
+            const amrex::Real& qv = amrex::Real(0))
 {
     amrex::Real hfx = -ust*tst; // <theta'w'>
     if (hfx <= 0) {
-        return zero;
+        return amrex::Real(0);
     }
     if (qv > 0) {
         // have moisture -- estimate buoyancy flux, <thetav'w'> (Stull 4.4.5d)
@@ -37,7 +37,7 @@ calc_wstar (const amrex::Real& hfx,
             const amrex::Real& thv)
 {
     if (hfx <= 0) {
-        return zero;
+        return amrex::Real(0);
     } else {
         return std::cbrt(CONST_GRAV / thv * pblh * hfx);
     }

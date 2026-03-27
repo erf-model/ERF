@@ -96,13 +96,13 @@ SAM::Precip (const SolverChoice& sc)
             // Work to be done for autoc/accr or evap
             if (qn_array(i,j,k)+qp_array(i,j,k) > zero) {
                 if (SAM_moisture_type == 2) {
-                    omn = one;
-                    omp = one;
-                    omg = zero;
+                    omn = Real(1);
+                    omp = Real(1);
+                    omg = Real(0);
                 } else {
-                    omn = std::max(zero,std::min(one,(tabs_array(i,j,k)-tbgmin)*a_bg));
-                    omp = std::max(zero,std::min(one,(tabs_array(i,j,k)-tprmin)*a_pr));
-                    omg = std::max(zero,std::min(one,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                    omn = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tbgmin)*a_bg));
+                    omp = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tgrmin)*a_gr));
                 }
 
                 qcc = qcl_array(i,j,k);
