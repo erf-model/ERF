@@ -652,7 +652,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
-        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
         // Diffusive stress vars
         auto t13_arr =  Tau_EB[EBTauType::tau_eb13]->array(mfi);
@@ -678,9 +677,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
         const auto t_star_arr = t_star[lev]->array(mfi);
-        const auto q_star_arr = q_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);
-        const auto q_surf_arr = q_surf[lev]->array(mfi);
 
         // Rho*Theta flux
         //============================================================================
