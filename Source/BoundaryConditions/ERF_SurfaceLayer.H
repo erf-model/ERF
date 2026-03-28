@@ -15,6 +15,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
+#include "ERF_EB.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -501,6 +502,16 @@ public:
                                 amrex::MultiFab* zqv_flux,
                                 const amrex::MultiFab* z_phys);
 
+  void impose_SurfaceLayer_bcs_EB (const int& lev,
+                                amrex::Vector<const amrex::MultiFab*> mfs,
+                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                amrex::MultiFab* xheat_flux,
+                                amrex::MultiFab* yheat_flux,
+                                amrex::MultiFab* zheat_flux,
+                                amrex::MultiFab* xqv_flux,
+                                amrex::MultiFab* yqv_flux,
+                                amrex::MultiFab* zqv_flux,
+                                const eb_& ebfact);
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
@@ -512,6 +523,19 @@ public:
                                  amrex::MultiFab* yqv_flux,
                                  amrex::MultiFab* zqv_flux,
                                  const amrex::MultiFab* z_phys,
+                                 const FluxCalc& flux_comp);
+
+  template <typename FluxCalc>
+  void compute_SurfaceLayer_bcs_EB (const int& lev,
+                                 amrex::Vector<const amrex::MultiFab*> mfs,
+                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                 amrex::MultiFab* xheat_flux,
+                                 amrex::MultiFab* yheat_flux,
+                                 amrex::MultiFab* zheat_flux,
+                                 amrex::MultiFab* xqv_flux,
+                                 amrex::MultiFab* yqv_flux,
+                                 amrex::MultiFab* zqv_flux,
+                                 const eb_& ebfact,
                                  const FluxCalc& flux_comp);
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,

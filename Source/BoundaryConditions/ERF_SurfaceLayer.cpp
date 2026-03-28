@@ -359,6 +359,35 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
     }
 }
 
+/**
+ * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ */
+void
+SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
+                                       Vector<const MultiFab*> mfs,
+                                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                       MultiFab* xheat_flux,
+                                       MultiFab* yheat_flux,
+                                       MultiFab* Hfx3_EB,
+                                       MultiFab* xqv_flux,
+                                       MultiFab* yqv_flux,
+                                       MultiFab* zqv_flux,
+                                       const eb_& ebfact)
+{
+    if (flux_type == FluxCalcType::MOENG) {
+        moeng_flux flux_comp;
+        compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_EB,
+                                 xheat_flux, yheat_flux, Hfx3_EB,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 ebfact, flux_comp);
+    } else {
+        amrex::Abort("Not implemented surface layer flux calculation type for EB");
+    }
+}
 
 /**
  * Function to calculate MOST fluxes for populating ghost cells.
@@ -590,6 +619,113 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t23_arr, t32_arr);
             });
         }
+    } // mfiter
+}
+
+/**
+ * Function to calculate MOST fluxes for populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ * @param[in] flux_comp structure to compute fluxes
+ */
+template <typename FluxCalc>
+void
+SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
+                                        Vector<const MultiFab*> mfs,
+                                        Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                        [[maybe_unused]] MultiFab* xheat_flux,
+                                        [[maybe_unused]] MultiFab* yheat_flux,
+                                        MultiFab* Hfx3_EB,
+                                        [[maybe_unused]] MultiFab* xqv_flux,
+                                        [[maybe_unused]] MultiFab* yqv_flux,
+                                        [[maybe_unused]] MultiFab* zqv_flux,
+                                        [[maybe_unused]] const eb_& ebfact,
+                                        const FluxCalc& flux_comp)
+{
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    // const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
+    {
+        // Get field arrays
+        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
+        const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
+        const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
+
+        // Diffusive stress vars
+        auto t13_arr =  Tau_EB[EBTauType::tau_eb13]->array(mfi);
+        auto t23_arr =  Tau_EB[EBTauType::tau_eb23]->array(mfi);
+
+        auto hfx3_arr = Hfx3_EB->array(mfi);
+
+        // Get average arrays
+        const auto *const u_mean     = m_ma.get_average(lev,0);
+        const auto *const v_mean     = m_ma.get_average(lev,1);
+        const auto *const t_mean     = m_ma.get_average(lev,2);
+        // const auto *const q_mean     = m_ma.get_average(lev,3);
+        const auto *const u_mag_mean = m_ma.get_average(lev,5);
+        const auto *const k_indx = m_ma.get_k_indices(lev);
+
+        const auto um_arr  = u_mean->array(mfi);
+        const auto vm_arr  = v_mean->array(mfi);
+        const auto tm_arr  = t_mean->array(mfi);
+        // const auto qm_arr  = q_mean->array(mfi);
+        const auto umm_arr = u_mag_mean->array(mfi);
+        const auto k_arr = k_indx->const_array(mfi);
+
+        // Get derived arrays
+        const auto u_star_arr = u_star[lev]->array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
+        const auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto q_surf_arr = q_surf[lev]->array(mfi);
+
+        // Rho*Theta flux
+        //============================================================================
+        Box bx = mfi.tilebox();
+
+        // Print()<<"SK: compute_SurfaceLayer_bcs_EB: bx: "<<bx<<" klo: "<<klo<<std::endl;
+
+        if (bx.smallEnd(2) != klo) { continue; }
+        bx.makeSlab(2,klo);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real Tflux = flux_comp.compute_t_flux(i, j, mk,
+                                                 cons_arr, velx_arr, vely_arr,
+                                                 umm_arr, tm_arr, u_star_arr,
+                                                 t_star_arr, t_surf_arr);
+            hfx3_arr(i,j,mk) = Tflux;
+        });
+
+        // Rho*u flux
+        //============================================================================
+        Box bxx = surroundingNodes(bx,0);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real stressx = flux_comp.compute_u_flux(i, j, mk,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, um_arr, u_star_arr);
+            t13_arr(i,j,mk) = stressx;
+        });
+
+        // Rho*v flux
+        //============================================================================
+        Box bxy = surroundingNodes(bx,1);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real stressy = flux_comp.compute_v_flux(i, j, mk,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, vm_arr, u_star_arr);
+            t23_arr(i,j,mk) = stressy;
+        });
     } // mfiter
 }
 

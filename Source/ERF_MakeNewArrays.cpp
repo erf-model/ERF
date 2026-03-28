@@ -512,7 +512,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     // ********************************************************************************************
     // Diffusive terms
     // ********************************************************************************************
-    bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
+    bool l_use_eb = (SolverChoice::terrain_type == TerrainType::EB);
+    bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None && !l_use_eb);
     bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
@@ -530,6 +531,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     Tau[lev].resize(9);
     Tau_corr[lev].resize(3);
+    Tau_EB[lev].resize(2);
 
     if (l_use_diff) {
         //
@@ -563,6 +565,17 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau32] = nullptr;
         }
 
+        // EB diffusive stresses
+        if (l_use_eb) {
+            Tau_EB[lev][EBTauType::tau_eb13] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb23]->setVal(0.);
+        } else {
+            Tau_EB[lev][EBTauType::tau_eb13] = nullptr;
+            Tau_EB[lev][EBTauType::tau_eb23] = nullptr;
+        }
+
         if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
         {
             Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
@@ -589,6 +602,15 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         SFS_hfx2_lev[lev]->setVal(0.);
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
+
+        // EB heat fluxes
+        if (l_use_eb) {
+            hfx3_EB[lev] = std::make_unique<MultiFab>( ba, dm, 1, IntVect(1,1,1) );
+            hfx3_EB[lev]->setVal(0.);
+        } else {
+            hfx3_EB[lev] = nullptr;
+        }
+
         if (l_use_moist) {
             SFS_q1fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );

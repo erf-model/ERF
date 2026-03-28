@@ -467,6 +467,9 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 3a. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
+
+        Print()<<"SK: ERF_MakeMomSources.cpp/ abl_geo_forcing = ["<<abl_geo_forcing[0]<<", "<<abl_geo_forcing[1]<<", "<<abl_geo_forcing[2]<<"]"<<std::endl;
+
         if (is_slow_step) {
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)

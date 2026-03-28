@@ -406,85 +406,91 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                // =====================================================================
-                // one STRAIN RATE MAGNITUDE CALCULATION
-                // =====================================================================
-                Real SmnSmn=zero;
-                if (c_cflag(i,j,k).isRegular()) {
-                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-                } else if (c_cflag(i,j,k).isSingleValued()) {
-                    SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
-                }
-                Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
-
-                // =====================================================================
-                // two GRID SCALE CALCULATION (filter width Δ)
-                // =====================================================================
-                Real Delta;
-                Real DeltaH;
-                if (isotropic) {
-                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-                    Delta = std::cbrt(cellVolMsf);
-                    DeltaH = Delta;
-                } else {
-                    Delta = one / dzInv;
-                    DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
-                }
-
-                Real rho = cell_data(i, j, k, Rho_comp);
-                Real CsDeltaSqr_h = Cs * Cs * DeltaH * DeltaH;
-                Real CsDeltaSqr_v = Cs * Cs * Delta * Delta;
-
-                Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
-                Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
-
-                Real stability_factor = one;
-
-                if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
-                    Real N2 = zero;
-                    Real S2_vert = zero;
+                if (!c_cflag(i,j,k).isCovered()) {
+                    // =====================================================================
+                    // 1. STRAIN RATE MAGNITUDE CALCULATION
+                    // =====================================================================
+                    Real SmnSmn = zero;
                     if (c_cflag(i,j,k).isRegular()) {
-                        N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
-                        S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                        SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                     } else if (c_cflag(i,j,k).isSingleValued()) {
-                        N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
-                        S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                        SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
                     }
-                    Real Ri = ComputeRichardson(N2, S2_vert);
-                    stability_factor = StabilityFunction(Ri, l_Ri_crit);
-                }
+                    Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
-                if (isotropic) {
-                    mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h * stability_factor;
-                    mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
-                } else {
-                    mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h;
-                    mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
-                }
-
-                amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-                amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
-                Real dtheta_dz = zero;
-
-                if (c_cflag(i,j,k).isRegular()) {
-                    dtheta_dz = myhalf * ( theta_kp1 - theta_km1 )*dzInv;
-                } else if (c_cflag(i,j,k).isSingleValued()) {
-
-                    amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
-                    if (c_cflag(i,j,k+1).isCovered()) {
-                        amrex::Real theta_km2 = cell_data(i, j, k-2, RhoTheta_comp) / cell_data(i, j, k-2, Rho_comp);
-                        dtheta_dz = (three*theta - Real(4.)*theta_km1 + theta_km2) * myhalf * dzInv;
-                    } else if (c_cflag(i,j,k-1).isCovered()) {
-                        amrex::Real theta_kp2 = cell_data(i, j, k+2, RhoTheta_comp) / cell_data(i, j, k+2, Rho_comp);
-                        dtheta_dz = (-theta_kp2 + Real(4.)*theta_kp1 - three*theta) * myhalf * dzInv;
+                    // =====================================================================
+                    // 2. GRID SCALE CALCULATION (filter width Δ)
+                    // =====================================================================
+                    Real Delta;
+                    Real DeltaH;
+                    if (isotropic) {
+                        Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                        Delta = std::cbrt(cellVolMsf);
+                        DeltaH = Delta;
                     } else {
+                        Delta = one / dzInv;
+                        DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    }
+
+                    Real rho = cell_data(i, j, k, Rho_comp);
+                    Real CsDeltaSqr_h = Cs * Cs * DeltaH * DeltaH;
+                    Real CsDeltaSqr_v = Cs * Cs * Delta * Delta;
+
+                    Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
+                    Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
+
+                    Real stability_factor = one;
+
+                    if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
+                        Real N2 = zero;
+                        Real S2_vert = zero;
+                        if (c_cflag(i,j,k).isRegular()) {
+                            N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
+                            S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                        } else if (c_cflag(i,j,k).isSingleValued()) {
+                            N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
+                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                        }
+                        Real Ri = ComputeRichardson(N2, S2_vert);
+                        stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                    }
+
+                    if (isotropic) {
+                        mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h * stability_factor;
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
+                    } else {
+                        mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h;
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
+                    }
+
+                    Real dtheta_dz = zero;
+
+                    if (c_cflag(i,j,k).isSingleValued() && c_cflag(i,j,k+1).isCovered()) {
+                        amrex::Real theta    = cell_data(i, j, k,   RhoTheta_comp) / rho;
+                        amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+                        amrex::Real theta_km2 = cell_data(i,j,k-2,RhoTheta_comp)/cell_data(i,j,k-2,Rho_comp);
+                        dtheta_dz = (three*theta - Real(4.)*theta_km1 + theta_km2) * myhalf * dzInv;
+                    } else if (c_cflag(i,j,k).isSingleValued() && c_cflag(i,j,k-1).isCovered()) {
+                        amrex::Real theta    = cell_data(i, j, k,   RhoTheta_comp) / rho;
+                        amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+                        amrex::Real theta_kp2 = cell_data(i,j,k+2,RhoTheta_comp)/cell_data(i,j,k+2,Rho_comp);
+                        dtheta_dz = (-theta_kp2 + Real(4.)*theta_kp1 - three*theta) * myhalf * dzInv;
+                    } else if (!c_cflag(i,j,k).isCovered()) {
+                        amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+                        amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
                         dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
                     }
-                }
 
-                hfx_x(i,j,k) = zero;
-                hfx_y(i,j,k) = zero;
-                hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
+                    hfx_x(i,j,k) = zero;
+                    hfx_y(i,j,k) = zero;
+                    hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
+
+                } else {
+
+                    hfx_x(i,j,k) = zero;
+                    hfx_y(i,j,k) = zero;
+                    hfx_z(i,j,k) = zero;
+                }// End of if not covered
             });
         }
     }

@@ -926,6 +926,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx1_lev, SFS_q1fx2_lev, SFS_q1fx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
+    // Diffusive fluxes for EB
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_EB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx3_EB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qfx3_EB;
+
     // Grid stretching
     amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
 
