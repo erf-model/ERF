@@ -110,7 +110,7 @@ public:
                 }
             }
             else {
-                weight = one;
+                weight = amrex:Real(1);
             }
 
             hltalt = hltalt + weight*lat_ice;
@@ -132,8 +132,8 @@ public:
         amrex::Real desdt;        // d(es)/dt
         amrex::Real dqsdt_loc;    // local copy of dqsdt
 
-        if (qs == one) {
-            dqsdt_loc = zero;
+        if (qs == amrex:Real(1)) {
+            dqsdt_loc = amrex::Real(0);
         }
         else {
             desdt = hltalt*es/(R_v*t*t) + tterm;
@@ -158,7 +158,7 @@ public:
                       amrex::Real* enthalpy = nullptr) {
         // Local variables
         amrex::Real hltalt;       // Modified latent heat for T derivatives
-        amrex::Real tterm = zero;        // Account for d(es)/dT in transition region
+        amrex::Real tterm = amrex::Real(0);        // Account for d(es)/dT in transition region
 
         es = svp_trans(t); //estblf(t);
 
@@ -212,8 +212,8 @@ public:
 
         if (gam && dqsdt)
         {
-            // For pure water/ice transition term is zero
-            deriv_outputs(t, p, es, qs, hltalt, zero, *gam, *dqsdt);
+            // For pure water/ice transition term is amrex::Real(0)
+            deriv_outputs(t, p, es, qs, hltalt, amrex::Real(0), *gam, *dqsdt);
         }
     }
 
@@ -239,8 +239,8 @@ public:
 
         enthalpy = tq_enthalpy(t, qs, hltalt);
 
-        // For pure water/ice transition term is zero
-        deriv_outputs(t, p, es, qs, hltalt, zero, gam, dqsdt);
+        // For pure water/ice transition term is amrex::Real(0)
+        deriv_outputs(t, p, es, qs, hltalt, amrex::Real(0), gam, dqsdt);
     }
 
     //   find the wet bulb temperature for a given t and q
@@ -298,13 +298,13 @@ public:
         }
 
         // make sure a meaningful calculation is possible
-        if (p <= amrex::Real(5.)*es || qs <= zero || qs >= myhalf || t < tmin || t > tmax) {
+        if (p <= amrex::Real(5.)*es || qs <= amrex::Real(0) || qs >= myhalf || t < tmin || t > tmax) {
             status = 1;
             // Keep initial parameters when conditions aren't suitable
             tsp = t;
             qsp = q;
-            enin = one;
-            enout = one;
+            enin = amrex:Real(1);
+            enout = amrex:Real(1);
             return;
         }
 

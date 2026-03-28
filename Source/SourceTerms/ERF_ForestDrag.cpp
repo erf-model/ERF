@@ -109,7 +109,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                 // "z" is measured as distance from cell center to ground
                 const Real z_sfc = fourth * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
                                            +z_nd(i,j+1,0) + z_nd(i+1,j+1,0));
-                const Real z = std::max((z_cc(i,j,k)-z_sfc),zero);
+                const Real z = std::max((z_cc(i,j,k)-z_sfc),amrex::Real(0));
 
                 // Proximity to the forest
                 const Real radius = std::sqrt((x - xf) * (x - xf) +

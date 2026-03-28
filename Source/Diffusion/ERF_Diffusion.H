@@ -454,9 +454,11 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Array4<amrex::Real>& tau13i,
                       amrex::Array4<amrex::Real>& tau23i);
 
-void ImplicitDiffForStateLU_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
+void ImplicitDiffForStateLU_N (const amrex::Box& bx,
+                               const amrex::Box& domain,
+                               const int level,
+                               const int n,
                                const amrex::Real dt,
-                               /*int start_comp, int num_comp,*/
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                                const amrex::Array4<      amrex::Real>& cell_data,
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -470,8 +472,8 @@ void ImplicitDiffForStateLU_N (const amrex::Box& bx, const amrex::Box& domain, c
 void ImplicitDiffForStateLU_S (const amrex::Box& bx,
                                const amrex::Box& domain,
                                const int level,
+                               const int n,
                                const amrex::Real dt,
-                               /*int start_comp, int num_comp,*/
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                                const amrex::Array4<      amrex::Real>& cell_data,
                                const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
@@ -485,8 +487,8 @@ void ImplicitDiffForStateLU_S (const amrex::Box& bx,
 void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const amrex::Box& domain,
                                const int level,
+                               const int n,
                                const amrex::Real dt,
-                               /*int start_comp, int num_comp,*/
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                                const amrex::Array4<      amrex::Real>& cell_data,
                                const amrex::Array4<const amrex::Real>& z_nd,

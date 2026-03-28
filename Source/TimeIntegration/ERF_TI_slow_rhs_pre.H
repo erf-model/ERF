@@ -201,7 +201,7 @@
 #endif
             }
 
-#include "ERF_Implicit.H"
+#include "ERF_ImplicitPre.H"
 
             MultiFab::Saxpy(scratch, -one, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
             scratch.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt

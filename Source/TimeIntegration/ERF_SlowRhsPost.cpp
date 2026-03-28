@@ -435,8 +435,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                 if (l_use_diff)
                 {
-                    // Here we hardwire this to 0 because we only use vert_implicit_fac for (rho_theta)
-                    const Real l_vert_implicit_fac = zero;;
+                    // Allow for implicit moisture diffusion
+                    const Real l_vert_implicit_fac = (solverChoice.implicit_moisture_diffusion) ?
+                                                     solverChoice.vert_implicit_fac[nrk] : zero;
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
@@ -547,7 +548,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
                     });
 
@@ -561,7 +562,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), zero);
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
                     });
 
