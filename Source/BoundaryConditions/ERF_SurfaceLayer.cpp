@@ -641,7 +641,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         [[maybe_unused]] MultiFab* xqv_flux,
                                         [[maybe_unused]] MultiFab* yqv_flux,
                                         [[maybe_unused]] MultiFab* zqv_flux,
-                                        const eb_& ebfact,
+                                        [[maybe_unused]] const eb_& ebfact,
                                         const FluxCalc& flux_comp)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
