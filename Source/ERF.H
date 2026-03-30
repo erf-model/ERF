@@ -511,6 +511,8 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
+    void ComputeAndWriteEnsemblePerturbations();
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
