@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "RICO"
 stop_time = 3600
 max_step = 0
 

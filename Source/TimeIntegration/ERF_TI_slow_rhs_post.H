@@ -29,6 +29,8 @@
         }
 #endif
 
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
@@ -67,6 +69,9 @@
                           fr_as_crse, fr_as_fine,
                           m_r2d);
 
+        // Implicit diffusion of moisture
+        #include "ERF_ImplicitPost.H"
+
         // Apply state redistribution for cons states
 
         if (solverChoice.terrain_type == TerrainType::EB)
@@ -82,7 +87,7 @@
             const int nvars          = S_data[IntVars::cons].nComp();
 
             MultiFab dUdt_tmp(ba, dm, num_comp_total, num_grow, MFInfo(), EBFactory(level));
-            dUdt_tmp.setVal(0.0, 0, num_comp_total, num_grow);
+            dUdt_tmp.setVal(0, 0, num_comp_total, num_grow);
 
             int start_comp;
             int num_comp;
@@ -102,7 +107,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(amrex::Real(1.234e10), 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 
@@ -134,7 +139,7 @@
                         }
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
-                            if (detJ_arr(i,j,k) > 0.0) {
+                            if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
                                 snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
                             }

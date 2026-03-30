@@ -19,7 +19,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
-    phi.setBndry(1.e25);
+    phi.setBndry(Real(1.e25));
     phi.FillBoundary(geom[lev].periodicity());
 
     // ****************************************************************************

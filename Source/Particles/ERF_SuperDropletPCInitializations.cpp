@@ -50,19 +50,19 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     m_bindist_rmin = 1e-6;
     m_bindist_rmax = 5e-3;
 #endif
-    m_sigma0 = 0.62;
+    m_sigma0 = Real(0.62);
     m_place_randomly_in_cells = true;
-    m_deac_threshold = 0.01;
+    m_deac_threshold = Real(0.01);
     m_save_inactive = false;
 
     /* Newton solver parameters */
-    m_newton_rtol = 1.0e-6;
-    m_newton_atol = 1.0e-99;
-    m_newton_stol = 1.0e-12;
+    m_newton_rtol = Real(1.0e-6);
+    m_newton_atol = Real(1.0e-99);
+    m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 
     /* phase change eqn time integration */
-    m_mass_change_cfl = 1000.0;
+    m_mass_change_cfl = Real(1000.0);
     m_mass_change_ti = SDMassChangeTIMethod::BE; // backward Euler
 
     /* log file for unconverged particles */
@@ -420,14 +420,14 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*Random(rnd_engine);
             mult_ptr[i] += mult_rnd;
 
-            ParticleReal species_mass_total = 0.0;
+            ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
                     species_mass_total += sp_mass_ptrs[ctr][n];
                 }
             }
 
-            ParticleReal aerosol_mass_total = 0.0;
+            ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
                 aerosol_mass_total += ae_mass_ptrs[ctr][n];
             }
@@ -435,8 +435,8 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_particle = mass_condensate_sd / mult_ptr[i] + aerosol_mass_total + species_mass_total;
             mass_ptr[i] = mass_particle;
 
-            Real radius_cubed = mass_particle / ((4.0/3.0)*PI*rho_w);
-            Real radius = (radius_cubed == 0.0 ? 0.0 : std::cbrt(radius_cubed));
+            Real radius_cubed = mass_particle / ((Real(4.0)/three)*PI*rho_w);
+            Real radius = (radius_cubed == zero ? zero : std::cbrt(radius_cubed));
             radius_ptr[i] = radius;
         });
 

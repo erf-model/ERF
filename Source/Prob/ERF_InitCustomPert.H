@@ -36,15 +36,15 @@ erf_vortex_Gaussian(
 {
   // Evaluate Gaussian function
   const amrex::Real r2 = ((x-xc)*(x-xc) + (y-yc)*(y-yc)) / (R*R);
-  return beta * std::exp(-r2/(2.*sigma*sigma));
+  return beta * std::exp(-r2/(two*sigma*sigma));
 }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
 amrex::Real
 Problem::compute_terrain_velocity (const amrex::Real time)
 {
-    amrex::Real U = 10.0;
-    amrex::Real omega = 2.0*M_PI*1000.0;
+    amrex::Real U = amrex::Real(10.0);
+    amrex::Real omega = two*M_PI*amrex::Real(1000.0);
     return U*cos(omega*time);
 }
 #endif

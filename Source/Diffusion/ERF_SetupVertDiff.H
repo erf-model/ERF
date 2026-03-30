@@ -1,5 +1,6 @@
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
+    amrex::ignore_unused(dom_lo, dom_hi);
 
     DiffChoice diffChoice = solverChoice.diffChoice;
     TurbChoice turbChoice = solverChoice.turbChoice[level];
@@ -8,7 +9,7 @@
     bool l_turb   = turbChoice.use_kturb;
 
     // Theta, KE, Scalar
-    Vector<Real> alpha_eff(NPRIMVAR_max, 0.0);
+    Vector<Real> alpha_eff(NPRIMVAR_max, zero);
     if (l_consA) {
         for (int i = 0; i < NPRIMVAR_max; ++i) {
            switch (i) {
@@ -37,7 +38,7 @@
                    alpha_eff[PrimQ6_comp] = diffChoice.alpha_C;
                    break;
                default:
-                    alpha_eff[i] = 0.0;
+                    alpha_eff[i] = zero;
                     break;
           }
        }
@@ -69,7 +70,7 @@
                    alpha_eff[PrimQ6_comp] = diffChoice.rhoAlpha_C;
                    break;
                default:
-                    alpha_eff[i] = 0.0;
+                    alpha_eff[i] = zero;
                     break;
           }
        }

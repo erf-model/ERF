@@ -76,11 +76,11 @@ void erf_substep_NS (int step, int nrk,
 
     BL_PROFILE_REGION("erf_substep_S()");
 
-    Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
-    Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
+    Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
+    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = 0.1;
+    Real beta_d = Real(0.1);
 
     Real RvOverRd = R_v / R_d;
 
@@ -108,7 +108,7 @@ void erf_substep_NS (int step, int nrk,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // This will hold theta extrapolated forward in time
@@ -158,8 +158,8 @@ void erf_substep_NS (int step, int nrk,
             }
 
             // NOTE: qv is not changing over the fast steps so we use the stage data
-            Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
-            theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
+            Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : zero;
+            theta_extrap(i,j,k) *= (one + RvOverRd*qv);
 
             // We define lagged_delta_rt for our next step as the current delta_rt
             // (after using it above to extrapolate theta for this step)
@@ -240,10 +240,10 @@ void erf_substep_NS (int step, int nrk,
                 Real gpx = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
                 gpx *= mf_ux(i,j,0);
 
-                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
+                Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
 
-                Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i,j,k,0));
-                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (1.0 + q);
+                Real pi_c =  myhalf * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i,j,k,0));
+                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (one + q);
 
                 Real new_drho_u = prev_xmom(i,j,k) - stage_xmom(i,j,k)
                                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k)
@@ -259,10 +259,10 @@ void erf_substep_NS (int step, int nrk,
                 Real gpy = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
                 gpy *= mf_vy(i,j,0);
 
-                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
+                Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
 
-                Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
-                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (1.0 + q);
+                Real pi_c =  myhalf * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
+                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (one + q);
 
                 Real new_drho_v = prev_ymom(i,j,k) - stage_ymom(i,j,k)
                                 + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k)
@@ -341,7 +341,7 @@ void erf_substep_NS (int step, int nrk,
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
-            flux[dir].setVal<RunOn::Device>(0.);
+            flux[dir].setVal<RunOn::Device>(0);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
@@ -360,22 +360,22 @@ void erf_substep_NS (int step, int nrk,
             temp_rhs_arr(i,j,k,RhoTheta_comp) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
                                                    xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq +
                                                  ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                                   yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * 0.5;
+                                                   yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * myhalf;
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
-                (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+                (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * myhalf * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
                 (flx_arr[1])(i,j,k,0) = yflux_lo;
-                (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+                (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * myhalf * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
                 if (i == vbx_hi.x) {
                     (flx_arr[0])(i+1,j,k,0) = xflux_hi;
-                    (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+                    (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * myhalf * (prim(i,j,k,0) + prim(i+1,j,k,0));
                 }
                 if (j == vbx_hi.y) {
                     (flx_arr[1])(i,j+1,k,0) = yflux_hi;
-                    (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+                    (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * myhalf * (prim(i,j,k,0) + prim(i,j+1,k,0));
                 }
             }
         });
@@ -388,8 +388,8 @@ void erf_substep_NS (int step, int nrk,
 
         // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
         // We set grav_gpu[2] to be the vector component which is negative
-        // We define halfg to match the notes (which is why we take the absolute value)
-        Real halfg = std::abs(0.5 * grav_gpu[2]);
+        // We define myhalfg to match the notes (which is why we take the absolute value)
+        Real myhalfg = std::abs(myhalf * grav_gpu[2]);
 
         // *********************************************************************
         // fast_loop_on_shrunk
@@ -397,14 +397,14 @@ void erf_substep_NS (int step, int nrk,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
 
-            Real coeff_P = coeffP_a(i,j,k) / (1.0 + q);
-            Real coeff_Q = coeffQ_a(i,j,k) / (1.0 + q);
+            Real coeff_P = coeffP_a(i,j,k) / (one + q);
+            Real coeff_Q = coeffQ_a(i,j,k) / (one + q);
 
-            Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-            Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-            Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+            Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+            Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
             Real Omega_kp1 = prev_zmom(i,j,k+1) - stage_zmom(i,j,k+1);
             Real Omega_k   = prev_zmom(i,j,k  ) - stage_zmom(i,j,k  );
@@ -414,18 +414,18 @@ void erf_substep_NS (int step, int nrk,
             Real old_drho_k   = prev_cons(i,j,k  ,Rho_comp) - stage_cons(i,j,k  ,Rho_comp);
             Real old_drho_km1 = prev_cons(i,j,k-1,Rho_comp) - stage_cons(i,j,k-1,Rho_comp);
             Real R0_tmp = coeff_P * prev_drho_theta(i,j,k) + coeff_Q * prev_drho_theta(i,j,k-1)
-                         - halfg * ( old_drho_k + old_drho_km1 );
+                         - myhalfg * ( old_drho_k + old_drho_km1 );
 
-            // lines 3-5 residuals (order dtau^2) 1.0 <-> beta_2
-            Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
+            // lines 3-5 residuals (order dtau^2) one <-> beta_2
+            Real R1_tmp =  myhalfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
                                     -slow_rhs_cons(i,j,k-1,Rho_comp)
                                     +temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1) )
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            Real dz_inv = 1.0 / dz_ptr[k];
-            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
+            Real dz_inv = one / dz_ptr[k];
+            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * myhalfg
                                           -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
                                           -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
 
@@ -506,7 +506,7 @@ void erf_substep_NS (int step, int nrk,
             ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
               Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
-              cur_zmom(i,j,k) /= (1.0 + damping_coeff);
+              cur_zmom(i,j,k) /= (one + damping_coeff);
             });
         }
 
@@ -522,20 +522,20 @@ void erf_substep_NS (int step, int nrk,
             avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
             if (l_reflux) {
                 (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
-                (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+                (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * myhalf * (prim(i,j,k) + prim(i,j,k-1));
             }
 
             if (k == vbx_hi.z) {
                 avg_zmom_arr(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                 if (l_reflux) {
                     (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
-                    (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+                    (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * myhalf * (prim(i,j,k) + prim(i,j,k+1));
                 }
             }
 
-            Real dz_inv = 1.0 / dz_ptr[k];
+            Real dz_inv = one / dz_ptr[k];
             temp_rhs_arr(i,j,k,Rho_comp     ) += dz_inv * ( zflux_hi - zflux_lo );
-            temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dz_inv * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
+            temp_rhs_arr(i,j,k,RhoTheta_comp) += myhalf * dz_inv * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                                                 - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
         });
 

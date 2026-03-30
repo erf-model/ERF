@@ -28,6 +28,6 @@ USE_ASSERTION = TRUE
 Bpack := ./Make.package
 Blocs := .
 
-ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/.Exec_dev/Assimilation
+ERF_HOME := ../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/.Exec_dev/DataAssimilation
 include $(ERF_HOME)/Exec/Make.ERF

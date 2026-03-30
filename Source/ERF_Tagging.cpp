@@ -114,10 +114,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             }
                         }
 
-                        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+                        Box coarsened_bx(boxes_at_level[levc+1][isub]); coarsened_bx.coarsen(ref_ratio[levc]);
+
+                        for (MFIter mfi(tags); mfi.isValid(); ++mfi)
+                        {
                             auto tag_arr = tags.array(mfi);  // Get device-accessible array
 
-                            Box bx = mfi.validbox(); bx &= subdomain;
+                            Box bx = mfi.validbox() & coarsened_bx;
 
                             if (!bx.isEmpty()) {
                                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
@@ -209,7 +212,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = mf_cc_vel[0][mfi];
-                derived::erf_dervortz(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                auto& zfab = (*z_phys_cc[levc])[mfi];
+                derived::erf_dervortz(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
             }
 
         // This allows dynamic refinement based on the value of the scalar/theta
@@ -221,10 +225,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const Box& bx = mfi.growntilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
+                auto& zfab = (*z_phys_cc[levc])[mfi];
                 if (ref_tags[j].Field() == "scalar") {
-                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 } else if (ref_tags[j].Field() == "theta") {
-                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
         // This allows dynamic refinement based on the value of the density
@@ -263,7 +268,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     const Box& bx = mfi.tilebox();
                     auto& dfab = (*mf)[mfi];
                     auto& sfab = mf_cc_vel[0][mfi];
-                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                    auto& zfab = (*z_phys_cc[levc])[mfi];
+                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             }
 
@@ -323,12 +329,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
             ParmParse ppr(ref_prefix);
 
-            Real ref_start_time = -1.0;
+            Real ref_start_time = -one;
             ppr.query("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
 
-                Real max_radius = -1.0;
+                Real max_radius = -one;
                 ppr.get("max_radius", max_radius);
 
                 // Create the volume-weighted sum of (rho qv) in each column
@@ -343,8 +349,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 const auto dx      = geom[levc].CellSizeArray();
                 const auto prob_lo = geom[levc].ProbLoArray();
 
-                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
-                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+                Real eye_x = prob_lo[0] + (eye[0] + myhalf) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + myhalf) * dx[1];
 
                 tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
             }
@@ -401,7 +407,7 @@ ERF::refinement_criteria_setup ()
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
                 lev_for_box = max_level;
                 ppr.query("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -540,7 +546,7 @@ ERF::refinement_criteria_setup ()
 
                 std::vector<int> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -636,7 +642,7 @@ ERF::refinement_criteria_setup ()
 
                 std::vector<int> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);
-                if (lev_for_box <= max_level)
+                if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
@@ -698,14 +704,17 @@ ERF::refinement_criteria_setup ()
             if (realbox.ok()) {
                 info.SetRealBox(realbox);
             }
+
             if (ppr.countval("start_time") > 0) {
                 Real ref_min_time; ppr.get("start_time",ref_min_time);
                 info.SetMinTime(ref_min_time);
             }
+
             if (ppr.countval("end_time") > 0) {
                 Real ref_max_time; ppr.get("end_time",ref_max_time);
                 info.SetMaxTime(ref_max_time);
             }
+
             if (ppr.countval("max_level") > 0) {
                 int ref_max_level; ppr.get("max_level",ref_max_level);
                 info.SetMaxLevel(ref_max_level);
@@ -718,14 +727,16 @@ ERF::refinement_criteria_setup ()
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
             }
-            else if (ppr.countval("value_less")) {
+            else if (ppr.countval("value_less"))
+            {
                 int num_val = ppr.countval("value_less");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
             }
-            else if (ppr.countval("adjacent_difference_greater")) {
+            else if (ppr.countval("adjacent_difference_greater"))
+            {
                 int num_val = ppr.countval("adjacent_difference_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
@@ -735,7 +746,9 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else if (refinement_indicators[i] != "storm_tracker") {
+            }
+            else if ( (lev_for_box > 0) && (refinement_indicators[i] != "storm_tracker") )
+            {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
@@ -751,7 +764,7 @@ ERF::FindInitialEye(int levc,
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
-    Gpu::DeviceVector<Real> d_coords(2, 0.0);
+    Gpu::DeviceVector<Real> d_coords(2, zero);
     Gpu::DeviceVector<int>  d_found(1,0);
 
     Real* d_coords_ptr = d_coords.data();
@@ -768,17 +781,17 @@ ERF::FindInitialEye(int levc,
                                        vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
                                        vel_arr(i,j,k,2) * vel_arr(i,j,k,2));
 
-            magnitude *= 3.6;
+            magnitude *= Real(3.6);
 
-            Real z = prob_lo[2] + (k + 0.5) * dx[2];
+            Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             // Check if magnitude exceeds threshold
-            if (z < 2000. && magnitude > velmag_threshold) {
+            if (z < Real(2000.) && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
 
-                Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+                Real x = prob_lo[0] + (i + myhalf) * dx[0];
+                Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
@@ -806,8 +819,8 @@ ERF::FindInitialEye(int levc,
 
     } else {
         // Random large negative numbers so we don't trigger refinement in this case
-        eye_x = -1.e20;
-        eye_y = -1.e20;
+        eye_x = -Real(1.e20);
+        eye_y = -Real(1.e20);
     }
 
     return (h_found[0] > 0);
@@ -828,8 +841,8 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             // Compute cell center coordinates
-            Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            Real y = prob_lo[1] + (j + myhalf) * dx[1];
 
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
@@ -853,7 +866,7 @@ ERF::HurricaneTracker(int levc,
 
     Real eye_x, eye_y;
 
-    if (time==0.0) {
+    if (time==zero) {
         is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
     } else {
         is_found = true;
@@ -863,7 +876,7 @@ ERF::HurricaneTracker(int levc,
     }
 
     if (is_found) {
-        Real rad_tag = 4.e5 * std::pow(2, max_level-1-levc);
+        Real rad_tag = Real(4.e5) * std::pow(2, max_level-1-levc);
         tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }

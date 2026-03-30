@@ -14,7 +14,7 @@
 
     // used by ERF_AddTKESources.H
     [[maybe_unused]] const bool use_ref_theta = (turbChoice.theta_ref > 0);
-    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
+    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? one / turbChoice.theta_ref : one;
 
     // vertical diffusivities are defined in ERF_SetupVertDiff.H
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,

@@ -2,7 +2,7 @@
 #include <ERF_Interpolation.H>
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ * Wrapper function for computing the advective tendency w/ spatial order > two
  */
 template<typename InterpType_H, typename InterpType_V>
 void
@@ -27,28 +27,28 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpx(0.);
+        amrex::Real interpx(zero);
         interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ));
         (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * interpx;
     });
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpy(0.);
+        amrex::Real interpy(zero);
         interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
         (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * interpy;
     });
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpz(0.);
+        amrex::Real interpz(zero);
         interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ));
         (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * interpz;
     });
 }
 
 /**
- * Wrapper function for templating the vertical advective tendency w/ spatial order > 2.
+ * Wrapper function for templating the vertical advective tendency w/ spatial order > two
  */
 template<typename InterpType_H>
 void

@@ -2,6 +2,7 @@
 #define ERF_TERRAINPOISSON_3D_K_H_
 
 #include <AMReX_FArrayBox.H>
+#include "ERF_Constants.H"
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -18,26 +19,26 @@ T terrpoisson_flux_x (int i, int j, int k,
     Real px_lo = (sol(i,j,k) - sol(i-1,j,k)) * dxinv;
 
     // On y-edges
-    Real pz_lo_md_hi  = Real(0.5) * ( sol(i,j,k+1) + sol(i-1,j,k+1)
+    Real pz_lo_md_hi  = myhalf * ( sol(i,j,k+1) + sol(i-1,j,k+1)
                                      -sol(i,j,k  ) - sol(i-1,j,k  ) );
-         h_xi         = Real(0.25) * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
+         h_xi         = fourth * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
                                       +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
                                       +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
          pz_lo_md_hi *= h_xi / h_zeta;
 
     // On y-edges
-    Real pz_lo_md_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i-1,j,k  )
+    Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  )
                                      -sol(i,j,k-1) - sol(i-1,j,k-1) );
 
-         h_xi         = Real(0.25) * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
+         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
                                       +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-face
-    px_lo -= Real(0.5) * ( pz_lo_md_hi + pz_lo_md_lo );
+    px_lo -= myhalf * ( pz_lo_md_hi + pz_lo_md_lo );
 
     return -px_lo;
 }
@@ -55,26 +56,26 @@ T terrpoisson_flux_y (int i, int j, int k,
     Real py_lo = (sol(i,j,k) - sol(i,j-1,k)) * dyinv;
 
     // On x-edges
-    Real pz_md_lo_hi  = Real(0.5) * ( sol(i,j,k+1) + sol(i,j-1,k+1)
+    Real pz_md_lo_hi  = myhalf * ( sol(i,j,k+1) + sol(i,j-1,k+1)
                                      -sol(i,j,k  ) - sol(i,j-1,k  ) );
-         h_eta        = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
+         h_eta        = fourth * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
                                       +zp(i+1,j,k+1) - zp(i+1,j-2,k+1) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+2) - zp(i+1,j  ,k  ) );
          pz_md_lo_hi *= h_eta/ h_zeta;
 
     // On x-edges
-    Real pz_md_lo_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i,j-1,k  )
+    Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  )
                                      -sol(i,j,k-1) - sol(i,j-1,k-1) );
 
-         h_eta        = Real(0.25) * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
+         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
                                       +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;
 
     // On y-face
-    py_lo -= Real(0.5) * ( pz_md_lo_hi + pz_md_lo_lo );
+    py_lo -= myhalf * ( pz_md_lo_hi + pz_md_lo_lo );
     return -py_lo;
 }
 
@@ -91,64 +92,64 @@ T terrpoisson_flux_z (int i, int j, int k,
 
     // On z-face
     Real pz_lo = (sol(i,j,k  ) - sol(i,j,k-1));
-    Real hzeta_inv_on_zlo = 8.0 / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
+    Real hzeta_inv_on_zlo = amrex::Real(8.0) / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
                                    -(zp(i,j,k-1) + zp(i+1,j,k-1) + zp(i,j+1,k-1) + zp(i+1,j+1,k-1)) );
     pz_lo *= hzeta_inv_on_zlo;
 
     // On corners
-    Real px_hi_md_lo = Real(0.5) * ( sol(i+1,j  ,k  ) - sol(i  ,j  ,k  )
+    Real px_hi_md_lo = myhalf * ( sol(i+1,j  ,k  ) - sol(i  ,j  ,k  )
                                     +sol(i+1,j  ,k-1) - sol(i  ,j  ,k-1)) * dxinv;
-    Real px_lo_md_lo = Real(0.5) * ( sol(i  ,j  ,k  ) - sol(i-1,j  ,k  )
+    Real px_lo_md_lo = myhalf * ( sol(i  ,j  ,k  ) - sol(i-1,j  ,k  )
                                     +sol(i  ,j  ,k-1) - sol(i-1,j  ,k-1)) * dxinv;
-    Real py_md_hi_lo = Real(0.5) * ( sol(i  ,j+1,k  ) - sol(i  ,j  ,k  )
+    Real py_md_hi_lo = myhalf * ( sol(i  ,j+1,k  ) - sol(i  ,j  ,k  )
                                     +sol(i  ,j+1,k-1) - sol(i  ,j  ,k-1)) * dyinv;
-    Real py_md_lo_lo = Real(0.5) * ( sol(i  ,j  ,k  ) - sol(i  ,j-1,k  )
+    Real py_md_lo_lo = myhalf * ( sol(i  ,j  ,k  ) - sol(i  ,j-1,k  )
                                     +sol(i  ,j  ,k-1) - sol(i  ,j-1,k-1)) * dyinv;
 
     // On y-edges
-    Real pz_hi_md_lo  = Real(0.5) * ( sol(i+1,j,k  ) + sol(i,j,k  )
+    Real pz_hi_md_lo  = myhalf * ( sol(i+1,j,k  ) + sol(i,j,k  )
                                      -sol(i+1,j,k-1) - sol(i,j,k-1) );
-         h_xi         = Real(0.25) * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
                                       +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
+         h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On y-edges
-    Real pz_lo_md_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i-1,j,k  )
+    Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  )
                                      -sol(i,j,k-1) - sol(i-1,j,k-1) );
-         h_xi         = Real(0.25) * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
+         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
                                       +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-edges
-    Real pz_md_hi_lo  = Real(0.5) * ( sol(i,j+1,k  ) + sol(i,j,k  )
+    Real pz_md_hi_lo  = myhalf * ( sol(i,j+1,k  ) + sol(i,j,k  )
                                      -sol(i,j+1,k-1) - sol(i,j,k-1) );
-         h_eta        = Real(0.25) * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
                                       +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
+         h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_md_hi_lo *= h_eta/ h_zeta;
 
     // On x-edges
-    Real pz_md_lo_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i,j-1,k  )
+    Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  )
                                      -sol(i,j,k-1) - sol(i,j-1,k-1) );
-         h_eta        = Real(0.25) * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
+         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
                                       +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;
 
     // On z-face
-    Real h_xi_on_zlo  = 0.5 * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
-    Real h_eta_on_zlo = 0.5 * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
+    Real h_xi_on_zlo  = myhalf * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
+    Real h_eta_on_zlo = myhalf * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
 
-    pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
-    if (k == 0) pz_lo = 0.0;
+    if (k == 0) pz_lo = zero;
 
     return -pz_lo;
 }
@@ -170,54 +171,54 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
 
     // On z-face, one-sided
     Real pz_lo = sol(i,j,k);
-    Real hzeta_inv_on_zlo = 8.0 / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
+    Real hzeta_inv_on_zlo = amrex::Real(8.0) / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
                                    -(zp(i,j,k  ) + zp(i+1,j,k  ) + zp(i,j+1,k  ) + zp(i+1,j+1,k  )) );
     pz_lo *= hzeta_inv_on_zlo;
 
     // On corners
-    constexpr Real px_hi_md_lo = 0.0;
-    constexpr Real px_lo_md_lo = 0.0;
-    constexpr Real py_md_hi_lo = 0.0;
-    constexpr Real py_md_lo_lo = 0.0;
+    constexpr Real px_hi_md_lo = zero;
+    constexpr Real px_lo_md_lo = zero;
+    constexpr Real py_md_hi_lo = zero;
+    constexpr Real py_md_lo_lo = zero;
 
     // On y-edges, one-sided
-    Real pz_hi_md_lo  = Real(0.5) * ( sol(i+1,j,k  ) + sol(i,j,k  ));
-         h_xi         = Real(0.25) * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+    Real pz_hi_md_lo  = myhalf * ( sol(i+1,j,k  ) + sol(i,j,k  ));
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
                                       +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k  )
+         h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k  )
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On y-edges, one-sided
-    Real pz_lo_md_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i-1,j,k  ));
-         h_xi         = Real(0.25) * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
+    Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  ));
+         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
                                       +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+1) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k  )
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k  ) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-edges, one-sided
-    Real pz_md_hi_lo  = Real(0.5) * ( sol(i,j+1,k  ) + sol(i,j,k  ));
-         h_eta        = Real(0.25) * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
+    Real pz_md_hi_lo  = myhalf * ( sol(i,j+1,k  ) + sol(i,j,k  ));
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
                                       +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k  )
+         h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k  )
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
          pz_md_hi_lo *= h_eta/ h_zeta;
 
     // On x-edges, one-sided
-    Real pz_md_lo_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i,j-1,k  ));
-         h_eta        = Real(0.25) * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
+    Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  ));
+         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
                                       +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k  ) );
          pz_md_lo_lo *= h_eta/ h_zeta;
 
     // On z-face
-    Real h_xi_on_zlo  = 0.5 * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
-    Real h_eta_on_zlo = 0.5 * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
+    Real h_xi_on_zlo  = myhalf * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
+    Real h_eta_on_zlo = myhalf * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
 
-    pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
     return -pz_lo;
 }
@@ -244,25 +245,25 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     Real px_hi = (x(i+1,j,k) - x(i,j,k)) * dxinv;
 
     // On y-edges
-    Real pz_hi_md_hi  = Real(0.5)  * (  x(i+1,j  ,k+1) +  x(i  ,j  ,k+1)
+    Real pz_hi_md_hi  = myhalf  * (  x(i+1,j  ,k+1) +  x(i  ,j  ,k+1)
                                        -x(i+1,j  ,k  ) -  x(i  ,j  ,k  ) );
-         h_xi         = Real(0.25) * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
+         h_xi         = fourth * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
                                       +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i+1,j  ,k+2) - zp(i+1,j  ,k  )
+         h_zeta       = fourth * ( zp(i+1,j  ,k+2) - zp(i+1,j  ,k  )
                                       +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
          pz_hi_md_hi *= h_xi / h_zeta;
 
     // On y-edges
-    Real pz_hi_md_lo  = Real(0.5)  *  ( x(i+1,j  ,k  ) +  x(i  ,j  ,k  )
+    Real pz_hi_md_lo  = myhalf  *  ( x(i+1,j  ,k  ) +  x(i  ,j  ,k  )
                                        -x(i+1,j  ,k-1) -  x(i  ,j  ,k-1) );
-         h_xi         = Real(0.25) * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
                                       +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
+         h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On x-face
-    px_hi -= Real(0.5) * ( pz_hi_md_hi + pz_hi_md_lo );
+    px_hi -= myhalf * ( pz_hi_md_hi + pz_hi_md_lo );
 
     // *********************************************************
     // Lo x-face
@@ -270,25 +271,25 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     Real px_lo = (x(i,j,k) - x(i-1,j,k)) * dxinv;
 
     // On y-edges
-    Real pz_lo_md_hi  = Real(0.5)  * (  x(i,j,k+1) + x(i-1,j,k+1)
+    Real pz_lo_md_hi  = myhalf  * (  x(i,j,k+1) + x(i-1,j,k+1)
                                        -x(i,j,k  ) - x(i-1,j,k  ) );
-         h_xi         = Real(0.25) * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
+         h_xi         = fourth * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
                                       +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
                                       +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
          pz_lo_md_hi *= h_xi / h_zeta;
 
     // On y-edges
-    Real pz_lo_md_lo  = Real(0.5)  * (  x(i,j,k  ) + x(i-1,j,k  )
+    Real pz_lo_md_lo  = myhalf  * (  x(i,j,k  ) + x(i-1,j,k  )
                                        -x(i,j,k-1) - x(i-1,j,k-1) );
-         h_xi         = Real(0.25) * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
+         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
                                       +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
-         h_zeta       = Real(0.25) * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-face
-    px_lo -= Real(0.5) * ( pz_lo_md_hi + pz_lo_md_lo );
+    px_lo -= myhalf * ( pz_lo_md_hi + pz_lo_md_lo );
 
     // *********************************************************
     // Hi y-face
@@ -297,25 +298,25 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     Real py_hi = (x(i,j+1,k) - x(i,j,k)) * dyinv;
 
     // On x-edges
-    Real pz_md_hi_hi  = Real(0.5)  * (  x(i,j+1,k+1) + x(i,j,k+1)
+    Real pz_md_hi_hi  = myhalf  * (  x(i,j+1,k+1) + x(i,j,k+1)
                                        -x(i,j+1,k  ) - x(i,j,k  ) );
-         h_eta        = Real(0.25) * ( zp(i  ,j+1,k+1) - zp(i  ,j-1,k+1)
+         h_eta        = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j-1,k+1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j-1,k+1) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j+1,k+2) - zp(i  ,j+1,k  )
+         h_zeta       = fourth * ( zp(i  ,j+1,k+2) - zp(i  ,j+1,k  )
                                       +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
          pz_md_hi_hi *= h_eta/ h_zeta;
 
     // On x-edges
-    Real pz_md_hi_lo  = Real(0.5)  * (  x(i,j+1,k  ) + x(i,j,k  )
+    Real pz_md_hi_lo  = myhalf  * (  x(i,j+1,k  ) + x(i,j,k  )
                                        -x(i,j+1,k-1) - x(i,j,k-1) );
-         h_eta        = Real(0.25) * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
                                       +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
+         h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_md_hi_lo *= h_eta/ h_zeta;
 
     // On y-face
-    py_hi -= Real(0.5) * ( pz_md_hi_hi + pz_md_hi_lo );
+    py_hi -= myhalf * ( pz_md_hi_hi + pz_md_hi_lo );
 
     // *********************************************************
     // Lo y-face
@@ -324,81 +325,81 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     Real py_lo = (x(i,j,k) - x(i,j-1,k)) * dyinv;
 
     // On x-edges
-    Real pz_md_lo_hi  = Real(0.5)  * (  x(i  ,j,k+1) +  x(i  ,j-1,k+1)
+    Real pz_md_lo_hi  = myhalf  * (  x(i  ,j,k+1) +  x(i  ,j-1,k+1)
                                        -x(i  ,j,k  ) -  x(i  ,j-1,k  ) );
-         h_eta        = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
+         h_eta        = fourth * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
                                       +zp(i+1,j,k+1) - zp(i+1,j-2,k+1) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
+         h_zeta       = fourth * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+2) - zp(i+1,j  ,k  ) );
          pz_md_lo_hi *= h_eta/ h_zeta;
 
     // On x-edges
-    Real pz_md_lo_lo  = Real(0.5)  * (  x(i  ,j,k  ) +  x(i  ,j-1,k  )
+    Real pz_md_lo_lo  = myhalf  * (  x(i  ,j,k  ) +  x(i  ,j-1,k  )
                                        -x(i  ,j,k-1) -  x(i  ,j-1,k-1) );
-         h_eta        = Real(0.25) * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
+         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
                                       +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
-         h_zeta       = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
+         h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;
 
     // On y-face
-    py_lo -= Real(0.5) * ( pz_md_lo_hi + pz_md_lo_lo );
+    py_lo -= myhalf * ( pz_md_lo_hi + pz_md_lo_lo );
 
     // *********************************************************
     // Hi z-face
     // *********************************************************
     // On z-face
     Real pz_hi    = x(i,j,k+1) - x(i,j,k  );
-    Real hzeta_inv_on_zhi = 8.0 / ( (zp(i,j,k+2) + zp(i+1,j,k+2) + zp(i,j+1,k+2) + zp(i+1,j+1,k+2))
+    Real hzeta_inv_on_zhi = amrex::Real(8.0) / ( (zp(i,j,k+2) + zp(i+1,j,k+2) + zp(i,j+1,k+2) + zp(i+1,j+1,k+2))
                                    -(zp(i,j,k  ) + zp(i+1,j,k  ) + zp(i,j+1,k  ) + zp(i+1,j+1,k  )) );
     pz_hi *= hzeta_inv_on_zhi;
 
     // On corners
-    Real px_hi_md_hi = Real(0.5) * ( x(i+1,j,k+1) - x(i  ,j  ,k+1)
+    Real px_hi_md_hi = myhalf * ( x(i+1,j,k+1) - x(i  ,j  ,k+1)
                                     +x(i+1,j,k  ) - x(i  ,j  ,k  )) * dxinv;
-    Real px_lo_md_hi = Real(0.5) * ( x(i  ,j,k+1) - x(i-1,j  ,k+1)
+    Real px_lo_md_hi = myhalf * ( x(i  ,j,k+1) - x(i-1,j  ,k+1)
                                     +x(i  ,j,k  ) - x(i-1,j  ,k  )) * dxinv;
-    Real py_md_hi_hi = Real(0.5) * ( x(i,j+1,k+1) - x(i  ,j  ,k+1)
+    Real py_md_hi_hi = myhalf * ( x(i,j+1,k+1) - x(i  ,j  ,k+1)
                                     +x(i,j+1,k  ) - x(i  ,j  ,k  )) * dyinv;
-    Real py_md_lo_hi = Real(0.5) * ( x(i,j  ,k+1) - x(i  ,j-1,k+1)
+    Real py_md_lo_hi = myhalf * ( x(i,j  ,k+1) - x(i  ,j-1,k+1)
                                     +x(i,j  ,k  ) - x(i  ,j-1,k  )) * dyinv;
 
     // On z-face
-    Real h_xi_on_zhi  = 0.5 * ( zp(i+1,j+1,k+1) + zp(i+1,j,k+1) - zp(i,j+1,k+1) - zp(i,j,k+1) ) * dxinv;
-    Real h_eta_on_zhi = 0.5 * ( zp(i+1,j+1,k+1) + zp(i,j+1,k+1) - zp(i+1,j,k+1) - zp(i,j,k+1) ) * dyinv;
+    Real h_xi_on_zhi  = myhalf * ( zp(i+1,j+1,k+1) + zp(i+1,j,k+1) - zp(i,j+1,k+1) - zp(i,j,k+1) ) * dxinv;
+    Real h_eta_on_zhi = myhalf * ( zp(i+1,j+1,k+1) + zp(i,j+1,k+1) - zp(i+1,j,k+1) - zp(i,j,k+1) ) * dyinv;
     //
     // Note we do not need to recalculate pz_...hi here
     //
-    pz_hi -= 0.5 * h_xi_on_zhi  * ( (px_hi_md_hi + px_lo_md_hi) - (pz_hi_md_hi + pz_lo_md_hi) );
-    pz_hi -= 0.5 * h_eta_on_zhi * ( (py_md_hi_hi + py_md_lo_hi) - (pz_md_hi_hi + pz_md_lo_hi) );
+    pz_hi -= myhalf * h_xi_on_zhi  * ( (px_hi_md_hi + px_lo_md_hi) - (pz_hi_md_hi + pz_lo_md_hi) );
+    pz_hi -= myhalf * h_eta_on_zhi * ( (py_md_hi_hi + py_md_lo_hi) - (pz_md_hi_hi + pz_md_lo_hi) );
 
     // *********************************************************
     // Lo z-face
     // *********************************************************
     // On z-face
     Real pz_lo = x(i,j,k  ) - x(i,j,k-1);
-    Real hzeta_inv_on_zlo = 8.0 / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
+    Real hzeta_inv_on_zlo = amrex::Real(8.0) / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
                                    -(zp(i,j,k-1) + zp(i+1,j,k-1) + zp(i,j+1,k-1) + zp(i+1,j+1,k-1)) );
     pz_lo *= hzeta_inv_on_zlo;
 
     // On corners
-    Real px_hi_md_lo = Real(0.5) * ( x(i+1,j  ,k  ) - x(i  ,j  ,k  )
+    Real px_hi_md_lo = myhalf * ( x(i+1,j  ,k  ) - x(i  ,j  ,k  )
                                     +x(i+1,j  ,k-1) - x(i  ,j  ,k-1)) * dxinv;
-    Real px_lo_md_lo = Real(0.5) * ( x(i  ,j  ,k  ) - x(i-1,j  ,k  )
+    Real px_lo_md_lo = myhalf * ( x(i  ,j  ,k  ) - x(i-1,j  ,k  )
                                     +x(i  ,j  ,k-1) - x(i-1,j  ,k-1)) * dxinv;
-    Real py_md_hi_lo = Real(0.5) * ( x(i  ,j+1,k  ) - x(i  ,j  ,k  )
+    Real py_md_hi_lo = myhalf * ( x(i  ,j+1,k  ) - x(i  ,j  ,k  )
                                     +x(i  ,j+1,k-1) - x(i  ,j  ,k-1)) * dyinv;
-    Real py_md_lo_lo = Real(0.5) * ( x(i  ,j  ,k  ) - x(i  ,j-1,k  )
+    Real py_md_lo_lo = myhalf * ( x(i  ,j  ,k  ) - x(i  ,j-1,k  )
                                     +x(i  ,j  ,k-1) - x(i  ,j-1,k-1)) * dyinv;
 
     // On z-face
-    Real h_xi_on_zlo  = 0.5 * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
-    Real h_eta_on_zlo = 0.5 * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
+    Real h_xi_on_zlo  = myhalf * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
+    Real h_eta_on_zlo = myhalf * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
     //
     // Note we do not need to recalculate pz_...lo here
     //
-    pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
 #else
 
@@ -421,7 +422,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // *********************************************************
     // Adotx
     // *********************************************************
-    if (k == 0) pz_lo = 0.0;
+    if (k == 0) pz_lo = zero;
 
     y(i,j,k) =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
                +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv

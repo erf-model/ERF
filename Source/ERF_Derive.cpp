@@ -1,5 +1,6 @@
 #include "ERF_Derive.H"
 #include "ERF_EOS.H"
+#include "ERF_StormDiagnostics.H"
 #include "ERF_IndexDefines.H"
 
 using namespace amrex;
@@ -41,6 +42,7 @@ erf_dernull (const Box& /*bx*/,
              int /*dcomp*/,
              int /*ncomp*/,
              const FArrayBox& /*datfab*/,
+             const FArrayBox& /*zcc_fab*/,
              const Geometry& /*geomdata*/,
              Real /*time*/,
              const int* /*bcrec*/,
@@ -60,6 +62,7 @@ erf_dersoundspeed (const Box& bx,
                    int /*dcomp*/,
                    int /*ncomp*/,
                    const FArrayBox& datfab,
+                   const FArrayBox& /*zcc_fab*/,
                    const Geometry& /*geomdata*/,
                    Real /*time*/,
                    const int* /*bcrec*/,
@@ -69,13 +72,13 @@ erf_dersoundspeed (const Box& bx,
     auto cfab      = derfab.array();
 
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
-    Real qv = 0.;
+    Real qv = Real(0.0);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > 0);
         cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
@@ -93,6 +96,7 @@ erf_dertemp (const Box& bx,
              int /*dcomp*/,
              int /*ncomp*/,
              const FArrayBox& datfab,
+             const FArrayBox& /*zcc_fab*/,
              const Geometry& /*geomdata*/,
              Real /*time*/,
              const int* /*bcrec*/,
@@ -105,7 +109,7 @@ erf_dertemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > Real(0.0));
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
     });
 }
@@ -115,6 +119,7 @@ erf_dermoisttemp (const Box& bx,
              int /*dcomp*/,
              int /*ncomp*/,
              const FArrayBox& datfab,
+             const FArrayBox& /*zcc_fab*/,
              const Geometry& /*geomdata*/,
              Real /*time*/,
              const int* /*bcrec*/,
@@ -127,7 +132,7 @@ erf_dermoisttemp (const Box& bx,
     {
         const Real rho = dat(i, j, k, Rho_comp);
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        AMREX_ALWAYS_ASSERT(rhotheta > Real(0.0));
         const Real qv = dat(i, j, k, RhoQ1_comp) / rho;
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta,qv);
     });
@@ -146,6 +151,7 @@ erf_dertheta (const Box& bx,
               int /*dcomp*/,
               int /*ncomp*/,
               const FArrayBox& datfab,
+              const FArrayBox& /*zcc_fab*/,
               const Geometry& /*geomdata*/,
               Real /*time*/,
               const int* /*bcrec*/,
@@ -167,6 +173,7 @@ erf_derscalar (const Box& bx,
                int /*dcomp*/,
                int /*ncomp*/,
                const FArrayBox& datfab,
+               const FArrayBox& /*zcc_fab*/,
                const Geometry& /*geomdata*/,
                Real /*time*/,
                const int* /*bcrec*/,
@@ -188,6 +195,7 @@ erf_derKE (const Box& bx,
            int /*dcomp*/,
            int /*ncomp*/,
            const FArrayBox& datfab,
+           const FArrayBox& /*zcc_fab*/,
            const Geometry& /*geomdata*/,
            Real /*time*/,
            const int* /*bcrec*/,
@@ -197,72 +205,74 @@ erf_derKE (const Box& bx,
 }
 
 void
-erf_dervortx (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dervortx ( const Box& bx,
+               FArrayBox& derfab,
+               int dcomp,
+               int ncomp,
+               const FArrayBox& datfab,
+               const FArrayBox& zcc_fab,
+               const Geometry& geomdata,
+               Real /*time*/,
+               const int* /*bcrec*/,
+               const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity x-component
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real dy = geomdata.CellSize(1);
-    const Real dz = geomdata.CellSize(2);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (2.0*dy)  // dw/dy
-                          - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (2.0*dz); // dv/dz
+        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
+        tfab(i,j,k,dcomp) = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / two_dy  // dw/dy
+                          - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / two_dz; // dv/dz
     });
 }
 
 void
-erf_dervorty (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dervorty ( const Box& bx,
+               FArrayBox& derfab,
+               int dcomp,
+               int ncomp,
+               const FArrayBox& datfab,
+               const FArrayBox& zcc_fab,
+               const Geometry& geomdata,
+               Real /*time*/,
+               const int* /*bcrec*/,
+               const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity y-component
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real dx = geomdata.CellSize(0);
-    const Real dz = geomdata.CellSize(2);
+    const Real two_dx = two * geomdata.CellSize(0);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (2.0*dz)  // du/dz
-                          - (dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (2.0*dx); // dw/dx
+        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
+        tfab(i,j,k,dcomp) = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / two_dz  // du/dz
+                          - (dat(i+1,j,k,2) - dat(i-1,j,k,2)) / two_dx; // dw/dx
     });
 }
 
 void
-erf_dervortz (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dervortz ( const Box& bx,
+               FArrayBox& derfab,
+               int dcomp,
+               int ncomp,
+               const FArrayBox& datfab,
+               const FArrayBox& /*zcc_fab*/,
+               const Geometry& geomdata,
+               Real /*time*/,
+               const int* /*bcrec*/,
+               const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
@@ -275,57 +285,59 @@ erf_dervortz (
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
     });
 }
 
 void
-erf_derenstrophysq (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_derenstrophysq ( const Box& bx,
+                     FArrayBox& derfab,
+                     int dcomp,
+                     int ncomp,
+                     const FArrayBox& datfab,
+                     const FArrayBox& zcc_fab,
+                     const Geometry& geomdata,
+                     Real /*time*/,
+                     const int* /*bcrec*/,
+                     const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity x-component
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(1);
-    const Real dz = geomdata.CellSize(2);
+    const Real two_dx = two * geomdata.CellSize(0);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (2.0*dy)  // dw/dy
-                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (2.0*dz); // dv/dz
-        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (2.0*dz)  // du/dz
-                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (2.0*dx); // dw/dx
-        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
+
+        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / two_dy  // dw/dy
+                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / two_dz; // dv/dz
+        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / two_dz  // du/dz
+                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / two_dx; // dw/dx
+        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
+                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
 
         tfab(i,j,k,dcomp) = vortx*vortx + vorty*vorty + vortz*vortz;
     });
 }
 
 void
-erf_dermagvel (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dermagvel ( const Box& bx,
+                FArrayBox& derfab,
+                int dcomp,
+                int ncomp,
+                const FArrayBox& datfab,
+                const FArrayBox& /*zcc_fab*/,
+                const Geometry& /*geomdata*/,
+                Real /*time*/,
+                const int* /*bcrec*/,
+                const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
@@ -343,16 +355,16 @@ erf_dermagvel (
 }
 
 void
-erf_dermagvelsq (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dermagvelsq ( const Box& bx,
+                  FArrayBox& derfab,
+                  int dcomp,
+                  int ncomp,
+                  const FArrayBox& datfab,
+                  const FArrayBox& /*zcc_fab*/,
+                  const Geometry& /*geomdata*/,
+                  Real /*time*/,
+                  const int* /*bcrec*/,
+                  const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
@@ -368,4 +380,174 @@ erf_dermagvelsq (
         tfab(i,j,k,dcomp) = u*u + v*v + w*w;
     });
 }
+
+void
+erf_derreflectivity ( const Box& bx,
+                      FArrayBox& derfab,
+                      int dcomp,
+                      int /*ncomp*/,
+                      const FArrayBox& datfab,
+                      const FArrayBox& /*zcc_fab*/,
+                      const Geometry& /*geomdata*/,
+                      Real /*time*/,
+                      const int* /*bcrec*/,
+                      const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered state vector
+    auto rfab      = derfab.array(); // cell-centered reflectivity
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real rho = dat(i,j,k,Rho_comp);
+        Real qv  = std::max(Real(0.0),dat(i,j,k,RhoQ1_comp)/rho);
+        Real qpr = std::max(Real(0.0),dat(i,j,k,RhoQ4_comp)/rho);
+        Real qps = std::max(Real(0.0),dat(i,j,k,RhoQ5_comp)/rho);
+        Real qpg = std::max(Real(0.0),dat(i,j,k,RhoQ6_comp)/rho);
+
+        Real temp  = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
+
+        rfab(i, j, k, dcomp) = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                            1, 1, 1, 1);
+    });
+}
+
+void
+erf_dermaxreflectivity (
+  const Box& bx,
+                  FArrayBox& derfab,
+                  int dcomp,
+                  int /*ncomp*/,
+                  const FArrayBox& datfab,
+                  const FArrayBox& /*zcc_fab*/,
+                  const Geometry& /*geomdata*/,
+                  Real /*time*/,
+                  const int* /*bcrec*/,
+                  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered state vector
+    auto rfab      = derfab.array(); // cell-centered max reflectivity
+
+    // Collapse to i,j box (ignore vertical for now)
+    Box b2d = bx;
+    b2d.setSmall(2,0);
+    b2d.setBig(2,0);
+
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+
+        Real max_dbz = -1.0e30;
+
+        // find max reflectivity over k
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+
+            Real rho = dat(i,j,k,Rho_comp);
+            Real qv  = std::max(Real(0.0),dat(i,j,k,RhoQ1_comp)/rho);
+            Real qpr = std::max(Real(0.0),dat(i,j,k,RhoQ4_comp)/rho);
+            Real qps = std::max(Real(0.0),dat(i,j,k,RhoQ5_comp)/rho);
+            Real qpg = std::max(Real(0.0),dat(i,j,k,RhoQ6_comp)/rho);
+
+            Real temp = getTgivenRandRTh(rho, dat(i,j,k,RhoTheta_comp), qv);
+
+            Real dbz = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                    1, 1, 1, 1);
+            max_dbz = amrex::max(max_dbz, dbz);
+        }
+
+        // Store max_dbz into *all* levels for this (i,j)
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            rfab(i, j, k, dcomp) = max_dbz;
+        }
+    });
+}
+
+void
+erf_derlocalhelicity (
+  const Box& bx,
+                  FArrayBox& derfab,
+                  int dcomp,
+                  int /*ncomp*/,
+                  const FArrayBox& datfab,
+                  const FArrayBox& /*zcc_fab*/,
+                  const Geometry& geomdata,
+                  Real /*time*/,
+                  const int* /*bcrec*/,
+                  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered velocity
+    auto dfab      = derfab.array(); // cell-centered local helicity
+
+    const Real two_dx = Real(2.0)*geomdata.CellSize(0);
+    const Real two_dy = Real(2.0)*geomdata.CellSize(1);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
+                   - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
+        Real w     = dat(i,j,k,2);
+
+        // Helicity
+        dfab(i,j,k,dcomp) = vortz * w;
+    });
+}
+
+void
+erf_derhelicity ( const Box& bx,
+                  FArrayBox& derfab,
+                  int dcomp,
+                  int /*ncomp*/,
+                  const FArrayBox& datfab,
+                  const FArrayBox& zcc_fab,
+                  const Geometry& geomdata,
+                  Real /*time*/,
+                  const int* /*bcrec*/,
+                  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered velocity
+    auto dfab      = derfab.array(); // cell-centered local helicity
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
+
+    const Real dx = geomdata.CellSize(0);
+    const Real dy = geomdata.CellSize(1);
+
+    // Collapse to i,j box (ignore vertical for now)
+    Box b2d = bx;
+    b2d.setSmall(2,0);
+    b2d.setBig(2,0);
+
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+    {
+        Real int_hel = Real(0.0);
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
+        {
+            Real z = z_arr(i,j,k);
+
+            // Helicity is defined as integral from 2km to 5km in vertical
+            if (z > Real(2000.0) && z < Real(5000.0)) {
+
+                Real z_hi = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k+1));
+                Real z_lo = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k-1));
+                Real dz = z_hi - z_lo;
+
+                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
+                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+                Real w     = dat(i,j,k,2); // vertical velocity
+
+                int_hel += vortz * w * dz;
+            }
+        }
+
+        // Store vertical integral into *all* levels for this (i,j)
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            dfab(i, j, k, dcomp) = int_hel;
+        }
+    });
+}
+
 } // namespace

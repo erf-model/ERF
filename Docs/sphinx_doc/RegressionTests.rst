@@ -469,9 +469,7 @@ Test Location: `Tests/test_files/CouetteFlow_x`_
 
 .. _`Tests/test_files/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
 
-Problem Location: `Exec/RegTests/CouetteFlow_x`_
-
-.. _`Exec/RegTests/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
 Couette Flow (y-direction)
 ---------------------------
@@ -485,9 +483,7 @@ Test Location: `Tests/test_files/CouetteFlow_y`_
 
 .. _`Tests/test_files/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
 
-Problem Location: `Exec/RegTests/CouetteFlow_y`_
-
-.. _`Exec/RegTests/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
 Poiseuille Flow (x-direction)
 -----------------------------
@@ -501,9 +497,7 @@ Test Location: `Tests/test_files/PoiseuilleFlow_x`_
 
 .. _`Tests/test_files/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_x
 
-Problem Location: `Exec/RegTests/PoiseuilleFlow_x`_
-
-.. _`Exec/RegTests/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
 Poiseuille Flow (y-direction)
 -----------------------------
@@ -517,9 +511,7 @@ Test Location: `Tests/test_files/PoiseuilleFlow_y`_
 
 .. _`Tests/test_files/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_y
 
-Problem Location: `Exec/RegTests/PoiseuilleFlow_y`_
-
-.. _`Exec/RegTests/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
 Nonlinear Density Current
 ---------------------------
@@ -531,7 +523,7 @@ Test Location: `Tests/test_files/DensityCurrent`_
 
 .. _`Tests/test_files/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/DensityCurrent
 
-Problem Location: `Exec/RegTests/DensityCurrent`_
+Problem Location: ``Exec/CanonicalTests/DensityCurrent``
 
 .. _`Exec/CanonicalTests/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/DensityCurrent
 

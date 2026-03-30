@@ -12,7 +12,7 @@ using namespace amrex;
  * @param[in]     domain   simulation domain
  * @param[in]     icomp    index into the MultiFab -- this can be any value from 0 to NVAR-1
  * @param[in]     ncomp    the number of components -- this can be any value from 1 to NVAR
- *                         as long as icomp+ncomp <= NVAR-1.
+ *                         as long as icomp+ncomp <= NVAR-one
  */
 
 void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
@@ -92,7 +92,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= 0.) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -117,7 +117,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= 0.) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -157,7 +157,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= 0.) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -181,7 +181,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= 0.) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -227,7 +227,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (dom_lo.x - i);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp);
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -245,7 +245,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (i - dom_hi.x);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp);
                 }
             }
         );
@@ -276,7 +276,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (dom_lo.y - j);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp);
                 }
 
             },
@@ -295,7 +295,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (j - dom_hi.y);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
             }
         );
@@ -313,7 +313,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
  * @param[in] dxInv     inverse cell size array
  * @param[in] icomp     the index of the first component to be filled
  * @param[in] ncomp     the number of components -- this can be any value from 1 to NVAR
- *                      as long as icomp+ncomp <= NVAR-1.
+ *                      as long as icomp+ncomp <= NVAR-one
  */
 
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
@@ -446,7 +446,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     }
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_k = (dom_lo.z - k);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
+                    dest_arr(i,j,k,dest_comp) = (one + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
                                                        delta_k  * dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
             },
@@ -478,7 +478,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     }
                 } else if (h_bc_type == ERFBCType::hoextrap){
                     Real delta_k = (k - dom_hi.z);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
                 }
             }
         );
@@ -527,29 +527,29 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                         Real GradVarx, GradVary;
                         if (i < dom_lo.x-1 || i > dom_hi.x+1 || (i+1 > bx_hi.x && i-1 < bx_lo.x) ) {
-                            GradVarx = 0.0;
+                            GradVarx = zero;
                         } else if (i+1 > bx_hi.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         } else if (i-1 < bx_lo.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i  ,j,k0,dest_comp));
                         } else {
-                            GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
+                            GradVarx = myhalf * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         }
 
                         // GradY at IJK location inside domain -- this relies on the assumption that we have
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                         if (j < dom_lo.y-1 || j > dom_hi.y+1 || (j+1 > bx_hi.y && j-1 < bx_lo.y) ) {
-                            GradVary = 0.0;
+                            GradVary = zero;
                         } else if (j+1 > bx_hi.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         } else if (j-1 < bx_lo.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j  ,k0,dest_comp));
                         } else {
-                            GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
+                            GradVary = myhalf * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         }
 
                         // Prefactor
-                        Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
+                        Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + one );
 
                         // Accumulate in bottom ghost cell (EXTRAP already populated)
                         dest_arr(i,j,k,dest_comp) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );

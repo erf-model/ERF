@@ -15,17 +15,18 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
+#include "ERF_EB.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
  * van der Laan, P., Kelly, M. C., & Sørensen, N. N. (2017). A new k-epsilon
  * model consistent with Monin-Obukhov similarity theory. Wind Energy,
- * 20(3), 479–489. https://doi.org/10.1002/we.2017
+ * 20(3), 479–amrex::Real(489.) https://doi.org/amrex::Real(10.1002)/we.2017
  *
  * Consistent with Dyer (1974) formulation from page 57, Chapter 2, Modeling
  * the vertical ABL structure in Modelling of Atmospheric Flow Fields,
  * Demetri P Lalas and Corrado F Ratto, January 1996,
- * https://doi.org/10.1142/2975.
+ * https://doi.org/amrex::Real(10.1142)/amrex::Real(2975.)
  */
 class SurfaceLayer
 {
@@ -42,7 +43,7 @@ public:
                          const TurbChoice& a_turb_choice,
                          amrex::Real start_low_time,
                          amrex::Real final_low_time,
-                         amrex::Real low_time_interval = 0.0)
+                         amrex::Real low_time_interval = zero)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
@@ -147,7 +148,7 @@ public:
           if (erf_st) {
               theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
               pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
-              surf_heating_rate = surf_heating_rate / 3600.0;        // [K/s]
+              surf_heating_rate = surf_heating_rate / amrex::Real(3600.0);        // [K/s]
               if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
@@ -257,7 +258,7 @@ public:
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
                          a_turb_choice.dirichlet_k == true);
       if (m_update_k_rans) {
-          inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
       }
 
@@ -441,15 +442,15 @@ public:
 
       // TODO: Do we want an enum struct for indexing?
 
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
+      bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
+      bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
+      if (use_sst || use_tsk || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
 
           // Pathways in fill_tsurf_with_sst_and_tsk
-          bool use_tsk = (m_tsk_lev[lev][0]);
-          bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
           // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
           //       So if we have TSK, it contains everything and has been
@@ -487,8 +488,8 @@ public:
   void init_tke_from_ustar (const int& lev,
                             amrex::MultiFab& cons,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                            const amrex::Real tkefac = 1.0,
-                            const amrex::Real zscale = 700.0);
+                            const amrex::Real tkefac = one,
+                            const amrex::Real zscale = amrex::Real(700.0));
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
@@ -501,6 +502,16 @@ public:
                                 amrex::MultiFab* zqv_flux,
                                 const amrex::MultiFab* z_phys);
 
+  void impose_SurfaceLayer_bcs_EB (const int& lev,
+                                amrex::Vector<const amrex::MultiFab*> mfs,
+                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                amrex::MultiFab* xheat_flux,
+                                amrex::MultiFab* yheat_flux,
+                                amrex::MultiFab* zheat_flux,
+                                amrex::MultiFab* xqv_flux,
+                                amrex::MultiFab* yqv_flux,
+                                amrex::MultiFab* zqv_flux,
+                                const eb_& ebfact);
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
@@ -512,6 +523,19 @@ public:
                                  amrex::MultiFab* yqv_flux,
                                  amrex::MultiFab* zqv_flux,
                                  const amrex::MultiFab* z_phys,
+                                 const FluxCalc& flux_comp);
+
+  template <typename FluxCalc>
+  void compute_SurfaceLayer_bcs_EB (const int& lev,
+                                 amrex::Vector<const amrex::MultiFab*> mfs,
+                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                 amrex::MultiFab* xheat_flux,
+                                 amrex::MultiFab* yheat_flux,
+                                 amrex::MultiFab* zheat_flux,
+                                 amrex::MultiFab* xqv_flux,
+                                 amrex::MultiFab* yqv_flux,
+                                 amrex::MultiFab* zqv_flux,
+                                 const eb_& ebfact,
                                  const FluxCalc& flux_comp);
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
@@ -666,12 +690,12 @@ private:
   amrex::Real m_low_time_interval;
 
   bool m_include_wstar = false;
-  amrex::Real z0_const{0.1};
-  amrex::Real default_land_surf_temp{300.};
+  amrex::Real z0_const{amrex::Real(0.1)};
+  amrex::Real default_land_surf_temp{amrex::Real(300.)};
   amrex::Real surf_temp;
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
-  amrex::Real default_land_surf_moist{0.};
+  amrex::Real default_land_surf_moist{zero};
   amrex::Real surf_moist;
   amrex::Real surf_moist_flux{0};
   amrex::Real custom_ustar{0};
@@ -679,22 +703,22 @@ private:
   amrex::Real custom_qstar{0};
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
-  amrex::Real cnk_a{0.0185};
+  amrex::Real cnk_a{amrex::Real(0.0185)};
   bool cnk_visc{false};
-  amrex::Real depth{30.0};
+  amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
-  amrex::Real rico_theta_z0{298.0};
-  amrex::Real rico_qsat_z0{0.001};
+  amrex::Real rico_theta_z0{amrex::Real(298.0)};
+  amrex::Real rico_qsat_z0{amrex::Real(0.001)};
 
   bool use_moisture;
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
 
-  amrex::Real m_Cd = 0.0;
-  amrex::Real m_Ch = 0.0;
-  amrex::Real m_Cq = 0.0;
+  amrex::Real m_Cd = zero;
+  amrex::Real m_Ch = zero;
+  amrex::Real m_Cq = zero;
 
   bool m_ignore_sst = false;
 
@@ -720,8 +744,8 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   bool m_update_k_rans = false;
-  amrex::Real inv_Cmu2 = 0.0;
-  amrex::Real theta_ref = 0.0;
+  amrex::Real inv_Cmu2 = zero;
+  amrex::Real theta_ref = zero;
 };
 
 #endif /* SURFACELAYER_H */
