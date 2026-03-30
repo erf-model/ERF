@@ -12,7 +12,6 @@ NOTE: This section is a work in progress and will be continually updated as appr
 simulation codes. Since ERF is based upon the AMReX library, one may utilize the AMReX-Agent software to
 automate ERF simulations and postprocess results. Here, we provide a brief overview of how to utilize
 the AMReX-Agent code but refer the interested readers to the `ERF agent demo <https://github.com/AMReX-Codes/amrex-agent/tree/development/demo/erf>`_ for more details.
-.
 
 
 Basic Set up
@@ -22,9 +21,9 @@ Basic Set up
 
 .. code-block:: bash
 
-   git clone --recursive https://github.com/AMReX-Codes/amrex.git
+   git clone --recursive https://github.com/AMReX-Codes/amrex-agent.git
    cd amrex-agent
-   git checkout preflight_layer_fix_stack_main_erf_test_visuals
+   git checkout a7aac16
 
 2. Set up your API key
 
@@ -36,7 +35,7 @@ Basic Set up
 
 .. code-block:: bash
 
-    git clone https://github.com/erf-model/ERF.git
+    git clone https://github.com/erf-model/ERF.git --recursive
     export ERF_REPO_PATH=<path_to_ERF>
 
 4. Set up the environment
@@ -52,7 +51,7 @@ Basic Set up
 
    bash demo/setup_demo_database.sh --code erf
 
-6. Prompt the ``AMRex-Agent``. Example here requests a local simulation that runs a 2D squall line with 4 ranks and plots the cloud water.
+6. Prompt the ``AMReX-Agent``. Example here requests a local simulation that runs a 2D squall line with 4 ranks and plots the cloud water
 
 .. code-block:: bash
 
