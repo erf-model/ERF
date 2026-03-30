@@ -499,22 +499,17 @@ public:
                                   bool regrid_forces_file_read);
 
     void create_background_state_for_ensemble (int lev,
+                                               amrex::MultiFab& mf_cc_pert,
                                                amrex::MultiFab& cons_pert,
                                                amrex::MultiFab& xvel_pert,
                                                amrex::MultiFab& yvel_pert,
                                                amrex::MultiFab& zvel_pert);
 
     void create_random_perturbations (const int lev,
-                                      amrex::MultiFab& cons_pert,
-                                      amrex::MultiFab& xvel_pert,
-                                      amrex::MultiFab& yvel_pert,
-                                      amrex::MultiFab& zvel_pert);
+                                      amrex::MultiFab& mf_cc_pert);
 
     void apply_gaussian_smoothing_to_perturbations (const int lev,
-                                                    amrex::MultiFab& cons_pert,
-                                                    amrex::MultiFab& xvel_pert,
-                                                    amrex::MultiFab& yvel_pert,
-                                                    amrex::MultiFab& zvel_pert);
+                                                    amrex::MultiFab& mf_cc_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver

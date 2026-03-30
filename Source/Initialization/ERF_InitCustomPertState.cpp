@@ -42,17 +42,6 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-    // If initializing for enembls simluations, then
-    // 1. read in the coarse background state from a plotfile 
-    // 2. interpolate the state data onto the current mesh
-    // 3. Create spatially correlated perturbations 
-    // 4. Add the perturbations to the background state and then populate the "pert variables
-
-    if(solverChoice.is_init_for_ensemble) {
-        create_background_state_for_ensemble(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert); 
-        //create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
-        //apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
-    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -90,6 +79,7 @@ ERF::init_custom (int lev)
                                     solverChoice, lev);
     } //mfi
 
+
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density
     if (!solverChoice.fixed_density[lev]) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,             1, cons_pert.nGrow());
@@ -119,5 +109,19 @@ ERF::init_custom (int lev)
         MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
         MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
         MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+    }
+
+    // If initializing for ensemble simluations, then
+    // 1. Create cell-centered random perturbations
+    // 2. Create cell-centered spatially correlated perturbations 
+    // 3. Read in the coarse background state from the coarse data file,
+    //    interpolate the state data onto the current mesh, and 
+    //    add the perturbations to the background state and then populate the "pert variables
+
+    if(solverChoice.is_init_for_ensemble) {
+        MultiFab mf_cc_pert;
+        create_random_perturbations(lev, mf_cc_pert);
+        apply_gaussian_smoothing_to_perturbations(lev, mf_cc_pert);
+        create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]); 
     }
 }

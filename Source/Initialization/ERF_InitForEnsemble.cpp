@@ -7,105 +7,155 @@
 #include <AMReX_PlotFileUtil.H>
 
 using namespace amrex;
+namespace fs = std::filesystem;
 
 void
 ERF::create_random_perturbations(const int lev,
-                                 MultiFab& cons_pert,
-                                 MultiFab& xvel_pert,
-                                 MultiFab& yvel_pert,
-                                 MultiFab& zvel_pert)
+                                 MultiFab& mf_cc_pert)
 {
-    ignore_unused(cons_pert);
-    ignore_unused(yvel_pert);
-    ignore_unused(zvel_pert);
+    const MultiFab& src = vars_new[lev][Vars::cons];
 
-    auto& lev_new = vars_new[lev];
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto &xvel_pert_arr = xvel_pert.array(mfi);
-        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
-        ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
+    int ncomp = 5;
+    mf_cc_pert.define(src.boxArray(), src.DistributionMap(),
+                      ncomp, src.nGrow());
+
+    // Loop over cell-centered boxes
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        auto const& pert_arr = mf_cc_pert.array(mfi);
+
+        // Loop over all 5 components
+        amrex::ParallelForRNG(bx, ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n,
+                             const amrex::RandomEngine& engine) noexcept
         {
-            xvel_pert_arr(i, j, k) = Random(engine);
+            pert_arr(i,j,k,n) = amrex::Random(engine);
         });
+    }
+}
+
+void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
+{
+    const int ncomp = mf_cc_pert.nComp();
+
+    for (int n = 0; n < ncomp; ++n)
+    {
+        // 1. Set up AMReX reduction (sum of squares + count)
+        ReduceOps<ReduceOpSum, ReduceOpSum> reduce_op;
+        ReduceData<Real, Long> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+
+        // 2. Loop over tiles and accumulate
+        for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+            auto const& arr = mf_cc_pert.const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
+                {
+                    Real v = arr(i, j, k, n);
+                    return { v * v, 1L };
+                });
+        }
+
+        // 3. Retrieve results (includes implicit GPU sync + host copy)
+        auto rv      = reduce_data.value(reduce_op);
+        Real h_sumsq = amrex::get<0>(rv);
+        Long h_count = amrex::get<1>(rv);
+
+        // 4. Sum across MPI ranks
+        ParallelDescriptor::ReduceRealSum(h_sumsq);
+        ParallelDescriptor::ReduceLongSum(h_count);
+
+        // 5. Compute RMS and normalize
+        if (h_count > 0)
+        {
+            Real rms = std::sqrt(h_sumsq / static_cast<Real>(h_count));
+            if (rms > 0.0) {
+                mf_cc_pert.mult(1.0 / rms, n, 1);
+            }
+        }
     }
 }
 
 void
 ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
-                                               MultiFab& cons_pert,
-                                               MultiFab& xvel_pert,
-                                               MultiFab& yvel_pert,
-                                               MultiFab& zvel_pert)
+                                               MultiFab& mf_cc_pert)
 {
-    ignore_unused(cons_pert);
-    ignore_unused(yvel_pert);
-    ignore_unused(zvel_pert);
-
     const Geometry& gm = geom[lev];
     const Real dx = gm.CellSize(0);
     const Real dy = gm.CellSize(1);
 
     const Real dmesh = std::min(dx, dy);
-    // ---- User choices ----
-    const Real sigma = solverChoice.ens_pert_correlated_radius; // e.g. 2 km correlation length
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);  // stencil radius
 
-    // ---- Precompute Gaussian weights on host ----
+    // ---- User choice ----
+    const Real sigma = solverChoice.ens_pert_correlated_radius;
+    const int  r     = static_cast<int>(3.0 * sigma / dmesh);
+
+    const int ncomp = mf_cc_pert.nComp();
+
+    // ---- Precompute Gaussian weights ----
     const int wsize = 2*r + 1;
     Vector<Real> w_host(wsize * wsize);
 
     Real Z = 0.0;
     for (int m = -r; m <= r; ++m) {
         for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(2.0*sigma*sigma));
+            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)
+                                 /(2.0*sigma*sigma));
             w_host[(m+r)*wsize + (n+r)] = val;
             Z += val;
         }
     }
+
     for (auto& v : w_host) {
-        v = v/Z;
+        v /= Z;
     }
 
-    Gpu::DeviceVector<Real> w_dev;
-    w_dev.resize(w_host.size());
+    Gpu::DeviceVector<Real> w_dev(w_host.size());
     Gpu::copy(Gpu::hostToDevice, w_host.begin(), w_host.end(), w_dev.begin());
 
     Real const* w = w_dev.data();
 
-    // 1. Define ngrow_big using the actual dimension macro
+    // ---- Create a grown copy (for stencil access) ----
     IntVect ngrow_big(AMREX_D_DECL(r, r, 0));
 
-    // 2. Create the copy
-    MultiFab xvel_pert_copy(xvel_pert.boxArray(),
-                        xvel_pert.DistributionMap(),
-                        1, ngrow_big);
-    //MultiFab::Copy(xvel_pert_copy, xvel_pert, 0, 0, 1, 0);
+    MultiFab mf_copy(mf_cc_pert.boxArray(),
+                     mf_cc_pert.DistributionMap(),
+                     ncomp, ngrow_big);
 
-    // 3. Use the built-in copy that includes ghost cell logic
-    // Copy(dst, src, src_comp, dst_comp, num_comp, ngrow)
-    // Setting ngrow to 0 ensures we only take valid data from the original
-    xvel_pert_copy.ParallelCopy(xvel_pert, 0, 0, 1, IntVect(0), ngrow_big, gm.periodicity());
+    mf_copy.ParallelCopy(mf_cc_pert,
+                         0, 0, ncomp,
+                         IntVect(0), ngrow_big,
+                         gm.periodicity());
 
-    for (MFIter mfi(xvel_pert, TileNoZ()); mfi.isValid(); ++mfi)
+    // ---- Apply smoothing ----
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& tbx = mfi.tilebox();
+        const Box& bx = mfi.tilebox();
 
-        auto const& in  = xvel_pert_copy.array(mfi);
-        auto const& out = xvel_pert.array(mfi);
+        auto const& in  = mf_copy.const_array(mfi);
+        auto const& out = mf_cc_pert.array(mfi);
 
-        ParallelFor(tbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             Real sum = 0.0;
+
             for (int m = -r; m <= r; ++m) {
-                for (int n = -r; n <= r; ++n) {
-                    Real wij = w[(m+r)*wsize + (n+r)];
-                    sum += wij * in(i+m, j+n, k);
+                for (int nn = -r; nn <= r; ++nn) {
+                    Real wij = w[(m+r)*wsize + (nn+r)];
+                    sum += wij * in(i+m, j+nn, k, n);
                 }
             }
-            out(i,j,k) = sum;
+
+            out(i,j,k,n) = sum;
         });
     }
+    NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
 void ApplyNeumannBCs(const Geometry& geom,
@@ -167,7 +217,7 @@ void ReadCustomDataFile(const std::string& filename_custom,
 {
     std::ifstream ifs(filename_custom, std::ios::binary);
     if (!ifs.is_open()) {
-        Abort("Failed to open file for reading");
+        Abort("Failed to open file " + filename_custom + " for reading");
     }
 
     // ----------------------------
@@ -230,26 +280,6 @@ void ReadCustomDataFile(const std::string& filename_custom,
 
     ifs.close();
 }
-
-void 
-populate_mf_cc_fine_from_mf_cc_coarse (const Geometry& geom_coarse,
-                                       const Geometry& geom_fine,
-                                       const MultiFab& coarse_mf_cc_on_fine_dmap,
-                                       const MultiFab& mf_cc_fine,
-                                       MultiFab& mf_cc_from_coarse)
-{
-}
-
-void
-populate_mf_face_fine_from_mf_cc_coarse(const Geometry& geom_coarse,
-                                           const Geometry& geom_fine,
-                                           const MultiFab& mf_cc_coarse,
-                                           const MultiFab& mf_face_fine,
-                                           MultiFab& mf_face_from_coarse,
-                                           int dir) // 0=x,1=y,2=z
-{
-}
-
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -392,31 +422,38 @@ InterpolateToFineMF(
 }
 
 void
-MakeFaceCenteredVelocities (const MultiFab& mf_cc_fine,
-                           MultiFab& mf_xvel,
-                           MultiFab& mf_yvel,
-                           MultiFab& mf_zvel)
+MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
+                    MultiFab& cons_pert,
+                    MultiFab& xvel_pert,
+                    MultiFab& yvel_pert,
+                    MultiFab& zvel_pert)
 {
-    BL_PROFILE("MakeFaceCenteredVelocities");
+
+    for (MFIter mfi(cons_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        auto const& mf_cc_fine_arr  = mf_cc_fine.const_array(mfi);
+        auto const& cons_pert_arr = cons_pert.array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real tmp_rho = mf_cc_fine_arr(i,j,k,0);
+            Real tmp_theta = mf_cc_fine_arr(i,j,k,1);
+            cons_pert_arr(i,j,k,Rho_comp) = tmp_rho;
+            cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
+        });
+    }
 
     const BoxArray& ba = mf_cc_fine.boxArray();
     const DistributionMapping& dm = mf_cc_fine.DistributionMap();
-    int ng = mf_xvel.nGrow();
-
-    // --- Define face-centered MultiFabs ---
-    BoxArray ba_x = amrex::convert(ba, IntVect(1,0,0));
-    BoxArray ba_y = amrex::convert(ba, IntVect(0,1,0));
-    BoxArray ba_z = amrex::convert(ba, IntVect(0,0,1));
-
-    mf_xvel.define(ba_x, dm, 1, ng);
-    mf_yvel.define(ba_y, dm, 1, ng);
-    mf_zvel.define(ba_z, dm, 1, ng);
+    int ng = xvel_pert.nGrow();
 
     // --- X-faces (component 2) ---
-    for (MFIter mfi(mf_xvel, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(xvel_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
-        auto const& uface = mf_xvel.array(mfi);
+        auto const& uface = xvel_pert.array(mfi);
         auto const& cc    = mf_cc_fine.const_array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -426,10 +463,10 @@ MakeFaceCenteredVelocities (const MultiFab& mf_cc_fine,
     }
 
     // --- Y-faces (component 3) ---
-    for (MFIter mfi(mf_yvel, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(yvel_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
-        auto const& vface = mf_yvel.array(mfi);
+        auto const& vface = yvel_pert.array(mfi);
         auto const& cc    = mf_cc_fine.const_array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -439,44 +476,233 @@ MakeFaceCenteredVelocities (const MultiFab& mf_cc_fine,
     }
 
     // --- Z-faces (component 4) ---
-    for (MFIter mfi(mf_zvel, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(zvel_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
-        auto const& wface = mf_zvel.array(mfi);
+        auto const& wface = zvel_pert.array(mfi);
         auto const& cc    = mf_cc_fine.const_array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            wface(i,j,k) = 0.5 * (cc(i,j,k-1,4) + cc(i,j,k,4));
+            wface(i,j,k) = 0.0;//0.5 * (cc(i,j,k-1,4) + cc(i,j,k,4));
         });
     }
 }
 
 void
+AddPertToBckgnd(MultiFab& mf_cc_fine,
+                const MultiFab& mf_cc_pert)
+{
+    const int ncomp = mf_cc_fine.nComp();
+
+    // Optional safety check (recommended)
+    AMREX_ALWAYS_ASSERT(mf_cc_pert.nComp() == ncomp);
+
+    for (MFIter mfi(mf_cc_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        auto const& bg   = mf_cc_fine.array(mfi);
+        auto const& pert = mf_cc_pert.const_array(mfi);
+
+        amrex::ParallelFor(bx, ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            Real ens_amp = 0.02*std::abs(bg(i,j,k,n));
+            bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
+        });
+    }
+}
+
+
+#include <filesystem>
+namespace fs = std::filesystem;
+
+std::string
+get_last_plotfile(const std::string& plotfile_dir)
+{
+    std::vector<std::string> pltfiles;
+
+    for (const auto& entry : fs::directory_iterator(plotfile_dir)) {
+        if (entry.is_directory()) {
+            std::string name = entry.path().filename().string();
+            if (name.find("plt") == 0) {
+                pltfiles.push_back(entry.path().string());
+            }
+        }
+    }
+
+    std::sort(pltfiles.begin(), pltfiles.end());
+    return pltfiles.back();  // last one
+}
+
+
+// Reads the plotfile data into cell cenetred multifab
+// Does not fill ghost cells
+void
+read_plot_file(PlotFileData& pf,
+               const std::vector<std::string> varnames,
+               MultiFab& mf)
+{
+    // ------------------------------------------------------------
+    // Open plotfile
+    // ------------------------------------------------------------
+    const std::vector<std::string>& var_names_pf = pf.varNames();
+
+    // ------------------------------------------------------------
+    // Validate requested variables
+    // ------------------------------------------------------------
+    for (auto const& v : varnames) {
+        bool found = false;
+        for (auto const& vpf : var_names_pf) {
+            if (v == vpf) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            Abort("read_plot_file: invalid variable name: " + v);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Define destination MultiFab (single level only)
+    // ------------------------------------------------------------
+    const int level = 0;
+
+    BoxArray ba = pf.boxArray(level);
+    DistributionMapping dm(ba);
+
+    int ncomp = varnames.size();
+
+    mf.define(ba, dm, ncomp, 0);
+
+    // ------------------------------------------------------------
+    // Copy plotfile data → mf
+    // ------------------------------------------------------------
+    for (int comp = 0; comp < ncomp; ++comp)
+    {
+        const MultiFab& src = pf.get(level, varnames[comp]);
+        MultiFab::Copy(mf, src, 0, comp, 1, 0);
+    }
+}
+
+void
+ERF::ComputeAndWriteEnsemblePerturbations()
+{
+    int Nens = solverChoice.n_ensemble;
+    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
+    const std::string member_prefix = "member_";
+    // -------------------------------
+    // Step 1: Read last plotfile for each member
+    // -------------------------------
+    Vector<std::unique_ptr<MultiFab>> mf_ens(Nens);
+    std::vector<std::string> pltfiles;
+
+    // Step 1: find all plotfiles (assuming all members have same set)
+    {
+        std::string pf_dir = member_prefix + "00/plotfiles"; // member 0 as reference
+        for (const auto& entry : fs::directory_iterator(pf_dir)) {
+            if (entry.is_directory()) {
+                std::string name = entry.path().filename().string();
+                if (name.find("plt") == 0) {
+                    pltfiles.push_back(name); // store just the directory name
+                }
+            }
+       }
+        std::sort(pltfiles.begin(), pltfiles.end());
+    }
+
+
+// Step 2: loop over all plotfiles (timesteps)
+for (const auto& pf_name : pltfiles)
+{
+    for (int n = 0; n < Nens; ++n)
+    {
+        std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
+        std::string pf_path = member_dir + "/plotfiles/" + pf_name;
+
+        PlotFileData pf(pf_path);
+
+        const BoxArray& ba = pf.boxArray(0);
+        const DistributionMapping& dm = pf.DistributionMap(0);
+        int ncomp = varnames.size();
+
+        mf_ens[n] = std::make_unique<MultiFab>(ba, dm, ncomp, 0);
+
+        read_plot_file(pf, varnames, *mf_ens[n]);
+    }
+
+    // -------------------------------
+    // Step 2: Compute ensemble mean
+    // -------------------------------
+    MultiFab mf_mean(mf_ens[0]->boxArray(),
+                     mf_ens[0]->DistributionMap(),
+                     mf_ens[0]->nComp(),
+                     mf_ens[0]->nGrow());
+
+    mf_mean.setVal(0.0);
+
+    for (int n = 0; n < Nens; ++n) {
+        MultiFab::Add(mf_mean, *mf_ens[n], 0, 0, mf_mean.nComp(), mf_mean.nGrow());
+    }
+
+    mf_mean.mult(1.0 / Real(Nens), 0, mf_mean.nComp(), mf_mean.nGrow());
+
+    // -------------------------------
+    // Step 3 & 4: Compute perturbations and write plotfiles
+    // -------------------------------
+    for (int n = 0; n < Nens; ++n)
+    {
+        MultiFab mf_pert(mf_mean.boxArray(),
+                         mf_mean.DistributionMap(),
+                         mf_mean.nComp(),
+                         mf_mean.nGrow());
+
+        // perturbation = member - mean
+        MultiFab::Copy(mf_pert, *mf_ens[n], 0, 0, mf_mean.nComp(), mf_mean.nGrow());
+        MultiFab::Subtract(mf_pert, mf_mean, 0, 0, mf_mean.nComp(), mf_mean.nGrow());
+
+        // Create output directory
+        std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
+        std::string out_dir = member_dir + "/pertfiles";
+        fs::create_directories(out_dir);
+
+        std::string pf_path = member_dir + "/plotfiles/" + pf_name;
+        // Write perturbation plotfile
+        std::string last_pf_name = fs::path(pf_path).filename().string(); // "pltfile00020"
+
+        
+        // Extract numeric suffix (everything after "pltfile")
+        std::string suffix = last_pf_name.substr(3);  // "00020"
+
+        // Construct perturbation plotfile name
+        std::string pltname = out_dir + "/plt_pert_" + suffix;
+        WriteSingleLevelPlotfile(pltname,
+                                 mf_pert,
+                                 varnames,
+                                 geom[0],
+                                 0.0,   // time
+                                 0);    // level
+    }
+}
+}
+
+void
 ERF::create_background_state_for_ensemble (int lev,
+                                           MultiFab& mf_cc_pert,
                                            MultiFab& cons_pert,
                                            MultiFab& xvel_pert,
                                            MultiFab& yvel_pert,
                                            MultiFab& zvel_pert)
 {
-    bckgnd_state.resize(max_level+1);
-    for (int lev = 0; lev < max_level+1; ++lev) {
-        bckgnd_state[lev].resize(vars_new[lev].size()+1);
-        for (int comp = 0; comp < vars_new[lev].size(); ++comp) {
-            const MultiFab& src = vars_new[lev][comp];
-            bckgnd_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
-                                           src.nComp(), src.nGrow());
-         }
-    }
-
-    std::string filename_custom = "coarse_data.bin";
     int nx_crse, ny_crse, nz_crse, ng_crse, ncomp_crse;
     Vector<Vector<Real>> data_crse;
     std::array<Real,3> problo_ext, probhi_ext;
 
     Vector<Real> data_rho, data_theta, data_xvel, data_yvel, data_zvel;
 
-    ReadCustomDataFile(filename_custom,
+    ReadCustomDataFile(solverChoice.coarse_bckgnd_data_file,
                        nx_crse, ny_crse, nz_crse, ng_crse, ncomp_crse,
                        problo_ext, probhi_ext,
                        data_rho, data_theta, data_xvel, data_yvel, data_zvel);
@@ -500,7 +726,12 @@ ERF::create_background_state_for_ensemble (int lev,
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
            
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
-    WriteSingleLevelPlotfile("plt_final", mf_cc_fine, varnames, geom_fine, 0.0, 0);
 
-    MakeFaceCenteredVelocities(mf_cc_fine, xvel_pert, yvel_pert, zvel_pert);
+     // Add pertubrations stored in the "pert" variables in the function arguments 
+    // (mutliplied by the corresponding amplitude)
+    AddPertToBckgnd(mf_cc_fine, mf_cc_pert);
+    ApplyNeumannBCs(geom_fine, mf_cc_fine);
+    //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, 0.0, 0);
+
+    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
 }
