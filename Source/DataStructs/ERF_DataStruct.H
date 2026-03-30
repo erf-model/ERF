@@ -754,9 +754,14 @@ struct SolverChoice {
         pp.query("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
             amrex::ParmParse pp_ens("ensemble");
+            pp_ens.query("n_members", n_ensemble);
             pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
             pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
             pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
+            if (n_ensemble < 0) {
+                amrex::Abort("You are running an ensemble simulation, There needs to be an entry in the inputs "
+                             "ensemble.n_ensemble which is the number of ensemble members, and should be greater than 0.");
+            }
             if (coarse_bckgnd_data_file.empty()) {
                 amrex::Abort("coarse_bckgnd_data_file is empty! For ensmeble simulations, there needs to be a coarse background file which "
                              "contains the data which will be interpolated onto the fine mesh. There has to a entry ensemble.coarse_bckgnd_data_file "
@@ -1259,8 +1264,10 @@ struct SolverChoice {
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
     bool is_init_for_ensemble = false;
+    int n_ensemble = -1;
     amrex::Real ens_pert_correlated_radius = -1.0;
     amrex::Real ens_pert_amplitude = -1.0;
     std::string coarse_bckgnd_data_file;
+
 };
 #endif
