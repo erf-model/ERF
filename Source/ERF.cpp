@@ -2263,7 +2263,6 @@ ERF::init_only (int lev, Real elapsed_time)
     // - The fields set by init_custom_pert are **perturbations** to the
     //   background flow set based on init_type
     if (solverChoice.init_type != InitType::NCFile) {
-        Print()<<"SK: ERF.cpp/ call init_custum"<<std::endl;
         init_custom(lev);
     }
 

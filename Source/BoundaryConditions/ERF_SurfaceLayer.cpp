@@ -683,8 +683,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         //============================================================================
         Box bx = mfi.tilebox();
 
-        // Print()<<"SK: compute_SurfaceLayer_bcs_EB: bx: "<<bx<<" klo: "<<klo<<std::endl;
-
         if (bx.smallEnd(2) != klo) { continue; }
         bx.makeSlab(2,klo);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
