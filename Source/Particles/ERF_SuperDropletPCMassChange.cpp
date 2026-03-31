@@ -371,13 +371,14 @@ void SuperDropletPC::MassChange_SV (  int                                      a
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
-    const auto mat_prop(*(m_species_mat[m_idx_i]));
+    const MaterialProperties mat_prop(*(m_species_mat[m_idx_i]));
+    const MaterialPropertiesCore& mat_prop_core = mat_prop;
 
     // dMdt functor (shared across tiles)
-    dMdt<ParticleReal> dmdt{ mat_prop.m_lat_vap,
+    dMdt<ParticleReal> dmdt{ mat_prop_core.m_lat_vap,
                              therco,
-                             mat_prop.m_Rv,
-                             mat_prop.m_density };
+                             mat_prop_core.m_Rv,
+                             mat_prop_core.m_density };
 
     forEachParticleTile(a_lev, ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
@@ -423,7 +424,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             const auto pressure       = fv[static_cast<int>(InterpFieldsSV::pressure)];
             const auto moist_density  = fv[static_cast<int>(InterpFieldsSV::moist_density)];
 
-            auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
+            auto coeff_moldiff = mat_prop_core.coeffMolecularDiffusion(temperature, pressure);
 
             TI< dMdt<ParticleReal>,
                 ParticleReal > ti { dmdt, a_dt, a_dt, 100,
@@ -449,7 +450,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                                         sat_ratio, temperature,  e_sat, e_sat_ratio_wi,
                                         coeff_moldiff );
             auto vol_new = vol_old + d_vol;
-            vol_new = std::max(vol_new, mass_new/mat_prop.m_density);
+            vol_new = std::max(vol_new, mass_new/mat_prop_core.m_density);
             d_vol = vol_new - vol_old;
             auto rhoi_new = mass_new / vol_new;
 
@@ -463,14 +464,14 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
             // Smaller than 1 um --> sphere with true ice density
             if (std::min(a_new,c_new) <= 1.0e-6) {
-                rhoi_new = mat_prop.m_density;
+                rhoi_new = mat_prop_core.m_density;
                 vol_new = mass_new / rhoi_new;
                 c_new = a_new = std::cbrt(vol_new/(4.0*PI/3.0));
             }
             // limit particle size to 1 nm
             if (std::min(a_new,c_new) <= 1.0e-9 ) {
                 c_new = a_new = 1.0e-9;
-                rhoi_new = mat_prop.m_density;
+                rhoi_new = mat_prop_core.m_density;
                 vol_new = (4.0/3.0)*PI*a_new*a_new*c_new;
                 mass_new = vol_new * rhoi_new;
             }
