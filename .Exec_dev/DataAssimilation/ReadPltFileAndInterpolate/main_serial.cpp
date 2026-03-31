@@ -33,7 +33,7 @@ int main (int argc, char* argv[])
               is_periodic);
 
 
-        std::string filename_custom = "coarse_data.bin"; 
+        std::string filename_custom = "coarse_data.bin";
         ApplyNeumannBCs(geom_coarse, mf_cc_coarse);
         WriteCustomDataFile(geom_coarse, mf_cc_coarse, filename_custom);
 

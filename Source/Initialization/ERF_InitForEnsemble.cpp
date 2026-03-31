@@ -409,7 +409,7 @@ InterpolateToFineMF(
             jc = amrex::max(0, amrex::min(jc, ny-1));
             kc = amrex::max(0, amrex::min(kc, nz-1));
 
-            //printf("The values are x, y, z, rx, ry, rz = %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", x, y, z, rx, ry, rz); 
+            //printf("The values are x, y, z, rx, ry, rz = %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", x, y, z, rx, ry, rz);
 
             // interpolate each component using device trilinear
             arr(i,j,k,0) = interp_trilinear(rho_ptr,   ic,jc,kc, tx,ty,tz, nx,ny,nz);
@@ -672,7 +672,7 @@ for (const auto& pf_name : pltfiles)
         // Write perturbation plotfile
         std::string last_pf_name = fs::path(pf_path).filename().string(); // "pltfile00020"
 
-        
+
         // Extract numeric suffix (everything after "pltfile")
         std::string suffix = last_pf_name.substr(3);  // "00020"
 
@@ -716,18 +716,18 @@ ERF::create_background_state_for_ensemble (int lev,
     int ncomp = 5;
     mf_cc_fine.define(src.boxArray(), src.DistributionMap(),
                                            ncomp, src.nGrow());
-  
-    InterpolateToFineMF(data_rho, data_theta, data_xvel, data_yvel, data_zvel, 
-                        nx_crse, ny_crse, nz_crse, 
-                        problo_ext, probhi_ext, 
-                        mf_cc_fine, 
+
+    InterpolateToFineMF(data_rho, data_theta, data_xvel, data_yvel, data_zvel,
+                        nx_crse, ny_crse, nz_crse,
+                        problo_ext, probhi_ext,
+                        mf_cc_fine,
                         geom_fine);
 
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-           
+
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
 
-     // Add pertubrations stored in the "pert" variables in the function arguments 
+     // Add pertubrations stored in the "pert" variables in the function arguments
     // (mutliplied by the corresponding amplitude)
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);

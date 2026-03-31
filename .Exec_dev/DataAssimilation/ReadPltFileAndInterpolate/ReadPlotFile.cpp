@@ -123,7 +123,7 @@ ReadPlotFile(const std::string& var_filename,
     }
 }
 
-void ApplyNeumannBCs(const Geometry& geom, 
+void ApplyNeumannBCs(const Geometry& geom,
                      MultiFab& mf_cc)
 {
 

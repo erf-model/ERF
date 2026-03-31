@@ -147,15 +147,15 @@ ERF::init_custom (int lev)
 
     // If initializing for ensemble simluations, then
     // 1. Create cell-centered random perturbations
-    // 2. Create cell-centered spatially correlated perturbations 
+    // 2. Create cell-centered spatially correlated perturbations
     // 3. Read in the coarse background state from the coarse data file,
-    //    interpolate the state data onto the current mesh, and 
+    //    interpolate the state data onto the current mesh, and
     //    add the perturbations to the background state and then populate the "pert variables
 
     if(solverChoice.is_init_for_ensemble) {
         MultiFab mf_cc_pert;
         create_random_perturbations(lev, mf_cc_pert);
         apply_gaussian_smoothing_to_perturbations(lev, mf_cc_pert);
-        create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]); 
+        create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]);
     }
 }

@@ -148,10 +148,10 @@ int main (int argc, char* argv[])
         }
     }
     // Optional: barrier after move to ensure rank 0 is done
-    ParallelDescriptor::Barrier();    
+    ParallelDescriptor::Barrier();
    }
 
-   ERF tmp_erf;  
+   ERF tmp_erf;
    tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
     BL_PROFILE_VAR_STOP(pmain);
