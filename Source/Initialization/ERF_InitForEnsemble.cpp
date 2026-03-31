@@ -476,7 +476,7 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
     {
         const Box& bx = mfi.tilebox();
         auto const& wface = zvel_pert.array(mfi);
-        auto const& cc    = mf_cc_fine.const_array(mfi);
+        //auto const& cc    = mf_cc_fine.const_array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
