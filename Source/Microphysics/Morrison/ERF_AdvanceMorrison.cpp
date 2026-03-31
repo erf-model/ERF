@@ -504,20 +504,32 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         // Store timestep
         Real dt = dt_advance;
 
+        // Bounds
         auto domain = m_geom.Domain();
         int i_lo = domain.smallEnd(0);
         int i_hi = domain.bigEnd(0);
         int j_lo = domain.smallEnd(1);
         int j_hi = domain.bigEnd(1);
 
+        // Check if CPP or FORT answer is used
+        bool run_morr_cpp        = true;
+        bool use_morr_cpp_answer = true;
+        pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
+        bool run_morr_fort = !use_morr_cpp_answer;
+        std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
+
         // Loop through the grids
         for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
         {
           auto box = mfi.tilebox();
+
+#ifndef ERF_USE_MORR_FORT
+          // NOTE: Trimming the box with FORTRAN breaks the pointer dereferencing
           if (box.smallEnd(0) == i_lo) { box.growLo(0,-m_real_width); }
           if (box.bigEnd(0)   == i_hi) { box.growHi(0,-m_real_width); }
           if (box.smallEnd(1) == j_lo) { box.growLo(1,-m_real_width); }
           if (box.bigEnd(1)   == j_hi) { box.growHi(1,-m_real_width); }
+#endif
 
           if (!box.ok()) { // Avoid going farther if the box is inverted (i.e., ilo > ihi or jlo > jhi).
               continue;
@@ -1035,15 +1047,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           set_morrison_ndcnst_c(m_ndcnst);
 #endif
 
-          bool run_morr_cpp = true;
 
-          bool use_morr_cpp_answer = true;
-          pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
-          //Print() << "use_morr_cpp_answer" << use_morr_cpp_answer <<std::endl;
-
-          bool run_morr_fort = !use_morr_cpp_answer;
-
-          std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
           if(run_morr_cpp) {
 
