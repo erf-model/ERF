@@ -390,17 +390,23 @@ struct eb_cut_cell_::path_data
           const amrex::RealVect& v_end)
   {
     constexpr amrex::Real tol = amrex::Real(1.e-15);
-    amrex::RealVect v_intersect;
-    amrex::Real    dist_intersect;
+    amrex::RealVect v_intersect{v_start};
+    amrex::Real    dist_intersect = std::numeric_limits<amrex::Real>::quiet_NaN();
     intersected = intersect_plane_edge(
       eb_point, eb_normal, v_start, v_end, v_intersect, dist_intersect
     );
     vIP = v_intersect;
     distIP = dist_intersect;
     edge_length = (v_start - v_end).vectorLength();
-    // check if intersection is at vertices
-    intersected_start = (amrex::Math::abs(dist_intersect) < tol);
-    intersected_end   = (amrex::Math::abs(edge_length - dist_intersect) < tol);
+    if (intersected) {
+      // check if intersection is at vertices
+      intersected_start = (amrex::Math::abs(dist_intersect) < tol);
+      intersected_end   = (amrex::Math::abs(edge_length - dist_intersect) < tol);
+    } else {
+      intersected_start = false;
+      intersected_end   = false;
+      distIP = amrex::Real(-1.0);
+    }
   }
 };
 
