@@ -520,6 +520,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
         // Allow user to override constant droplet concentration from inputs file
+        // Constant droplet concentration (if INUM = 1)
+        Real m_ndcnst = Real(250.0);  // Droplet number concentration (cm^-3)
         pp.query("morrison_ndcnst", m_ndcnst);
 
         // Loop through the grids
@@ -762,9 +764,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Real m_lammaxr, m_lamminr;    // Rain lambda limits
           Real m_lammaxs, m_lammins;    // Snow lambda limits
           Real m_lammaxg, m_lamming;    // Graupel lambda limits
-
-          // Constant droplet concentration (if INUM = 1)
-          Real m_ndcnst = Real(250.0);  // Droplet number concentration (cm^-3)
 
           // CCN spectra parameters (for IACT = 1)
           [[maybe_unused]] Real m_k1;          // Exponent in CCN activation formula
