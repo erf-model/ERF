@@ -512,11 +512,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         int j_hi = domain.bigEnd(1);
 
         // Check if CPP or FORT answer is used
+        ParmParse pp("erf");
         bool run_morr_cpp        = true;
         bool use_morr_cpp_answer = true;
         pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
         bool run_morr_fort = !use_morr_cpp_answer;
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
+
+        // Allow user to override constant droplet concentration from inputs file
+        pp.query("morrison_ndcnst", m_ndcnst);
 
         // Loop through the grids
         for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
@@ -1037,17 +1041,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_do_radar_ref = false; // Disable radar reflectivity by default
           Box boxD(box); boxD.makeSlab(2,0);
 
-          ParmParse pp("erf");
-
-          // Allow user to override constant droplet concentration from inputs file
-          pp.query("morrison_ndcnst", m_ndcnst);
-
 #ifdef ERF_USE_MORR_FORT
           // If using Fortran version, update the Fortran module variable as well
           set_morrison_ndcnst_c(m_ndcnst);
 #endif
-
-
 
           if(run_morr_cpp) {
 
