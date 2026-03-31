@@ -570,7 +570,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
 
-        if (solverChoice.moisture_type == MoistureType::Morrison) {
+        if (solverChoice.moisture_type == MoistureType::Morrison ||
+            solverChoice.moisture_type == MoistureType::SAM) {
             calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
         }
