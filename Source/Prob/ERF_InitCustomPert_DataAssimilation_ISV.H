@@ -70,7 +70,7 @@
         const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                               * rho_0*a_inf*a_inf;
         const Real rho_theta = rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
-        //state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
+        state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
         const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
         state_pert(i, j, k, RhoScalar_comp) = 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, R) / R));

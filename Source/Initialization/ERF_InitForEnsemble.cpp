@@ -445,10 +445,6 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
         });
     }
 
-    const BoxArray& ba = mf_cc_fine.boxArray();
-    const DistributionMapping& dm = mf_cc_fine.DistributionMap();
-    int ng = xvel_pert.nGrow();
-
     // --- X-faces (component 2) ---
     for (MFIter mfi(xvel_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -696,6 +692,8 @@ ERF::create_background_state_for_ensemble (int lev,
                                            MultiFab& yvel_pert,
                                            MultiFab& zvel_pert)
 {
+
+    ignore_unused(lev);
     int nx_crse, ny_crse, nz_crse, ng_crse, ncomp_crse;
     Vector<Vector<Real>> data_crse;
     std::array<Real,3> problo_ext, probhi_ext;
@@ -712,7 +710,6 @@ ERF::create_background_state_for_ensemble (int lev,
     // distributed mapping, nGrow, but with 5 components
     MultiFab mf_cc_fine;
     const MultiFab& src = vars_new[0][0];
-    int ngrow = src.nGrow();
     int ncomp = 5;
     mf_cc_fine.define(src.boxArray(), src.DistributionMap(),
                                            ncomp, src.nGrow());

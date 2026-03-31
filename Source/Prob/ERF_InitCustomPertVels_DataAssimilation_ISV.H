@@ -30,8 +30,8 @@
         const Real y = (j + 0.5) * dx[1]; // cell center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-        //x_vel_pert(i, j, k) = (M_inf * std::cos(alpha)
-          //                  - (y - yc)/R * Omg) * a_inf;
+        x_vel_pert(i, j, k) = (M_inf * std::cos(alpha)
+                            - (y - yc)/R * Omg) * a_inf;
     });
 
     // Set the y-velocity
@@ -44,6 +44,6 @@
         const Real y =  j        * dx[1]; // face center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-        //y_vel_pert(i, j, k) = (M_inf * std::sin(alpha)
-          //                  + (x - xc)/R * Omg) * a_inf;
+        y_vel_pert(i, j, k) = (M_inf * std::sin(alpha)
+                            + (x - xc)/R * Omg) * a_inf;
     });
