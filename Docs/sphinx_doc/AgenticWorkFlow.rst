@@ -49,13 +49,13 @@ Basic Set up
 
 .. code-block:: bash
 
-   bash demo/setup_demo_database.sh --code erf
+   bash demo/setup_demo_database.sh --code erf --force-rebuild
 
 6. Prompt the ``AMReX-Agent``. Example here requests a local simulation that runs a 2D squall line with 4 ranks and plots the cloud water
 
 .. code-block:: bash
 
-   python amrex_agent.py --run_ntasks 4 --indexing-strategy simple --inputs-file-strategy llm_compare
-   --json --prompt "Run a 2D squall line simulation with Kessler microphysics, open x boundaries,
+   python amrex_agent.py --run_ntasks 4 --indexing-strategy simple --inputs-file-strategy llm_compare \
+   --json --prompt "Run a 2D squall line simulation with Kessler microphysics, open x boundaries, \
    and HO outflow aloft. Run the simulation for 10000 steps and visualize the cloud water."
 
