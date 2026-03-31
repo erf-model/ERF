@@ -494,22 +494,22 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
-            Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,zero) : zero;
-            Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,zero) : zero;
-            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,zero) : zero;
+            Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,Real(0.)) : Real(0.);
+            Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,Real(0.)) : Real(0.);
+            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,Real(0.)) : Real(0.);
 
             // EOS avg to z-face
             Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo  = cons_arr(i,j,k-1,RhoTheta_comp);
-            Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : zero;
+            Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : Real(0.);
             Real dz_k   = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                            + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                            + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                              + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : myhalf*dz; // Dist from w-face to CC at k
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                  + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                  + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : Real(0.5)*dz; // Dist from w-face to CC at k
             Real dz_km1 = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k  ) - z_arr(i  ,j  ,k-1))
-                                            + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
-                                            + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
-                                            + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : myhalf*dz; // Dist from w-face to CC at k-1
+                                                  + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
+                                                  + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
+                                                  + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k-1
             Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
             Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
             Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
@@ -519,23 +519,23 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 
             p_lay_tab(icol,ilay) = getPgivenRTh(rt, qv);
             t_lay_tab(icol,ilay) = getTgivenRandRTh(r, rt, qv);
-            z_del_tab(icol,ilay) = (z_arr) ? fourth * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                                    + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                                    + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                                    + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
+            z_del_tab(icol,ilay) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                          + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                          + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                          + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
             qv_lay_tab(icol,ilay) = qv;
             qc_lay_tab(icol,ilay) = qc;
             qi_lay_tab(icol,ilay) = qi;
-            cldfrac_tot_tab(icol,ilay) = ((qc+qi)>zero) ? one : zero;
+            cldfrac_tot_tab(icol,ilay) = ((qc+qi)>Real(0.)) ? Real(1.) : Real(0.);
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
-            lwp_tab(icol,ilay) = zero;
-            iwp_tab(icol,ilay) = zero;
+            lwp_tab(icol,ilay) = Real(0.);
+            iwp_tab(icol,ilay) = Real(0.);
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
             // NOTE: These are in units of micron!
-            eff_radius_qc_tab(icol,ilay) = (qc>zero) ? Real(10.0) : zero;
-            eff_radius_qi_tab(icol,ilay) = (qi>zero) ? Real(25.0) : zero;
+            eff_radius_qc_tab(icol,ilay) = (qc>Real(0.)) ? Real(10.0) : Real(0.);
+            eff_radius_qi_tab(icol,ilay) = (qi>Real(0.)) ? Real(25.0) : Real(0.);
 
             // Buffers on z-faces (nlay+1)
             p_lev_tab(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
@@ -543,11 +543,11 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
-                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,zero) : zero;
+                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,Real(0.)) : Real(0.);
                 Real dz_kp1 = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+2) - z_arr(i  ,j  ,k+1))
-                                                + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
-                                                + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
-                                                + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : myhalf*dz; // Dist from w-face to CC at k+1
+                                                      + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
+                                                      + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
+                                                      + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k+1
                 r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
                 rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
                 qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
@@ -616,7 +616,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 
                     // Check if valid LSM data
                     bool valid_lsm_data{false};
-                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) >= zero); }
+                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) >= Real(0.)); }
 
                     // Have LSM and are over land
                     if (is_land && valid_lsm_data) {
@@ -1171,90 +1171,9 @@ Radiation::run_impl ()
                         lw_bnd_flux_up, lw_bnd_flux_dn,
                         eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
-#if 0
-    // UNIT TEST
-    //================================================================================
-    Kokkos::deep_copy(mu0, Real(0.86));
-    Kokkos::deep_copy(sfc_alb_dir_vis, Real(0.06));
-    Kokkos::deep_copy(sfc_alb_dir_nir, Real(0.06));
-    Kokkos::deep_copy(sfc_alb_dif_vis, Real(0.06));
-    Kokkos::deep_copy(sfc_alb_dif_nir, Real(0.06));
-
-    Kokkos::deep_copy(aero_tau_sw, zero);
-    Kokkos::deep_copy(aero_ssa_sw, zero);
-    Kokkos::deep_copy(aero_g_sw  , zero);
-    Kokkos::deep_copy(aero_tau_lw, zero);
-
-    // Generate some fake liquid and ice water data. We pick values to be midway between
-    // the min and max of the valid lookup table values for effective radii
-    real rel_val = myhalf * (rrtmgp::cloud_optics_sw_k->get_min_radius_liq()
-                        + rrtmgp::cloud_optics_sw_k->get_max_radius_liq());
-    real rei_val = myhalf * (rrtmgp::cloud_optics_sw_k->get_min_radius_ice()
-                        + rrtmgp::cloud_optics_sw_k->get_max_radius_ice());
-
-    // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and
-    // put them in 2/3 of the columns since that's roughly the total cloudiness of earth.
-    // Set sane values for liquid and ice water path.
-    // NOTE: these "sane" values are in g/m2!
-    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
-                         KOKKOS_LAMBDA (int icol, int ilay)
-    {
-        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > Real(100.) * Real(100.)) &&
-                                 (p_lay(icol,ilay) < Real(900.) * Real(100.)) &&
-                                 (icol%3 != 0);
-        // Ice and liquid will overlap in a few layers
-        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > Real(263.)) ? Real(10.) : zero;
-        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < Real(273.)) ? Real(10.) : zero;
-        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > zero) ? rel_val : zero;
-        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > zero) ? rei_val : zero;
-    });
-
-    rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
-                                                 sfc_alb_dir_vis, sfc_alb_dir_nir,
-                                                 sfc_alb_dif_vis, sfc_alb_dif_nir,
-                                                 sfc_alb_dir    , sfc_alb_dif);
-
-    rrtmgp::rrtmgp_main(ncol, m_nlay,
-                        p_lay, t_lay,
-                        p_lev, t_lev,
-                        m_gas_concs,
-                        sfc_alb_dir, sfc_alb_dif, mu0,
-                        t_sfc, sfc_emis, lw_src,
-                        lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
-                        aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
-                        cld_tau_sw_bnd, cld_tau_lw_bnd,
-                        cld_tau_sw_gpt, cld_tau_lw_gpt,
-                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
-                        lw_flux_up, lw_flux_dn,
-                        sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
-                        sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
-                        sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
-                        lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
-                        lw_clrsky_flux_up, lw_clrsky_flux_dn,
-                        lw_clnsky_flux_up, lw_clnsky_flux_dn,
-                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
-                        lw_bnd_flux_up, lw_bnd_flux_dn,
-                        one, false, false);
-    //================================================================================
-#endif
-
     // Update heating tendency
     rrtmgp::compute_heating_rate(sw_flux_up, sw_flux_dn, r_lay, z_del, sw_heating);
     rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
-
-    /*
-    // AML DEBUG
-    Kokkos::parallel_for(nlay+1, KOKKOS_LAMBDA (int ilay)
-    {
-        printf("Fluxes: %i %e %e %e %e %e\n",ilay,
-                                             sw_flux_up(5,ilay), sw_flux_dn(5,ilay), sw_flux_dn_dir(5,ilay),
-                                             lw_flux_up(5,ilay), lw_flux_dn(5,ilay));
-    });
-    Kokkos::parallel_for(nlay, KOKKOS_LAMBDA (int ilay)
-    {
-        printf("Heating Rate: %i %e %e\n",ilay,sw_heating(5,ilay),lw_heating(5,ilay));
-    });
-    */
 
     // Compute surface fluxes
     const int kbot = 0;
