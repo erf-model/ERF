@@ -579,8 +579,6 @@ erf_derprecipitable ( const Box& bx,
 
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
         {
-            Real z = z_arr(i,j,k);
-
             Real z_hi = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k+1));
             Real z_lo = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k-1));
             Real dz = z_hi - z_lo;
