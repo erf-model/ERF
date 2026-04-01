@@ -333,6 +333,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Plot.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_InitWSM6.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_AdvanceWSM6.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_UpdateWSM6.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -466,6 +469,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/WSM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
