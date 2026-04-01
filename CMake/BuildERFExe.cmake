@@ -233,6 +233,15 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WSM6_FORT)
+    target_sources(${erf_lib_name}
+       PRIVATE
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
+         )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WSM6_FORT)
+  endif()
+
   if(ERF_ENABLE_WINDFARM)
     target_sources(${erf_lib_name} PRIVATE
       ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
@@ -439,7 +448,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()

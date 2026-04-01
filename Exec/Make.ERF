@@ -2,11 +2,14 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
+BL_NO_FORT = TRUE
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
 BL_NO_FORT = FALSE
-else
-BL_NO_FORT = TRUE
+endif
+ifeq ($(USE_WSM6_FORT), TRUE)
+DEFINES += -DERF_USE_WSM6_FORT
+BL_NO_FORT = FALSE
 endif
 
 ifeq ($(USE_CUDA), TRUE)
