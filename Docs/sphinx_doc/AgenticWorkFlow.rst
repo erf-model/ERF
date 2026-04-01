@@ -23,7 +23,7 @@ Basic Set up
 
    git clone --recursive https://github.com/AMReX-Codes/amrex-agent.git
    cd amrex-agent
-   git checkout a7aac16
+   git checkout 6e77ca3
 
 2. Set up your API key
 
@@ -50,6 +50,10 @@ Basic Set up
 .. code-block:: bash
 
    bash demo/setup_demo_database.sh --code erf --force-rebuild
+
+.. NOTE: Startup preflight does not block on ERF pin mismatch when local schema
+   and FAISS artifacts are valid for the current ERF commit. The pinned commit in
+   ``.dependencies.json`` remains the recommendation for reproducible shared runs.
 
 6. Prompt the ``AMReX-Agent``. Example here requests a local simulation that runs a 2D squall line with 4 ranks and plots the cloud water
 
