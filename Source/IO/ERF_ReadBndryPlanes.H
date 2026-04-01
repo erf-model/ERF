@@ -66,7 +66,7 @@ private:
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_interp;
 
     //! Time for plane at interpolation
-    amrex::Real m_tinterp{-1.0};
+    amrex::Real m_tinterp{-one};
 
     //! Geometry at level 0
     amrex::Geometry m_geom;

@@ -47,7 +47,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     //
     if (lev > 0) {
         // Set ghost cells to bogus values so they aren't uninitialized
-        W_old.setBndry(1.234e20);
+        W_old.setBndry(Real(1.234e20));
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
                            {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
                            base_state[lev], base_state[lev]);
@@ -106,7 +106,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                     MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
                     MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
                 } else {
-                    Qr_prim[lev]->setVal(0.0);
+                    Qr_prim[lev]->setVal(0);
                 }
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
@@ -173,19 +173,19 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // Source array for conserved cell-centered quantities -- this will be filled
     //     in the call to make_sources in ERF_TI_slow_rhs_pre.H
-    MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
+    MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0);
 
     // Source arrays for momenta -- these will be filled
     //     in the call to make_mom_sources in ERF_TI_slow_rhs_pre.H
     BoxArray ba_x(ba); ba_x.surroundingNodes(0);
-    MultiFab xmom_source(ba_x,dm,1,1); xmom_source.setVal(0.0);
+    MultiFab xmom_source(ba_x,dm,1,1); xmom_source.setVal(0);
 
     BoxArray ba_y(ba); ba_y.surroundingNodes(1);
-    MultiFab ymom_source(ba_y,dm,1,1); ymom_source.setVal(0.0);
+    MultiFab ymom_source(ba_y,dm,1,1); ymom_source.setVal(0);
 
     BoxArray ba_z(ba); ba_z.surroundingNodes(2);
-    MultiFab zmom_source(ba_z,dm,1,1); zmom_source.setVal(0.0);
-    MultiFab    buoyancy(ba_z,dm,1,1); buoyancy.setVal(0.0);
+    MultiFab zmom_source(ba_z,dm,1,1); zmom_source.setVal(0);
+    MultiFab    buoyancy(ba_z,dm,1,1); buoyancy.setVal(0);
 
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;
@@ -350,20 +350,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
             // PhysBCFunctNoOp null_bc;
             // MultiFab tempx(vars_new[lev+1][Vars::xvel].boxArray(),vars_new[lev+1][Vars::xvel].DistributionMap(),1,0);
-            // tempx.setVal(0.0);
-            // xmom_crse_rhs[lev+1].setVal(0.0);
+            // tempx.setVal(0);
+            // xmom_crse_rhs[lev+1].setVal(0);
             // FPr_u[lev].FillSet(tempx               , time       , null_bc, domain_bcs_type);
             // FPr_u[lev].FillSet(xmom_crse_rhs[lev+1], time+dt_lev, null_bc, domain_bcs_type);
             // MultiFab::Subtract(xmom_crse_rhs[lev+1],tempx,0,0,1,IntVect{0});
-            // xmom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
+            // xmom_crse_rhs[lev+1].mult(one/dt_lev,0,1,0);
 
             // MultiFab tempy(vars_new[lev+1][Vars::yvel].boxArray(),vars_new[lev+1][Vars::yvel].DistributionMap(),1,0);
-            // tempy.setVal(0.0);
-            // ymom_crse_rhs[lev+1].setVal(0.0);
+            // tempy.setVal(0);
+            // ymom_crse_rhs[lev+1].setVal(0);
             // FPr_v[lev].FillSet(tempy               , time       , null_bc, domain_bcs_type);
             // FPr_v[lev].FillSet(ymom_crse_rhs[lev+1], time+dt_lev, null_bc, domain_bcs_type);
             // MultiFab::Subtract(ymom_crse_rhs[lev+1],tempy,0,0,1,IntVect{0});
-            // ymom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
+            // ymom_crse_rhs[lev+1].mult(one/dt_lev,0,1,0);
 
             MultiFab temp_state(zmom_crse_rhs[lev+1].boxArray(),zmom_crse_rhs[lev+1].DistributionMap(),1,0);
             InterpFromCoarseLevel(temp_state,            IntVect{0}, IntVect{0}, state_old[IntVars::zmom], 0, 0, 1,
@@ -371,7 +371,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             InterpFromCoarseLevel(zmom_crse_rhs[lev+1],  IntVect{0}, IntVect{0}, state_new[IntVars::zmom], 0, 0, 1,
                                   geom[lev], geom[lev+1], refRatio(lev), mapper_f, domain_bcs_type, BCVars::zvel_bc);
             MultiFab::Subtract(zmom_crse_rhs[lev+1],temp_state,0,0,1,IntVect{0});
-            zmom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
+            zmom_crse_rhs[lev+1].mult(one/dt_lev,0,1,0);
     }
 
     // ***********************************************************************************************

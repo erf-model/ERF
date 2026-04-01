@@ -33,20 +33,20 @@ AMREX_ENUM(InterpFieldsFull,
 template<typename RT, int SPACEDIM>
 struct CollisionKernel
 {
-    const RT lambda_mfp = 6.62e-8; // mean free path of air
-    const RT para_Asc = 2.51;
-    const RT para_Bsc = 0.8;
-    const RT para_Csc = 0.55;
-    const RT k_coeff = 1.0;
+    const RT lambda_mfp = RT(6.62e-8); // mean free path of air
+    const RT para_Asc = RT(2.51);
+    const RT para_Bsc = RT(0.8);
+    const RT para_Csc = RT(0.55);
+    const RT k_coeff = RT(1.0);
 
     /*! \brief Golovin kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT golovin ( const RT a_r1, /*!< radius of droplet 1 */
                  const RT a_r2  /*!< radius of droplet 2 */ ) const noexcept
     {
-        RT b = 1.5e03;
-        auto X_1 = (4.0*PI/3.0) * a_r1*a_r1*a_r1;
-        auto X_2 = (4.0*PI/3.0) * a_r2*a_r2*a_r2;
+        RT b = RT(1.5e03);
+        auto X_1 = (RT(4.0)*PI/RT(3.0)) * a_r1*a_r1*a_r1;
+        auto X_2 = (RT(4.0)*PI/RT(3.0)) * a_r2*a_r2*a_r2;
         return b * (X_1 + X_2);
     }
 
@@ -71,7 +71,7 @@ struct CollisionKernel
                         const RT* const a_v2 ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
-        auto E = 0.5*p*p / ((1.0+p)*(1.0+p));
+        auto E = RT(0.5)*p*p / ((RT(1.0)+p)*(RT(1.0)+p));
         RT dv = 0;
         for (int d = 0; d < SPACEDIM; d++) {
             dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
@@ -107,9 +107,9 @@ struct CollisionKernel
         auto r2 = std::min( a_r1, a_r2 );  // small
         auto sumr = r1 + r2;
 
-        RT c_rate = 1.0;
-        if( r1 <= 5.E-5 ) {
-            c_rate = 4.5E+8 * ( r1*r1 ) * ( 1.0 - 3.E-6/(std::max(3.01E-6,r1)) );
+        RT c_rate = RT(1.0);
+        if( r1 <= RT(5.E-5) ) {
+            c_rate = RT(4.5E+8) * ( r1*r1 ) * ( RT(1.0) - RT(3.E-6)/(std::max(RT(3.01E-6),r1)) );
         }
         c_rate *= (PI*sumr*sumr);
 
@@ -128,21 +128,21 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_r0col (const int a_i /*!< index */) const noexcept
     {
-        static const RT vec[15] = {  6.0,
-                                     8.0,
-                                    10.0,
-                                    15.0,
-                                    20.0,
-                                    25.0,
-                                    30.0,
-                                    40.0,
-                                    50.0,
-                                    60.0,
-                                    70.0,
-                                   100.0,
-                                   150.0,
-                                   200.0,
-                                   300.0};
+        static const RT vec[15] = {  RT(6.0),
+                                     RT(8.0),
+                                    RT(10.0),
+                                    RT(15.0),
+                                    RT(20.0),
+                                    RT(25.0),
+                                    RT(30.0),
+                                    RT(40.0),
+                                    RT(50.0),
+                                    RT(60.0),
+                                    RT(70.0),
+                                   RT(100.0),
+                                   RT(150.0),
+                                   RT(200.0),
+                                   RT(300.0)};
         return vec[a_i];
     }
 
@@ -152,7 +152,7 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int Halls_data_r0col ( const RT a_r /*!< radius */) const noexcept
     {
-        auto radius_microns = a_r*1.0e6; // [m] -> [mu-m]
+        auto radius_microns = a_r*RT(1.0e6); // [m] -> [mu-m]
         int i;
         for (i = 0; i < 15; i++) {
             if (radius_microns <= Halls_data_r0col(i)) { return i; }
@@ -166,27 +166,27 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_ratcol ( const int a_i /*!< index */) const noexcept
     {
-        static const RT vec[21] = {0.00,
-                                   0.05,
-                                   0.10,
-                                   0.15,
-                                   0.20,
-                                   0.25,
-                                   0.30,
-                                   0.35,
-                                   0.40,
-                                   0.45,
-                                   0.50,
-                                   0.55,
-                                   0.60,
-                                   0.65,
-                                   0.70,
-                                   0.75,
-                                   0.80,
-                                   0.85,
-                                   0.90,
-                                   0.95,
-                                   1.00};
+        static const RT vec[21] = {RT(0.00),
+                                   RT(0.05),
+                                   RT(0.10),
+                                   RT(0.15),
+                                   RT(0.20),
+                                   fourth,
+                                   RT(0.30),
+                                   RT(0.35),
+                                   RT(0.40),
+                                   RT(0.45),
+                                   RT(0.50),
+                                   RT(0.55),
+                                   RT(0.60),
+                                   RT(0.65),
+                                   RT(0.70),
+                                   RT(0.75),
+                                   RT(0.80),
+                                   RT(0.85),
+                                   RT(0.90),
+                                   RT(0.95),
+                                   RT(1.00)};
         return vec[a_i];
     }
 
@@ -211,27 +211,27 @@ struct CollisionKernel
                           const int a_j /*!< column index */) const noexcept
     {
         const RT ecoll[21][15] =
-            { {0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010},
-              {0.0030,0.0030,0.0030,0.0040,0.0050,0.0050,0.0050,0.0100,0.1000,0.0500,0.2000,0.5000,0.7700,0.8700,0.9700},
-              {0.0070,0.0070,0.0070,0.0080,0.0090,0.0100,0.0100,0.0700,0.4000,0.4300,0.5800,0.7900,0.9300,0.9600,1.0000},
-              {0.0090,0.0090,0.0090,0.0120,0.0150,0.0100,0.0200,0.2800,0.6000,0.6400,0.7500,0.9100,0.9700,0.9800,1.0000},
-              {0.0140,0.0140,0.0140,0.0150,0.0160,0.0300,0.0600,0.5000,0.7000,0.7700,0.8400,0.9500,0.9700,1.0000,1.0000},
-              {0.0170,0.0170,0.0170,0.0200,0.0220,0.0600,0.1000,0.6200,0.7800,0.8400,0.8800,0.9500,1.0000,1.0000,1.0000},
-              {0.0300,0.0300,0.0240,0.0220,0.0320,0.0620,0.2000,0.6800,0.8300,0.8700,0.9000,0.9500,1.0000,1.0000,1.0000},
-              {0.0250,0.0250,0.0250,0.0360,0.0430,0.1300,0.2700,0.7400,0.8600,0.8900,0.9200,1.0000,1.0000,1.0000,1.0000},
-              {0.0270,0.0270,0.0270,0.0400,0.0520,0.2000,0.4000,0.7800,0.8800,0.9000,0.9400,1.0000,1.0000,1.0000,1.0000},
-              {0.0300,0.0300,0.0300,0.0470,0.0640,0.2500,0.5000,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0400,0.0400,0.0330,0.0370,0.0680,0.2400,0.5500,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0350,0.0350,0.0350,0.0550,0.0790,0.2900,0.5800,0.8000,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0620,0.0820,0.2900,0.5900,0.7800,0.9000,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0600,0.0800,0.2900,0.5800,0.7700,0.8900,0.9100,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0410,0.0750,0.2500,0.5400,0.7600,0.8800,0.9200,0.9500,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0520,0.0670,0.2500,0.5100,0.7700,0.8800,0.9300,0.9700,1.0000,1.0000,1.0000,1.0000},
-              {0.0370,0.0370,0.0370,0.0470,0.0570,0.2500,0.4900,0.7700,0.8900,0.9500,1.0000,1.0000,1.0000,1.0000,1.0000},
-              {0.0360,0.0360,0.0360,0.0420,0.0480,0.2300,0.4700,0.7800,0.9200,1.0000,1.0200,1.0200,1.0200,1.0200,1.0200},
-              {0.0400,0.0400,0.0350,0.0330,0.0400,0.1120,0.4500,0.7900,1.0100,1.0300,1.0400,1.0400,1.0400,1.0400,1.0400},
-              {0.0330,0.0330,0.0330,0.0330,0.0330,0.1190,0.4700,0.9500,1.3000,1.7000,2.3000,2.3000,2.3000,2.3000,2.3000},
-              {0.0270,0.0270,0.0270,0.0270,0.0270,0.1250,0.5200,1.4000,2.3000,3.0000,4.0000,4.0000,4.0000,4.0000,4.0000} };
+            { {RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010),RT(0.0010)},
+              {RT(0.0030),RT(0.0030),RT(0.0030),RT(0.0040),RT(0.0050),RT(0.0050),RT(0.0050),RT(0.0100),RT(0.1000),RT(0.0500),RT(0.2000),RT(0.5000),RT(0.7700),RT(0.8700),RT(0.9700)},
+              {RT(0.0070),RT(0.0070),RT(0.0070),RT(0.0080),RT(0.0090),RT(0.0100),RT(0.0100),RT(0.0700),RT(0.4000),RT(0.4300),RT(0.5800),RT(0.7900),RT(0.9300),RT(0.9600),RT(1.0000)},
+              {RT(0.0090),RT(0.0090),RT(0.0090),RT(0.0120),RT(0.0150),RT(0.0100),RT(0.0200),RT(0.2800),RT(0.6000),RT(0.6400),RT(0.7500),RT(0.9100),RT(0.9700),RT(0.9800),RT(1.0000)},
+              {RT(0.0140),RT(0.0140),RT(0.0140),RT(0.0150),RT(0.0160),RT(0.0300),RT(0.0600),RT(0.5000),RT(0.7000),RT(0.7700),RT(0.8400),RT(0.9500),RT(0.9700),RT(1.0000),RT(1.0000)},
+              {RT(0.0170),RT(0.0170),RT(0.0170),RT(0.0200),RT(0.0220),RT(0.0600),RT(0.1000),RT(0.6200),RT(0.7800),RT(0.8400),RT(0.8800),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0300),RT(0.0300),RT(0.0240),RT(0.0220),RT(0.0320),RT(0.0620),RT(0.2000),RT(0.6800),RT(0.8300),RT(0.8700),RT(0.9000),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0250),RT(0.0250),RT(0.0250),RT(0.0360),RT(0.0430),RT(0.1300),RT(0.2700),RT(0.7400),RT(0.8600),RT(0.8900),RT(0.9200),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0270),RT(0.0270),RT(0.0270),RT(0.0400),RT(0.0520),RT(0.2000),RT(0.4000),RT(0.7800),RT(0.8800),RT(0.9000),RT(0.9400),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0300),RT(0.0300),RT(0.0300),RT(0.0470),RT(0.0640),RT(0.2500),RT(0.5000),RT(0.8000),RT(0.9000),RT(0.9100),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0400),RT(0.0400),RT(0.0330),RT(0.0370),RT(0.0680),RT(0.2400),RT(0.5500),RT(0.8000),RT(0.9000),RT(0.9100),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0350),RT(0.0350),RT(0.0350),RT(0.0550),RT(0.0790),RT(0.2900),RT(0.5800),RT(0.8000),RT(0.9000),RT(0.9100),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0370),RT(0.0370),RT(0.0370),RT(0.0620),RT(0.0820),RT(0.2900),RT(0.5900),RT(0.7800),RT(0.9000),RT(0.9100),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0370),RT(0.0370),RT(0.0370),RT(0.0600),RT(0.0800),RT(0.2900),RT(0.5800),RT(0.7700),RT(0.8900),RT(0.9100),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0370),RT(0.0370),RT(0.0370),RT(0.0410),RT(0.0750),RT(0.2500),RT(0.5400),RT(0.7600),RT(0.8800),RT(0.9200),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0370),RT(0.0370),RT(0.0370),RT(0.0520),RT(0.0670),RT(0.2500),RT(0.5100),RT(0.7700),RT(0.8800),RT(0.9300),RT(0.9700),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0370),RT(0.0370),RT(0.0370),RT(0.0470),RT(0.0570),RT(0.2500),RT(0.4900),RT(0.7700),RT(0.8900),RT(0.9500),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000),RT(1.0000)},
+              {RT(0.0360),RT(0.0360),RT(0.0360),RT(0.0420),RT(0.0480),RT(0.2300),RT(0.4700),RT(0.7800),RT(0.9200),RT(1.0000),RT(1.0200),RT(1.0200),RT(1.0200),RT(1.0200),RT(1.0200)},
+              {RT(0.0400),RT(0.0400),RT(0.0350),RT(0.0330),RT(0.0400),RT(0.1120),RT(0.4500),RT(0.7900),RT(1.0100),RT(1.0300),RT(1.0400),RT(1.0400),RT(1.0400),RT(1.0400),RT(1.0400)},
+              {RT(0.0330),RT(0.0330),RT(0.0330),RT(0.0330),RT(0.0330),RT(0.1190),RT(0.4700),RT(0.9500),RT(1.3000),RT(1.7000),RT(2.3000),RT(2.3000),RT(2.3000),RT(2.3000),RT(2.3000)},
+              {RT(0.0270),RT(0.0270),RT(0.0270),RT(0.0270),RT(0.0270),RT(0.1250),RT(0.5200),RT(1.4000),RT(2.3000),RT(3.0000),RT(4.0000),RT(4.0000),RT(4.0000),RT(4.0000),RT(4.0000)} };
         return ecoll[a_i][a_j];
     }
 
@@ -253,29 +253,29 @@ struct CollisionKernel
         int irr = Halls_data_r0col(r1);
         int iqq = Halls_data_ratcol(ratio);
 
-        RT c_rate = 1.0;
+        RT c_rate = RT(1.0);
 
         if( irr >= 15 ) {
 
             RT q  =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                     / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            RT ek =   (1.0-q) * Halls_data_ecoll(iqq-1,14)
+            RT ek =   (RT(1.0)-q) * Halls_data_ecoll(iqq-1,14)
                     + q       * Halls_data_ecoll(iqq  ,14);
 
-            c_rate = std::min( ek, 1.0 );
+            c_rate = std::min( ek, RT(1.0) );
 
         } else if ((irr >= 1) && (irr < 15)) {
 
-            RT p =   ( r1*1.0e6              - Halls_data_r0col(irr-1) )
+            RT p =   ( r1*RT(1.0e6)              - Halls_data_r0col(irr-1) )
                    / ( Halls_data_r0col(irr) - Halls_data_r0col(irr-1) );
 
             RT q =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                    / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (1.0-p) * (1.0-q) * Halls_data_ecoll(iqq-1,irr-1)
-                     + p       * (1.0-q) * Halls_data_ecoll(iqq-1,irr  )
-                     + (1.0-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
+            c_rate =   (RT(1.0)-p) * (RT(1.0)-q) * Halls_data_ecoll(iqq-1,irr-1)
+                     + p       * (RT(1.0)-q) * Halls_data_ecoll(iqq-1,irr  )
+                     + (RT(1.0)-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
                      + p       * q       * Halls_data_ecoll(iqq  ,irr  );
 
         } else {
@@ -283,7 +283,7 @@ struct CollisionKernel
             RT q =  ( ratio                  - Halls_data_ratcol(iqq-1) )
                   / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (1.0-q) * Halls_data_ecoll(iqq-1,0)
+            c_rate =   (RT(1.0)-q) * Halls_data_ecoll(iqq-1,0)
                      + q       * Halls_data_ecoll(iqq  ,0);
 
         }
@@ -329,38 +329,38 @@ struct CollisionKernel
         RT t_crs = a_temperature; // [K]
 
         // dynamic viscosity [Pa*s] (Pruppacher & Klett,1997)
-        RT T_degC = t_crs - 273.15; // [K] => [degC]
-        RT vis_crs = 0.0;
-        if( T_degC >= 0.0 ) {
-            vis_crs = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+        RT T_degC = t_crs - RT(273.15); // [K] => [degC]
+        RT vis_crs = RT(0.0);
+        if( T_degC >= RT(0.0) ) {
+            vis_crs = ( RT(1.7180) + RT(4.9E-3)*T_degC ) * RT(1.E-5);
         } else {
-            vis_crs = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+            vis_crs = ( RT(1.7180) + RT(4.9E-3)*T_degC -RT(1.2E-5)*T_degC*T_degC ) * RT(1.E-5);
         }
 
         //air mean free path [m]
-        RT lambda_crs = (2.0*vis_crs) / (p_crs*std::sqrt(8.0*mwdair*1.E-3/(PI*R_d*t_crs)));
+        RT lambda_crs = (RT(2.0)*vis_crs) / (p_crs*std::sqrt(RT(8.0)*mwdair*RT(1.E-3)/(PI*R_d*t_crs)));
 
         // temporary var
-        RT dtmp = 0.0;
+        RT dtmp = RT(0.0);
 
         // slip correction of droplets [-]
-        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_1/lambda_crs);
-        RT slip_corr_1 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_1);
-        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_2/lambda_crs);
-        RT slip_corr_2 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_2);
+        dtmp   = RT(1.2570) + RT(0.40) * exp(-RT(0.550)*diameter_1/lambda_crs);
+        RT slip_corr_1 = RT(1.0) + (RT(2.0)*lambda_crs*dtmp)/(diameter_1);
+        dtmp   = RT(1.2570) + RT(0.40) * exp(-RT(0.550)*diameter_2/lambda_crs);
+        RT slip_corr_2 = RT(1.0) + (RT(2.0)*lambda_crs*dtmp)/(diameter_2);
 
         // diffusion term [m*m/s]
-        dtmp = (boltz*t_crs)/(3.0*PI*vis_crs);
+        dtmp = (boltz*t_crs)/(RT(3.0)*PI*vis_crs);
         RT diff_term_1 = dtmp * (slip_corr_1/diameter_1);
         RT diff_term_2 = dtmp * (slip_corr_2/diameter_2);
 
         // velocity term [m/s]
-        dtmp = (8.0*boltz*t_crs)/PI;
+        dtmp = (RT(8.0)*boltz*t_crs)/PI;
         RT vel_term_1 = std::sqrt(dtmp/a_mass_1);
         RT vel_term_2 = std::sqrt(dtmp/a_mass_2);
 
         // mean free path of droplets [m]
-        dtmp = 8.0/PI;
+        dtmp = RT(8.0)/PI;
         RT lambda_1 = dtmp * (diff_term_1/vel_term_1);
         RT lambda_2 = dtmp * (diff_term_2/vel_term_2);
 
@@ -368,20 +368,20 @@ struct CollisionKernel
         RT d1l1_sq = diameter_1*diameter_1+lambda_1*lambda_1;
         dtmp = (diameter_1+lambda_1)*(diameter_1+lambda_1)*(diameter_1+lambda_1)
                - d1l1_sq*std::sqrt(d1l1_sq);  // x^1.5 = x*sqrt(x)
-        RT length_term_1 = dtmp/(3.0*diameter_1*lambda_1) - diameter_1;
+        RT length_term_1 = dtmp/(RT(3.0)*diameter_1*lambda_1) - diameter_1;
         RT d2l2_sq = diameter_2*diameter_2+lambda_2*lambda_2;
         dtmp = (diameter_2+lambda_2)*(diameter_2+lambda_2)*(diameter_2+lambda_2)
                - d2l2_sq*std::sqrt(d2l2_sq);  // x^1.5 = x*sqrt(x)
-        RT length_term_2 = dtmp/(3.0*diameter_2*lambda_2) - diameter_2;
+        RT length_term_2 = dtmp/(RT(3.0)*diameter_2*lambda_2) - diameter_2;
 
         // Brownian Coagulation Coefficient K12 [m3/s]
         RT sumdia = diameter_1 + diameter_2;
         RT sumd   = diff_term_1   + diff_term_2;
         RT sumc   = std::sqrt( vel_term_1*vel_term_1 + vel_term_2*vel_term_2 );
-        RT sumg   = std::sqrt( 2.0*length_term_1*length_term_1 + 2.0*length_term_2*length_term_2 );
+        RT sumg   = std::sqrt( RT(2.0)*length_term_1*length_term_1 + RT(2.0)*length_term_2*length_term_2 );
 
-        dtmp = sumdia/(sumdia+2.0*sumg) + (8.0*sumd)/(sumdia*sumc);
-        RT k12 = 2.0*PI * sumdia*sumd/dtmp;
+        dtmp = sumdia/(sumdia+RT(2.0)*sumg) + (RT(8.0)*sumd)/(sumdia*sumc);
+        RT k12 = RT(2.0)*PI * sumdia*sumd/dtmp;
 
         return k12;
     }
@@ -409,17 +409,17 @@ struct CollisionKernel
                          const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
         // riming efficiency of Beard and Grover (1974)
-        const RT A0 = -0.1007;
-        const RT A1 = -0.358;
-        const RT A2 =  0.0261;
-        const RT B0 =  0.1465;
-        const RT B1 =  1.302;
-        const RT B2 = -0.607;
-        const RT B3 =  0.293;
+        const RT A0 = -RT(0.1007);
+        const RT A1 = -RT(0.358);
+        const RT A2 =  RT(0.0261);
+        const RT B0 =  RT(0.1465);
+        const RT B1 =  RT(1.302);
+        const RT B2 = -RT(0.607);
+        const RT B3 =  RT(0.293);
 
-        RT K0 = 0.0;
-        if ( a_Re > 400) {
-            K0 = 0.21;
+        RT K0 = RT(0.0);
+        if ( a_Re > RT(400.0)) {
+            K0 = RT(0.21);
         } else {
             auto F = std::log(a_Re);
             auto G = A0 + A1*F + A2*F*F;
@@ -427,10 +427,10 @@ struct CollisionKernel
         }
 
         auto z = std::log(a_Fr/K0);
-        auto H = std::max(B0 + B1*z + B2*z*z + B3*z*z*z,0.0);
-        auto yc0 = (2.0/PI)*std::atan(H);
+        auto H = std::max(B0 + B1*z + B2*z*z + B3*z*z*z,RT(0.0));
+        auto yc0 = (RT(2.0)/PI)*std::atan(H);
 
-        auto retval = (yc0+a_sr)*(yc0+a_sr) / ((1.0+a_sr)*(1.0+a_sr));
+        auto retval = (yc0+a_sr)*(yc0+a_sr) / ((RT(1.0)+a_sr)*(RT(1.0)+a_sr));
         return retval;
     }
 
@@ -452,38 +452,38 @@ struct CollisionKernel
     RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number of ice crystal */
                                   const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
-        if (a_Re <1.0) {
-            return 0.0;
+        if (a_Re < RT(1.0)) {
+            return RT(0.0);
         } else {
 
-            auto Re_l = std::min(a_Re,120.0);
-            auto Fr_l = std::min(a_Fr,35.0);
+            auto Re_l = std::min(a_Re,RT(120.0));
+            auto Fr_l = std::min(a_Fr,RT(35.0));
             auto Re_l_2 = Re_l*Re_l;
             auto Re_l_3 = Re_l_2*Re_l;
             auto Re_l_4 = Re_l_2*Re_l_2;
             auto Re_l_5 = Re_l_4*Re_l;
-            auto K_t = -5.07e-10*Re_l_5
-                       +1.73e-7 *Re_l_4
-                       -2.17e-5 *Re_l_3
-                       +0.0013  *Re_l_2
-                       -0.037   *Re_l
-                       +0.8355;
+            auto K_t = -RT(5.07e-10)*Re_l_5
+                       +RT(1.73e-7) *Re_l_4
+                       -RT(2.17e-5) *Re_l_3
+                       +RT(0.0013)  *Re_l_2
+                       -RT(0.037)   *Re_l
+                       +RT(0.8355);
 
-            RT K_c = 0.0;
-            if      (Re_l <=  10.0) { K_c = 1.250 * std::pow(Re_l, -0.350); }
-            else if (Re_l <=  40.0) { K_c = 1.072 * std::pow(Re_l, -0.301); }
-            else if (Re_l <= 120.0) { K_c = 0.356 * std::pow(Re_l, -0.003); }
+            RT K_c = RT(0.0);
+            if      (Re_l <=  RT(10.0)) { K_c = RT(1.250) * std::pow(Re_l, RT(-0.350)); }
+            else if (Re_l <=  RT(40.0)) { K_c = RT(1.072) * std::pow(Re_l, RT(-0.301)); }
+            else if (Re_l <= RT(120.0)) { K_c = RT(0.356) * std::pow(Re_l, RT(-0.003)); }
 
-            auto retval = 0.0;
-            if (Fr_l <= 0.35) {
-                retval = 0.787 * std::pow(Fr_l, 0.988) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+            auto retval = RT(0.0);
+            if (Fr_l <= RT(0.35)) {
+                retval = RT(0.787) * std::pow(Fr_l, RT(0.988)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
             } else if(Fr_l <= K_t) {
-                retval = (0.7475*std::log10(Fr_l)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+                retval = (RT(0.7475)*std::log10(Fr_l)+RT(0.620)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
             } else {
-                auto E_1 = (0.7475*std::log10(K_t)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
-                auto E_2 = std::sqrt( std::max(1.0 - 0.2*(std::log10(Fr_l/K_c)-std::sqrt(5.0))
-                                                        *(std::log10(Fr_l/K_c)-std::sqrt(5.0)),
-                                               0.0) );
+                auto E_1 = (RT(0.7475)*std::log10(K_t)+RT(0.620)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
+                auto E_2 = std::sqrt( std::max(RT(1.0) - RT(0.2)*(std::log10(Fr_l/K_c)-std::sqrt(RT(5.0)))
+                                                        *(std::log10(Fr_l/K_c)-std::sqrt(RT(5.0))),
+                                               RT(0.0)) );
                 retval = std::max(E_1,E_2);
             }
             return retval;
@@ -508,44 +508,44 @@ struct CollisionKernel
     RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number of ice crystal */
                                    const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
-        if (a_Re < 0.2) {
-            return 0.0;
+        if (a_Re < RT(0.2)) {
+            return RT(0.0);
         } else {
 
-            auto Re_l = std::min(a_Re,20.0);
-            auto Fr_l = std::min(a_Fr,20.0);
+            auto Re_l = std::min(a_Re,RT(20.0));
+            auto Fr_l = std::min(a_Fr,RT(20.0));
 
-            auto K_t = 0.0;
-            if (Re_l <= 2.0) {
-                K_t =   0.0251*Re_l*Re_l
-                      - 0.0144*Re_l
-                      + 0.811;
+            auto K_t = RT(0.0);
+            if (Re_l <= RT(2.0)) {
+                K_t =   RT(0.0251)*Re_l*Re_l
+                      - RT(0.0144)*Re_l
+                      + RT(0.811);
             } else {
-                K_t = -0.0003*Re_l*Re_l*Re_l
-                      +0.0124*Re_l*Re_l
-                      -0.1634*Re_l
-                      +1.0075;
+                K_t = -RT(0.0003)*Re_l*Re_l*Re_l
+                      +RT(0.0124)*Re_l*Re_l
+                      -RT(0.1634)*Re_l
+                      +RT(1.0075);
             }
 
-            auto para_r = 0.0, K_c = 0.0;
-            if (Re_l <= 1.7) {
-                para_r = 0.7422 * std::pow(Re_l, 0.2111);
-                K_c = 0.7797 * std::pow(Re_l, -0.009);
+            auto para_r = RT(0.0), K_c = RT(0.0);
+            if (Re_l <= RT(1.7)) {
+                para_r = RT(0.7422) * std::pow(Re_l, RT(0.2111));
+                K_c = RT(0.7797) * std::pow(Re_l, RT(-0.009));
             } else {
-                para_r = 0.8025 * std::pow(Re_l, 0.0604);
-                K_c = 1.0916 * std::pow(Re_l, -0.635);
+                para_r = RT(0.8025) * std::pow(Re_l, RT(0.0604));
+                K_c = RT(1.0916) * std::pow(Re_l, RT(-0.635));
             }
 
-            auto retval = 0.0;
+            auto retval = RT(0.0);
             if (Fr_l <= K_t) {
-                if (Re_l <= 3.0) {
-                    retval= 0.787 * std::pow(Fr_l, 0.988) * (-0.0121*Re_l*Re_l + 0.1297*Re_l + 0.0598);
+                if (Re_l <= RT(3.0)) {
+                    retval= RT(0.787) * std::pow(Fr_l, RT(0.988)) * (-RT(0.0121)*Re_l*Re_l + RT(0.1297)*Re_l + RT(0.0598));
                 } else {
-                    retval = 0.787 * std::pow(Fr_l, 0.988) * (-0.0005*Re_l*Re_l + 0.1028*Re_l + 0.0359);
+                    retval = RT(0.787) * std::pow(Fr_l, RT(0.988)) * (-RT(0.0005)*Re_l*Re_l + RT(0.1028)*Re_l + RT(0.0359));
                 }
             } else {
-                auto tmp = std::log10(Fr_l/K_c)-std::sqrt(3.5);
-                retval = para_r * std::sqrt( std::max(1.0-tmp*tmp/3.5, 0.0) );
+                auto tmp = std::log10(Fr_l/K_c)-std::sqrt(RT(3.5));
+                retval = para_r * std::sqrt( std::max(RT(1.0)-tmp*tmp/RT(3.5), RT(0.0)) );
             }
             return retval;
         }

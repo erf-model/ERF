@@ -110,7 +110,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
     int j = a_j;
     auto gamma = a_gamma[i];
     AMREX_ALWAYS_ASSERT(gamma == a_gamma[j]);
-    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= zero);
 
     if ( a_rmndr[a_i] > 0 ) {
 
@@ -576,7 +576,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const int num_sp  = m_num_species;
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
+        = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[1])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
@@ -702,8 +702,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
             np_bin_ptr[i] = 0;
             partner_idx_ptr[i] = -1;
             flag_prey_ptr[i] = -1;
-            coll_rate_ptr[i] = 0.0;
-            coll_rmndr_ptr[i] = 0.0;
+            coll_rate_ptr[i] = zero;
+            coll_rmndr_ptr[i] = zero;
         });
         Gpu::synchronize();
 
@@ -758,7 +758,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
             auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
 
-            ParticleReal k_val = 0.0;
+            ParticleReal k_val = zero;
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
 
                 // coalescence between two water droplets
@@ -908,14 +908,13 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                     // collision-riming kernel: E_rime*A_g*|vj-vk|
                     k_val *= ( (PI*(r_w+a_i)*(r_w+maxR_i) - (area_i_ce-area_i)) * dvz);
-
                 }
 
             }
 
             if (include_brownian_coalescence) {
 
-                ParticleReal pressure = 0.0, temperature = 0.0;
+                ParticleReal pressure = zero, temperature = zero;
                 {
                     ParticleType& par_1 = pstruct_ptr[pi];
                     auto iv = getParticleCell(par_1, plo, dxi, domain);
@@ -923,8 +922,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     temperature = temperature_arr(iv[0],iv[1],iv[2],0);
                 }
 
-                ParticleReal sd_mass_1 = 0.0,
-                             sd_mass_2 = 0.0;
+                ParticleReal sd_mass_1 = zero,
+                             sd_mass_2 = zero;
                 for (int ia = 0; ia < num_ae; ia++) {
                     sd_mass_1 += ptrs.ae_mass_ptrs[ia][pi];
                     sd_mass_2 += ptrs.ae_mass_ptrs[ia][pj];
@@ -953,7 +952,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                                 sd_mass_2,
                                                                 pressure,
                                                                 temperature );
-                if (k_brown < 0.0) {
+                if (k_brown < zero) {
                     amrex::Abort("Invalid value for k_brown");
                 }
 
@@ -965,7 +964,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto prob_sd_ij = std::max(ptrs.mult_ptr[pi],ptrs.mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);
-            auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
+            auto scaling_factor = myhalf*ns*(ns-1)/std::floor(myhalf*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
@@ -1110,4 +1109,3 @@ void SuperDropletPC::Coalescence( int   a_lev,
 }
 
 #endif
-

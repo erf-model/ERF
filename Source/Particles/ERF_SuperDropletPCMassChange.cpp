@@ -168,7 +168,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
             const auto temperature = fv[static_cast<int>(InterpFieldsLV::temperature)];
             const auto pressure    = fv[static_cast<int>(InterpFieldsLV::pressure)];
 
-            ParticleReal solute_moles = 0.0;
+            ParticleReal solute_moles = zero;
             if (a_is_water) {
                 for (int j = 0; j < ctx.num_species; j++) {
                     if (j != idx_vap) {
@@ -238,10 +238,10 @@ void SuperDropletPC::MassChange_LV (  int                                       
             } else {
                 // update particle attributes
                 auto r_new = std::sqrt(r_sq);
-                auto d_mass = (4.0/3.0)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
+                auto d_mass = (Real(4.0)/three)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 ptrs.sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
-                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],0.0);
+                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],amrex::Real(0));
 
                 // Update particle attributes (radius and mass)
                 SuperDropletPC::updateParticleAttributes(

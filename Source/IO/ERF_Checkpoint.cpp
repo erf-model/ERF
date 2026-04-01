@@ -597,35 +597,35 @@ ERF::ReadCheckpointFile ()
             if ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
                  (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ) {
                 MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+1),RhoKE_comp,1,0);
-                vars_new[lev][Vars::cons].mult(0.5,RhoKE_comp,1,0);
+                vars_new[lev][Vars::cons].mult(myhalf,RhoKE_comp,1,0);
             }
 
             // Copy other components
             int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
 
-            vars_new[lev][Vars::cons].setBndry(1.0e34);
+            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-            vars_new[lev][Vars::cons].setBndry(1.0e34);
+            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-        vars_new[lev][Vars::xvel].setBndry(1.0e34);
+        vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-        vars_new[lev][Vars::yvel].setBndry(1.0e34);
+        vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-        vars_new[lev][Vars::zvel].setBndry(1.0e34);
+        vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
 
         if (solverChoice.anelastic[lev] == 1) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
@@ -681,7 +681,7 @@ ERF::ReadCheckpointFile ()
                 Array4<Real> const& fab = base_state[lev].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    fab(i,j,k,BaseState::qv0_comp) = 0.0;
+                    fab(i,j,k,BaseState::qv0_comp) = zero;
                 });
             }
         }
@@ -715,7 +715,7 @@ ERF::ReadCheckpointFile ()
                Real z_max = z_slab.max(0);
 
                auto dz = geom[lev].CellSize()[2];
-               if (z_max - z_min < 1.e-8 * dz) {
+               if (z_max - z_min < Real(1.e-8) * dz) {
                    SolverChoice::set_mesh_type(MeshType::StretchedDz);
                    if (verbose > 0) {
                        amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
@@ -1094,17 +1094,17 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
     MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
     VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
     MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(1.0e34);
+    vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
 
     MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
     VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
     MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(1.0e34);
+    vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
 
     MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
     VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
     MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(1.0e34);
+    vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
 }
 
 /**

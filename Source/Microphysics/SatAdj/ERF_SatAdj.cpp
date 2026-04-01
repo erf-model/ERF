@@ -50,7 +50,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                 // clip qc but maintain total water
                 if (qc_array(i,j,k) < 0) {
                     qv_array(i,j,k) += qc_array(i,j,k);
-                    qc_array(i,j,k)  = 0.0;
+                    qc_array(i,j,k)  = zero;
                 }
 
                 // Update temperature
@@ -68,7 +68,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                 AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-14);
 
                 // Update theta (constant pressure)
-                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
 
             //
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv.
@@ -83,13 +83,13 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 
                 // Partition the change in non-precipitating q
                 qv_array(i,j,k) += qc_array(i,j,k);
-                qc_array(i,j,k)  = 0.0;
+                qc_array(i,j,k)  = zero;
 
                 // Update temperature (endothermic since we evap/sublime)
                 tabs_array(i,j,k) -= d_fac_cond * delta_qc;
 
                 // Update theta
-                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
 
                 // Verify assumption that qv > qsat does not occur
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsat);
@@ -115,7 +115,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                     AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-14);
 
                     // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
 
                 }
             }

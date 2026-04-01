@@ -35,13 +35,13 @@ namespace SDMassChangeUtils_LV
             RT Kn = lambda_v/a_R;
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = 1.0/a_R;
+            RT R_inv = RT(1.0)/a_R;
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = (a_S-1.0) / (F_k + F_d);
+            RT alpha = (a_S-RT(1.0)) / (F_k + F_d);
             RT retval = alpha*R_inv;
 
             RT beta = -(a_a/a_T) / (F_k + F_d);
@@ -80,19 +80,19 @@ namespace SDMassChangeUtils_LV
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = 1.0/std::sqrt(a_R_sq);
+            RT R_inv = RT(1.0)/std::sqrt(a_R_sq);
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = 2.0 * (a_S-1.0) / (F_k + F_d);
+            RT alpha = RT(2.0) * (a_S-RT(1.0)) / (F_k + F_d);
             RT retval = alpha;
 
-            RT beta = -2.0 * (a_a/a_T) / (F_k + F_d);
+            RT beta = -RT(2.0) * (a_a/a_T) / (F_k + F_d);
             retval += beta*R_inv;
 
-            RT gamma = 2.0 * a_b * a_N_s / (F_k + F_d);
+            RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed;
 
             return retval;
@@ -112,20 +112,20 @@ namespace SDMassChangeUtils_LV
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = 1.0/std::sqrt(a_R_sq);
+            RT R_inv = RT(1.0)/std::sqrt(a_R_sq);
             RT R_inv_3 = R_inv*R_inv*R_inv;
             RT R_inv_5 = R_inv_3*R_inv*R_inv;
 
-            RT retval = 0.0;
+            RT retval = RT(0.0);
 
-            RT beta = -2.0 * (a_a/a_T) / (F_k + F_d);
-            retval -= 0.5 * beta*R_inv_3;
+            RT beta = -RT(2.0) * (a_a/a_T) / (F_k + F_d);
+            retval -= myhalf * beta*R_inv_3;
 
-            RT gamma = 2.0 * a_b * a_N_s / (F_k + F_d);
-            retval -= 0.5 * 3.0*gamma*R_inv_5;
+            RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
+            retval -= myhalf * three*gamma*R_inv_5;
 
             return retval;
         }
@@ -170,7 +170,7 @@ namespace SDMassChangeUtils_LV
                          ) const
         {
             a_converged = false;
-            RT res_norm0 = 0.0;
+            RT res_norm0 = RT(0.0);
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u
@@ -182,7 +182,7 @@ namespace SDMassChangeUtils_LV
                     if (a_res_norm_a > 0) {
                         res_norm0 = a_res_norm_a;
                     } else {
-                        res_norm0 = 1.0;
+                        res_norm0 = RT(1.0);
                     }
                 }
                 a_res_norm_r = a_res_norm_a / res_norm0;
@@ -201,7 +201,7 @@ namespace SDMassChangeUtils_LV
                 }
 
                 RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_D, a_a, a_b, a_N_s );
-                RT du = 0.0;
+                RT du = RT(0.0);
                 du = - residual / slope;
 
                 RT du_norm = std::sqrt(du*du);
@@ -212,7 +212,7 @@ namespace SDMassChangeUtils_LV
                 }
 
                 a_u += du;
-                if (a_u <= 0.0) {
+                if (a_u <= RT(0.0)) {
                     a_converged = false;
                     break;
                 }
@@ -276,8 +276,8 @@ namespace SDMassChangeUtils_LV
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         bool isTimestepTooSmall (RT dt, RT tau) const
         {
-            return (dt < (1.0e-12 * m_cfl / std::sqrt(tau*tau)))
-                && (dt < (1.0e-12 * m_t_final));
+            return (dt < (RT(1.0e-12) * m_cfl / std::sqrt(tau*tau)))
+                && (dt < (RT(1.0e-12) * m_t_final));
         }
 
         /*! \brief Evaluate ODE right-hand side */
@@ -316,7 +316,7 @@ namespace SDMassChangeUtils_LV
         void rk3bs ( RT& a_u,  /*!< solution */
                      bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -343,39 +343,39 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT u_new = 0.0;
+                RT u_new = RT(0.0);
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (RT(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (RT(1.0e-12)*m_t_final)) ) {
                         break;
                     }
 
                     RT u1 = a_u;
                     if (u1 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u2 = a_u + 0.5*dt*f1;
+                    RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u3 = a_u + 0.75*dt*f2;
+                    RT u3 = a_u + RT(0.75)*dt*f2;
                     if (u3 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u4 = a_u + (1.0/9.0)*dt * (2.0*f1 + 3.0*f2 + 4.0*f3);
+                    RT u4 = a_u + (RT(1.0)/RT(9.0))*dt * (RT(2.0)*f1 + three*f2 + RT(4.0)*f3);
                     if (u4 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -383,7 +383,7 @@ namespace SDMassChangeUtils_LV
                     u_new = u4;
 
                     if (m_adapt_dt) {
-                        RT u_embed = a_u + (1.0/24.0)*dt * (7.0*f1 + 6.0*f2 + 8.0*f3 + 3.0*f4);
+                        RT u_embed = a_u + (RT(1.0)/RT(24.0))*dt * (RT(7.0)*f1 + RT(6.0)*f2 + RT(8.0)*f3 + three*f4);
                         RT err = std::sqrt((u_new-u_embed)*(u_new-u_embed));
                         RT tol = m_atol + m_rtol * std::max(a_u, a_u_old);
                         RT E = err / tol;
@@ -396,7 +396,7 @@ namespace SDMassChangeUtils_LV
                             break;
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -432,7 +432,7 @@ namespace SDMassChangeUtils_LV
         void rk4 ( RT& a_u,  /*!< solution */
                    bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             int n_step = 0;
@@ -446,35 +446,35 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT u_new = 0.0;
+                RT u_new = RT(0.0);
                 bool step_success = false;
                 while (!step_success) {
 
                     if (isTimestepTooSmall(dt, tau)) { break; }
 
                     RT u1 = a_u;
-                    if (u1 <= 0) { dt *= 0.5; continue; }
+                    if (u1 <= 0) { dt *= myhalf; continue; }
                     RT f1 = evalRHS(u1);
 
-                    RT u2 = a_u + 0.5*dt*f1;
-                    if (u2 <= 0) { dt *= 0.5; continue; }
+                    RT u2 = a_u + myhalf*dt*f1;
+                    if (u2 <= 0) { dt *= myhalf; continue; }
                     RT f2 = evalRHS(u2);
 
-                    RT u3 = a_u + 0.5*dt*f2;
-                    if (u3 <= 0) { dt *= 0.5; continue; }
+                    RT u3 = a_u + myhalf*dt*f2;
+                    if (u3 <= 0) { dt *= myhalf; continue; }
                     RT f3 = evalRHS(u3);
 
                     RT u4 = a_u + dt*f3;
-                    if (u4 <= 0) { dt *= 0.5; continue; }
+                    if (u4 <= 0) { dt *= myhalf; continue; }
                     RT f4 = evalRHS(u4);
 
-                    u_new = a_u + dt*(f1 + 2.0*f2 + 2.0*f3 + f4)/6.0;
+                    u_new = a_u + dt*(f1 + RT(2.0)*f2 + RT(2.0)*f3 + f4)/RT(6.0);
 
                     if (std::isfinite(u_new) && (u_new > 0)) {
                         step_success = true;
                         break;
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -499,7 +499,7 @@ namespace SDMassChangeUtils_LV
         void be ( RT& a_u,  /*!< solution */
                   bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             int n_step = 0;
@@ -517,13 +517,13 @@ namespace SDMassChangeUtils_LV
                 RT res_norm_r = DBL_MAX;
                 bool converged = false;
 
-                RT u_new = 0.0;
+                RT u_new = RT(0.0);
                 bool step_success = false;
                 while (!step_success) {
 
                     if (isTimestepTooSmall(dt, tau)) { break; }
 
-                    RT mu = 1.0 / dt;
+                    RT mu = RT(1.0) / dt;
                     RT rhs = mu * a_u;
                     u_new = a_u;
                     m_newton(u_new, rhs, mu,
@@ -534,7 +534,7 @@ namespace SDMassChangeUtils_LV
                         step_success = true;
                         break;
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -560,7 +560,7 @@ namespace SDMassChangeUtils_LV
         void cn ( RT& a_u,  /*!< solution */
                   bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             int n_step = 0;
@@ -578,31 +578,31 @@ namespace SDMassChangeUtils_LV
                 RT res_norm_r = DBL_MAX;
                 bool converged = false;
 
-                RT u_new = 0.0;
+                RT u_new = RT(0.0);
                 bool step_success = false;
                 while (!step_success) {
 
                     if (isTimestepTooSmall(dt, tau)) { break; }
 
-                    RT mu = 1.0 / (0.5*dt);
+                    RT mu = RT(1.0) / (myhalf*dt);
                     RT u1 = a_u;
                     RT f1 = evalRHS(u1);
 
                     RT u2 = u1;
-                    RT rhs = mu * (a_u + 0.5*dt*f1);
+                    RT rhs = mu * (a_u + myhalf*dt*f1);
                     m_newton(u2, rhs, mu,
                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
                              res_norm_a, res_norm_r, converged);
-                    if (u2 <= 0) { dt *= 0.5; continue; }
+                    if (u2 <= 0) { dt *= myhalf; continue; }
                     RT f2 = evalRHS(u2);
 
-                    u_new = a_u + 0.5 * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged && std::isfinite(u_new) && (u_new > 0)) {
                         step_success = true;
                         break;
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -628,7 +628,7 @@ namespace SDMassChangeUtils_LV
         void dirk212 ( RT& a_u,  /*!< solution */
                        bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             int n_step = 0;
@@ -646,18 +646,18 @@ namespace SDMassChangeUtils_LV
                 RT res_norm_a = DBL_MAX;
                 RT res_norm_r = DBL_MAX;
 
-                RT u_new = 0.0;
+                RT u_new = RT(0.0);
                 bool step_success = false;
                 while (!step_success) {
 
                     if (isTimestepTooSmall(dt, tau)) {
                         break;
                     }
-                    RT mu = 1.0 / dt;
+                    RT mu = RT(1.0) / dt;
 
                     converged = true;
-                    res_norm_a = 0.0;
-                    res_norm_r = 0.0;
+                    res_norm_a = RT(0.0);
+                    res_norm_r = RT(0.0);
 
                     RT u1 = a_u;
                     {
@@ -673,7 +673,7 @@ namespace SDMassChangeUtils_LV
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u1 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = evalRHS(u1);
@@ -692,12 +692,12 @@ namespace SDMassChangeUtils_LV
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = evalRHS(u2);
 
-                    u_new = a_u + 0.5 * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
                         if (std::isfinite(u_new)) {
@@ -707,7 +707,7 @@ namespace SDMassChangeUtils_LV
                             }
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -759,8 +759,8 @@ namespace SDMassChangeUtils_SV
         {
             // Table of the inherent growth ratio (Chen and Lamb 1994)
             // T(n) = (1.375-n)/4. Here, T is the temperature in [degreeC], and n is the index.
-            auto T_degC = a_T - 273.15; // [K] => [degC]
-            int n = std::min(std::max(static_cast<int>(std::round(1.375-4.0*T_degC)),1),121);
+            auto T_degC = a_T - RT(273.15); // [K] => [degC]
+            int n = std::min(std::max(static_cast<int>(std::round(RT(1.375)-RT(4.0)*T_degC)),1),121);
             return static_cast<RT>(s_tb_habit[n-1]);
 
         }
@@ -771,7 +771,7 @@ namespace SDMassChangeUtils_SV
                         const RT a_e_s,  /*!< saturation pressure */
                         const RT a_D     /*!< mol. diffusion coeff */ ) const noexcept
         {
-            auto F_k = (L/(Rv*a_T) - 1.0) * (L / (K*a_T));
+            auto F_k = (L/(Rv*a_T) - RT(1.0)) * (L / (K*a_T));
             auto F_d = (Rv*a_T) / (a_D*a_e_s);
             return (F_k + F_d);
         }
@@ -780,12 +780,12 @@ namespace SDMassChangeUtils_SV
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT viscCoeff ( const RT a_T /*!< temperature */ ) const noexcept
         {
-            auto T_degC = a_T - 273.15; // [K] => [degC]
-            RT visc_coeff = 0.0;
-            if( T_degC >= 0.0 ) {
-                visc_coeff = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+            auto T_degC = a_T - RT(273.15); // [K] => [degC]
+            RT visc_coeff = RT(0.0);
+            if( T_degC >= RT(0.0) ) {
+                visc_coeff = ( RT(1.7180) + RT(4.9E-3)*T_degC ) * RT(1.E-5);
             } else {
-                visc_coeff = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+                visc_coeff = ( RT(1.7180) + RT(4.9E-3)*T_degC -RT(1.2E-5)*T_degC*T_degC ) * RT(1.E-5);
             }
             return visc_coeff;
         }
@@ -796,15 +796,15 @@ namespace SDMassChangeUtils_SV
                         const RT a_c  /*!< polar radius */ ) const noexcept
         {
             auto phi = a_c / a_a;
-            RT capaci = 0.0;
-            if(phi >= 1.001) {
-                auto ecent = std::sqrt(1.0 - 1.0/(phi*phi));
-                capaci = ecent*a_c / std::log((1.0+ecent)*phi);
-            } else if (phi <= 0.999) {
-                auto ecent = std::sqrt(1.0 - phi*phi);
+            RT capaci = RT(0.0);
+            if(phi >= RT(1.001)) {
+                auto ecent = std::sqrt(RT(1.0) - RT(1.0)/(phi*phi));
+                capaci = ecent*a_c / std::log((RT(1.0)+ecent)*phi);
+            } else if (phi <= RT(0.999)) {
+                auto ecent = std::sqrt(RT(1.0) - phi*phi);
                 capaci = ecent*a_a / std::asin(ecent);
             } else {
-                capaci = (2.0*a_a + a_c)/3.0;
+                capaci = (RT(2.0)*a_a + a_c)/three;
             }
             return capaci;
         }
@@ -819,7 +819,7 @@ namespace SDMassChangeUtils_SV
                    const RT a_D     /*!< mol. diffusion coeff */ ) const noexcept
         {
             auto visc_coeff = viscCoeff(a_T);
-            auto maxdim = 2.0 * std::max(a_a, a_c);
+            auto maxdim = RT(2.0) * std::max(a_a, a_c);
             auto n_re = a_rhom * maxdim * a_vterm / visc_coeff;
             auto n_sc = visc_coeff / (a_rhom*a_D);
             auto X_vent = std::cbrt(n_sc) * std::sqrt(n_re);
@@ -838,19 +838,19 @@ namespace SDMassChangeUtils_SV
         {
             auto capaci = capacitance(a_a, a_c);
             auto X_vent = ventX(a_a, a_c, a_vterm, a_T, a_rhom, a_D);
-            RT fratio = 0.0;
-            if(X_vent <= 1.0) {
-               fratio =    (1.0 + 0.14*X_vent*X_vent*std::sqrt(a_c/capaci))
-                         / (1.0 + 0.14*X_vent*X_vent*std::sqrt(a_a/capaci));
+            RT fratio = RT(0.0);
+            if(X_vent <= RT(1.0)) {
+               fratio =    (RT(1.0) + RT(0.14)*X_vent*X_vent*std::sqrt(a_c/capaci))
+                         / (RT(1.0) + RT(0.14)*X_vent*X_vent*std::sqrt(a_a/capaci));
             } else {
-               fratio =   (0.86 + 0.28*X_vent*std::sqrt(a_c/capaci))
-                        / (0.86 + 0.28*X_vent*std::sqrt(a_a/capaci));
+               fratio =   (RT(0.86) + RT(0.28)*X_vent*std::sqrt(a_c/capaci))
+                        / (RT(0.86) + RT(0.28)*X_vent*std::sqrt(a_a/capaci));
             }
 
             auto gr = growthRatio(a_T);
-            if ((2.0*std::max(a_a,a_c) < 1.0e-5) || (a_dmass <= 0.0)) { gr = 1.0; }
+            if ((RT(2.0)*std::max(a_a,a_c) < RT(1.0e-5)) || (a_dmass <= RT(0.0))) { gr = RT(1.0); }
             auto gr_star = gr * fratio;
-            if((a_dmass > 0.0) && (a_c/a_a > 40.0)) { gr_star = std::min(gr_star,1.0); }
+            if((a_dmass > RT(0.0)) && (a_c/a_a > RT(40.0))) { gr_star = std::min(gr_star,RT(1.0)); }
 
             return gr_star;
         }
@@ -869,13 +869,13 @@ namespace SDMassChangeUtils_SV
         {
             RT rho_i_ds = a_rho;
             auto gr = growthRatio(a_T);
-            if (a_dmass > 0.0) {
-                if ((gr < 1.0) && (a_a < 1.0e-4)) {
+            if (a_dmass > RT(0.0)) {
+                if ((gr < RT(1.0)) && (a_a < RT(1.0e-4))) {
                     rho_i_ds = rho_ice;
                 } else {
-                    if (2.0*std::max(a_a,a_c) < 1.0e-5) { gr = 1.0; }
-                    auto ex_vap_dens = 1000.0 * (std::min(a_S,a_es_ratio_wi) - 1.0) / (Fk_plus_Fd(a_T,a_e_s,a_D) * a_D);
-                    rho_i_ds = rho_ice * std::exp(-3.0*std::max(ex_vap_dens-0.05,0.0)/gr);
+                    if (RT(2.0)*std::max(a_a,a_c) < RT(1.0e-5)) { gr = RT(1.0); }
+                    auto ex_vap_dens = RT(1000.0) * (std::min(a_S,a_es_ratio_wi) - RT(1.0)) / (Fk_plus_Fd(a_T,a_e_s,a_D) * a_D);
+                    rho_i_ds = rho_ice * std::exp(-three*std::max(ex_vap_dens-RT(0.05),RT(0.0))/gr);
                 }
             }
 
@@ -888,7 +888,7 @@ namespace SDMassChangeUtils_SV
         RT dLogRadius ( const RT a_grstar,  /*!< growth ratio */
                         const RT a_dlogvol  /*!< delta log volume */ ) const noexcept
         {
-            return a_dlogvol / (a_grstar+2.0);
+            return a_dlogvol / (a_grstar+RT(2.0));
         }
 
         /*! \brief Right-hand-side of the phase change ODE */
@@ -905,11 +905,11 @@ namespace SDMassChangeUtils_SV
             auto capaci = capacitance(a_a, a_c);
             auto X_vent = ventX(a_a, a_c, a_vterm, a_T, a_rhom, a_D);
 
-            RT f_vent = 0.0;
-            if (X_vent <= 1.0) { f_vent = 1.0 + 0.14*X_vent*X_vent; }
-            else               { f_vent = 0.86 + 0.28*X_vent; }
+            RT f_vent = RT(0.0);
+            if (X_vent <= RT(1.0)) { f_vent = RT(1.0) + RT(0.14)*X_vent*X_vent; }
+            else               { f_vent = RT(0.86) + RT(0.28)*X_vent; }
 
-            auto retval = 4.0*PI * capaci * (a_S-1.0) * f_vent / Fk_plus_Fd(a_T, a_e_s, a_D);
+            auto retval = RT(4.0)*PI * capaci * (a_S-RT(1.0)) * f_vent / Fk_plus_Fd(a_T, a_e_s, a_D);
             return retval;
         }
 
@@ -942,7 +942,7 @@ namespace SDMassChangeUtils_SV
         void fe ( RT& a_u,  /*!< solution */
                   bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             int n_step = 0;

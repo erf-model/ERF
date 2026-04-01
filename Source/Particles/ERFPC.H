@@ -5,6 +5,7 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <ERF_Constants.H>
 
 struct ERFParticlesIntIdxAoS
 {
@@ -105,13 +106,13 @@ void update_location_idata (  P& a_p,
                 break;
             }
 
-            auto zlo = a_height_arr(ix  ,iy  ,iz  ) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(ix+1,iy  ,iz  ) *      lx  * (1.0-ly) +
-                       a_height_arr(ix  ,iy+1,iz  ) * (1.0-lx) * ly +
+            auto zlo = a_height_arr(ix  ,iy  ,iz  ) * (one-lx) * (one-ly) +
+                       a_height_arr(ix+1,iy  ,iz  ) *      lx  * (one-ly) +
+                       a_height_arr(ix  ,iy+1,iz  ) * (one-lx) * ly +
                        a_height_arr(ix+1,iy+1,iz  ) *      lx  * ly;
-            auto zhi = a_height_arr(ix  ,iy  ,iz+1) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(ix+1,iy  ,iz+1) *      lx  * (1.0-ly) +
-                       a_height_arr(ix  ,iy+1,iz+1) * (1.0-lx) * ly +
+            auto zhi = a_height_arr(ix  ,iy  ,iz+1) * (one-lx) * (one-ly) +
+                       a_height_arr(ix+1,iy  ,iz+1) *      lx  * (one-ly) +
+                       a_height_arr(ix  ,iy+1,iz+1) * (one-lx) * ly +
                        a_height_arr(ix+1,iy+1,iz+1) *      lx  * ly;
 
             if (a_p.pos(2) > zhi) {

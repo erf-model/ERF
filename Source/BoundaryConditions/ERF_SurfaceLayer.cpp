@@ -172,7 +172,7 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
-        const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
+        const Real l_inv_theta0  = (use_ref_theta) ? one / theta_ref : one;
         const Real l_inv_Cmu2    = inv_Cmu2;
         const int klo = m_geom[lev].Domain().smallEnd(2);
         IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
@@ -207,7 +207,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                         std::pow(
                             u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0)
                             + KAPPA * B * dist_arr(i,j,k),
-                        2.0/3.0);
+                        two/three);
                 } else {
                     cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,0) * u_star_arr(i,j,0);
                 }
@@ -359,6 +359,35 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
     }
 }
 
+/**
+ * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ */
+void
+SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
+                                       Vector<const MultiFab*> mfs,
+                                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                       MultiFab* xheat_flux,
+                                       MultiFab* yheat_flux,
+                                       MultiFab* Hfx3_EB,
+                                       MultiFab* xqv_flux,
+                                       MultiFab* yqv_flux,
+                                       MultiFab* zqv_flux,
+                                       const eb_& ebfact)
+{
+    if (flux_type == FluxCalcType::MOENG) {
+        moeng_flux flux_comp;
+        compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_EB,
+                                 xheat_flux, yheat_flux, Hfx3_EB,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 ebfact, flux_comp);
+    } else {
+        amrex::Abort("Not implemented surface layer flux calculation type for EB");
+    }
+}
 
 /**
  * Function to calculate MOST fluxes for populating ghost cells.
@@ -520,17 +549,17 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
                 if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
-                    stressx = 0.;
+                    stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
-                        stressx += 0.5 * flux_comp.compute_u_flux(i, j, k,
+                        stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, um_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressx += 0.5 * lsm_tau13_arr(i  ,j,0);
+                        stressx += myhalf * lsm_tau13_arr(i  ,j,0);
                     }
                     if (is_land_lo) {
-                        stressx += 0.5 * lsm_tau13_arr(i-1,j,0);
+                        stressx += myhalf * lsm_tau13_arr(i-1,j,0);
                     }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
@@ -552,17 +581,17 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
                 if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
-                    stressy = 0.;
+                    stressy = zero;
                     if (!is_land_hi || !is_land_lo) {
-                        stressy += 0.5 * flux_comp.compute_v_flux(i, j, k,
+                        stressy += myhalf * flux_comp.compute_v_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, vm_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressy += 0.5 * lsm_tau23_arr(i,j  ,0);
+                        stressy += myhalf * lsm_tau23_arr(i,j  ,0);
                     }
                     if (is_land_lo) {
-                        stressy += 0.5 * lsm_tau23_arr(i,j-1,0);
+                        stressy += myhalf * lsm_tau23_arr(i,j-1,0);
                     }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
@@ -593,6 +622,108 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     } // mfiter
 }
 
+/**
+ * Function to calculate MOST fluxes for populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ * @param[in] flux_comp structure to compute fluxes
+ */
+template <typename FluxCalc>
+void
+SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
+                                        Vector<const MultiFab*> mfs,
+                                        Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                        [[maybe_unused]] MultiFab* xheat_flux,
+                                        [[maybe_unused]] MultiFab* yheat_flux,
+                                        MultiFab* Hfx3_EB,
+                                        [[maybe_unused]] MultiFab* xqv_flux,
+                                        [[maybe_unused]] MultiFab* yqv_flux,
+                                        [[maybe_unused]] MultiFab* zqv_flux,
+                                        [[maybe_unused]] const eb_& ebfact,
+                                        const FluxCalc& flux_comp)
+{
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    // const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
+    {
+        // Get field arrays
+        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
+        const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
+        const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+
+        // Diffusive stress vars
+        auto t13_arr =  Tau_EB[EBTauType::tau_eb13]->array(mfi);
+        auto t23_arr =  Tau_EB[EBTauType::tau_eb23]->array(mfi);
+
+        auto hfx3_arr = Hfx3_EB->array(mfi);
+
+        // Get average arrays
+        const auto *const u_mean     = m_ma.get_average(lev,0);
+        const auto *const v_mean     = m_ma.get_average(lev,1);
+        const auto *const t_mean     = m_ma.get_average(lev,2);
+        // const auto *const q_mean     = m_ma.get_average(lev,3);
+        const auto *const u_mag_mean = m_ma.get_average(lev,5);
+        const auto *const k_indx = m_ma.get_k_indices(lev);
+
+        const auto um_arr  = u_mean->array(mfi);
+        const auto vm_arr  = v_mean->array(mfi);
+        const auto tm_arr  = t_mean->array(mfi);
+        // const auto qm_arr  = q_mean->array(mfi);
+        const auto umm_arr = u_mag_mean->array(mfi);
+        const auto k_arr = k_indx->const_array(mfi);
+
+        // Get derived arrays
+        const auto u_star_arr = u_star[lev]->array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto t_surf_arr = t_surf[lev]->array(mfi);
+
+        // Rho*Theta flux
+        //============================================================================
+        Box bx = mfi.tilebox();
+
+        if (bx.smallEnd(2) != klo) { continue; }
+        bx.makeSlab(2,klo);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real Tflux = flux_comp.compute_t_flux(i, j, mk,
+                                                 cons_arr, velx_arr, vely_arr,
+                                                 umm_arr, tm_arr, u_star_arr,
+                                                 t_star_arr, t_surf_arr);
+            hfx3_arr(i,j,mk) = Tflux;
+        });
+
+        // Rho*u flux
+        //============================================================================
+        Box bxx = surroundingNodes(bx,0);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real stressx = flux_comp.compute_u_flux(i, j, mk,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, um_arr, u_star_arr);
+            t13_arr(i,j,mk) = stressx;
+        });
+
+        // Rho*v flux
+        //============================================================================
+        Box bxy = surroundingNodes(bx,1);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        {
+            int mk = k_arr(i,j,0);
+
+            Real stressy = flux_comp.compute_v_flux(i, j, mk,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, vm_arr, u_star_arr);
+            t23_arr(i,j,mk) = stressy;
+        });
+    } // mfiter
+}
+
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                            const Real& elapsed_time_since_start_low)
@@ -608,7 +739,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
         alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
 
-        AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+        AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
 
         n_time_hi = n_time_lo + 1;
 
@@ -616,18 +747,18 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
             n_time_lo = m_sst_lev[lev].size()-1;
             n_time_hi = n_time_lo;
-            alpha     = 0.0;
+            alpha     = zero;
         }
 
         AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < m_sst_lev[lev].size()));
     } else {
         n_time_lo = 0;
         n_time_hi = 0;
-        alpha     = 1.0;
+        alpha     = one;
     }
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
 
-    Real oma   = 1.0 - alpha;
+    Real oma   = one - alpha;
 
     // Define a default land surface temperature if we don't read in tsk
     Real lst = default_land_surf_temp;
@@ -709,13 +840,13 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
             if (!is_land) {
                 auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
-                                        0.5*dz;
+                                        myhalf*dz;
                 auto Rho  = cons_arr(i,j,k,Rho_comp);
                 auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
                 auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
                 auto P_cc = getPgivenRTh(RTh, Qv);
                 P_cc += Rho*CONST_GRAV*deltaZ;
-                P_cc *= 0.01;
+                P_cc *= Real(0.01);
                 erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
             }
         });
@@ -799,8 +930,8 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     // and broadcasting to each rank. No mask since all CC data
     const int klo = m_geom[lev].Domain().smallEnd(2);
     Box bx_lo = u_star[lev]->boxArray().minimalBox();
-    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0.);
-    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0.);
+    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0);
+    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0);
     Real* ustar_ptr = u_star_lo.dataPtr();
     Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
@@ -818,7 +949,7 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
             u_star_all(i,j,0) = u_star_arr(i,j,0);
-            z_surf_all(i,j,0) = 0.25 * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
+            z_surf_all(i,j,0) = fourth * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
                                        + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
         });
     }
@@ -826,7 +957,7 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     ParallelDescriptor::ReduceRealSum(zsurf_ptr, bx_lo.numPts());
 
     // Now work on all boxes (ustar has been filled above)
-    constexpr Real small = 0.01;
+    constexpr Real small = Real(0.01);
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
         Box vbx  = mfi.validbox();
@@ -909,7 +1040,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             if (gtbx.smallEnd(2) != klo) { continue; }
 
             // Populate z_phys data
-            Real tol = 1.0e-4;
+            Real tol = Real(1.0e-4);
             auto dx = m_geom[lev].CellSizeArray();
             auto ProbLoArr = m_geom[lev].ProbLoArray();
             int ilo = m_geom[lev].Domain().smallEnd(0);
@@ -932,7 +1063,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                     z0_arr(i,j,klo) = z0p[inode];
                 } else {
                     // Unexpected list order, do brute force search
-                    Real z0loc = 0.0;
+                    Real z0loc = zero;
                     bool found = false;
                     for (int n=0; n<nnode; ++n) {
                         Real delta=std::sqrt(std::pow(x-xp[n],2)+std::pow(y-yp[n],2));

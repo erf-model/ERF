@@ -367,11 +367,11 @@ void SuperDropletsMoist::computeQcQrWater ()
 {
     BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
     m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
-                                        0,
+                                        zero,
                                         m_r_rain );
     m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
                                         m_r_rain,
-                                        1.0 );
+                                        one );
 
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_c]); mfi.isValid(); ++mfi) {
@@ -479,8 +479,8 @@ void SuperDropletsMoist::rainAccumulation ()
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k == k_lo) {
-                auto rain_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
-                rain_accum_arr(i,j,k) += (rain_accum * 1000.0 /* [m] -> [mm] */);
+                auto rain_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
+                rain_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
             }
         });
     }
@@ -582,7 +582,7 @@ void SuperDropletsMoist::speciesAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(Real(0), -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });
@@ -615,7 +615,7 @@ void SuperDropletsMoist::aerosolAccumulation ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    auto accum = std::max(Real(0), -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
                     accum_arr(i,j,k) += accum;
                 }
             });
@@ -624,4 +624,3 @@ void SuperDropletsMoist::aerosolAccumulation ()
 }
 
 #endif
-

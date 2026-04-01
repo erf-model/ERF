@@ -55,7 +55,7 @@ void SuperDropletsMoist::readInputs ()
     pp.query("distribution_type", m_init_type);
 
     // minimum radius for rain
-    m_r_rain = 4.0e-5; // 40 micrometers
+    m_r_rain = Real(4.0e-5); // 40 micrometers
     pp.query("radius_raindrop", m_r_rain);
 
     m_rime_ratio = 0.3;
@@ -128,7 +128,7 @@ void SuperDropletsMoist::readInputs ()
     m_init_phase_change = false; //default
     pp.query("initial_phase_change_relaxation", m_init_phase_change);
     // time (in seconds) of initial relaxation
-    m_init_phase_change_time = 10.0; //default
+    m_init_phase_change_time = Real(10.0); //default
     pp.query("initial_phase_change_relaxation_time", m_init_phase_change_time);
 
     return;
@@ -236,9 +236,9 @@ void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd )
            density is not available. So, just initialize with a uniform distribution
            for now; set the radius and multiplicity from condensate density when
            Update_Micro_Vars() is called for the first time. */
-        m_super_droplets->InitializeParticles(0.0, a_z_phys_nd);
+        m_super_droplets->InitializeParticles(zero, a_z_phys_nd);
     } else {
-        m_super_droplets->InitializeParticles(0.0, a_z_phys_nd);
+        m_super_droplets->InitializeParticles(zero, a_z_phys_nd);
         amrex::Print() << "Initialized "
                        << m_super_droplets->NumSuperDroplets()
                        << " super-droplets representing "
@@ -361,7 +361,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    m_super_droplets->Diagnostics(-1, 0.0, (m_diagnostics_iter>0));
+    m_super_droplets->Diagnostics(-1, zero, (m_diagnostics_iter>0));
 
     return;
 }

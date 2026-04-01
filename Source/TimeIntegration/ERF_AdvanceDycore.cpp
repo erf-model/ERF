@@ -552,6 +552,11 @@ void ERF::advance_dycore (int level,
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss  = SFS_diss_lev[level].get();
 
+    MultiFab* Hfx3_EB = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        Hfx3_EB = hfx3_EB[level].get();
+    }
+
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -651,7 +656,7 @@ void ERF::advance_dycore (int level,
 
     const bool l_eb_terrain = (solverChoice.terrain_type == TerrainType::EB);
     MultiFab qt(grids[level], dmap[level], 1, (l_eb_terrain) ? 2 : 1);
-    qt.setVal(0.0);
+    qt.setVal(0);
 
 #include "ERF_TI_no_substep_fun.H"
 #include "ERF_TI_substep_fun.H"

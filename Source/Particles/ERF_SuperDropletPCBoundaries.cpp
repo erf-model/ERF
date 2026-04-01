@@ -24,11 +24,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
     // number of physical particles per cell
-    Real num_par_per_cell = 0.0;
+    Real num_par_per_cell = zero;
     for (int i = 0; i < m_num_initializations; i++) {
         num_par_per_cell += m_initializations[i]->numParticlesPerCell(ctx.cell_volume);
     }
-    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : 0.0);
+    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
 
     Long num_deactivated_particles = 0;
 
@@ -56,8 +56,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     z_ground = zheight(iv[0],iv[1],ctx.domain.smallEnd(2));
                 }
                 if (p.pos(2) < z_ground) {
-                    p.pos(2) = z_ground + 0.01*ctx.dx[2];
-                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                    p.pos(2) = z_ground + Real(0.01)*ctx.dx[2];
+                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -74,7 +74,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - ctx.dx[2];
-                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -96,8 +96,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                     if ((bc_lo == ERF_BC::slip_wall) || (bc_lo == ERF_BC::no_slip_wall)) {
 
-                        p.pos(d) = x_min + 0.01*ctx.dx[d];
-                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                        p.pos(d) = x_min + Real(0.01)*ctx.dx[d];
+                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -107,22 +107,22 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = x_min - p.pos(d);
                         p.pos(d) = x_max - delta;
                         if (!ctx.is_periodic[d]) {
-                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                                ptrs.sp_mass_ptrs[ctr][i] = 0.0;
+                                ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ParticleReal aerosol_mass_total = 0.0;
+                            ParticleReal aerosol_mass_total = zero;
                             for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
                                 aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
                             }
 
                             ptrs.mult_ptr[i] = multiplicity;
-                            ptrs.a_ptr[i] = 0.0;
-                            ptrs.c_ptr[i] = 0.0;
-                            ptrs.mrime_ptr[i] = 0.0;
-                            ptrs.nmono_ptr[i] = 0.0;
+                            ptrs.a_ptr[i] = zero;
+                            ptrs.c_ptr[i] = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -136,8 +136,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                     if ((bc_hi == ERF_BC::slip_wall) || (bc_hi == ERF_BC::no_slip_wall)) {
 
-                        p.pos(d) = x_max - 0.01*ctx.dx[d];
-                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                        p.pos(d) = x_max - Real(0.01)*ctx.dx[d];
+                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -147,22 +147,22 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = p.pos(d) - x_max;
                         p.pos(d) = x_min + delta;
                         if (!ctx.is_periodic[d]) {
-                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = 0.0;
+                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                                ptrs.sp_mass_ptrs[ctr][i] = 0.0;
+                                ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ParticleReal aerosol_mass_total = 0.0;
+                            ParticleReal aerosol_mass_total = zero;
                             for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
                                 aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
                             }
 
                             ptrs.mult_ptr[i] = multiplicity;
-                            ptrs.a_ptr[i] = 0.0;
-                            ptrs.c_ptr[i] = 0.0;
-                            ptrs.mrime_ptr[i] = 0.0;
-                            ptrs.nmono_ptr[i] = 0.0;
+                            ptrs.a_ptr[i] = zero;
+                            ptrs.c_ptr[i] = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,

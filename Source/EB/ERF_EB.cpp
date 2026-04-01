@@ -108,7 +108,7 @@ eb_::set_connection_flags ()
             for(int jj(-1); jj<=1; jj++) {
             for(int ii(-1); ii<=1; ii++)
             {
-                if (vfrac(i+ii,j+jj,k+kk) == 0.0) {
+                if (vfrac(i+ii,j+jj,k+kk) == zero) {
                     flag(i,j,k).setDisconnected(ii,jj,kk);
                 }
             }}}
@@ -116,7 +116,7 @@ eb_::set_connection_flags ()
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (vfrac(i,j,k)==0.0) {
+            if (vfrac(i,j,k)==zero) {
                 flag(i,j,k).setCovered();
             }
         });

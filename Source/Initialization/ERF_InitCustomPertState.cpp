@@ -192,16 +192,16 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
     const Real dmesh = std::min(dx, dy);
     // ---- User choices ----
     const Real sigma = solverChoice.pert_correlated_radius; // e.g. 2 km correlation length
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);  // stencil radius
+    const int  r     = static_cast<int>(three * sigma / dmesh);  // stencil radius
 
     // ---- Precompute Gaussian weights on host ----
     const int wsize = 2*r + 1;
     Vector<Real> w_host(wsize * wsize);
 
-    Real Z = 0.0;
+    Real Z = zero;
     for (int m = -r; m <= r; ++m) {
         for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(2.0*sigma*sigma));
+            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(two*sigma*sigma));
             w_host[(m+r)*wsize + (n+r)] = val;
             Z += val;
         }
@@ -240,7 +240,7 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
         ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real sum = 0.0;
+            Real sum = zero;
             for (int m = -r; m <= r; ++m) {
                 for (int n = -r; n <= r; ++n) {
                     Real wij = w[(m+r)*wsize + (n+r)];

@@ -103,8 +103,8 @@
                                                                     ssum[IntVars::xmom], ssum[IntVars::ymom],
                                                                     mf_u, mf_v, z_nd_new,dxInv);
                         } else {
-                            Real dJ_old_kface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
-                            Real dJ_new_kface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                            Real dJ_old_kface = myhalf * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
+                            Real dJ_new_kface = myhalf * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
                             ssum[IntVars::zmom](i,j,k) = ( dJ_old_kface *  sold[IntVars::zmom](i,j,k)
                                                              + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
                         }
@@ -115,7 +115,7 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        if (dJ_old(i,j,k) > 0.0) {
+                        if (dJ_old(i,j,k) > zero) {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                ( fslow[IntVars::cons](i,j,k,n) );
                         } else {
@@ -132,7 +132,7 @@
 
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_u(i,j,k) > 0.0) {
+                            if (vfrac_u(i,j,k) > zero) {
                                 // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                                                            + slow_dt * fslow[IntVars::xmom](i,j,k);
@@ -141,7 +141,7 @@
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_v(i,j,k) > 0.0) {
+                            if (vfrac_v(i,j,k) > zero) {
                                 // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                            + slow_dt * fslow[IntVars::ymom](i,j,k);
@@ -150,7 +150,7 @@
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_w(i,j,k) > 0.0) {
+                            if (vfrac_w(i,j,k) > zero) {
                                 // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                            + slow_dt * fslow[IntVars::zmom](i,j,k);
@@ -188,9 +188,9 @@
                     dUdt[i].define(F_slow[i].boxArray(), F_slow[i].DistributionMap(), F_slow[i].nComp(), F_slow[i].nGrow(), MFInfo());
                 }
                 for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
-                    dUdt[i].setVal(0.0, 0, ncomp_fast[i], dUdt[i].nGrow());
+                    dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
-                    dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].setDomainBndry(amrex::Real(1.234e10), 0, ncomp_fast[i], fine_geom);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
                 }
 
@@ -261,7 +261,7 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons], [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                     {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        if (vfrac_c(i,j,k) > 0.0) {
+                        if (vfrac_c(i,j,k) > zero) {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                 ( fslow[IntVars::cons](i,j,k,n) );
                         }
@@ -273,19 +273,19 @@
 
                     ParallelFor(tbx, tby, tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_u(i,j,k) > 0.0) {
+                        if (vfrac_u(i,j,k) > zero) {
                             ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                             + slow_dt * fslow[IntVars::xmom](i,j,k);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_v(i,j,k) > 0.0) {
+                        if (vfrac_v(i,j,k) > zero) {
                             ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                     + slow_dt * fslow[IntVars::ymom](i,j,k);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_w(i,j,k) > 0.0) {
+                        if (vfrac_w(i,j,k) > zero) {
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                     + slow_dt * fslow[IntVars::zmom](i,j,k);
 

@@ -1,15 +1,15 @@
 
     ParmParse pp_prob("prob");
 
-    Real wbar_cutoff_max = 1500.0; pp_prob.query("wbar_cutoff_max", wbar_cutoff_max);
+    Real wbar_cutoff_max = amrex::Real(1500.0); pp_prob.query("wbar_cutoff_max", wbar_cutoff_max);
 
-    wbar[0] = 0.0;
+    wbar[0] = zero;
     for (int k = 1; k <= khi+1; k++) {
         const Real z = zlevels[k];
         if (z <= wbar_cutoff_max) {
-            wbar[k] = -0.0000022*z;
+            wbar[k] = -amrex::Real(0.0000022)*z;
         } else {
-            wbar[k] = -0.0000022*2260.;
+            wbar[k] = -amrex::Real(0.0000022)*amrex::Real(2260.);
         }
     }
 

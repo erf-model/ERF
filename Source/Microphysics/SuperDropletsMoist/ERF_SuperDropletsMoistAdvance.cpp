@@ -51,7 +51,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
     amrex::Print() << "    Number of deactivated super-droplets: "
                    << num_SD_inactive
                    << " ("
-                   << (num_SD > 0 ? amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100 : 0)
+                   << (num_SD > 0 ? Real(num_SD_inactive)/Real(num_SD)*100 : 0)
                    << "%).\n";
 
     // Compute mass/size change due to evaporation/condensation

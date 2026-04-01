@@ -518,12 +518,12 @@ class SDInitProperties
          */
         [[nodiscard]] inline amrex::Real volume() const
         {
-            amrex::Real vol = 0.0;
+            amrex::Real vol = zero;
             if (m_type == SDInitShape::uniform) {
                 vol = m_particle_domain.volume();
             } else if (m_type == SDInitShape::bubble) {
                 const auto& radius = m_particle_domain.hi();
-                vol = (4.0/3.0)*PI*radius[0]*radius[1]*radius[2];
+                vol = (amrex::Real(4.0)/three)*PI*radius[0]*radius[1]*radius[2];
             }
             return vol;
         }
@@ -548,13 +548,13 @@ class SDInjection : public SDInitProperties
         amrex::Real m_numdens_sd = -1;
 
         /*!< Injection domain velocity */
-        amrex::Vector<amrex::Real> m_domain_vel = {0.0,0.0,0.0};
+        amrex::Vector<amrex::Real> m_domain_vel = {zero,zero,zero};
 
         /*!< Start time for injection */
-        amrex::Real m_tstart = 0.0;
+        amrex::Real m_tstart = zero;
 
         /*!< Stop time for injection */
-        amrex::Real m_tstop = 1.0e17;
+        amrex::Real m_tstop = amrex::Real(1.0e17);
 
         /*! \brief Update time-dependent quantities for particle injection
          *
@@ -568,11 +568,11 @@ class SDInjection : public SDInitProperties
         inline void updateDt (const amrex::Real a_dt)
         {
             this->m_numdens = m_inj_rate * a_dt;
-            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
+            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, one) : -1);
 
             if (this->m_type == SDInitShape::uniform) {
-                amrex::Vector<amrex::Real> lo = {0.0, 0.0, 0.0};
-                amrex::Vector<amrex::Real> hi = {0.0, 0.0, 0.0};
+                amrex::Vector<amrex::Real> lo = {zero, zero, zero};
+                amrex::Vector<amrex::Real> hi = {zero, zero, zero};
                 for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
                     lo[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
                     hi[dir] = this->m_particle_domain.hi(dir) + m_domain_vel[dir] * a_dt;
@@ -580,7 +580,7 @@ class SDInjection : public SDInitProperties
                 this->m_particle_domain.setLo(lo);
                 this->m_particle_domain.setHi(hi);
             } else if (m_type == SDInitShape::bubble) {
-                amrex::Vector<amrex::Real> center = {0.0, 0.0, 0.0};
+                amrex::Vector<amrex::Real> center = {zero, zero, zero};
                 for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
                     center[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
                 }
@@ -641,7 +641,7 @@ class SDInjection : public SDInitProperties
         /*! Compute number of physical particles per grid cell */
         [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
         {
-            amrex::Real num_par_per_cell = 0.0;
+            amrex::Real num_par_per_cell = zero;
             if (this->m_numdens >= 0) {
                 num_par_per_cell = std::ceil(this->m_numdens*a_dv);
             } else {
@@ -705,7 +705,7 @@ class SDInitialization : public SDInitProperties
         /*! Compute number of physical particles per grid cell */
         [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
         {
-            amrex::Real num_par_per_cell = 0.0;
+            amrex::Real num_par_per_cell = zero;
             if (this->m_numdens >= 0) {
                 num_par_per_cell = std::ceil(this->m_numdens*a_dv);
             } else {
