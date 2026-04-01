@@ -998,6 +998,9 @@ private:
     // These hold the Neumann values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
 
+    // Per-face flag: non-reflecting inflow (extrapolate RhoTheta instead of prescribing)
+    amrex::Array<bool, AMREX_SPACEDIM*2> m_bc_nonreflecting = {{false}};
+
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
 

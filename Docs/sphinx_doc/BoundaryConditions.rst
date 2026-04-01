@@ -103,6 +103,27 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
+Non-reflecting inflow
+^^^^^^^^^^^^^^^^^^^^^
+
+By default, the ``inflow`` boundary prescribes Dirichlet values for all variables
+including :math:`\rho\theta`, which implicitly fixes the pressure in the ghost cells.
+This causes upstream-propagating acoustic waves to reflect off the boundary,
+which can destabilize simulations with terrain or other pressure perturbation sources.
+
+Setting ``nonreflecting = true`` on an inflow face switches the :math:`\rho\theta`
+boundary condition from ``ext_dir`` to ``foextrap`` (zero-gradient extrapolation from
+the interior) while keeping velocity and density prescribed. This allows the outgoing
+acoustic characteristic (pressure) to exit the domain.
+
+::
+
+    xlo.type            = “Inflow”
+    xlo.velocity        = 10. 0. 0.
+    xlo.density         = 1.16
+    xlo.theta           = 300.
+    xlo.nonreflecting   = true
+
 Additionally, one may use an input file to specify the Dirichlet velocities as a function of the
 vertical coordinate z. The input file is expected to contain either ``{z  u  v  w}`` or
 ``{z  u  v  w  theta}`` and is currently only available for the ``xlo`` face. For a file
