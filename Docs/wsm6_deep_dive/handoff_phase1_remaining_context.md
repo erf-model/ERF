@@ -37,6 +37,10 @@
     - `CMake/SetAmrexOptions.cmake`
     - `CMake/CrayCompilerDetection.cmake`
   - Scope note: shim is intentionally minimal and tracked in ERF; it enforces nonnegative moisture and exposes stable bridge symbols for integration work.
+- Pre-handoff compare artifact committed:
+  - Commit: `20dabf1e`
+  - File: `Docs/wsm6_deep_dive/bridge_compare_phase1.md`
+  - Summary: adds canonical-vs-ERF bridge map and ordered replacement plan (`init` then `run`, preserving ABI first).
 
 ## Targeted Verification (No Full Rebuild)
 - Configured `build_no_netcdf_wsm6` with:
@@ -47,6 +51,17 @@
   - `ERF_module_mp_wsm6_isohelper.F90`
   - `ERF_AdvanceWSM6.cpp`
 - Result: targeted bridge units compile successfully.
+- Additional narrow verification completed (object-only, no full `erf_srclib` build):
+  - Confirmed stash baseline first: `git stash list -n 5` (deep-dive stash present at `stash@{0}`).
+  - Rebuilt only WSM6 bridge objects via:
+    - `gmake -C /home/jmsexton/codes/ERF/build_no_netcdf_wsm6 -f Exec/CMakeFiles/erf_srclib.dir/build.make ...`
+  - Explicitly compiled in this pass:
+    - `Exec/CMakeFiles/erf_srclib.dir/__/Source/Microphysics/WSM6/ERF_InitWSM6.cpp.o`
+    - `Exec/CMakeFiles/erf_srclib.dir/__/Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp.o`
+    - `Exec/CMakeFiles/erf_srclib.dir/__/Source/Microphysics/WSM6/ERF_UpdateWSM6.cpp.o`
+    - `Exec/CMakeFiles/erf_srclib.dir/__/Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90.o`
+    - `Exec/CMakeFiles/erf_srclib.dir/__/Source/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90.o`
+  - Result: all targeted WSM6 bridge objects compile cleanly in `build_no_netcdf_wsm6`.
 
 ## Simple Diff/Patch Comparison Plan
 - Keep ERF shim interfaces intentionally close to canonical names:
@@ -167,15 +182,18 @@ Stop and hand off once all are true:
 
 Current evaluation:
 - (1) Satisfied.
-- (2) Not yet verified by build in this pass.
+- (2) Satisfied (verified via targeted WSM6 object rebuilds in `build_no_netcdf_wsm6`).
 - (3) Expected once targeted compile is run and clean.
 
 ## Next-Agent Starting Checklist
 1. Confirm stashes before modifying anything:
    - `git stash list -n 3`
-2. Implement sections 1-3 above.
-3. Run a targeted compile command.
-4. Update this document with:
+2. Use `Docs/wsm6_deep_dive/bridge_compare_phase1.md` as the patch map.
+3. Keep object-level compile checks (avoid full fresh `erf_srclib` build unless needed):
+   - `gmake -C /home/jmsexton/codes/ERF/build_no_netcdf_wsm6 -f Exec/CMakeFiles/erf_srclib.dir/build.make <WSM6-object-targets>`
+4. Implement replacement order from compare doc:
+   - canonicalize `mp_wsm6_init` body first, then `mp_wsm6_run` body, while holding C bridge ABI fixed.
+5. Update this document with:
    - what compiled,
    - what remains blocked,
    - exact first failing file/line if build fails.
