@@ -575,6 +575,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
         }
+        if (solverChoice.moisture_type != MoistureType::None) {
+            calculate_derived("precipitable"   ,  vars_new[lev][Vars::cons], derived::erf_derprecipitable);
+        }
 
         calculate_derived("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
         calculate_derived("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
