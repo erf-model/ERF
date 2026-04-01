@@ -40,7 +40,6 @@ SAM::Cloud (const SolverChoice& sc)
         auto qcl_array = mic_fab_vars[MicVar::qcl]->array(mfi);
         auto qci_array = mic_fab_vars[MicVar::qci]->array(mfi);
 
-        auto   rho_array = mic_fab_vars[MicVar::rho]->array(mfi);
         auto  tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
