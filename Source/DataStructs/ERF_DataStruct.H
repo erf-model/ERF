@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -158,6 +158,7 @@ struct SolverChoice {
         }
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
         if ( (moisture_type == MoistureType::Morrison) ||
+             (moisture_type == MoistureType::WSM6) ||
              (moisture_type == MoistureType::SAM) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
@@ -211,6 +212,7 @@ struct SolverChoice {
                    moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
                    moisture_type == MoistureType::Morrison ||
                    moisture_type == MoistureType::Morrison_NoIce ||
+                   moisture_type == MoistureType::WSM6 ||
                    moisture_type == MoistureType::SatAdj) )
             {
                 for (int i = 0; i <= max_level; ++i) {
@@ -906,6 +908,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Morrison" << std::endl;
         } else if (moisture_type == MoistureType::Morrison_NoIce) {
             amrex::Print() << "Moisture Model: Morrison_NoIce" << std::endl;
+        } else if (moisture_type == MoistureType::WSM6) {
+            amrex::Print() << "Moisture Model: WSM6" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
