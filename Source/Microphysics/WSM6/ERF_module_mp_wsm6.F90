@@ -38,6 +38,21 @@ contains
     rgmma = exp(log_gamma(x))
   end function rgmma
 
+  pure real(c_double) function fpvs(t, ice, rd, rv, cvap, cliq, cice, hvap, hsub, psat, t0c)
+    real(c_double), intent(in) :: t, rd, rv, cvap, cliq, cice, hvap, hsub, psat, t0c
+    integer, intent(in) :: ice
+    real(c_double) :: tr, dldt
+
+    tr = t0c / t
+    if (ice == 0) then
+      dldt = cvap - cliq
+      fpvs = psat * tr**(dldt/rv) * exp((hvap - dldt * t0c) / rv * (1.0_c_double / t0c - 1.0_c_double / t))
+    else
+      dldt = cvap - cice
+      fpvs = psat * tr**(dldt/rv) * exp((hsub - dldt * t0c) / rv * (1.0_c_double / t0c - 1.0_c_double / t))
+    end if
+  end function fpvs
+
   subroutine mp_wsm6_init(den0, denr, dens, cl, cpv, hail_opt, errmsg, errflg)
     real(c_double), intent(in) :: den0, denr, dens, cl, cpv
     integer(c_int), intent(in) :: hail_opt
@@ -165,7 +180,10 @@ contains
     character(len=*), intent(out) :: errmsg
     integer(c_int), intent(out) :: errflg
 
-    integer :: i, j, k
+    integer :: i, j, k, loop, loops
+    real(c_double) :: dtcld, es, qsat, supsat, dq, cpm, xlv, xlf
+    real(c_double) :: auto_qr, freeze_q, melt_q
+    real(c_double) :: rain_flux, snow_flux, graup_flux
 
     if (delt <= 0.0_c_double .or. g <= 0.0_c_double .or. cpd <= 0.0_c_double .or. cpv <= 0.0_c_double) then
       errmsg = 'mp_wsm6_run: invalid scalar physics input'
@@ -173,25 +191,110 @@ contains
       return
     end if
 
-    do k = kts, kte
-      do j = jts, jte
-        do i = its, ite
-          qv(i,j,k) = max(qv(i,j,k), qmin)
-          qc(i,j,k) = max(qc(i,j,k), 0.0_c_double)
-          qi(i,j,k) = max(qi(i,j,k), 0.0_c_double)
-          qr(i,j,k) = max(qr(i,j,k), 0.0_c_double)
-          qs(i,j,k) = max(qs(i,j,k), 0.0_c_double)
-          qg(i,j,k) = max(qg(i,j,k), 0.0_c_double)
-        end do
-      end do
-    end do
-
     rainncv(its:ite,jts:jte) = 0.0_c_double
     sr(its:ite,jts:jte) = 0.0_c_double
     snowncv(its:ite,jts:jte) = 0.0_c_double
     graupelncv(its:ite,jts:jte) = 0.0_c_double
 
-    errmsg = 'mp_wsm6_run OK (ERF tracked stub)'
+    loops = max(nint(delt / dtcldcr), 1)
+    dtcld = delt / dble(loops)
+    if (delt <= dtcldcr) dtcld = delt
+
+    do loop = 1, loops
+      do k = kts, kte
+        do j = jts, jte
+          do i = its, ite
+            qv(i,j,k) = max(qv(i,j,k), qmin)
+            qc(i,j,k) = max(qc(i,j,k), 0.0_c_double)
+            qi(i,j,k) = max(qi(i,j,k), 0.0_c_double)
+            qr(i,j,k) = max(qr(i,j,k), 0.0_c_double)
+            qs(i,j,k) = max(qs(i,j,k), 0.0_c_double)
+            qg(i,j,k) = max(qg(i,j,k), 0.0_c_double)
+
+            if (t(i,j,k) > t0c) then
+              es = fpvs(t(i,j,k), 0, rd, rv, cpv, cliq, cice, xlv0, xls, psat, t0c)
+            else
+              es = fpvs(t(i,j,k), 1, rd, rv, cpv, cliq, cice, xlv0, xls, psat, t0c)
+            end if
+            es = min(es, 0.99_c_double * p(i,j,k))
+            qsat = max(qmin, ep2 * es / max(p(i,j,k) - es, 1.0e-8_c_double))
+            supsat = qv(i,j,k) - qsat
+
+            cpm = cpd * (1.0_c_double - qv(i,j,k)) + cpv * qv(i,j,k)
+            xlv = xlv0 - xlv1 * (t(i,j,k) - t0c)
+            xlf = xlf0
+
+            if (supsat > 0.0_c_double) then
+              dq = min(supsat, 0.5_c_double * supsat)
+              qv(i,j,k) = qv(i,j,k) - dq
+              if (t(i,j,k) > t0c) then
+                qc(i,j,k) = qc(i,j,k) + dq
+                t(i,j,k) = t(i,j,k) + xlv * dq / max(cpm, 1.0e-6_c_double)
+              else
+                qi(i,j,k) = qi(i,j,k) + dq
+                t(i,j,k) = t(i,j,k) + xls * dq / max(cpm, 1.0e-6_c_double)
+              end if
+            else if (supsat < 0.0_c_double) then
+              dq = min(-supsat, 0.5_c_double * (-supsat))
+              if (t(i,j,k) > t0c) then
+                dq = min(dq, qc(i,j,k))
+                qc(i,j,k) = qc(i,j,k) - dq
+                qv(i,j,k) = qv(i,j,k) + dq
+                t(i,j,k) = t(i,j,k) - xlv * dq / max(cpm, 1.0e-6_c_double)
+              else
+                dq = min(dq, qi(i,j,k))
+                qi(i,j,k) = qi(i,j,k) - dq
+                qv(i,j,k) = qv(i,j,k) + dq
+                t(i,j,k) = t(i,j,k) - xls * dq / max(cpm, 1.0e-6_c_double)
+              end if
+            end if
+
+            if (qc(i,j,k) > qc0) then
+              auto_qr = min(qc(i,j,k) - qc0, 0.2_c_double * qc(i,j,k))
+              qc(i,j,k) = qc(i,j,k) - auto_qr
+              qr(i,j,k) = qr(i,j,k) + auto_qr
+            end if
+
+            if (t(i,j,k) < t0c - 5.0_c_double) then
+              freeze_q = min(qr(i,j,k), 0.05_c_double * qr(i,j,k))
+              qr(i,j,k) = qr(i,j,k) - freeze_q
+              qs(i,j,k) = qs(i,j,k) + freeze_q
+            else if (t(i,j,k) > t0c + 1.0_c_double) then
+              melt_q = min(qs(i,j,k), 0.05_c_double * qs(i,j,k))
+              qs(i,j,k) = qs(i,j,k) - melt_q
+              qr(i,j,k) = qr(i,j,k) + melt_q
+              t(i,j,k) = t(i,j,k) - xlf * melt_q / max(cpm, 1.0e-6_c_double)
+            end if
+
+            qi(i,j,k) = max(qi(i,j,k), 0.0_c_double)
+            if (t(i,j,k) < t0c - 10.0_c_double .and. qi(i,j,k) > 0.0_c_double) then
+              freeze_q = min(qi(i,j,k), 0.02_c_double * qi(i,j,k))
+              qi(i,j,k) = qi(i,j,k) - freeze_q
+              qs(i,j,k) = qs(i,j,k) + freeze_q
+            end if
+          end do
+        end do
+      end do
+
+      do j = jts, jte
+        do i = its, ite
+          rain_flux = den(i,j,kts) * qr(i,j,kts) * max(delz(i,j,kts), 0.0_c_double)
+          snow_flux = den(i,j,kts) * qs(i,j,kts) * max(delz(i,j,kts), 0.0_c_double)
+          graup_flux = den(i,j,kts) * qg(i,j,kts) * max(delz(i,j,kts), 0.0_c_double)
+
+          rainncv(i,j) = rainncv(i,j) + rain_flux
+          snowncv(i,j) = snowncv(i,j) + snow_flux
+          graupelncv(i,j) = graupelncv(i,j) + graup_flux
+
+          rain(i,j) = rain(i,j) + rain_flux
+          snow(i,j) = snow(i,j) + snow_flux
+          graupel(i,j) = graupel(i,j) + graup_flux
+          sr(i,j) = snow(i,j) / max(snow(i,j) + rain(i,j), 1.0e-12_c_double)
+        end do
+      end do
+    end do
+
+    errmsg = 'mp_wsm6_run OK (ERF phase-1 transitional)'
     errflg = 0_c_int
   end subroutine mp_wsm6_run
 

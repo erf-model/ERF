@@ -45,6 +45,12 @@
   - `Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90` `mp_wsm6_init` upgraded from pure stub checks to canonical-style coefficient initialization (hail/graupel option tables + precomputed constants).
   - C bridge ABI and `mp_wsm6_run` argument contract remain unchanged.
   - `ERF_module_mp_wsm6.F90.o` recompiles cleanly in `build_no_netcdf_wsm6`.
+  - `mp_wsm6_run` upgraded from clamp-only stub to a transitional canonical-style scaffold:
+    - minor-loop time splitting (`dtcldcr`)
+    - saturation adjustment via in-module `fpvs`
+    - simple warm/cold phase conversion tendencies
+    - per-column precip diagnostic flux accumulation (`rain/snow/graupel` families)
+  - Scope note: this is still not full `physics_mmm` parity; it is an integration bridge step that preserves current ERF C ABI.
 
 ## Targeted Verification (No Full Rebuild)
 - Configured `build_no_netcdf_wsm6` with:
