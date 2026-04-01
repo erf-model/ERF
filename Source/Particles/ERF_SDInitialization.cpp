@@ -268,7 +268,6 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             Print() << ", min=" << m_mass_species_min[i]
                     << ", mean=" << m_mass_species_mean[i]
                     << ", max=" << m_mass_species_max[i];
-            AMREX_ALWAYS_ASSERT(m_mass_species_min[i] >= 0.0);
             AMREX_ALWAYS_ASSERT(m_mass_species_min[i] >= zero);
             AMREX_ALWAYS_ASSERT(m_mass_species_max[i] >= m_mass_species_min[i]);
             AMREX_ALWAYS_ASSERT(    (m_mass_species_mean[i] >= m_mass_species_min[i])
@@ -298,7 +297,6 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                     << " (distribution: " << getEnumNameString(m_aerosol_init_type[i]);
             if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
-                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > 0.0);
                 AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > zero);
             } else if (m_aerosol_init_type[i] == SDDistributionType::mass_exponential) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
