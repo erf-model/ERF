@@ -15,6 +15,7 @@ This file is the short patch map between ERF's current WSM6 bridge and the canon
 | Symbol names | `mp_wsm6_init`, `mp_wsm6_run` | Same names in ERF-owned module | Matched |
 | C bindings | Not provided in canonical module | `mp_wsm6_init_c`, `mp_wsm6_run_c` in ERF isohelper | Matched (ERF bridge layer) |
 | Init args | `den0,denr,dens,cl,cpv,hail_opt,+errmsg/errflg` | Same arg set in shim | Matched |
+| Init internals | Canonical computes coefficient tables for run-time tendencies | ERF shim now computes canonical-style coefficient tables (radar coupling still deferred) | Partial |
 | Run core thermo/hydro args | `t,q,qc,qi,qr,qs,qg,den,p,delz,...` | Same core set in shim (`qv` naming on ERF side maps to canonical `q`) | Matched |
 | 2-D precip diagnostics | `rain,rainncv,sr,snow,snowncv,graupel,graupelncv` | Same set in shim and C bridge | Matched |
 | Optional 2-D diagnostics | `rainprod2d,evapprod2d` optional | Not in phase-1 shim/C bridge yet | Deferred |

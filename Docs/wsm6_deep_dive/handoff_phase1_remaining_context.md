@@ -41,6 +41,10 @@
   - Commit: `20dabf1e`
   - File: `Docs/wsm6_deep_dive/bridge_compare_phase1.md`
   - Summary: adds canonical-vs-ERF bridge map and ordered replacement plan (`init` then `run`, preserving ABI first).
+- Post-compare follow-up (this pass):
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90` `mp_wsm6_init` upgraded from pure stub checks to canonical-style coefficient initialization (hail/graupel option tables + precomputed constants).
+  - C bridge ABI and `mp_wsm6_run` argument contract remain unchanged.
+  - `ERF_module_mp_wsm6.F90.o` recompiles cleanly in `build_no_netcdf_wsm6`.
 
 ## Targeted Verification (No Full Rebuild)
 - Configured `build_no_netcdf_wsm6` with:
