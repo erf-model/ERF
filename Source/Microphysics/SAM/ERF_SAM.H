@@ -160,7 +160,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
+                   const amrex::Real& fac_fus,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
