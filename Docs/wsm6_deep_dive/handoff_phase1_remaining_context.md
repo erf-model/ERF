@@ -10,6 +10,61 @@
   - Added WSM6 to Eulerian model detection in `Source/Microphysics/ERF_Microphysics.H`.
   - Added `#include "ERF_WSM6.H"` and `SetModel<WSM6>()` in `Source/Microphysics/ERF_EulerianMicrophysics.H`.
   - Added WSM6 handling to accumulation-copy branch in `Source/IO/ERF_Plotfile.cpp` so `rain_accum/snow_accum/graup_accum` are not skipped.
+- Phase-1 WSM6 Fortran bridge wiring advanced (this pass):
+  - `Source/Microphysics/WSM6/ERF_WSM6_Fortran_Interface.H` now has concrete C-binding declarations for a minimal single-moment bridge:
+    - `mp_wsm6_init_c(...)`
+    - `mp_wsm6_run_c(...)`
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp` now calls WSM6 Fortran bridge entry points under `ERF_USE_WSM6_FORT`:
+    - one-time `mp_wsm6_init_c(...)`
+    - per-tile `mp_wsm6_run_c(...)`
+  - Bridge scope intentionally kept minimal: required single-moment state + thermo + geometry + precip accum/rates only; no radiation/chem optional arrays.
+  - Targeted WSM6 TU compile check completed successfully (via compile commands):
+    - `ERF_InitWSM6.cpp`
+    - `ERF_AdvanceWSM6.cpp`
+    - `ERF_UpdateWSM6.cpp`
+  - `ERF_AdvanceWSM6.cpp` also compiles with `-DERF_USE_WSM6_FORT` forced on (TU-level check).
+- Incremental bridge commit (ERF-tracked code path):
+  - Commit: `6aa3accc`
+  - Added ERF-owned Fortran WSM6 shim module:
+    - `Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90`
+  - Added C-binding isohelper that calls `mp_wsm6_init/mp_wsm6_run` from that shim:
+    - `Source/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90`
+  - Build wiring for `USE_WSM6_FORT`/`ERF_ENABLE_WSM6_FORT` updated in:
+    - `Source/Microphysics/WSM6/Make.package`
+    - `Exec/Make.ERF`
+    - `CMakeLists.txt`
+    - `CMake/BuildERFExe.cmake`
+    - `CMake/SetAmrexOptions.cmake`
+    - `CMake/CrayCompilerDetection.cmake`
+  - Scope note: shim is intentionally minimal and tracked in ERF; it enforces nonnegative moisture and exposes stable bridge symbols for integration work.
+
+## Targeted Verification (No Full Rebuild)
+- Configured `build_no_netcdf_wsm6` with:
+  - `ERF_ENABLE_NETCDF=OFF`
+  - `ERF_ENABLE_WSM6_FORT=ON`
+- Avoided full executable rebuild; ran targeted per-file compile checks using generated build flags:
+  - `ERF_module_mp_wsm6.F90`
+  - `ERF_module_mp_wsm6_isohelper.F90`
+  - `ERF_AdvanceWSM6.cpp`
+- Result: targeted bridge units compile successfully.
+
+## Simple Diff/Patch Comparison Plan
+- Keep ERF shim interfaces intentionally close to canonical names:
+  - `mp_wsm6_init`
+  - `mp_wsm6_run`
+- Comparison workflow for next pass:
+  1. Diff `ERF_module_mp_wsm6.F90` against `physics_mmm/mp_wsm6.F90` init/run signatures.
+  2. Diff `ERF_module_mp_wsm6_isohelper.F90` against the same C-bind wrapper pattern used by Morrison in ERF.
+  3. Replace stub internals progressively while preserving bridge symbol names and argument order.
+
+## Build Attempt (This Pass)
+- Attempted target build:
+  - `cmake --build /home/jmsexton/codes/ERF/build --target erf_srclib -j 8`
+- Result: blocked before reaching final link due pre-existing NetCDF parallel header issue in this build configuration.
+- First failing line:
+  - `/home/jmsexton/codes/ERF/Source/IO/ERF_NCInterface.H:18`
+  - `#include <netcdf_par.h>`
+  - Error: `fatal error: netcdf_par.h: No such file or directory`
 
 ## Current State
 - Workspace progress was stashed before deep-dive work.
