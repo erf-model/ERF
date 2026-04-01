@@ -545,7 +545,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
                 // Initialize ice shape attributes
                 auto mass = sp_mass_ptrs[idx_i][i];
-                a_ptr[i] = c_ptr[i] = std::cbrt(mass/((4.0/3.0)*PI*rho_i));
+                a_ptr[i] = c_ptr[i] = std::cbrt(mass/(four_thirds_pi*rho_i));
                 mrime_ptr[i] = 0.0;
                 nmono_ptr[i] = (mass > 0 ? 1.0 : 0.0);
             });

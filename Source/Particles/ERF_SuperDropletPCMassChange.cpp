@@ -238,7 +238,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
             } else {
                 // update particle attributes
                 auto r_new = std::sqrt(r_sq);
-                auto d_mass = (Real(4.0)/three)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
+                auto d_mass = four_thirds_pi*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 ptrs.sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
                 ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],amrex::Real(0));
@@ -315,7 +315,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
                 if ((temperature <= ptrs.Tfz_ptr[i]) && (sat_ratio > 1.0)) {
                     ptrs.sp_mass_ptrs[ctx.idx_ice][i] = ptrs.sp_mass_ptrs[ctx.idx_water][i];
                     ptrs.sp_mass_ptrs[ctx.idx_water][i] = 0.0;
-                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = std::cbrt(ptrs.sp_mass_ptrs[ctx.idx_ice][i]/(4.0/3.0*PI*ctx.rho_ice));
+                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = std::cbrt(ptrs.sp_mass_ptrs[ctx.idx_ice][i]/(four_thirds_pi*ctx.rho_ice));
                     ptrs.mrime_ptr[i] = 0.0;
                     ptrs.nmono_ptr[i] = 1.0;
                 }
@@ -434,7 +434,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                                     false };
 
             auto mass_old = ptrs.sp_mass_ptrs[ctx.idx_ice][i];
-            auto vol_old = (4.0/3.0) * PI * ptrs.a_ptr[i]*ptrs.a_ptr[i]*ptrs.c_ptr[i];
+            auto vol_old = four_thirds_pi * ptrs.a_ptr[i]*ptrs.a_ptr[i]*ptrs.c_ptr[i];
             auto rhoi_old = mass_old / vol_old;
 
             // compute new mass
@@ -466,13 +466,13 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             if (std::min(a_new,c_new) <= 1.0e-6) {
                 rhoi_new = mat_prop_core.m_density;
                 vol_new = mass_new / rhoi_new;
-                c_new = a_new = std::cbrt(vol_new/(4.0*PI/3.0));
+                c_new = a_new = std::cbrt(vol_new/four_thirds_pi);
             }
             // limit particle size to 1 nm
             if (std::min(a_new,c_new) <= 1.0e-9 ) {
                 c_new = a_new = 1.0e-9;
                 rhoi_new = mat_prop_core.m_density;
-                vol_new = (4.0/3.0)*PI*a_new*a_new*c_new;
+                vol_new = four_thirds_pi*a_new*a_new*c_new;
                 mass_new = vol_new * rhoi_new;
             }
 

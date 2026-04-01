@@ -15,6 +15,7 @@ constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
 constexpr amrex::Real PIoTwo       = PI/two;
+constexpr amrex::Real four_thirds_pi = four/three*PI;
 
 // Physical Constants
 constexpr amrex::Real R_d          = amrex::Real(287.0);    // dry air constant for dry air [J/(kg-K)]

@@ -182,7 +182,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         }
 
         m_new = gamma * a_sp_m[a_sp_idx_i][i] + a_sp_m[a_sp_idx_i][j];
-        auto V_new_min = (4.0*PI/3.0) * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
+        auto V_new_min = four_thirds_pi * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
         auto rhoi_bar = m_new / V_new_min;
 
         auto maxR_i = std::max(a_a[i], a_c[i]);
@@ -191,12 +191,12 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         if (maxR_i > maxR_j) {
             if (a_a[i] > a_c[i]) {
                 a_new = a_a[i];
-                auto c_new_min = V_new_min / ((4.0*PI/3.0)*a_new*a_new);
+                auto c_new_min = V_new_min / (four_thirds_pi*a_new*a_new);
                 auto c_new_max = a_c[i]*gamma + std::min(a_a[j],a_c[j]);
                 c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
             } else {
                 c_new = a_c[i];
-                auto a_new_min = std::sqrt(V_new_min / ((4.0*PI/3.0)*c_new));
+                auto a_new_min = std::sqrt(V_new_min / (four_thirds_pi*c_new));
                 auto a_new_max = std::sqrt( std::max(std::max(a_a[i],a_a[j]),a_c[j])
                                             * (a_a[i]*gamma + std::min(a_a[j],a_c[j])) );
                 a_new = std::sqrt( (a_rho_ice - a_rho_min)
@@ -206,12 +206,12 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         } else {
             if (a_a[j] > a_c[j]) {
                 a_new = a_a[j];
-                auto c_new_min = V_new_min / ((4.0*PI/3.0)*a_new*a_new);
+                auto c_new_min = V_new_min / (four_thirds_pi*a_new*a_new);
                 auto c_new_max = a_c[j] + std::min(a_a[i],a_c[i])*gamma;
                 c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
             } else {
                 c_new = a_c[j];
-                auto a_new_min = std::sqrt(V_new_min / ((4.0*PI/3.0)*c_new));
+                auto a_new_min = std::sqrt(V_new_min / (four_thirds_pi*c_new));
                 auto a_new_max = std::sqrt( std::max(std::max(a_a[j],a_a[i]),a_c[i])
                                             * (a_a[j] + gamma*std::min(a_a[i],a_c[i])) );
                 a_new = std::sqrt( (a_rho_ice - a_rho_min)
@@ -458,7 +458,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
 
     if (a_radius[id_water] > std::max(a_a[id_ice], a_c[id_ice])) {
         // Water droplet is larger than ice particle - form spherical ice
-        a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
+        a_new = c_new = std::cbrt(mi_new / (four_thirds_pi*a_rho_ice));
     } else {
         // Normal riming - ice particle collects water droplet
         // Pass terminal velocities for Re/St calculation (velocity relative to air)
@@ -468,7 +468,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                                           a_rho_water,
                                                           a_D, a_dmdt,
                                                           a_T, a_rhom, a_P, a_qv );
-        auto V_new = (4.0*PI/3.0) * ( gamma_ice * a_a[id_ice]*a_a[id_ice]*a_c[id_ice]
+        auto V_new = four_thirds_pi * ( gamma_ice * a_a[id_ice]*a_a[id_ice]*a_c[id_ice]
                                     + gamma_water * a_radius[id_water]*a_radius[id_water]*a_radius[id_water]
                                                   * (a_rho_water/rho_rime) );
         auto phi = a_c[id_ice] / a_a[id_ice];
@@ -483,7 +483,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 // Water is prey - include gamma inside cube root (Fortran line 1445)
                 a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
             }
-            c_new = V_new / ((4.0*PI/3.0)*a_new*a_new);
+            c_new = V_new / (four_thirds_pi*a_new*a_new);
         } else {
             // Prolate or quasi-spherical oblate: constrain polar radius
             if (a_prey[id_ice]) {
@@ -492,7 +492,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 // Water is prey - include gamma inside cube root (Fortran line 1460)
                 c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
             }
-            a_new = std::sqrt(V_new / ((4.0*PI/3.0)*c_new));
+            a_new = std::sqrt(V_new / (four_thirds_pi*c_new));
         }
     }
 

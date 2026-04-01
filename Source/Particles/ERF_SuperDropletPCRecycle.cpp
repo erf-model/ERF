@@ -196,7 +196,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 }
                 // Reset water mass
                 auto water_radius = Real(1.0e-15);
-                auto water_mass = (Real(4.0)/three)*PI
+                auto water_mass = four_thirds_pi
                                  * water_radius*water_radius*water_radius*ctx.rho_water;
                 ptrs.sp_mass_ptrs[ctx.idx_water][i] = water_mass;
 

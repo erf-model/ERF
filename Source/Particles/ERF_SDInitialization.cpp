@@ -383,7 +383,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                 count++;
                 if (count > 100) { break; }
             }
-            a_mass[n] = (amrex::Real(4.0)/three) * PI
+            a_mass[n] = four_thirds_pi
                                 * dry_r * dry_r * dry_r
                                 * a_density;
         }
@@ -444,7 +444,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             auto dry_r = std::exp(tmp);
-            a_mass[n] = (amrex::Real(4.0)/three) * PI * dry_r * dry_r * dry_r * a_density;
+            a_mass[n] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(two*sigma*sigma));
             a_mult[n] += ( m_numdens * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
         }
@@ -482,7 +482,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnrmin + urd(a_rng)*dlnr;
             auto dry_r = std::exp(tmp);
-            tmp_mass[n] = (amrex::Real(4.0)/three) * PI * dry_r * dry_r * dry_r * a_density;
+            tmp_mass[n] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(two*sigma*sigma));
             tmp_mult[n] =  (m_numdens * a_dV)/ (sigma*std::sqrt(2*PI)) * term;
         }
@@ -495,7 +495,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto tmp = P_max + (one - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(2 * tmp - 1);
             auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
-            tmp_mass[sd_id] = (amrex::Real(4.0)/three) * PI * dry_r * dry_r * dry_r * a_density;
+            tmp_mass[sd_id] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
             tmp_mult[sd_id] = (m_numdens * a_dV) * tail_mult;
         }

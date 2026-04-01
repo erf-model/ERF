@@ -195,7 +195,7 @@ static auto ice_rho(const amrex::ParticleReal a_a, /*!< polar radius */
                     const amrex::ParticleReal a_c, /*!< equatorial radius */
                     const amrex::ParticleReal a_mass /*!< mass */ )
 {
-    auto vol = (4.0/3.0)*PI*a_a*a_a*a_c;
+    auto vol = four_thirds_pi*a_a*a_a*a_c;
     if (vol == 0.0) {
         AMREX_ALWAYS_ASSERT(a_mass == 0.0);
         return 0.0;
@@ -261,7 +261,7 @@ static amrex::ParticleReal SD_effective_radius( const int a_idx, /*!< Particle i
     if (m_p > zero) { rho_p /= m_p; }
     else           { rho_p = one; }
     auto m_t = m_w + m_s + (a_rho_w/rho_p)*m_p;
-    auto r_eff = std::cbrt(m_t / (amrex::Real(4.0)/three*PI*a_rho_w));
+    auto r_eff = std::cbrt(m_t / (four_thirds_pi*a_rho_w));
     return r_eff;
 }
 
@@ -293,7 +293,7 @@ static amrex::ParticleReal SD_dry_radius( const int a_idx, /*!< Particle index *
     }
     if (m_p > zero) { rho_p /= m_p; }
     else           { rho_p = one; }
-    auto r_dry = std::cbrt(m_p / (amrex::Real(4.0)/three*PI*rho_p));
+    auto r_dry = std::cbrt(m_p / (four_thirds_pi*rho_p));
     return r_dry;
 }
 

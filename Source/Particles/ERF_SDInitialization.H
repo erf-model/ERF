@@ -138,7 +138,7 @@ amrex::Real SD_sample_mass_gpu(const SDDistributionParams& params,
                 dry_r = params.radius_mean * std::exp(params.sigma * z);
                 mult_contribution = 0.0;  // Not used for constant multiplicity
             }
-            mass = (4.0/3.0) * PI * dry_r * dry_r * dry_r * params.density;
+            mass = four_thirds_pi * dry_r * dry_r * dry_r * params.density;
             break;
         }
     }
@@ -523,7 +523,7 @@ class SDInitProperties
                 vol = m_particle_domain.volume();
             } else if (m_type == SDInitShape::bubble) {
                 const auto& radius = m_particle_domain.hi();
-                vol = (amrex::Real(4.0)/three)*PI*radius[0]*radius[1]*radius[2];
+                vol = four_thirds_pi*radius[0]*radius[1]*radius[2];
             }
             return vol;
         }

@@ -45,8 +45,8 @@ struct CollisionKernel
                  const RT a_r2  /*!< radius of droplet 2 */ ) const noexcept
     {
         RT b = RT(1.5e03);
-        auto X_1 = (RT(4.0)*PI/RT(3.0)) * a_r1*a_r1*a_r1;
-        auto X_2 = (RT(4.0)*PI/RT(3.0)) * a_r2*a_r2*a_r2;
+        auto X_1 = RT(four_thirds_pi) * a_r1*a_r1*a_r1;
+        auto X_2 = RT(four_thirds_pi) * a_r2*a_r2*a_r2;
         return b * (X_1 + X_2);
     }
 

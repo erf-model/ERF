@@ -430,7 +430,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_particle = mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total;
             ptrs.mass_ptr[i] = mass_particle;
 
-            Real radius_cubed = mass_particle / ((Real(4.0)/three)*PI*rho_w);
+            Real radius_cubed = mass_particle / (four_thirds_pi*rho_w);
             Real radius = (radius_cubed == zero ? zero : std::cbrt(radius_cubed));
             ptrs.radius_ptr[i] = radius;
         });
