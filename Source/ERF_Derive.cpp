@@ -414,17 +414,16 @@ erf_derreflectivity ( const Box& bx,
 }
 
 void
-erf_dermaxreflectivity (
-  const Box& bx,
-                  FArrayBox& derfab,
-                  int dcomp,
-                  int /*ncomp*/,
-                  const FArrayBox& datfab,
-                  const FArrayBox& /*zcc_fab*/,
-                  const Geometry& /*geomdata*/,
-                  Real /*time*/,
-                  const int* /*bcrec*/,
-                  const int /*level*/)
+erf_dermaxreflectivity ( const Box& bx,
+                         FArrayBox& derfab,
+                         int dcomp,
+                         int /*ncomp*/,
+                         const FArrayBox& datfab,
+                         const FArrayBox& /*zcc_fab*/,
+                         const Geometry& /*geomdata*/,
+                         Real /*time*/,
+                         const int* /*bcrec*/,
+                         const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
@@ -464,17 +463,16 @@ erf_dermaxreflectivity (
 }
 
 void
-erf_derlocalhelicity (
-  const Box& bx,
-                  FArrayBox& derfab,
-                  int dcomp,
-                  int /*ncomp*/,
-                  const FArrayBox& datfab,
-                  const FArrayBox& /*zcc_fab*/,
-                  const Geometry& geomdata,
-                  Real /*time*/,
-                  const int* /*bcrec*/,
-                  const int /*level*/)
+erf_derlocalhelicity ( const Box& bx,
+                       FArrayBox& derfab,
+                       int dcomp,
+                       int /*ncomp*/,
+                       const FArrayBox& datfab,
+                       const FArrayBox& /*zcc_fab*/,
+                       const Geometry& geomdata,
+                       Real /*time*/,
+                       const int* /*bcrec*/,
+                       const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
@@ -509,8 +507,8 @@ erf_derhelicity ( const Box& bx,
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
-    auto const dat = datfab.array(); // cell-centered velocity
-    auto dfab      = derfab.array(); // cell-centered local helicity
+    auto const dat = datfab.array();  // cell-centered velocity
+    auto dfab      = derfab.array();  // integral of local helicity
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
     const Real dx = geomdata.CellSize(0);
@@ -546,6 +544,53 @@ erf_derhelicity ( const Box& bx,
         // Store vertical integral into *all* levels for this (i,j)
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
             dfab(i, j, k, dcomp) = int_hel;
+        }
+    });
+}
+
+void
+erf_derprecipitable ( const Box& bx,
+                      FArrayBox& derfab,
+                      int dcomp,
+                      int /*ncomp*/,
+                      const FArrayBox& datfab,
+                      const FArrayBox& zcc_fab,
+                      const Geometry& /*geomdata*/,
+                      Real /*time*/,
+                      const int* /*bcrec*/,
+                      const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array(); // cell-centered state vector
+    auto dfab      = derfab.array(); // integral of qv to define precipitable water
+
+    // Collapse to i,j box (ignore vertical for now)
+    Box b2d = bx;
+    b2d.setSmall(2,0);
+    b2d.setBig(2,0);
+
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
+
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    {
+
+        Real int_qv = Real(0.0);
+
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
+        {
+            Real z_hi = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k+1));
+            Real z_lo = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k-1));
+            Real dz = z_hi - z_lo;
+
+            Real rhoQ1 = dat(i, j, k, RhoQ1_comp);
+
+            int_qv += rhoQ1 * dz;
+        }
+
+        // Store vertical integral into *all* levels for this (i,j)
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            dfab(i, j, k, dcomp) = int_qv;
         }
     });
 }
