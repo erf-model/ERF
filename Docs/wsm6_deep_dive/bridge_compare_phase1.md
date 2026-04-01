@@ -20,7 +20,7 @@ This file is the short patch map between ERF's current WSM6 bridge and the canon
 | 2-D precip diagnostics | `rain,rainncv,sr,snow,snowncv,graupel,graupelncv` | Same set in shim and C bridge | Matched |
 | Optional 2-D diagnostics | `rainprod2d,evapprod2d` optional | Not in phase-1 shim/C bridge yet | Deferred |
 | Run index contract | Canonical uses `(its,ite,kts,kte)` | ERF C bridge passes full `(ids..kte)` and shim currently keeps all | Stubbed for transition |
-| Physics internals | Full WSM6 microphysics | ERF shim now has transitional run scaffold (substepping, saturation adjustment, phase conversion, precip flux accumulation), but not full canonical process set | Partial |
+| Physics internals | Full WSM6 microphysics | ERF shim now has transitional run scaffold with canonical warm-rain tendencies (`praut/pracw/prevp`) and canonical-style snow/graupel melting (`psmlt/pgmlt`) plus substepping/diagnostic accumulation; full cold-process set still pending | Partial |
 | Error contract | `errmsg,errflg` out args | Preserved in shim; isohelper converts nonzero to `stop 1` | Matched |
 
 ## Files In ERF For This Bridge

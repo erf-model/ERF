@@ -48,7 +48,9 @@
   - `mp_wsm6_run` upgraded from clamp-only stub to a transitional canonical-style scaffold:
     - minor-loop time splitting (`dtcldcr`)
     - saturation adjustment via in-module `fpvs`
-    - simple warm/cold phase conversion tendencies
+    - canonical-style warm-rain tendencies (`praut`, `pracw`, `prevp`) with slope/ventilation helpers
+    - canonical-style `psmlt`/`pgmlt` melt tendencies for snow/graupel in warm layers
+    - simple residual cold-phase conversion tendencies still retained for non-portioned paths
     - per-column precip diagnostic flux accumulation (`rain/snow/graupel` families)
   - Scope note: this is still not full `physics_mmm` parity; it is an integration bridge step that preserves current ERF C ABI.
 

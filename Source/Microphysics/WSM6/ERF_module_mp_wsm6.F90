@@ -19,6 +19,9 @@ module mp_wsm6
   real(c_double), parameter :: dimax = 500.0e-6_c_double
   real(c_double), parameter :: eacrc = 1.0_c_double
   real(c_double), parameter :: n0s = 2.0e6_c_double
+  real(c_double), parameter :: n0smax = 1.0e11_c_double
+  real(c_double), parameter :: alpha = 0.12_c_double
+  real(c_double), parameter :: qcrmin = 1.0e-9_c_double
 
   real(c_double), save :: qc0, qck1, &
                           bvtr1, bvtr2, bvtr3, bvtr4, bvtr6, g1pbr, g3pbr, g4pbr, g6pbr, g5pbro2, &
@@ -52,6 +55,33 @@ contains
       fpvs = psat * tr**(dldt/rv) * exp((hsub - dldt * t0c) / rv * (1.0_c_double / t0c - 1.0_c_double / t))
     end if
   end function fpvs
+
+  pure real(c_double) function diffus(t, den)
+    real(c_double), intent(in) :: t, den
+    diffus = 8.794e-5_c_double * exp(log(max(t, 1.0_c_double)) * 1.81_c_double) / max(den, 1.0e-12_c_double)
+  end function diffus
+
+  pure real(c_double) function viscos(t, den)
+    real(c_double), intent(in) :: t, den
+    viscos = 1.496e-6_c_double * (t * sqrt(max(t, 1.0_c_double))) / (t + 120.0_c_double) / max(den, 1.0e-12_c_double)
+  end function viscos
+
+  pure real(c_double) function xka(t, den)
+    real(c_double), intent(in) :: t, den
+    xka = 1.414e3_c_double * viscos(t, den) * den
+  end function xka
+
+  pure real(c_double) function diffac(a, p, t, den, qsat, rv)
+    real(c_double), intent(in) :: a, p, t, den, qsat, rv
+    diffac = den * a * a / (max(xka(t, den), 1.0e-12_c_double) * rv * t * t) + &
+             1.0_c_double / (max(qsat, 1.0e-12_c_double) * max(diffus(t, p), 1.0e-12_c_double))
+  end function diffac
+
+  pure real(c_double) function venfac(p, t, den, den0)
+    real(c_double), intent(in) :: p, t, den, den0
+    venfac = exp(log(max(viscos(t, den) / max(diffus(t, p), 1.0e-12_c_double), 1.0e-12_c_double)) / 3.0_c_double) / &
+             sqrt(max(viscos(t, den), 1.0e-12_c_double)) * sqrt(sqrt(max(den0 / max(den, 1.0e-12_c_double), 1.0e-12_c_double)))
+  end function venfac
 
   subroutine mp_wsm6_init(den0, denr, dens, cl, cpv, hail_opt, errmsg, errflg)
     real(c_double), intent(in) :: den0, denr, dens, cl, cpv
@@ -182,7 +212,13 @@ contains
 
     integer :: i, j, k, loop, loops
     real(c_double) :: dtcld, es, qsat, supsat, dq, cpm, xlv, xlf
-    real(c_double) :: auto_qr, freeze_q, melt_q
+    real(c_double) :: freeze_q
+    real(c_double) :: denfac, rslope_r, rslopeb_r, rslope2_r, rslope3_r, lamdar
+    real(c_double) :: rslope_s, rslopeb_s, rslope2_s, rslope3_s, lamdas
+    real(c_double) :: rslope_g, rslopeb_g, rslope2_g, rslope3_g, lamdag
+    real(c_double) :: n0sfac, supcol
+    real(c_double) :: work1_r, work2_r, coeres, satdt, praut, pracw, prevp
+    real(c_double) :: psmlt, pgmlt
     real(c_double) :: rain_flux, snow_flux, graup_flux
 
     if (delt <= 0.0_c_double .or. g <= 0.0_c_double .or. cpd <= 0.0_c_double .or. cpv <= 0.0_c_double) then
@@ -249,21 +285,109 @@ contains
               end if
             end if
 
+            denfac = sqrt(max(den0 / max(den(i,j,k), 1.0e-12_c_double), 1.0e-12_c_double))
+            supcol = t0c - t(i,j,k)
+            n0sfac = max(min(exp(alpha * supcol), n0smax / n0s), 1.0_c_double)
+            if (qr(i,j,k) <= qcrmin) then
+              rslope_r = rslopermax
+              rslopeb_r = rsloperbmax
+              rslope2_r = rsloper2max
+              rslope3_r = rsloper3max
+            else
+              lamdar = sqrt(sqrt(pidn0r / max(qr(i,j,k) * den(i,j,k), 1.0e-20_c_double)))
+              rslope_r = 1.0_c_double / max(lamdar, 1.0e-12_c_double)
+              rslopeb_r = rslope_r**bvtr
+              rslope2_r = rslope_r * rslope_r
+              rslope3_r = rslope2_r * rslope_r
+            end if
+            if (qs(i,j,k) <= qcrmin) then
+              rslope_s = rslopesmax
+              rslopeb_s = rslopesbmax
+              rslope2_s = rslopes2max
+              rslope3_s = rslopes3max
+            else
+              lamdas = sqrt(sqrt(pidn0s * n0sfac / max(qs(i,j,k) * den(i,j,k), 1.0e-20_c_double)))
+              rslope_s = 1.0_c_double / max(lamdas, 1.0e-12_c_double)
+              rslopeb_s = rslope_s**bvts
+              rslope2_s = rslope_s * rslope_s
+              rslope3_s = rslope2_s * rslope_s
+            end if
+            if (qg(i,j,k) <= qcrmin) then
+              rslope_g = rslopegmax
+              rslopeb_g = rslopegbmax
+              rslope2_g = rslopeg2max
+              rslope3_g = rslopeg3max
+            else
+              lamdag = sqrt(sqrt(pidn0g / max(qg(i,j,k) * den(i,j,k), 1.0e-20_c_double)))
+              rslope_g = 1.0_c_double / max(lamdag, 1.0e-12_c_double)
+              rslopeb_g = rslope_g**bvtg
+              rslope2_g = rslope_g * rslope_g
+              rslope3_g = rslope2_g * rslope_g
+            end if
+
+            supsat = max(qv(i,j,k), qmin) - qsat
+            satdt = supsat / dtcld
+            praut = 0.0_c_double
+            pracw = 0.0_c_double
+            prevp = 0.0_c_double
+
             if (qc(i,j,k) > qc0) then
-              auto_qr = min(qc(i,j,k) - qc0, 0.2_c_double * qc(i,j,k))
-              qc(i,j,k) = qc(i,j,k) - auto_qr
-              qr(i,j,k) = qr(i,j,k) + auto_qr
+              praut = qck1 * qc(i,j,k)**(7.0_c_double / 3.0_c_double)
+              praut = min(praut, qc(i,j,k) / dtcld)
+            end if
+
+            if (qr(i,j,k) > qcrmin .and. qc(i,j,k) > qmin) then
+              pracw = pacrr * rslope3_r * rslopeb_r * qc(i,j,k) * denfac
+              pracw = min(pracw, qc(i,j,k) / dtcld)
+            end if
+
+            if (qr(i,j,k) > 0.0_c_double) then
+              work1_r = diffac(xlv, p(i,j,k), t(i,j,k), den(i,j,k), qsat, rv)
+              work2_r = venfac(p(i,j,k), t(i,j,k), den(i,j,k), den0)
+              coeres = rslope2_r * sqrt(max(rslope_r * rslopeb_r, 0.0_c_double))
+              prevp = (max(qv(i,j,k) / qsat, qmin) - 1.0_c_double) * &
+                      (precr1 * rslope2_r + precr2 * work2_r * coeres) / max(work1_r, 1.0e-12_c_double)
+              if (prevp < 0.0_c_double) then
+                prevp = max(prevp, -qr(i,j,k) / dtcld)
+                prevp = max(prevp, satdt / 2.0_c_double)
+              else
+                prevp = min(prevp, satdt / 2.0_c_double)
+              end if
+            end if
+
+            qc(i,j,k) = max(qc(i,j,k) - (praut + pracw) * dtcld, 0.0_c_double)
+            qr(i,j,k) = max(qr(i,j,k) + (praut + pracw + prevp) * dtcld, 0.0_c_double)
+            qv(i,j,k) = max(qv(i,j,k) - prevp * dtcld, qmin)
+            t(i,j,k) = t(i,j,k) + xlv * prevp * dtcld / max(cpm, 1.0e-6_c_double)
+
+            psmlt = 0.0_c_double
+            pgmlt = 0.0_c_double
+            if (t(i,j,k) > t0c) then
+              work2_r = venfac(p(i,j,k), t(i,j,k), den(i,j,k), den0)
+              if (qs(i,j,k) > 0.0_c_double) then
+                coeres = rslope2_s * sqrt(max(rslope_s * rslopeb_s, 0.0_c_double))
+                psmlt = xka(t(i,j,k), den(i,j,k)) / max(xlf, 1.0e-12_c_double) * (t0c - t(i,j,k)) * pi / 2.0_c_double * &
+                        n0sfac * (precs1 * rslope2_s + precs2 * work2_r * coeres) / max(den(i,j,k), 1.0e-12_c_double)
+                psmlt = min(max(psmlt * dtcld, -qs(i,j,k)), 0.0_c_double)
+                qs(i,j,k) = qs(i,j,k) + psmlt
+                qr(i,j,k) = qr(i,j,k) - psmlt
+                t(i,j,k) = t(i,j,k) + xlf / max(cpm, 1.0e-12_c_double) * psmlt
+              end if
+              if (qg(i,j,k) > 0.0_c_double) then
+                coeres = rslope2_g * sqrt(max(rslope_g * rslopeb_g, 0.0_c_double))
+                pgmlt = xka(t(i,j,k), den(i,j,k)) / max(xlf, 1.0e-12_c_double) * (t0c - t(i,j,k)) * &
+                        (precg1 * rslope2_g + precg2 * work2_r * coeres) / max(den(i,j,k), 1.0e-12_c_double)
+                pgmlt = min(max(pgmlt * dtcld, -qg(i,j,k)), 0.0_c_double)
+                qg(i,j,k) = qg(i,j,k) + pgmlt
+                qr(i,j,k) = qr(i,j,k) - pgmlt
+                t(i,j,k) = t(i,j,k) + xlf / max(cpm, 1.0e-12_c_double) * pgmlt
+              end if
             end if
 
             if (t(i,j,k) < t0c - 5.0_c_double) then
               freeze_q = min(qr(i,j,k), 0.05_c_double * qr(i,j,k))
               qr(i,j,k) = qr(i,j,k) - freeze_q
               qs(i,j,k) = qs(i,j,k) + freeze_q
-            else if (t(i,j,k) > t0c + 1.0_c_double) then
-              melt_q = min(qs(i,j,k), 0.05_c_double * qs(i,j,k))
-              qs(i,j,k) = qs(i,j,k) - melt_q
-              qr(i,j,k) = qr(i,j,k) + melt_q
-              t(i,j,k) = t(i,j,k) - xlf * melt_q / max(cpm, 1.0e-6_c_double)
             end if
 
             qi(i,j,k) = max(qi(i,j,k), 0.0_c_double)
