@@ -17,7 +17,7 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 {
     BL_PROFILE("ERFPCPC::EvolveParticles()");
 
-    if (m_verbose > 0) {
+    {
         Long np_total = 0;
         int finest = m_gdb->finestLevel();
         amrex::Print() << "[" << m_name << "] Evolving particles on level " << a_lev
