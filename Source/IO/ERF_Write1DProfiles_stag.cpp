@@ -294,7 +294,7 @@ ERF::write_1D_profiles_stag (Real time)
                                   << std::endl;
                   } // loop over z
                   // Write top face values
-                  Real NANval = 0.0;
+                  Real NANval = zero;
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
                   data_log4 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -788,14 +788,14 @@ ERF::derive_forcing_profiles_stag(Gpu::HostVector<Real>& h_avg_ttend,  Gpu::Host
         h_avg_qvtend   = sumToLine(*lsf_data[lev], 6,1,domain,zdir);
         h_avg_qcvtend  = sumToLine(*lsf_data[lev], 7,1,domain,zdir);
     } else {
-        h_avg_ttend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_qtend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_wsub  = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_thtend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_qhtend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_tvtend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_qvtend = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_qcvtend = Gpu::HostVector<Real>(nz, 0.0);
+        h_avg_ttend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_wsub  = Gpu::HostVector<Real>(nz, zero);
+        h_avg_thtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qhtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_tvtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qvtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qcvtend = Gpu::HostVector<Real>(nz, zero);
     }
 
     if (solverChoice.nudging_from_input_sounding) {
@@ -804,10 +804,10 @@ ERF::derive_forcing_profiles_stag(Gpu::HostVector<Real>& h_avg_ttend,  Gpu::Host
         h_avg_unudge   = sumToLine(*nudge_data[lev], 2,1,domain,zdir);
         h_avg_vnudge   = sumToLine(*nudge_data[lev], 3,1,domain,zdir);
     } else {
-        h_avg_tnudge = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_qnudge = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_unudge = Gpu::HostVector<Real>(nz, 0.0);
-        h_avg_vnudge = Gpu::HostVector<Real>(nz, 0.0);
+        h_avg_tnudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qnudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_unudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_vnudge = Gpu::HostVector<Real>(nz, zero);
     }
 
     // Divide by the total number of cells we are averaging over

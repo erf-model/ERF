@@ -62,12 +62,12 @@ namespace {
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static auto viscCoeff ( const ParticleReal a_T /*!< temperature */ )
 {
-    auto T_degC = a_T - 273.15; // [K] => [degC]
-    ParticleReal visc_coeff = 0.0;
-    if( T_degC >= 0.0 ) {
-        visc_coeff = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+    auto T_degC = a_T - ParticleReal(tmelt); // [K] => [degC]
+    ParticleReal visc_coeff = ParticleReal(zero);
+    if( T_degC >= ParticleReal(zero) ) {
+        visc_coeff = ( ParticleReal(1.7180) + ParticleReal(4.9E-3)*T_degC ) * ParticleReal(1.E-5);
     } else {
-        visc_coeff = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+        visc_coeff = ( ParticleReal(1.7180) + ParticleReal(4.9E-3)*T_degC - ParticleReal(1.2E-5)*T_degC*T_degC ) * ParticleReal(1.E-5);
     }
     return visc_coeff;
 }
@@ -110,7 +110,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
     int j = a_j;
     auto gamma = a_gamma[i];
     AMREX_ALWAYS_ASSERT(gamma == a_gamma[j]);
-    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= zero);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= ParticleReal(zero));
 
     if ( a_rmndr[a_i] > 0 ) {
 
@@ -161,12 +161,12 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
                                 const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     AMREX_ALWAYS_ASSERT(a_gamma[a_i] == a_gamma[a_j]);
-    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= ParticleReal(zero));
 
     auto gamma = a_gamma[a_i];
-    ParticleReal a_new = 0.0;
-    ParticleReal c_new = 0.0;
-    ParticleReal m_new = 0.0;
+    ParticleReal a_new = ParticleReal(zero);
+    ParticleReal c_new = ParticleReal(zero);
+    ParticleReal m_new = ParticleReal(zero);
 
     {
         // i will be the prey particle index, j is the partner
@@ -182,7 +182,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         }
 
         m_new = gamma * a_sp_m[a_sp_idx_i][i] + a_sp_m[a_sp_idx_i][j];
-        auto V_new_min = four_thirds_pi * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
+        auto V_new_min = ParticleReal(four_thirds_pi) * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
         auto rhoi_bar = m_new / V_new_min;
 
         auto maxR_i = std::max(a_a[i], a_c[i]);
@@ -191,12 +191,12 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         if (maxR_i > maxR_j) {
             if (a_a[i] > a_c[i]) {
                 a_new = a_a[i];
-                auto c_new_min = V_new_min / (four_thirds_pi*a_new*a_new);
+                auto c_new_min = V_new_min / (ParticleReal(four_thirds_pi)*a_new*a_new);
                 auto c_new_max = a_c[i]*gamma + std::min(a_a[j],a_c[j]);
                 c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
             } else {
                 c_new = a_c[i];
-                auto a_new_min = std::sqrt(V_new_min / (four_thirds_pi*c_new));
+                auto a_new_min = std::sqrt(V_new_min / (ParticleReal(four_thirds_pi)*c_new));
                 auto a_new_max = std::sqrt( std::max(std::max(a_a[i],a_a[j]),a_c[j])
                                             * (a_a[i]*gamma + std::min(a_a[j],a_c[j])) );
                 a_new = std::sqrt( (a_rho_ice - a_rho_min)
@@ -206,12 +206,12 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
         } else {
             if (a_a[j] > a_c[j]) {
                 a_new = a_a[j];
-                auto c_new_min = V_new_min / (four_thirds_pi*a_new*a_new);
+                auto c_new_min = V_new_min / (ParticleReal(four_thirds_pi)*a_new*a_new);
                 auto c_new_max = a_c[j] + std::min(a_a[i],a_c[i])*gamma;
                 c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
             } else {
                 c_new = a_c[j];
-                auto a_new_min = std::sqrt(V_new_min / (four_thirds_pi*c_new));
+                auto a_new_min = std::sqrt(V_new_min / (ParticleReal(four_thirds_pi)*c_new));
                 auto a_new_max = std::sqrt( std::max(std::max(a_a[j],a_a[i]),a_c[i])
                                             * (a_a[j] + gamma*std::min(a_a[i],a_c[i])) );
                 a_new = std::sqrt( (a_rho_ice - a_rho_min)
@@ -271,41 +271,41 @@ static auto impactVelocity_RasmussenHeymsfield1985( const ParticleReal a_Re, /*!
     auto w2 = w*w;
     auto w3 = w2*w;
     auto w4 = w3*w;
-    ParticleReal retval = 0.0;;
-    if(a_Re < (10.0+30.0)*0.5) {
-        if (a_St < 0.4) {
-            retval = 0.0;
-        } else if (a_St<10.0) {
-            retval = 0.1701 + 0.7246*w + 0.2257*w2 - 1.13*w3 + 0.5756*w4;
+    ParticleReal retval = ParticleReal(zero);
+    if(a_Re < (ParticleReal(10.0)+ParticleReal(30.0))*ParticleReal(myhalf)) {
+        if (a_St < ParticleReal(0.4)) {
+            retval = ParticleReal(zero);
+        } else if (a_St<ParticleReal(10.0)) {
+            retval = ParticleReal(0.1701) + ParticleReal(0.7246)*w + ParticleReal(0.2257)*w2 - ParticleReal(1.13)*w3 + ParticleReal(0.5756)*w4;
         } else {
-            retval = 0.57;
+            retval = ParticleReal(0.57);
         }
-    } else if (a_Re < (30.0+100.0)*0.5) {
-        if (a_St < 0.1) {
-            retval = 0.0;
-        } else if (a_St < 10.0) {
-            retval = 0.2927 + 0.5085*w - 0.03453*w2 - 0.2184*w3 + 0.03595*w4;
+    } else if (a_Re < (ParticleReal(30.0)+ParticleReal(100.0))*ParticleReal(myhalf)) {
+        if (a_St < ParticleReal(0.1)) {
+            retval = ParticleReal(zero);
+        } else if (a_St < ParticleReal(10.0)) {
+            retval = ParticleReal(0.2927) + ParticleReal(0.5085)*w - ParticleReal(0.03453)*w2 - ParticleReal(0.2184)*w3 + ParticleReal(0.03595)*w4;
         } else {
-            retval = 0.59;
+            retval = ParticleReal(0.59);
         }
-    } else if (a_Re < (100.0+300.0)*0.5) {
-        if (a_St < 0.1) {
-          retval = 0.0;
-        } else if (a_St < 10.0) {
-            retval = 0.3272 + 0.4907*w - 0.09452*w2 - 0.1906*w3 + 0.07105*w4;
+    } else if (a_Re < (ParticleReal(100.0)+ParticleReal(300.0))*ParticleReal(myhalf)) {
+        if (a_St < ParticleReal(0.1)) {
+          retval = ParticleReal(zero);
+        } else if (a_St < ParticleReal(10.0)) {
+            retval = ParticleReal(0.3272) + ParticleReal(0.4907)*w - ParticleReal(0.09452)*w2 - ParticleReal(0.1906)*w3 + ParticleReal(0.07105)*w4;
         } else {
-            retval = 0.61;
+            retval = ParticleReal(0.61);
         }
     } else {
-        if (a_St < 0.1) {
-            retval = 0.0;
-        } else if (a_St < 10.0) {
-            retval = 0.356 + 0.4738*w - 0.1233*w2 - 0.1618*w3 + 0.08087*w4;
+        if (a_St < ParticleReal(0.1)) {
+            retval = ParticleReal(zero);
+        } else if (a_St < ParticleReal(10.0)) {
+            retval = ParticleReal(0.356) + ParticleReal(0.4738)*w - ParticleReal(0.1233)*w2 - ParticleReal(0.1618)*w3 + ParticleReal(0.08087)*w4;
         } else {
-            retval = 0.63;
+            retval = ParticleReal(0.63);
         }
     }
-    retval = std::max(retval,0.0);
+    retval = std::max(retval,ParticleReal(zero));
     return retval;
 }
 
@@ -317,8 +317,8 @@ static auto iceSurfaceTemperature( const ParticleReal a_T, /*!< temperature */
                                    const ParticleReal a_D, /*!< diffusivity coeff */
                                    const dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
 {
-    Real qsat = 0.0; erf_qsati(a_T, a_P, qsat);
-    auto sup_sat  = a_qv/qsat - 1.0;
+    Real qsat = Real(zero); erf_qsati(a_T, a_P, qsat);
+    auto sup_sat  = a_qv/qsat - Real(one);
     auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, erf_esati(a_T), a_D));
     auto dT = (a_dmdt.L * a_D / a_dmdt.K) * drho;
     return a_T + dT;
@@ -354,28 +354,28 @@ static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      
                                               const ParticleReal a_P,           /*!< pressure [Pa] */
                                               const ParticleReal a_qv           /*!< water vapor mixing ratio [kg/kg] */)
 {
-    auto r_um = a_radius * 1.0e6;
+    auto r_um = a_radius * ParticleReal(1.0e6);
     auto mu = viscCoeff(a_T);
 
-    auto maxD = 2.0 * std::max(a_a,a_c);
+    auto maxD = ParticleReal(two) * std::max(a_a,a_c);
     auto Re = a_rhom * maxD * std::abs(a_vz_i) / mu;
     auto eqr_i = std::cbrt(a_a*a_a*a_c);
-    auto St = 2.0*std::abs(a_vz_i)*a_radius*a_radius*a_rho_w/(9.0*mu*eqr_i);
+    auto St = ParticleReal(two)*std::abs(a_vz_i)*a_radius*a_radius*a_rho_w/(ParticleReal(9.0)*mu*eqr_i);
 
     auto v_impact_ratio = impactVelocity_RasmussenHeymsfield1985(Re,St);
     auto v_impact = std::abs(a_vz_i - a_vz_w) * v_impact_ratio;
 
-    auto T_surf = std::min(-0.01, iceSurfaceTemperature(a_T,a_P,a_qv,a_D,a_dmdt) - 273.15);
+    auto T_surf = std::min(ParticleReal(-0.01), iceSurfaceTemperature(a_T,a_P,a_qv,a_D,a_dmdt) - ParticleReal(tmelt));
     auto var_Y = -r_um * v_impact/T_surf;
 
-    ParticleReal rho_rime = 0.0;
-    if ((T_surf <= -5.0) || (var_Y < 1.6)) {
-        rho_rime = 0.30 * std::pow(var_Y, 0.44);
+    ParticleReal rho_rime = ParticleReal(zero);
+    if ((T_surf <= ParticleReal(-5.0)) || (var_Y < ParticleReal(1.6))) {
+        rho_rime = ParticleReal(0.30) * std::pow(var_Y, ParticleReal(0.44));
     } else {
-        var_Y = std::min(var_Y,3.5);
-        rho_rime = std::exp(-0.03115 - 1.7030*var_Y + 0.9116*var_Y*var_Y - 0.1224*var_Y*var_Y*var_Y);
+        var_Y = std::min(var_Y,ParticleReal(3.5));
+        rho_rime = std::exp(ParticleReal(-0.03115) - ParticleReal(1.7030)*var_Y + ParticleReal(0.9116)*var_Y*var_Y - ParticleReal(0.1224)*var_Y*var_Y*var_Y);
     }
-    rho_rime = std::min(0.91,std::max(rho_rime,0.1)) * 1000.0;
+    rho_rime = std::min(ParticleReal(0.91),std::max(rho_rime,ParticleReal(0.1))) * ParticleReal(1000.0);
     return rho_rime;
 }
 
@@ -413,7 +413,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                 const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     AMREX_ALWAYS_ASSERT(a_gamma[a_i] == a_gamma[a_j]);
-    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= ParticleReal(0.0));
     auto gamma = a_gamma[a_i];
 
     // Identify ice and water particle indices
@@ -434,10 +434,10 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
     if (a_prey[id_ice]) {
         // ice is prey (higher multiplicity)
         gamma_ice = gamma;
-        gamma_water = 1.0;
+        gamma_water = ParticleReal(one);
     } else {
         // water is prey (higher multiplicity)
-        gamma_ice = 1.0;
+        gamma_ice = ParticleReal(one);
         gamma_water = gamma;
     }
 
@@ -453,12 +453,12 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
     ParticleReal nmono_new = gamma_ice * a_nmono[id_ice];
 
     // Compute new dimensions
-    ParticleReal a_new = 0.0;
-    ParticleReal c_new = 0.0;
+    ParticleReal a_new = ParticleReal(zero);
+    ParticleReal c_new = ParticleReal(zero);
 
     if (a_radius[id_water] > std::max(a_a[id_ice], a_c[id_ice])) {
         // Water droplet is larger than ice particle - form spherical ice
-        a_new = c_new = std::cbrt(mi_new / (four_thirds_pi*a_rho_ice));
+        a_new = c_new = std::cbrt(mi_new / (ParticleReal(four_thirds_pi)*a_rho_ice));
     } else {
         // Normal riming - ice particle collects water droplet
         // Pass terminal velocities for Re/St calculation (velocity relative to air)
@@ -468,14 +468,14 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                                           a_rho_water,
                                                           a_D, a_dmdt,
                                                           a_T, a_rhom, a_P, a_qv );
-        auto V_new = four_thirds_pi * ( gamma_ice * a_a[id_ice]*a_a[id_ice]*a_c[id_ice]
+        auto V_new = ParticleReal(four_thirds_pi) * ( gamma_ice * a_a[id_ice]*a_a[id_ice]*a_c[id_ice]
                                     + gamma_water * a_radius[id_water]*a_radius[id_water]*a_radius[id_water]
                                                   * (a_rho_water/rho_rime) );
         auto phi = a_c[id_ice] / a_a[id_ice];
         // Following Shima et al. (2019) sdm_outcome_riming:
         // - When ice is prey: rime dimension doesn't include gamma
         // - When water is prey: rime dimension scales with gamma^(1/3)
-        if ((phi < 0.8) || ((phi < 1.25) && (phi >= 1.0))) {
+        if ((phi < ParticleReal(0.8)) || ((phi < ParticleReal(1.25)) && (phi >= ParticleReal(one)))) {
             // Oblate or quasi-spherical prolate: constrain equatorial radius
             if (a_prey[id_ice]) {
                 a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
@@ -483,7 +483,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 // Water is prey - include gamma inside cube root (Fortran line 1445)
                 a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
             }
-            c_new = V_new / (four_thirds_pi*a_new*a_new);
+            c_new = V_new / (ParticleReal(four_thirds_pi)*a_new*a_new);
         } else {
             // Prolate or quasi-spherical oblate: constrain polar radius
             if (a_prey[id_ice]) {
@@ -492,7 +492,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 // Water is prey - include gamma inside cube root (Fortran line 1460)
                 c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
             }
-            a_new = std::sqrt(V_new / (four_thirds_pi*c_new));
+            a_new = std::sqrt(V_new / (ParticleReal(four_thirds_pi)*c_new));
         }
     }
 
@@ -507,7 +507,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
             // Riming-specific species update: water->0, ice->mi_new
             for (int n = 0; n < a_n_sp; n++) {
-                if (n == a_sp_idx_w) { a_sp_m[n][a_i] = 0.0; }
+                if (n == a_sp_idx_w) { a_sp_m[n][a_i] = ParticleReal(zero); }
                 else if (n == a_sp_idx_i) { a_sp_m[n][a_i] = mi_new; }
                 else { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
             }
@@ -576,7 +576,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const int num_sp  = m_num_species;
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
+        = ParticleReal(one) / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[1])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
@@ -702,8 +702,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
             np_bin_ptr[i] = 0;
             partner_idx_ptr[i] = -1;
             flag_prey_ptr[i] = -1;
-            coll_rate_ptr[i] = zero;
-            coll_rmndr_ptr[i] = zero;
+            coll_rate_ptr[i] = ParticleReal(zero);
+            coll_rmndr_ptr[i] = ParticleReal(zero);
         });
         Gpu::synchronize();
 
@@ -758,7 +758,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
             auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
 
-            ParticleReal k_val = zero;
+            ParticleReal k_val = ParticleReal(zero);
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
 
                 // coalescence between two water droplets
@@ -914,7 +914,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
             if (include_brownian_coalescence) {
 
-                ParticleReal pressure = zero, temperature = zero;
+                ParticleReal pressure = ParticleReal(zero), temperature = ParticleReal(zero);
                 {
                     ParticleType& par_1 = pstruct_ptr[pi];
                     auto iv = getParticleCell(par_1, plo, dxi, domain);
@@ -922,8 +922,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     temperature = temperature_arr(iv[0],iv[1],iv[2],0);
                 }
 
-                ParticleReal sd_mass_1 = zero,
-                             sd_mass_2 = zero;
+                ParticleReal sd_mass_1 = ParticleReal(zero),
+                             sd_mass_2 = ParticleReal(zero);
                 for (int ia = 0; ia < num_ae; ia++) {
                     sd_mass_1 += ptrs.ae_mass_ptrs[ia][pi];
                     sd_mass_2 += ptrs.ae_mass_ptrs[ia][pj];
@@ -952,7 +952,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                                 sd_mass_2,
                                                                 pressure,
                                                                 temperature );
-                if (k_brown < zero) {
+                if (k_brown < ParticleReal(zero)) {
                     amrex::Abort("Invalid value for k_brown");
                 }
 

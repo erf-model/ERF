@@ -64,7 +64,7 @@ public:
         num_times = 0;
         nz_lsf = 0;
 
-        amrex::Real start_time = 0.0; // first time in file, in days, other inputs are relative to this time
+        amrex::Real start_time = zero; // first time in file, in days, other inputs are relative to this time
 
         amrex::Real pres0;
         while(std::getline(ifs, line)) {
@@ -89,7 +89,7 @@ public:
                 {
                     start_time = time;
                 }
-                time = (time - start_time) * 86400.0;
+                time = (time - start_time) * amrex::Real(86400.0);
 
                 if (times_lsf.size() > 0 && time != times_lsf.back())
                 {
@@ -115,7 +115,7 @@ public:
                 times_lsf.push_back(time);
                 num_times++;
 
-                pres0 *= 100.0;
+                pres0 *= amrex::Real(100.0);
                 if (nz_lsf == 0)
                 {
                     nz_lsf = nlev;
@@ -125,13 +125,13 @@ public:
                     AMREX_ALWAYS_ASSERT(nlev == nz_lsf);
                 }
 
-                z_in.push_back(0.0); // assuming zbot = 0.0 for now, this will get interpolated later once we have grid info
+                z_in.push_back(zero); // assuming zbot = 0.0 for now, this will get interpolated later once we have grid info
                 p_in.push_back(pres0);
-                t_in.push_back(0.0); // assuming temperature change at surf is 0
-                q_in.push_back(0.0);
-                u_in.push_back(0.0);
-                v_in.push_back(0.0);
-                w_in.push_back(0.0);
+                t_in.push_back(zero); // assuming temperature change at surf is 0
+                q_in.push_back(zero);
+                u_in.push_back(zero);
+                v_in.push_back(zero);
+                w_in.push_back(zero);
             }
             else if (ncol == 7)
             {
@@ -139,13 +139,13 @@ public:
                 amrex::Real z, p, tls, qls, uls, vls, wls;
                 iss >> z >> p >> tls >> qls >> uls >> vls >> wls;
 
-                if (z < 0.0) {
+                if (z < zero) {
                     // if z < 0, then LSF is defined on pressure levels
                     use_z_grid = false;
                 }
 
                 z_in.push_back(z);
-                p_in.push_back(p * 100.0);
+                p_in.push_back(p * amrex::Real(100.0));
                 t_in.push_back(tls);
                 q_in.push_back(qls);
                 u_in.push_back(uls);
@@ -214,8 +214,8 @@ public:
 
             for (int k = 0; k < Nz; k++)
             {
-                z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                    : zbot + (k + 0.5) * dz;
+                z_int_lsf[itime][k] = (use_terrain) ? myhalf * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                    : zbot + (k + myhalf) * dz;
 
                 bool set = false;
                 for (int lk = 2; lk < nz_lsf + 1; lk++)
@@ -248,19 +248,19 @@ public:
                     continue;
                 }
 
-                t_int_lsf[itime][k] = 0.0;
-                q_int_lsf[itime][k] = 0.0;
-                u_int_lsf[itime][k] = (k > 0) ? u_int_lsf[itime][k-1] : 0.0;
-                v_int_lsf[itime][k] = (k > 0) ? v_int_lsf[itime][k-1] : 0.0;
-                w_int_lsf[itime][k] = 0.0;
+                t_int_lsf[itime][k] = zero;
+                q_int_lsf[itime][k] = zero;
+                u_int_lsf[itime][k] = (k > 0) ? u_int_lsf[itime][k-1] : zero;
+                v_int_lsf[itime][k] = (k > 0) ? v_int_lsf[itime][k-1] : zero;
+                w_int_lsf[itime][k] = zero;
             }
 
             z_int_lsf[itime][Nz] = ztop;
-            t_int_lsf[itime][Nz] = 0.0;
-            q_int_lsf[itime][Nz] = 0.0;
+            t_int_lsf[itime][Nz] = zero;
+            q_int_lsf[itime][Nz] = zero;
             u_int_lsf[itime][Nz] = u_int_lsf[itime][Nz-1];
             v_int_lsf[itime][Nz] = v_int_lsf[itime][Nz-1];
-            w_int_lsf[itime][Nz] = 0.0;
+            w_int_lsf[itime][Nz] = zero;
 
             host_to_device(itime);
         }
@@ -277,8 +277,8 @@ public:
         // coefficients based on the current simulation time
         curr = 0;
         next = 0;
-        coeff_curr = 1.0;
-        coeff_next = 0.0;
+        coeff_curr = one;
+        coeff_next = zero;
 
         // find the time index of forcing data to use
         for (int nt = 1; nt < num_times; nt++)
@@ -293,12 +293,12 @@ public:
         {
             // use last set if time > last forcing time
             next = num_times - 1;
-            coeff_curr = 1.0;
-            coeff_next = 0.0;
+            coeff_curr = one;
+            coeff_next = zero;
         } else {
             next = curr + 1;
             coeff_next = ((time - start_time) - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
-            coeff_curr = (1.0 - coeff_next);
+            coeff_curr = (one - coeff_next);
         }
     }
 
@@ -332,8 +332,8 @@ public:
                          w_int_lsf_d[itime].begin());
     }
 
-    amrex::Real start_time = 0.0; // simulation start time
-    amrex::Real tau_lsf = 0.0; // timescale to apply lsf
+    amrex::Real start_time = zero; // simulation start time
+    amrex::Real tau_lsf = zero; // timescale to apply lsf
     std::string lsf_file = "";
 
     bool use_z_grid = true;

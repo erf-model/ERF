@@ -546,8 +546,8 @@ SDDistributionParams SDInitProperties::makeDistributionParams(
         // For constant multiplicity, we use inverse transform sampling
         params.lnmin = std::log(a_mass_min);
         params.lnrng = std::log(a_mass_max) - params.lnmin;
-        params.cdf_min = 0.0;
-        params.cdf_max = 1.0;
+        params.cdf_min = zero;
+        params.cdf_max = one;
     } else if (params.dist_type == SDDistributionType::radius_log_normal ||
                params.dist_type == SDDistributionType::radius_lognormal_autorange) {
         // For log-normal, compute CDF bounds for truncated sampling
@@ -560,33 +560,33 @@ SDDistributionParams SDInitProperties::makeDistributionParams(
 
         // For LogNormalAuto, find appropriate bounds iteratively
         if (params.dist_type == SDDistributionType::radius_lognormal_autorange) {
-            rmin = 1e-9;
-            rmax = 1.0;
+            rmin = amrex::Real(1e-9);
+            rmax = one;
             amrex::Real tol = (m_numdens > 0 && a_cell_volume > 0) ?
-                              1.0 / (m_numdens * a_cell_volume) : 1e-6;
-            amrex::Real P_min = 0.0;
-            amrex::Real P_max = 1.0;
-            while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
-                if (P_max >= 1.0 - tol) rmax *= 0.99;
-                if (P_min <= tol) rmin *= 1.01;
-                P_min = 0.5 * (1.0 + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(2.0))));
-                P_max = 0.5 * (1.0 + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(2.0))));
+                              one / (m_numdens * a_cell_volume) : amrex::Real(1e-6);
+            amrex::Real P_min = zero;
+            amrex::Real P_max = one;
+            while ((P_max >= one - tol) || (P_min <= tol)) {
+                if (P_max >= one - tol) rmax *= amrex::Real(0.99);
+                if (P_min <= tol) rmin *= amrex::Real(1.01);
+                P_min = myhalf * (one + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(two))));
+                P_max = myhalf * (one + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(two))));
             }
             // Update the params with computed bounds
             params.radius_min = rmin;
             params.radius_max = rmax;
         }
 
-        params.cdf_min = 0.5 * (1.0 + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(2.0))));
-        params.cdf_max = 0.5 * (1.0 + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(2.0))));
+        params.cdf_min = myhalf * (one + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(two))));
+        params.cdf_max = myhalf * (one + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(two))));
         params.lnmin = std::log(rmin);
         params.lnrng = std::log(rmax) - params.lnmin;
     } else {
         // Constant distribution - no special pre-computation needed
-        params.cdf_min = 0.0;
-        params.cdf_max = 1.0;
-        params.lnmin = 0.0;
-        params.lnrng = 0.0;
+        params.cdf_min = zero;
+        params.cdf_max = one;
+        params.lnmin = zero;
+        params.lnrng = zero;
     }
 
     return params;

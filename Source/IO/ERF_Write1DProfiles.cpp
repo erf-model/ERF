@@ -174,9 +174,9 @@ ERF::write_1D_profiles (Real time)
                     for (int k = 0; k < hu_size; k++) {
                         Real z;
                         if (zlevels_stag[0].size() > 1) {
-                            z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                            z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                         } else {
-                            z = (k + 0.5)* dx[2];
+                            z = (k + myhalf)* dx[2];
                         }
                         data_log4 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                   << std::setw(datwidth) << std::setprecision(datprecision) << z << " "

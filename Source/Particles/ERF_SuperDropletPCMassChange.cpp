@@ -13,31 +13,31 @@ using namespace SDPCDefn;
 
 namespace SDMassChangeUtils_SV {
     AMREX_GPU_CONSTANT amrex::Real s_tb_habit[121] = {
-        1.000000e+00, 9.799412e-01, 9.600636e-01, 9.399397e-01, 9.200258e-01,
-        9.001191e-01, 8.800351e-01, 8.570378e-01, 8.340652e-01, 8.109611e-01,
-        7.830689e-01, 7.550922e-01, 7.030723e-01, 5.370318e-01, 4.677351e-01,
-        5.248075e-01, 6.309573e-01, 8.128305e-01, 1.096478e+00, 1.479108e+00,
-        1.905461e+00, 2.089296e+00, 2.290868e+00, 2.398833e+00, 2.454709e+00,
-        2.426610e+00, 2.371374e+00, 2.290868e+00, 2.137962e+00, 1.995262e+00,
-        1.862087e+00, 1.737801e+00, 1.621810e+00, 1.513561e+00, 1.396368e+00,
-        1.288250e+00, 1.188502e+00, 1.096478e+00, 1.000000e+00, 9.225714e-01,
-        8.511380e-01, 7.852356e-01, 7.244360e-01, 6.683439e-01, 6.165950e-01,
-        5.754399e-01, 5.370318e-01, 5.011872e-01, 4.677351e-01, 4.365158e-01,
-        4.073803e-01, 3.801894e-01, 3.548134e-01, 3.311311e-01, 3.162278e-01,
-        3.019952e-01, 2.917427e-01, 2.851018e-01, 2.818383e-01, 2.786121e-01,
-        2.754229e-01, 2.786121e-01, 2.818383e-01, 2.851018e-01, 2.917427e-01,
-        2.985383e-01, 3.090295e-01, 3.198895e-01, 3.311311e-01, 3.467369e-01,
-        3.672823e-01, 3.935501e-01, 4.265795e-01, 4.570882e-01, 4.897788e-01,
-        5.248075e-01, 5.623413e-01, 6.095369e-01, 6.606934e-01, 7.161434e-01,
-        7.852356e-01, 8.609938e-01, 9.549926e-01, 1.047129e+00, 1.148154e+00,
-        1.258925e+00, 1.380384e+00, 1.496236e+00, 1.603245e+00, 1.698244e+00,
-        1.778279e+00, 1.840772e+00, 1.883649e+00, 1.905461e+00, 1.905461e+00,
-        1.883649e+00, 1.862087e+00, 1.840772e+00, 1.798871e+00, 1.737801e+00,
-        1.698244e+00, 1.640590e+00, 1.584893e+00, 1.549173e+00, 1.513910e+00,
-        1.476046e+00, 1.452112e+00, 1.428894e+00, 1.412863e+00, 1.393157e+00,
-        1.376892e+00, 1.361131e+00, 1.348963e+00, 1.336903e+00, 1.327089e+00,
-        1.317953e+00, 1.308881e+00, 1.302867e+00, 1.293898e+00, 1.287953e+00,
-        1.279087e+00
+        amrex::Real(1.000000e+00), amrex::Real(9.799412e-01), amrex::Real(9.600636e-01), amrex::Real(9.399397e-01), amrex::Real(9.200258e-01),
+        amrex::Real(9.001191e-01), amrex::Real(8.800351e-01), amrex::Real(8.570378e-01), amrex::Real(8.340652e-01), amrex::Real(8.109611e-01),
+        amrex::Real(7.830689e-01), amrex::Real(7.550922e-01), amrex::Real(7.030723e-01), amrex::Real(5.370318e-01), amrex::Real(4.677351e-01),
+        amrex::Real(5.248075e-01), amrex::Real(6.309573e-01), amrex::Real(8.128305e-01), amrex::Real(1.096478e+00), amrex::Real(1.479108e+00),
+        amrex::Real(1.905461e+00), amrex::Real(2.089296e+00), amrex::Real(2.290868e+00), amrex::Real(2.398833e+00), amrex::Real(2.454709e+00),
+        amrex::Real(2.426610e+00), amrex::Real(2.371374e+00), amrex::Real(2.290868e+00), amrex::Real(2.137962e+00), amrex::Real(1.995262e+00),
+        amrex::Real(1.862087e+00), amrex::Real(1.737801e+00), amrex::Real(1.621810e+00), amrex::Real(1.513561e+00), amrex::Real(1.396368e+00),
+        amrex::Real(1.288250e+00), amrex::Real(1.188502e+00), amrex::Real(1.096478e+00), amrex::Real(1.000000e+00), amrex::Real(9.225714e-01),
+        amrex::Real(8.511380e-01), amrex::Real(7.852356e-01), amrex::Real(7.244360e-01), amrex::Real(6.683439e-01), amrex::Real(6.165950e-01),
+        amrex::Real(5.754399e-01), amrex::Real(5.370318e-01), amrex::Real(5.011872e-01), amrex::Real(4.677351e-01), amrex::Real(4.365158e-01),
+        amrex::Real(4.073803e-01), amrex::Real(3.801894e-01), amrex::Real(3.548134e-01), amrex::Real(3.311311e-01), amrex::Real(3.162278e-01),
+        amrex::Real(3.019952e-01), amrex::Real(2.917427e-01), amrex::Real(2.851018e-01), amrex::Real(2.818383e-01), amrex::Real(2.786121e-01),
+        amrex::Real(2.754229e-01), amrex::Real(2.786121e-01), amrex::Real(2.818383e-01), amrex::Real(2.851018e-01), amrex::Real(2.917427e-01),
+        amrex::Real(2.985383e-01), amrex::Real(3.090295e-01), amrex::Real(3.198895e-01), amrex::Real(3.311311e-01), amrex::Real(3.467369e-01),
+        amrex::Real(3.672823e-01), amrex::Real(3.935501e-01), amrex::Real(4.265795e-01), amrex::Real(4.570882e-01), amrex::Real(4.897788e-01),
+        amrex::Real(5.248075e-01), amrex::Real(5.623413e-01), amrex::Real(6.095369e-01), amrex::Real(6.606934e-01), amrex::Real(7.161434e-01),
+        amrex::Real(7.852356e-01), amrex::Real(8.609938e-01), amrex::Real(9.549926e-01), amrex::Real(1.047129e+00), amrex::Real(1.148154e+00),
+        amrex::Real(1.258925e+00), amrex::Real(1.380384e+00), amrex::Real(1.496236e+00), amrex::Real(1.603245e+00), amrex::Real(1.698244e+00),
+        amrex::Real(1.778279e+00), amrex::Real(1.840772e+00), amrex::Real(1.883649e+00), amrex::Real(1.905461e+00), amrex::Real(1.905461e+00),
+        amrex::Real(1.883649e+00), amrex::Real(1.862087e+00), amrex::Real(1.840772e+00), amrex::Real(1.798871e+00), amrex::Real(1.737801e+00),
+        amrex::Real(1.698244e+00), amrex::Real(1.640590e+00), amrex::Real(1.584893e+00), amrex::Real(1.549173e+00), amrex::Real(1.513910e+00),
+        amrex::Real(1.476046e+00), amrex::Real(1.452112e+00), amrex::Real(1.428894e+00), amrex::Real(1.412863e+00), amrex::Real(1.393157e+00),
+        amrex::Real(1.376892e+00), amrex::Real(1.361131e+00), amrex::Real(1.348963e+00), amrex::Real(1.336903e+00), amrex::Real(1.327089e+00),
+        amrex::Real(1.317953e+00), amrex::Real(1.308881e+00), amrex::Real(1.302867e+00), amrex::Real(1.293898e+00), amrex::Real(1.287953e+00),
+        amrex::Real(1.279087e+00)
     };
 }
 
@@ -312,12 +312,12 @@ void SuperDropletPC::MassChange_SL (  int                                       
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
                 // SD is water, check for freezing
-                if ((temperature <= ptrs.Tfz_ptr[i]) && (sat_ratio > 1.0)) {
+                if ((temperature <= ptrs.Tfz_ptr[i]) && (sat_ratio > one)) {
                     ptrs.sp_mass_ptrs[ctx.idx_ice][i] = ptrs.sp_mass_ptrs[ctx.idx_water][i];
-                    ptrs.sp_mass_ptrs[ctx.idx_water][i] = 0.0;
+                    ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
                     ptrs.a_ptr[i] = ptrs.c_ptr[i] = std::cbrt(ptrs.sp_mass_ptrs[ctx.idx_ice][i]/(four_thirds_pi*ctx.rho_ice));
-                    ptrs.mrime_ptr[i] = 0.0;
-                    ptrs.nmono_ptr[i] = 1.0;
+                    ptrs.mrime_ptr[i] = zero;
+                    ptrs.nmono_ptr[i] = one;
                 }
 
             } else if (par_phase == SDPhase::ice) {
@@ -325,8 +325,8 @@ void SuperDropletPC::MassChange_SL (  int                                       
                 // SD is ice, check for melting
                 if (temperature > tmelt /* from ERF_Constants.H */) {
                     ptrs.sp_mass_ptrs[ctx.idx_water][i] = ptrs.sp_mass_ptrs[ctx.idx_ice][i];
-                    ptrs.sp_mass_ptrs[ctx.idx_ice][i] = 0.0;
-                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = ptrs.mrime_ptr[i] = ptrs.nmono_ptr[i] = 0.0;
+                    ptrs.sp_mass_ptrs[ctx.idx_ice][i] = zero;
+                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = ptrs.mrime_ptr[i] = ptrs.nmono_ptr[i] = zero;
                 }
 
             } else {
@@ -442,7 +442,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto mass_new = mass_old;
             ti.fe(mass_new, success);
             AMREX_ALWAYS_ASSERT(success);
-            mass_new = std::max(mass_new, 3.8403e-24); // lower limit: 1nm spherical ice particle
+            mass_new = std::max(mass_new, amrex::Real(3.8403e-24)); // lower limit: 1nm spherical ice particle
             auto d_mass = mass_new - mass_old;
 
             // compute new volume
@@ -463,14 +463,14 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto c_new = ptrs.c_ptr[i] * std::exp(gr_star*d_loga);
 
             // Smaller than 1 um --> sphere with true ice density
-            if (std::min(a_new,c_new) <= 1.0e-6) {
+            if (std::min(a_new,c_new) <= amrex::Real(1.0e-6)) {
                 rhoi_new = mat_prop_core.m_density;
                 vol_new = mass_new / rhoi_new;
                 c_new = a_new = std::cbrt(vol_new/four_thirds_pi);
             }
             // limit particle size to 1 nm
-            if (std::min(a_new,c_new) <= 1.0e-9 ) {
-                c_new = a_new = 1.0e-9;
+            if (std::min(a_new,c_new) <= amrex::Real(1.0e-9) ) {
+                c_new = a_new = amrex::Real(1.0e-9);
                 rhoi_new = mat_prop_core.m_density;
                 vol_new = four_thirds_pi*a_new*a_new*c_new;
                 mass_new = vol_new * rhoi_new;
@@ -478,7 +478,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
             // rime mass
             auto mrime_new = ptrs.mrime_ptr[i];
-            if (d_mass <= 0.0) { mrime_new = ptrs.mrime_ptr[i] * mass_new/mass_old; }
+            if (d_mass <= zero) { mrime_new = ptrs.mrime_ptr[i] * mass_new/mass_old; }
 
             // update attributes
             ptrs.a_ptr[i] = a_new;

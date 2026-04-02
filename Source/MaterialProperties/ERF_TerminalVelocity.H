@@ -17,7 +17,7 @@ struct TerminalVelocity
     {
         RT T_degC = a_T - RT(273.15); // [K] -> [deg Celsius]
         RT viscosity = RT(0.0);
-        if (T_degC >= 0) {
+        if (T_degC >= RT(0)) {
             viscosity = (RT(1.7180) + RT(4.9e-3)*T_degC) * RT(1.0e-4);
         } else {
             viscosity = (  RT(1.7180) + RT(4.9e-3)*T_degC
@@ -40,7 +40,7 @@ struct TerminalVelocity
     {
         static const RT a = RT(3.778);
         static const RT b = RT(0.67);
-        RT D = 2*a_r*1000; // meter -> mm
+        RT D = RT(2)*a_r*RT(1000); // meter -> mm
         return a*(std::exp(b*std::log(D)));
     }
 
@@ -66,7 +66,7 @@ struct TerminalVelocity
         RT diameter_cm = RT(2.0)*a_r*RT(100.0);   // [m] -> [cm]
         RT rho_mat_cgs = m_rho_w/RT(1000.0);  // [kg/m^3] -> [g/cm^3]
         RT rho_air_cgs = a_rho/RT(1000.0);    // [kg/m^3] -> [g/cm^3]
-        RT grav_cgs = CONST_GRAV * 100;   // [m/s^2] -> [cm/s^2]
+        RT grav_cgs = CONST_GRAV * RT(100);   // [m/s^2] -> [cm/s^2]
 
         RT gxdrow = grav_cgs * ( rho_mat_cgs - rho_air_cgs );
         RT viscosity = viscCoeff(a_T);
@@ -81,7 +81,7 @@ struct TerminalVelocity
         } else if (diameter_cm < RT(1.07e-1)) {
             // large cloud droplets and small raindrops
             RT sd_l = lb4l * (viscosity/visb4l) * (pb4l/P_hPa) * std::sqrt(a_T/tb4l);
-            RT c2 = rho_air_cgs * (RT(4.0)*gxdrow)/(three*viscosity*viscosity);
+            RT c2 = rho_air_cgs * (RT(4.0)*gxdrow)/(RT(three)*viscosity*viscosity);
             RT nda = c2 * diameter_cm * diameter_cm * diameter_cm;
             RT csc = RT(1.0) + RT(2.510) * ( sd_l / diameter_cm );
             RT nre = csc * std::exp(vz_b_x(std::log(nda)));
@@ -96,7 +96,7 @@ struct TerminalVelocity
                 sigma = sigma - RT(2.854E-3) * tau + RT(1.666E-3);
             }
             sigma = sigma * RT(1.E+3); // N/m => g/s^2
-            RT c3 = (RT(4.0)*gxdrow)/(three*sigma);
+            RT c3 = (RT(4.0)*gxdrow)/(RT(three)*sigma);
             RT bond = c3 * diameter_cm * diameter_cm;
             RT npp =    (rho_air_cgs*rho_air_cgs) * (sigma*sigma*sigma)
                         / (gxdrow*viscosity*viscosity*viscosity*viscosity);
@@ -170,8 +170,8 @@ struct TerminalVelocity
         auto q = std::exp( std::exp(-phi) * std::log(a_rhoi/m_rho_i) ); // area ratio
 
         RT X0 = RT(2.8e06);
-        auto t3 = PI * mu*mu * std::max(phi,RT(1.0)) * std::max(std::sqrt(std::sqrt(q)), q);
-        auto X = (RT(8.0)*a_m*CONST_GRAV*a_rho) / t3;
+        auto t3 = RT(PI) * mu*mu * std::max(phi,RT(1.0)) * std::max(std::sqrt(std::sqrt(q)), q);
+        auto X = (RT(8.0)*a_m*RT(CONST_GRAV)*a_rho) / t3;
         auto Xp = X * (RT(1.0) + (X/X0)*(X/X0)) / (RT(1.0) + RT(1.6)*(X/X0)*(X/X0));
 
         auto k = std::min( std::max(RT(0.82)+RT(0.18)*phi, RT(0.85)),

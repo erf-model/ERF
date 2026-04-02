@@ -1190,14 +1190,14 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
-    amrex::Real nudging_q_z1 = 0.0;
-    amrex::Real nudging_q_z2 = 10000.0; // TODO: reasonable defaults here?
-    amrex::Real nudging_t_z1 = 0.0;
-    amrex::Real nudging_t_z2 = 10000.0;
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_t_z1 = zero;
+    amrex::Real nudging_t_z2 = amrex::Real(10000.0);
 
     bool large_scale_forcing = false;
     std::string lsf_file = "";
-    amrex::Real lsf_timescale = 0.0;
+    amrex::Real lsf_timescale = zero;
 
     // MOST stress rotations
     bool use_rotate_surface_flux = false;

@@ -20,7 +20,7 @@ namespace saturation_funcs
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                            { psat_arr(i,j,k,0) = erf_esatw(temperature_arr(i,j,k,0))*100; } );
+                            { psat_arr(i,j,k,0) = erf_esatw(temperature_arr(i,j,k,0))*Real(100); } );
                               // formula gives pressure in hPa; we will save it in Pa.
         }
     }
@@ -37,7 +37,7 @@ namespace saturation_funcs
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                            { psat_arr(i,j,k,0) = erf_esati(temperature_arr(i,j,k,0))*100; } );
+                            { psat_arr(i,j,k,0) = erf_esati(temperature_arr(i,j,k,0))*Real(100); } );
                               // formula gives pressure in hPa; we will save it in Pa.
         }
     }
@@ -85,7 +85,7 @@ namespace saturation_funcs
                             {
                                 // pressure is in Pa; formula takes pressure in hPa
                                 erf_qsati(  temperature_arr(i,j,k,0),
-                                            pressure_arr(i,j,k,0)/100.0,
+                                            pressure_arr(i,j,k,0)/amrex::Real(100.0),
                                             qsat_arr(i,j,k,0) );
                             } );
         }
@@ -166,14 +166,14 @@ void MaterialProperties::setProperties_H2O()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_ice()
 {
-    m_density = 916.80; // kg m^{-3}
+    m_density = amrex::Real(916.80); // kg m^{-3}
 
     m_ionization = 0;
-    m_mol_weight = 1.802e-02; // kg mol^-1
-    m_lat_vap = 2.8342e6; // J kg^{-1} (latent heat of sublimation)
+    m_mol_weight = amrex::Real(1.802e-02); // kg mol^-1
+    m_lat_vap = amrex::Real(2.8342e6); // J kg^{-1} (latent heat of sublimation)
     m_lat_fus = lfus; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
-    m_Tb = 373.15; // K
+    m_Tb = tboil; // K
     m_Nav_by_molweight = s_N_av / m_mol_weight;
 
     AMREX_IF_ON_HOST((
