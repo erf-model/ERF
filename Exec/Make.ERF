@@ -2,6 +2,8 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
+# Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
+# Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
 BL_NO_FORT = TRUE
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
