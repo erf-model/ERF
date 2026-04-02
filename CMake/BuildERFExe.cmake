@@ -236,6 +236,8 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WSM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/WSM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
          )

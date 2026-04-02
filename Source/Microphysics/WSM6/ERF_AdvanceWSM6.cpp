@@ -55,9 +55,9 @@ WSM6::Advance(const Real& dt_advance,
         auto const& qg_arr = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
         auto const& den_arr = mic_fab_vars[MicVar_WSM6::rho]->array(mfi);
         auto const& p_arr = mic_fab_vars[MicVar_WSM6::pres]->array(mfi);
-        auto const& rain_arr = mic_fab_vars[MicVar_WSM6::rain_accum]->array(mfi);
-        auto const& snow_arr = mic_fab_vars[MicVar_WSM6::snow_accum]->array(mfi);
-        auto const& graup_arr = mic_fab_vars[MicVar_WSM6::graup_accum]->array(mfi);
+        auto rain_arr = mic_fab_vars[MicVar_WSM6::rain_accum]->array(mfi);
+        auto snow_arr = mic_fab_vars[MicVar_WSM6::snow_accum]->array(mfi);
+        auto graup_arr = mic_fab_vars[MicVar_WSM6::graup_accum]->array(mfi);
 
         const int ilo = box.smallEnd(0);
         const int ihi = box.bigEnd(0);
@@ -92,12 +92,21 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox sr_fab(box2d, 1);
         FArrayBox snowncv_fab(box2d, 1);
         FArrayBox graupelncv_fab(box2d, 1);
+        FArrayBox rainacc_fab(box2d, 1);
+        FArrayBox snowacc_fab(box2d, 1);
+        FArrayBox graupacc_fab(box2d, 1);
 
         auto const& rainncv_arr = rainncv_fab.array();
         auto const& sr_arr = sr_fab.array();
         auto const& snowncv_arr = snowncv_fab.array();
         auto const& graupelncv_arr = graupelncv_fab.array();
+        auto const& rainacc_arr = rainacc_fab.array();
+        auto const& snowacc_arr = snowacc_fab.array();
+        auto const& graupacc_arr = graupacc_fab.array();
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            rainacc_arr(i,j,0) = rain_arr(i,j,klo);
+            snowacc_arr(i,j,0) = snow_arr(i,j,klo);
+            graupacc_arr(i,j,0) = graup_arr(i,j,klo);
             rainncv_arr(i,j,0) = Real(0.0);
             sr_arr(i,j,0) = Real(0.0);
             snowncv_arr(i,j,0) = Real(0.0);
@@ -111,11 +120,17 @@ WSM6::Advance(const Real& dt_advance,
             den_arr.dataPtr(), p_arr.dataPtr(), delz_arr.dataPtr(),
             static_cast<double>(dt), g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin,
             xls, xlv0, xlf0, den0, denr, cliq, cice, psat,
-            rain_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
-            snow_arr.dataPtr(), snowncv_arr.dataPtr(),
-            graup_arr.dataPtr(), graupelncv_arr.dataPtr(),
+            rainacc_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
+            snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
+            graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi);
+
+        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            rain_arr(i,j,klo) = rainacc_arr(i,j,0);
+            snow_arr(i,j,klo) = snowacc_arr(i,j,0);
+            graup_arr(i,j,klo) = graupacc_arr(i,j,0);
+        });
     }
 #else
     amrex::Abort("WSM6 Fortran bridge requested but ERF was not built with ERF_USE_WSM6_FORT");

@@ -18,7 +18,6 @@ void mp_wsm6_run_c(
     double xlv0, double xlf0, double den0, double denr, double cliq, double cice, double psat,
     double* rain, double* rainncv, double* sr,
     double* snow, double* snowncv, double* graupel, double* graupelncv,
-    int ids, int ide, int jds, int jde, int kds, int kde,
     int ims, int ime, int jms, int jme, int kms, int kme,
     int its, int ite, int jts, int jte, int kts, int kte);
 
