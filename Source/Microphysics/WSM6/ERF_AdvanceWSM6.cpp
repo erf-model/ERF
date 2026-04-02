@@ -24,14 +24,6 @@ WSM6::Advance(const Real& dt_advance,
         wsm6_inited = true;
     }
 
-    const auto domain = m_geom.Domain();
-    const int i_lo = domain.smallEnd(0);
-    const int i_hi = domain.bigEnd(0);
-    const int j_lo = domain.smallEnd(1);
-    const int j_hi = domain.bigEnd(1);
-    const int k_lo = domain.smallEnd(2);
-    const int k_hi = domain.bigEnd(2);
-
     constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
     constexpr double cpv = static_cast<double>(Cp_v);
@@ -52,6 +44,7 @@ WSM6::Advance(const Real& dt_advance,
 
     for (MFIter mfi(*mic_fab_vars[MicVar_WSM6::qv], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box box = mfi.tilebox();
+        const Box fab_box = mfi.fabbox();
 
         auto const& t_arr = mic_fab_vars[MicVar_WSM6::tabs]->array(mfi);
         auto const& qv_arr = mic_fab_vars[MicVar_WSM6::qv]->array(mfi);
@@ -73,10 +66,18 @@ WSM6::Advance(const Real& dt_advance,
         const int klo = box.smallEnd(2);
         const int khi = box.bigEnd(2);
 
-        FArrayBox delz_fab(box, 1);
-        auto const& delz_arr = delz_fab.array();
+        const int imlo = fab_box.smallEnd(0);
+        const int imhi = fab_box.bigEnd(0);
+        const int jmlo = fab_box.smallEnd(1);
+        const int jmhi = fab_box.bigEnd(1);
+        const int kmlo = fab_box.smallEnd(2);
+        const int kmhi = fab_box.bigEnd(2);
 
         const Real dz_val = m_geom.CellSize(m_axis);
+        FArrayBox delz_fab(fab_box, 1);
+        auto const& delz_arr = delz_fab.array();
+        delz_fab.setVal(dz_val);
+
         const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             delz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
@@ -85,7 +86,7 @@ WSM6::Advance(const Real& dt_advance,
                                                      + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
         });
 
-        Box box2d(box);
+        Box box2d(fab_box);
         box2d.makeSlab(2, 0);
         FArrayBox rainncv_fab(box2d, 1);
         FArrayBox sr_fab(box2d, 1);
@@ -104,17 +105,16 @@ WSM6::Advance(const Real& dt_advance,
         });
 
         mp_wsm6_run_c(
-            &(t_arr(ilo,jlo,klo)),
-            &(qv_arr(ilo,jlo,klo)), &(qc_arr(ilo,jlo,klo)), &(qi_arr(ilo,jlo,klo)),
-            &(qr_arr(ilo,jlo,klo)), &(qs_arr(ilo,jlo,klo)), &(qg_arr(ilo,jlo,klo)),
-            &(den_arr(ilo,jlo,klo)), &(p_arr(ilo,jlo,klo)), &(delz_arr(ilo,jlo,klo)),
+            t_arr.dataPtr(),
+            qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),
+            qr_arr.dataPtr(), qs_arr.dataPtr(), qg_arr.dataPtr(),
+            den_arr.dataPtr(), p_arr.dataPtr(), delz_arr.dataPtr(),
             static_cast<double>(dt), g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin,
             xls, xlv0, xlf0, den0, denr, cliq, cice, psat,
-            &(rain_arr(ilo,jlo,0)), &(rainncv_arr(ilo,jlo,0)), &(sr_arr(ilo,jlo,0)),
-            &(snow_arr(ilo,jlo,0)), &(snowncv_arr(ilo,jlo,0)),
-            &(graup_arr(ilo,jlo,0)), &(graupelncv_arr(ilo,jlo,0)),
-            i_lo, i_hi, j_lo, j_hi, k_lo, k_hi,
-            i_lo, i_hi, j_lo, j_hi, k_lo, k_hi,
+            rain_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
+            snow_arr.dataPtr(), snowncv_arr.dataPtr(),
+            graup_arr.dataPtr(), graupelncv_arr.dataPtr(),
+            imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi);
     }
 #else
