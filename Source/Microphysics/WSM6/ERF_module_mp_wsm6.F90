@@ -219,6 +219,9 @@ contains
     real(c_double) :: n0sfac, supcol
     real(c_double) :: work1_r, work2_r, coeres, satdt, praut, pracw, prevp
     real(c_double) :: psmlt, pgmlt
+    real(c_double) :: praci, piacr, psaci
+    real(c_double) :: xni, xmi, diameter, vt2i, vt2r, vt2s, vt2g, vt2ave, qsum, eacrs, acrfac
+    real(c_double) :: frac_qr_qi, frac_qi_qr
     real(c_double) :: rain_flux, snow_flux, graup_flux
 
     if (delt <= 0.0_c_double .or. g <= 0.0_c_double .or. cpd <= 0.0_c_double .or. cpv <= 0.0_c_double) then
@@ -391,6 +394,47 @@ contains
             end if
 
             qi(i,j,k) = max(qi(i,j,k), 0.0_c_double)
+            praci = 0.0_c_double
+            piacr = 0.0_c_double
+            psaci = 0.0_c_double
+
+            if (supcol > 0.0_c_double .and. qi(i,j,k) > qmin) then
+              xni = min(max(5.38e7_c_double * (den(i,j,k) * max(qi(i,j,k), qmin))**0.75_c_double, 1.0e3_c_double), 1.0e6_c_double)
+              eacrs = exp(-0.07_c_double * supcol)
+              xmi = den(i,j,k) * qi(i,j,k) / max(xni, 1.0e-12_c_double)
+              diameter = max(min(11.9_c_double * sqrt(max(xmi, 0.0_c_double)), dimax), 1.0e-25_c_double)
+              vt2i = 1.49e4_c_double * diameter**1.31_c_double
+              vt2r = pvtr * rslopeb_r * denfac
+              vt2s = pvts * rslopeb_s * denfac
+              vt2g = pvtg * rslopeb_g * denfac
+              qsum = max(qs(i,j,k) + qg(i,j,k), 1.0e-15_c_double)
+              vt2ave = (vt2s * qs(i,j,k) + vt2g * qg(i,j,k)) / qsum
+
+              if (qr(i,j,k) > qcrmin) then
+                acrfac = 2.0_c_double * rslope3_r + 2.0_c_double * diameter * rslope2_r + diameter*diameter * rslope_r
+                praci = pi * qi(i,j,k) * n0r * abs(vt2r - vt2i) * acrfac / 4.0_c_double
+                frac_qr_qi = min(max(qr(i,j,k) / max(qi(i,j,k), 1.0e-20_c_double), 0.0_c_double), 1.0_c_double)
+                praci = praci * frac_qr_qi * frac_qr_qi
+                praci = min(praci, qi(i,j,k) / dtcld)
+
+                piacr = pi*pi * avtr * n0r * denr * xni * denfac * g6pbr * rslope3_r * rslope3_r * rslopeb_r / &
+                        (24.0_c_double * max(den(i,j,k), 1.0e-12_c_double))
+                frac_qi_qr = min(max(qi(i,j,k) / max(qr(i,j,k), 1.0e-20_c_double), 0.0_c_double), 1.0_c_double)
+                piacr = piacr * frac_qi_qr * frac_qi_qr
+                piacr = min(piacr, qr(i,j,k) / dtcld)
+              end if
+
+              if (qs(i,j,k) > qcrmin) then
+                acrfac = 2.0_c_double * rslope3_s + 2.0_c_double * diameter * rslope2_s + diameter*diameter * rslope_s
+                psaci = pi * qi(i,j,k) * eacrs * n0s * n0sfac * abs(vt2ave - vt2i) * acrfac / 4.0_c_double
+                psaci = min(psaci, qi(i,j,k) / dtcld)
+              end if
+            end if
+
+            qi(i,j,k) = max(qi(i,j,k) - (praci + psaci) * dtcld, 0.0_c_double)
+            qr(i,j,k) = max(qr(i,j,k) + (praci - piacr) * dtcld, 0.0_c_double)
+            qs(i,j,k) = max(qs(i,j,k) + (piacr + psaci) * dtcld, 0.0_c_double)
+
             if (t(i,j,k) < t0c - 10.0_c_double .and. qi(i,j,k) > 0.0_c_double) then
               freeze_q = min(qi(i,j,k), 0.02_c_double * qi(i,j,k))
               qi(i,j,k) = qi(i,j,k) - freeze_q

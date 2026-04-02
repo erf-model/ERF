@@ -50,9 +50,13 @@
     - saturation adjustment via in-module `fpvs`
     - canonical-style warm-rain tendencies (`praut`, `pracw`, `prevp`) with slope/ventilation helpers
     - canonical-style `psmlt`/`pgmlt` melt tendencies for snow/graupel in warm layers
+    - initial cold-process collection tendencies (`praci`, `piacr`, `psaci`)
     - simple residual cold-phase conversion tendencies still retained for non-portioned paths
     - per-column precip diagnostic flux accumulation (`rain/snow/graupel` families)
   - Scope note: this is still not full `physics_mmm` parity; it is an integration bridge step that preserves current ERF C ABI.
+  - Tracked tendency-term coverage snapshot:
+    - Implemented in ERF shim: 8 / 27 (`prevp,praut,piacr,pracw,praci,psaci,psmlt,pgmlt`)
+    - Remaining: 19 / 27 (`pigen,pidep,pcond,psevp,pgevp,psdep,pgdep,psaut,pgaut,pracs,psacw,psacr,pgacw,pgaci,pgacr,pgacs,paacw,pseml,pgeml`)
 
 ## Targeted Verification (No Full Rebuild)
 - Configured `build_no_netcdf_wsm6` with:
