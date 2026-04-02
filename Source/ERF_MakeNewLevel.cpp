@@ -392,6 +392,29 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
     //
     // Note that t_new = time here is elapsed time
     //
@@ -561,28 +584,28 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         pp_inc[lev].setVal(0.0);
     }
 
-    //********************************************************************************************
-    // Land Surface Model
-    // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
+    // //********************************************************************************************
+    // // Land Surface Model
+    // // *******************************************************************************************
+    // int lsm_data_size  = lsm.Get_Data_Size();
+    // int lsm_flux_size  = lsm.Get_Flux_Size();
+    // lsm_data[lev].resize(lsm_data_size);
+    // lsm_data_name.resize(lsm_data_size);
+    // lsm_flux[lev].resize(lsm_flux_size);
+    // lsm_flux_name.resize(lsm_flux_size);
+    // lsm.Define(lev, solverChoice);
+    // if (solverChoice.lsm_type != LandSurfaceType::None)
+    // {
+    //     lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+    // }
+    // for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+    //     lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+    //     lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    // }
+    // for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+    //     lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+    //     lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    // }
 
     // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
