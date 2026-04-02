@@ -17,6 +17,21 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 {
     BL_PROFILE("ERFPCPC::EvolveParticles()");
 
+    if (m_verbose > 0) {
+        Long np_total = 0;
+        int finest = m_gdb->finestLevel();
+        amrex::Print() << "[" << m_name << "] Evolving particles on level " << a_lev
+                       << ": ";
+        for (int lev = 0; lev <= finest; lev++) {
+            Long np_lev = NumberOfParticlesAtLevel(lev, true, true);
+            ParallelDescriptor::ReduceLongSum(np_lev);
+            amrex::Print() << "L" << lev << "=" << np_lev;
+            if (lev < finest) { amrex::Print() << " "; }
+            np_total += np_lev;
+        }
+        amrex::Print() << " (total=" << np_total << ")\n";
+    }
+
     if (m_advect_w_flow) {
         MultiFab* flow_vel( &a_flow_vars[a_lev][Vars::xvel] );
         AdvectWithFlow( flow_vel, a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
