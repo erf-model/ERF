@@ -104,8 +104,8 @@ void make_fast_coeffs (int /*level*/,
 
         // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
         // We set grav_gpu[2] to be the vector component which is negative
-        // We define myhalfg to match the notes (which is why we take the absolute value)
-        Real myhalfg = std::abs(myhalf * grav_gpu[2]);
+        // We define halfg to match the notes (which is why we take the absolute value)
+        Real halfg = std::abs(myhalf * grav_gpu[2]);
 
         //Note we don't act on the bottom or top boundaries of the domain
         if (mesh_type != MeshType::ConstantDz)
@@ -127,17 +127,20 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
                  Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * (one + RvOverRd*qv_p)
-                               +  myhalfg * R_d * rhobar_hi /
+                               +  halfg * R_d * rhobar_hi /
                                (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
                  coeff_P *= pi_c;
 
                  Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * (one + RvOverRd*qv_q)
-                               + myhalfg * R_d * rhobar_lo /
+                               + halfg * R_d * rhobar_lo /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
                  coeff_Q *= pi_c;
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
+
+                 if (i == 285 and j == 0 and k == 1) amrex::Print() << " MAKING COEFF_P " << coeffP_a(i,j,k) << " " << qv_p << " " << 
+                    inv_detJ_on_kface << " " << rhobar_hi << " " << pibar_hi << " " << stage_cons(i,j,k,RhoTheta_comp) << " " << pi_c << std::endl;
 
                 if (l_use_moisture) {
                     Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
@@ -152,8 +155,8 @@ void make_fast_coeffs (int /*level*/,
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( myhalfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-myhalfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
                 coeffB_a(i,j,k) = one + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
             });
@@ -174,12 +177,12 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
                  Real coeff_P = -Gamma * R_d * dzi * (one + RvOverRd*qv_p)
-                              +  myhalfg * R_d * rhobar_hi /
+                              +  halfg * R_d * rhobar_hi /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
                  coeff_P *= pi_c;
 
                  Real coeff_Q = Gamma * R_d * dzi * (one + RvOverRd*qv_q)
-                              + myhalfg * R_d * rhobar_lo /
+                              + halfg * R_d * rhobar_lo /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
                  coeff_Q *= pi_c;
 
@@ -199,8 +202,8 @@ void make_fast_coeffs (int /*level*/,
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * ( myhalfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-myhalfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
 
                 coeffB_a(i,j,k) = one + D * (coeff_Q - coeff_P) * theta_t_mid;
             });

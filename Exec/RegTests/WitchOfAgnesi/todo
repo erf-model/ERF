@@ -1,0 +1,7 @@
+/bin/rm -rf out* plt* chk* Backtrace*
+./ERF3d.gnu.TEST.MPI.NC.ex inputs erf.terrain_type = MovingFittedMesh | tee out.moving
+mv plt00001 plt00001_moving
+./ERF3d.gnu.TEST.MPI.NC.ex inputs erf.terrain_type = StaticFittedMesh | tee out.static
+mv plt00001 plt00001_static
+/bin/rm -rf chk* plt00000*
+tkdiff out*

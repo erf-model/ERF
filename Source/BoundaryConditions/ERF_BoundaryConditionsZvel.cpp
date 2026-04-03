@@ -232,7 +232,8 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
     // Moving terrain
     // *******************************************************
-    if (l_moving_terrain)
+    // if (l_moving_terrain)
+    if (0)
     {
         //************************************************************
         // NOTE: z_t depends on the time interval in which it is
@@ -255,6 +256,8 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                 dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][2],
                                              xvel_arr,yvel_arr,
                                              mf_u,mf_v,z_phys_nd,dxInv);
+                if (i == 285 and j == 0) amrex::Print() << "SETTING W IN ZVELBC TO " << dest_arr(i,j,k) << " USING " <<
+                       l_bc_extdir_vals_d[0][2] << " AND " << xvel_arr(i,j,k) << " " << yvel_arr(i,j,k) << std::endl;
             });
         }
 
