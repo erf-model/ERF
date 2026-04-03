@@ -306,6 +306,7 @@ void ERFPC::ExtractAndRouteOORParticles (
     const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
 {
     BL_PROFILE("ERFPC::ExtractAndRouteOORParticles()");
+    amrex::ignore_unused(a_z_phys_nd);
 
     AMREX_ALWAYS_ASSERT(a_lev > 0);
 
@@ -368,7 +369,6 @@ void ERFPC::ExtractAndRouteOORParticles (
         }
     }
 
-    Long n_oor_total = 0;
     int finest = a_lev;
     Vector<int> levels_modified(n_levels, 0);
     Vector<Long> n_routed_to(n_levels, 0);
@@ -406,14 +406,12 @@ void ERFPC::ExtractAndRouteOORParticles (
             int n_oor = amrex::get<0>(reduce_data.value(reduce_op));
             if (n_oor == 0) { continue; }
 
-            n_oor_total += n_oor;
-
             // --- Extract OOR particles to a temporary tile ---
             ParticleTileType tmp_tile;
             tmp_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
             tmp_tile.resize(n_oor);
 
-            int n_copied = amrex::filterParticles(
+            [[maybe_unused]] int n_copied = amrex::filterParticles(
                 tmp_tile, src_tile, mask_ptr, int(0), int(0), np);
             AMREX_ASSERT(n_copied == n_oor);
 
@@ -470,7 +468,7 @@ void ERFPC::ExtractAndRouteOORParticles (
                 tl_tile.define(NumRuntimeRealComps(),
                                NumRuntimeIntComps());
                 tl_tile.resize(n_to_lev);
-                int nc = amrex::filterParticles(
+                [[maybe_unused]] int nc = amrex::filterParticles(
                     tl_tile, tmp_tile, tl_mask_ptr,
                     int(0), int(0), n_oor);
                 AMREX_ASSERT(nc == n_to_lev);
