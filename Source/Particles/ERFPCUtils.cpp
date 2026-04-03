@@ -221,8 +221,7 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
  *
  * \param[in] a_finest_level Current finest AMR level (>= 0)
  */
-void
-ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
+void ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
 {
     BL_PROFILE("ERFPC::CountParticlesPerLevelAndHalo()");
 
@@ -246,10 +245,9 @@ ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
 
     // Level-1 halo cells not covered by level 2 (1=halo, 0=covered)
     const int lev1 = 1;
-    iMultiFab halo_mask = amrex::makeFineMask(
-        ParticleBoxArray(lev1), ParticleDistributionMap(lev1),
-        IntVect(0), ParticleBoxArray(lev1 + 1), m_gdb->refRatio(lev1),
-        m_gdb->Geom(lev1).periodicity(), 1, 0);
+    iMultiFab halo_mask = amrex::makeFineMask(ParticleBoxArray(lev1), ParticleDistributionMap(lev1),
+                                               IntVect(0), ParticleBoxArray(lev1 + 1), m_gdb->refRatio(lev1),
+                                               m_gdb->Geom(lev1).periodicity(), 1, 0);
 
     const amrex::Geometry& geom1 = m_gdb->Geom(lev1);
     const auto plo = geom1.ProbLoArray();
@@ -301,9 +299,8 @@ ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
  * \param[in] a_lev       Fine level with potentially OOR particles
  * \param[in] a_z_phys_nd Terrain height data (all levels)
  */
-void ERFPC::ExtractAndRouteOORParticles (
-    int                  a_lev,
-    const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
+void ERFPC::ExtractAndRouteOORParticles ( int                                        a_lev,
+                                          const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
     BL_PROFILE("ERFPC::ExtractAndRouteOORParticles()");
     amrex::ignore_unused(a_z_phys_nd);
@@ -319,7 +316,7 @@ void ERFPC::ExtractAndRouteOORParticles (
     const int nz_lev0 = m_zlevels_d.empty() ? 0
                       : static_cast<int>(m_zlevels_d.size()) - 1;
 
-    // --- Build per-level ParticleLocators (GPU spatial indices) ---
+    // Build per-level ParticleLocators (GPU spatial indices)
     Vector<ParticleLocator<DenseBins<Box>>> locators(n_levels);
     for (int lev = 0; lev < n_levels; lev++) {
         locators[lev].build(ParticleBoxArray(lev), m_gdb->Geom(lev));
@@ -332,8 +329,9 @@ void ERFPC::ExtractAndRouteOORParticles (
         h_assignors[lev] = locators[lev].getGridAssignor();
     }
     Gpu::DeviceVector<AGType> d_assignors(n_levels);
-    Gpu::copyAsync(Gpu::hostToDevice,
-                    h_assignors.begin(), h_assignors.end(),
+    Gpu::copyAsync( Gpu::hostToDevice,
+                    h_assignors.begin(),
+                    h_assignors.end(),
                     d_assignors.begin());
 
     // Per-level geometry data for compute_k_from_z on the GPU
@@ -350,8 +348,7 @@ void ERFPC::ExtractAndRouteOORParticles (
         h_lg[lev].ref_ratio = ref;
     }
     Gpu::DeviceVector<ERFPCLevelGeom> d_lg(n_levels);
-    Gpu::copyAsync(Gpu::hostToDevice,
-                    h_lg.begin(), h_lg.end(), d_lg.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, h_lg.begin(), h_lg.end(), d_lg.begin());
     Gpu::synchronize();
 
     auto* ag_ptr = d_assignors.data();
@@ -384,7 +381,7 @@ void ERFPC::ExtractAndRouteOORParticles (
             const int np = aos.numParticles();
             if (np == 0) { continue; }
 
-            // --- Create OOR mask on GPU ---
+            // Create OOR mask on GPU
             Gpu::DeviceVector<int> mask(np);
             auto* mask_ptr = mask.data();
 
@@ -396,7 +393,7 @@ void ERFPC::ExtractAndRouteOORParticles (
                 mask_ptr[i] = (grd < 0) ? 1 : 0;
             });
 
-            // --- Count OOR particles ---
+            // Count OOR particles
             ReduceOps<ReduceOpSum> reduce_op;
             ReduceData<int> reduce_data(reduce_op);
             using ReduceTuple = typename decltype(reduce_data)::Type;
@@ -406,16 +403,16 @@ void ERFPC::ExtractAndRouteOORParticles (
             int n_oor = amrex::get<0>(reduce_data.value(reduce_op));
             if (n_oor == 0) { continue; }
 
-            // --- Extract OOR particles to a temporary tile ---
+            // Extract OOR particles to a temporary tile
             ParticleTileType tmp_tile;
             tmp_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
             tmp_tile.resize(n_oor);
 
-            [[maybe_unused]] int n_copied = amrex::filterParticles(
-                tmp_tile, src_tile, mask_ptr, int(0), int(0), np);
+            [[maybe_unused]] int n_copied = amrex::filterParticles(tmp_tile, src_tile, mask_ptr,
+                                                                   int(0), int(0), np);
             AMREX_ASSERT(n_copied == n_oor);
 
-            // --- Find the correct target level for each particle ---
+            // Find the correct target level for each particle
             Gpu::DeviceVector<int> target_lev_vec(n_oor);
             auto* tgt_ptr = target_lev_vec.data();
             auto* tmp_pbox = tmp_tile.GetArrayOfStructs()().data();
@@ -427,12 +424,11 @@ void ERFPC::ExtractAndRouteOORParticles (
 
                 for (int tl = finest; tl >= 0; tl--) {
                     const auto& lg = lg_ptr[tl];
-                    int k = compute_k_from_z(
-                        Real(p.pos(AMREX_SPACEDIM-1)),
-                        lg.plo[AMREX_SPACEDIM-1],
-                        lg.dxi[AMREX_SPACEDIM-1],
-                        lg.k_max, zlevels, nz_lev0,
-                        lg.ref_ratio);
+                    int k = compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
+                                              lg.plo[AMREX_SPACEDIM-1],
+                                              lg.dxi[AMREX_SPACEDIM-1],
+                                              lg.k_max, zlevels, nz_lev0,
+                                              lg.ref_ratio );
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
                     int grd = ag_ptr[tl](p, 0, cell_assignor);
                     if (grd >= 0) { found_lev = tl; break; }
@@ -441,7 +437,7 @@ void ERFPC::ExtractAndRouteOORParticles (
             });
             Gpu::synchronize();
 
-            // --- Route particles to their target levels ---
+            // Route particles to their target levels
             for (int tl = 0; tl < n_levels; tl++) {
                 if (tl == lev) { continue; }
 
@@ -455,22 +451,18 @@ void ERFPC::ExtractAndRouteOORParticles (
 
                 ReduceOps<ReduceOpSum> tl_reduce_op;
                 ReduceData<int> tl_reduce_data(tl_reduce_op);
-                using TLReduceTuple =
-                    typename decltype(tl_reduce_data)::Type;
+                using TLReduceTuple = typename decltype(tl_reduce_data)::Type;
                 tl_reduce_op.eval(n_oor, tl_reduce_data,
                     [=] AMREX_GPU_DEVICE (int i) -> TLReduceTuple
                     { return {tl_mask_ptr[i]}; });
-                int n_to_lev =
-                    amrex::get<0>(tl_reduce_data.value(tl_reduce_op));
+                int n_to_lev = amrex::get<0>(tl_reduce_data.value(tl_reduce_op));
                 if (n_to_lev == 0) { continue; }
 
                 ParticleTileType tl_tile;
-                tl_tile.define(NumRuntimeRealComps(),
-                               NumRuntimeIntComps());
+                tl_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
                 tl_tile.resize(n_to_lev);
-                [[maybe_unused]] int nc = amrex::filterParticles(
-                    tl_tile, tmp_tile, tl_mask_ptr,
-                    int(0), int(0), n_oor);
+                [[maybe_unused]] int nc = amrex::filterParticles(tl_tile, tmp_tile, tl_mask_ptr,
+                                                                 int(0), int(0), n_oor);
                 AMREX_ASSERT(nc == n_to_lev);
 
                 // Recompute idata(k) for the actual target level
@@ -482,27 +474,22 @@ void ERFPC::ExtractAndRouteOORParticles (
                 ParallelFor(n_to_lev, [=] AMREX_GPU_DEVICE (int i)
                 {
                     auto& p = tl_pbox[i];
-                    p.idata(ERFParticlesIntIdxAoS::k) =
-                        compute_k_from_z(
-                            Real(p.pos(AMREX_SPACEDIM-1)),
-                            tl_plo[AMREX_SPACEDIM-1],
-                            tl_dxi[AMREX_SPACEDIM-1],
-                            tl_kmax, zlevels, nz_lev0, tl_ref);
+                    p.idata(ERFParticlesIntIdxAoS::k) = compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
+                                                                          tl_plo[AMREX_SPACEDIM-1],
+                                                                          tl_dxi[AMREX_SPACEDIM-1],
+                                                                          tl_kmax, zlevels, nz_lev0, tl_ref);
                 });
                 Gpu::synchronize();
 
-                auto& dst_tile = DefineAndReturnParticleTile(
-                    tl, dest_grids[tl], 0);
-                auto dst_start =
-                    static_cast<int>(dst_tile.numParticles());
+                auto& dst_tile = DefineAndReturnParticleTile(tl, dest_grids[tl], 0);
+                auto dst_start = static_cast<int>(dst_tile.numParticles());
                 dst_tile.resize(dst_start + n_to_lev);
-                amrex::copyParticles(
-                    dst_tile, tl_tile, int(0), dst_start, n_to_lev);
+                amrex::copyParticles(dst_tile, tl_tile, int(0), dst_start, n_to_lev);
                 levels_modified[tl] = 1;
                 n_routed_to[tl] += n_to_lev;
             }
 
-            // --- Mark OOR particles as dead in the original tile ---
+            // Mark OOR particles as dead in the original tile
             ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
             {
                 if (mask_ptr[i]) { p_pbox[i].id() = -1; }
