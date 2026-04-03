@@ -102,7 +102,11 @@ SLM::Init (const int& /*lev*/,
         lsm_z_lo -= m_dz_lsm[k];
     }
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
-    m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
+
+    amrex::Box lsm_dom = m_geom.Domain();
+    lsm_dom.setSmall(2, klo_lsm);
+    lsm_dom.setBig(2, khi_lsm);
+    m_lsm_geom.define(lsm_dom, lsm_rb, m_geom.Coord(), m_geom.isPeriodic());
 
     BoxList bl_lsm_2d = ba_lsm.boxList();
     for (auto& b : bl_lsm_2d) {
@@ -4161,9 +4165,9 @@ std::vector<std::vector<amrex::Real>> SLM::read_cols(const std::string &fname, c
     return datasets;
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step)
+void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev)
 {
-    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_step, 5);
+    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_lev", lev, 1) + "_" + amrex::Concatenate("", level_step, 5);
 
     amrex::Geometry lsm_2d_geom;
     lsm_2d_geom.define( ba_lsm_2d.minimalBox(), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
