@@ -647,8 +647,8 @@ ERF::init_from_wrfinput (int lev,
                               int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                               if (is_column) {
                                 // single column src input is copied to all i,j in dst
-                                li = 0;
-                                lj = 0;
+                                li = i_lo;
+                                lj = j_lo;
                               }
                               // Note: LSM z levels are at negative k below surface
                               //  map [0, nsoil-1] to [-1, -nsoil]
