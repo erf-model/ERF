@@ -139,9 +139,6 @@ void make_fast_coeffs (int /*level*/,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-                 if (i == 285 and j == 0 and k == 1) amrex::Print() << " MAKING COEFF_P " << coeffP_a(i,j,k) << " " << qv_p << " " <<
-                    inv_detJ_on_kface << " " << rhobar_hi << " " << pibar_hi << " " << stage_cons(i,j,k,RhoTheta_comp) << " " << pi_c << std::endl;
-
                 if (l_use_moisture) {
                     Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
                                     +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );

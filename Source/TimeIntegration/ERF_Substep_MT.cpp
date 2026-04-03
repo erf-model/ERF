@@ -187,15 +187,40 @@ void erf_substep_MT (int step, int /*nrk*/,
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
-        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
-
-        const Array4<Real>& theta_extrap = extrap.array(mfi);
-
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
         const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
+
+        // *********************************************************************
+        // This must be done before we set cur_xmom and cur_ymom, since those
+        //      in fact point to the same array as prev_xmom and prev_ymom
+        // *********************************************************************
+        Box gbxo = mfi.nodaltilebox(2);
+        {
+        BL_PROFILE("fast_MT_making_omega");
+        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+        ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = zero;
+        });
+        Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+        ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+        ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) =
+                ( OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,mf_ux,mf_vy,z_nd_old,dxInv)
+                 -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,mf_ux,mf_vy,z_nd_old,dxInv) )
+                - zp_t_arr(i,j,k);
+        });
+        } // end profile
+        // *********************************************************************
+
+        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
+
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Note: it is important to grow the tilebox rather than use growntilebox because
         //       we need to fill the ghost cells of the tilebox so we can use them below
@@ -366,31 +391,6 @@ void erf_substep_MT (int step, int /*nrk*/,
         });
         } // end profile
 
-        // *********************************************************************
-        // This must be done before we set cur_xmom and cur_ymom, since those
-        //      in fact point to the same array as prev_xmom and prev_ymom
-        // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);
-        {
-        BL_PROFILE("fast_MT_making_omega");
-        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-        ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = zero;
-        });
-        Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-        ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
-        });
-        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-        ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) =
-                ( OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,mf_ux,mf_vy,z_nd_old,dxInv)
-                 -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,mf_ux,mf_vy,z_nd_old,dxInv) )
-                - zp_t_arr(i,j,k);
-        });
-        } // end profile
-        // *********************************************************************
-
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -445,7 +445,6 @@ void erf_substep_MT (int step, int /*nrk*/,
             // line 3 residuals (order dtau^2) one <-> beta_2
             Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp))
                           + coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 FIRST  " << R1_tmp << std::endl;
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -456,7 +455,6 @@ void erf_substep_MT (int step, int /*nrk*/,
             // consolidate lines 4&5 (order dtau^2)
             R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ_old(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ_old(i,j,k-1))
                                 + temp_rhs_arr(i,j,k,Rho_comp)/detJ_old(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ_old(i,j,k-1) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 SECND  " << R1_tmp << std::endl;
 
             // consolidate lines 6&7 (order dtau^2)
             R1_tmp += -(
@@ -464,11 +462,6 @@ void erf_substep_MT (int step, int /*nrk*/,
                                               +temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
                  coeff_Q/detJ_old(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo)
                                               +temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD " << R1_tmp << " " << coeff_P << " " << coeff_Q << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" TEMPRHS " << temp_rhs_arr(i,j,k,RhoTheta_comp) << " " <<
-                                                                                temp_rhs_arr(i,j,k-1,RhoTheta_comp) << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" OMEGA " << Omega_kp1 << " " << Omega_k << " " << Omega_km1 << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" THETA " << theta_t_hi << " " << theta_t_mid << " " << theta_t_lo << std::endl;
 
             // line 1
             RHS_a(i,j,k) = prev_zmom(i,j,k) - (dJ_stg_kface/dJ_old_kface) * stg_zmom(i,j,k)
@@ -476,16 +469,13 @@ void erf_substep_MT (int step, int /*nrk*/,
                            + dtau * zmom_src_arr(i,j,k);
 
             RHS_a(i,j,k) += dtau * R0_tmp;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS AFT R0  " << RHS_a(i,j,k) << std::endl;
 
             RHS_a(i,j,k) += dtau                * dtau*beta_2*R1_tmp;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS AFT R1  " << RHS_a(i,j,k) << std::endl;
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             Real UppVpp = (dJ_new_kface/dJ_old_kface) * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
                          -(dJ_stg_kface/dJ_old_kface) * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
             RHS_a(i,j,k) += UppVpp;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS FINAL " << RHS_a(i,j,k) << std::endl;
         });
         } // end profile
 
@@ -575,8 +565,6 @@ void erf_substep_MT (int step, int /*nrk*/,
              if (k == lo.z) {
                  cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
                                               cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
-            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) <<
-               "  " << cur_zmom(i,j,k)/rho_on_face << " USING " << rho_on_face << std::endl;
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = zero;
@@ -591,8 +579,6 @@ void erf_substep_MT (int step, int /*nrk*/,
 
                  cur_zmom(i,j,k) = dJ_old_kface * (stg_zmom(i,j,k) + wpp);
                  cur_zmom(i,j,k) /= dJ_new_kface;
-            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" MOM/W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << 
-                   cur_zmom(i,j,k) / rho_on_face << " USING " << rho_on_face << std::endl;
 
                  soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
                                - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
@@ -648,8 +634,6 @@ void erf_substep_MT (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              if (i == 285 and j == 0 and k == 1) amrex::Print() << " FINAL UPDATE " << cur_cons(i,j,k,Rho_comp) <<
-                     " " << cur_cons(i,j,k,RhoTheta_comp) << std::endl;
         });
         } // end profile
 

@@ -550,7 +550,6 @@ void erf_substep_T (int step, int /*nrk*/,
 
                  R1_tmp +=  coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
                           + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 FIRST  " << R1_tmp << std::endl;
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -561,31 +560,18 @@ void erf_substep_T (int step, int /*nrk*/,
             // consolidate lines 4&5 (order dtau^2)
             R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ(i,j,k-1))
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 SECND  " << R1_tmp << std::endl;
 
             // consolidate lines 6&7 (order dtau^2)
             R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
                        + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD  " << R1_tmp << " " << coeff_P << " " << coeff_Q << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" TEMPRHS " << temp_rhs_arr(i,j,k,RhoTheta_comp) << " " <<
-                                                                                temp_rhs_arr(i,j,k-1,RhoTheta_comp) << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" OMEGA " << Omega_kp1 << " " << Omega_k << " " << Omega_km1 << std::endl;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" THETA " << theta_t_hi << " " << theta_t_mid << " " << theta_t_lo << std::endl;
 
             // line 1
-            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * slow_rhs_rho_w(i,j,k) + dtau * zmom_src_arr(i,j,k);
-
-            RHS_a(i,j,k) += dtau * R0_tmp;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS AFT R0 " << RHS_a(i,j,k) << std::endl;
-
-            RHS_a(i,j,k) += dtau * dtau*beta_2*R1_tmp;
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS AFT R1 " << RHS_a(i,j,k) << std::endl;
+            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             RHS_a(i,j,k) += OmegaFromW(i,j,k,zero,
                                        new_drho_u,new_drho_v,
                                        mf_ux,mf_vy,z_nd,dxInv);
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" RHS FINAL " << RHS_a(i,j,k) << std::endl;
         });
         } // end profile
 
@@ -665,9 +651,6 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             cur_zmom(i,j,k) = stage_zmom(i,j,k);
-            Real rho_on_face = 0.5 * ( cur_cons(i,j,k,0) + cur_cons(i,j,k-1,0));
-            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << " " << 
-                     cur_zmom(i,j,k) / rho_on_face << " USING RHO " << rho_on_face << std::endl;
         });
 
         if (lo.z == domlo.z) {
@@ -683,9 +666,6 @@ void erf_substep_T (int step, int /*nrk*/,
                                   mf_ux,mf_vy,z_nd,dxInv);
 
             cur_zmom(i,j,k) += wpp;
-            Real rho_on_face = 0.5 * ( cur_cons(i,j,k,0) + cur_cons(i,j,k-1,0));
-            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << " " <<
-                     cur_zmom(i,j,k) / rho_on_face << " USING RHO " << rho_on_face << std::endl;
 
             if (l_rayleigh_impl_for_w) {
               Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
@@ -735,8 +715,6 @@ void erf_substep_T (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              if (i == 285 and j == 0 and k == 1) amrex::Print() <<" FINAL UPDATE " << cur_cons(i,j,k,Rho_comp) << " " <<
-                         cur_cons(i,j,k,RhoTheta_comp) << std::endl;
         });
         } // end profile
 
