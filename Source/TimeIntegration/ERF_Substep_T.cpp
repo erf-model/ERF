@@ -566,7 +566,11 @@ void erf_substep_T (int step, int /*nrk*/,
             // consolidate lines 6&7 (order dtau^2)
             R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
                        + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD  " << R1_tmp << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD  " << R1_tmp << " " << coeff_P << " " << coeff_Q << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" TEMPRHS " << temp_rhs_arr(i,j,k,RhoTheta_comp) << " " <<
+                                                                                temp_rhs_arr(i,j,k-1,RhoTheta_comp) << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" OMEGA " << Omega_kp1 << " " << Omega_k << " " << Omega_km1 << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" THETA " << theta_t_hi << " " << theta_t_mid << " " << theta_t_lo << std::endl;
 
             // line 1
             RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * slow_rhs_rho_w(i,j,k) + dtau * zmom_src_arr(i,j,k);
@@ -661,7 +665,9 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             cur_zmom(i,j,k) = stage_zmom(i,j,k);
-            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << std::endl;
+            Real rho_on_face = 0.5 * ( cur_cons(i,j,k,0) + cur_cons(i,j,k-1,0));
+            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << " " << 
+                     cur_zmom(i,j,k) / rho_on_face << " USING RHO " << rho_on_face << std::endl;
         });
 
         if (lo.z == domlo.z) {
@@ -677,7 +683,9 @@ void erf_substep_T (int step, int /*nrk*/,
                                   mf_ux,mf_vy,z_nd,dxInv);
 
             cur_zmom(i,j,k) += wpp;
-            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << std::endl;
+            Real rho_on_face = 0.5 * ( cur_cons(i,j,k,0) + cur_cons(i,j,k-1,0));
+            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << " " <<
+                     cur_zmom(i,j,k) / rho_on_face << " USING RHO " << rho_on_face << std::endl;
 
             if (l_rayleigh_impl_for_w) {
               Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];

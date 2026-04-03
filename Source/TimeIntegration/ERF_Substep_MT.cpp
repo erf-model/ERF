@@ -464,7 +464,11 @@ void erf_substep_MT (int step, int /*nrk*/,
                                               +temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
                  coeff_Q/detJ_old(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo)
                                               +temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
-            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD " << R1_tmp << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" R1 THIRD " << R1_tmp << " " << coeff_P << " " << coeff_Q << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" TEMPRHS " << temp_rhs_arr(i,j,k,RhoTheta_comp) << " " <<
+                                                                                temp_rhs_arr(i,j,k-1,RhoTheta_comp) << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" OMEGA " << Omega_kp1 << " " << Omega_k << " " << Omega_km1 << std::endl;
+            if (i == 285 and j == 0 and k == 1) amrex::Print() <<" THETA " << theta_t_hi << " " << theta_t_mid << " " << theta_t_lo << std::endl;
 
             // line 1
             RHS_a(i,j,k) = prev_zmom(i,j,k) - (dJ_stg_kface/dJ_old_kface) * stg_zmom(i,j,k)
@@ -572,8 +576,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                  cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
                                               cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
             if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) <<
-               " FROM " << rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)) << " " << cur_xmom(i,j,k) << " " << cur_ymom(i,j,k)
-                        << std::endl;
+               "  " << cur_zmom(i,j,k)/rho_on_face << " USING " << rho_on_face << std::endl;
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = zero;
@@ -588,7 +591,8 @@ void erf_substep_MT (int step, int /*nrk*/,
 
                  cur_zmom(i,j,k) = dJ_old_kface * (stg_zmom(i,j,k) + wpp);
                  cur_zmom(i,j,k) /= dJ_new_kface;
-            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << std::endl;
+            if (i == 285 and j == 0 and k <= 10) amrex::Print() <<" MOM/W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << 
+                   cur_zmom(i,j,k) / rho_on_face << " USING " << rho_on_face << std::endl;
 
                  soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
                                - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
