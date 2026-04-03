@@ -571,8 +571,8 @@ void erf_substep_MT (int step, int /*nrk*/,
              if (k == lo.z) {
                  cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
                                               cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
-            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) << 
-               " FROM " << rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)) << " " << cur_xmom(i,j,k) << " " << cur_ymom(i,j,k) 
+            if (i == 285 and j == 0 and k == 0) amrex::Print() <<" W FINAL AT K=k " << k << " " << cur_zmom(i,j,k) <<
+               " FROM " << rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)) << " " << cur_xmom(i,j,k) << " " << cur_ymom(i,j,k)
                         << std::endl;
 
                  // We need to set this here because it is used to define zflux_lo below
@@ -644,7 +644,7 @@ void erf_substep_MT (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              if (i == 285 and j == 0 and k == 1) amrex::Print() << " FINAL UPDATE " << cur_cons(i,j,k,Rho_comp) << 
+              if (i == 285 and j == 0 and k == 1) amrex::Print() << " FINAL UPDATE " << cur_cons(i,j,k,Rho_comp) <<
                      " " << cur_cons(i,j,k,RhoTheta_comp) << std::endl;
         });
         } // end profile
