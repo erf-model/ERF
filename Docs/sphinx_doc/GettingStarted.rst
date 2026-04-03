@@ -1,40 +1,93 @@
-.. role:: cpp(code)
-   :language: c++
-
 .. _GettingStarted:
 
 Getting Started
 ===============
 
-Start with :doc:`quickstart`, then choose the path that matches your setup:
+Clone, build, and run ERF in a few steps:
 
-1. **Automated script (suggested):** use ``Build with CMake -> Automated Script (Suggested)``. This is the default path for most users.
-   
-   .. code-block:: bash
+.. code-block:: bash
 
-      git clone --recursive git@github.com:erf-model/ERF.git
-      cd ERF
-      # source Build/machines/<my_machine>_erf.profile
-      ./Build/cmake_with_kokkos_many.sh
-      cd install/bin
-      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
+   git clone --recursive https://github.com/erf-model/ERF.git
+   cd ERF
+   ./Build/cmake_with_kokkos_many.sh
 
-   .. dropdown:: HPC machine-specific quickstart variants
-      :icon: rocket
+   # Run from install directory
+   cd install/bin
+   mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
-      For machine-profile-driven commands, see :ref:`sec:build:quickstart:hpc-cmake` in :doc:`quickstart`.
+.. dropdown:: On an HPC system? Start here instead.
+   :icon: rocket
 
-      * :doc:`perlmutter_build_run`
-      * :doc:`kestrel_build_run`
-      * :doc:`aurora_build_run`
+   Each tab sources a machine profile that handles environment setup, then
+   runs the appropriate build script for that machine's GPU backend. For
+   download links and full job submission scripts, see :ref:`sec:build:quickstart:hpc-cmake`.
 
-2. **Clone-build-run single page:** stay in :doc:`quickstart` and use the copy-paste commands directly.
-3. **More detailed step-by-step sections:** continue through :doc:`submodule`, :doc:`building`, :doc:`InputFiles`, and :doc:`testing`.
+   .. tab-set::
 
-More detailed machine- and library-specific information is in :ref:`building:configuration` (Beyond the Basics: Machines and Libraries).
+      .. tab-item:: Perlmutter (NERSC)
+
+         .. code-block:: bash
+
+            git clone --recursive https://github.com/erf-model/ERF.git
+            cd ERF
+            source Build/machines/perlmutter_erf.profile
+            ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
+            cd install/bin
+            sbatch run_perlmutter_erf.sbatch
+
+      .. tab-item:: Kestrel (NREL)
+
+         .. code-block:: bash
+
+            git clone --recursive https://github.com/erf-model/ERF.git
+            cd ERF
+            source Build/machines/kestrel_erf.profile
+            ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
+            cd install/bin
+            sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena
+
+      .. tab-item:: Frontier (OLCF)
+
+         .. code-block:: bash
+
+            git clone --recursive https://github.com/erf-model/ERF.git
+            cd ERF
+            source Build/machines/frontier_erf.profile
+            ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_hip.sh
+            cd install/bin
+            sbatch run_frontier_erf.sbatch
+
+      .. tab-item:: Aurora (ALCF)
+
+         .. code-block:: bash
+
+            git clone --recursive https://github.com/erf-model/ERF.git
+            cd ERF
+            source Build/machines/aurora_erf.profile
+            export NETCDF_DIR=<path-to-netcdf>
+            ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_sycl.sh
+            cd install/bin
+            qsub submit_erf_aurora.pbs
+
+   Not on a listed machine? See :ref:`sec:build:hpc` for machine profile
+   customization.
+
+----
+
+Need more detail? Choose the path that fits your situation:
+
+- **More copy-paste options** — GNU Make, alternative CMake workflows, and
+  full HPC scripts with download links → :doc:`quickstart`
+- **Step-by-step walkthrough** of what each stage is doing and why — work
+  through :doc:`submodule`, :doc:`building`, :doc:`InputFiles`, and
+  :doc:`testing` in order
+- **Machine or library specific setup**, advanced configuration, or
+  troubleshooting → :ref:`building:configuration`
+  (*Beyond the Basics: Machines and Libraries*)
 
 .. toctree::
    :maxdepth: 1
+   :hidden:
 
    quickstart
    submodule
