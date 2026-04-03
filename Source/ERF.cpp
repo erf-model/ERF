@@ -769,7 +769,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     BL_PROFILE("ERF::post_timestep()");
 
 #ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
+    particleData.Redistribute(z_phys_nd);
 #endif
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
@@ -1669,6 +1669,14 @@ ERF::InitData_post ()
                               vars_new[lev][Vars::zvel]);
         }
     }
+
+#ifdef ERF_USE_PARTICLES
+    // Redistribute particles so the container has valid data at all AMR levels
+    // before the initial plotfile write
+    if (finest_level > 0) {
+        particleData.Redistribute(z_phys_nd);
+    }
+#endif
 
     // check for additional plotting variables that are available after particle containers
     // are setup.

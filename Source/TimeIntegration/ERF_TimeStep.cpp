@@ -145,9 +145,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 regrid(lev, time);
 
 #ifdef ERF_USE_PARTICLES
-                if (finest_level != old_finest) {
-                    particleData.Redistribute();
-                }
+                particleData.Redistribute(z_phys_nd);
 #endif
 
                 // mark that we have regridded this level already

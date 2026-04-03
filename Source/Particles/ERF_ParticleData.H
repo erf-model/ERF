@@ -127,6 +127,17 @@ class ParticleData
             }
         }
 
+        /*! Redistribute with terrain-aware k-index fix and level-boundary split/merge */
+        inline void Redistribute (
+            const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd)
+        {
+            BL_PROFILE("ParticleData::Redistribute(z_phys_nd)");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                auto* pc = m_particle_species[m_namelist[i]];
+                pc->FixKIndexAMR(a_z_phys_nd);
+            }
+        }
+
         /*! Get species of a given name */
         inline bool HasSpecies ( const std::string& a_name )
         {
