@@ -13,9 +13,8 @@ or :ref:`sec:build:quickstart:gnumake`.
 Quickstart on HPC Systems
 --------------------------
 
-Each tab sources a machine profile that handles environment setup (modules, compilers,
-paths), then runs the appropriate build script for that machine's GPU backend.
-Download links provide a single script combining both steps.
+Each tab covers only the machine-specific setup and build command. Shared guidance for
+directory layout and batch vs interactive runs is listed once below the tabs.
 
 .. tab-set::
 
@@ -29,13 +28,7 @@ Download links provide a single script combining both steps.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
          cd install/bin
-
-         # Preferred on shared HPC systems: submit batch script
          sbatch run_perlmutter_erf.sbatch
-
-         # Interactive alternative:
-         # salloc -A <account> -C gpu -N 1 -t 00:30:00
-         # srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       :download:`Download build+run snippet <scripts/quickstart/perlmutter_quickstart.sh>`
       Full guide: :doc:`perlmutter_build_run`
@@ -50,13 +43,7 @@ Download links provide a single script combining both steps.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
          cd install/bin
-
-         # Preferred on shared HPC systems: submit batch script
          sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena
-
-         # Interactive alternative:
-         # salloc -p gpu-h100s --nodes=1 --gpus-per-node=4 --time=00:30:00
-         # srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       :download:`Download Kestrel custom build script <scripts/quickstart/cmake_kestrel_ERF.sh>`
       :download:`Download Kestrel sbatch example <scripts/quickstart/run.erf.aw.job_arena>`
@@ -72,13 +59,7 @@ Download links provide a single script combining both steps.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_hip.sh
          cd install/bin
-
-         # Preferred on shared HPC systems: submit batch script
          sbatch run_frontier_erf.sbatch
-
-         # Interactive alternative:
-         # salloc -A <project> -p batch -N 1 -t 00:30:00
-         # srun -n 8 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       :download:`Download build+run snippet <scripts/quickstart/frontier_quickstart.sh>`
       More machine context: :ref:`sec:build:hpc`
@@ -94,19 +75,52 @@ Download links provide a single script combining both steps.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_sycl.sh
          cd install/bin
-
-         # Preferred on shared HPC systems: submit batch script
          qsub submit_erf_aurora.pbs
-
-         # Interactive alternative:
-         # qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00 -l filesystems=flare
-         # mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       :download:`Download build+run snippet <scripts/quickstart/aurora_quickstart.sh>`
       Full guide: :doc:`aurora_build_run`
 
 Not on a listed machine? See :ref:`sec:build:hpc` for machine profile customization,
 or continue below for generic build workflows.
+
+Directory and Run Conventions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The HPC snippets above all use this layout:
+
+* ``ERF/`` is the repository root after clone
+* ``install/bin/`` contains ``erf_exec`` after running ``cmake_with_kokkos_many_*.sh``
+* ``../../Exec/CanonicalTests/ABL/inputs_most`` is a standard smoke-test input path
+
+Submission Modes (Batch vs Interactive)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use batch jobs for normal production runs on shared systems. Use interactive jobs for
+short debugging or quick validation.
+
+.. tab-set::
+
+   .. tab-item:: Batch (Recommended)
+
+      .. code-block:: bash
+
+         # Slurm-based systems (Perlmutter, Kestrel, Frontier)
+         sbatch <job_script.sbatch>
+
+         # PBS-based systems (Aurora)
+         qsub <job_script.pbs>
+
+   .. tab-item:: Interactive (Debug)
+
+      .. code-block:: bash
+
+         # Slurm example
+         salloc -A <account_or_project> -N 1 -t 00:30:00
+         srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
+
+         # PBS example
+         qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00
+         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
 .. _sec:build:quickstart:gnumake:
 
