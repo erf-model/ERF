@@ -83,13 +83,6 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 Not on a listed machine? See :ref:`sec:build:hpc` for machine profile customization,
 or continue below for generic build workflows.
 
-.. dropdown:: Directory conventions used by the HPC snippets
-   :icon: info
-
-   * ``ERF/`` is the repository root after clone.
-   * ``install/bin/`` contains ``erf_exec`` after running ``cmake_with_kokkos_many_*.sh``.
-   * ``../../Exec/CanonicalTests/ABL/inputs_most`` is a standard smoke-test input path.
-
 .. dropdown:: Run After Build: interactive smoke test or batch job
    :icon: rocket
 
@@ -100,27 +93,48 @@ or continue below for generic build workflows.
 
       .. tab-item:: Interactive Smoke Test (Fast)
 
+         Slurm (Perlmutter/Kestrel/Frontier):
+
          .. code-block:: bash
 
-            # Slurm example
+            # Account/project is usually required on shared systems
             salloc -A <account_or_project> -N 1 -t 00:30:00
             srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most \
               amr.max_step=10
 
-            # PBS example
+         PBS (Aurora):
+
+         .. code-block:: bash
+
             qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00
             mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most \
               amr.max_step=10
 
-      .. tab-item:: Batch Job (Recommended for real runs)
+      .. tab-item:: Batch Scripts Provided
 
-         .. code-block:: bash
+         .. list-table::
+            :header-rows: 1
 
-            # Slurm-based systems (Perlmutter, Kestrel, Frontier)
-            sbatch <job_script.sbatch>
-
-            # PBS-based systems (Aurora)
-            qsub <job_script.pbs>
+            * - System
+              - Scheduler
+              - Provided script
+              - Launch command
+            * - Perlmutter
+              - Slurm
+              - ``run_perlmutter_erf.sbatch`` (from ``perlmutter_quickstart.sh``)
+              - ``sbatch run_perlmutter_erf.sbatch``
+            * - Kestrel
+              - Slurm
+              - ``run.erf.aw.job_arena``
+              - ``sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena``
+            * - Frontier
+              - Slurm
+              - ``run_frontier_erf.sbatch`` (from ``frontier_quickstart.sh``)
+              - ``sbatch run_frontier_erf.sbatch``
+            * - Aurora
+              - PBS
+              - ``submit_erf_aurora.pbs`` (from ``aurora_quickstart.sh``)
+              - ``qsub submit_erf_aurora.pbs``
 
 .. _sec:build:quickstart:gnumake:
 
