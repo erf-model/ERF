@@ -28,7 +28,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
          cd install/bin
-         sbatch run_perlmutter_erf.sbatch
+         # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/perlmutter_quickstart.sh>`
       Full guide: :doc:`perlmutter_build_run`
@@ -43,7 +43,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
          cd install/bin
-         sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena
+         # Next: choose a run mode in "Run After Build" below
 
       :download:`Download Kestrel custom build script <scripts/quickstart/cmake_kestrel_ERF.sh>`
       :download:`Download Kestrel sbatch example <scripts/quickstart/run.erf.aw.job_arena>`
@@ -59,7 +59,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_hip.sh
          cd install/bin
-         sbatch run_frontier_erf.sbatch
+         # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/frontier_quickstart.sh>`
       More machine context: :ref:`sec:build:hpc`
@@ -75,7 +75,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
          ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_sycl.sh
          cd install/bin
-         qsub submit_erf_aurora.pbs
+         # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/aurora_quickstart.sh>`
       Full guide: :doc:`aurora_build_run`
@@ -83,44 +83,44 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 Not on a listed machine? See :ref:`sec:build:hpc` for machine profile customization,
 or continue below for generic build workflows.
 
-Directory and Run Conventions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. dropdown:: Directory conventions used by the HPC snippets
+   :icon: info
 
-The HPC snippets above all use this layout:
+   * ``ERF/`` is the repository root after clone.
+   * ``install/bin/`` contains ``erf_exec`` after running ``cmake_with_kokkos_many_*.sh``.
+   * ``../../Exec/CanonicalTests/ABL/inputs_most`` is a standard smoke-test input path.
 
-* ``ERF/`` is the repository root after clone
-* ``install/bin/`` contains ``erf_exec`` after running ``cmake_with_kokkos_many_*.sh``
-* ``../../Exec/CanonicalTests/ABL/inputs_most`` is a standard smoke-test input path
+.. dropdown:: Run After Build: interactive smoke test or batch job
+   :icon: rocket
 
-Submission Modes (Batch vs Interactive)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   Use interactive mode for a quick check (2-10 steps). Use batch mode for normal
+   production runs and longer jobs.
 
-Use batch jobs for normal production runs on shared systems. Use interactive jobs for
-short debugging or quick validation.
+   .. tab-set::
 
-.. tab-set::
+      .. tab-item:: Interactive Smoke Test (Fast)
 
-   .. tab-item:: Batch (Recommended)
+         .. code-block:: bash
 
-      .. code-block:: bash
+            # Slurm example
+            salloc -A <account_or_project> -N 1 -t 00:30:00
+            srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most \
+              amr.max_step=10
 
-         # Slurm-based systems (Perlmutter, Kestrel, Frontier)
-         sbatch <job_script.sbatch>
+            # PBS example
+            qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00
+            mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most \
+              amr.max_step=10
 
-         # PBS-based systems (Aurora)
-         qsub <job_script.pbs>
+      .. tab-item:: Batch Job (Recommended for real runs)
 
-   .. tab-item:: Interactive (Debug)
+         .. code-block:: bash
 
-      .. code-block:: bash
+            # Slurm-based systems (Perlmutter, Kestrel, Frontier)
+            sbatch <job_script.sbatch>
 
-         # Slurm example
-         salloc -A <account_or_project> -N 1 -t 00:30:00
-         srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
-
-         # PBS example
-         qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00
-         mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
+            # PBS-based systems (Aurora)
+            qsub <job_script.pbs>
 
 .. _sec:build:quickstart:gnumake:
 
