@@ -9,26 +9,36 @@ amr.n_cell           =   4    4    51
 
 geometry.is_periodic = 1 1 0
 
-erf.initial_dz = 10.0
-erf.grid_stretching_ratio = 1.025
+geometry.prob_extent =  40   40   500
+amr.n_cell           =   4    4    50
+    
+#erf.initial_dz = 10.0
+#erf.grid_stretching_ratio = 1.025
 
+#erf.grid_stretching_ratio = 0
+#erf.terrain_type = StaticFittedMesh
+#erf.terrain_file_name = "flat_terrain.txt"
+#erf.most.average_policy    = 1
+    
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 #zlo.type        = "SlipWall"
 zlo.type        = "surface_layer"
 erf.surface_layer.flux_type = "custom"
 erf.most.ustar  = 0.0
-erf.most.tstar  = 0.15  # actually ustar*tstar
-erf.most.qstar  = 0.0   # actually ustar*qstar
+erf.most.tstar  = 0.1  # actually ustar*tstar
+erf.most.qstar  = 0.001   # actually ustar*qstar
+erf.most.zref   = 5.0
 
 zhi.type        = "SlipWall"
-zhi.theta_grad  = 0.003  # [K/m] to match the input sounding
+#zhi.theta_grad  = 0.003  # [K/m] to match the input sounding
 
 # INITIALIZATION
 erf.init_type          = "input_sounding"
 erf.input_sounding_file = "input_sounding_U0"
 
 # TIME STEP CONTROL
-erf.fixed_mri_dt_ratio = 4
+#erf.fixed_mri_dt_ratio = 4
+erf.substepping_type = None
 
 erf.vert_implicit_fac  = 0.0  # fully explicit (default)
 erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
@@ -60,10 +70,13 @@ erf.plot_per_1      = 300        # number of timesteps between plotfiles
 #erf.plot_int_1      = 1        # number of timesteps between plotfiles
 erf.plot_vars_1     = density theta
 
+erf.moisture_model = SatAdj
+    
 # SOLVER CHOICE
 erf.molec_diff_type = "Constant"
-erf.alpha_T         = 75.0 # [m^2/s]
-erf.dynamic_viscosity = 1e-6
+erf.alpha_T         = 10.0 # [m^2/s]
+erf.alpha_C         = 10.0
+erf.dynamic_viscosity = 10.0
 
 erf.use_gravity = true
 erf.use_coriolis = false

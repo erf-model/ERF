@@ -237,7 +237,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -370,7 +370,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -501,7 +501,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -629,11 +629,21 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+        });
+    }
+
+    // NOTE: With terrain, we implicitly treat the leading order vertical gradient (no metric terms)
+    // This allows us to do semi-implicit discretization of the vertical diffusive terms
+    if (qty_index == RhoTheta_comp ||
+        qty_index == RhoQ1_comp) {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            zflux(i,j,k) *= explicit_fac;
         });
     }
 
@@ -685,10 +695,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         }
 
         // Allow semi-implicit discretization of the vertical diffusive terms
-        Real zflux_lo = explicit_fac * zflux(i,j,k  )
+        Real zflux_lo = zflux(i,j,k  )
                       - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
                       - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
-        Real zflux_hi = explicit_fac * zflux(i,j,k+1)
+        Real zflux_hi = zflux(i,j,k+1)
                       - met_h_xi_hi  * mf_mx(i,j,0) * xfluxbar_hi
                       - met_h_eta_hi * mf_my(i,j,0) * yfluxbar_hi;
 

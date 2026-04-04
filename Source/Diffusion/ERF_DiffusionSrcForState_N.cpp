@@ -198,7 +198,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -316,7 +316,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -431,7 +431,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -543,7 +543,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -552,7 +552,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     }
 
     // This allows us to do semi-implicit discretization of the vertical diffusive terms
-    if (qty_index == RhoTheta_comp) {
+    if (qty_index == RhoTheta_comp ||
+        qty_index == RhoQ1_comp) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             zflux(i,j,k) *= explicit_fac;

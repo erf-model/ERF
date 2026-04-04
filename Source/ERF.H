@@ -926,6 +926,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx1_lev, SFS_q1fx2_lev, SFS_q1fx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
+    // Diffusive fluxes for EB
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_EB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx3_EB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qfx3_EB;
+
     // Grid stretching
     amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
 
@@ -992,6 +997,9 @@ private:
 
     // These hold the Neumann values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+
+    // Per-face flag: non-reflecting inflow (extrapolate RhoTheta instead of prescribing)
+    amrex::Array<bool, AMREX_SPACEDIM*2> m_bc_nonreflecting = {{false}};
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
@@ -1113,7 +1121,7 @@ private:
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
     // **************************************************************************************
     const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
-                                                    "reflectivity","max_reflectivity",
+                                                    "reflectivity","max_reflectivity", "precipitable",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",

@@ -28,7 +28,7 @@ SHOCInterface::SHOCInterface (const int& lev,
     // Vertical velocity variance
     Real def_w2tune = one;
     // Length scale factor
-    Real def_length_fac = myhalf;
+    Real def_length_fac = Real(0.5);
     // Third moment vertical velocity damping factor
     Real def_c_diag_3rd_mom = Real(7.0);
     // Eddy diffusivity coefficient for heat
@@ -393,11 +393,11 @@ SHOCInterface::mf_to_kokkos_buffers ()
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     auto ProbLoArr = m_geom.ProbLoArray();
 
-    auto domain    = m_geom.Domain();
-    int ilo        = domain.smallEnd(0);
-    int ihi        = domain.bigEnd(0);
-    int jlo        = domain.smallEnd(1);
-    int jhi        = domain.bigEnd(1);
+    auto domain = m_geom.Domain();
+    int ilo     = domain.smallEnd(0);
+    int ihi     = domain.bigEnd(0);
+    int jlo     = domain.smallEnd(1);
+    int jhi     = domain.bigEnd(1);
 
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         // NOTE: Grown box to get ghost cells in views
@@ -432,48 +432,48 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
-            Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : zero;
-            Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : zero;
+            Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : Real(0.);
+            Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : Real(0.);
 
             // EOS avg to z-face
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
-            Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : zero;
-            Real rt_avg = myhalf * (rt + rt_lo);
-            Real qv_avg = myhalf * (qv + qv_lo);
+            Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : Real(0.);
+            Real rt_avg = Real(0.5) * (rt + rt_lo);
+            Real qv_avg = Real(0.5) * (qv + qv_lo);
 
             // Delta z
-            Real delz = (z_arr) ? fourth * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                         + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                         + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                         + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
+            Real delz = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                               + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                               + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                               + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
 
             // W at cc (cannot be 0?; inspection of shoc code...)
-            Real w_cc = myhalf * (w_arr(i,j,k) + w_arr(i,j,k+1));
-            w_cc += (w_sub) ? w_sub[k] : zero;
+            Real w_cc = Real(0.5) * (w_arr(i,j,k) + w_arr(i,j,k+1));
+            w_cc += (w_sub) ? w_sub[k] : Real(0.);
             Real w_limited = std::copysign(std::max(std::fabs(w_cc),Real(1.0e-6)),w_cc);
 
             // Input/Output data structures
             //=======================================================
-            horiz_wind_d(icol,0,ilay)  = myhalf * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
-            horiz_wind_d(icol,1,ilay)  = myhalf * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
-            cldfrac_liq_d(icol,ilay)   = (qc>zero) ? one : zero;
-            tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, zero);
+            horiz_wind_d(icol,0,ilay)  = Real(0.5) * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
+            horiz_wind_d(icol,1,ilay)  = Real(0.5) * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
+            cldfrac_liq_d(icol,ilay)   = (qc>Real(0.)) ? Real(1.) : Real(0.);
+            tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, Real(0.));
             qc_d(icol,ilay)            = qc;
 
             // Interface data structures
             //=======================================================
             // eamxx_common_physics_functions_impl.hpp: calculate_vertical_velocity
-            omega_d(icol,ilay)           = -w_limited * r * CONST_GRAV;
+            omega_d(icol,ilay)         = -w_limited * r * CONST_GRAV;
             if (k==0) {
                 int ii  = std::min(std::max(i,ilo),ihi);
                 int jj  = std::min(std::max(j,jlo),jhi);
 
-                surf_mom_flux_d(icol,0)  = myhalf * (t13_arr(ii,jj,k) + t13_arr(ii+1,jj  ,k));
-                surf_mom_flux_d(icol,1)  = myhalf * (t23_arr(ii,jj,k) + t23_arr(ii  ,jj+1,k));
+                surf_mom_flux_d(icol,0)  = Real(0.5) * (t13_arr(ii,jj,k) + t13_arr(ii+1,jj  ,k));
+                surf_mom_flux_d(icol,1)  = Real(0.5) * (t23_arr(ii,jj,k) + t23_arr(ii  ,jj+1,k));
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
-                surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : zero;
+                surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : Real(0.);
                 // Back out the drag coeff
                 Real wsp = sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
@@ -494,19 +494,18 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // Surface geopotential
             if (k==0) {
                 Real z = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k))
-                                           + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
-                                           + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
-                                           + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) :
-                                   ProbLoArr[2];
+                                                 + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
+                                                 + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
+                                                 + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) : ProbLoArr[2];
                 phis_d(icol) = CONST_GRAV * z;
             }
 
             if (ilay==0) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
-                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,zero) : zero;
-                rt_avg = myhalf * (rt + rt_hi);
-                qv_avg = myhalf * (qv + qv_hi);
+                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,Real(0.)) : Real(0.);
+                rt_avg = Real(0.5) * (rt + rt_hi);
+                qv_avg = Real(0.5) * (qv + qv_hi);
                 p_int_d(icol,0) = getPgivenRTh(rt_avg, qv_avg);
             }
         });
@@ -590,7 +589,7 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
             const int ilay   = kmax - k;
 
             int icolim = (j-jmin)*nx + (i-1-imin) + offset;
-            Real uvel  = myhalf * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
+            Real uvel  = Real(0.5) * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
             u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -601,7 +600,7 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
             const int ilay   = kmax - k;
 
             int icoljm = (j-1-jmin)*nx + (i-imin) + offset;
-            Real vvel  = myhalf * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
+            Real vvel  = Real(0.5) * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
             v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
         });
     }
@@ -657,9 +656,9 @@ SHOCInterface::set_eddy_diffs ()
 
             // NOTE: Set mom_v for tau_33, all other vertical comps are 0
             mu_arr(i,j,k,EddyDiff::Mom_v)   = tk_d(icol,ilay)[0];
-            mu_arr(i,j,k,EddyDiff::Theta_v) = zero;
-            mu_arr(i,j,k,EddyDiff::KE_v)    = zero;
-            mu_arr(i,j,k,EddyDiff::Q_v)     = zero;
+            mu_arr(i,j,k,EddyDiff::Theta_v) = Real(0.);
+            mu_arr(i,j,k,EddyDiff::KE_v)    = Real(0.);
+            mu_arr(i,j,k,EddyDiff::Q_v)     = Real(0.);
         });
     }
 
@@ -685,16 +684,16 @@ SHOCInterface::set_diff_stresses ()
         ParallelFor(vbx_cc, vbx_xz, vbx_yz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            hfx_arr(i,j,k) = zero;
-            qfx_arr(i,j,k) = zero;
+            hfx_arr(i,j,k) = Real(0.);
+            qfx_arr(i,j,k) = Real(0.);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            t13_arr(i,j,k) = zero;
+            t13_arr(i,j,k) = Real(0.);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            t23_arr(i,j,k) = zero;
+            t23_arr(i,j,k) = Real(0.);
         });
     }
 }
@@ -880,7 +879,7 @@ SHOCInterface::initialize_impl ()
     auto shoc_ql2    = m_buffer.shoc_ql2;
 
     // For now, set z_int(i,nlevs) = z_surf = 0
-    const Real z_surf = zero;
+    const Real z_surf = Real(0.);
 
     // Set preprocess variables
     shoc_preprocess.set_variables(m_num_cols, m_num_layers, z_surf,

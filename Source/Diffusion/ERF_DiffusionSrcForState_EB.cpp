@@ -1,5 +1,6 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
+#include <ERF_EBStruct.H>
 
 using namespace amrex;
 
@@ -45,10 +46,14 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const Array4<const Real>& ay_arr,
                         const Array4<const Real>& az_arr,
                         const Array4<const Real>& detJ,
+                        const Array4<const Real>& barea_arr,
+                        [[maybe_unused]] const Array4<const Real>& bcent_arr,
+                        const Real* dx_arr,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         [[maybe_unused]] Array4<Real>& hfx_z,
                         [[maybe_unused]] Array4<Real>& qfx1_z,
                         [[maybe_unused]] Array4<Real>& qfx2_z,
+                        Array4<Real>& hfx_EB,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const int level,
@@ -59,7 +64,12 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
 
 #include "ERF_SetupDiff.H"
 
+    EBChoice ebChoice = solverChoice.ebChoice;
+    const bool l_surface_layer = (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
+
     const Real dz_inv = cellSizeInv[2];
+    const Real dx = dx_arr[0], dy = dx_arr[1], dz = dx_arr[2];
+    const Real vol = dx * dy * dz;
 
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
@@ -216,15 +226,28 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             // }
         });
 
-    // Use fluxes to compute RHS
-    ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        if (!cfg_arr(i,j,k).isCovered()) {
-            cell_rhs(i,j,k,qty_index) -= ((ax_arr(i+1,j,k) * xflux(i+1,j  ,k  ) - ax_arr(i,j,k) * xflux(i, j, k)) * dx_inv
-                                        +(ay_arr(i,j+1,k) * yflux(i  ,j+1,k  ) - ay_arr(i,j,k) * yflux(i, j, k)) * dy_inv
-                                        +(az_arr(i,j,k+1) * zflux(i  ,j  ,k+1) - az_arr(i,j,k) * zflux(i, j, k)) * dz_inv)
-                                        / detJ(i,j,k);
+        // Use fluxes to compute RHS
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (!cfg_arr(i,j,k).isCovered()) {
+                cell_rhs(i,j,k,qty_index) -= ((ax_arr(i+1,j,k) * xflux(i+1,j  ,k  ) - ax_arr(i,j,k) * xflux(i, j, k)) * dx_inv
+                                            +(ay_arr(i,j+1,k) * yflux(i  ,j+1,k  ) - ay_arr(i,j,k) * yflux(i, j, k)) * dy_inv
+                                            +(az_arr(i,j,k+1) * zflux(i  ,j  ,k+1) - az_arr(i,j,k) * zflux(i, j, k)) * dz_inv)
+                                            / detJ(i,j,k);
+            }
+        });
+
+        // Add EB boundary contributions to fluxes
+        const bool l_rhotheta = (qty_index == RhoTheta_comp);
+        if (l_surface_layer && l_rhotheta) {
+            ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (cfg_arr(i,j,k).isSingleValued()) {
+
+                    cell_rhs(i,j,k,qty_index) += barea_arr(i,j,k) * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
+                }
+            });
         }
-    });
+
     } // n
 }

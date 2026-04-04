@@ -468,7 +468,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const int& kmax,
                             const int& src_comp,
                             const int& dst_comp,
-                            const int& itime,
                             char var_type,
                             char stag,
                             const amrex::Array4<amrex::Real const>& orig_z_full,
@@ -752,7 +751,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
     // Save the interpolated data.
     for (int k=0; k < kmax_new; k++) {
-        if (itime == 0) new_data_full(i,j,k,dst_comp) = new_data[k];
+        new_data_full(i,j,k,dst_comp) = new_data[k];
     }
 
 }

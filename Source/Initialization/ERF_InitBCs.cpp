@@ -141,6 +141,14 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
 
+            // Non-reflecting inflow: prescribe velocity and density but
+            // extrapolate RhoTheta (and hence pressure) from the interior.
+            // This lets upstream-propagating acoustic waves exit the domain
+            // instead of reflecting off the rigid Dirichlet boundary.
+            bool nonreflecting = false;
+            pp.query("nonreflecting", nonreflecting);
+            m_bc_nonreflecting[ori] = nonreflecting;
+
             Real scalar_in = zero;
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
@@ -599,6 +607,11 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                         }
                     }
+                    // Non-reflecting: extrapolate RhoTheta from interior so
+                    // pressure is not prescribed, allowing acoustic waves out
+                    if (m_bc_nonreflecting[ori]) {
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::foextrap);
+                    }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
@@ -621,6 +634,10 @@ void ERF::init_bcs ()
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                         }
+                    }
+                    // Non-reflecting: extrapolate RhoTheta from interior
+                    if (m_bc_nonreflecting[ori]) {
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::foextrap);
                     }
                 }
             }

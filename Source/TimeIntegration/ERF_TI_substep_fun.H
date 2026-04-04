@@ -178,7 +178,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 #ifdef ERF_IMPLICIT_W
             MultiFab scratch_zmom(S_data[IntVars::zmom], make_alias, 0, 1);
 #endif
-#include "ERF_Implicit.H"
+#include "ERF_ImplicitPre.H"
         }
 
         // Apply vertical velocity damping at the end of the timestep

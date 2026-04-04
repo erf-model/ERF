@@ -275,7 +275,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
         at_new = one/ ( Real(4.0)*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - one );
         an_new = one/ ( one + Real(4.0)*F*std::pow(std::sin(psi),2)/(s*Cn + 1e-10) );
-        at_new = std::max(zero, at_new);
+        at_new = std::max(Real(0.), at_new);
 
         if(std::fabs(at_new-at) < 1e-5 and std::fabs(an_new-an) < 1e-5) {
             //printf("Converged at, an = %d %0.15g %0.15g %0.15g\n",i, at, an, psi);
