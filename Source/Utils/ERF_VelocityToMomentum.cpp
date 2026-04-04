@@ -164,14 +164,14 @@ void VelocityToMomentum (const MultiFab& xvel_in,
             if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) = vely(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
+                    momy(i,j,k) = vely(i,j,k) * dens_arr(i,j-1,k,Rho_comp);
                 });
             }
             else if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     if (vely(i,j,k) >= zero) {
-                        momy(i,j,k) = vely(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
+                        momy(i,j,k) = vely(i,j,k) * dens_arr(i,j-1,k,Rho_comp);
                     }
                 });
             }
@@ -181,14 +181,14 @@ void VelocityToMomentum (const MultiFab& xvel_in,
             if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir)
             {
                 ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) = vely(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                    momy(i,j,k) = vely(i,j,k) * dens_arr(i,j,k,Rho_comp);
                 });
             }
             else if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     if (vely(i,j,k) <= zero) {
-                        momy(i,j,k) = vely(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                        momy(i,j,k) = vely(i,j,k) * dens_arr(i,j,k,Rho_comp);
                     }
                 });
             }
