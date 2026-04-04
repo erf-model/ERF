@@ -44,6 +44,7 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ] l_damp_coef
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -81,7 +82,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
-                     bool l_reflux)
+                     bool l_reflux,
+                     const Real* sinesq_stag_d,
+                     const Real l_damp_coef)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
@@ -92,6 +95,8 @@ void erf_substep_MT (int step, int /*nrk*/,
     Real beta_d = Real(0.1);
 
     Real RvOverRd = R_v / R_d;
+
+    bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -560,30 +565,35 @@ void erf_substep_MT (int step, int /*nrk*/,
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-             Real rho_on_face = myhalf * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
+            Real rho_on_face = myhalf * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
 
-             if (k == lo.z) {
-                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
-                                              cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
+            if (k == lo.z) {
+                cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
+                                             cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
 
-                 // We need to set this here because it is used to define zflux_lo below
-                 soln_a(i,j,k) = zero;
+                // We need to set this here because it is used to define zflux_lo below
+                soln_a(i,j,k) = zero;
 
-             } else {
+            } else {
 
-                 Real UppVpp = WFromOmega(i,j,k,zero,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
-                             - WFromOmega(i,j,k,zero,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
-                 Real wpp = soln_a(i,j,k) + UppVpp;
-                 Real dJ_old_kface = myhalf * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
-                 Real dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
+                Real UppVpp = WFromOmega(i,j,k,zero,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
+                            - WFromOmega(i,j,k,zero,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
+                Real wpp = soln_a(i,j,k) + UppVpp;
+                Real dJ_old_kface = myhalf * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
+                Real dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
 
-                 cur_zmom(i,j,k) = dJ_old_kface * (stg_zmom(i,j,k) + wpp);
-                 cur_zmom(i,j,k) /= dJ_new_kface;
+                cur_zmom(i,j,k) = dJ_old_kface * (stg_zmom(i,j,k) + wpp);
+                cur_zmom(i,j,k) /= dJ_new_kface;
 
-                 soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
-                               - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
-                 soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k);
-             }
+                soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
+                              - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
+                soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k);
+            }
+
+            if (l_rayleigh_impl_for_w && k > 0) {
+              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+              cur_zmom(i,j,k) /= (one + damping_coeff);
+            }
         });
         } // end profile
 
@@ -617,7 +627,6 @@ void erf_substep_MT (int step, int /*nrk*/,
 
               cur_cons(i,j,k,0) += dtau * ( slow_rhs_cons(i,j,k,0) + fast_rhs_rho      / detJ_new(i,j,k));
               cur_cons(i,j,k,1) += dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta / detJ_new(i,j,k));
-
 
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * myhalf * (prim(i,j,k) + prim(i,j,k-1));
