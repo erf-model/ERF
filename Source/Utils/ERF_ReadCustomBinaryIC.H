@@ -1,6 +1,9 @@
 #ifndef ERF_READCUSTOMBINARYIC_H_
 #define ERF_READCUSTOMBINARYIC_H_
 
+#include <array>
+#include <fstream>
+
 #include "ERF_DataStruct.H"
 
 /*
@@ -24,76 +27,65 @@ ReadCustomBinaryIC(const std::string filename,
                    amrex::Vector<amrex::Real>& qc_h,
                    amrex::Vector<amrex::Real>& qr_h)
 {
-    int nx, ny, nz, ndata;
+    int nx = 0, ny = 0, nz = 0, ndata = 0;
     float value;
 
     // Open the binary file in input mode
     std::ifstream infile(filename, std::ios::binary);
     if (!infile) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
+        amrex::Abort("Error: Could not open file " + filename);
     }
+
+    auto read_or_abort = [&](auto& dest, const std::string& field_name) {
+        infile.read(reinterpret_cast<char*>(&dest), sizeof(dest));
+        if (!infile) {
+            amrex::Abort("Error reading " + field_name + " from " + filename);
+        }
+    };
+
+    auto read_float_vector = [&](amrex::Vector<amrex::Real>& dest,
+                                 int count,
+                                 const std::string& field_name)
+    {
+        if (count < 0) {
+            amrex::Abort("Error: negative element count for " + field_name + " in " + filename);
+        }
+
+        dest.reserve(dest.size() + count);
+        for (int idx = 0; idx < count; ++idx) {
+            read_or_abort(value, field_name);
+            dest.emplace_back(value);
+        }
+    };
 
     // Read the four integers
-    infile.read(reinterpret_cast<char*>(&nx), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
+    read_or_abort(nx, "nx");
+    read_or_abort(ny, "ny");
+    read_or_abort(nz, "nz");
+    read_or_abort(ndata, "ndata");
 
-    for(int i=0; i<nx*ny; i++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        latvec_h.emplace_back(value);
+    if (nx <= 0 || ny <= 0 || nz <= 0) {
+        amrex::Abort("Error: invalid custom binary dimensions in " + filename);
     }
 
-    for(int i=0; i<nx*ny; i++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        lonvec_h.emplace_back(value);
+    if (ndata < 0 || ndata > 8) {
+        amrex::Abort("Error: unsupported number of data fields in " + filename);
     }
 
-    for(int i=0; i<nx; i++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        xvec_h.emplace_back(value);
-    }
+    read_float_vector(latvec_h, nx*ny, "latitude");
+    read_float_vector(lonvec_h, nx*ny, "longitude");
+    read_float_vector(xvec_h, nx, "x coordinates");
+    read_float_vector(yvec_h, ny, "y coordinates");
+    read_float_vector(zvec_h, nz, "z coordinates");
 
-    for(int j=0; j<ny; j++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        yvec_h.emplace_back(value);
-    }
-
-    for(int k=0; k<nz; k++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        zvec_h.emplace_back(value);
-    }
-
-    amrex::Vector<amrex::Real>* data_h = nullptr; // Declare pointer outside the loop
+    std::array<amrex::Vector<amrex::Real>*, 8> data_fields = {
+        &rho_h, &uvel_h, &vvel_h, &wvel_h, &theta_h, &qv_h, &qc_h, &qr_h
+    };
 
     // Read the file
-    for(int idx=0; idx<ndata; idx++){
-        if(idx == 0){
-            data_h = &rho_h;
-        } else if (idx==1) {
-            data_h = &uvel_h;
-        } else if (idx==2) {
-            data_h = &vvel_h;
-        } else if (idx==3) {
-            data_h = &wvel_h;
-        } else if(idx==4) {
-            data_h = &theta_h;
-        } else if(idx==5) {
-            data_h = &qv_h;
-        } else if(idx==6) {
-            data_h = &qc_h;
-        } else if(idx==7) {
-            data_h = &qr_h;
-        }
-        for(int k=0; k<nz; k++) {
-            for(int j=0; j<ny; j++) {
-                for(int i=0; i<nx; i++) {
-                    infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-                    data_h->emplace_back(value);
-                }
-            }
-        }
+    for (int idx = 0; idx < ndata; ++idx) {
+        read_float_vector(*data_fields[idx], nx * ny * nz,
+                          "data field " + std::to_string(idx));
     }
-    infile.close();
 }
 #endif
