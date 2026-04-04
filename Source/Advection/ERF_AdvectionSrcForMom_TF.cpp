@@ -135,7 +135,7 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
                                        (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
                 Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterK(i  ,j,k,cellSizeInv,z_nd);
-                Real xflux_lo = fourth * (rho_u(i, j, k)*mf_uy_inv(i  ,j,0) + rho_u(i  ,j-1,k)*mf_uy_inv(i-1,j  ,0)) *
+                Real xflux_lo = fourth * (rho_u(i, j, k)*mf_uy_inv(i  ,j,0) + rho_u(i  ,j-1,k)*mf_uy_inv(i   j-1,0)) *
                                        (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
 
                 Real yflux_hi = fourth * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i,j  ,k) * mf_vx_inv(i,j  ,0)) *
