@@ -425,7 +425,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(2);
-                int kflip = dom_lo.z - 1 - i;
+                int kflip = dom_lo.z - 1 - k;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_lo.z,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -457,7 +457,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(2);
-                int kflip =  2*dom_hi.z + 1 - i;
+                int kflip =  2*dom_hi.z + 1 - k;
                 if (h_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_hi.z,dest_comp);
                 } else if (h_bc_type == ERFBCType::open) {
