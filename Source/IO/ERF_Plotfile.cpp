@@ -414,6 +414,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
          containerHasElement(plot_var_names, "vorticity_z") )
     {
         amrex::Interpolater* mapper = &cell_cons_interp;
+        FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
@@ -421,16 +422,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
             Vector<Real> ctime    = {t_new[lev], t_new[lev]};
 
-            FillBdyCCVels(mf_cc_vel,lev-1);
-
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
                                t_new[lev], cmf, ctime, fmf, ftime,
                                0, 0, mf_cc_vel[lev].nComp(), geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BaseBCVars::rho0_bc_comp);
+            FillBdyCCVels(mf_cc_vel[lev],geom[lev]);
         } // lev
-        FillBdyCCVels(mf_cc_vel);
     } // if (vort)
 
 
