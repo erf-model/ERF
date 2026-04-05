@@ -8,11 +8,40 @@ using namespace amrex;
 
 namespace {
 
-constexpr Real mucape_search_depth_pa = Real(30000.0);
-constexpr Real mucape_min_pressure_pa = Real(100.0);
-constexpr Real mucape_min_temperature = Real(180.0);
-constexpr Real mucape_min_qv = Real(1.0e-12);
-constexpr int mucape_max_substeps = 64;
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+constexpr Real
+mucape_search_depth_pa ()
+{
+    return Real(30000.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+constexpr Real
+mucape_min_pressure_pa ()
+{
+    return Real(100.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+constexpr Real
+mucape_min_temperature ()
+{
+    return Real(180.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+constexpr Real
+mucape_min_qv ()
+{
+    return Real(1.0e-12);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+constexpr int
+mucape_max_substeps ()
+{
+    return 64;
+}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
@@ -26,7 +55,7 @@ Real
 mucape_vapor_pressure_pa (Real p, Real qv)
 {
     Real qv_clamped = amrex::max(qv, Real(0));
-    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv);
+    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -36,17 +65,17 @@ mucape_dewpoint_temperature (Real p, Real qv, Real T)
     Real e_mb = amrex::max(mucape_vapor_pressure_pa(p, qv) * Real(0.01), Real(1.0e-6));
     Real log_ratio = std::log(e_mb / Real(6.112));
     Real Td = Real(243.5) * log_ratio / (Real(17.67) - log_ratio) + Real(273.15);
-    return amrex::max(mucape_min_temperature, amrex::min(T, Td));
+    return amrex::max(mucape_min_temperature(), amrex::min(T, Td));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
 mucape_lcl_temperature (Real T, Real Td)
 {
-    Real Td_safe = amrex::max(mucape_min_temperature, amrex::min(T, Td));
+    Real Td_safe = amrex::max(mucape_min_temperature(), amrex::min(T, Td));
     Real inv_tlcl = Real(1) / (Td_safe - Real(56.0)) + std::log(T / Td_safe) / Real(800.0);
     Real Tlcl = Real(1) / inv_tlcl + Real(56.0);
-    return amrex::max(mucape_min_temperature, amrex::min(T, Tlcl));
+    return amrex::max(mucape_min_temperature(), amrex::min(T, Tlcl));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -54,7 +83,7 @@ Real
 mucape_qsat (Real T, Real p_pa)
 {
     Real qsat = Real(0);
-    erf_qsatw(T, amrex::max(p_pa, mucape_min_pressure_pa) * Real(0.01), qsat);
+    erf_qsatw(T, amrex::max(p_pa, mucape_min_pressure_pa()) * Real(0.01), qsat);
     return amrex::max(qsat, Real(0));
 }
 
@@ -62,8 +91,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
 mucape_saturated_dTdp (Real T, Real p_pa)
 {
-    Real p_safe = amrex::max(p_pa, mucape_min_pressure_pa);
-    Real T_safe = amrex::max(T, mucape_min_temperature);
+    Real p_safe = amrex::max(p_pa, mucape_min_pressure_pa());
+    Real T_safe = amrex::max(T, mucape_min_temperature());
     Real qsat = mucape_qsat(T_safe, p_safe);
     Real num = R_d * T_safe * (Real(1) + Real(0.61) * qsat) *
                (Real(1) + L_v * qsat / (R_d * T_safe));
@@ -81,16 +110,16 @@ mucape_integrate_saturated_temperature (Real T_start, Real p_start, Real p_targe
 
     Real T = T_start;
     Real p = p_start;
-    int nsub = amrex::min(mucape_max_substeps,
+    int nsub = amrex::min(mucape_max_substeps(),
                           amrex::max(1, static_cast<int>(std::abs(p_start - p_target) / Real(500.0)) + 1));
     Real dp = (p_target - p_start) / nsub;
 
     for (int n = 0; n < nsub; ++n) {
         Real dTdp_1 = mucape_saturated_dTdp(T, p);
         Real p_next = p + dp;
-        Real T_pred = amrex::max(mucape_min_temperature, T + dTdp_1 * dp);
+        Real T_pred = amrex::max(mucape_min_temperature(), T + dTdp_1 * dp);
         Real dTdp_2 = mucape_saturated_dTdp(T_pred, p_next);
-        T = amrex::max(mucape_min_temperature, T + myhalf * (dTdp_1 + dTdp_2) * dp);
+        T = amrex::max(mucape_min_temperature(), T + myhalf * (dTdp_1 + dTdp_2) * dp);
         p = p_next;
     }
 
@@ -754,8 +783,8 @@ erf_dermucape ( const Box& bx,
                 p_sfc = amrex::max(p_sfc, getPgivenRTh(dat(i,j,k,RhoTheta_comp), qv));
             }
 
-            if (p_sfc > mucape_search_depth_pa) {
-                Real p_search_min = p_sfc - mucape_search_depth_pa;
+            if (p_sfc > mucape_search_depth_pa()) {
+                Real p_search_min = p_sfc - mucape_search_depth_pa();
 
                 for (int ks = klo; ks < khi; ++ks) {
                     Real rho_src = dat(i,j,ks,Rho_comp);
@@ -773,7 +802,7 @@ erf_dermucape ( const Box& bx,
                     Real Td_src = mucape_dewpoint_temperature(p_src, qv_src, T_src);
                     Real Tlcl   = mucape_lcl_temperature(T_src, Td_src);
                     Real plcl   = p_src * std::pow(Tlcl / T_src, Cp_d / R_d);
-                    plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa));
+                    plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa()));
 
                     Real theta_src = getThgivenTandP(T_src, p_src, R_d / Cp_d);
 
@@ -820,7 +849,7 @@ erf_dermucape ( const Box& bx,
 
                         Real Tv_parcel = mucape_virtual_temperature(T_parcel, qv_parcel);
                         Real buoyancy = CONST_GRAV * (Tv_parcel - Tv_env) /
-                                        amrex::max(Tv_env, mucape_min_temperature);
+                                        amrex::max(Tv_env, mucape_min_temperature());
 
                         candidate_cape += mucape_positive_area(b_prev, buoyancy, z_env - z_prev);
                         b_prev = buoyancy;
