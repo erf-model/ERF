@@ -3,16 +3,12 @@
 #include <memory>
 #include <complex>
 #include <cmath>
-#include <cstdio>
-#include <limits>
 
 #include <AMReX_Math.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_TableData.H>
 #include <AMReX_MultiFabUtil.H>
-#include <AMReX_ParallelDescriptor.H>
-#include <AMReX_ParmParse.H>
 
 #include "ERF.H"
 #include "ERF_Constants.H"
@@ -335,7 +331,6 @@ amrex::Real wrf_gamma (amrex::Real x)
             res = xinf;
             return res;
         }
-
     }
 
     // Argument is positive
@@ -351,7 +346,6 @@ amrex::Real wrf_gamma (amrex::Real x)
             res = xinf;
             return res;
         }
-
     }
     else if (y < twelve) {
         // Medium range argument
@@ -396,7 +390,6 @@ amrex::Real wrf_gamma (amrex::Real x)
 //                printf("wrf_gamma: Multiplication %d: res = %g, y = %g\n", i+1, res, y);
             }
         }
-
     }
     else {
         // Large argument
@@ -533,73 +526,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         Real m_ndcnst = Real(250.0);  // Droplet number concentration (cm^-3)
         pp.query("morrison_ndcnst", m_ndcnst);
 
-        static int mpdbg_step = 0;
-        int microphysics_debug = 0;
-        pp.query("microphysics_debug", microphysics_debug);
-        microphysics_debug = std::max(0, std::min(2, microphysics_debug));
-        int microphysics_debug_seam = 0;
-        pp.query("microphysics_debug_seam", microphysics_debug_seam);
-        int seam_i_lo = 94;
-        int seam_i_hi = 97;
-        int seam_j_lo = 0;
-        int seam_j_hi = 0;
-        int seam_k_lo = 0;
-        int seam_k_hi = 38;
-        pp.query("microphysics_debug_seam_i_lo", seam_i_lo);
-        pp.query("microphysics_debug_seam_i_hi", seam_i_hi);
-        pp.query("microphysics_debug_seam_j_lo", seam_j_lo);
-        pp.query("microphysics_debug_seam_j_hi", seam_j_hi);
-        pp.query("microphysics_debug_seam_k_lo", seam_k_lo);
-        pp.query("microphysics_debug_seam_k_hi", seam_k_hi);
-
-        struct MPDbgVarStats {
-            double min = std::numeric_limits<double>::infinity();
-            double max = -std::numeric_limits<double>::infinity();
-            double l1 = 0.0;
-            long long n = 0;
-        };
-        struct MPDbgStats {
-            MPDbgVarStats qrain, qc, rhoQ2, qsnow, qgraup, zvel;
-        };
-        auto update_stat = [](MPDbgVarStats& s, double v) {
-            s.min = std::min(s.min, v);
-            s.max = std::max(s.max, v);
-            s.l1 += std::abs(v);
-            s.n += 1;
-        };
-        auto reduce_stat = [](MPDbgVarStats& s) {
-            ParallelDescriptor::ReduceRealMin(s.min);
-            ParallelDescriptor::ReduceRealMax(s.max);
-            ParallelDescriptor::ReduceRealSum(s.l1);
-            amrex::Long n = static_cast<amrex::Long>(s.n);
-            ParallelDescriptor::ReduceLongSum(n);
-            s.n = static_cast<long long>(n);
-        };
-        auto reduce_stats = [&](MPDbgStats& s) {
-            reduce_stat(s.qrain); reduce_stat(s.qc); reduce_stat(s.rhoQ2);
-            reduce_stat(s.qsnow); reduce_stat(s.qgraup); reduce_stat(s.zvel);
-        };
-        auto print_stats = [](const char* tag, int step, const MPDbgStats& s) {
-            if (!ParallelDescriptor::IOProcessor()) return;
-            std::printf(
-                "%s MORR step=%04d "
-                "qrain_min=%.12e qrain_max=%.12e qrain_L1=%.12e "
-                "qc_min=%.12e qc_max=%.12e qc_L1=%.12e "
-                "rhoQ2_min=%.12e rhoQ2_max=%.12e rhoQ2_L1=%.12e "
-                "qsnow_min=%.12e qsnow_max=%.12e qsnow_L1=%.12e "
-                "qgraup_min=%.12e qgraup_max=%.12e qgraup_L1=%.12e "
-                "z_velocity_min=%.12e z_velocity_max=%.12e z_velocity_L1=%.12e\n",
-                tag, step,
-                s.qrain.min, s.qrain.max, s.qrain.l1,
-                s.qc.min, s.qc.max, s.qc.l1,
-                s.rhoQ2.min, s.rhoQ2.max, s.rhoQ2.l1,
-                s.qsnow.min, s.qsnow.max, s.qsnow.l1,
-                s.qgraup.min, s.qgraup.max, s.qgraup.l1,
-                s.zvel.min, s.zvel.max, s.zvel.l1);
-            std::fflush(stdout);
-        };
-        MPDbgStats pre_stats, post_stats;
-
         // Loop through the grids
         for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
         {
@@ -649,93 +575,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           const int jhi = box.hiVect()[1];
           const int klo = box.loVect()[2];
           const int khi = box.hiVect()[2];
-          const Box fab_box = mfi.fabbox();
-          const int imlo = fab_box.loVect()[0];
-          const int ihim = fab_box.hiVect()[0];
-          const int jmlo = fab_box.loVect()[1];
-          const int jmhi = fab_box.hiVect()[1];
-          const int kmlo = fab_box.loVect()[2];
-          const int kmhi = fab_box.hiVect()[2];
-
-          if (microphysics_debug > 0) {
-              for (int k = klo; k <= khi; ++k) {
-                  for (int j = jlo; j <= jhi; ++j) {
-                      for (int i = ilo; i <= ihi; ++i) {
-                          const double qr = qpr_arr(i,j,k);
-                          const double qc = qcl_arr(i,j,k);
-                          const double rhoqc = rho_arr(i,j,k) * qc;
-                          const double qs = qps_arr(i,j,k);
-                          const double qg = qpg_arr(i,j,k);
-                          const double w = w_arr(i,j,k);
-                          update_stat(pre_stats.qrain, qr);
-                          update_stat(pre_stats.qc, qc);
-                          update_stat(pre_stats.rhoQ2, rhoqc);
-                          update_stat(pre_stats.qsnow, qs);
-                          update_stat(pre_stats.qgraup, qg);
-                          update_stat(pre_stats.zvel, w);
-                      }
-                  }
-              }
-          }
-
-          if (microphysics_debug > 1) {
-              const int rank = ParallelDescriptor::MyProc();
-              for (int k = klo; k <= khi; ++k) {
-                  for (int j = jlo; j <= jhi; ++j) {
-                      for (int i = ilo; i <= ihi; ++i) {
-                          std::printf(
-                              "MPDBG PRE MORR rank=%d step=%04d i=%d j=%d k=%d "
-                              "qrain=%.12e qc=%.12e rhoQ2=%.12e qsnow=%.12e qgraup=%.12e z_velocity=%.12e\n",
-                              rank, mpdbg_step, i, j, k,
-                              static_cast<double>(qpr_arr(i,j,k)),
-                              static_cast<double>(qcl_arr(i,j,k)),
-                              static_cast<double>(rho_arr(i,j,k) * qcl_arr(i,j,k)),
-                              static_cast<double>(qps_arr(i,j,k)),
-                              static_cast<double>(qpg_arr(i,j,k)),
-                              static_cast<double>(w_arr(i,j,k)));
-                      }
-                  }
-              }
-              std::fflush(stdout);
-          }
-
-          if (microphysics_debug_seam > 0) {
-              const int rank = ParallelDescriptor::MyProc();
-              const int si_lo = std::max(imlo, seam_i_lo);
-              const int si_hi = std::min(ihim, seam_i_hi);
-              const int sj_lo = std::max(jmlo, seam_j_lo);
-              const int sj_hi = std::min(jmhi, seam_j_hi);
-              const int sk_lo = std::max(kmlo, seam_k_lo);
-              const int sk_hi = std::min(kmhi, seam_k_hi);
-              for (int k = sk_lo; k <= sk_hi; ++k) {
-                  for (int j = sj_lo; j <= sj_hi; ++j) {
-                      for (int i = si_lo; i <= si_hi; ++i) {
-                          const int in_valid = (i >= ilo && i <= ihi &&
-                                                j >= jlo && j <= jhi &&
-                                                k >= klo && k <= khi) ? 1 : 0;
-                          std::printf(
-                              "MPDBG SEAM PRE MORR rank=%d step=%04d i=%d j=%d k=%d valid=%d "
-                              "qv=%.12e qc=%.12e qi=%.12e qrain=%.12e qsnow=%.12e qgraup=%.12e\n",
-                              rank, mpdbg_step, i, j, k, in_valid,
-                              static_cast<double>(qv_arr(i,j,k)),
-                              static_cast<double>(qcl_arr(i,j,k)),
-                              static_cast<double>(qci_arr(i,j,k)),
-                              static_cast<double>(qpr_arr(i,j,k)),
-                              static_cast<double>(qps_arr(i,j,k)),
-                              static_cast<double>(qpg_arr(i,j,k)));
-                      }
-                  }
-              }
-              std::fflush(stdout);
-          }
 
           Box grown_box(box); grown_box.grow(3);
 #ifdef ERF_USE_MORR_FORT
-          const int ilom = imlo;
-          const int jlom = jmlo;
-          const int jhim = jmhi;
-          const int klom = kmlo;
-          const int khim = kmhi;
+          const int ilom = grown_box.loVect()[0];
+          const int ihim = grown_box.hiVect()[0];
+          const int jlom = grown_box.loVect()[1];
+          const int jhim = grown_box.hiVect()[1];
+          const int klom = grown_box.loVect()[2];
+          const int khim = grown_box.hiVect()[2];
 #endif
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
@@ -3822,90 +3670,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           amrex::Abort("Trying to run fortran without compiling with USE_MORR_FORT=TRUE");
 #endif
         }
-
-          if (microphysics_debug > 0) {
-              for (int k = klo; k <= khi; ++k) {
-                  for (int j = jlo; j <= jhi; ++j) {
-                      for (int i = ilo; i <= ihi; ++i) {
-                          const double qr = qpr_arr(i,j,k);
-                          const double qc = qcl_arr(i,j,k);
-                          const double rhoqc = rho_arr(i,j,k) * qc;
-                          const double qs = qps_arr(i,j,k);
-                          const double qg = qpg_arr(i,j,k);
-                          const double w = w_arr(i,j,k);
-                          update_stat(post_stats.qrain, qr);
-                          update_stat(post_stats.qc, qc);
-                          update_stat(post_stats.rhoQ2, rhoqc);
-                          update_stat(post_stats.qsnow, qs);
-                          update_stat(post_stats.qgraup, qg);
-                          update_stat(post_stats.zvel, w);
-                      }
-                  }
-              }
-          }
-
-          if (microphysics_debug > 1) {
-              const int rank = ParallelDescriptor::MyProc();
-              for (int k = klo; k <= khi; ++k) {
-                  for (int j = jlo; j <= jhi; ++j) {
-                      for (int i = ilo; i <= ihi; ++i) {
-                          std::printf(
-                              "MPDBG POST MORR rank=%d step=%04d i=%d j=%d k=%d "
-                              "qrain=%.12e qc=%.12e rhoQ2=%.12e qsnow=%.12e qgraup=%.12e z_velocity=%.12e\n",
-                              rank, mpdbg_step, i, j, k,
-                              static_cast<double>(qpr_arr(i,j,k)),
-                              static_cast<double>(qcl_arr(i,j,k)),
-                              static_cast<double>(rho_arr(i,j,k) * qcl_arr(i,j,k)),
-                              static_cast<double>(qps_arr(i,j,k)),
-                              static_cast<double>(qpg_arr(i,j,k)),
-                              static_cast<double>(w_arr(i,j,k)));
-                      }
-                  }
-              }
-              std::fflush(stdout);
-          }
-
-          if (microphysics_debug_seam > 0) {
-              const int rank = ParallelDescriptor::MyProc();
-              const int si_lo = std::max(imlo, seam_i_lo);
-              const int si_hi = std::min(ihim, seam_i_hi);
-              const int sj_lo = std::max(jmlo, seam_j_lo);
-              const int sj_hi = std::min(jmhi, seam_j_hi);
-              const int sk_lo = std::max(kmlo, seam_k_lo);
-              const int sk_hi = std::min(kmhi, seam_k_hi);
-              for (int k = sk_lo; k <= sk_hi; ++k) {
-                  for (int j = sj_lo; j <= sj_hi; ++j) {
-                      for (int i = si_lo; i <= si_hi; ++i) {
-                          const int in_valid = (i >= ilo && i <= ihi &&
-                                                j >= jlo && j <= jhi &&
-                                                k >= klo && k <= khi) ? 1 : 0;
-                          std::printf(
-                              "MPDBG SEAM POST MORR rank=%d step=%04d i=%d j=%d k=%d valid=%d "
-                              "qv=%.12e qc=%.12e qi=%.12e qrain=%.12e qsnow=%.12e qgraup=%.12e\n",
-                              rank, mpdbg_step, i, j, k, in_valid,
-                              static_cast<double>(qv_arr(i,j,k)),
-                              static_cast<double>(qcl_arr(i,j,k)),
-                              static_cast<double>(qci_arr(i,j,k)),
-                              static_cast<double>(qpr_arr(i,j,k)),
-                              static_cast<double>(qps_arr(i,j,k)),
-                              static_cast<double>(qpg_arr(i,j,k)));
-                      }
-                  }
-              }
-              std::fflush(stdout);
-          }
           //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
           // After the call, all fields are updated
           // We don't need to copy results back since we passed direct pointers
           // to our class member arrays
         }
-
-        if (microphysics_debug > 0) {
-            reduce_stats(pre_stats);
-            reduce_stats(post_stats);
-            print_stats("MPDBG PRE", mpdbg_step, pre_stats);
-            print_stats("MPDBG POST", mpdbg_step, post_stats);
-            print_stats("MPDBG STEP", mpdbg_step, post_stats);
-        }
-        ++mpdbg_step;
     }
