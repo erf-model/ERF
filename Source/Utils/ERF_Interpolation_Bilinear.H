@@ -21,6 +21,24 @@ int get_single_index(int i, int j, int k,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
+int clamp_interp_index (int idx, int npts)
+{
+    if (npts <= 1) {
+        return 0;
+    }
+
+    return amrex::max(0, amrex::min(idx, npts - 2));
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real get_interp_weight (amrex::Real x, amrex::Real xlo, amrex::Real xhi)
+{
+    return (xhi > xlo) ? (x - xlo) / (xhi - xlo) : amrex::Real(0);
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, const amrex::Real* zvec,
                 const amrex::Real dxvec, const amrex::Real dyvec,
                 const int nx, const int ny, const int nz,
@@ -34,45 +52,53 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
         return;
     }
 
-    int iloc=-1, jloc=-1, kloc=-1;
-    for(int k=0;k<nz;k++){
-        if(zvec[k] > z){
-            kloc = k-1;
-            break;
-        }
-        else if (zvec[k] == z) {
-            kloc = k;
+    amrex::Real x_interp = x;
+    amrex::Real y_interp = y;
+    amrex::Real z_interp = z;
+
+    if (x_interp < xvec[0]) x_interp = xvec[0];
+    if (x_interp > xvec[nx-1]) x_interp = xvec[nx-1];
+
+    if (y_interp < yvec[0]) y_interp = yvec[0];
+    if (y_interp > yvec[ny-1]) y_interp = yvec[ny-1];
+
+    if (z_interp < zvec[0]) z_interp = zvec[0];
+    if (z_interp > zvec[nz-1]) z_interp = zvec[nz-1];
+
+    int iloc = clamp_interp_index(static_cast<int>(std::floor((x_interp - xvec[0]) / dxvec)), nx);
+    int jloc = clamp_interp_index(static_cast<int>(std::floor((y_interp - yvec[0]) / dyvec)), ny);
+
+    int kloc = 0;
+    if (nz > 1) {
+        kloc = nz - 2;
+        for (int k = 1; k < nz; ++k) {
+            if (zvec[k] >= z_interp) {
+                kloc = k - 1;
+                break;
+            }
         }
     }
 
-    iloc = static_cast<int>(std::floor((x - xvec[0]) / dxvec));
-    jloc = static_cast<int>(std::floor((y - yvec[0]) / dyvec));
+    int ihi = (nx > 1) ? iloc + 1 : iloc;
+    int jhi = (ny > 1) ? jloc + 1 : jloc;
+    int khi = (nz > 1) ? kloc + 1 : kloc;
 
-    if(iloc > nx-1 or iloc < 0 or
-       jloc > ny-1 or iloc < 0 or
-       kloc > nz-1 or kloc < 0){
-        AMREX_DEVICE_PRINTF("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
-        for(int k=0;k<nz;k++){
-            AMREX_DEVICE_PRINTF("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
-       }
-    }
-
-    amrex::Real xlo = xvec[0] + iloc*dxvec;
-    amrex::Real ylo = yvec[0] + jloc*dyvec;
+    amrex::Real xlo = xvec[iloc];
+    amrex::Real ylo = yvec[jloc];
     amrex::Real zlo = zvec[kloc];
 
-    amrex::Real w_x = (x - xlo)/dxvec;
-    amrex::Real w_y = (y - ylo)/dyvec;
-    amrex::Real w_z = (z - zlo)/(zvec[kloc+1] - zvec[kloc]);
+    amrex::Real w_x = get_interp_weight(x_interp, xlo, xvec[ihi]);
+    amrex::Real w_y = get_interp_weight(y_interp, ylo, yvec[jhi]);
+    amrex::Real w_z = get_interp_weight(z_interp, zlo, zvec[khi]);
 
     int ind0 = get_single_index(iloc,jloc,kloc,nx,ny);
-    int ind1 = get_single_index(iloc+1,jloc,kloc,nx,ny);
-    int ind2 = get_single_index(iloc+1,jloc+1,kloc,nx,ny);
-    int ind3 = get_single_index(iloc,jloc+1,kloc,nx,ny);
-    int ind4 = get_single_index(iloc,jloc,kloc+1,nx,ny);
-    int ind5 = get_single_index(iloc+1,jloc,kloc+1,nx,ny);
-    int ind6 = get_single_index(iloc+1,jloc+1,kloc+1,nx,ny);
-    int ind7 = get_single_index(iloc,jloc+1,kloc+1,nx,ny);
+    int ind1 = get_single_index(ihi ,jloc,kloc,nx,ny);
+    int ind2 = get_single_index(ihi ,jhi ,kloc,nx,ny);
+    int ind3 = get_single_index(iloc,jhi ,kloc,nx,ny);
+    int ind4 = get_single_index(iloc,jloc,khi ,nx,ny);
+    int ind5 = get_single_index(ihi ,jloc,khi ,nx,ny);
+    int ind6 = get_single_index(ihi ,jhi ,khi ,nx,ny);
+    int ind7 = get_single_index(iloc,jhi ,khi ,nx,ny);
 
     tmp_var = (1-w_x)*(1-w_y)*(1-w_z)*varvec[ind0] + w_x*(1-w_y)*(1-w_z)*varvec[ind1] +
           w_x*w_y*(1-w_z)*varvec[ind2] + (1-w_x)*w_y*(1-w_z)*varvec[ind3] +
@@ -148,24 +174,21 @@ void bilinear_interpolation_2d(const amrex::Real* xvec, const amrex::Real* yvec,
             y = yvec[ny-1];
         }
 
-        int iloc=-1, jloc=-1;
-        iloc = static_cast<int>(std::floor((x-xvec[0])/dxvec));
-        jloc = static_cast<int>(std::floor((y-yvec[0])/dyvec));
+        int iloc = clamp_interp_index(static_cast<int>(std::floor((x-xvec[0])/dxvec)), nx);
+        int jloc = clamp_interp_index(static_cast<int>(std::floor((y-yvec[0])/dyvec)), ny);
+        int ihi = (nx > 1) ? iloc + 1 : iloc;
+        int jhi = (ny > 1) ? jloc + 1 : jloc;
 
-        if (iloc < 0 or jloc < 0) {
-            AMREX_DEVICE_PRINTF("Interpolation of surface data for MOST has gone wrong with iloc, jloc=%d %d\n", iloc, jloc);
-        }
+        amrex::Real xlo = xvec[iloc];
+        amrex::Real ylo = yvec[jloc];
 
-        amrex::Real xlo = xvec[0] + iloc*dxvec;
-        amrex::Real ylo = yvec[0] + jloc*dyvec;
-
-        amrex::Real w_x = (x - xlo)/dxvec;
-        amrex::Real w_y = (y - ylo)/dyvec;
+        amrex::Real w_x = get_interp_weight(x, xlo, xvec[ihi]);
+        amrex::Real w_y = get_interp_weight(y, ylo, yvec[jhi]);
 
         int ind0 = get_single_index(iloc,jloc,0,nx,ny);
-        int ind1 = get_single_index(iloc+1,jloc,0,nx,ny);
-        int ind2 = get_single_index(iloc+1,jloc+1,0,nx,ny);
-        int ind3 = get_single_index(iloc,jloc+1,0,nx,ny);
+        int ind1 = get_single_index(ihi ,jloc,0,nx,ny);
+        int ind2 = get_single_index(ihi ,jhi ,0,nx,ny);
+        int ind3 = get_single_index(iloc,jhi ,0,nx,ny);
 
         tmp_var = (1-w_x)*(1-w_y)*varvec[ind0] + w_x*(1-w_y)*varvec[ind1] +
                   w_x*w_y*varvec[ind2] + (1-w_x)*w_y*varvec[ind3];

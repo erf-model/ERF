@@ -37,6 +37,8 @@ struct SpongeChoice {
         pp.query("zhi_sponge_start", zhi_sponge_start);
 
         pp.query("sponge_density"    , sponge_density);
+        pp.query("sponge_rhotheta"   , sponge_rhotheta);
+        pp.query("sponge_rhomoist"   , sponge_rhomoist);
         pp.query("sponge_x_velocity" , sponge_x_velocity);
         pp.query("sponge_y_velocity" , sponge_y_velocity);
         pp.query("sponge_z_velocity" , sponge_z_velocity);
@@ -61,6 +63,8 @@ struct SpongeChoice {
     amrex::Real ylo_sponge_end, yhi_sponge_start;
     amrex::Real zlo_sponge_end, zhi_sponge_start;
     amrex::Real sponge_density = -one;
+    amrex::Real sponge_rhotheta = -one;
+    amrex::Real sponge_rhomoist = -one;
     amrex::Real sponge_x_velocity, sponge_y_velocity, sponge_z_velocity;
 };
 #endif

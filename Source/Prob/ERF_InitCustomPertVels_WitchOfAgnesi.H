@@ -24,7 +24,8 @@
     dxInv[0] = one / dx[0]; dxInv[1] = one / dx[1]; dxInv[2] = one / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    if (sc.terrain_type == TerrainType::StaticFittedMesh) {
+    if (sc.terrain_type == TerrainType::StaticFittedMesh ||
+        sc.terrain_type == TerrainType::MovingFittedMesh   ) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             z_vel_pert(i, j, k) = WFromOmega(i, j, k, zero,
