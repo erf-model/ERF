@@ -11,7 +11,7 @@ The two build systems serve distinct purposes:
 
 * **CMake** - Framework-centric system designed for cross-platform compatibility and dependency management. Creates versioned libraries, provides automated detection (including Cray systems), and supports testing through CTest. Recommended for HPC environments.
 
-This guide serves as a technical reference for developers and advanced users. For initial setup and quick start instructions, see :ref:`sec:build:quickstart` and :ref:`GettingStarted`. For HPC-specific instructions, see :ref:`sec:build:hpc`.
+This guide serves as a technical reference for developers and advanced users. For initial setup and quick start instructions, see :ref:`sec:build:quickstart` and :ref:`GettingStarted`. For HPC concepts, see :ref:`sec:build:hpc`; for machine-specific build/run workflows, see :ref:`sec:hpc:guides`.
 
 Directory Structure and Workflow
 ---------------------------------
