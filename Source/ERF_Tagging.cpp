@@ -290,10 +290,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 std::string tmp_string(particles_namelist[i]+"_count");
                 IntVect rr = IntVect::TheUnitVector();
                 if (ref_tags[j].Field() == tmp_string) {
+                    auto* pc = particleData[particles_namelist[i]];
+                    int pc_nlevs = static_cast<int>(pc->GetParticles().size());
                     for (int lev = levc; lev <= finest_level; lev++)
                     {
+                        if (lev >= pc_nlevs) { continue; }
                         MultiFab temp_dat(grids[lev], dmap[lev], 1, 0); temp_dat.setVal(0);
-                        particleData[particles_namelist[i]]->IncrementWithTotal(temp_dat, lev);
+                        pc->IncrementWithTotal(temp_dat, lev);
 
                         MultiFab temp_dat_crse(grids[levc], dmap[levc], 1, 0); temp_dat_crse.setVal(0);
 
