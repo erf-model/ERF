@@ -10,5 +10,8 @@ cd build
 ../Build/cmake_with_kokkos_many_cuda.sh
 make -j
 
+# Optional developer smoke test (requires -DERF_ENABLE_TESTS:BOOL=ON at configure time):
+# ctest -L regression -VV -j 4
+
 cd Exec
 srun -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most

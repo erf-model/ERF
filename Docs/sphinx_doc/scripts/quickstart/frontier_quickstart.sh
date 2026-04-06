@@ -10,6 +10,9 @@ cd build
 ../Build/cmake_with_kokkos_many_hip.sh
 make -j
 
+# Optional developer smoke test (requires -DERF_ENABLE_TESTS:BOOL=ON at configure time):
+# ctest -L regression -VV -j 4
+
 # Optional interactive allocation example:
 # salloc -A <project> -p batch -N 1 -t 00:30:00
 # Optional batch example:

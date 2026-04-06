@@ -11,6 +11,9 @@ cp ../Docs/sphinx_doc/scripts/quickstart/cmake_kestrel_ERF.sh .
 chmod +x cmake_kestrel_ERF.sh
 ./cmake_kestrel_ERF.sh
 
+# Optional developer smoke test (requires -DERF_ENABLE_TESTS:BOOL=ON at configure time):
+# ctest -L regression -VV -j 4
+
 # Optional interactive allocation example:
 # salloc -p gpu-h100s --nodes=1 --gpus-per-node=4 --time=00:30:00
 # Optional batch example:
