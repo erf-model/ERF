@@ -62,6 +62,7 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
             const Geometry& glev = m_gdb->Geom(lev);
             const auto plo_lev = glev.ProbLoArray();
             const auto dxi_lev = glev.InvCellSizeArray();
+            const int k_max_lev = glev.Domain().bigEnd(AMREX_SPACEDIM-1);
 
             for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
                 auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
@@ -72,6 +73,12 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
                 ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
                     ParticleType& p = p_pbox[i];
                     if (p.id() > 0) {
+                        // Set initial k guess from flat-grid formula; update_location_idata
+                        // will clamp to the tile's z-range and refine with terrain heights.
+                        int k_guess = int(amrex::Math::floor(
+                            (Real(p.pos(AMREX_SPACEDIM-1)) - plo_lev[AMREX_SPACEDIM-1])
+                            * dxi_lev[AMREX_SPACEDIM-1]));
+                        p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(0, amrex::min(k_guess, k_max_lev));
                         update_location_idata(p, plo_lev, dxi_lev, zheight);
                     }
                 });
@@ -180,9 +187,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 if (use_terrain) {
                     int pk = p.idata(ERFParticlesIntIdxAoS::k);
                     // With partial-z refinement the particle's k may be
-                    // near the top of the local grid where the stencil
-                    // (which accesses up to k+2 in height_arr) is OOB.
-                    if (pk + 2 >= zheight.end[2]) {
+                    // outside the local grid's z-extent. The stencil
+                    // accesses k-1 through k+2 in height_arr.
+                    if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
                         v[0] = 0; v[1] = 0; v[2] = 0;
                     } else {
                         mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);

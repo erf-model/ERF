@@ -89,7 +89,8 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
 
                 auto zheight = (*a_z_phys_nd[lev])[grid].array();
 
-                // First set a reasonable initial guess from flat-grid formula
+                // Set initial guess then refine with terrain; update_location_idata
+                // clamps k to the tile's z-range internally.
                 ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
                 {
                     auto& p = p_pbox[i];
@@ -100,7 +101,6 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
                                          dxi[AMREX_SPACEDIM-1],
                                          k_max,
                                          zlevels, nz_lev0, ref_ratio);
-                    // Correct using terrain height array
                     update_location_idata(p, plo, dxi, zheight);
                 });
             }
@@ -191,16 +191,12 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
     // Step 2: Full multi-level Redistribute (k-clamping prevents crashes)
     Redistribute();
 
-    // Step 3: Recompute idata(0) using each particle's new level geometry.
-    // For the finest level, this is the same k as Step 1 (no-op).
-    // For coarser levels, k changes from finest-scale to level-scale, but
-    // the full Redistribute in Step 2 already placed particles on the correct
-    // grid — no per-level Redistribute needed because:
-    //   (a) finest-level particles: k unchanged, grid assignment unchanged
-    //   (b) coarser-level particles: level covers full domain, any valid k
-    //       maps to the same box (x,y determine the box, not k)
+    // Step 3: Recompute idata(k) using each particle's level geometry.
+    // With terrain, the terrain-corrected k may differ from Step 1's flat k,
+    // potentially placing particles outside their current level's partial-z box.
+    // A full Redistribute is needed to move such particles to the correct level,
+    // followed by a second k recomputation for particles that changed level.
     for (int lev = 0; lev <= finest; lev++) {
-        // Cumulative refinement ratio from level 0 to this level
         int lev_ref = 1;
         for (int l = 0; l < lev; l++) {
             lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
@@ -208,9 +204,24 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
         recompute_k_for_level(lev, lev_ref);
     }
 
-    // Step 4: Per-level Redistribute to fix tile assignment after k recomputation.
+    // Step 4: Full Redistribute to fix level assignment after terrain correction.
+    Redistribute();
+
+    // Step 5: Recompute k for particles that changed level in Step 4.
     for (int lev = 0; lev <= finest; lev++) {
-        Redistribute(lev, lev);
+        int lev_ref = 1;
+        for (int l = 0; l < lev; l++) {
+            lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
+        recompute_k_for_level(lev, lev_ref);
+    }
+
+    // Step 6: Per-level Redistribute to fix tile assignment after final k.
+    // L0 covers the full domain, so per-level is safe. For fine levels with
+    // partial-z boxes, per-level redistribute can fail, so use full.
+    Redistribute(0, 0);
+    if (finest > 0) {
+        Redistribute();
     }
 }
 

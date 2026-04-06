@@ -118,13 +118,20 @@ void update_location_idata (  P& a_p,
         amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(ix);
         amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iy);
 
+        // Clamp k to the valid range of the height array so the iteration
+        // can proceed even with partial-z AMR tiles.
+        int klo = a_height_arr.begin[2];
+        int khi = a_height_arr.end[2] - 2; // need iz+1 < end[2]
+        if (khi < klo) { return; }
+        int kcur = a_p.idata(ERFParticlesIntIdxAoS::k);
+        if (kcur < klo || kcur > khi) {
+            a_p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(klo, amrex::min(kcur, khi));
+        }
+
         while (1) {
             int iz = a_p.idata(ERFParticlesIntIdxAoS::k);
 
-            // Check if vertical indices are within valid array bounds.
-            // We need iz and iz+1 to be valid for interpolation.
-            // (Typically z is not decomposed, so this check will pass.)
-            if (iz < a_height_arr.begin[2] || iz+1 >= a_height_arr.end[2]) {
+            if (iz < klo || iz > khi) {
                 break;
             }
 
