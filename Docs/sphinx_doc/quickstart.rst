@@ -187,7 +187,8 @@ when you need tighter control (see :ref:`sec:build:systems` for details).
 
          git clone --recursive git@github.com:erf-model/ERF.git
          cd ERF
-         ./Build/cmake_with_kokkos_many.sh
+         # Customize (optional): export ERF_BUILD_DIR=... ERF_SOURCE_DIR=... ERF_INSTALL_DIR=... or ERF_HOME=...
+         ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many.sh
 
          # Run from install directory
          cd install/bin
