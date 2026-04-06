@@ -9,6 +9,7 @@ How to Cite ERF
 If you use ERF, please cite the following references.
 
 Lattanzi et al., (2025), ERF: Energy Research and Forecasting Model.
+Journal of Advances in Modeling Earth Systems (JAMES), 17(11). 
 https://doi.org/10.1029/2024MS004884
 
 The bibtex version of the JAMES paper would be
