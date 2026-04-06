@@ -9,6 +9,7 @@
 
 using namespace amrex;
 
+#ifdef ERF_USE_WSM6_FORT
 namespace {
 
 struct MPDbgVarStats {
@@ -91,6 +92,7 @@ mark_zvel_nan (MPDbgVarStats& s)
 }
 
 } // namespace
+#endif
 
 void
 WSM6::Advance(const Real& dt_advance,
