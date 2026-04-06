@@ -88,7 +88,7 @@ public:
                              std::vector<std::string>& a_names) const override
     {
         a_idx = {0, 1, 2};
-        a_names = {"RainAccum", "SnowAccum", "GraupelAccum"};
+        a_names = {"RainAccum", "SnowAccum", "GraupAccum"};
     }
 
 private:

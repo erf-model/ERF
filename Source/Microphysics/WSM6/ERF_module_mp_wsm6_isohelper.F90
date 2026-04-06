@@ -42,6 +42,18 @@ contains
     real(c_double), allocatable :: rain_col(:), rainncv_col(:), sr_col(:)
     real(c_double), allocatable :: snow_col(:), snowncv_col(:), graupel_col(:), graupelncv_col(:)
 
+    if (its < ims .or. ite > ime .or. jts < jms .or. jte > jme .or. kts < kms .or. kte > kme) then
+      write(*,'(A)') 'mp_wsm6_run_c bounds error: run-window outside storage bounds'
+      write(*,'(A,6(1X,I0))') '  storage ims ime jms jme kms kme =', ims, ime, jms, jme, kms, kme
+      write(*,'(A,6(1X,I0))') '  active  its ite jts jte kts kte =', its, ite, jts, jte, kts, kte
+      stop 1
+    end if
+    if (its > ite .or. jts > jte .or. kts > kte) then
+      write(*,'(A)') 'mp_wsm6_run_c bounds error: invalid active index ordering'
+      write(*,'(A,6(1X,I0))') '  active its ite jts jte kts kte =', its, ite, jts, jte, kts, kte
+      stop 1
+    end if
+
     kdim = kte - kts + 1
 
     allocate(t_col(ims:ime,1:kdim), q_col(ims:ime,1:kdim), qc_col(ims:ime,1:kdim), qi_col(ims:ime,1:kdim))
@@ -84,6 +96,8 @@ contains
 
       if (errflg /= 0) then
         write(*,'(A,1X,I0,2A)') 'mp_wsm6_run_c error at j=', j, ': ', trim(errmsg)
+        write(*,'(A,6(1X,I0))') '  storage ims ime jms jme kms kme =', ims, ime, jms, jme, kms, kme
+        write(*,'(A,6(1X,I0))') '  active  its ite jts jte kts kte =', its, ite, jts, jte, kts, kte
         stop 1
       end if
 

@@ -582,6 +582,12 @@ ERF::ReadCheckpointFile ()
          }
     }
 
+    Real morrison_ndcnst = Real(250.0);
+    {
+        ParmParse pp("erf");
+        pp.query("morrison_ndcnst", morrison_ndcnst);
+    }
+
     // read in the MultiFab data
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -733,8 +739,68 @@ ERF::ReadCheckpointFile ()
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
             MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng_moist);
-            VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]));
-            MultiFab::Copy(*(qmoist[lev][qmoist_indices[var]]),moist_vars,0,0,ncomp,ng_moist);
+            std::string moist_name = qmoist_names[var];
+            std::string moist_file = amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", moist_name);
+            bool loaded_from_file = false;
+            auto has_mf = [](const std::string& mf_prefix) {
+                return amrex::FileExists(mf_prefix + "_H");
+            };
+
+            // Backward-compatible aliasing for historical WSM6 checkpoints.
+            if (!has_mf(moist_file)) {
+                if (moist_name == "GraupAccum") {
+                    const std::string alt_name = "GraupelAccum";
+                    const std::string alt_file = amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", alt_name);
+                    if (has_mf(alt_file)) {
+                        moist_name = alt_name;
+                        moist_file = alt_file;
+                    }
+                } else if (moist_name == "GraupelAccum") {
+                    const std::string alt_name = "GraupAccum";
+                    const std::string alt_file = amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", alt_name);
+                    if (has_mf(alt_file)) {
+                        moist_name = alt_name;
+                        moist_file = alt_file;
+                    }
+                }
+            }
+            if (has_mf(moist_file)) {
+                VisMF::Read(moist_vars, moist_file);
+                MultiFab::Copy(*(qmoist[lev][qmoist_indices[var]]),moist_vars,0,0,ncomp,ng_moist);
+                loaded_from_file = true;
+            }
+
+            if (!loaded_from_file) {
+                auto& qmoist_var = *(qmoist[lev][qmoist_indices[var]]);
+                qmoist_var.setVal(Real(0.0));
+
+                if (qmoist_names[var] == "Nc") {
+                    const Real one_million = Real(1.0e6);
+                    const Real rho_floor = Real(1.0e-12);
+                    for (MFIter mfi(qmoist_var, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        Array4<const Real> const& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                        Array4<Real> const& nc_arr = qmoist_var.array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            const Real rho = amrex::max(cons_arr(i,j,k,Rho_comp), rho_floor);
+                            nc_arr(i,j,k) = morrison_ndcnst * one_million / rho;
+                        });
+                    }
+                }
+
+                if (ParallelDescriptor::IOProcessor()) {
+                    amrex::Print() << "WARNING: Missing restart moisture field '" << qmoist_names[var]
+                                   << "' at level " << lev << " in " << restart_chkfile
+                                   << "; using fallback initialization."
+                                   << (qmoist_names[var] == "Nc" ? " (Nc = morrison_ndcnst*1e6/rho)." : " (filled with 0).")
+                                   << std::endl;
+                }
+            }
+
+            // Keep qmoist auxiliaries ghost-consistent after either file load or fallback init.
+            qmoist[lev][qmoist_indices[var]]->FillBoundary(geom[lev].periodicity());
         }
 
 #if defined(ERF_USE_WINDFARM)

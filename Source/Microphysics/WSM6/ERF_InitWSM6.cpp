@@ -37,7 +37,9 @@ void
 WSM6::Copy_State_to_Micro(const MultiFab& cons_in)
 {
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+        // Match Morrison behavior: refresh microphysics ghost zones from state.
+        // WSM6 Fortran reads the full (ims:ime, jms:jme, kms:kme) slab.
+        const auto& box3d = mfi.growntilebox();
         auto states = cons_in.array(mfi);
 
         auto rho = mic_fab_vars[MicVar_WSM6::rho]->array(mfi);
