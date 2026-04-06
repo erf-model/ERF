@@ -388,8 +388,8 @@ void erf_substep_NS (int step, int nrk,
 
         // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
         // We set grav_gpu[2] to be the vector component which is negative
-        // We define myhalfg to match the notes (which is why we take the absolute value)
-        Real myhalfg = std::abs(myhalf * grav_gpu[2]);
+        // We define halfg to match the notes (which is why we take the absolute value)
+        Real halfg = std::abs(myhalf * grav_gpu[2]);
 
         // *********************************************************************
         // fast_loop_on_shrunk
@@ -414,10 +414,10 @@ void erf_substep_NS (int step, int nrk,
             Real old_drho_k   = prev_cons(i,j,k  ,Rho_comp) - stage_cons(i,j,k  ,Rho_comp);
             Real old_drho_km1 = prev_cons(i,j,k-1,Rho_comp) - stage_cons(i,j,k-1,Rho_comp);
             Real R0_tmp = coeff_P * prev_drho_theta(i,j,k) + coeff_Q * prev_drho_theta(i,j,k-1)
-                         - myhalfg * ( old_drho_k + old_drho_km1 );
+                         - halfg * ( old_drho_k + old_drho_km1 );
 
             // lines 3-5 residuals (order dtau^2) one <-> beta_2
-            Real R1_tmp =  myhalfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
+            Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
                                     -slow_rhs_cons(i,j,k-1,Rho_comp)
                                     +temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1) )
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
@@ -425,7 +425,7 @@ void erf_substep_NS (int step, int nrk,
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
             Real dz_inv = one / dz_ptr[k];
-            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * myhalfg
+            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
                                           -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
                                           -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
 

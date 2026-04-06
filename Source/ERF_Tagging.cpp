@@ -203,7 +203,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
 
             // Impose bc's at domain boundaries at all levels
-            FillBdyCCVels(mf_cc_vel,levc);
+            FillBdyCCVels(mf_cc_vel[0],geom[levc]);
 
             mf->setVal(0.);
 
