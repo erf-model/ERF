@@ -33,7 +33,7 @@ Clone, build, and run ERF in a few steps:
             source Build/machines/perlmutter_erf.profile
             ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
             cd install/bin
-            sbatch run_perlmutter_erf.sbatch
+            sbatch ../../Docs/sphinx_doc/scripts/quickstart/run_perlmutter_erf.sbatch
 
       .. tab-item:: Kestrel (NREL)
 
@@ -55,7 +55,7 @@ Clone, build, and run ERF in a few steps:
             source Build/machines/frontier_erf.profile
             ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_hip.sh
             cd install/bin
-            sbatch run_frontier_erf.sbatch
+            sbatch ../../Docs/sphinx_doc/scripts/quickstart/run_frontier_erf.sbatch
 
       .. tab-item:: Aurora (ALCF)
 
@@ -67,7 +67,7 @@ Clone, build, and run ERF in a few steps:
             export NETCDF_DIR=<path-to-netcdf>
             ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_sycl.sh
             cd install/bin
-            qsub submit_erf_aurora.pbs
+            qsub ../../Docs/sphinx_doc/scripts/quickstart/submit_erf_aurora.pbs
 
    Not on a listed machine? See :ref:`sec:build:hpc` for machine profile
    customization.

@@ -31,6 +31,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
          # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/perlmutter_quickstart.sh>`
+      :download:`Download Perlmutter sbatch example <scripts/quickstart/run_perlmutter_erf.sbatch>`
       Full guide: :doc:`perlmutter_build_run`
 
    .. tab-item:: Kestrel (NREL)
@@ -62,6 +63,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
          # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/frontier_quickstart.sh>`
+      :download:`Download Frontier sbatch example <scripts/quickstart/run_frontier_erf.sbatch>`
       More machine context: :ref:`sec:build:hpc`
 
    .. tab-item:: Aurora (ALCF)
@@ -78,6 +80,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
          # Next: choose a run mode in "Run After Build" below
 
       :download:`Download build+run snippet <scripts/quickstart/aurora_quickstart.sh>`
+      :download:`Download Aurora PBS example <scripts/quickstart/submit_erf_aurora.pbs>`
       Full guide: :doc:`aurora_build_run`
 
 Not on a listed machine? See :ref:`sec:build:hpc` for machine profile customization,
@@ -88,6 +91,8 @@ or continue below for generic build workflows.
 
    Use interactive mode for a quick check (2-10 steps). Use batch mode for normal
    production runs and longer jobs.
+   Use interactive allocations primarily for debugging. Use batch jobs for normal
+   testing and production runs.
 
    .. tab-set::
 
@@ -121,20 +126,20 @@ or continue below for generic build workflows.
               - Launch command
             * - Perlmutter
               - Slurm
-              - ``run_perlmutter_erf.sbatch`` (from ``perlmutter_quickstart.sh``)
-              - ``sbatch run_perlmutter_erf.sbatch``
+              - ``run_perlmutter_erf.sbatch``
+              - ``sbatch ../../Docs/sphinx_doc/scripts/quickstart/run_perlmutter_erf.sbatch``
             * - Kestrel
               - Slurm
               - ``run.erf.aw.job_arena``
               - ``sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena``
             * - Frontier
               - Slurm
-              - ``run_frontier_erf.sbatch`` (from ``frontier_quickstart.sh``)
-              - ``sbatch run_frontier_erf.sbatch``
+              - ``run_frontier_erf.sbatch``
+              - ``sbatch ../../Docs/sphinx_doc/scripts/quickstart/run_frontier_erf.sbatch``
             * - Aurora
               - PBS
-              - ``submit_erf_aurora.pbs`` (from ``aurora_quickstart.sh``)
-              - ``qsub submit_erf_aurora.pbs``
+              - ``submit_erf_aurora.pbs``
+              - ``qsub ../../Docs/sphinx_doc/scripts/quickstart/submit_erf_aurora.pbs``
 
 .. _sec:build:quickstart:gnumake:
 

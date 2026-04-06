@@ -13,6 +13,7 @@ chmod +x cmake_kestrel_ERF.sh
 
 # Optional developer smoke test (requires -DERF_ENABLE_TESTS:BOOL=ON at configure time):
 # ctest -L regression -VV -j 4
+# Tip: use interactive allocations for debugging; use batch jobs for testing.
 
 # Optional interactive allocation example:
 # salloc -p gpu-h100s --nodes=1 --gpus-per-node=4 --time=00:30:00
