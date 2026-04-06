@@ -668,6 +668,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
+
+            if (l_moving_terrain) {
+                cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
+                cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
+            }
         });
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
@@ -751,8 +756,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-              rho_u_rhs(i,j,k) *= myhalf;
-              rho_u_rhs(i,j,k) += myhalf / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+                rho_u_rhs(i,j,k) *= myhalf;
+                rho_u_rhs(i,j,k) += myhalf / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -770,8 +775,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-              rho_v_rhs(i,j,k) *= myhalf;
-              rho_v_rhs(i,j,k) += myhalf / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+                rho_v_rhs(i,j,k) *= myhalf;
+                rho_v_rhs(i,j,k) += myhalf / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
 
