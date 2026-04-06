@@ -74,8 +74,9 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        ssum[IntVars::cons](i,j,k,n) = ( dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
-                                                       + slow_dt * fslow[IntVars::cons](i,j,k,n) ) / dJ_new(i,j,k);
+                        ssum[IntVars::cons](i,j,k,n)  = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
+                                                      + slow_dt * dJ_stg(i,j,k) * fslow[IntVars::cons](i,j,k,n);
+                        ssum[IntVars::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
                     // We have already scaled the slow source term to have the extra factor of dJ
