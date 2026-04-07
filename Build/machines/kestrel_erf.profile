@@ -15,8 +15,9 @@ module load PrgEnv-gnu/8.5.0
 module load craype-x86-milan
 module load cuda/12.9
 module load cmake
-#module load craype-accel-nvidia90
-export CRAY_ACCEL_TARGET=nvidia90
+module load cudatoolkit
+module load craype-accel-nvidia90
+#export CRAY_ACCEL_TARGET=nvidia90
 
 # Prefer NREL /nopt library stack for ERF (provides netcdf_par.h).
 export HDF5_ROOT=/nopt/nrel/apps/cpu_stack/libraries-craympich/hdf5/hdf5-1.14.6
