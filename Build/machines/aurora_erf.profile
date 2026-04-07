@@ -5,6 +5,9 @@
 # Load required modules
 module load mpich/opt/4.2.3-intel
 module load hdf5/1.14.6
+module load netcdf-cxx4
+module load netcdf-c
+module load netcdf-fortran
 module load python/3.10.14
 module load cmake
 
