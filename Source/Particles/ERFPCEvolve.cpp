@@ -17,6 +17,21 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 {
     BL_PROFILE("ERFPCPC::EvolveParticles()");
 
+    if (m_verbose > 0) {
+        Long np_total = 0;
+        int finest = m_gdb->finestLevel();
+        amrex::Print() << "[" << m_name << "] Evolving particles on level " << a_lev
+                       << ": ";
+        for (int lev = 0; lev <= finest; lev++) {
+            Long np_lev = NumberOfParticlesAtLevel(lev, true, true);
+            ParallelDescriptor::ReduceLongSum(np_lev);
+            amrex::Print() << "L" << lev << "=" << np_lev;
+            if (lev < finest) { amrex::Print() << " "; }
+            np_total += np_lev;
+        }
+        amrex::Print() << " (total=" << np_total << ")\n";
+    }
+
     if (m_advect_w_flow) {
         MultiFab* flow_vel( &a_flow_vars[a_lev][Vars::xvel] );
         AdvectWithFlow( flow_vel, a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
@@ -26,9 +41,53 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
 
+    // Redistribute particles.  For fine levels, use
+    // ExtractAndRouteOORParticles which handles partial-z refinement
+    // (particles escaping the fine level's z-extent) by recomputing
+    // k-indices for the target level before per-level Redistribute.
+    if (a_lev == 0) {
+        Redistribute(0, 0);
+    } else {
+        ExtractAndRouteOORParticles(a_lev, a_z_phys_nd);
+    }
+
+    // After redistribution, recompute k-indices from z-position using
+    // each level's z_phys_nd (terrain heights).
+    if (a_z_phys_nd[a_lev] != nullptr) {
+        for (int lev = 0; lev <= a_lev; lev++) {
+            const auto& plev = GetParticles();
+            if (lev >= static_cast<int>(plev.size())) { continue; }
+            if (plev[lev].empty()) { continue; }
+
+            const Geometry& glev = m_gdb->Geom(lev);
+            const auto plo_lev = glev.ProbLoArray();
+            const auto dxi_lev = glev.InvCellSizeArray();
+            const int k_max_lev = glev.Domain().bigEnd(AMREX_SPACEDIM-1);
+
+            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+                auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
+                const int np = aos.numParticles();
+                auto* p_pbox = aos().data();
+                auto zheight = (*a_z_phys_nd[lev])[pti.index()].array();
+
+                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    ParticleType& p = p_pbox[i];
+                    if (p.id() > 0) {
+                        // Set initial k guess from flat-grid formula; update_location_idata
+                        // will clamp to the tile's z-range and refine with terrain heights.
+                        int k_guess = int(amrex::Math::floor(
+                            (Real(p.pos(AMREX_SPACEDIM-1)) - plo_lev[AMREX_SPACEDIM-1])
+                            * dxi_lev[AMREX_SPACEDIM-1]));
+                        p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(0, amrex::min(k_guess, k_max_lev));
+                        update_location_idata(p, plo_lev, dxi_lev, zheight);
+                    }
+                });
+            }
+        }
+    }
+
     ComputeTemperature( a_flow_vars[a_lev][Vars::cons], a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
 
-    Redistribute();
     return;
 }
 
@@ -118,8 +177,27 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 if (p.id() <= 0) { return; }
 
                 ParticleReal v[AMREX_SPACEDIM];
+
+                // With partial-z refinement the particle's k may be outside
+                // the local grid's z-extent.  The terrain interpolation
+                // stencil accesses k+2 for cell-centered components, so we
+                // need that to be within bounds.  Zero velocity for
+                // out-of-bounds particles; Redistribute will move them to
+                // the correct level after advection.
                 if (use_terrain) {
-                    mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                    int pk = p.idata(ERFParticlesIntIdxAoS::k);
+                    // With partial-z refinement the particle's k may be
+                    // outside the local grid's z-extent. The stencil
+                    // accesses k-1 through k+2 in height_arr.
+                    if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
+                        v[0] = 0; v[1] = 0; v[2] = 0;
+                    } else {
+                        mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                        // Guard against NaN from edge-case stencil issues
+                        if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                            v[0] = 0; v[1] = 0; v[2] = 0;
+                        }
+                    }
                 } else {
                     mac_interpolate(p, plo, dxi, umacarr, v);
                 }
@@ -315,9 +393,12 @@ void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
 
-            ParticleReal temperature;
+            ParticleReal temperature = 0;
             if (use_terrain) {
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                int pk = p.idata(ERFParticlesIntIdxAoS::k);
+                if (pk >= zheight.begin[2] && pk + 2 < zheight.end[2]) {
+                    cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                }
             } else {
                 cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
             }
