@@ -61,12 +61,10 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
     const int nz_lev0 = m_zlevels_d.empty() ? 0
                        : static_cast<int>(m_zlevels_d.size()) - 1;
 
-    // Check if terrain height data is available
-    const bool has_terrain = (!a_z_phys_nd.empty() && a_z_phys_nd[0] != nullptr);
-
-    // Helper lambda: recompute k-indices for all particles on a given level
-    // using terrain height array (update_location_idata) when available,
-    // falling back to compute_k_from_z for stretched-but-flat grids.
+    // Helper lambda: recompute k-indices for all particles on a given level.
+    // Uses compute_k_from_z for the initial guess, then refines with the
+    // terrain height array (update_location_idata) per tile.
+    // z_phys_nd is always allocated (even for flat terrain).
     auto recompute_k_for_level = [&](int lev, int ref_ratio)
     {
         const auto& particles = GetParticles();
@@ -78,52 +76,27 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
         const auto dxi = geom_lev.InvCellSizeArray();
         const int k_max = geom_lev.Domain().bigEnd(AMREX_SPACEDIM-1);
 
-        if (has_terrain && lev < static_cast<int>(a_z_phys_nd.size()) && a_z_phys_nd[lev]) {
-            // Terrain-following grid: use update_location_idata per tile
-            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
-                int grid = pti.index();
-                auto& ptile = ParticlesAt(lev, pti);
-                auto& aos = ptile.GetArrayOfStructs();
-                auto* p_pbox = aos().data();
-                const int np = aos.numParticles();
+        for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+            int grid = pti.index();
+            auto& ptile = ParticlesAt(lev, pti);
+            auto& aos = ptile.GetArrayOfStructs();
+            auto* p_pbox = aos().data();
+            const int np = aos.numParticles();
 
-                auto zheight = (*a_z_phys_nd[lev])[grid].array();
+            auto zheight = (*a_z_phys_nd[lev])[grid].array();
 
-                // Set initial guess then refine with terrain; update_location_idata
-                // clamps k to the tile's z-range internally.
-                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
-                {
-                    auto& p = p_pbox[i];
-                    if (p.id() <= 0) { return; }
-                    p.idata(ERFParticlesIntIdxAoS::k) =
-                        compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
-                                         plo[AMREX_SPACEDIM-1],
-                                         dxi[AMREX_SPACEDIM-1],
-                                         k_max,
-                                         zlevels, nz_lev0, ref_ratio);
-                    update_location_idata(p, plo, dxi, zheight);
-                });
-            }
-        } else {
-            // No terrain: compute_k_from_z is exact
-            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
-                auto& ptile = ParticlesAt(lev, pti);
-                auto& aos = ptile.GetArrayOfStructs();
-                auto* p_pbox = aos().data();
-                const int np = aos.numParticles();
-
-                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
-                {
-                    auto& p = p_pbox[i];
-                    if (p.id() <= 0) { return; }
-                    p.idata(ERFParticlesIntIdxAoS::k) =
-                        compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
-                                         plo[AMREX_SPACEDIM-1],
-                                         dxi[AMREX_SPACEDIM-1],
-                                         k_max,
-                                         zlevels, nz_lev0, ref_ratio);
-                });
-            }
+            ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+            {
+                auto& p = p_pbox[i];
+                if (p.id() <= 0) { return; }
+                p.idata(ERFParticlesIntIdxAoS::k) =
+                    compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
+                                     plo[AMREX_SPACEDIM-1],
+                                     dxi[AMREX_SPACEDIM-1],
+                                     k_max,
+                                     zlevels, nz_lev0, ref_ratio);
+                update_location_idata(p, plo, dxi, zheight);
+            });
         }
         Gpu::synchronize();
     };
@@ -222,6 +195,18 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
     Redistribute(0, 0);
     if (finest > 0) {
         Redistribute();
+    }
+
+    // Step 7: Final k recomputation.  Steps 4-6 may have moved particles
+    // between levels (e.g. from L0 to L1 and back), leaving idata(k) set
+    // to the wrong level's geometry.  Recompute once more on each
+    // particle's final level to guarantee a consistent k.
+    for (int lev = 0; lev <= finest; lev++) {
+        int lev_ref = 1;
+        for (int l = 0; l < lev; l++) {
+            lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
+        recompute_k_for_level(lev, lev_ref);
     }
 }
 

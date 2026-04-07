@@ -51,38 +51,36 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
         ExtractAndRouteOORParticles(a_lev, a_z_phys_nd);
     }
 
-    // After redistribution, recompute k-indices from z-position using
-    // each level's z_phys_nd (terrain heights).
-    if (a_z_phys_nd[a_lev] != nullptr) {
-        for (int lev = 0; lev <= a_lev; lev++) {
-            const auto& plev = GetParticles();
-            if (lev >= static_cast<int>(plev.size())) { continue; }
-            if (plev[lev].empty()) { continue; }
+    // After redistribution, recompute k-indices from z-position for all
+    // particles using each level's geometry.  ERFParticlesAssignor uses
+    // idata(k) for grid assignment, so it must stay in sync with pos(z).
+    // z_phys_nd is always allocated (even for flat terrain).
+    for (int lev = 0; lev <= a_lev; lev++) {
+        const auto& plev = GetParticles();
+        if (lev >= static_cast<int>(plev.size())) { continue; }
+        if (plev[lev].empty()) { continue; }
 
-            const Geometry& glev = m_gdb->Geom(lev);
-            const auto plo_lev = glev.ProbLoArray();
-            const auto dxi_lev = glev.InvCellSizeArray();
-            const int k_max_lev = glev.Domain().bigEnd(AMREX_SPACEDIM-1);
+        const Geometry& glev = m_gdb->Geom(lev);
+        const auto plo_lev = glev.ProbLoArray();
+        const auto dxi_lev = glev.InvCellSizeArray();
+        const int k_max_lev = glev.Domain().bigEnd(AMREX_SPACEDIM-1);
 
-            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
-                auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
-                const int np = aos.numParticles();
-                auto* p_pbox = aos().data();
-                auto zheight = (*a_z_phys_nd[lev])[pti.index()].array();
+        for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+            auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
+            const int np = aos.numParticles();
+            auto* p_pbox = aos().data();
+            auto zheight = (*a_z_phys_nd[lev])[pti.index()].array();
 
-                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
-                    ParticleType& p = p_pbox[i];
-                    if (p.id() > 0) {
-                        // Set initial k guess from flat-grid formula; update_location_idata
-                        // will clamp to the tile's z-range and refine with terrain heights.
-                        int k_guess = int(amrex::Math::floor(
-                            (Real(p.pos(AMREX_SPACEDIM-1)) - plo_lev[AMREX_SPACEDIM-1])
-                            * dxi_lev[AMREX_SPACEDIM-1]));
-                        p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(0, amrex::min(k_guess, k_max_lev));
-                        update_location_idata(p, plo_lev, dxi_lev, zheight);
-                    }
-                });
-            }
+            ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                ParticleType& p = p_pbox[i];
+                if (p.id() > 0) {
+                    int k_guess = int(amrex::Math::floor(
+                        (Real(p.pos(AMREX_SPACEDIM-1)) - plo_lev[AMREX_SPACEDIM-1])
+                        * dxi_lev[AMREX_SPACEDIM-1]));
+                    p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(0, amrex::min(k_guess, k_max_lev));
+                    update_location_idata(p, plo_lev, dxi_lev, zheight);
+                }
+            });
         }
     }
 
