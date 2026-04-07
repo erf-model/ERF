@@ -25,10 +25,12 @@ using namespace amrex;
 
 namespace MORRInd {
     enum  {
+      /*
            qrcuten_arr = 0, // cumulus tendencies
            qscuten_arr,
            qicuten_arr,
-           lamc,            // Slope parameters and PSD variables
+      */
+           lamc = 0,            // Slope parameters and PSD variables
            lami,
            lams,
            lamr,
@@ -604,11 +606,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
-          const amrex::Real dz_val = m_geom.CellSize(m_axis);
+          const Real dz_val = m_geom.CellSize(m_axis);
+          const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            dz_arr(i,j,k) = dz_val;
+            dz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                   + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                   + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                   + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
           });
-          amrex::Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
+
+          Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
 
           // Arrays to store precipitation rates
           FArrayBox    rainncv_fab(grown_boxD, 1);
@@ -617,15 +624,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           FArrayBox graupelncv_fab(grown_boxD, 1);
 
           auto const& rainncv_arr = rainncv_fab.array();
-          auto const& sr_arr = sr_fab.array();
+          auto const& sr_arr      = sr_fab.array();
           auto const& snowncv_arr = snowncv_fab.array();
           auto const& graupelncv_arr = graupelncv_fab.array();
 
           // Initialize precipitation rate arrays to Real(0)
           ParallelFor(grown_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainncv_arr(i,j,k) = Real(0);
-            sr_arr(i,j,k) = Real(0);
-            snowncv_arr(i,j,k) = Real(0);
+            rainncv_arr(i,j,k)    = Real(0);
+            sr_arr(i,j,k)         = Real(0);
+            snowncv_arr(i,j,k)    = Real(0);
             graupelncv_arr(i,j,k) = Real(0);
           });
 
@@ -633,7 +640,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1);
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
           ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            ht_arr(i,j,k) = Real(0);  // Not used by Morrison scheme
+            ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
+                                                   + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
           });
 
 #ifdef ERF_USE_MORR_FORT
@@ -676,11 +684,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rainprod_arr(i,j,k) = Real(0);
             evapprod_arr(i,j,k) = Real(0);
-            qlsink_arr(i,j,k) = Real(0);
-            precr_arr(i,j,k) = Real(0);
-            preci_arr(i,j,k) = Real(0);
-            precs_arr(i,j,k) = Real(0);
-            precg_arr(i,j,k) = Real(0);
+            qlsink_arr(i,j,k)   = Real(0);
+            precr_arr(i,j,k)    = Real(0);
+            preci_arr(i,j,k)    = Real(0);
+            precs_arr(i,j,k)    = Real(0);
+            precg_arr(i,j,k)    = Real(0);
           });
 #endif
 
@@ -796,8 +804,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
           Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
           Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
-          Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] amrex::Real m_cons30;
-          Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] amrex::Real m_cons33;
+          Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] Real m_cons30;
+          Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] Real m_cons33;
           Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
           Real m_cons41;
 
@@ -807,11 +815,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 
-          m_R = Real(287.0);         // Gas constant for dry air (J/kg/K)
-          m_Rd = Real(287.0);         // Gas constant for dry air (J/kg/K)
-          m_Rv = Real(461.6);        // Gas constant for water vapor (J/kg/K)
-          m_cp = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
-          m_g = Real(9.81);           // Gravitational acceleration (m/s^2)
+          m_R    = Real(287.0);         // Gas constant for dry air (J/kg/K)
+          m_Rd   = Real(287.0);         // Gas constant for dry air (J/kg/K)
+          m_Rv   = Real(461.6);        // Gas constant for water vapor (J/kg/K)
+          m_cp   = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
+          m_g    = Real(9.81);           // Gravitational acceleration (m/s^2)
           m_ep_2 = m_Rd / m_Rv;     // Molecular weight ratio (Rd/Rv)
 
           // Reference density
@@ -860,10 +868,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           // Microphysical parameters
           m_aimm = Real(0.66);       // Parameter in Bigg immersion freezing
           m_bimm = Real(100.0);      // Parameter in Bigg immersion freezing
-          m_ecr = one;         // Collection efficiency between rain and snow/graupel
-          m_dcs = Real(125.0E-6);    // Threshold size for cloud ice autoconversion (m)
-          m_mi0 = Real(4.0)/three*m_pi*m_rhoi*std::pow(Real(10.0E-6), 3);  // Initial mass of nucleated ice crystal (kg)
-          m_mg0 = Real(1.6E-10);     // Mass of embryo graupel (kg)
+          m_ecr  = one;         // Collection efficiency between rain and snow/graupel
+          m_dcs  = Real(125.0E-6);    // Threshold size for cloud ice autoconversion (m)
+          m_mi0  = Real(4.0)/three*m_pi*m_rhoi*std::pow(Real(10.0E-6), 3);  // Initial mass of nucleated ice crystal (kg)
+          m_mg0  = Real(1.6E-10);     // Mass of embryo graupel (kg)
 
           // Ventilation parameters
           m_f1s = Real(0.86);        // Ventilation parameter for snow
@@ -1060,25 +1068,28 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
           {
             // Tendencies and mixing ratios
-            morr_arr(i,j,k,MORRInd::qc3d) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qi3d) = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qc3d)  = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qi3d)  = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
             morr_arr(i,j,k,MORRInd::qni3d) = qps_arr(i,j,k);  // SNOW MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qr3d) = qpr_arr(i,j,k);   // RAIN MIXING RATIO
-            morr_arr(i,j,k,MORRInd::ni3d) = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::ns3d) = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nr3d) = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nc3d) = nc_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::qr3d)  = qpr_arr(i,j,k);   // RAIN MIXING RATIO
+            morr_arr(i,j,k,MORRInd::ni3d)  = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ns3d)  = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::nr3d)  = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::nc3d)  = nc_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
 
-            morr_arr(i,j,k,MORRInd::t3d) = theta_arr(i,j,k) * pii_arr(i,j,k);  // TEMPERATURE
+            morr_arr(i,j,k,MORRInd::t3d)  = theta_arr(i,j,k) * pii_arr(i,j,k);  // TEMPERATURE
             morr_arr(i,j,k,MORRInd::qv3d) = qv_arr(i,j,k);                     // WATER VAPOR MIXING RATIO
             morr_arr(i,j,k,MORRInd::pres) = pres_arr(i,j,k);                   // ATMOSPHERIC PRESSURE
-            morr_arr(i,j,k,MORRInd::dzq) = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
-            morr_arr(i,j,k,MORRInd::w3d) = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
+            morr_arr(i,j,k,MORRInd::dzq)  = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
+            morr_arr(i,j,k,MORRInd::w3d)  = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
             morr_arr(i,j,k,MORRInd::qg3d) = qpg_arr(i,j,k);                    // GRAUPEL MIX RATIO
             morr_arr(i,j,k,MORRInd::ng3d) = ng_arr(i,j,k);                     // GRAUPEL NUMBER CONC
-            morr_arr(i,j,k,MORRInd::qrcu1d) = morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qscu1d) = morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qicu1d) = morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
+
+            // NOTE: There are no cumulus tendecies passed to Morrison
+            //       and the FORTRAN version zeros these out.
+            morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qscu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qicu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
          });
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
          {
@@ -1257,7 +1268,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             ds0 = three;       // Size distribution parameter for snow
             di0 = three;       // Size distribution parameter for cloud ice
             dg0 = three;       // Size distribution parameter for graupel
-            const Real CI = Real(800.0);     // Mass-diameter relationship parameter for cloud ice
+
             // ADD NUMBER CONCENTRATION DUE TO CUMULUS TENDENCY
             // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM RAIN IS 10^7 M^-4
             // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM SNOW IS 2 X 10^7 M^-4
@@ -1271,7 +1282,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               morr_arr(i,j,k,MORRInd::ns3d) += dum; // budget equation: update snow number concentration
             }
             if (morr_arr(i,j,k,MORRInd::qicu1d) >= Real(1.0e-10)) {
-              dum = morr_arr(i,j,k,MORRInd::qicu1d) * dt / (CI * std::pow(Real(80.0e-6), di0)); // rate equation: calculate cloud ice number concentration from cumulus
+              dum = morr_arr(i,j,k,MORRInd::qicu1d) * dt / (m_ci * std::pow(Real(80.0e-6), di0)); // rate equation: calculate cloud ice number concentration from cumulus
               morr_arr(i,j,k,MORRInd::ni3d) += dum; // budget equation: update cloud ice number concentration
             }
 
@@ -2888,7 +2899,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             // INITIALIZE PRECIP AND SNOW RATES
             morr_arr(i,j,k,MORRInd::precrt) = Real(0);
             morr_arr(i,j,k,MORRInd::snowrt) = Real(0);
-        // hm added 7/13/13
+            // hm added 7/13/13
             morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
             morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
             }

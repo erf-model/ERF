@@ -160,7 +160,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
+                   const amrex::Real& fac_fus,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -210,18 +210,19 @@ public:
             erf_dtqsati(tabs, pres, dqsati);
 
             if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation & fusion)
+                // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
                     omn   = one;
                 }
-                // Cloud water not permitted (sublimation & fusion)
+                // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
                     omn    = zero;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
-                    omn   = an*tabs-bn;
-                    domn  = an;
+                    lstari = fac_fus;
+                    omn    = an*tabs-bn;
+                    domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
                 omn  = one;
