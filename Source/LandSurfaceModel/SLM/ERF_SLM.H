@@ -486,10 +486,6 @@ public:
     }
 
     void
-    set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                    const amrex::MultiFab* zenith_in) override;
-
-    void
     set_precip_input(const amrex::MultiFab* precip_in) override;
 
     void
@@ -577,6 +573,11 @@ public:
         return slm_to_rad_vars;
     }
 
+    std::unordered_map<std::string, std::string>& get_rad_output_map()
+    {
+        return rad_output_map;
+    }
+
     // utility to skip to next line in Header
     //  -- taken from ERF_Checkpoint
     static void GotoNextLine (std::istream& is);
@@ -587,7 +588,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_data_size = 42;
+    int m_lsm_data_size = 43;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
     int m_lsm_flux_size = 5;
@@ -848,6 +849,17 @@ private:
         {"SHDMIN", "veg_frac_min"},
         {"SHDMAX", "veg_frac_max"},
         //{"TMN", "soilt_obs"}
+    };
+
+    // map RRTMGP names to SLM names for radiation data
+    inline static std::unordered_map<std::string, std::string> rad_output_map = {
+        {"cos_zenith_angle",   "cos_zenith"},
+        {"sw_flux_dn", ""},
+        {"sw_flux_dn_dir_vis", "SW_dw_dir_vis"},
+        {"sw_flux_dn_dir_nir", "SW_dw_dir_nir"},
+        {"sw_flux_dn_dif_vis", "SW_dw_dif_vis"},
+        {"sw_flux_dn_dif_nir", "SW_dw_dif_nir"},
+        {"lw_flux_dn", "LW_dw"}
     };
 
     // whether to initialize SLM from inputs file or from wrfinput

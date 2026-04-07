@@ -31,10 +31,13 @@ void ERF::advance_radiation (int lev,
             // TODO: rename SLM variables to match those expected by RRMTGP
             //       for now, pointers are directly returned without name lookup
             lsm_input_ptrs = lsm.get_model_lev<SLM>(lev)->export_to_RRTMGP();
-
+            auto slm_output_name_map = lsm.get_model_lev<SLM>(lev)->get_rad_output_map();
             Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
             lsm_output_ptrs = Vector<MultiFab*>(lsm_output_names.size(),nullptr);
             for (int i(0); i<lsm_output_ptrs.size(); ++i) {
+                std::string slm_name = slm_output_name_map[lsm_output_names[i]];
+                if (slm_name == "") continue;
+
                 int varIdx = lsm.Get_DataIdx(lev,lsm_output_names[i]);
                 if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
             }
