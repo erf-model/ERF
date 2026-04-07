@@ -47,7 +47,7 @@ public:
         urban_fields = amrex::Vector<int>{4, -1};
     }
 
-    void initialize_for_level(int lev, const amrex::BoxArray &ba, amrex::Geometry &geom, amrex::DistributionMapping &dm, amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
+    void initialize_for_level(int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
     {
         if (lev > m_nlevs) {
             m_nlevs = lev+1;
@@ -86,7 +86,7 @@ public:
 
         amrex::RealBox dom2d = geom.ProbDomain();
         dom2d.setHi(2, geom.CellSize(2));
-        m_geom2d[lev].define(m_ba2d[lev].minimalBox(), dom2d, geom.Coord(), geom.isPeriodic());
+        m_geom2d[lev].define(makeSlab(m_geom[lev].Domain(), 2, 0), dom2d, geom.Coord(), geom.isPeriodic());
 
         m_lmask[lev] = lmask_lev[0].get();
 
@@ -121,7 +121,7 @@ public:
     /**
      * Sets the urban or land data pointers that are used to compute weight averages
      */
-    void set_model_data(int lev, amrex::Vector<amrex::MultiFab*> model_data, amrex::Vector<std::string>& data_names, SurfaceModelType type)
+    void set_model_data(const int lev, const amrex::Vector<amrex::MultiFab*> model_data, const amrex::Vector<std::string>& data_names, SurfaceModelType type)
     {
         if (type == SurfaceModelType::LAND) {
             lsm_data_lev[lev].resize(model_data.size());
@@ -216,7 +216,7 @@ public:
         return wavg[lev].get();
     }
 
-    void write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step);
+    void write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio);
 
     void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 

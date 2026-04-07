@@ -1554,7 +1554,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     }
 
     if (which==1 && plot_surfmodel && m_SurfaceModel) {
-        m_SurfaceModel->write_output(0, t_new[0], "plt_surf_", istep[0]);
+        m_SurfaceModel->write_output(finest_level, t_new[0], "plt_surf_", istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP

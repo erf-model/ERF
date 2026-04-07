@@ -336,9 +336,9 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
 }
 
 
-void SurfaceModel::write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step)
+void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio)
 {
-    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_step, 5);
+    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_steps[0], 5);
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
     const int nlsm_fields = (m_use_land) ? (lsm_fields.size() - nfields) : 0;
@@ -346,45 +346,53 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
     const int noutput = nfields + 2 + fieldmap.size(); // + nlsm_fields + nurb_fields; // MOST, lmask, urb frac, lsm fields, urban fields
     IntVect ng(0, 0, 0);
 
-    amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
-    MultiFab fab(outputs[0]->boxArray(), m_dmap[lev], noutput, ng);
-
-
     amrex::Vector<std::string> varnames(nfields);
 
-    // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
-    // TODO: make sure grids of urban and LSM inputs match
-    for (int field=0; field < nfields; field++)
-    {
-        int output_field = (m_export_fluxes && field > 0) ? field - 1 : field;
-        int comp = (m_export_fluxes && field < 2) ? field : 0;
+    amrex::Vector<amrex::MultiFab> fab(finest_lev+1);
+    for (int lev = 0; lev <= finest_lev; lev++) {
+        amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
+        fab[lev].define(outputs[0]->boxArray(), m_dmap[lev], noutput, ng);
 
-        MultiFab::Copy(fab, *(outputs[output_field]), comp, field, 1, ng);
+        //fab[lev].setVal(0.0);
 
-        varnames[field] = field_names[field];
-    }
+        // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
+        // TODO: make sure grids of urban and LSM inputs match
+        for (int field=0; field < nfields; field++)
+        {
+            int output_field = (m_export_fluxes && field > 0) ? field - 1 : field;
+            int comp = (m_export_fluxes && field < 2) ? field : 0;
 
-    int nout = nfields;
+            MultiFab::Copy(fab[lev], *(outputs[output_field]), comp, field, 1, ng);
 
-    MultiFab lmask_tmp = amrex::ToMultiFab(*m_lmask[lev]); // iMultiFab -> MultiFab
-    MultiFab::Copy(fab, lmask_tmp, 0, nout, 1, ng);
-    nout++;
-    MultiFab::Copy(fab, *(wavg[lev]), SurfaceModelType::URBAN, nout, 1, ng);
-    nout++;
+            varnames[field] = field_names[field];
+        }
 
-    varnames.push_back("lmask");
-    varnames.push_back("urb_frac");
+        int nout = nfields;
 
-    // Add any mapped fields
-    for (auto &field : fieldmap) {
-        MultiFab::Copy(fab, *(fields[field.second.mf_ind][lev]), 0, nout, 1, ng);
-        varnames.push_back(field.first);
+        MultiFab lmask_tmp = amrex::ToMultiFab(*m_lmask[lev]); // iMultiFab -> MultiFab
+        MultiFab::Copy(fab[lev], lmask_tmp, 0, nout, 1, ng);
         nout++;
+        MultiFab::Copy(fab[lev], *(wavg[lev]), SurfaceModelType::URBAN, nout, 1, ng);
+        nout++;
+
+        if (lev == 0) {
+            varnames.push_back("lmask");
+            varnames.push_back("urb_frac");
+        }
+
+        // Add any mapped fields
+        for (auto &field : fieldmap) {
+            MultiFab::Copy(fab[lev], *(fields[field.second.mf_ind][lev]), 0, nout, 1, ng);
+            if (lev == 0) {
+                varnames.push_back(field.first);
+            }
+            nout++;
+        }
+
+        AMREX_ALWAYS_ASSERT(varnames.size() == noutput);
     }
 
-    AMREX_ALWAYS_ASSERT(varnames.size() == noutput);
-
-    amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, m_geom2d[lev], time, level_step);
+    amrex::WriteMultiLevelPlotfile(plotfilename, finest_lev+1, GetVecOfConstPtrs(fab), varnames, m_geom2d, time, level_steps, ref_ratio);
 }
 
 // utility to skip to next line in Header
