@@ -53,8 +53,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     int ngrow = ComputeGhostCells(solverChoice) + 2;
     tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
+    // Offset z-coordinate for interpolate_1d when plane EB is used.
+    Real z_offset = zero;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        ParmParse pp_eb2("eb2");
+        std::string geometry;
+        pp_eb2.query("geometry", geometry);
+        if (geometry == "plane") {
+            RealArray plane_point{zero, zero, zero};
+            pp_eb2.query("plane_point", plane_point);
+            z_offset = plane_point[2];
+        }
+    }
+
     z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,2);
-    init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev]);
+    init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev], z_offset);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
     {
