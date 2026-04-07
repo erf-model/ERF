@@ -45,7 +45,7 @@ Clone, build, and run ERF in a few steps:
             source Build/machines/kestrel_erf.profile
             ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many_cuda.sh
             cd install/bin
-            sbatch ../../Docs/sphinx_doc/scripts/quickstart/run.erf.aw.job_arena
+            sbatch ../../Docs/sphinx_doc/scripts/quickstart/run_kestrel_erf.sbatch
 
       .. tab-item:: Frontier (OLCF)
 
