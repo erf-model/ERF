@@ -21,7 +21,7 @@ contains the lines
 ```
     cd ERF
     source Build/GNU_Ekat/ekat_build_cuda_commands_Perlmutter.sh
-    cd Exec/DevTests/Radiation
+    cd .Exec_dev/Radiation
     cp GNUmakefile_GPU GNUmakefile
     make -j8
 ```

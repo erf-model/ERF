@@ -36,16 +36,16 @@ ERF::init_immersed_forcing (int lev)
         // Set the x,y,z-velocities
         ParallelFor(xbx, ybx, zbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-            if (t_blank == 1.0) { xvel_arr(i, j, k) = epsilon; }
+            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+            if (t_blank == one) { xvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-            if (t_blank == 1.0) { yvel_arr(i, j, k) = epsilon; }
+            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+            if (t_blank == one) { yvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-            if (t_blank == 1.0) { zvel_arr(i, j, k) = epsilon; }
+            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+            if (t_blank == one) { zvel_arr(i, j, k) = epsilon; }
         });
     } //mfi
 }

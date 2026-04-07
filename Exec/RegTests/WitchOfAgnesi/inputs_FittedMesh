@@ -71,13 +71,8 @@ erf.rayleigh_damp_W = true
 erf.rayleigh_zdamp = 50.0
 erf.rayleigh_dampcoef = 0.25
 
-#erf.init_type = "input_sounding"
-#erf.init_sounding_ideal = true
-
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
-#erf.terrain_smoothing = 1 # Smoothed Terrain Following coords (Klemp 2011)
-#erf.terrain_gamma_m = 0.5
 erf.terrain_smoothing = 2 # Sullivan TF
 
 # PROBLEM PARAMETERS

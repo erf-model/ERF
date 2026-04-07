@@ -141,7 +141,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 // Update z-coordinate carried by the particle
                 update_location_idata(p,plo,dxi,zheight);
 
-                // If the particle crossed below the bottom surface, move it up to 0.2*dz above the surface
+                // If the particle crossed below the bottom surface, move it up to Real(0.2)*dz above the surface
                 if (!periodic_in_z) {
                     if (p.idata(ERFParticlesIntIdxAoS::k) < 0) {
                         int ii = domlo.x + int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0]));
@@ -154,17 +154,17 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         if (zheight) {
                             Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
                             Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
-                            auto zlo = zheight(ii  ,jj  ,kk  ) * (1.0-lx) * (1.0-ly) +
-                                       zheight(ii+1,jj  ,kk  ) *      lx  * (1.0-ly) +
-                                       zheight(ii  ,jj+1,kk  ) * (1.0-lx) * ly +
+                            auto zlo = zheight(ii  ,jj  ,kk  ) * (one-lx) * (one-ly) +
+                                       zheight(ii+1,jj  ,kk  ) *      lx  * (one-ly) +
+                                       zheight(ii  ,jj+1,kk  ) * (one-lx) * ly +
                                        zheight(ii+1,jj+1,kk  ) *      lx  * ly;
-                            auto zhi = zheight(ii  ,jj  ,kk+1) * (1.0-lx) * (1.0-ly) +
-                                       zheight(ii+1,jj  ,kk+1) *      lx  * (1.0-ly) +
-                                       zheight(ii  ,jj+1,kk+1) * (1.0-lx) * ly +
+                            auto zhi = zheight(ii  ,jj  ,kk+1) * (one-lx) * (one-ly) +
+                                       zheight(ii+1,jj  ,kk+1) *      lx  * (one-ly) +
+                                       zheight(ii  ,jj+1,kk+1) * (one-lx) * ly +
                                        zheight(ii+1,jj+1,kk+1) *      lx  * ly;
-                            p.pos(2) = zlo + 0.2 * (zhi - zlo);
+                            p.pos(2) = zlo + Real(0.2) * (zhi - zlo);
                         } else {
-                            p.pos(2) = plo[2] + 0.2 / dxi[2];
+                            p.pos(2) = plo[2] + Real(0.2) / dxi[2];
                         }
                     } // k < 0
                 } // !periodic
@@ -226,21 +226,21 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             ParticleReal v = vz_ptr[i];
 
             // Define acceleration to be (gravity minus drag) where drag is defined
-            // such the particles will reach a terminal velocity of 5.0 (totally arbitrary)
-            ParticleReal terminal_vel = 5.0;
+            // such the particles will reach a terminal velocity of Real(5.0) (totally arbitrary)
+            ParticleReal terminal_vel = Real(5.0);
             ParticleReal grav = CONST_GRAV;
             ParticleReal drag = CONST_GRAV * (v * v) / (terminal_vel*terminal_vel);
 
-            ParticleReal half_dt = 0.5 * a_dt;
+            ParticleReal myhalf_dt = myhalf * a_dt;
 
-            // Update the particle velocity over first half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
+            // Update the particle velocity over first myhalf of step (a_dt/2)
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
             // Update the particle position over (a_dt)
             p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*vz_ptr[i]);
 
-            // Update the particle velocity over second half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
+            // Update the particle velocity over second myhalf of step (a_dt/2)
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
             // also update z-coordinate here
             update_location_idata(p,plo,dxi,zheight);

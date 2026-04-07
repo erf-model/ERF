@@ -44,9 +44,9 @@ erf_calc_slopes_eb_Dirichlet (
             A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) - bcent_eb[1] ) * dy;
             A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) - bcent_eb[2] ) * dz;
         } else {
-            A[ll][0] = amrex::Real(0.0);
-            A[ll][1] = amrex::Real(0.0);
-            A[ll][2] = amrex::Real(0.0);
+            A[ll][0] = zero;
+            A[ll][1] = zero;
+            A[ll][2] = zero;
         }
         ll++;
     }}}
@@ -64,7 +64,7 @@ erf_calc_slopes_eb_Dirichlet (
         if (flag(i,j,k).isConnected(ii,jj,kk) && !(ii==0 && jj==0 && kk==0)) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
         } else {
-            du[ll] = amrex::Real(0.0);
+            du[ll] = zero;
         }
         ll++;
     }}}
@@ -74,9 +74,9 @@ erf_calc_slopes_eb_Dirichlet (
 
     for(int jj(0); jj<AMREX_SPACEDIM; ++jj){
         for(int ii(0); ii<AMREX_SPACEDIM; ++ii){ // NOLINT(modernize-loop-convert)
-            AtA[jj][ii] = amrex::Real(0.0);
+            AtA[jj][ii] = zero;
         }
-        Atb[jj] = amrex::Real(0.0);
+        Atb[jj] = zero;
     }
 
     for(int lc(0); lc < dim_a; ++lc)
@@ -181,9 +181,9 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
     }
 
     // Set bias in the index space between the two staggered grids
-    amrex::RealVect bias{0.,0.,0.};
-    bias[igrid_query-1] = 0.5;
-    bias[igrid_data-1] = -0.5;
+    amrex::RealVect bias{zero,zero,zero};
+    bias[igrid_query-1] = myhalf;
+    bias[igrid_data-1] = -myhalf;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
@@ -198,9 +198,9 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
             A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
             A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
         } else {
-            A[ll][0] = amrex::Real(0.0);
-            A[ll][1] = amrex::Real(0.0);
-            A[ll][2] = amrex::Real(0.0);
+            A[ll][0] = zero;
+            A[ll][1] = zero;
+            A[ll][2] = zero;
         }
         ll++;
     }}}
@@ -218,7 +218,7 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
         if (!flag(i+ii,j+jj,k+kk).isCovered()) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
         } else {
-            du[ll] = amrex::Real(0.0);
+            du[ll] = zero;
         }
         ll++;
     }}}
@@ -228,9 +228,9 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
 
     for(int jj(0); jj<AMREX_SPACEDIM; ++jj){
         for(int ii(0); ii<AMREX_SPACEDIM; ++ii){ // NOLINT(modernize-loop-convert)
-            AtA[jj][ii] = amrex::Real(0.0);
+            AtA[jj][ii] = zero;
         }
-        Atb[jj] = amrex::Real(0.0);
+        Atb[jj] = zero;
     }
 
     for(int lc(0); lc < dim_a; ++lc)
@@ -324,8 +324,8 @@ erf_calc_slopes_eb_staggered (int igrid_query,
     }
 
     // Set bias in the index space between the two staggered grids
-    amrex::RealVect bias{0.,0.,0.};
-    bias[igrid_query-1] = 0.5;
+    amrex::RealVect bias{zero,zero,zero};
+    bias[igrid_query-1] = myhalf;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
@@ -341,9 +341,9 @@ erf_calc_slopes_eb_staggered (int igrid_query,
             A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - ccent(i,j,k,1) ) * dy;
             A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - ccent(i,j,k,2) ) * dz;
         } else {
-            A[ll][0] = amrex::Real(0.0);
-            A[ll][1] = amrex::Real(0.0);
-            A[ll][2] = amrex::Real(0.0);
+            A[ll][0] = zero;
+            A[ll][1] = zero;
+            A[ll][2] = zero;
         }
         ll++;
     }}}
@@ -362,7 +362,7 @@ erf_calc_slopes_eb_staggered (int igrid_query,
         if (!flag(i+ii,j+jj,k+kk).isCovered()) {
             du[ll] = state(i+ii,j+jj,k+kk) - state(i,j,k);
         } else {
-            du[ll] = amrex::Real(0.0);
+            du[ll] = zero;
         }
         ll++;
     }}}
@@ -372,9 +372,9 @@ erf_calc_slopes_eb_staggered (int igrid_query,
 
     for(int jj(0); jj<AMREX_SPACEDIM; ++jj){
         for(int ii(0); ii<AMREX_SPACEDIM; ++ii){ // NOLINT(modernize-loop-convert)
-            AtA[jj][ii] = amrex::Real(0.0);
+            AtA[jj][ii] = zero;
         }
-        Atb[jj] = amrex::Real(0.0);
+        Atb[jj] = zero;
     }
 
     for(int lc(0); lc < dim_a; ++lc)
@@ -450,22 +450,22 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
     int jj_hi = 1;
     int kk_hi = 1;
 
-    if (igrid_query == Vars::xvel && vel_arr(i,j,k)>0.0) {
+    if (igrid_query == Vars::xvel && vel_arr(i,j,k)>zero) {
         ii_lo = -2;
         ii_hi = 0;
     }
-    if (igrid_query == Vars::yvel && vel_arr(i,j,k)>0.0) {
+    if (igrid_query == Vars::yvel && vel_arr(i,j,k)>zero) {
         jj_lo = -2;
         jj_hi = 0;
     }
-    if (igrid_query == Vars::zvel && vel_arr(i,j,k)>0.0) {
+    if (igrid_query == Vars::zvel && vel_arr(i,j,k)>zero) {
         kk_lo = -2;
         kk_hi = 0;
     }
 
     // Set bias in the index space between the two staggered grids
-    amrex::RealVect bias{0.,0.,0.};
-    bias[igrid_query-1] = 0.5;
+    amrex::RealVect bias{zero,zero,zero};
+    bias[igrid_query-1] = myhalf;
 
     constexpr int dim_a = 27;
 
@@ -482,9 +482,9 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
             A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - ccent(i,j,k,1) ) * dy;
             A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - ccent(i,j,k,2) ) * dz;
         } else {
-            A[ll][0] = amrex::Real(0.0);
-            A[ll][1] = amrex::Real(0.0);
-            A[ll][2] = amrex::Real(0.0);
+            A[ll][0] = zero;
+            A[ll][1] = zero;
+            A[ll][2] = zero;
         }
         ll++;
     }}}
@@ -502,7 +502,7 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
         if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
             du[ll] = state(i+ii,j+jj,k+kk) - state(i,j,k);
         } else {
-            du[ll] = amrex::Real(0.0);
+            du[ll] = zero;
         }
         ll++;
     }}}
@@ -512,9 +512,9 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
 
     for(int jj(0); jj<AMREX_SPACEDIM; ++jj){
         for(int ii(0); ii<AMREX_SPACEDIM; ++ii){ // NOLINT(modernize-loop-convert)
-            AtA[jj][ii] = amrex::Real(0.0);
+            AtA[jj][ii] = zero;
         }
-        Atb[jj] = amrex::Real(0.0);
+        Atb[jj] = zero;
     }
 
     for(int lc(0); lc < dim_a; ++lc)

@@ -27,7 +27,7 @@ void PlotMultiFab(const MultiFab& mf,
     "rho", "uvel", "vvel", "wvel", "theta", "qv", "qc", "qr", "latitude", "longitude"
     }; // Customize variable names
 
-    const Real time = 0.0;
+    const Real time = zero;
 
 
     // Assume weather_mf is nodal in all directions
@@ -180,10 +180,10 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             // Geometry (note we must include these here to get the data on device)
-            const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-            const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-            //const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+            const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
+            //const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             // First interpolate where the weather data is available from
             Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr, tmp_lat, tmp_lon;
@@ -220,13 +220,13 @@ ERF::FillForecastStateMultiFabs(const int lev,
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                                    dxvec, dyvec,
                                    nx, ny, 1,
-                                   x, y, 0.0,
+                                   x, y, zero,
                                    latvec_d_ptr, tmp_lat);
 
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                                    dxvec, dyvec,
                                    nx, ny, 1,
-                                   x, y, 0.0,
+                                   x, y, zero,
                                    lonvec_d_ptr, tmp_lon);
 
             fine_cons_arr(i,j,k,Rho_comp) = tmp_rho;
@@ -238,9 +238,9 @@ ERF::FillForecastStateMultiFabs(const int lev,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
-            //Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
+            //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_uvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -253,10 +253,10 @@ ERF::FillForecastStateMultiFabs(const int lev,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
-            //Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+            //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_vvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -269,10 +269,10 @@ ERF::FillForecastStateMultiFabs(const int lev,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
             Real z = prob_lo_erf[2] + k       * dx_erf[2];
-            //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+            //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_wvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -297,7 +297,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
     "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel", "latitude", "longitude"
     }; // Customize variable names
 
-    const Real time = 0.0;
+    const Real time = zero;
 
     std::string pltname = "plt_interp";
 
@@ -323,9 +323,9 @@ ERF::FillForecastStateMultiFabs(const int lev,
             plot_mf_arr(i,j,k,3) = erf_mf_cons_arr(i,j,k,RhoQ2_comp);
             plot_mf_arr(i,j,k,4) = erf_mf_cons_arr(i,j,k,RhoQ3_comp);
 
-            plot_mf_arr(i,j,k,5) = (erf_mf_xvel_arr(i,j,k,0) + erf_mf_xvel_arr(i+1,j,k,0))/2.0;
-            plot_mf_arr(i,j,k,6) = (erf_mf_yvel_arr(i,j,k,0) + erf_mf_yvel_arr(i,j+1,k,0))/2.0;
-            plot_mf_arr(i,j,k,7) = (erf_mf_zvel_arr(i,j,k,0) + erf_mf_zvel_arr(i,j,k+1,0))/2.0;
+            plot_mf_arr(i,j,k,5) = (erf_mf_xvel_arr(i,j,k,0) + erf_mf_xvel_arr(i+1,j,k,0))/two;
+            plot_mf_arr(i,j,k,6) = (erf_mf_yvel_arr(i,j,k,0) + erf_mf_yvel_arr(i,j+1,k,0))/two;
+            plot_mf_arr(i,j,k,7) = (erf_mf_zvel_arr(i,j,k,0) + erf_mf_zvel_arr(i,j,k+1,0))/two;
 
             plot_mf_arr(i,j,k,8) = erf_mf_latlon_arr(i,j,k,0);
             plot_mf_arr(i,j,k,9) = erf_mf_latlon_arr(i,j,k,1);
@@ -355,16 +355,16 @@ ERF::WeatherDataInterpolation(const int lev,
 
     const int nlevs = a_z_phys_nd.size();
 
-    Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*3600.0;
+    Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*Real(3600.0);
 
     // Initialize static vectors once
     if (next_read_forecast_time.empty()) {
-        next_read_forecast_time.resize(nlevs, -1.0);
-        last_read_forecast_time.resize(nlevs, -1.0);
+        next_read_forecast_time.resize(nlevs, -one);
+        last_read_forecast_time.resize(nlevs, -one);
         Print() << "Initializing the time vector values here by " << lev << std::endl;
     }
 
-    if (next_read_forecast_time[lev] < 0.0) {
+    if (next_read_forecast_time[lev] < zero) {
         int next_multiple = static_cast<int>(time / hindcast_data_interval);
         next_read_forecast_time[lev] = next_multiple * hindcast_data_interval;
         last_read_forecast_time[lev] = next_read_forecast_time[lev];
@@ -424,13 +424,13 @@ ERF::WeatherDataInterpolation(const int lev,
     }
 
     Real prev_read_time = last_read_forecast_time[lev];
-    Real alpha1 = 1.0 - (time - prev_read_time)/hindcast_data_interval;
-    Real alpha2 = 1.0 - alpha1;
+    Real alpha1 = one - (time - prev_read_time)/hindcast_data_interval;
+    Real alpha2 = one - alpha1;
 
     amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;
 
-    if (alpha1 < 0.0 || alpha1 > 1.0 ||
-    alpha2 < 0.0 || alpha2 > 1.0)
+    if (alpha1 < zero || alpha1 > one ||
+    alpha2 < zero || alpha2 > one)
     {
         std::stringstream ss;
         ss << "Interpolation weights for hindcast files are incorrect: "
@@ -490,9 +490,9 @@ ERF::WeatherDataInterpolation(const int lev,
             plot_mf_arr(i,j,k,3) = erf_mf_cons_arr(i,j,k,RhoQ2_comp);
             plot_mf_arr(i,j,k,4) = erf_mf_cons_arr(i,j,k,RhoQ3_comp);
 
-            plot_mf_arr(i,j,k,5) = (erf_mf_xvel_arr(i,j,k,0) + erf_mf_xvel_arr(i+1,j,k,0))/2.0;
-            plot_mf_arr(i,j,k,6) = (erf_mf_yvel_arr(i,j,k,0) + erf_mf_yvel_arr(i,j+1,k,0))/2.0;
-            plot_mf_arr(i,j,k,7) = (erf_mf_zvel_arr(i,j,k,0) + erf_mf_zvel_arr(i,j,k+1,0))/2.0;
+            plot_mf_arr(i,j,k,5) = (erf_mf_xvel_arr(i,j,k,0) + erf_mf_xvel_arr(i+1,j,k,0))/two;
+            plot_mf_arr(i,j,k,6) = (erf_mf_yvel_arr(i,j,k,0) + erf_mf_yvel_arr(i,j+1,k,0))/two;
+            plot_mf_arr(i,j,k,7) = (erf_mf_zvel_arr(i,j,k,0) + erf_mf_zvel_arr(i,j,k+1,0))/two;
 
             plot_mf_arr(i,j,k,8) = erf_mf_latlon_arr(i,j,k,0);
             plot_mf_arr(i,j,k,9) = erf_mf_latlon_arr(i,j,k,1);

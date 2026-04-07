@@ -39,7 +39,7 @@ void make_fast_coeffs (int /*level*/,
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
-    Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
+    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
     Real RvOverRd = R_v / R_d;
@@ -58,7 +58,7 @@ void make_fast_coeffs (int /*level*/,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
@@ -104,8 +104,8 @@ void make_fast_coeffs (int /*level*/,
 
         // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
         // We set grav_gpu[2] to be the vector component which is negative
-        // We define halfg to match the notes (which is why we take the absolute value)
-        Real halfg = std::abs(0.5 * grav_gpu[2]);
+        // We define myhalfg to match the notes (which is why we take the absolute value)
+        Real myhalfg = std::abs(myhalf * grav_gpu[2]);
 
         //Note we don't act on the bottom or top boundaries of the domain
         if (mesh_type != MeshType::ConstantDz)
@@ -118,21 +118,21 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-                 Real inv_detJ_on_kface = 1. / detJ_on_kface;
+                 Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
+                 Real inv_detJ_on_kface = one / detJ_on_kface;
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : 0.0;
+                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * (1.0 + RvOverRd*qv_p)
-                               +  halfg * R_d * rhobar_hi /
+                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * (one + RvOverRd*qv_p)
+                               +  myhalfg * R_d * rhobar_hi /
                                (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
                  coeff_P *= pi_c;
 
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * (1.0 + RvOverRd*qv_q)
-                               + halfg * R_d * rhobar_lo /
+                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * (one + RvOverRd*qv_q)
+                               + myhalfg * R_d * rhobar_lo /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
                  coeff_Q *= pi_c;
 
@@ -140,22 +140,22 @@ void make_fast_coeffs (int /*level*/,
                  coeffQ_a(i,j,k) = coeff_Q;
 
                 if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                    Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
                                     +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                    coeff_P /= (1.0 + q);
-                    coeff_Q /= (1.0 + q);
+                    coeff_P /= (one + q);
+                    coeff_Q /= (one + q);
                 }
 
-                Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (1./detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (1./detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( myhalfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-myhalfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = 1.0 + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
+                coeffB_a(i,j,k) = one + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
             });
 
         } else {
@@ -168,18 +168,18 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : 0.0;
+                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * (1.0 + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi /
+                 Real coeff_P = -Gamma * R_d * dzi * (one + RvOverRd*qv_p)
+                              +  myhalfg * R_d * rhobar_hi /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
                  coeff_P *= pi_c;
 
-                 Real coeff_Q = Gamma * R_d * dzi * (1.0 + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo /
+                 Real coeff_Q = Gamma * R_d * dzi * (one + RvOverRd*qv_q)
+                              + myhalfg * R_d * rhobar_lo /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
                  coeff_Q *= pi_c;
 
@@ -187,22 +187,22 @@ void make_fast_coeffs (int /*level*/,
                  coeffQ_a(i,j,k) = coeff_Q;
 
                 if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                    Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
                                     +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                    coeff_P /= (1.0 + q);
-                    coeff_Q /= (1.0 + q);
+                    coeff_P /= (one + q);
+                    coeff_Q /= (one + q);
                 }
 
-                Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * ( myhalfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D * (-myhalfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = one + D * (coeff_Q - coeff_P) * theta_t_mid;
             });
         }
 
@@ -220,21 +220,21 @@ void make_fast_coeffs (int /*level*/,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
           // If at the bottom of the grid, we will set w to a specified Dirichlet value
-          coeffA_a(i,j,lo.z) =  0.0;
-          coeffB_a(i,j,lo.z) =  1.0;
-          coeffC_a(i,j,lo.z) =  0.0;
+          coeffA_a(i,j,lo.z) =  zero;
+          coeffB_a(i,j,lo.z) =  one;
+          coeffC_a(i,j,lo.z) =  zero;
 
           // If at the top of the grid, we will set w to a specified Dirichlet value
-          coeffA_a(i,j,hi.z+1) =  0.0;
-          coeffB_a(i,j,hi.z+1) =  1.0;
-          coeffC_a(i,j,hi.z+1) =  0.0;
+          coeffA_a(i,j,hi.z+1) =  zero;
+          coeffB_a(i,j,hi.z+1) =  one;
+          coeffC_a(i,j,hi.z+1) =  zero;
 
           // UNLESS if at the top of the domain and the boundary is outflow,
           //     we will use a homogeneous Neumann condition
           if ( (hi.z == domhi.z) &&
                (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
           {
-              coeffA_a(i,j,hi.z+1) =  -1.0;
+              coeffA_a(i,j,hi.z+1) =  -one;
           }
 
           // w = specified Dirichlet value at k = lo.z
@@ -251,9 +251,9 @@ void make_fast_coeffs (int /*level*/,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                coeffA_a(i,j,lo.z) =  0.0;
-                coeffB_a(i,j,lo.z) =  1.0;
-                coeffC_a(i,j,lo.z) =  0.0;
+                coeffA_a(i,j,lo.z) =  zero;
+                coeffB_a(i,j,lo.z) =  one;
+                coeffC_a(i,j,lo.z) =  zero;
             }
         }
         for (int j = lo.y; j <= hi.y; ++j) {
@@ -261,16 +261,16 @@ void make_fast_coeffs (int /*level*/,
             for (int i = lo.x; i <= hi.x; ++i) {
 
                 // If at the top of the grid, we will set w to a specified Dirichlet value
-                coeffA_a(i,j,hi.z+1) =  0.0;
-                coeffB_a(i,j,hi.z+1) =  1.0;
-                coeffC_a(i,j,hi.z+1) =  0.0;
+                coeffA_a(i,j,hi.z+1) =  zero;
+                coeffB_a(i,j,hi.z+1) =  one;
+                coeffC_a(i,j,hi.z+1) =  zero;
 
                 // UNLESS if at the top of the domain and the boundary is outflow,
                 //     we will use a homogeneous Neumann condition
                 if ( (hi.z == domhi.z) &&
                      (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
                 {
-                    coeffA_a(i,j,hi.z+1) =  -1.0;
+                    coeffA_a(i,j,hi.z+1) =  -one;
                 }
             }
         }
@@ -292,7 +292,7 @@ void make_fast_coeffs (int /*level*/,
         BL_PROFILE("make_coeffs_invert");
             ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                coeffB_a(i,j,k) = 1.0 / coeffB_a(i,j,k);
+                coeffB_a(i,j,k) = one / coeffB_a(i,j,k);
             });
         } // end profile
     } // mfi

@@ -8,12 +8,12 @@ using namespace amrex;
 /*! \brief Advance the moisture model for a timestep
  *
  * Evolve the super-droplet particles for a timestep - this includes:
- * 1. Injection of new particles if configured
- * 2. Phase change (condensation/evaporation) if enabled
- * 3. Advection if enabled
- * 4. Coalescence if enabled
- * 5. Recycling of particles
- * 6. Computing diagnostics at specified intervals
+ * one Injection of new particles if configured
+ * two Phase change (condensation/evaporation) if enabled
+ * three Advection if enabled
+ * Real(4.) Coalescence if enabled
+ * Real(5.) Recycling of particles
+ * Real(6.) Computing diagnostics at specified intervals
  *
  * \param[in] a_dt Timestep size
  * \param[in] a_iter Current iteration number
@@ -51,7 +51,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
     amrex::Print() << "    Number of deactivated super-droplets: "
                    << num_SD_inactive
                    << " ("
-                   << (num_SD > 0 ? amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100 : 0)
+                   << (num_SD > 0 ? Real(num_SD_inactive)/Real(num_SD)*100 : 0)
                    << "%).\n";
 
     // Compute mass/size change due to evaporation/condensation

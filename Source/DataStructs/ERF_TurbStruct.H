@@ -165,8 +165,8 @@ public:
     query_one_or_per_level(pp, "Sc_t", Sc_t, lev, max_level);
 
     // Compute relevant forms of diffusion parameters
-    Pr_t_inv = amrex::Real(1.0) / Pr_t;
-    Sc_t_inv = amrex::Real(1.0) / Sc_t;
+    Pr_t_inv = one / Pr_t;
+    Sc_t_inv = one / Sc_t;
 
     if (les_type == LESType::Deardorff) {
         query_one_or_per_level(pp, "Ck", Ck, lev, max_level);
@@ -195,7 +195,7 @@ public:
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
         amrex::Print() << "Overriding default sigma_k for k-eqn RANS" << std::endl;
-        sigma_k = 1.0;
+        sigma_k = one;
     };
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
@@ -371,35 +371,35 @@ public:
   LESType les_type;
 
   // Turbulent Prandtl number
-  amrex::Real Pr_t = amrex::Real(1.0) / amrex::Real(3.0);
-  amrex::Real Pr_t_inv = amrex::Real(3.0);
+  amrex::Real Pr_t = one / three;
+  amrex::Real Pr_t_inv = three;
 
   // Turbulent Schmidt number
-  amrex::Real Sc_t = 1.0;
-  amrex::Real Sc_t_inv = 1.0;
+  amrex::Real Sc_t = one;
+  amrex::Real Sc_t_inv = one;
 
   // Smagorinsky
-  amrex::Real Cs = 0.0;
+  amrex::Real Cs = zero;
   bool smag2d = false;
 
   // Deardorff
-  amrex::Real Ce = 0.93;
-  amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
-  amrex::Real Ck = 0.1;
+  amrex::Real Ce = amrex::Real(0.93);
+  amrex::Real Ce_wall = zero; // if > 0, then set Ce to this at k=0
+  amrex::Real Ck = amrex::Real(0.1);
 
   // k-eqn RANS coefficients (Axell & Liungman 2001)
-  amrex::Real Cmu0 = 0.5562;
-  amrex::Real Cb = 0.35;
-  amrex::Real Rt_crit = -1.0;
-  amrex::Real Rt_min = -3.0;
-  amrex::Real l_g_max = 30.0; // ~ kappa * (0.1 * zi)
+  amrex::Real Cmu0 = amrex::Real(0.5562);
+  amrex::Real Cb = amrex::Real(0.35);
+  amrex::Real Rt_crit = -one;
+  amrex::Real Rt_min = -three;
+  amrex::Real l_g_max = amrex::Real(30.0); // ~ kappa * (amrex::Real(0.1) * zi)
 
   // Deardorff or k-eqn RANS
   // - diffusivity of tke is 1/sigma_k times the eddy viscosity
-  amrex::Real sigma_k = 0.5;
+  amrex::Real sigma_k = amrex::Real(0.5);
   // - reference potential temperature used to quantify the stratification in
   //   a stable region
-  amrex::Real theta_ref = 0.0;
+  amrex::Real theta_ref = zero;
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
 
@@ -407,7 +407,7 @@ public:
   bool mix_isotropic = true;
 
   bool use_Ri_correction = true;
-  amrex::Real Ri_crit = 0.25;
+  amrex::Real Ri_crit = fourth;
 
   // RANS type
   RANSType rans_type;
@@ -437,7 +437,7 @@ public:
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above
   amrex::Real pbl_ysu_coriolis_freq =
-    1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or take the
+    amrex::Real(1.0e-4); // 1e-4 is hardcoded in WRF, we let the user specify or take the
             // value from ERF coriolis forcing
   bool pbl_ysu_use_consistent_coriolis =
     false; // ignore input pbl_ysu_coriolis_freq, take value from ERF coriolis
@@ -446,17 +446,14 @@ public:
     false; // Force YSU to act as if it is over water regardless of other inputs
            // (for testing)
   amrex::Real pbl_ysu_land_Ribcr =
-    0.25; // Critical Bulk Richardson number of Land for stable conditions
+    fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
-    0.0; // Critical Bulk Richardson number for unstable conditions
+    zero; // Critical Bulk Richardson number for unstable conditions
   // Model coefficients - MRF
-  amrex::Real pbl_mrf_coriolis_freq = 1.0e-4;
-  amrex::Real pbl_mrf_Ribcr =
-    0.5; // Critical Bulk Richardson number for MRF PBL model
-  amrex::Real pbl_mrf_const_b =
-    7.8; // Constant b in MRF PBL model, used to compute the PBL height
-  amrex::Real pbl_mrf_sf =
-    0.1; // MRF surface flux, used to compute the PBL height
+  amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
+  amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
+  amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
+  amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   // MYNN2.5 PBL model
   // TKE/QKE stuff

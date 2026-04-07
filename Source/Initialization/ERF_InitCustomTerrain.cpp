@@ -23,9 +23,9 @@ init_my_custom_terrain ( const Geometry& geom,
 
     Real mf_m;
     if (test_mapfactor) {
-        mf_m = 0.5;
+        mf_m = myhalf;
     } else {
-        mf_m = 1.;
+        mf_m = one;
     }
 
     // Domain cell size and real bounds
@@ -39,10 +39,10 @@ init_my_custom_terrain ( const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // User function parameters
-    Real a    = 0.5;
-    Real num  = 8. * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_m;
-    Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]) / mf_m;
+    Real a    = myhalf;
+    Real num  = Real(8.) * a * a * a;
+    Real xcen = myhalf * (ProbLoArr[0] + ProbHiArr[0]) / mf_m;
+    Real ycen = myhalf * (ProbLoArr[1] + ProbHiArr[1]) / mf_m;
 
     // Populate bottom plane
     int k0 = domlo_z;
@@ -60,11 +60,11 @@ init_my_custom_terrain ( const Geometry& geom,
             // Default to x-direction
             int dir = 0;  pp_prob.query("dir", dir);
 
-            Real  L        = 100.0; pp_prob.query("L"        , L);
-            Real  z_offset =   0.0; pp_prob.query("z_offset" , z_offset);
+            Real  L        = Real(100.0); pp_prob.query("L"        , L);
+            Real  z_offset =   zero; pp_prob.query("z_offset" , z_offset);
 
             // If hm is nonzero, then use alternate hill definition
-            Real  hm       =   0.0; pp_prob.query("hmax" , hm);
+            Real  hm       =   zero; pp_prob.query("hmax" , hm);
 
             // This is a 2D hill with variation in only the x-direction
             if (dir == 0) {
@@ -95,10 +95,10 @@ init_my_custom_terrain ( const Geometry& geom,
 
                     // WoA Hill in y-direction
                     if (hm==0) {
-                        z_arr(i,j,k0) = num / (y*y + 4.0 * a * a);
+                        z_arr(i,j,k0) = num / (y*y + Real(4.0) * a * a);
                     } else {
                         Real y_L = y / L;
-                        z_arr(i,j,k0) = hm / (1.0 + y_L*y_L) + z_offset;
+                        z_arr(i,j,k0) = hm / (one + y_L*y_L) + z_offset;
                     }
                 });
             } else if (dir == 2) {
@@ -115,10 +115,10 @@ init_my_custom_terrain ( const Geometry& geom,
 
                     // WoA Hill in radial direction
                     if (hm==0) {
-                        z_arr(i,j,k0) = num / (r*r + 4.0 * a * a);
+                        z_arr(i,j,k0) = num / (r*r + Real(4.0) * a * a);
                     } else {
                         Real r_L = r / L;
-                        z_arr(i,j,k0) = hm / (1.0 + r_L*r_L) + z_offset;
+                        z_arr(i,j,k0) = hm / (one + r_L*r_L) + z_offset;
                     }
                 });
             } else {
@@ -127,9 +127,9 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "ScharMountain") {
 
-            Real asq    = 5000.0 * 5000.0;
-            Real Hm     =  250.0;
-            Real lambda = 4000.0;
+            Real asq    = Real(5000.0) * Real(5000.0);
+            Real Hm     =  Real(250.0);
+            Real lambda = Real(4000.0);
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
@@ -146,7 +146,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "HalfCylinder") {
 
-            Real asq = 0.5 * 0.5;
+            Real asq = myhalf * myhalf;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
@@ -159,15 +159,15 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = pow(asq - rsq, 0.5);
+                    z_arr(i,j,k0) = pow(asq - rsq, myhalf);
                 } else {
-                    z_arr(i,j,k0) = 0.0;
+                    z_arr(i,j,k0) = zero;
                 }
             });
 
         } else if (custom_terrain_type == "Hemisphere") {
 
-            Real asq = 0.5 * 0.5;
+            Real asq = myhalf * myhalf;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
@@ -182,18 +182,18 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x + y*y;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = std::pow(asq-rsq, 0.5);
+                    z_arr(i,j,k0) = std::pow(asq-rsq, myhalf);
                 } else {
-                    z_arr(i,j,k0) = 0.0;
+                    z_arr(i,j,k0) = zero;
                 }
             });
 
         } else if (custom_terrain_type == "MovingSineWave") {
 
-            Real Ampl        = 0.0;  pp_prob.query("Ampl", Ampl);
-            Real wavelength  = 100.; pp_prob.query("wavelength", wavelength);
+            Real Ampl        = zero;  pp_prob.query("Ampl", Ampl);
+            Real wavelength  = Real(100.); pp_prob.query("wavelength", wavelength);
 
-            Real kp          = 2.0 * PI / wavelength;
+            Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;
             Real omega       = std::sqrt(g * kp);
 
@@ -224,14 +224,14 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
                 Real y = (ProbLoArr[1] + jj * dx[1] - ycen);
 
-                Real x_L = x/100.0;
-                Real y_L = y/100.0;
+                Real x_L = x/Real(100.0);
+                Real y_L = y/Real(100.0);
 
-                z_arr(i,j,k0) = 100.0 / (1.0 + x_L*x_L + y_L*y_L);
+                z_arr(i,j,k0) = Real(100.0) / (one + x_L*x_L + y_L*y_L);
             });
 
         } else if (custom_terrain_type == "RaisedFlat") {
-            Real  z_offset = 0.0; pp_prob.query("z_offset" , z_offset);
+            Real  z_offset = zero; pp_prob.query("z_offset" , z_offset);
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 z_arr(i,j,k0) = z_offset;
@@ -240,7 +240,7 @@ init_my_custom_terrain ( const Geometry& geom,
         } else if (custom_terrain_type == "None") {
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                z_arr(i,j,k0) = 0.0;
+                z_arr(i,j,k0) = zero;
             });
         } else {
             Abort("Don't know this custom_terrain_type");

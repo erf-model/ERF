@@ -147,6 +147,8 @@ namespace MetGridTmpDstVars {
     enum {
         P = 0,
         T = 1,
+        Theta = 2,
+        QV = 3,
         NumTypes
     };
 }

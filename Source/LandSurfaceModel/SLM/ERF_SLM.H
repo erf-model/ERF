@@ -637,13 +637,13 @@ private:
     std::vector<amrex::Real> m_dz_lsm;
 
     // Specific heat
-    amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]
+    amrex::Real m_cp_soil =  amrex::Real(1.26e6); // [J/m^3 K]
 
     // Conductivity
-    amrex::Real m_k_soil = 0.2; // dry soil [W/m K]
+    amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = 400.0; // [K]
+    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]

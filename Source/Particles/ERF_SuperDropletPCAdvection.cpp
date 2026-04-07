@@ -154,7 +154,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             if (active_ptr[i] == 0) { return; }
 
             ParticleReal v[AMREX_SPACEDIM];
-            v[0] = v[1] = v[2] = 0.0;
+            v[0] = v[1] = v[2] = zero;
 
             if (is_periodic_z) {
                 mac_interpolate(p, plo, dxi, umacarr, v);
@@ -170,9 +170,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                   cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
                }
                if (a_time < 600) {
-                   v[2] = 2.0*sin(PI*a_time/600)/density;
+                   v[2] = two*sin(PI*a_time/600)/density;
                } else {
-                   v[2] = 0.0;
+                   v[2] = zero;
                }
             }
 
@@ -185,7 +185,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                               sp_rho_arr, ae_rho_arr );
 
 
-            ParticleReal terminal_vel = 0.0;
+            ParticleReal terminal_vel = zero;
             if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
                 terminal_vel = term_vel.AtlasUlbrich( r_eff );
             } else if (term_vel_type == SDTerminalVelocityType::RogersYau) {

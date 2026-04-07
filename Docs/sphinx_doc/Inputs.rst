@@ -1802,7 +1802,7 @@ nx, ny (where nx is the number of values specified in the x-direction and
 ny is the number of values specified in the y-direction; note that these need not match
 the resolution of the problem).  Then nx x-values are read followed by ny y-values.   Finally,
 the z-coordinates are read in the order z(x1,y1), z(x1,y2), z(x1,y3), ... z(x2,y1), ... z(nx,ny).
-An example is given in Exec/ABL/erf_terrain_def.
+An example is given in Exec/CanonicalTests/ABL/erf_terrain_def.
 
 List of Parameters
 ------------------

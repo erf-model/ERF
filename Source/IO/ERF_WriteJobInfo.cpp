@@ -36,7 +36,7 @@ ERF::writeJobInfo (const std::string& dir) const
 
     jobInfoFile << "\n";
     jobInfoFile << "CPU time used since start of simulation (CPU-hours): "
-                << getCPUTime() / 3600.0;
+                << getCPUTime() / Real(3600.0);
 
     jobInfoFile << "\n\n";
 

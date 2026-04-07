@@ -7,7 +7,7 @@
 /*
   ForestDrag flow physics adapted from:
   Lalic & Mihailovic (2004)
-  https://doi.org/10.1175/1520-0450(2004)043<0641:AERDLD>2.0.CO;2
+  https://doi.org/amrex::Real(10.1175)/1520-0450(2004)043<0641:AERDLD>two.CO;2
  */
 class ForestDrag
 {

@@ -350,7 +350,7 @@ protected:
             const int i = team.league_rank();
 
             const Real inv_qc_relvar_max = 10;
-            const Real inv_qc_relvar_min = 0.001;
+            const Real inv_qc_relvar_min = amrex::Real(0.001);
 
             const int nlev_packs = ekat::npack<Spack>(nlev);
             Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const Int& k)
@@ -383,11 +383,11 @@ protected:
             });
 
             // If necessary, set appropriate boundary fluxes for energy and mass conservation checks.
-            // Any boundary fluxes not included in SHOC interface are set to 0.
+            // Any boundary fluxes not included in SHOC interface are set to zero
             if (compute_mass_and_energy_fluxes) {
                 vapor_flux(i) = surf_evap(i);
-                water_flux(i) = 0.0;
-                ice_flux(i)   = 0.0;
+                water_flux(i) = zero;
+                ice_flux(i)   = zero;
                 heat_flux(i)  = surf_sens_flux(i);
             }
         } // operator

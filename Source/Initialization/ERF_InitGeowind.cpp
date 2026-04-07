@@ -50,8 +50,8 @@ void ERF::init_geo_wind_profile(const std::string input_file,
 
     // Now, interpolate vectors to the cell centers
     for (int k = 0; k <= khi; k++) {
-        z = (grid_stretch) ? 0.5 * (zlev_stag[k] + zlev_stag[k+1])
-                           : zbot + (k + 0.5) * dz;
+        z = (grid_stretch) ? myhalf * (zlev_stag[k] + zlev_stag[k+1])
+                           : zbot + (k + myhalf) * dz;
         u_geos[k] = interpolate_1d(z_inp.dataPtr(), Ug_inp.dataPtr(), z, Ninp);
         v_geos[k] = interpolate_1d(z_inp.dataPtr(), Vg_inp.dataPtr(), z, Ninp);
     }

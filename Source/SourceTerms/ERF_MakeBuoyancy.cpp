@@ -43,7 +43,7 @@ void make_buoyancy (int lev,
 {
     BL_PROFILE("make_buoyancy()");
 
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     const int klo = geom.Domain().smallEnd()[2];
@@ -201,7 +201,7 @@ void make_buoyancy (int lev,
                 if (grav_gpu[2]==0) {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = 0.0;
+                        buoyancy_fab(i, j, k) = zero;
                     });
                 } else {
 
@@ -219,7 +219,7 @@ void make_buoyancy (int lev,
                 if (grav_gpu[2]==0) {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = 0.0;
+                        buoyancy_fab(i, j, k) = zero;
                     });
                 } else {
                     // Currently, only dry compressible is supported

@@ -105,7 +105,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         // number of super-droplets per cell
         int num_sd_per_cell = m_num_sd_per_cell;
         // number of physical particles per cell
-        Real num_par_per_cell = 0.0;
+        Real num_par_per_cell = zero;
         for (int i = 0; i < m_num_initializations; i++) {
             num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
         }
@@ -192,9 +192,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             // get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
-            ParticleReal mult_scale = 1.0;
+            ParticleReal mult_scale = one;
             {
-                Vector<Real> multiplicity_h(np, 0.0);
+                Vector<Real> multiplicity_h(np, zero);
                 for (int i = 0; i < num_ae; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
@@ -219,7 +219,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 }
                 if (sampled_multiplicity) {
                     // compute multiplicity scale
-                    ParticleReal mult_sum = 0.0;
+                    ParticleReal mult_sum = zero;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
@@ -258,15 +258,15 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 p.pos(2) = z_min + Random(rnd_engine)*(z_max - z_min);
 
                 // Set velocities to zero
-                v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
 
                 // reset all species masses to zero
                 for (int ctr = 0; ctr < num_sp; ctr++) {
-                    sp_mass_ptrs[ctr][i] = 0.0;
+                    sp_mass_ptrs[ctr][i] = zero;
                 }
                 // Reset water mass
-                auto water_radius = 1.0e-15;
-                auto water_mass = (4.0/3.0)*PI
+                auto water_radius = Real(1.0e-15);
+                auto water_mass = (Real(4.0)/three)*PI
                                  * water_radius*water_radius*water_radius*rho_w;
                 sp_mass_ptrs[idx_w][i] = water_mass;
 

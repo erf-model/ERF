@@ -40,7 +40,6 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 1000       # number of timesteps between checkpoints
 #amr.restart         = chk15000
 
@@ -74,14 +73,9 @@ prob.theta_0 = 300.0
 prob.theta_tr = 343.0
 prob.T_tr = 213.0
 prob.x_c = 0.0
-prob.y_c = 0.0
 prob.z_c = 2000.0
 prob.x_r = 10000.0
 prob.y_r = 10000.0
 prob.z_r = 2000.0
 prob.theta_c = 3.0
 
-prob.rayleigh_U_0 = 2.0
-prob.rayleigh_V_0 = 1.0
-prob.rayleigh_W_0 = 0.0
-prob.rayleigh_T_0 = 300.0

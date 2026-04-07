@@ -91,7 +91,7 @@ read_from_metgrid (int lev, int itime,
 
         // Verify the inputs geometry matches what the NETCDF file has
         if (lev == 0) {
-            Real tol   = 1.0e-3;
+            Real tol   = Real(1.0e-3);
             Real Len_x = NC_dx * Real(NC_nx-1);
             Real Len_y = NC_dy * Real(NC_ny-1);
             if (std::fabs(Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) > tol) {

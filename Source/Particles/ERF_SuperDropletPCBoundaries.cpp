@@ -39,11 +39,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
     // number of physical particles per cell
-    Real num_par_per_cell = 0.0;
+    Real num_par_per_cell = zero;
     for (int i = 0; i < m_num_initializations; i++) {
         num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
     }
-    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : 0.0);
+    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
 
     Long num_deactivated_particles = 0;
 
@@ -100,8 +100,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     z_ground = zheight(iv[0],iv[1],k_lo);
                 }
                 if (p.pos(2) < z_ground) {
-                    p.pos(2) = z_ground + 0.01*dx[2];
-                    v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                    p.pos(2) = z_ground + Real(0.01)*dx[2];
+                    v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
                     active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -118,7 +118,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - dx[2];
-                    v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                    v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
                     active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -140,8 +140,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                     if ((bc_lo == ERF_BC::slip_wall) || (bc_lo == ERF_BC::no_slip_wall)) {
 
-                        p.pos(d) = x_min + 0.01*dx[d];
-                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                        p.pos(d) = x_min + Real(0.01)*dx[d];
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
                         active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -151,19 +151,19 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = x_min - p.pos(d);
                         p.pos(d) = x_max - delta;
                         if (!is_periodic[d]) {
-                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < n_species; ctr++) {
-                                species_mass_ptrs[ctr][i] = 0.0;
+                                species_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ParticleReal aerosol_mass_total = 0.0;
+                            ParticleReal aerosol_mass_total = zero;
                             for (int ctr = 0; ctr < n_aerosols; ctr++) {
                                 aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
                             }
 
-                            auto par_radius = 1.0e-15;
-                            auto cond_mass = (4.0/3.0)*PI
+                            auto par_radius = Real(1.0e-15);
+                            auto cond_mass = (Real(4.0)/three)*PI
                                              * par_radius*par_radius*par_radius*rho_w;
                             radius_ptr[i] = par_radius;
                             species_mass_ptrs[idx_w][i] = cond_mass;
@@ -177,8 +177,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                     if ((bc_hi == ERF_BC::slip_wall) || (bc_hi == ERF_BC::no_slip_wall)) {
 
-                        p.pos(d) = x_max - 0.01*dx[d];
-                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                        p.pos(d) = x_max - Real(0.01)*dx[d];
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
                         active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -188,19 +188,19 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = p.pos(d) - x_max;
                         p.pos(d) = x_min + delta;
                         if (!is_periodic[d]) {
-                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < n_species; ctr++) {
-                                species_mass_ptrs[ctr][i] = 0.0;
+                                species_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ParticleReal aerosol_mass_total = 0.0;
+                            ParticleReal aerosol_mass_total = zero;
                             for (int ctr = 0; ctr < n_aerosols; ctr++) {
                                 aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
                             }
 
-                            auto par_radius = 1.0e-15;
-                            auto cond_mass = (4.0/3.0)*PI
+                            auto par_radius = Real(1.0e-15);
+                            auto cond_mass = (Real(4.0)/three)*PI
                                              * par_radius*par_radius*par_radius
                                              * rho_w;
                             radius_ptr[i] = par_radius;

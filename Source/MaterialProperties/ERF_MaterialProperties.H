@@ -46,13 +46,13 @@ namespace saturation_funcs
 
 struct MaterialPropertiesCore { // For GPU
 
-    static constexpr amrex::Real s_N_av = 6.02214076e23; /*!< Avogadro's number */
-    static constexpr amrex::Real s_kb   = 1.380649e-23; /*!< Boltzmann constant [J K^{-1}] */
+    static constexpr amrex::Real s_N_av = amrex::Real(6.02214076e23); /*!< Avogadro's number */
+    static constexpr amrex::Real s_kb   = amrex::Real(1.380649e-23); /*!< Boltzmann constant [J K^{-1}] */
 
     /*! Molecular weight of air [kg mol^{-1}] */
-    static constexpr amrex::Real s_mol_weight_air = 0.0289647;
+    static constexpr amrex::Real s_mol_weight_air = amrex::Real(0.0289647);
     /*! Molecular length scale of air [m] */
-    static constexpr amrex::Real s_sigma_air = 3.62e-10;
+    static constexpr amrex::Real s_sigma_air = amrex::Real(3.62e-10);
     /*! Temperature parameter for air [K] */
     static constexpr amrex::Real s_eps_air_k = 97;
 
@@ -79,8 +79,8 @@ struct MaterialPropertiesCore { // For GPU
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real molarHeatCapacity( const amrex::Real a_T ) const
     {
-        auto retval = 0.0;
-        auto term = 1.0;
+        auto retval = zero;
+        auto term = one;
         for (auto i = 0; i < 7; i++) {
             retval += (m_mol_Cp_coeffs[i] * term);
             term *= a_T;
@@ -95,7 +95,7 @@ struct MaterialPropertiesCore { // For GPU
         if (m_is_water) {
             return amrex::Real(0.076148325); // N m^{-1}
         } else {
-            auto term1 = 6.0 * std::cbrt(s_N_av);
+            auto term1 = amrex::Real(6.0) * std::cbrt(s_N_av);
             auto term2 = std::cbrt((m_density/m_mol_weight)*(m_density/m_mol_weight));
             auto retval = molarHeatCapacity(a_T)*(term2/term1)*(m_Tc - a_T);
             return retval;
@@ -115,9 +115,9 @@ struct MaterialPropertiesCore { // For GPU
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real coeffVPSolute() const
     {
-        auto retval = (0.75/PI)*(m_mol_weight/m_density);
+        auto retval = (amrex::Real(0.75)/PI)*(m_mol_weight/m_density);
         if (m_is_water) {
-            retval = 4.3e-06;
+            retval = amrex::Real(4.3e-06);
         }
         return retval;
     }
@@ -128,25 +128,25 @@ struct MaterialPropertiesCore { // For GPU
     {
         if (m_is_water) {
 
-            return diffelq; // from ERF_Constants.H (2.21e-05 [m^2 s^{-1}])
+            return diffelq; // from ERF_Constants.H (amrex::Real(2.21e-05) [m^2 s^{-1}])
 
         } else {
 
             auto mol_weight_v = s_N_av/m_Nav_by_molweight;
-            auto sigma = 1.18e-8 * std::cbrt(mol_weight_v/m_density);
-            auto sigma_v_air = 0.5 * (sigma + s_sigma_air);
+            auto sigma = amrex::Real(1.18e-8) * std::cbrt(mol_weight_v/m_density);
+            auto sigma_v_air = myhalf * (sigma + s_sigma_air);
 
-            auto eps_v = 1.15 * m_Tb * s_kb;
+            auto eps_v = amrex::Real(1.15) * m_Tb * s_kb;
             auto eps_v_air = std::sqrt( eps_v * s_eps_air_k * s_kb);
             auto T_star = a_T / (eps_v_air/s_kb);
 
-            auto omegaD =    1.06036 / std::pow(T_star, 0.1561)
-                          +  0.193   / std::exp(0.47635*T_star)
-                          +  1.03587 / std::exp(1.52996*T_star)
-                          +  1.76474 / std::exp(3.89411*T_star);
+            auto omegaD =    amrex::Real(1.06036) / std::pow(T_star, amrex::Real(0.1561))
+                          +  amrex::Real(0.193)   / std::exp(amrex::Real(0.47635)*T_star)
+                          +  amrex::Real(1.03587) / std::exp(amrex::Real(1.52996)*T_star)
+                          +  amrex::Real(1.76474) / std::exp(amrex::Real(3.89411)*T_star);
 
             auto term1 = 3 * std::sqrt( s_kb*a_T * s_kb*a_T * s_kb*a_T);
-            auto term2 = 8.0 * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
+            auto term2 = amrex::Real(8.0) * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
             auto term3 = std::sqrt( m_Nav_by_molweight + s_N_av/s_mol_weight_air );
 
             auto retval = term1*term3/term2;

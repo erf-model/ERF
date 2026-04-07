@@ -66,7 +66,7 @@ void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
                                                   qv_array(i,j,k));
 
             // Pressure in [mbar] for qsat evaluation
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
         });
     }
 }
