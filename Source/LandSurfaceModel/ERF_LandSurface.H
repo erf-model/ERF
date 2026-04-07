@@ -127,7 +127,7 @@ public:
     {
         int nlev = m_lsm_model.size();
         int nvar = this->Get_Data_Size();
-        int nlev_valid = finest_level;
+        int nlev_valid = finest_level+1;
         amrex::Vector<std::string> varnames;
 
         // // Only write if we have valid pointers
@@ -173,8 +173,15 @@ public:
         if (nlev_valid > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
         {
             // for (int lev(0); lev<nlev_valid; ++lev) {
+            amrex::Vector<amrex::MultiFab> fab_2d(finest_level+1);
+            amrex::Vector<amrex::Geometry> geom_2d(finest_level+1);
+            amrex::Vector<std::string> varnames;
+            std::string plotfilename_2d = amrex::Concatenate(plot_file_lsm + "2D_", level_steps[0], 5);
             for (int lev = 0; lev <= finest_level; ++lev) {
-                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0], lev);
+                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0], lev, finest_level, fab_2d[lev], geom_2d[lev], varnames);
+            }
+            if (plotfile_type == PlotFileType::Amrex) {
+                amrex::WriteMultiLevelPlotfile(plotfilename_2d, finest_level+1, GetVecOfConstPtrs(fab_2d), varnames, geom_2d, time, level_steps, ref_ratio);
             }
         }
     }

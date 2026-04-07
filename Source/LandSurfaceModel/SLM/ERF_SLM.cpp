@@ -3867,12 +3867,9 @@ std::vector<std::vector<amrex::Real>> SLM::read_cols(const std::string &fname, c
     return datasets;
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev)
+void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
-    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_lev", lev, 1) + "_" + amrex::Concatenate("", level_step, 5);
-
-    amrex::Geometry lsm_2d_geom;
-    lsm_2d_geom.define( ba_lsm_2d.minimalBox(), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
+    geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
     amrex::Vector<amrex::MultiFab*> mf_data;
 
@@ -3927,7 +3924,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
 
     // Total number of output MFs: net_rad components + mf_data size - 1
     const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars + 1;
-    MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
+    fab.define(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
     {
@@ -3937,7 +3934,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     MultiFab::Copy(fab, *(lsm_fab_flux[LsmFlux_SLM::olen]), 0, output_size - 1, 1, 0);
 
 
-    amrex::Vector<std::string> varnames;
+    varnames = amrex::Vector<std::string>();
     // net_rad component names:
     varnames.push_back("net_swup1");
     varnames.push_back("net_swup2");
@@ -4009,7 +4006,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
 
     if (plotfile_type == PlotFileType::Amrex) {
-        amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, lsm_2d_geom, time, level_step);
+        //amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, lsm_2d_geom, time, level_step);
 #ifdef ERF_USE_NETCDF
         // Temporarily write NetCDF always
         //writeSLM_NetCDF(fab, varnames, time, plot_prefix, level_step);
