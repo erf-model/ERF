@@ -397,10 +397,8 @@ void erf_substep_NS (int step, int nrk,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
-
-            Real coeff_P = coeffP_a(i,j,k) / (one + q);
-            Real coeff_Q = coeffQ_a(i,j,k) / (one + q);
+            Real coeff_P = coeffP_a(i,j,k);
+            Real coeff_Q = coeffQ_a(i,j,k);
 
             Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );

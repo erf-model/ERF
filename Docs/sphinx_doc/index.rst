@@ -43,7 +43,6 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    GettingStarted.rst
    buildingConfiguration.rst
-   aurora_build_run.rst
    Inputs.rst
    Initialization.rst
    BestPractices.rst
