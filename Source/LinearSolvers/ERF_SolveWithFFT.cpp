@@ -6,7 +6,7 @@ using namespace amrex;
 #ifdef ERF_USE_FFT
 /**
  * Solve the Poisson equation using FFT
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  */
 void ERF::solve_with_fft (int lev, const Box& subdomain,
                           MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)
@@ -140,9 +140,9 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == dom_lo.z || k == dom_hi.z+1) {
-                    fz_arr(i,j,k) = 0.0;
+                    fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = 0.5 * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
@@ -151,7 +151,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == dom_lo.z || k == dom_hi.z+1) {
-                    fz_arr(i,j,k) = 0.0;
+                    fz_arr(i,j,k) = zero;
                 } else {
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
                 }

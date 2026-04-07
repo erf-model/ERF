@@ -32,13 +32,13 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/a_R;
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = 1.0/a_R;
+            RT R_inv = one/a_R;
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = (a_S-1.0) / (F_k + F_d);
+            RT alpha = (a_S-one) / (F_k + F_d);
             RT retval = alpha*R_inv;
 
             RT beta = -(a_a/a_T) / (F_k + F_d);
@@ -77,19 +77,19 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = std::exp(-0.5*std::log(a_R_sq));
+            RT R_inv = std::exp(-myhalf*std::log(a_R_sq));
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = 2.0 * (a_S-1.0) / (F_k + F_d);
+            RT alpha = two * (a_S-one) / (F_k + F_d);
             RT retval = alpha;
 
-            RT beta = -2.0 * (a_a/a_T) / (F_k + F_d);
+            RT beta = -two * (a_a/a_T) / (F_k + F_d);
             retval += beta*R_inv;
 
-            RT gamma = 2.0 * a_b * a_N_s / (F_k + F_d);
+            RT gamma = two * a_b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed;
 
             return retval;
@@ -109,20 +109,20 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = 1.0/std::sqrt(a_R_sq);
+            RT R_inv = one/std::sqrt(a_R_sq);
             RT R_inv_3 = R_inv*R_inv*R_inv;
             RT R_inv_5 = R_inv_3*R_inv*R_inv;
 
-            RT retval = 0.0;
+            RT retval = zero;
 
-            RT beta = -2.0 * (a_a/a_T) / (F_k + F_d);
-            retval -= 0.5 * beta*R_inv_3;
+            RT beta = -two * (a_a/a_T) / (F_k + F_d);
+            retval -= myhalf * beta*R_inv_3;
 
-            RT gamma = 2.0 * a_b * a_N_s / (F_k + F_d);
-            retval -= 0.5 * 3.0*gamma*R_inv_5;
+            RT gamma = two * a_b * a_N_s / (F_k + F_d);
+            retval -= myhalf * three*gamma*R_inv_5;
 
             return retval;
         }
@@ -167,7 +167,7 @@ namespace SDMassChangeUtils
                          ) const
         {
             a_converged = false;
-            RT res_norm0 = 0.0;
+            RT res_norm0 = zero;
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u
@@ -179,7 +179,7 @@ namespace SDMassChangeUtils
                     if (a_res_norm_a > 0) {
                         res_norm0 = a_res_norm_a;
                     } else {
-                        res_norm0 = 1.0;
+                        res_norm0 = one;
                     }
                 }
                 a_res_norm_r = a_res_norm_a / res_norm0;
@@ -198,7 +198,7 @@ namespace SDMassChangeUtils
                 }
 
                 RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_D, a_a, a_b, a_N_s );
-                RT du = 0.0;
+                RT du = zero;
                 du = - residual / slope;
 
                 RT du_norm = std::sqrt(du*du);
@@ -209,7 +209,7 @@ namespace SDMassChangeUtils
                 }
 
                 a_u += du;
-                if (a_u <= 0.0) {
+                if (a_u <= zero) {
                     a_converged = false;
                     break;
                 }
@@ -250,7 +250,7 @@ namespace SDMassChangeUtils
         void rk3bs ( RT& a_u,  /*!< solution */
                      bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = zero;
             a_success = true;
 
             RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -277,39 +277,39 @@ namespace SDMassChangeUtils
                     break;
                 }
 
-                RT u_new = 0.0;
+                RT u_new = zero;
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (amrex::Real(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
 
                     RT u1 = a_u;
                     if (u1 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u2 = a_u + 0.5*dt*f1;
+                    RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u3 = a_u + 0.75*dt*f2;
+                    RT u3 = a_u + amrex::Real(0.75)*dt*f2;
                     if (u3 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u4 = a_u + (1.0/9.0)*dt * (2.0*f1 + 3.0*f2 + 4.0*f3);
+                    RT u4 = a_u + (one/amrex::Real(9.0))*dt * (two*f1 + three*f2 + amrex::Real(4.0)*f3);
                     if (u4 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -317,11 +317,11 @@ namespace SDMassChangeUtils
                     u_new = u4;
 
                     if (m_adapt_dt) {
-                        RT u_embed = a_u + (1.0/24.0)*dt * (7.0*f1 + 6.0*f2 + 8.0*f3 + 3.0*f4);
+                        RT u_embed = a_u + (one/amrex::Real(24.0))*dt * (amrex::Real(7.0)*f1 + amrex::Real(6.0)*f2 + amrex::Real(8.0)*f3 + three*f4);
                         RT err = std::sqrt((u_new-u_embed)*(u_new-u_embed));
                         RT tol = m_atol + m_rtol * std::max(a_u, a_u_old);
                         RT E = err / tol;
-                        dt_new = dt * std::exp((1.0/3)*std::log(1.0/E));
+                        dt_new = dt * std::exp((one/3)*std::log(one/E));
                     }
 
                     if (std::isfinite(u_new)) {
@@ -330,7 +330,7 @@ namespace SDMassChangeUtils
                             break;
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -366,7 +366,7 @@ namespace SDMassChangeUtils
         void rk4 ( RT& a_u,  /*!< solution */
                    bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = zero;
             a_success = true;
 
             int n_step = 0;
@@ -382,44 +382,44 @@ namespace SDMassChangeUtils
                     break;
                 }
 
-                RT u_new = 0.0;
+                RT u_new = zero;
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (amrex::Real(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
 
                     RT u1 = a_u;
                     if (u1 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u2 = a_u + 0.5*dt*f1;
+                    RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u3 = a_u + 0.5*dt*f2;
+                    RT u3 = a_u + myhalf*dt*f2;
                     if (u3 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    RT u4 = a_u + 1.0*dt*f3;
+                    RT u4 = a_u + one*dt*f3;
                     if (u4 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    u_new = a_u + dt*(f1+2.0*f2+2.0*f3+f4)/6.0;
+                    u_new = a_u + dt*(f1+two*f2+two*f3+f4)/amrex::Real(6.0);
 
                     if (std::isfinite(u_new)) {
                         if (u_new > 0) {
@@ -427,7 +427,7 @@ namespace SDMassChangeUtils
                             break;
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -462,7 +462,7 @@ namespace SDMassChangeUtils
         void be ( RT& a_u,  /*!< solution */
                   bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = zero;
             a_success = true;
 
             int n_step = 0;
@@ -482,16 +482,16 @@ namespace SDMassChangeUtils
                 RT res_norm_r = DBL_MAX;
                 bool converged = false;
 
-                RT u_new = 0.0;
+                RT u_new = zero;
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (amrex::Real(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
 
-                    RT mu = 1.0 / dt;
+                    RT mu = one / dt;
                     RT rhs = mu * a_u;
                     u_new = a_u;
                     m_newton( u_new, rhs, mu,
@@ -506,7 +506,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -544,7 +544,7 @@ namespace SDMassChangeUtils
         void cn ( RT& a_u,  /*!< solution */
                   bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = zero;
             a_success = true;
 
             int n_step = 0;
@@ -564,31 +564,31 @@ namespace SDMassChangeUtils
                 RT res_norm_r = DBL_MAX;
                 bool converged = false;
 
-                RT u_new = 0.0;
+                RT u_new = zero;
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (amrex::Real(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
-                    RT mu = 1.0 / (0.5*dt);
+                    RT mu = one / (myhalf*dt);
 
                     RT u1 = a_u;
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
                     RT u2 = u1;
-                    RT rhs = mu * (a_u + 0.5*dt*f1);
+                    RT rhs = mu * (a_u + myhalf*dt*f1);
                     m_newton( u2, rhs, mu,
                               m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
                               res_norm_a, res_norm_r, converged );
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    u_new = a_u + 0.5 * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
                         if (std::isfinite(u_new)) {
@@ -598,7 +598,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {
@@ -636,7 +636,7 @@ namespace SDMassChangeUtils
         void dirk212 ( RT& a_u,  /*!< solution */
                        bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = 0.0;
+            RT cur_time = zero;
             a_success = true;
 
             int n_step = 0;
@@ -656,19 +656,19 @@ namespace SDMassChangeUtils
                 RT res_norm_a = DBL_MAX;
                 RT res_norm_r = DBL_MAX;
 
-                RT u_new = 0.0;
+                RT u_new = zero;
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (    (dt < (amrex::Real(1.0e-12)*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (amrex::Real(1.0e-12)*m_t_final)) ) {
                         break;
                     }
-                    RT mu = 1.0 / dt;
+                    RT mu = one / dt;
 
                     converged = true;
-                    res_norm_a = 0.0;
-                    res_norm_r = 0.0;
+                    res_norm_a = zero;
+                    res_norm_r = zero;
 
                     RT u1 = a_u;
                     {
@@ -684,7 +684,7 @@ namespace SDMassChangeUtils
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u1 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
@@ -703,12 +703,12 @@ namespace SDMassChangeUtils
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
                     if (u2 <= 0) {
-                        dt *= 0.5;
+                        dt *= myhalf;
                         continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
 
-                    u_new = a_u + 0.5 * dt * (f1 + f2);
+                    u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
                         if (std::isfinite(u_new)) {
@@ -718,7 +718,7 @@ namespace SDMassChangeUtils
                             }
                         }
                     }
-                    dt *= 0.5;
+                    dt *= myhalf;
                 }
 
                 if (step_success) {

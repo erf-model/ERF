@@ -41,7 +41,7 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::flbu,          LsmVar_SLM::flbv,         LsmVar_SLM::flbq,
       LsmVar_SLM::flbt,          LsmVar_SLM::prsfc,        LsmVar_SLM::precipref,
       LsmVar_SLM::swdsvisxyref,  LsmVar_SLM::swdsnirxyref, LsmVar_SLM::swdsvisdxyref,
-      LsmVar_SLM::swdsnirdxyref, LsmVar_SLM::lwref,        LsmVar_SLM::tref,
+      LsmVar_SLM::swdsnirdxyref, LsmVar_SLM::lwref,        LsmVar_SLM::coszrsxy, LsmVar_SLM::tref,
       LsmVar_SLM::uref,          LsmVar_SLM::vref,         LsmVar_SLM::dref,
       LsmVar_SLM::qref,          LsmVar_SLM::pref,         LsmVar_SLM::node_z,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
@@ -57,7 +57,7 @@ SLM::Init (const int& /*lev*/,
                   "surface_v",     "surface_vapor",  "surface_heat",
                   "precip_soil",   "ref_precip",     "SW_dw_dir_vis",
                   "SW_dw_dir_nir", "SW_dw_dif_vis",  "SW_dw_dif_nir",
-                  "LW_dw",         "ref_t",          "ref_u",
+                  "LW_dw",         "cos_zenith",     "ref_t",          "ref_u",
                   "ref_v",         "ref_d",          "ref_q",
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
@@ -102,7 +102,11 @@ SLM::Init (const int& /*lev*/,
         lsm_z_lo -= m_dz_lsm[k];
     }
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
-    m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
+
+    amrex::Box lsm_dom = m_geom.Domain();
+    lsm_dom.setSmall(2, klo_lsm);
+    lsm_dom.setBig(2, khi_lsm);
+    m_lsm_geom.define(lsm_dom, lsm_rb, m_geom.Coord(), m_geom.isPeriodic());
 
     BoxList bl_lsm_2d = ba_lsm.boxList();
     for (auto& b : bl_lsm_2d) {
@@ -386,16 +390,60 @@ void SLM::init_from_file()
     pp.query("interpolate_lai", interpolate_lai);
     pp.query("parameter_file", parameter_file);
     pp.query("veg_dataset", veg_dataset);
+    pp.query("soil_dataset", soil_dataset);
     pp.query("use_param_tbl", use_wrf_lai);
     if (use_param_file) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(parameter_file != "", "Using parameter file, but file path is empty!");
     }
 
-    /*
-    if (use_param_file) {
-        ReadParameterFile(parameter_file);
+    // Read NoahMP table if provided
+    if (use_param_file && parameter_file != "") {
+        full_params = ReadParameterFile(parameter_file, param_veg_categories, param_soil_categories);
+
+        std::string soil_param_key, veg_param_key;
+        if (soil_dataset == "stas_ruc") {
+            soil_param_key = "noahmp_soil_stas_ruc_parameters";
+        } else if (soil_dataset == "stas") {
+            soil_param_key = "noahmp_soil_stas_parameters";
+        } else {
+            amrex::Abort("Unrecognized soil dataset type, expected 'stas_ruc' or 'stas'");
+        }
+
+        if (veg_dataset == "usgs") {
+            veg_param_key = "noahmp_usgs_parameters";
+        } else if (veg_dataset == "modis") {
+            veg_param_key = "noahmp_modis_parameters";
+        } else {
+            amrex::Abort("Unrecognized vegetation dataset type, expected 'usgs' or 'modis'");
+        }
+
+        // Copy soil and vegetation datasets to GPU
+        auto &h_soil_params = full_params.at(soil_param_key);
+        auto &h_veg_params = full_params.at(veg_param_key);
+
+        for (int i = 0; i < h_soil_params.size(); i++) {
+            const int varsize = h_soil_params[i].second.size();
+            if (varsize > 1) {
+                //amrex::Print() << " -- copying soil param '" << h_soil_params[i].first << "' to GPU " << std::endl;
+                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
+                d_soil_params.insert(std::make_pair(h_soil_params[i].first, d_var));
+                Gpu::copyAsync(Gpu::hostToDevice, h_soil_params[i].second.data(), h_soil_params[i].second.data()+varsize, d_var->data());
+            }
+        }
+
+        for (int i = 0; i < h_veg_params.size(); i++) {
+            const int varsize = h_veg_params[i].second.size();
+            if (varsize > 1) {
+                //amrex::Print() << " -- copying veg param '" << h_veg_params[i].first << "' to GPU " << std::endl;
+                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
+                d_veg_params.insert(std::make_pair(h_veg_params[i].first, d_var));
+                Gpu::copyAsync(Gpu::hostToDevice, h_veg_params[i].second.data(), h_veg_params[i].second.data()+varsize, d_var->data());
+            }
+        }
+
+        Gpu::streamSynchronize();
     }
-    */
 
     if (interpolate_lai) {
         pp.gettable("lai", lai_table);
@@ -762,6 +810,9 @@ void SLM::slm_init()
 
     // Calculate fraction of root in each soil layer
     vege_root_init();
+
+    // Update any parameters using the values from a parameter file
+    init_from_params();
 }
 
 /**
@@ -1325,6 +1376,8 @@ void SLM::init_layer_depths()
  */
 void SLM::init_soil_vars()
 {
+    const bool d_param_updated = params_updated;
+
     auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
     for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
@@ -1349,36 +1402,39 @@ void SLM::init_soil_vars()
         {
             if (landmask_arr(i, j, 0) == 1)
             {
-                const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
+                if (!d_param_updated) {
+                    // compute the initial values
+                    const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
 
-                // soil solids thermal conductivity (Johansen 1975)
-                //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
-                const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
-                sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
+                    // soil solids thermal conductivity (Johansen 1975)
+                    //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
+                    const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
+                    sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
 
-                // Calculated following Cosby et al. 1984 ( hydraulic properties)
-                // hydraulic conductivity at satuation , mm/s
-                ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
+                    // Calculated following Cosby et al. 1984 ( hydraulic properties)
+                    // hydraulic conductivity at satuation , mm/s
+                    ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
 
-                // constant B
-                Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
+                    // constant B
+                    Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
 
-                // porosity (or saturation volumetric water content)
-                poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
+                    // porosity (or saturation volumetric water content)
+                    poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
 
-                // moisture potential at saturation, [mm]
-                m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
+                    // moisture potential at saturation, [mm]
+                    m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
 
-                // soil heat capacity, [J/m^3/K]
-                //  Following de Vries(1963) using SAND=34% CLAY=63%
-                sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
+                    // soil heat capacity, [J/m^3/K]
+                    //  Following de Vries(1963) using SAND=34% CLAY=63%
+                    sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
 
-                // volumetric moisture content at field capacity
-                // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
-                theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
+                    // volumetric moisture content at field capacity
+                    // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
+                    theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
 
-                // volumetric moisture content at wilting point
-                theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
+                    // volumetric moisture content at wilting point
+                    theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
+                }
 
                 // soil wetness at field capacity
                 w_s_FC_arr(i, j, k) = theta_FC_arr(i, j, k) / poro_soil_arr(i, j, k);
@@ -1520,10 +1576,202 @@ void SLM::init_slm_vars()
     MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
 }
 
-void SLM::ReadParameterFile(const std::string &filename)
+/**
+ * Loads and parses the given .TBL file (such as NoahMPTable.TBL)
+ *
+ * Returns an unorderd map containing the name of each parameter block, where
+ * each block contains a list of variables, with each variable containing one or more values.
+ *
+ * Returns the vegetation and soil category names loaded from file as a vector of names.
+ */
+SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories)
 {
+    amrex::Print() << " SLM: Reading parameter file '" << filename << "'..." << std::endl;
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(filename, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    std::string prev_line = "";
+    std::string line, word;
+
+    std::unordered_map<std::string,
+                       amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>> table;
+
+    bool invalid_line = false;
+    while(!is.eof()) {
+        std::getline(is, line, '&');
+        if (invalid_line) {
+            line = prev_line + line;
+            invalid_line = false;
+            prev_line = "";
+        }
+        // catch if there is a stray '&' in the file in between blocks
+        if (is.peek() == ' ') {
+            invalid_line = true;
+            prev_line = line;
+            continue;
+        }
+
+        std::istringstream lis(line);
+        std::string sline;
+        std::string block_name;
+
+        lis >> block_name;
+        if (block_name.empty()) { continue; }
+
+        amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>> variables;
+        while (!lis.eof()) {
+            std::getline(lis, sline);
+            if (sline.empty() || sline[0] == '!' || sline == " ") { continue; }
+            {
+                std::istringstream var(sline);
+                int pos = 0;
+
+                bool save = true;
+                amrex::Vector<amrex::Real> var_values;
+                std::string varname;
+                while (var >> word) {
+                    // skip if empty line, or comment
+                    if (word.empty() || word[0] == '!' || word[0] == '/') {
+                        if (pos == 0) save = false; // make sure variables with end comments are still saved (pos > 0)
+                        break;
+                    }
+
+                    // handle veg and soil dataset names separately
+                    if (word == "veg_dataset_description") {
+                        var >> word; // '='
+                        var >> word;
+                        // amrex::Print() << " VEG CATEGORY '" << word << "'" << std::endl;
+                        veg_categories.push_back(word);
+                        save = false;
+                        break;
+                    } else if (word == "sltype") {
+                        var >> word; // '='
+                        var >> word;
+                        // amrex::Print() << " SOIL CATEGORY '" << word << "'" << std::endl;
+                        soil_categories.push_back(word);
+                        save = false;
+                        break;
+                    }
+
+                    // skip assignment, commas, end block '/'
+                    if (word == "=" || word == ",") { continue; }
+
+                    // save variable name
+                    if (pos == 0) {
+                        // check if there is an "=" next to the variable name, to catch instances of "var=" instead of "var = "
+                        auto tpos = word.find("=");
+                        if (tpos != std::string::npos) {
+                            varname = word.substr(0, tpos);
+                            word = word.substr(tpos+1);
+                            if (!word.empty()) {
+                                // if there is a value packed next to the variable name, such as var=1
+                                var_values.push_back(std::stod(word));
+                            }
+                        } else {
+                            varname = word;
+                        }
+                    } else {
+                        var_values.push_back(std::stod(word));
+                    }
+                    pos++;
+                }
+
+                // store value if we should save it
+                if (save) {
+                    variables.push_back(std::make_pair(varname, var_values));
+                }
+            }
+
+        }
+
+        if (variables.size() > 0) {
+            table.insert(std::make_pair(block_name, variables));
+        }
+    }
+
+
+    // Print out all the variables:
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+    amrex::Print() << " SLM Parameter File '" << filename << "':" << std::endl;
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+    for (auto &block : table) {
+        amrex::Print() << "  '" << block.first << "':" << std::endl;
+        for (auto &var : block.second) {
+            amrex::Print() << "      - '" << var.first << "': [";
+            for (int i = 0; i < var.second.size(); i++) {
+                amrex::Print() << " " << var.second[i];
+                if (i + 1 < var.second.size()) {
+                    amrex::Print() << ",";
+                }
+            }
+            amrex::Print() << " ]" << std::endl;
+        }
+    }
+    amrex::Print() << "---------------------------------------------------" << std::endl;
+
+    return table;
 }
 
+/**
+ * Overwrites any default SLM variables from values set in the parameter file
+ */
+void SLM::init_from_params()
+{
+    // do nothing if not using the parameter file
+    if (!use_param_file) {
+        return;
+    }
+
+    const int d_khi_lsm = khi_lsm;
+    const int d_klo_lsm = klo_lsm;
+
+    // Get pointers to GPU parameter values
+    const amrex::Real *d_param_poro = d_soil_params["maxsmc"]->data();
+    const amrex::Real *d_param_theta_FC = d_soil_params["refsmc"]->data();
+	const amrex::Real *d_param_theta_WP = d_soil_params["wltsmc"]->data();
+	const amrex::Real *d_param_m_pot_sat = d_soil_params["satpsi"]->data();
+
+    for ( amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        amrex::Box bx2d = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
+
+        auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->array(mfi);
+        auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->array(mfi);
+        auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->array(mfi);
+        auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->array(mfi);
+
+        amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            if (landmask_arr(i, j, 0) == 1) {
+
+                const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> index 0-19)
+                const int stype = soiltype_arr(i,j,d_khi_lsm) - 1;
+
+                // set soil porosity from parameter file value
+                // amrex::Print() << " i = " << i << " j = " << j << " ltype = " << ltype << " stype = " << stype << " poro = " << d_param_poro[stype] << std::endl;
+
+                for (int k = d_khi_lsm; k >= d_klo_lsm; k--) {
+                    poro_soil_arr(i, j, k) = d_param_poro[stype];
+                    theta_FC_arr(i, j, k) = d_param_theta_FC[stype];
+                    theta_WP_arr(i, j, k) = d_param_theta_WP[stype];
+                    m_pot_sat_arr(i, j, k) = d_param_m_pot_sat[stype];
+                }
+            }
+        });
+    }
+
+    // set a flag to indicate remaining soil variables should be recomputed
+    params_updated = true;
+
+    // recompute soil variables using updated parameters
+    init_soil_vars();
+}
 
 /**
  * Updates the LAI + SAI based on the current simulation time and monthly values
@@ -3352,6 +3600,13 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
         auto slm_u       = lsm_fab_vars[LsmVar_SLM::uref]->array(mfi);
         auto slm_v       = lsm_fab_vars[LsmVar_SLM::vref]->array(mfi);
 
+        auto slm_dir_sw_vis  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->array(mfi);
+        auto slm_dir_sw_nir  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->array(mfi);
+        auto slm_diff_sw_vis = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->array(mfi);
+        auto slm_diff_sw_nir = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->array(mfi);
+        auto slm_lw          = lsm_fab_vars[LsmVar_SLM::lwref]->array(mfi);
+        auto slm_zenith      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->array(mfi);
+
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             const Real qv = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
@@ -3376,6 +3631,13 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
             qref_array(i, j, khi) = qref_array(i, j, 0);
             slm_u(i, j, khi) = slm_u(i, j, 0);
             slm_v(i, j, khi) = slm_v(i, j, 0);
+
+            slm_dir_sw_vis(i, j, khi) = slm_dir_sw_vis(i, j, 0);
+            slm_dir_sw_nir(i, j, khi) = slm_dir_sw_nir(i, j, 0);
+            slm_diff_sw_vis(i, j, khi) = slm_diff_sw_vis(i, j, 0);
+            slm_diff_sw_nir(i, j, khi) = slm_diff_sw_nir(i, j, 0);
+            slm_lw(i, j, khi) = slm_lw(i, j, 0);
+            slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
         });
     }
 
@@ -3449,56 +3711,6 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
 #endif
 }
 
-void
-SLM::set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                     const amrex::MultiFab* zenith_in)
-{
-    int khi = khi_lsm;
-
-    auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
-
-    for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
-
-        // Create a box with the same i,j bounds, but only at z = 0
-        amrex::Box b2d = box3d;
-        b2d.setRange(2, 0);
-
-        auto sw_lw_fluxes_arr = sw_lw_fluxes_in->const_array(mfi);
-        auto zenith_array     = zenith_in->const_array(mfi);
-
-        auto slm_dir_sw_vis  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->array(mfi);
-        auto slm_dir_sw_nir  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->array(mfi);
-        auto slm_diff_sw_vis = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->array(mfi);
-        auto slm_diff_sw_nir = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->array(mfi);
-
-        auto slm_lw          = lsm_fab_vars[LsmVar_SLM::lwref]->array(mfi);
-        auto slm_zenith      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->array(mfi);
-
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            slm_dir_sw_vis(i, j, k) = sw_lw_fluxes_arr(i, j, k, 0);
-            slm_dir_sw_nir(i, j, k) = sw_lw_fluxes_arr(i, j, k, 1);
-
-            slm_diff_sw_vis(i, j, k) = sw_lw_fluxes_arr(i, j, k, 2);
-            slm_diff_sw_nir(i, j, k) = sw_lw_fluxes_arr(i, j, k, 3);
-
-            slm_lw(i, j, k) = sw_lw_fluxes_arr(i, j, k, 5);
-            slm_zenith(i, j, k) = zenith_array(i, j, k, 0);
-            //slm_zenith(i, j, k) = 1.0;
-
-
-            // TODO: this is for plotting purposes.. state arrays are at k=0 which is ghost cell for SLM values
-            //  SLM AMREX plotfile does not write ghost cells, but NetCDF does - fix?
-            slm_dir_sw_vis(i, j, khi) = slm_dir_sw_vis(i, j, 0);
-            slm_dir_sw_nir(i, j, khi) = slm_dir_sw_nir(i, j, 0);
-            slm_diff_sw_vis(i, j, khi) = slm_diff_sw_vis(i, j, 0);
-            slm_diff_sw_nir(i, j, khi) = slm_diff_sw_nir(i, j, 0);
-            slm_lw(i, j, khi) = slm_lw(i, j, 0);
-            slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
-        });
-    }
-}
 
 void
 SLM::set_precip_input(const amrex::MultiFab* precip_in)
@@ -3655,9 +3867,9 @@ std::vector<std::vector<amrex::Real>> SLM::read_cols(const std::string &fname, c
     return datasets;
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step)
+void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev)
 {
-    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_step, 5);
+    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_lev", lev, 1) + "_" + amrex::Concatenate("", level_step, 5);
 
     amrex::Geometry lsm_2d_geom;
     lsm_2d_geom.define( ba_lsm_2d.minimalBox(), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());

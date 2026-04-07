@@ -65,15 +65,33 @@ If the sounding is ``ConstantDensity``, then the initial density field is
 uniformly set to 1.0; the potential temperature (and water vapor mixing ratio)
 field(s) are set to the sounding values.
 
+.. note::
+
+   You can optionally replace only the velocity fields (``u``, ``v``, ``w``)
+   by reading them from an existing checkpoint. This is useful when restarting
+   with updated thermodynamics or a new base state while keeping a prior wind
+   field.
+
+   Add a line such as the following to your inputs file:
+
+   .. code-block:: none
+
+      erf.init_vels_from_checkpoint = chk00010
+
+   The value should be the checkpoint directory name (relative to the run
+   directory or an absolute path). When set, ERF reads the velocity fields from
+   that checkpoint and uses the usual initialization pathway for all other fields.
+
 In any of these cases, the user can specify any perturbations from the
-base state by editing the routines in **ERF_Prob.cpp**
+base state by editing the routines that live in the ``Source/Prob`` directory
+and are called in **Exec/ERF_Prob.cpp**
 
 Initialization From Real Data
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
 In these cases, no additional initial conditions must be supplied by the user but the
-file **ERF_Prob.cpp** must still be present for the build.
+file **Exec/ERF_Prob.cpp** must still be present for the build.
 
 * **erf.init_type = WRFInput**
 
@@ -130,21 +148,20 @@ For a summary of initialization strategies for real-data simulations, see the ta
    * - WRF --> ERF
      - Manual download
      - WPS + ``real.exe``
-     - ``erf_abl`` (init from wrfinput)
+     - ``erf_exec`` (init from wrfinput)
    * -
      - Manual download
      - ``ndown.exe``
-     - ``erf_abl`` (init from wrfinput)
+     - ``erf_exec`` (init from wrfinput)
    * - WPS --> ERF
      - Manual download
      - WPS
-     - ``erf_abl`` (init from metgrid)
+     - ``erf_exec`` (init from metgrid)
    * - E3SM --> ERF
      - ``run_e3sm``
      -  *Under development*
-     - ``erf_abl``
+     - ``erf_exec``
    * - ERF standalone
      - Python tools
      - Python tools *(under development)*
-     - ``erf_abl``
-
+     - ``erf_exec``

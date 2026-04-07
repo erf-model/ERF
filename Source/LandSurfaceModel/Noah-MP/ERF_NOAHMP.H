@@ -30,6 +30,10 @@ namespace LsmData_NOAHMP {
          sfc_alb_dif_nir,
          cos_zenith_angle,
          sw_flux_dn,
+         sw_flux_dn_dir_vis,
+         sw_flux_dn_dir_nir,
+         sw_flux_dn_dif_vis,
+         sw_flux_dn_dif_nir,
          lw_flux_dn,
          NumVars
   };
@@ -196,7 +200,7 @@ private:
     int m_nz_lsm = 1;
 
     // Size of grid spacing in z
-    amrex::Real m_dz_lsm = 1.0;
+    amrex::Real m_dz_lsm = one;
 
     // LSM data variables
     amrex::Array<FabPtr, LsmData_NOAHMP::NumVars> lsm_fab_data;

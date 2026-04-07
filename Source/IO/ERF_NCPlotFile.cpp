@@ -151,7 +151,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
 
     amrex::Vector<Real> CellSize;
     CellSize.clear();
-    for (double & j : dx) {
+    for (Real& j : dx) {
         CellSize.push_back(j);
     }
     auto nc_CellSize = ncf.var("CellSize");

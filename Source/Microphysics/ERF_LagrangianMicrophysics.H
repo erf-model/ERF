@@ -181,8 +181,12 @@ public:
     /*! \brief Fills in a MultiFab for plotting */
     virtual void GetPlotVar (const std::string& a_name,
                              amrex::MultiFab& a_mf,
-                             const int /* a_lev */) const override
+                             const int a_lev) const override
     {
+        if (a_lev > 0) {
+            a_mf.setVal(0.0);
+            return;
+        }
         m_moist_model->GetPlotVar(a_name, a_mf);
     }
 

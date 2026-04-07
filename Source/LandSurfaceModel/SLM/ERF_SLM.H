@@ -166,6 +166,8 @@ namespace SLM_DSW {
     };
 }
 
+using SLMParameterTable = std::unordered_map<std::string, amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>>;
+
 /* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
 class SLM : public NullSurf {
 
@@ -488,10 +490,6 @@ public:
     }
 
     void
-    set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                    const amrex::MultiFab* zenith_in) override;
-
-    void
     set_precip_input(const amrex::MultiFab* precip_in) override;
 
     void
@@ -506,7 +504,7 @@ public:
         return LSM_Type::SLM;
     }
 
-    void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step);
+    void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev);
 
     void init_from_file();
 
@@ -526,7 +524,9 @@ public:
 
     void init_slm_vars();
 
-    void ReadParameterFile(const std::string &filename);
+    SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
+
+    void init_from_params();
 
     void UpdateLAI(const amrex::MFIter &mfi);
 
@@ -579,6 +579,11 @@ public:
         return slm_to_rad_vars;
     }
 
+    std::unordered_map<std::string, std::string>& get_rad_output_map()
+    {
+        return rad_output_map;
+    }
+
     // utility to skip to next line in Header
     //  -- taken from ERF_Checkpoint
     static void GotoNextLine (std::istream& is);
@@ -589,7 +594,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_data_size = 42;
+    int m_lsm_data_size = 43;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
     int m_lsm_flux_size = 5;
@@ -639,13 +644,13 @@ private:
     std::vector<amrex::Real> m_dz_lsm;
 
     // Specific heat
-    amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]
+    amrex::Real m_cp_soil =  amrex::Real(1.26e6); // [J/m^3 K]
 
     // Conductivity
-    amrex::Real m_k_soil = 0.2; // dry soil [W/m K]
+    amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = 400.0; // [K]
+    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]
@@ -803,8 +808,17 @@ private:
     bool first_step = true;
 
     std::string parameter_file = "NoahmpTable.TBL";
-    std::string veg_dataset = "modis";
+    std::string veg_dataset = "modis"; // modis or usgs
+    std::string soil_dataset = "stas"; // stas or stas_ruc
     int num_landtypes = -1; // Number of land types in sai/lai, parameter tables
+
+    SLMParameterTable full_params;
+    amrex::Vector<std::string> param_veg_categories;
+    amrex::Vector<std::string> param_soil_categories;
+
+    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_soil_params;
+    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_veg_params;
+
     //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
     std::vector<std::vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
@@ -818,6 +832,7 @@ private:
     bool use_param_file = false;  // whether to initialize using parameters from file
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
+    bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
 
     std::vector<std::vector<amrex::Real>> param_table;
     amrex::TableData<amrex::Real, 2> d_param_table;
@@ -850,6 +865,17 @@ private:
         {"SHDMIN", "veg_frac_min"},
         {"SHDMAX", "veg_frac_max"},
         //{"TMN", "soilt_obs"}
+    };
+
+    // map RRTMGP names to SLM names for radiation data
+    inline static std::unordered_map<std::string, std::string> rad_output_map = {
+        {"cos_zenith_angle",   "cos_zenith"},
+        {"sw_flux_dn", ""},
+        {"sw_flux_dn_dir_vis", "SW_dw_dir_vis"},
+        {"sw_flux_dn_dir_nir", "SW_dw_dir_nir"},
+        {"sw_flux_dn_dif_vis", "SW_dw_dif_vis"},
+        {"sw_flux_dn_dif_nir", "SW_dw_dif_nir"},
+        {"lw_flux_dn", "LW_dw"}
     };
 
     // whether to initialize SLM from inputs file or from wrfinput

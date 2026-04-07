@@ -84,6 +84,40 @@ ERF::init_custom (int lev)
                                     xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                     z_nd_arr, geom[lev].data(), mf_u, mf_v,
                                     solverChoice, lev);
+
+        // Zero out perturbations in covered cells in EB
+        if (solverChoice.terrain_type == TerrainType::EB) {
+
+            Array4<const EBCellFlag> c_cellflg = (get_eb(lev).get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> u_cellflg = (get_eb(lev).get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> v_cellflg = (get_eb(lev).get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> w_cellflg = (get_eb(lev).get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+            ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (c_cellflg(i,j,k).isCovered()) {
+                    cons_pert_arr(i,j,k) = 0.0;
+                }
+            });
+
+            ParallelFor(xbx, ybx, zbx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (u_cellflg(i,j,k).isCovered()) {
+                    xvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (v_cellflg(i,j,k).isCovered()) {
+                    yvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (w_cellflg(i,j,k).isCovered()) {
+                    zvel_pert_arr(i,j,k) = 0.0;
+                }
+            });
+        }
+
     } //mfi
 
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density
@@ -106,9 +140,16 @@ ERF::init_custom (int lev)
         }
     }
 
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+    // Should we initialize the velocities from a checkpoint file?
+    static std::string init_vels_from_checkpoint;
+    ParmParse pp("erf");
+    if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
+        ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
+    } else {
+        MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+    }
 }
 
 void
@@ -151,16 +192,16 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
     const Real dmesh = std::min(dx, dy);
     // ---- User choices ----
     const Real sigma = solverChoice.pert_correlated_radius; // e.g. 2 km correlation length
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);  // stencil radius
+    const int  r     = static_cast<int>(three * sigma / dmesh);  // stencil radius
 
     // ---- Precompute Gaussian weights on host ----
     const int wsize = 2*r + 1;
     Vector<Real> w_host(wsize * wsize);
 
-    Real Z = 0.0;
+    Real Z = zero;
     for (int m = -r; m <= r; ++m) {
         for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(2.0*sigma*sigma));
+            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(two*sigma*sigma));
             w_host[(m+r)*wsize + (n+r)] = val;
             Z += val;
         }
@@ -175,16 +216,16 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
 
     Real const* w = w_dev.data();
 
-    // 1. Define ngrow_big using the actual dimension macro
+    // one Define ngrow_big using the actual dimension macro
     IntVect ngrow_big(AMREX_D_DECL(r, r, 0));
 
-    // 2. Create the copy
+    // two Create the copy
     MultiFab xvel_pert_copy(xvel_pert.boxArray(),
                         xvel_pert.DistributionMap(),
                         1, ngrow_big);
     //MultiFab::Copy(xvel_pert_copy, xvel_pert, 0, 0, 1, 0);
 
-    // 3. Use the built-in copy that includes ghost cell logic
+    // three Use the built-in copy that includes ghost cell logic
     // Copy(dst, src, src_comp, dst_comp, num_comp, ngrow)
     // Setting ngrow to 0 ensures we only take valid data from the original
     xvel_pert_copy.ParallelCopy(xvel_pert, 0, 0, 1, IntVect(0), ngrow_big, gm.periodicity());
@@ -199,7 +240,7 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
         ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real sum = 0.0;
+            Real sum = zero;
             for (int m = -r; m <= r; ++m) {
                 for (int n = -r; n <= r; ++n) {
                     Real wij = w[(m+r)*wsize + (n+r)];

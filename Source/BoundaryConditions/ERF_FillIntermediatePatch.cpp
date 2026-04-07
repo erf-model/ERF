@@ -117,7 +117,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         MultiFab mf(mfs_vel[Vars::cons]->boxArray(),mfs_vel[Vars::cons]->DistributionMap(),
                     mfs_vel[Vars::cons]->nComp()   ,mfs_vel[Vars::cons]->nGrowVect());
         //
-        // Set all components to 1.789e19, then copy just the density from *mfs_vel[Vars::cons]
+        // Set all components to Real(1.789e19), then copy just the density from *mfs_vel[Vars::cons]
         //
         mf.setVal(1.789e19);
         MultiFab::Copy(mf,*mfs_vel[Vars::cons],Rho_comp,Rho_comp,1,mf.nGrowVect());
@@ -193,7 +193,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                 // Set values in the cells outside the domain boundary so that we can do the Add
                 //     without worrying about uninitialized values outside the domain -- these
                 //     will be filled in the physbcs call
-                mf.setDomainBndry(1.234e20,Rho_comp,1,geom[lev]);
+                mf.setDomainBndry(Real(1.234e20),Rho_comp,1,geom[lev]);
 
                 // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
                 MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});
@@ -361,11 +361,11 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // NOTE: There are not FillBoundary calls here for the following reasons:
     // Removal of the FillBoundary (FB) calls has bee completed for the following reasons:
     //
-    // 1. physbc_cons is called before VelocityToMomentum and a FB is completed in that functor.
+    // one physbc_cons is called before VelocityToMomentum and a FB is completed in that functor.
     //    Therefore, the conserved CC vars have their inter-rank ghost cells filled and then their
     //    domain ghost cells filled from the BC operations. We should not call FB on this MF again.
     //
-    // 2. physbc_u/v/w is also called before VelocityToMomentum and a FB is completed those functors.
+    // two physbc_u/v/w is also called before VelocityToMomentum and a FB is completed those functors.
     //    Furthermore, VelocityToMomentum operates on a growntilebox so we exit that routine with momentum
     //    filled everywhere---i.e., physbc_u/v/w fills velocity ghost cells (inter-rank and domain)
     //    and then V2M does the conversion to momenta everywhere; so there is again no need to do a FB on momenta.

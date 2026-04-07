@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SDM_Congestus3D"
+
 stop_time = 8500
 max_step = 20
 
@@ -27,7 +29,6 @@ erf.most.zref   = 200.0
 
 # INITIALIZATION
 erf.init_type = input_sounding
-erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5

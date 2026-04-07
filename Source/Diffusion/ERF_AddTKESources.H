@@ -35,7 +35,7 @@
             //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             // Note: This assumes that the horizontal and vertical diffusivities
             // of momentum are equal
-            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
+            cell_rhs(i,j,k,qty_index) += two*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
             cell_rhs(i,j,k,qty_index) -= diss(i,j,k);

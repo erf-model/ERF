@@ -67,7 +67,6 @@ erf.c_p = 1004.0
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
-prob.U_0 = 0.0
 
 # SETTING THE TIME STEP
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step

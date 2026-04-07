@@ -9,7 +9,11 @@
 #include <AMReX_Gpu.H>
 
 enum struct EBBoundaryType {
-    SlipWall, NoSlipWall
+    SlipWall, NoSlipWall, SurfaceLayer
+};
+
+enum EBTauType {
+    tau_eb13, tau_eb23
 };
 
 /**
@@ -29,6 +33,8 @@ struct EBChoice {
             eb_boundary_type = EBBoundaryType::SlipWall;
         } else if (!eb_boundary_type_string.compare("NoSlipWall")) {
             eb_boundary_type = EBBoundaryType::NoSlipWall;
+        } else if (!eb_boundary_type_string.compare("SurfaceLayer")) {
+            eb_boundary_type = EBBoundaryType::SurfaceLayer;
         } else {
             amrex::Error("Don't know this eb_boundary_type");
         }
@@ -41,6 +47,8 @@ struct EBChoice {
             amrex::Print() << "    eb_boundary_type        : SlipWall" << std::endl;
         } else if (eb_boundary_type == EBBoundaryType::NoSlipWall) {
             amrex::Print() << "    eb_boundary_type        : NoSlipWall" << std::endl;
+        } else if (eb_boundary_type == EBBoundaryType::SurfaceLayer) {
+            amrex::Print() << "    eb_boundary_type        : SurfaceLayer" << std::endl;
         }
     }
 

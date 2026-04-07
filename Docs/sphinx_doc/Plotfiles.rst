@@ -347,6 +347,18 @@ Output Options for 3D plotfiles
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
+| **reflectivity**            | reflectivity     |
+|                             | cell-by-cell     |
+|                             |                  |
++-----------------------------+------------------+
+| **max_reflectivity**        | max of           |
+|                             | reflectivity     |
+|                             | over a column    |
++-----------------------------+------------------+
+| **precipitable**            | precipitable     |
+|                             | water (integral  |
+|                             | over column)     |
++-----------------------------+------------------+
 | **vorticity_x**             | x-component of   |
 |                             | vorticity        |
 |                             |                  |
@@ -357,6 +369,22 @@ Output Options for 3D plotfiles
 +-----------------------------+------------------+
 | **vorticity_z**             | z-component of   |
 |                             | vorticity        |
+|                             |                  |
++-----------------------------+------------------+
+| **local_helicity**          | helicity         |
+|                             | cell-by-cell     |
+|                             |                  |
++-----------------------------+------------------+
+| **helicity**                | helicity         |
+|                             | (integral over   |
+|                             | column)          |
++-----------------------------+------------------+
+| **magvel**                  | magnitude of     |
+|                             | velocity         |
+|                             |                  |
++-----------------------------+------------------+
+| **divU**                    | divergence of    |
+|                             | velocity         |
 |                             |                  |
 +-----------------------------+------------------+
 | **u_t_avg**                 | time average of  |

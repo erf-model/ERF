@@ -105,11 +105,6 @@ class NullSurf {
 
     virtual
     void
-    set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                    const amrex::MultiFab* zenith_in) { }
-
-    virtual
-    void
     set_precip_input(const amrex::MultiFab* precip_in) { }
 
     virtual

@@ -44,13 +44,13 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     {
         const int cons_index = icomp + n;
 
-        if ( ax_arr(i,j,k) > 0. ) // Do we need a threshold value for the area fraction to avoid infinitesimal fractions?
+        if ( ax_arr(i,j,k) > zero ) // Do we need a threshold value for the area fraction to avoid infinitesimal fractions?
         {
             // Find the highest upwind order based on the cell flag
 
             int icell = 0;
 
-            if (avg_xmom(i,j,k)>0.)
+            if (avg_xmom(i,j,k)>zero)
             {
                 for (int ii=0; ii<ncells_h; ++ii) {
                     if (cellflag(i-ii-1,j,k).isCovered()) {
@@ -59,7 +59,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                     icell++;
                 }
             }
-            else if (avg_xmom(i,j,k)<0.)
+            else if (avg_xmom(i,j,k)<zero)
             {
                 for (int ii=0; ii<ncells_h; ++ii) {
                     if (cellflag(i+ii,j,k).isCovered()) {
@@ -72,7 +72,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             // Interpolate the scalar variable (cell_prim) using the highest-order scheme
 
             const int prim_index = cons_index - 1;
-            amrex::Real interpx(0.);
+            amrex::Real interpx(zero);
 
             if (icell==ncells_h) {
                 interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k));
@@ -87,7 +87,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         }
         else
         {
-            (flx_arr[0])(i,j,k,cons_index) = 0.;
+            (flx_arr[0])(i,j,k,cons_index) = zero;
         }
     });
 
@@ -95,13 +95,13 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     {
         const int cons_index = icomp + n;
 
-        if ( ay_arr(i,j,k) > 0. )
+        if ( ay_arr(i,j,k) > zero )
         {
             // Find the highest upwind order based on the cell flag
 
             int jcell = 0;
 
-            if (avg_ymom(i,j,k)>0.)
+            if (avg_ymom(i,j,k)>zero)
             {
                 for (int jj=0; jj<ncells_h; ++jj) {
                     if (cellflag(i,j-jj-1,k).isCovered()) {
@@ -110,7 +110,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                     jcell++;
                 }
             }
-            else if (avg_ymom(i,j,k)<0.)
+            else if (avg_ymom(i,j,k)<zero)
             {
                 for (int jj=0; jj<ncells_h; ++jj) {
                     if (cellflag(i,j+jj,k).isCovered()) {
@@ -123,7 +123,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             // Interpolate the scalar variable (cell_prim) using the highest-order scheme
 
             const int prim_index = cons_index - 1;
-            amrex::Real interpy(0.);
+            amrex::Real interpy(zero);
 
             if (jcell==ncells_h) {
                 interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k));
@@ -138,7 +138,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         }
         else
         {
-            (flx_arr[1])(i,j,k,cons_index) = 0.;
+            (flx_arr[1])(i,j,k,cons_index) = zero;
         }
     });
 
@@ -148,13 +148,13 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     {
         const int cons_index = icomp + n;
 
-        if ( az_arr(i,j,k) > 0. )
+        if ( az_arr(i,j,k) > zero )
         {
             // Find the highest upwind order based on the cell flag
 
             int kcell = 0;
 
-            if (avg_zmom(i,j,k)>0.)
+            if (avg_zmom(i,j,k)>zero)
             {
                 for (int kk=0; kk<ncells_v; ++kk) {
                     if (cellflag(i,j,k-kk-1).isCovered()) {
@@ -163,7 +163,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                     kcell++;
                 }
             }
-            else if (avg_zmom(i,j,k)<0.)
+            else if (avg_zmom(i,j,k)<zero)
             {
                 for (int kk=0; kk<ncells_v; ++kk) {
                     if (cellflag(i,j,k+kk).isCovered()) {
@@ -176,7 +176,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             // Interpolate the scalar variable (cell_prim) using the highest-order scheme
 
             const int prim_index = cons_index - 1;
-            amrex::Real interpz(0.);
+            amrex::Real interpz(zero);
 
             if (kcell==ncells_v) {
                 interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k));
@@ -191,7 +191,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         }
         else
         {
-            (flx_arr[2])(i,j,k,cons_index) = 0.;
+            (flx_arr[2])(i,j,k,cons_index) = zero;
         }
     });
 }
@@ -199,7 +199,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
 /**
  * When terrain_type == TerrainType::EB,
- * Wrapper function for templating the vertical advective tendency w/ spatial order > 2.
+ * Wrapper function for templating the vertical advective tendency w/ spatial order > two
  */
 template<typename InterpType_H>
 void

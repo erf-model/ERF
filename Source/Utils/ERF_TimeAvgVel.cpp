@@ -34,9 +34,9 @@ Time_Avg_Vel_atCC (const Real& dt,
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real u_cc = 0.5 * ( velx(i,j,k) + velx(i+1,j  ,k  ) );
-            Real v_cc = 0.5 * ( vely(i,j,k) + vely(i  ,j+1,k  ) );
-            Real w_cc = 0.5 * ( velz(i,j,k) + velz(i  ,j  ,k+1) );
+            Real u_cc = myhalf * ( velx(i,j,k) + velx(i+1,j  ,k  ) );
+            Real v_cc = myhalf * ( vely(i,j,k) + vely(i  ,j+1,k  ) );
+            Real w_cc = myhalf * ( velz(i,j,k) + velz(i  ,j  ,k+1) );
             Real umag_cc = std::sqrt(u_cc*u_cc + v_cc*v_cc + w_cc*w_cc);
             vel_t_avg_arr(i,j,k,0) += u_cc * dt;
             vel_t_avg_arr(i,j,k,1) += v_cc * dt;

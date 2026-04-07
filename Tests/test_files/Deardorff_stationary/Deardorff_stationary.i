@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Deardorff Stationary"
+erf.prob_name = "ABL"
 
 stop_time = 999.9
 max_step = 10
@@ -53,7 +53,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rh
 erf.use_gravity = false
 
 erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind = 0. 0. 0.  # no background pressure gradient
 
 erf.molec_diff_type = "None"
 

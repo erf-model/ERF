@@ -22,8 +22,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
 erf.fixed_mri_dt_ratio = 4
-#erf.substepping_type = None
-#erf.fixed_dt = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -62,11 +60,6 @@ erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 erf.alpha_C           = 0.0
-
-# INITIAL CONDITIONS
-#erf.init_type = "input_sounding"
-#erf.input_sounding_file = "BF02_moist_sounding"
-#erf.init_sounding_ideal = true
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input

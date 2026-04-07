@@ -36,8 +36,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.smallEnd(0) <= domain.smallEnd(0)) {
                     Real multn = ( (phys_bc_type[0] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[0] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[0] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[0] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[0] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[0] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(1,jper); gbx.grow(2,kper);
                     ParallelFor(makeSlab(gbx,0,0), [=] AMREX_GPU_DEVICE(int , int j, int k) noexcept
                     {
@@ -51,8 +51,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.bigEnd(0) >= domain.bigEnd(0)) {
                     Real multn = ( (phys_bc_type[3] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[3] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[3] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[3] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[3] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[3] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(1,jper); gbx.grow(2,kper);
                     ParallelFor(makeSlab(gbx,0,0), [=] AMREX_GPU_DEVICE(int , int j, int k) noexcept
                     {
@@ -68,8 +68,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.smallEnd(1) <= domain.smallEnd(1)) {
                     Real multn = ( (phys_bc_type[1] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[1] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[1] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[1] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[1] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[1] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(0,1); gbx.grow(2,kper);
                     ParallelFor(makeSlab(gbx,1,0), [=] AMREX_GPU_DEVICE(int i, int  , int k) noexcept
                     {
@@ -83,8 +83,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.bigEnd(1) >= domain.bigEnd(1)) {
                     Real multn = ( (phys_bc_type[4] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[4] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[4] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[4] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[4] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[4] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(0,1); gbx.grow(2,kper);
                     ParallelFor(makeSlab(gbx,1,0), [=] AMREX_GPU_DEVICE(int i, int , int k) noexcept
                     {
@@ -100,8 +100,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.smallEnd(2) <= domain.smallEnd(2)) {
                     Real multn = ( (phys_bc_type[2] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[2] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[2] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[2] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[2] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[2] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(0,1); gbx.grow(1,1);
                     ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                     {
@@ -115,8 +115,8 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
                 if (bx.bigEnd(2) >= domain.bigEnd(2)) {
                     Real multn = ( (phys_bc_type[5] == ERF_BC::slip_wall   ) ||
                                    (phys_bc_type[5] == ERF_BC::no_slip_wall) ||
-                                   (phys_bc_type[5] == ERF_BC::symmetry    ) ) ? -1. : 1.;
-                    Real multt = (phys_bc_type[5] == ERF_BC::no_slip_wall) ? -1. : 1.;
+                                   (phys_bc_type[5] == ERF_BC::symmetry    ) ) ? -one : one;
+                    Real multt = (phys_bc_type[5] == ERF_BC::no_slip_wall) ? -one : one;
                     Box gbx(bx); gbx.grow(0,1); gbx.grow(1,1);
                     ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                     {

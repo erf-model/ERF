@@ -26,7 +26,7 @@ solve_with_EB_mlmg (int lev,
 
 /**
  * Project the single-level velocity field to enforce the anelastic constraint
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  */
 void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
 {
@@ -97,7 +97,7 @@ void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
 
 /**
  * Project the single-level momenta to enforce the anelastic constraint
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  */
 void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mom_mf)
 {
@@ -204,7 +204,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
             Box tbz = mfi.nodaltilebox(2);
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (k == 0) {
-                    rho0w_arr(i,j,k) = Real(0.0);
+                    rho0w_arr(i,j,k) = zero;
                 } else {
                     Real rho0w = rho0w_arr(i,j,k);
                     rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,
@@ -728,9 +728,9 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
     // Define gradp from fluxes -- note that fluxes is dt * change in Gp
     //   (weighted by map factor!)
     // ****************************************************************************
-    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-one/l_dt,fluxes[0][0],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-one/l_dt,fluxes[0][1],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-one/l_dt,fluxes[0][2],0,0,1,0);
 
     gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
@@ -767,7 +767,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
             const Array4<Real const>& rhs_arr = rhs_lev.const_array(mfi);
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
+                if (std::abs(rhs_arr(i,j,k)) > Real(1.e-10)) {
                     amrex::AllPrint() << "RHS after solve at " <<
                                           IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
                 }
@@ -816,5 +816,5 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
     // ****************************************************************************
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
-    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi_lev,0,0,1,1);
+    MultiFab::Saxpy(pp_inc[lev], one/l_dt, phi_lev,0,0,1,1);
 }

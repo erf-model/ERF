@@ -123,66 +123,60 @@ public:
     void
     Plot_Lsm_Data (const PlotFileType plotfile_type, amrex::Real time,
                    const amrex::Vector<int> &level_steps,
-                   const amrex::Vector<amrex::IntVect> &ref_ratio)
+                   const amrex::Vector<amrex::IntVect> &ref_ratio, const int finest_level)
     {
         int nlev = m_lsm_model.size();
         int nvar = this->Get_Data_Size();
-        int nlev_valid = nlev;
+        int nlev_valid = finest_level;
         amrex::Vector<std::string> varnames;
 
-        // Only write if we have valid pointers
-        if (this->Get_Data_Ptr(0,0)) {
-            varnames.resize(nvar);
-            m_lsm_geom_lev.resize(nlev);
-            m_lsm_data_lev.resize(nlev);
-            std::string plotfilename = amrex::Concatenate(plot_file_lsm, level_steps[0], 5);
-            for (int lev(0); lev<nlev; ++lev) {
-                m_lsm_geom_lev[lev] = this->Get_Lsm_Geom(lev);
-                if (m_lsm_geom_lev[lev].Domain().isEmpty()) {
-                    nlev_valid--;
-                    continue;
-                }
-                amrex::MultiFab* mf_lsm = this->Get_Data_Ptr(lev,0);
-                amrex::IntVect ng(0,0,0);
-                amrex::BoxArray ba = mf_lsm->boxArray();
-                amrex::DistributionMapping dm = mf_lsm->DistributionMap();
-                m_lsm_data_lev[lev].define(ba, dm, nvar, ng);
-                for (int n(0); n<nvar; ++n) {
-                    mf_lsm = this->Get_Data_Ptr(lev,n);
-                    amrex::MultiFab::Copy(m_lsm_data_lev[lev],*(mf_lsm),0,n,1,0);
-                    if (lev==0) varnames[n] = this->Get_DataName(n);
-                }
+        // // Only write if we have valid pointers
+        // if (this->Get_Data_Ptr(0,0)) {
+        varnames.resize(nvar);
+        m_lsm_geom_lev.resize(nlev);
+        m_lsm_data_lev.resize(nlev);
+        std::string plotfilename = amrex::Concatenate(plot_file_lsm, level_steps[0], 5);
+        // for (int lev(0); lev<nlev; ++lev) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            m_lsm_geom_lev[lev] = this->Get_Lsm_Geom(lev);
+            if (m_lsm_geom_lev[lev].Domain().isEmpty()) {
+                nlev_valid--;
+                continue;
             }
-            if (plotfile_type == PlotFileType::Amrex) {
-                WriteMultiLevelPlotfile (plotfilename, nlev_valid, GetVecOfConstPtrs(m_lsm_data_lev),
-                                         varnames, m_lsm_geom_lev, time, level_steps, ref_ratio);
-#ifdef ERF_USE_NETCDF
-            } else if (plotfile_type == PlotFileType::Netcdf) {
-                int lev   = 0;
-                int l_which = 0;
-                //writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(m_lsm_data_lev), varnames, level_steps, time);
-#endif
-            } else {
-                amrex::Abort("Dont know this plot_filetype");
-            }
-
-            m_lsm_geom_lev.clear();
-            m_lsm_data_lev.clear();
-
-            if (nlev_valid > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
-            {
-                for (int lev(0); lev<nlev_valid; ++lev) {
-                    static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0]);
-                }
+            amrex::MultiFab* mf_lsm = this->Get_Data_Ptr(lev,0);
+            amrex::IntVect ng(0,0,0);
+            amrex::BoxArray ba = mf_lsm->boxArray();
+            amrex::DistributionMapping dm = mf_lsm->DistributionMap();
+            m_lsm_data_lev[lev].define(ba, dm, nvar, ng);
+            for (int n(0); n<nvar; ++n) {
+                mf_lsm = this->Get_Data_Ptr(lev,n);
+                amrex::MultiFab::Copy(m_lsm_data_lev[lev],*(mf_lsm),0,n,1,0);
+                if (lev==0) varnames[n] = this->Get_DataName(n);
             }
         }
-    }
+        if (plotfile_type == PlotFileType::Amrex) {
+            WriteMultiLevelPlotfile (plotfilename, nlev_valid, GetVecOfConstPtrs(m_lsm_data_lev),
+                                        varnames, m_lsm_geom_lev, time, level_steps, ref_ratio);
+#ifdef ERF_USE_NETCDF
+        } else if (plotfile_type == PlotFileType::Netcdf) {
+            int lev   = 0;
+            int l_which = 0;
+            //writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(m_lsm_data_lev), varnames, level_steps, time);
+#endif
+        } else {
+            amrex::Abort("Dont know this plot_filetype");
+        }
 
-    void set_LSM_flux_inputs (const int& lev,
-                              const amrex::MultiFab* sw_lw_fluxes_in,
-                              const amrex::MultiFab* zenith_in)
-    {
-        m_lsm_model[lev]->set_flux_inputs(sw_lw_fluxes_in, zenith_in);
+        m_lsm_geom_lev.clear();
+        m_lsm_data_lev.clear();
+
+        if (nlev_valid > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
+        {
+            // for (int lev(0); lev<nlev_valid; ++lev) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0], lev);
+            }
+        }
     }
 
     void set_LSM_precip_input (const int& lev,
