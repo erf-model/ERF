@@ -669,6 +669,15 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real elapsed_time)
 {
+    // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
+    // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber
+    // the offset, so return early here.
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+        micro->Set_dzmin(lev, dzmin);
+        return;
+    }
+
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
         if (lev > 0) {
