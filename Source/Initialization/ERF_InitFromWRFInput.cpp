@@ -619,28 +619,28 @@ ERF::init_from_wrfinput (int lev,
               auto &lsm_wrfmap = lsm.Get_WRFInputNames();
               for (auto &var : lsm_wrfmap) {
                   if (var_name == var.first) {
-                      bool is_3d = var_fab.box().length(2) > 1;
+                      bool is_3d = var_fab_from_file.box().length(2) > 1;
                       amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
                       int lsm_idx = lsm.Get_DataIdx(lev, var.second);
                       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
                       AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
 
                       int lsm_nsoil = lsm.Get_Lsm_Geom(lev).Domain().length(2);
-                      amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab.box().length(2) << std::endl;
+                      amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab_from_file.box().length(2) << std::endl;
                       if (is_3d) {
-                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab.box().length(2), "Number of soil layers must match!");
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab_from_file.box().length(2), "Number of soil layers must match!");
                       }
 
                       // check for special case of single column data (such as soil thickness ZS, DZS)
                       //  the single column is duplicated across all grid points
-                      bool is_column = var_fab.box().length(0) == 1 && var_fab.box().length(1) == 1;
+                      bool is_column = var_fab_from_file.box().length(0) == 1 && var_fab_from_file.box().length(1) == 1;
 
                       for ( MFIter mfi(*lsm_data[lev][lsm_idx], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                           Box gtbx = mfi.tilebox();
                           int lsm_khi = gtbx.bigEnd(2);
-                          gtbx.setRange(2, 0, var_fab.box().length(2));
+                          gtbx.setRange(2, 0, var_fab_from_file.box().length(2));
                           const Array4<      Real>& dst_arr = lsm_data[lev][lsm_idx]->array(mfi);
-                          const Array4<const Real>& src_arr = var_fab.const_array();
+                          const Array4<const Real>& src_arr = var_fab_from_file.const_array();
                           ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                           {
                               int li = amrex::min(amrex::max(i, i_lo), i_hi);
