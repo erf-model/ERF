@@ -38,7 +38,7 @@ void ERF::advance_radiation (int lev,
                 std::string slm_name = slm_output_name_map[lsm_output_names[i]];
                 if (slm_name == "") continue;
 
-                int varIdx = lsm.Get_DataIdx(lev,lsm_output_names[i]);
+                int varIdx = lsm.Get_DataIdx(lev,slm_name);
                 if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
             }
 
