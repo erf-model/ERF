@@ -71,7 +71,6 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
             if (var_idx == Vars::xvel) bx_xlo.setBig(0,dom_lo.x);
 
             Box bx_xhi(bx); bx_xhi.setSmall(0,dom_hi.x+1);
-            if (var_idx == Vars::xvel) bx_xhi.setSmall(0,dom_hi.x);
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -101,7 +100,6 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
             if (var_idx == Vars::yvel) bx_ylo.setBig(1,dom_lo.y);
 
             Box bx_yhi(bx); bx_yhi.setSmall(1,dom_hi.y+1);
-            if (var_idx == Vars::yvel) bx_yhi.setSmall(1,dom_hi.y);
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {

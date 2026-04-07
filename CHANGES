@@ -1,3 +1,9 @@
+#26.04
+    -- Moving Terrain substep fixes (#3083)
+    
+    -- Implicit moisture diffusion (#3061)
+
+    -- Generalize precision (#3059)
 #26.03
     -- Metgrid revamp (#2944)
 

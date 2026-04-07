@@ -227,5 +227,17 @@ void erf_derprecipitable (
   amrex::Real time,
   const int* bcrec,
   const int level);
+
+void erf_dermucape (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::FArrayBox& zfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
 }
 #endif

@@ -180,7 +180,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz_inv = (k == 0) ? one / dz_ptr[k] : two / (dz_ptr[k] + dz_ptr[k-1]);
 
             Real du_dz = (u(i, j, k) - u(i, j, k-1))*dz_inv;
-            if (!need_to_test || u(dom_lo.x,j,k) <= zero) {
+            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
                 tau13(i,j,k) = myhalf * ( du_dz
                                      + (-(Real(8.)/three) * w(i-1,j,k) + three * w(i,j,k) - (one/three) * w(i+1,j,k))*dxInv[0] * mfx );
             } else {
@@ -249,7 +249,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
-            if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
                 tau12(i,j,k) = myhalf * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - (one/three) * u(i,j-2,k))*dxInv[1]*mfy +
                                      + (v(i, j, k) - v(i-1, j, k))*dxInv[0]*mfx);
             } else {
@@ -296,7 +296,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz_inv = (k == 0) ? one / dz_ptr[k] : two / (dz_ptr[k] + dz_ptr[k-1]);
 
             Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dz_inv;
-            if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
                 tau23(i,j,k) = myhalf * ( dv_dz
                                      - (-(Real(8.)/three) * w(i,j  ,k) + three * w(i,j-1,k) - (one/three) * w(i,j-2,k))*dxInv[1] * mfy );
             } else {
