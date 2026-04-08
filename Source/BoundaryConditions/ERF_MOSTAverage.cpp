@@ -505,7 +505,7 @@ MOSTAverage::set_k_indices_EB (const int& lev)
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
         m_k_indx[lev]->setVal(lk);
-    } 
+    }
 }
 
 /**
