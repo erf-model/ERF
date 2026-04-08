@@ -288,28 +288,33 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++)
             {
                 std::string tmp_string(particles_namelist[i]+"_count");
-                IntVect rr = IntVect::TheUnitVector();
                 if (ref_tags[j].Field() == tmp_string) {
                     auto* pc = particleData[particles_namelist[i]];
                     int pc_nlevs = static_cast<int>(pc->GetParticles().size());
-                    for (int lev = levc; lev <= finest_level; lev++)
-                    {
-                        if (lev >= pc_nlevs) { continue; }
-                        MultiFab temp_dat(grids[lev], dmap[lev], 1, 0); temp_dat.setVal(0);
-                        pc->IncrementWithTotal(temp_dat, lev);
 
-                        MultiFab temp_dat_crse(grids[levc], dmap[levc], 1, 0); temp_dat_crse.setVal(0);
-
-                        if (lev == levc) {
-                            MultiFab::Copy(*mf, temp_dat, 0, 0, 1, 0);
-                        } else {
-                            for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                                rr[d] *= ref_ratio[levc][d];
-                            }
-                            average_down(temp_dat, temp_dat_crse, 0, 1, rr);
-                            MultiFab::Add(*mf, temp_dat_crse, 0, 0, 1, 0);
+                    // Deposit particle counts at each level into per-level MultiFabs
+                    Vector<MultiFab> count_per_lev(finest_level+1);
+                    for (int lev = levc; lev <= finest_level; lev++) {
+                        count_per_lev[lev].define(grids[lev], dmap[lev], 1, 0);
+                        count_per_lev[lev].setVal(0);
+                        if (lev < pc_nlevs) {
+                            pc->IncrementWithTotal(count_per_lev[lev], lev);
                         }
                     }
+
+                    // Average down level-by-level from finest to levc.
+                    // This avoids multi-level coarsening (e.g. L2->L0 with
+                    // ratio (4,1,4)) which can fail when fine-level boxes
+                    // are not aligned to the composite refinement ratio.
+                    for (int lev = finest_level; lev > levc; lev--) {
+                        MultiFab temp_crse(grids[lev-1], dmap[lev-1], 1, 0);
+                        temp_crse.setVal(0);
+                        average_down(count_per_lev[lev], temp_crse,
+                                     0, 1, ref_ratio[lev-1]);
+                        MultiFab::Add(count_per_lev[lev-1], temp_crse, 0, 0, 1, 0);
+                    }
+
+                    MultiFab::Copy(*mf, count_per_lev[levc], 0, 0, 1, 0);
                 }
             }
 #endif
