@@ -85,6 +85,7 @@ prob.custom_terrain_type = "WoA"
 # MULTILEVEL
 amr.max_level = 2
 amr.ref_ratio_vect = 2 1 2 2 1 2
+erf.coupling_type = "OneWay"
 amr.n_error_buf     = 4
 erf.regrid_int      = 1
 

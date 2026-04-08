@@ -82,6 +82,7 @@ prob.rho_0 = 1.16
 # MULTILEVEL
 amr.max_level = 1
 amr.ref_ratio_vect = 2 1 2
+erf.coupling_type = "OneWay"
 
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
