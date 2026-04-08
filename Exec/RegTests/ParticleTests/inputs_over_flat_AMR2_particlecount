@@ -77,4 +77,14 @@ prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
 # MULTILEVEL
-amr.max_level = 1
+amr.max_level = 2
+amr.ref_ratio_vect = 2 1 2 2 1 2
+erf.coupling_type = "OneWay"
+amr.n_error_buf     = 4
+erf.regrid_int      = 1
+
+erf.refinement_indicators = tracer_count_refine
+erf.tracer_count_refine.max_level = 2
+erf.tracer_count_refine.field_name = tracer_particles_count
+erf.tracer_count_refine.value_greater = 1.0e-1
+erf.tracer_count_refine.start_time = 0.0

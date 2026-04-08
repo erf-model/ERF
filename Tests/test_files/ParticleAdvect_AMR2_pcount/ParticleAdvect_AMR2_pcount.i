@@ -3,7 +3,7 @@ erf.prob_name = "Particles Over Flat Ground"
 
 erf.init_type = Isentropic
 
-max_step =  400
+max_step =  50
 
 amrex.fpe_trap_invalid = 1
 
@@ -13,7 +13,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     = 0.   0.  0. 
 geometry.prob_hi     = 10.  1.  2.
 
-amr.n_cell           = 256  8   64
+amr.n_cell           = 128  4   32
 
 geometry.is_periodic = 0 1 0
 
@@ -31,8 +31,8 @@ zhi.type = "SlipWall"
 # PARTICLES
 erf.use_tracer_particles = 1
 tracer_particles.initial_distribution_type = box
-tracer_particles.particle_box_lo = 2.95 -1.0 -1.0
-tracer_particles.particle_box_hi = 3.00  2.0  1.0
+tracer_particles.particle_box_lo = 4.55 -1.0 -1.0
+tracer_particles.particle_box_hi = 4.60  2.0  1.0
 tracer_particles.place_randomly_in_cells = false
 tracer_particles.verbose = 1
 
@@ -51,7 +51,7 @@ erf.check_int       = -1  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 20      # number of timesteps between plotfiles
+erf.plot_int_1      = 50      # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particles_count tracer_particles_mass_density
 
 # SOLVER CHOICE
@@ -77,4 +77,14 @@ prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
 # MULTILEVEL
-amr.max_level = 1
+amr.max_level = 2
+amr.ref_ratio_vect = 2 1 2 2 1 2
+amr.n_error_buf     = 4
+erf.coupling_type = "OneWay"
+erf.regrid_int      = 1
+
+erf.refinement_indicators = tracer_count_refine
+erf.tracer_count_refine.max_level = 2
+erf.tracer_count_refine.field_name = tracer_particles_count
+erf.tracer_count_refine.value_greater = 1.0e-1
+erf.tracer_count_refine.start_time = 0.0

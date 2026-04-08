@@ -4,3 +4,53 @@ The terrain-fitted coordinates follow the contour of the hill.
 
 This problem is primarily designed to test the implementation of the terrain-fitted coordinates.
 
+The AMR input files test tracer particle advection with adaptive mesh refinement.
+The naming convention is inputs_over_{terrain}_{AMRlevels}_{tagging}, where:
+  - terrain: "flat" (no terrain) or "hill" (Witch of Agnesi profile)
+  - AMRlevels: "AMR1" (1 refined level) or "AMR2" (2 refined levels)
+  - tagging: "box_fullz" (static box covering full z-extent),
+             "box_partialz" (static box covering partial z-extent),
+             "particlecount" (dynamic tagging based on deposited particle count)
+
+All cases use anisotropic refinement (2,1,2) per level with 2-way particle coupling.
+
+Two-Way Coupling Tests Summary (2026-04-08):
+
+  Case                                  Result   Notes
+  ---------------------------------------------------------------------------
+  NO AMR
+  inputs_over_flat                      PASS     AMR0 reference
+  ---------------------------------------------------------------------------
+  ONE AMR LEVEL
+  inputs_over_flat_AMR1_box_fullz       PASS     400 steps, matches AMR0
+  inputs_over_flat_AMR1_box_partialz    PASS     400 steps, matches AMR0
+  inputs_over_flat_AMR1_particlecount   PASS     400 steps, matches AMR0
+  ---------------------------------------------------------------------------
+  TWO AMR LEVELS
+  inputs_over_flat_AMR2_box_fullz       FAIL     FPE at step 237 during L2 time integration
+  inputs_over_flat_AMR2_box_partialz    FAIL     Negative density at step 332 on L2
+  inputs_over_flat_AMR2_particlecount   PASS     400 steps, matches AMR0
+  ---------------------------------------------------------------------------
+  NO AMR
+  inputs_over_hill                      PASS     AMR0 reference (terrain)
+  ---------------------------------------------------------------------------
+  ONE AMR LEVEL
+  inputs_over_hill_AMR1_box_fullz       PASS     400 steps, matches AMR0
+  inputs_over_hill_AMR1_box_partialz    FAIL     Memory corruption at step 100
+  inputs_over_hill_AMR1_particlecount   FAIL     Segfault at step 61 during regrid
+  ---------------------------------------------------------------------------
+  TWO AMR LEVELS
+  inputs_over_hill_AMR2_box_fullz       FAIL     FPE at step 85 during L2 time integration
+  inputs_over_hill_AMR2_box_partialz    FAIL     FPE at step 36 during L2 time integration
+  inputs_over_hill_AMR2_particlecount   FAIL     Memory corruption at step 101 during regrid
+  ---------------------------------------------------------------------------
+
+All failures are probably flow instabilities at coarse-fine boundaries.
+The flat AMR2 box cases develop spurious oscillations at the L2 boundary.
+The terrain (hill) AMR cases with partial-z or dynamic tagging crash due to
+incorrect coarse-fine interpolation in terrain-following coordinates (the
+index-space interpolation kernels assume uniform z-spacing, which does not
+hold with terrain). The terrain AMR1_box_fullz case survives because the
+refined region covers the full z-extent, avoiding the problematic partial-z
+interpolation at the top of the refined region.
+

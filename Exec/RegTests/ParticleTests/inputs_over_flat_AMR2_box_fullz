@@ -77,4 +77,12 @@ prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
 # MULTILEVEL
-amr.max_level = 1
+amr.max_level = 2
+amr.ref_ratio_vect = 2 1 2 2 1 2
+erf.coupling_type = "OneWay"
+
+erf.refinement_indicators = box1
+erf.box1.max_level = 2
+erf.box1.in_box_lo =  4.0 0.0
+erf.box1.in_box_hi =  6.0 1.0
+
