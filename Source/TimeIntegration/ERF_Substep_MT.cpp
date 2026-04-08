@@ -430,7 +430,6 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
             Real dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
 
-            Real dJ_rat_stg_kface = dJ_stg_kface / dJ_new_kface;
             Real dJ_rat_old_kface = dJ_old_kface / dJ_new_kface;
 
             Real dJ_rat_stg_k     = detJ_stg(i,j,k  ) / detJ_new(i,j,k  );
