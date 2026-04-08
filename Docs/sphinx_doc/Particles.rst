@@ -104,6 +104,24 @@ and fine levels, and ``OneWay`` disables the fine-to-coarse feedback.
 ``OneWay`` is preferred for particle simulations as it avoids potential
 instabilities at coarse-fine boundaries.
 
+.. figure:: figures/ParticleAdvect_AMR2_box.gif
+   :alt: Tracer particles with 2 AMR levels using static box tagging
+   :align: center
+   :width: 100%
+
+   Tracer particle advection over flat terrain with 2 AMR levels and static box
+   tagging covering a partial z-extent (``inputs_over_flat_AMR2_box_partialz``).
+   The refined region is fixed in space; particles enter and exit it as they advect.
+
+.. figure:: figures/ParticleAdvect_AMR2_pcount.gif
+   :alt: Tracer particles with 2 AMR levels using particle-count tagging
+   :align: center
+   :width: 100%
+
+   Tracer particle advection over flat terrain with 2 AMR levels and dynamic
+   particle-count-based tagging (``inputs_over_flat_AMR2_particlecount``).
+   The refined region tracks the particles as they move through the domain.
+
 Particle-count-based refinement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
