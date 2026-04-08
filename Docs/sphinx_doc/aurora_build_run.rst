@@ -56,8 +56,7 @@ Verify your environment before building:
 
    .. tab-item:: Interactive
 
-      Interactive Build and Run
-      -------------------------
+      .. rubric:: Interactive Build and Run
 
       **1) Get an interactive allocation**
 
@@ -187,8 +186,7 @@ Verify your environment before building:
 
    .. tab-item:: Batch
 
-      Batch Submission
-      ----------------
+      .. rubric:: Batch Submission
 
       Save the following as ``submit_erf_aurora.pbs`` (edit placeholders):
 
@@ -327,7 +325,7 @@ The ABL case (``inputs_ml_most``) demonstrates a typical configuration:
    erf.les_type = "Smagorinsky"
    erf.Cs       = 0.1
 
-See :ref:`InputFiles` for complete input file documentation.
+See :ref:`sec:running` for complete input file documentation.
 
 Expected Output
 ---------------
