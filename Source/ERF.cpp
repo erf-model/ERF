@@ -1601,7 +1601,7 @@ ERF::InitData_post ()
     if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
         m_SurfaceModel = std::make_unique<SurfaceModel>(finest_level+1, grids, geom, dmap, solverChoice, lmask_lev);
         for (int lev = 0; lev <= finest_level; ++lev) {
-            m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev]);
+            m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
         }
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
