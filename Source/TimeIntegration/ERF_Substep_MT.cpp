@@ -303,15 +303,15 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
                 Real gp_zeta_on_iface = (k == 0) ?
                    myhalf  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
-                   fourth * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
+                                   - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
+                   fourth  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
+                                   - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
                 Real gpx = h_zeta_old * gp_xi - h_xi_old * gp_zeta_on_iface;
                 gpx *= mf_ux(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i-1,j,k) + qt_arr(i,j,k)) : zero;
 
-                Real pi_c =  myhalf * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
+                Real pi_c =  myhalf * (pi_stage_ca(i-1,j,k) + pi_stage_ca(i  ,j,k));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (one + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
@@ -327,15 +327,15 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
-                    fourth * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
+                                    - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
+                    fourth  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
+                                    - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
                 Real gpy = h_zeta_old * gp_eta - h_eta_old  * gp_zeta_on_jface;
                 gpy *= mf_vy(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j-1,k) + qt_arr(i,j,k)) : zero;
 
-                Real pi_c =  myhalf * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
+                Real pi_c =  myhalf * (pi_stage_ca(i,j-1,k) + pi_stage_ca(i,j  ,k));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (one + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
@@ -430,10 +430,8 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real     dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
             Real     dJ_stg_kface = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
 
-            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k-1) + qt_arr(i,j,k)) : zero;
-
-            Real coeff_P = coeffP_a(i,j,k) / (one + q);
-            Real coeff_Q = coeffQ_a(i,j,k) / (one + q);
+            Real coeff_P = coeffP_a(i,j,k);
+            Real coeff_Q = coeffQ_a(i,j,k);
 
             Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );

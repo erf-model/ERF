@@ -74,8 +74,8 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        ssum[IntVars::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
-                                           + slow_dt * dJ_stg(i,j,k) * fslow[IntVars::cons](i,j,k,n);
+                        ssum[IntVars::cons](i,j,k,n)  = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
+                                                      + slow_dt * dJ_stg(i,j,k) * fslow[IntVars::cons](i,j,k,n);
                         ssum[IntVars::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
@@ -85,13 +85,13 @@
                         Real h_zeta_old = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
                         Real h_zeta_new = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_new);
                         ssum[IntVars::xmom](i,j,k) = ( h_zeta_old *  sold[IntVars::xmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::xmom](i,j,k) ) / h_zeta_new;
+                                                     + slow_dt * fslow[IntVars::xmom](i,j,k) ) / h_zeta_new;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
                         Real h_zeta_new = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_new);
                         ssum[IntVars::ymom](i,j,k) = ( h_zeta_old *  sold[IntVars::ymom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::ymom](i,j,k) ) / h_zeta_new;
+                                                     + slow_dt * fslow[IntVars::ymom](i,j,k) ) / h_zeta_new;
                     });
                     ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -106,7 +106,7 @@
                             Real dJ_old_kface = myhalf * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
                             Real dJ_new_kface = myhalf * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
                             ssum[IntVars::zmom](i,j,k) = ( dJ_old_kface *  sold[IntVars::zmom](i,j,k)
-                                                             + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
+                                                         + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
                         }
                     });
 

@@ -1,16 +1,16 @@
 .. _building:configuration:
 
-=================================
-Build Configuration Details
-=================================
+=============================================
+Beyond the Basics: Machines and Libraries
+=============================================
 
-This section provides comprehensive documentation for customizing your ERF build across different systems and configurations.
+Use this section when quickstart defaults are not enough for your machine, compiler environment, or library stack.
+It is organized around build concepts first, then full machine-specific guides.
 
 .. toctree::
    :maxdepth: 2
 
-   Build System Overview <buildingOverview>
-   Build Systems and Options <buildingSystems>
-   Building on HPC Systems <buildingHPC>
+   Build Tools and Concepts <buildToolsConcepts>
+   HPC System Guides <hpcSystemGuides>
    Library Configuration <buildingLibraryConfig>
    Troubleshooting <buildingTroubleshooting>

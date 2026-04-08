@@ -294,7 +294,6 @@ void erf_substep_NS (int step, int nrk,
         const Array4<const Real>& stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
-        const Array4<const Real> & qt_arr     = qt.const_array(mfi);
 
         const Array4<const Real>& prev_drho_theta = Delta_rho_theta.array(mfi);
 
@@ -397,10 +396,8 @@ void erf_substep_NS (int step, int nrk,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
-
-            Real coeff_P = coeffP_a(i,j,k) / (one + q);
-            Real coeff_Q = coeffQ_a(i,j,k) / (one + q);
+            Real coeff_P = coeffP_a(i,j,k);
+            Real coeff_Q = coeffQ_a(i,j,k);
 
             Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
