@@ -31,8 +31,10 @@ void make_fast_coeffs (int /*level*/,
                        const amrex::Geometry geom,
                        bool l_use_moisture,
                        MeshType mesh_type,
+                       TerrainType terrain_type,
                        Real gravity, Real c_p,
-                       std::unique_ptr<MultiFab>& detJ_cc,
+                       MultiFab* detJ_cc_old,                        // detJ built at substep start
+                       MultiFab* detJ_cc_new,                        // detJ built at substep end
                        const MultiFab* r0, const MultiFab* pi0,
                        Real dtau, Real beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
@@ -77,7 +79,10 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real> & stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
-        const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ? detJ_cc->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ = (mesh_type != MeshType::ConstantDz) ? detJ_cc_old->const_array(mfi) :
+                                                                               Array4<const Real>{};
+        const Array4<const Real>& detJ_new = (terrain_type == TerrainType::MovingFittedMesh) ? detJ_cc_new->const_array(mfi) :
+                                                                                               Array4<const Real>{};
 
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
@@ -110,51 +115,101 @@ void make_fast_coeffs (int /*level*/,
         //Note we don't act on the bottom or top boundaries of the domain
         if (mesh_type != MeshType::ConstantDz)
         {
-            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                rhobar_lo =  r0_ca(i,j,k-1);
-                rhobar_hi =  r0_ca(i,j,k  );
-                 pibar_lo = pi0_ca(i,j,k-1);
-                 pibar_hi = pi0_ca(i,j,k  );
+            if (terrain_type == TerrainType::MovingFittedMesh) {
+                ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
+                    rhobar_lo =  r0_ca(i,j,k-1);
+                    rhobar_hi =  r0_ca(i,j,k  );
+                    pibar_lo = pi0_ca(i,j,k-1);
+                    pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+                    Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
-                 Real inv_detJ_on_kface = one / detJ_on_kface;
+                    Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
+                    Real inv_detJ_on_kface = one / detJ_on_kface;
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+                    Real detJ_ratio = detJ_on_kface / (myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1)));
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                    Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                    Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                    Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
+                                 +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
+                                 (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
 
-                 coeffP_a(i,j,k) = coeff_P;
-                 coeffQ_a(i,j,k) = coeff_Q;
+                    Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
+                                 + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
+                                 ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 
-                if (l_use_moisture) {
-                    Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
-                                      + prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                    coeff_P /= (one + q);
-                    coeff_Q /= (one + q);
-                }
+                    coeffP_a(i,j,k) = coeff_P;
+                    coeffQ_a(i,j,k) = coeff_Q;
 
-                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+                    if (l_use_moisture) {
+                        Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                                          + prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
+                        coeff_P /= (one + q);
+                        coeff_Q /= (one + q);
+                    }
 
-                // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+                    Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                    Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                    Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-                coeffB_a(i,j,k) = one + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
-            });
+                    // LHS for tri-diagonal system
+                    Real D = dtau * dtau * beta_2 * beta_2 * dzi * detJ_ratio;
+                    coeffA_a(i,j,k) = D * (one/detJ_new(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                    coeffC_a(i,j,k) = D * (one/detJ_new(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+
+                    coeffB_a(i,j,k) = one + D * (coeff_Q/detJ_new(i,j,k-1) - coeff_P/detJ_new(i,j,k)) * theta_t_mid;
+                });
+            } else {
+                ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
+                    rhobar_lo =  r0_ca(i,j,k-1);
+                    rhobar_hi =  r0_ca(i,j,k  );
+                    pibar_lo = pi0_ca(i,j,k-1);
+                    pibar_hi = pi0_ca(i,j,k  );
+
+                    Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+
+                    Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
+                    Real inv_detJ_on_kface = one / detJ_on_kface;
+
+                    Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                    Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+
+                    Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
+                                 +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
+                                 (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+
+                    Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
+                                 + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
+                                 ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+
+                    coeffP_a(i,j,k) = coeff_P;
+                    coeffQ_a(i,j,k) = coeff_Q;
+
+                    if (l_use_moisture) {
+                        Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                                          + prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
+                        coeff_P /= (one + q);
+                        coeff_Q /= (one + q);
+                    }
+
+                    Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                    Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                    Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+
+                    // LHS for tri-diagonal system
+                    Real D = dtau * dtau * beta_2 * beta_2 * dzi;
+                    coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                    coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+
+                    coeffB_a(i,j,k) = one + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
+                });
+            } // Terrain Type
 
         } else {
 

@@ -227,16 +227,17 @@
                 {
                     // Evaluate between RK stages assuming the geometry is linear between old and new time
                     z_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
-                                                     +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
-                                                     +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
-                                                     +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+                                                       +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                       +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                       +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
                 });
 
             } // mfi
     };
 
     auto update_terrain_substep = [&](int lev, Real old_substep_time, Real new_substep_time, Real dtau,
-                                      Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
+                                      Vector<MultiFab>& S_stage, Vector<MultiFab>& S_data,
+                                      std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
         Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
@@ -280,16 +281,24 @@
             const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[lev]->const_array(mfi);
             const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
+            const Array4<Real const>& cons_old = S_data[IntVars::cons].const_array(mfi);
+            const Array4<Real const>& cons_stg = S_stage[IntVars::cons].const_array(mfi);
+
             // Loop over horizontal plane
             amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // Density weighting of the perturbation grid velocity
+                Real rho_old_face = myhalf * (cons_old(i,j,k,0) + cons_old(i,j,k-1,0));
+                Real rho_stg_face = myhalf * (cons_stg(i,j,k,0) + cons_stg(i,j,k-1,0));
+
                 // Evaluate between RK stages assuming the geometry is linear between old and new time
                 zp_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
-                                                  +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
-                                                  +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
-                                                  +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
-                // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
-                zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
+                                                    +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                    +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                    +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+
+                // Convert to perturbation: Z"_t(t) = rho(t)z_t(t) - rho^{RK}z_t^{RK}
+                zp_t_arr(i,j,k) = rho_old_face*zp_t_arr(i,j,k) - rho_stg_face*z_t_arr(i,j,k);
             });
         } // mfi
     };
