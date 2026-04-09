@@ -326,14 +326,12 @@ void SuperDropletsMoist::ratioToDensity (MultiFab& a_var,
 void SuperDropletsMoist::computeQcQrWater ()
 {
     BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
-    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
-                                          m_idx_w,
-                                          0,
-                                          m_r_rain );
-    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
-                                          m_idx_w,
-                                          m_r_rain,
-                                          one );
+    m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
+                                        0,
+                                        m_r_rain );
+    m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
+                                        m_r_rain,
+                                        one );
 
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_c]); mfi.isValid(); ++mfi) {
