@@ -418,7 +418,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                          std::mt19937& a_rng ) const
 {
     a_mass.resize(a_np);
-    AMREX_ALWAYS_ASSERT(a_mult.size() == static_cast<size_t>(a_np));
+    AMREX_ALWAYS_ASSERT(static_cast<amrex::Long>(a_mult.size()) == a_np);
     if (a_init_type == SDDistributionType::mass_constant) {
         std::uniform_real_distribution<> urd(zero, one);
         for (int n = 0; n < a_np; n++) {

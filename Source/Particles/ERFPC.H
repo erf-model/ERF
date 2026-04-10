@@ -333,6 +333,17 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         // the following functions should ideally be private or protected, but need to be
         // public due to CUDA extended lambda capture rules
 
+        /*! \brief Helper for ParticleToMesh operations with non-uniform z support
+         *
+         * Generic CIC deposition from particles to a MultiFab. The caller provides
+         * a device lambda `value_func(ptd, i)` that returns the per-particle scalar
+         * to deposit (e.g. mass, number, flux). Handles both uniform and non-uniform
+         * vertical grids. Implementation in ERFPCParticleToMesh.H.
+         */
+        template<typename ValueFunc>
+        void ERFPCParticleToMesh(amrex::MultiFab& a_mf, int a_lev, int a_comp,
+                                  ValueFunc&& value_func) const;
+
         /*! Default particle initialization */
         void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,
                                                           const amrex::RealBox& particle_box);

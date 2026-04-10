@@ -1,4 +1,4 @@
-#include <AMReX_ParticleInterpolators.H>
+#include "ERFPCParticleToMesh.H"
 #include "ERF_Constants.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -177,139 +177,12 @@ Long SuperDropletPC::NumSDDeactivated ()
     return count;
 }
 
-/*! Helper function for ParticleToMesh operations
- *
- *  This template consolidates the common boilerplate for all particle-to-mesh
- *  deposition functions. The ValueFunc should return the value to deposit
- *  (before division by cell volume).
- *
- *  Uses CIC (Cloud-In-Cell / trilinear) interpolation: linear weights in x, y,
- *  and z, depositing to 8 cells (2x2x2). For uniform grids, this is identical
- *  to AMReX's ParticleInterpolator::Linear. For non-uniform vertical grids
- *  (terrain_z_levels), the z-weights are computed from actual cell-center
- *  distances and each target cell uses its own dz for the volume.
- */
-template<typename ValueFunc>
-void SuperDropletPC::particleToMeshHelper(MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const
-{
-    AMREX_ASSERT(OK());
-    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
-
-    const auto& geom = Geom(m_lev);
-    const auto plo = geom.ProbLoArray();
-    const auto dxi = geom.InvCellSizeArray();
-    const auto dx = geom.CellSizeArray();
-
-    // Get staggered z-levels if available for non-uniform vertical grids
-    const Real* zlevels = m_zlevels_d.empty() ? nullptr : m_zlevels_d.data();
-    const int nz_levels = static_cast<int>(m_zlevels_d.size());
-
-    a_mf.setVal(0.0);
-
-    ParticleToMesh(*this, a_mf, m_lev,
-        [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
-                              int i, Array4<Real> const& rho)
-        {
-            auto p = ptd.m_aos[i];
-            auto particle_value = value_func(ptd, i);
-
-            if (zlevels) {
-                // Non-uniform vertical grid: CIC in x,y; CIC in z using
-                // actual cell-center distances and per-cell volume.
-
-                // CIC weights in x and y (uniform spacing)
-                Real lx = (p.pos(0) - plo[0]) * dxi[0] + Real(0.5);
-                int ix = static_cast<int>(amrex::Math::floor(lx)) - 1;
-                Real wx1 = lx - static_cast<Real>(ix + 1);
-                Real wx0 = Real(1.0) - wx1;
-
-                Real ly = (p.pos(1) - plo[1]) * dxi[1] + Real(0.5);
-                int iy = static_cast<int>(amrex::Math::floor(ly)) - 1;
-                Real wy1 = ly - static_cast<Real>(iy + 1);
-                Real wy0 = Real(1.0) - wy1;
-
-                // CIC weights in z from cell-center distances
-                int kz = p.idata(ERFParticlesIntIdxAoS::k);
-                int nz = nz_levels - 1;
-
-                Real dz_k = zlevels[kz+1] - zlevels[kz];
-                Real z_center_k = Real(0.5) * (zlevels[kz] + zlevels[kz+1]);
-
-                int kz_lo, kz_hi;
-                Real wz_lo, wz_hi;
-                Real dz_lo, dz_hi;
-
-                if (p.pos(2) >= z_center_k) {
-                    // Particle is above cell center: deposit to kz and kz+1
-                    kz_lo = kz;
-                    kz_hi = kz + 1;
-                    dz_lo = dz_k;
-                    if (kz_hi < nz) {
-                        dz_hi = zlevels[kz_hi+1] - zlevels[kz_hi];
-                        Real z_center_hi = Real(0.5) * (zlevels[kz_hi] + zlevels[kz_hi+1]);
-                        Real span = z_center_hi - z_center_k;
-                        wz_hi = (p.pos(2) - z_center_k) / span;
-                        wz_lo = Real(1.0) - wz_hi;
-                    } else {
-                        // Top boundary: NGP (all weight to kz)
-                        kz_hi = kz;
-                        dz_hi = dz_k;
-                        wz_lo = Real(1.0);
-                        wz_hi = Real(0.0);
-                    }
-                } else {
-                    // Particle is below cell center: deposit to kz-1 and kz
-                    kz_lo = kz - 1;
-                    kz_hi = kz;
-                    dz_hi = dz_k;
-                    if (kz_lo >= 0) {
-                        dz_lo = zlevels[kz_lo+1] - zlevels[kz_lo];
-                        Real z_center_lo = Real(0.5) * (zlevels[kz_lo] + zlevels[kz_lo+1]);
-                        Real span = z_center_k - z_center_lo;
-                        wz_lo = (z_center_k - p.pos(2)) / span;
-                        wz_hi = Real(1.0) - wz_lo;
-                    } else {
-                        // Bottom boundary: NGP (all weight to kz)
-                        kz_lo = kz;
-                        dz_lo = dz_k;
-                        wz_lo = Real(0.0);
-                        wz_hi = Real(1.0);
-                    }
-                }
-
-                // Deposit to 8 cells (2x2x2) with per-cell volume
-                Real inv_vol_lo = dxi[0] * dxi[1] / dz_lo;
-                Real inv_vol_hi = dxi[0] * dxi[1] / dz_hi;
-
-                Real pval_lo = particle_value * wz_lo * inv_vol_lo;
-                Real pval_hi = particle_value * wz_hi * inv_vol_hi;
-
-                Gpu::Atomic::AddNoRet(&rho(ix  , iy  , kz_lo, a_comp), wx0*wy0*pval_lo);
-                Gpu::Atomic::AddNoRet(&rho(ix+1, iy  , kz_lo, a_comp), wx1*wy0*pval_lo);
-                Gpu::Atomic::AddNoRet(&rho(ix  , iy+1, kz_lo, a_comp), wx0*wy1*pval_lo);
-                Gpu::Atomic::AddNoRet(&rho(ix+1, iy+1, kz_lo, a_comp), wx1*wy1*pval_lo);
-                Gpu::Atomic::AddNoRet(&rho(ix  , iy  , kz_hi, a_comp), wx0*wy0*pval_hi);
-                Gpu::Atomic::AddNoRet(&rho(ix+1, iy  , kz_hi, a_comp), wx1*wy0*pval_hi);
-                Gpu::Atomic::AddNoRet(&rho(ix  , iy+1, kz_hi, a_comp), wx0*wy1*pval_hi);
-                Gpu::Atomic::AddNoRet(&rho(ix+1, iy+1, kz_hi, a_comp), wx1*wy1*pval_hi);
-            } else {
-                // Uniform grid: use AMReX's ParticleInterpolator::Linear (trilinear CIC)
-                ParticleInterpolator::Linear interp(p, plo, dxi);
-                ParticleReal inv_cell_volume = dxi[0] * dxi[1] * dxi[2];
-                interp.ParticleToMesh(p, rho, 0, a_comp, 1,
-                    [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int) {
-                        return particle_value * inv_cell_volume;
-                    });
-            }
-        });
-}
-
 /*! Computes the number density of the SDs over a mesh */
 void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,  /*!< Number density multifab */
                                        const int a_comp /*!< MultiFab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::SDNumberDensity()");
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             return ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
         });
@@ -320,7 +193,7 @@ void SuperDropletPC::numberDensity ( MultiFab& a_mf,  /*!< Number density multif
                                      const int a_comp /*!< MultiFab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::numberDensity()");
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -334,7 +207,7 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,  /*!< Mass density multifab *
                                    const int a_comp /*!< MultiFab component to fill with mass density */) const
 {
     BL_PROFILE("SuperDropletPC::massDensity()");
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -349,7 +222,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
                                 const int a_comp /*!< MultiFab component to fill with mass density */) const
 {
     BL_PROFILE("SuperDropletPC::massFlux()");
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -370,7 +243,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,  /*!< Aerosol mass den
     BL_PROFILE("SuperDropletPC::aerosolMassDensity()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -388,7 +261,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,  /*!< Aerosol mass flux m
     BL_PROFILE("SuperDropletPC::aerosolMassFlux()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -409,7 +282,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
     BL_PROFILE("SuperDropletPC::speciesMassDensity()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -425,7 +298,7 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const Real a_rmin, const R
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
     const auto idx = m_idx_w;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
             if ((radius < a_rmin) || (radius >= a_rmax)) {
@@ -457,7 +330,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, IceCategory a_category,
     const auto ns = m_num_species;
     const auto idx = m_idx_i;
     const auto category = a_category;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
             auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
@@ -525,7 +398,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux m
     BL_PROFILE("SuperDropletPC::speciesMassFlux()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -547,7 +420,7 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,  /*!< Effective radius m
     MultiFab number_density(a_mf.boxArray(), a_mf.DistributionMap(), 1, a_mf.nGrowVect());
     numberDensity(number_density);
 
-    particleToMeshHelper(a_mf, a_comp,
+    ERFPCParticleToMesh(a_mf, m_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];

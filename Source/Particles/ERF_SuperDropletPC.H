@@ -336,10 +336,6 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the frozen water mass density on a mesh */
         virtual void totalIceDensity ( amrex::MultiFab&, const int a_comp = 0) const;
 
-        /*! \brief Helper for ParticleToMesh operations */
-        template<typename ValueFunc>
-        void particleToMeshHelper(amrex::MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const;
-
         /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
 
@@ -438,11 +434,6 @@ class SuperDropletPC : public ERFPC
 
         /*! save inactive particles to file */
         bool m_save_inactive;
-
-        /*! Staggered z-levels for non-uniform vertical grid spacing (from terrain_z_levels).
-         *  Size nz+1: z_levels[k] is the bottom face of cell k. Used for CIC interpolation
-         *  weights and cell volume computation in particle-to-mesh deposition. */
-        amrex::Gpu::DeviceVector<amrex::Real> m_zlevels_d;
 
         /*! Persistent device vectors for material properties */
         amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;    // Species densities
