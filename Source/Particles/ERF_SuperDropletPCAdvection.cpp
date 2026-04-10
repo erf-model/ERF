@@ -10,10 +10,8 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-namespace {
-    /*! \brief Field indices for advection interpolation */
-    AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
-}
+/*! \brief Field indices for advection interpolation */
+AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
 
 /*! \brief Advect superdroplet particles for one time step
  * \param[in] a_lev AMR level

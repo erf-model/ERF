@@ -11,10 +11,8 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-namespace {
-    /*! \brief Field indices for liquid-vapour interpolation */
-    AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
-}
+/*! \brief Field indices for liquid-vapour interpolation */
+AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
 /*! Compute mass change of particles due to evaporation and condensation */
 void SuperDropletPC::MassChange ( int                                         a_lev,
