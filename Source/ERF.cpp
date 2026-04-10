@@ -1504,7 +1504,7 @@ ERF::InitData_post ()
     // If lev > 0, we need to fill bc's by interpolation from coarser grid
     for (int lev = 1; lev <= finest_level; ++lev)
     {
-        Interp2DArrays(lev,grids[lev],dmap[lev]);
+        Interp2DArrays(lev,ba2d[lev],dmap[lev]);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
