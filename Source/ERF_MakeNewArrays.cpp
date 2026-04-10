@@ -53,8 +53,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     int ngrow = ComputeGhostCells(solverChoice) + 2;
     tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
+    // Offset z-coordinate for interpolate_1d when plane EB is used.
+    Real z_offset = zero;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        ParmParse pp_eb2("eb2");
+        std::string geometry;
+        pp_eb2.query("geometry", geometry);
+        if (geometry == "plane") {
+            RealArray plane_point{zero, zero, zero};
+            pp_eb2.query("plane_point", plane_point);
+            z_offset = plane_point[2];
+        }
+    }
+
     z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,2);
-    init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev]);
+    init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev], z_offset);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
     {
@@ -656,6 +669,15 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real elapsed_time)
 {
+    // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
+    // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber
+    // the offset, so return early here.
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+        micro->Set_dzmin(lev, dzmin);
+        return;
+    }
+
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
         if (lev > 0) {
