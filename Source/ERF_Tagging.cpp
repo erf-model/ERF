@@ -290,6 +290,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 std::string tmp_string(particles_namelist[i]+"_count");
                 if (ref_tags[j].Field() == tmp_string) {
                     auto* pc = particleData[particles_namelist[i]];
+                    pc->resizeData();
                     int pc_nlevs = static_cast<int>(pc->GetParticles().size());
 
                     // Deposit particle counts at each level into per-level MultiFabs
