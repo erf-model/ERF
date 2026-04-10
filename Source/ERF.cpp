@@ -1873,6 +1873,8 @@ ERF::InitData_post ()
 void
 ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
 {
+    if (lev == 0) { return; }
+
     if (lon_m[lev-1] && !lon_m[lev]) {
         auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;
         lon_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);

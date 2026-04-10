@@ -1197,7 +1197,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
-                      (solverChoice.moisture_type == MoistureType::Morrison) )
+                      (solverChoice.moisture_type == MoistureType::Morrison) ||
+                      (solverChoice.moisture_type == MoistureType::WSM6) )
             {
                 int offset = (solverChoice.moisture_type == MoistureType::Morrison) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
