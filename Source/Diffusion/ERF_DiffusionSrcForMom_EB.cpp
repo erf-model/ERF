@@ -205,7 +205,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             rho_v_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_y && l_no_slip && v_cellflg(i,j,k).isSingleValued()) {
+            // Apply EB boundary contribution for both no-slip and surface-layer wall models.
+            // (Previously this block was incorrectly gated on `l_no_slip`, which prevented
+            //  SurfaceLayer stresses (tau_eb23) from contributing to the y-momentum RHS.)
+            if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = v_afrac_x(i  ,j  ,k  );
                 Real axp = v_afrac_x(i+1,j  ,k  );
