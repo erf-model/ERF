@@ -81,7 +81,7 @@ erf.alpha_C          = 0.0
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.include_coalescence = false
 super_droplets_moisture.include_phase_change = false
