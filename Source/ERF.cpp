@@ -1188,6 +1188,8 @@ ERF::InitData_post ()
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
         const auto& pc_name( dynamic_cast<LagrangianMicrophysics&>(*micro).getName() );
         const auto& pc_ptr( dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer() );
+        AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
+        pc_ptr->Define(static_cast<amrex::ParGDBBase*>(GetParGDB()));
         particleData.pushBack(pc_name, pc_ptr);
         particleData.getNamesUnalloc().remove(pc_name);
     }
