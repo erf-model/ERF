@@ -853,8 +853,10 @@ ERF::ClearLevel (int lev)
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
 
-    // Clears the flux register array
-    advflux_reg[lev]->reset();
+    // Clears the flux register array (only allocated for TwoWay coupling)
+    if (advflux_reg[lev]) {
+        advflux_reg[lev]->reset();
+    }
 
     // Clears the 2D arrays
     if (sst_lev[lev][0]) {
