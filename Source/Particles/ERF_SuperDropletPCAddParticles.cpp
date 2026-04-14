@@ -305,112 +305,62 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data() + size_old;
         }
 
-        Gpu::DeviceVector<Real> species_mass_d(num_sp*np);
-        {
-            Vector<Real> multiplicity_h(np, zero);
-            for (int i = 0; i < num_sp; i++) {
-                Vector<Real> species_mass_h;
-                if (sampled_multiplicity) {
-                    a_init.getSpeciesDistribution( species_mass_h,
-                                                   multiplicity_h,
-                                                   cell_volume,
-                                                   i,
-                                                   np,
-                                                   m_species_mat[i]->m_density,
-                                                   m_rndeng );
-                } else {
-                    a_init.getSpeciesDistribution( species_mass_h,
-                                                   i,
-                                                   np,
-                                                   m_species_mat[i]->m_density,
-                                                   m_rndeng );
-                }
-                Gpu::copy( Gpu::hostToDevice,
-                           species_mass_h.begin(),
-                           species_mass_h.end(),
-                           species_mass_d.begin() + (i*np) );
-            }
+        // GPU-direct distribution generation: no large host memory allocation needed
+        // Create distribution parameters on host (small, O(num_species + num_aerosols))
+        Vector<SDDistributionParams> sp_params_h(num_sp);
+        for (int i = 0; i < num_sp; i++) {
+            sp_params_h[i] = a_init.getSpeciesDistParams(i, m_species_mat[i]->m_density, cell_volume, sampled_multiplicity);
         }
-        Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
-        Gpu::DeviceVector<Real> multiplicity_d(np);
+        Vector<SDDistributionParams> ae_params_h(num_ae);
+        for (int i = 0; i < num_ae; i++) {
+            ae_params_h[i] = a_init.getAerosolDistParams(i, m_aerosol_mat[i]->m_density, cell_volume, sampled_multiplicity);
+        }
+
+        // Copy parameters to device
+        Gpu::DeviceVector<SDDistributionParams> sp_params_d(num_sp);
+        Gpu::DeviceVector<SDDistributionParams> ae_params_d(num_ae);
+        Gpu::copy(Gpu::hostToDevice, sp_params_h.begin(), sp_params_h.end(), sp_params_d.begin());
+        Gpu::copy(Gpu::hostToDevice, ae_params_h.begin(), ae_params_h.end(), ae_params_d.begin());
+
+        // Only need temporary storage for raw multiplicity values (for sampled case)
+        Gpu::DeviceVector<Real> multiplicity_d(np, zero);
+
+        auto* sp_params_ptr = sp_params_d.data();
+        auto* ae_params_ptr = ae_params_d.data();
+        auto* mult_ptr_init = multiplicity_d.data();
+
+        // Generate species and aerosol distributions directly into particle SoA
+        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int n, const RandomEngine& engine) noexcept
         {
-            Vector<Real> multiplicity_h(np, zero);
-            for (int i = 0; i < num_ae; i++) {
-                Vector<Real> aerosol_mass_h;
+            // Sample species masses directly into particle storage
+            for (int s = 0; s < num_sp; s++) {
+                Real sp_mult = zero;
+                sp_mass_ptrs[s][n] = SD_sample_mass_gpu(sp_params_ptr[s], engine, sp_mult);
+            }
+
+            // Sample aerosol masses directly into particle storage
+            Real total_mult = zero;
+            for (int a = 0; a < num_ae; a++) {
+                Real ae_mult = zero;
+                ae_mass_ptrs[a][n] = SD_sample_mass_gpu(ae_params_ptr[a], engine, ae_mult);
                 if (sampled_multiplicity) {
-                    a_init.getAerosolDistribution( aerosol_mass_h,
-                                                   multiplicity_h,
-                                                   cell_volume,
-                                                   i,
-                                                   np,
-                                                   m_aerosol_mat[i]->m_density,
-                                                   m_rndeng );
-                } else {
-                    a_init.getAerosolDistribution( aerosol_mass_h,
-                                                   i,
-                                                   np,
-                                                   m_aerosol_mat[i]->m_density,
-                                                   m_rndeng );
+                    total_mult += ae_mult;
                 }
-                Gpu::copy( Gpu::hostToDevice,
-                           aerosol_mass_h.begin(),
-                           aerosol_mass_h.end(),
-                           aerosol_mass_d.begin() + (i*np) );
             }
             if (sampled_multiplicity) {
-                Gpu::copy( Gpu::hostToDevice,
-                           multiplicity_h.begin(),
-                           multiplicity_h.end(),
-                           multiplicity_d.begin() );
+                mult_ptr_init[n] = total_mult;
             }
-        }
+        });
+
         Gpu::synchronize();
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
+        if (!m_device_props_initialized) { initializeDeviceProperties(); }
+        const ParticleReal* sp_rho_arr = m_sp_density.data();
+        const int* sp_sol_arr = m_sp_solubility.data();
+        const ParticleReal* ae_rho_arr = m_ae_density.data();
+        const int* ae_sol_arr = m_ae_solubility.data();
 
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
-
-        auto species_mass = species_mass_d.data();
-        auto aerosol_mass = aerosol_mass_d.data();
         auto mult_arr = multiplicity_d.data();
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
         auto random_place = m_place_randomly_in_cells;
@@ -501,12 +451,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                 num_to_add -= mult_ptr[n];
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
-                for (int ctr = 0; ctr < num_sp; ctr++) {
-                    sp_mass_ptrs[ctr][n] = species_mass[ctr*np+n];
-                }
-                for (int ctr = 0; ctr < num_ae; ctr++) {
-                    ae_mass_ptrs[ctr][n] = aerosol_mass[ctr*np+n];
-                }
+                // Species and aerosol masses already sampled directly into particle SoA
 
                 radius_ptr[n] = SD_effective_radius( n, idx_w,
                                                      rho_w,
@@ -523,7 +468,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
         });
-        Gpu::synchronize();
 
         const auto height_arr = (*a_height_ptr)[mfi].array();
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

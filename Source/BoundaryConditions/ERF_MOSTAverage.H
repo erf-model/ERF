@@ -64,6 +64,9 @@ public:
     // Populate a 2D iMF k_indx (w/o terrain)
     void set_k_indices_N (const int& lev);
 
+    // Populate a 2D iMF k_indx (for EB)
+    void set_k_indices_EB (const int& lev);
+
     // Populate a 2D iMF k_indx (w/ terrain)
     void set_k_indices_T (const int& lev);
 

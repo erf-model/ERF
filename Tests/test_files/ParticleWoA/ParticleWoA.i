@@ -23,6 +23,7 @@ xlo.velocity = 10. 0. 0.
 xlo.density  = 1.16
 xlo.theta    = 300.
 xlo.scalar   = 0.
+xlo.nonreflecting = true
     
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"

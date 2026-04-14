@@ -266,9 +266,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (lev == 0) {
             initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
-        } else {
-            particleData.Redistribute();
         }
+        // For lev > 0: particle redistribute is handled in timeStep() AFTER
+        // regrid() completes, not here inside MakeNewLevelFromCoarse.
     }
 #endif
 }
@@ -529,9 +529,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
-#ifdef ERF_USE_PARTICLES
-    // particleData.Redistribute();
-#endif
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -807,9 +804,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
-#ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
-#endif
+    // Particle redistribute handled in timeStep() after regrid() completes.
+    // Calling it here causes stale-grid crashes.
 }
 
 //

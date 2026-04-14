@@ -40,7 +40,6 @@ SAM::Cloud (const SolverChoice& sc)
         auto qcl_array = mic_fab_vars[MicVar::qcl]->array(mfi);
         auto qci_array = mic_fab_vars[MicVar::qci]->array(mfi);
 
-        auto   rho_array = mic_fab_vars[MicVar::rho]->array(mfi);
         auto  tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
@@ -76,10 +75,7 @@ SAM::Cloud (const SolverChoice& sc)
                     qci_array(i,j,k)   = zero;
                     qcl_array(i,j,k)  += delta_qi;
                     tabs_array(i,j,k) -= fac_fus * delta_qi;
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                         * (one + R_v/R_d * qv_array(i,j,k));
                     theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) *= Real(0.01);
                 }
                 // Cloud water not permitted (freeze to form ice)
                 else if (tabs_array(i,j,k) <= tbgmin) {
@@ -88,10 +84,7 @@ SAM::Cloud (const SolverChoice& sc)
                     qcl_array(i,j,k)   = zero;
                     qci_array(i,j,k)  += delta_qc;
                     tabs_array(i,j,k) += fac_fus * delta_qc;
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                         * (one + R_v/R_d * qv_array(i,j,k));
                     theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) *= Real(0.01);
                 }
                 // Mixed cloud phase (split according to omn)
                 else {
@@ -101,10 +94,7 @@ SAM::Cloud (const SolverChoice& sc)
                     qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
                     qci_array(i,j,k)   = qn_array(i,j,k) * (one - omn);
                     tabs_array(i,j,k) += fac_fus * delta_qc;
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                         * (one + R_v/R_d * qv_array(i,j,k));
                     theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) *= Real(0.01);
                 }
             }
             else if (SAM_moisture_type == 2)
@@ -115,10 +105,7 @@ SAM::Cloud (const SolverChoice& sc)
                 qcl_array(i,j,k)   = qn_array(i,j,k);
                 qci_array(i,j,k)   = zero;
                 tabs_array(i,j,k) += fac_cond * delta_qc;
-                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                     * (one + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) *= Real(0.01);
             }
 
             // Saturation moisture fractions

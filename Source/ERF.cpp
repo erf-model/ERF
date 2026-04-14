@@ -769,7 +769,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     BL_PROFILE("ERF::post_timestep()");
 
 #ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
+    particleData.Redistribute(z_phys_nd);
 #endif
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
@@ -1504,7 +1504,7 @@ ERF::InitData_post ()
     // If lev > 0, we need to fill bc's by interpolation from coarser grid
     for (int lev = 1; lev <= finest_level; ++lev)
     {
-        Interp2DArrays(lev,grids[lev],dmap[lev]);
+        Interp2DArrays(lev,ba2d[lev],dmap[lev]);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -1669,6 +1669,14 @@ ERF::InitData_post ()
                               vars_new[lev][Vars::zvel]);
         }
     }
+
+#ifdef ERF_USE_PARTICLES
+    // Redistribute particles so the container has valid data at all AMR levels
+    // before the initial plotfile write
+    if (finest_level > 0) {
+        particleData.Redistribute(z_phys_nd);
+    }
+#endif
 
     // check for additional plotting variables that are available after particle containers
     // are setup.
@@ -1873,6 +1881,8 @@ ERF::InitData_post ()
 void
 ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
 {
+    if (lev == 0) { return; }
+
     if (lon_m[lev-1] && !lon_m[lev]) {
         auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;
         lon_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
@@ -2263,7 +2273,6 @@ ERF::init_only (int lev, Real elapsed_time)
     // - The fields set by init_custom_pert are **perturbations** to the
     //   background flow set based on init_type
     if (solverChoice.init_type != InitType::NCFile) {
-        Print()<<"SK: ERF.cpp/ call init_custum"<<std::endl;
         init_custom(lev);
     }
 
