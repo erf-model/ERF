@@ -326,6 +326,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             }
         }
 
+        virtual void GetPlotVar (const std::string& /*a_name*/,
+                                 amrex::MultiFab& /*a_mf*/) const override
+        {
+            amrex::Abort("SuperDropletsMoist::GetPlotVar() requires a level argument");
+        }
+
         virtual void GetPlotVar (const std::string& a_name,
                                  amrex::MultiFab& a_mf,
                                  const int a_lev) const override
