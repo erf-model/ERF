@@ -28,7 +28,6 @@ void SuperDropletPC::MassChange ( int                                         a_
     using namespace SDMassChangeUtils_LV;
 
     BL_PROFILE("SuperDropletPC::MassChange()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const auto ctx = buildProcessContext(a_lev);
 

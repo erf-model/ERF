@@ -56,6 +56,10 @@ public:
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
     }
 
+    void SetCurrentLevel (const int&) override {}
+    void InitLevel (const int, const amrex::MultiFab&) override {}
+    int getDiagnosticsInterval () const override { return 0; }
+
     /*! \brief advance the moisture model by one time step */
     virtual void
     Advance (const amrex::Real&, /* dt */
