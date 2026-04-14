@@ -4,7 +4,7 @@
  * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
  * Journal of the atmospheric sciences, vol35, p1070
  * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
- * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
+ * model formulation, results, uncertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
  */
 #ifndef ERF_SAM_H
 #define ERF_SAM_H
@@ -33,7 +33,7 @@ namespace MicVar {
       pres,  // pressure
       // non-precipitating vars
       qt,    // total cloud
-      qn,    // cloud condesnate (liquid + ice)
+      qn,    // cloud condensate (liquid + ice)
       qv,    // cloud vapor
       qcl,   // cloud water
       qci,   // cloud ice
@@ -160,7 +160,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
+                   const amrex::Real& fac_fus,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -173,7 +173,7 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = 1.0e-4;
+        amrex::Real tol = amrex::Real(1.0e-4);
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
@@ -201,7 +201,7 @@ public:
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
             lstari  = fac_sub;
-            domn    = 0.0;
+            domn    = zero;
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
@@ -210,29 +210,30 @@ public:
             erf_dtqsati(tabs, pres, dqsati);
 
             if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation & fusion)
+                // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
-                    omn   = 1.0;
+                    omn   = one;
                 }
-                // Cloud water not permitted (sublimation & fusion)
+                // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
-                    omn    = 0.0;
+                    omn    = zero;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
-                    omn   = an*tabs-bn;
-                    domn  = an;
+                    lstari = fac_fus;
+                    omn    = an*tabs-bn;
+                    domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                omn  = 1.0;
-                domn = 0.0;
+                omn  = one;
+                domn = zero;
             }
 
             // Linear combination of each component
-            qsat   =  omn * qsatw  + (1.0-omn) * qsati;
-            dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
+            qsat   =  omn * qsatw  + (one-omn) * qsati;
+            dqsat  =  omn * dqsatw + (one-omn) * dqsati
                    + domn *  qsatw -     domn  *  qsati;
-            lstar  =  omn * lstarw + (1.0-omn) * lstari;
+            lstar  =  omn * lstarw + (one-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
@@ -240,7 +241,7 @@ public:
             fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+            dfff  = -one + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -256,7 +257,7 @@ public:
         // Changes in each component
         delta_qv = qv_array(i,j,k) - qsat;
         delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
-        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (1.0-omn));
+        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (one-omn));
 
         // Partition the change in non-precipitating q
         qv_array(i,j,k)  = qsat;
@@ -291,7 +292,7 @@ private:
     int n_qstate_moist_size = 6;
 
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = 0.5;
+    static constexpr amrex::Real CFL_MAX = myhalf;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;

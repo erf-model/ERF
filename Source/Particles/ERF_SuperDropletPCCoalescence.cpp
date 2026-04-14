@@ -39,7 +39,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
     int j = a_idx[a_i];
     auto gamma = a_gamma[i];
     AMREX_ALWAYS_ASSERT(gamma == a_gamma[j]);
-    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= zero);
 
     if ( a_rmndr[a_i] > 0 ) {
 
@@ -109,7 +109,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const int num_sp  = m_num_species;
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
+        = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[1])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
@@ -120,9 +120,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
     auto kernel_choice = m_coalescence_kernel;
     auto include_brownian_coalescence = m_include_brownian_coalescence;
 
-    Real mcshuffle_wtime_sec = 0.0;
-    Real mcpairing_wtime_sec = 0.0;
-    Real coalescence_wtime_sec = 0.0;
+    Real mcshuffle_wtime_sec = zero;
+    Real mcpairing_wtime_sec = zero;
+    Real coalescence_wtime_sec = zero;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
@@ -281,7 +281,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         long long mcshuffle_wtime;
         mcshuffle_wtime = (   (mcshuffle_end.tv_sec   * 1000000 + mcshuffle_end.tv_usec  )
                             - (mcshuffle_start.tv_sec * 1000000 + mcshuffle_start.tv_usec) );
-        mcshuffle_wtime_sec += (double) mcshuffle_wtime / 1000000.0;
+        mcshuffle_wtime_sec += (double) mcshuffle_wtime / Real(1000000.0);
 #endif
 
         const auto& pressure_arr = a_pressure[grid].const_array();
@@ -309,8 +309,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
             np_bin_ptr[i] = 0;
             partner_idx_ptr[i] = -1;
             flag_prey_ptr[i] = -1;
-            coal_rate_ptr[i] = 0.0;
-            coal_rmndr_ptr[i] = 0.0;
+            coal_rate_ptr[i] = zero;
+            coal_rmndr_ptr[i] = zero;
         });
         Gpu::synchronize();
 
@@ -354,7 +354,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         long long mcpairing_wtime;
         mcpairing_wtime = (   (mcpairing_end.tv_sec   * 1000000 + mcpairing_end.tv_usec  )
                             - (mcpairing_start.tv_sec * 1000000 + mcpairing_start.tv_usec) );
-        mcpairing_wtime_sec += (double) mcpairing_wtime / 1000000.0;
+        mcpairing_wtime_sec += (double) mcpairing_wtime / Real(1000000.0);
 
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
@@ -374,7 +374,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             int pj = partner_idx_ptr[i];
             AMREX_ALWAYS_ASSERT(mult_ptr[pi] >= mult_ptr[pj]);
 
-            ParticleReal k_val = 0.0;
+            ParticleReal k_val = zero;
             if (kernel_choice == SDCoalescenceKernelType::golovin) {
 
                 k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj]);
@@ -397,14 +397,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                 }
 
-                if (k_val < 0.0) {
+                if (k_val < zero) {
                     amrex::Abort("Invalid value for k_val");
                 }
             }
 
             if (include_brownian_coalescence) {
 
-                ParticleReal pressure = 0.0, temperature = 0.0;
+                ParticleReal pressure = zero, temperature = zero;
                 {
                     ParticleType& par_1 = pstruct_ptr[pi];
                     auto iv = getParticleCell(par_1, plo, dxi, domain);
@@ -412,8 +412,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     temperature = temperature_arr(iv[0],iv[1],iv[2],0);
                 }
 
-                ParticleReal sd_mass_1 = 0.0,
-                             sd_mass_2 = 0.0;
+                ParticleReal sd_mass_1 = zero,
+                             sd_mass_2 = zero;
                 for (int ia = 0; ia < num_ae; ia++) {
                     sd_mass_1 += ae_mass_ptrs[ia][pi];
                     sd_mass_2 += ae_mass_ptrs[ia][pj];
@@ -442,7 +442,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                                 sd_mass_2,
                                                                 pressure,
                                                                 temperature );
-                if (k_brown < 0.0) {
+                if (k_brown < zero) {
                     amrex::Abort("Invalid value for k_brown");
                 }
 
@@ -454,7 +454,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);
-            auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
+            auto scaling_factor = myhalf*ns*(ns-1)/std::floor(myhalf*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
@@ -496,7 +496,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         long long coalescence_wtime;
         coalescence_wtime = (  (coalescence_end.tv_sec   * 1000000 + coalescence_end.tv_usec  )
                              - (coalescence_start.tv_sec * 1000000 + coalescence_start.tv_usec) );
-        coalescence_wtime_sec += (double) coalescence_wtime / 1000000.0;
+        coalescence_wtime_sec += (double) coalescence_wtime / Real(1000000.0);
 #endif
     }
 
@@ -509,7 +509,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
                    -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / 1000000.0;
+    Real total_wtime_sec = (double) total_wtime / Real(1000000.0);
 
     ParallelDescriptor::ReduceRealMax( &mcshuffle_wtime_sec,
                                        1,
@@ -524,7 +524,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
 #else
-    Real total_wtime_sec = 0.0;
+    Real total_wtime_sec = zero;
 #endif
 
     Print() << "SuperDropletPC(" << m_name << "): "

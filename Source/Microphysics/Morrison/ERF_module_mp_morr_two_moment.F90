@@ -576,7 +576,7 @@ SUBROUTINE SET_MORRISON_NDCNST(ndcnst_in) BIND(C, name='set_morrison_ndcnst_c')
 ! ALLOWS RUNTIME CONFIGURATION FROM INPUT FILE
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       IMPLICIT NONE
-      REAL(C_DOUBLE), INTENT(IN) :: ndcnst_in
+      REAL(C_DOUBLE), INTENT(IN), VALUE :: ndcnst_in
 
       NDCNST = ndcnst_in
 

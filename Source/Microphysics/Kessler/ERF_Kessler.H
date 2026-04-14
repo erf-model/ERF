@@ -54,8 +54,6 @@ public:
     Define (SolverChoice& sc) override
     {
         m_fac_cond = lcond / sc.c_p;
-        m_fac_fus  = lfus / sc.c_p;
-        m_fac_sub  = lsub / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -144,7 +142,7 @@ private:
     int n_qstate_moist_size = 3;
 
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = 0.5;
+    static constexpr amrex::Real CFL_MAX = myhalf;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -169,8 +167,6 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_fac_fus;
-    amrex::Real m_fac_sub;
     bool m_do_cond;
 
     // Pointer to terrain data

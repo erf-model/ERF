@@ -190,10 +190,10 @@ void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
         //        }
 
         // Update pressure variable with phi -- note that phi is change in pressure, not the full pressure
-        MultiFab::Saxpy(pp_inc[lev], 1.0, phi[0],0,0,1,0);
+        MultiFab::Saxpy(pp_inc[lev], one, phi[0],0,0,1,0);
 
         // Subtract grad(phi) from the velocity components
-        Real beta = 1.0;
+        Real beta = one;
         MultiFab::Saxpy(vmf[Vars::xvel], beta, fluxes[0][0], 0, 0, 1, 0);
         MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);
         MultiFab::Saxpy(vmf[Vars::zvel], beta, fluxes[0][2], 0, 0, 1, 0);
@@ -211,16 +211,16 @@ void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
     // ****************************************************************************
     // Define gradp from fluxes -- note that fluxes is dt * change in Gp
     // ****************************************************************************
-    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-one/l_dt,fluxes[0][0],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-one/l_dt,fluxes[0][1],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-one/l_dt,fluxes[0][2],0,0,1,0);
 
     gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpz].FillBoundary(geom_tmp[0].periodicity());
 
     // Subtract grad(phi) from the velocity components
-//    Real beta = 1.0;
+//    Real beta = one;
 //    for (int ilev = lev_min; ilev <= lev_max; ++ilev) {
 //        MultiFab::Saxpy(vmf[Vars::xvel], beta, fluxes[0][0], 0, 0, 1, 0);
 //        MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);

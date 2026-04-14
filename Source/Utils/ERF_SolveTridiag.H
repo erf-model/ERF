@@ -18,12 +18,12 @@ void SolveTridiag (int i, int j, int klo, int khi,
     for (int k(klo+1); k<=khi; ++k) {
         amrex::Real gam = coeffC_a(i,j,k-1) / bet;
         bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam;
-        AMREX_ASSERT(bet != 0.0);
+        AMREX_ASSERT(bet != zero);
         coeffB_a(i,j,k) = bet;
     }
 
     for (int k(klo); k<=khi; ++k) {
-        inv_coeffB_a(i,j,k) = 1.0 / coeffB_a(i,j,k);
+        inv_coeffB_a(i,j,k) = one / coeffB_a(i,j,k);
     }
 
     //

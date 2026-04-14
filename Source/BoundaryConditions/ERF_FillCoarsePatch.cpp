@@ -49,7 +49,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     const MultiFab* c_vfrac = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {
-        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+        c_vfrac = &((get_eb(lev-1).get_const_factory())->getVolFrac());
     }
 
     VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect{0},
@@ -59,8 +59,21 @@ ERF::FillCoarsePatch (int lev, Real time)
                          rU_new[lev-1],
                          rV_new[lev-1],
                          rW_new[lev-1],
-                       Geom(lev).Domain(),
+                       Geom(lev-1).Domain(),
                        domain_bcs_type, c_vfrac);
+
+    // Fill ghost cells of coarse momentum before interpolation to fine level.
+    // VelocityToMomentum above fills only valid cells (IntVect{0} grow).  On restart
+    // from a non-AMR checkpoint, init_stuff initialises rU/rV/rW_new[lev-1] with large
+    // sentinel values for ALL cells including ghost cells; the checkpoint read then
+    // overwrites only valid cells.  InterpFromCoarseLevel (see comments below) ASSUMES
+    // ghost cells at lev-1 are already filled and uses them in its stencil near periodic
+    // boundaries.  Without this FillBoundary, those sentinel ghost cells contaminate the
+    // fine-level interpolation, producing unphysical velocities that blow up WENO5.
+    rU_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+    rV_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+    rW_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+
     //
     // *****************************************************************
     // Interpolate all cell-centered variables from coarse to fine level

@@ -13,24 +13,42 @@ using namespace amrex;
 void
 moist_set_rhs (const Geometry& geom,
                const Box& tbx,
-               const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
-               const Real& bdy_time_interval,
-               const Real& new_stage_time,
+               const Real& time,
                const Real& dt,
-               const Real & stop_time_elapsed,
+               const Real& start_bdy_time,
+               const Real& final_bdy_time,
+               const Real& bdy_time_interval,
+               const Real& nudge_factor,
                int  width,
-               int  set_width,
                bool do_upwind,
                const Box& domain,
                Vector<Vector<FArrayBox>>& bdy_data_xlo,
                Vector<Vector<FArrayBox>>& bdy_data_xhi,
                Vector<Vector<FArrayBox>>& bdy_data_ylo,
-               Vector<Vector<FArrayBox>>& bdy_data_yhi)
+               Vector<Vector<FArrayBox>>& bdy_data_yhi,
+               std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
+    // HACK HACK HACK
+    // Get bndry data
+    int bdy_comp = BCVars::RhoQ1_bc_comp;
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
+
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
     // Relaxation constants
-    Real F1 = 1./dt;
+    Real F1 = one/(nudge_factor*dt);
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -42,24 +60,23 @@ moist_set_rhs (const Geometry& geom,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // NOTE: This is because we define "time" to be time since start_bdy_time
-    Real time_since_start = new_stage_time;
-
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
-
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    if ((new_stage_time == stop_time_elapsed) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
-        n_time_p1 = n_time;
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+      n_time_p1 = n_time;
+      alpha     = zero;
     }
+
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     /*
     // UNIT TEST DEBUG
-    oma = 1.0; alpha = 0.0;
+    oma = one; alpha = zero;
     */
 
     // NOTE: The sizing of the temporary BDY FABS is
@@ -74,7 +91,7 @@ moist_set_rhs (const Geometry& geom,
     realbdy_interior_bxs_xy(gdom, domain, width,
                             bx_xlo, bx_xhi,
                             bx_ylo, bx_yhi,
-                            0, ng_vect, true);
+                            ng_vect, true);
 
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
@@ -129,11 +146,10 @@ moist_set_rhs (const Geometry& geom,
     realbdy_interior_bxs_xy(gtbx, domain, width,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
-                            0, ng_vect, true);
+                            ng_vect, true);
 
     // Limiting offset
-    int offset = set_width - 1;
-    if (width > set_width) offset = width - 1;
+    int offset = width - 1;
 
     // Populate with interpolation (protect from ghost cells)
     ParallelFor(tbx_xlo, tbx_xhi,
@@ -141,8 +157,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
         int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
-        arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
-                                                    + alpha * bdatxlo_np1(ii,jj,k) );
+        arr_xlo(i,j,k) = (bdatxlo) ? new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
+                                       + alpha * bdatxlo_np1(ii,jj,k) );
         u_xlo(i,j,k) = ( oma * bdatxlo_n_u(ii,jj,k) + alpha * bdatxlo_np1_u(ii,jj,k) );
         v_xlo(i,j,k) = ( oma * bdatxlo_n_v(ii,jj,k) + alpha * bdatxlo_np1_v(ii,jj,k) );
         if (j == dom_hi.y) {
@@ -154,8 +171,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
         int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
-        arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
-                                                    + alpha * bdatxhi_np1(ii,jj,k) );
+        arr_xhi(i,j,k) = (bdatxhi) ? new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
+                                       + alpha * bdatxhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with u bdy data
         u_xhi(i+1,j,k) = ( oma * bdatxhi_n_u(ii+1,jj,k) + alpha * bdatxhi_np1_u(ii+1,jj,k) );
         v_xhi(i  ,j,k) = ( oma * bdatxhi_n_v(ii  ,jj,k) + alpha * bdatxhi_np1_v(ii,jj,k) );
@@ -170,8 +188,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
         int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
-        arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
-                                                    + alpha * bdatylo_np1(ii,jj,k) );
+        arr_ylo(i,j,k) = (bdatylo) ? new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
+                                       + alpha * bdatylo_np1(ii,jj,k) );
         v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -179,50 +198,26 @@ moist_set_rhs (const Geometry& geom,
         int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
         int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
             jj = std::min(jj, dom_hi.y);
-        arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
-                                                    + alpha * bdatyhi_np1(ii,jj,k) );
+            arr_yhi(i,j,k) = (bdatyhi) ? new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp) :
+                new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
+                                           + alpha * bdatyhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with v bdy data
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
     });
 
 
-    // NOTE: We pass 'old_cons' here since the tendencies are with
-    //       respect to the start of the RK integration.
-
-    // Compute RHS in specified region
-    //==========================================================
-    if (set_width > 0) {
-        realbdy_interior_bxs_xy(tbx, domain, width,
-                                tbx_xlo, tbx_xhi,
-                                tbx_ylo, tbx_yhi);
-        realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                       width, set_width-1, set_width-1,
-                                       domain, domain,
-                                       tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                       arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                       old_cons, cell_rhs, do_upwind);
-    }
-
-
-    // NOTE: We pass 'new_cons' here since it has its ghost cells
-    //       populated and we are only operating on RhoQv; thus,
-    //       we do not need the updated fast quantities.
-
     // Compute RHS in relaxation region
     //==========================================================
-    if (width > set_width) {
-        realbdy_interior_bxs_xy(tbx, domain, width,
-                                tbx_xlo, tbx_xhi,
-                                tbx_ylo, tbx_yhi,
-                                set_width, ng_vect);
-        realbdy_compute_relaxation(RhoQ1_comp, 1,
-                                   width, dx, ProbLo, ProbHi, F1, domain,
-                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                   u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                   new_cons, cell_rhs, do_upwind);
-    }
+    realbdy_interior_bxs_xy(tbx, domain, width,
+                            tbx_xlo, tbx_xhi,
+                            tbx_ylo, tbx_yhi,
+                            ng_vect);
+    realbdy_compute_relaxation(RhoQ1_comp, 1,
+                               width, dx, ProbLo, ProbHi, F1, domain,
+                               tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                               arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                               u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
+                               new_cons, cell_rhs, do_upwind);
 
     /*
     // UNIT TEST DEBUG
@@ -231,28 +226,28 @@ moist_set_rhs (const Geometry& geom,
                             tbx_ylo, tbx_yhi);
     ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
+      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > Real(1.0e-7)) {
             Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
+      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > Real(1.0e-7)) {
             Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
+      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> Real(1.0e-7)) {
             Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
     ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
+      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> Real(1.0e-7)) {
             Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }

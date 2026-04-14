@@ -66,7 +66,7 @@ private:
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_interp;
 
     //! Time for plane at interpolation
-    amrex::Real m_tinterp{-1.0};
+    amrex::Real m_tinterp{-one};
 
     //! Geometry at level 0
     amrex::Geometry m_geom;
@@ -84,10 +84,13 @@ private:
     //! Variables to be read in
     amrex::Vector<std::string> m_var_names;
 
-    //! controls extents on native bndry output
-    const int m_in_rad = 1;
+    //! Controls extents on native bndry output
+    int m_in_rad        = 1;
     const int m_out_rad = 1;
     const int m_extent_rad = 0;
+
+    //! Are real BCs being used?
+    bool m_use_real_bcs = false;
 
     //! R_d/c_p is needed for reading boundary files
     const amrex::Real m_rdOcp;

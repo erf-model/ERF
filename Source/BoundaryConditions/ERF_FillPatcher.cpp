@@ -299,8 +299,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int ii = coarsen(i,ratio[0]);
                     if (i-ii*ratio[0] != 0) {
-                        Real const w = static_cast<Real>(i-ii*ratio[0]) * (Real(1.)/Real(ratio[0]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(ii*ratio[0],j,k,0) + w * fine_arr((ii+1)*ratio[0],j,k,0);
+                        Real const w = static_cast<Real>(i-ii*ratio[0]) * (Real(1.0)/Real(ratio[0]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(ii*ratio[0],j,k,0) + w * fine_arr((ii+1)*ratio[0],j,k,0);
                     }
                 }
             });
@@ -326,8 +326,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int jj = coarsen(j,ratio[1]);
                     if (j-jj*ratio[1] != 0) {
-                        Real const w = static_cast<Real>(j-jj*ratio[1]) * (Real(1.)/Real(ratio[1]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,jj*ratio[1],k,0) + w * fine_arr(i,(jj+1)*ratio[1],k,0);
+                        Real const w = static_cast<Real>(j-jj*ratio[1]) * (Real(1.0)/Real(ratio[1]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(i,jj*ratio[1],k,0) + w * fine_arr(i,(jj+1)*ratio[1],k,0);
                     }
                 }
             });
@@ -352,8 +352,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int kk = coarsen(k,ratio[2]);
                     if (k-kk*ratio[2] != 0) {
-                        Real const w = static_cast<Real>(k-kk*ratio[2]) * (Real(1.)/Real(ratio[2]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,j,kk*ratio[2],0) + w * fine_arr(i,j,(kk+1)*ratio[2],0);
+                        Real const w = static_cast<Real>(k-kk*ratio[2]) * (Real(1.0)/Real(ratio[2]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(i,j,kk*ratio[2],0) + w * fine_arr(i,j,(kk+1)*ratio[2],0);
                     }
                 }
             });

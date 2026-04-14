@@ -83,7 +83,7 @@ public:
             U_inp_sponge[0]     = U_inp_sponge_tmp[0];
             V_inp_sponge[0]     = V_inp_sponge_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sponge[k+1] = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                z_inp_sponge[k+1] = myhalf * (zlevels_stag[k] + zlevels_stag[k+1]);
                 U_inp_sponge[k+1] = interpolate_1d(z_inp_sponge_tmp.dataPtr(), U_inp_sponge_tmp.dataPtr(), z_inp_sponge[k+1], Ninp);
                 V_inp_sponge[k+1] = interpolate_1d(z_inp_sponge_tmp.dataPtr(), V_inp_sponge_tmp.dataPtr(), z_inp_sponge[k+1], Ninp);
             }

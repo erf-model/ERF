@@ -440,7 +440,7 @@ struct LineSampler
             amrex::Box m_dom = m_bnd_bx[iline];
             amrex::RealBox m_rb;
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
-                amrex::Real offset = (d==dir) ? 0 : 0.5;
+                amrex::Real offset = (d==dir) ? 0 : myhalf;
                 amrex::Real lo = plo[d] + ( m_dom.smallEnd(d) - offset ) * dx[d];
                 amrex::Real hi = plo[d] + ( m_dom.bigEnd(d)   + offset ) * dx[d];
 
@@ -650,8 +650,8 @@ struct PlaneSampler
             amrex::Vector<int> is_per(AMREX_SPACEDIM,0);
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
                 if (d==dir) {
-                    m_rb.setLo(d,point-0.5*geom[lev].CellSize(d));
-                    m_rb.setHi(d,point+0.5*geom[lev].CellSize(d));
+                    m_rb.setLo(d,point-myhalf*geom[lev].CellSize(d));
+                    m_rb.setHi(d,point+myhalf*geom[lev].CellSize(d));
                 }
                 is_per[d] = geom[lev].isPeriodic(d);
             }

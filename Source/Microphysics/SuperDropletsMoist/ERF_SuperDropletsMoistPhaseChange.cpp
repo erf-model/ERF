@@ -13,12 +13,12 @@ using namespace amrex;
  * Eulerian vapor and condensate mixing ratios accordingly.
  *
  * For each species, this function:
- * 1. Computes saturation pressure based on temperature
- * 2. Computes saturation ratio
- * 3. Computes phase change for all particles
- * 4. Updates condensate mixing ratio
- * 5. Updates vapor mixing ratio if requested
- * 6. Updates temperature and pressure fields to account for latent heat
+ * one Computes saturation pressure based on temperature
+ * two Computes saturation ratio
+ * three Computes phase change for all particles
+ * Real(4.) Updates condensate mixing ratio
+ * Real(5.) Updates vapor mixing ratio if requested
+ * Real(6.) Updates temperature and pressure fields to account for latent heat
  *
  * \param[in] a_dt Timestep size
  * \param[in] a_z Array containing terrain height information
@@ -128,9 +128,9 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                         if (is == idx_w) {
                             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
                             if (qw > qt_arr(i,j,k)) {
-                                qv_arr(i,j,k) = 0.0;
+                                qv_arr(i,j,k) = zero;
                                 if (qr_arr(i,j,k) > qt_arr(i,j,k)) {
-                                    qc_arr(i,j,k) = 0.0;
+                                    qc_arr(i,j,k) = zero;
                                     qr_arr(i,j,k) = qt_arr(i,j,k);
                                 } else {
                                     qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
@@ -138,17 +138,17 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                             } else {
                                 qv_arr(i,j,k) = qt_arr(i,j,k) - qw;
                             }
-                            AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= 0.0);
+                            AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= zero);
                         } else {
                             if (qc_arr(i,j,k) > qt_arr(i,j,k)) {
-                                qv_arr(i,j,k) = 0.0;
+                                qv_arr(i,j,k) = zero;
                                 qc_arr(i,j,k) = qt_arr(i,j,k);
                             } else {
                                 qv_arr(i,j,k) = qt_arr(i,j,k) - qc_arr(i,j,k);
                             }
                         }
-                        AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
-                        AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
+                        AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= zero);
+                        AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= zero);
 
                         if (is == idx_w) { dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s; }
 

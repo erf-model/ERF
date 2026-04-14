@@ -47,12 +47,12 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
                     if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
@@ -64,15 +64,15 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                 if (a_subgrid) {
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
+                                      plo[2]+k*dx[2],
                                       plo[0]+(i+1)*dx[0],
                                       plo[1]+(j+1)*dx[1],
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_box)) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
                     if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
@@ -113,24 +113,24 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                       height_arr(i+1,j+1,k+1) );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
 
                     // Extract bubble params
                     const auto& x_c = a_bubble.lo(); // center
                     const auto& x_r = a_bubble.hi(); // radius
 
-                    Real rad = 0.0;
+                    Real rad = zero;
                     if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
                     if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
                     if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
                     rad = std::sqrt(rad);
 
-                    if(rad <= 1.0) { flag = true; }
+                    if(rad <= one) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
@@ -141,27 +141,27 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                 if (a_subgrid) {
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
+                                      plo[2]+k*dx[2],
                                       plo[0]+(i+1)*dx[0],
                                       plo[1]+(j+1)*dx[1],
                                       plo[2]+(k+1)*dx[2] );
                     if (gridcell.contains(a_bubble.lo())) { flag = true; }
                 } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
+                    Real x = plo[0] + (i + myhalf)*dx[0];
+                    Real y = plo[1] + (j + myhalf)*dx[1];
+                    Real z = plo[2] + (k + myhalf)*dx[2];
 
                     // Extract bubble params
                     const auto& x_c = a_bubble.lo();       // center
                     const auto& x_r = a_bubble.hi();       // radius
 
-                    Real rad = 0.0;
+                    Real rad = zero;
                     if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
                     if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
                     if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
                     rad = std::sqrt(rad);
 
-                    if(rad <= 1.0) { flag = true; }
+                    if(rad <= one) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
@@ -305,112 +305,62 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data() + size_old;
         }
 
-        Gpu::DeviceVector<Real> species_mass_d(num_sp*np);
-        {
-            Vector<Real> multiplicity_h(np, 0.0);
-            for (int i = 0; i < num_sp; i++) {
-                Vector<Real> species_mass_h;
-                if (sampled_multiplicity) {
-                    a_init.getSpeciesDistribution( species_mass_h,
-                                                   multiplicity_h,
-                                                   cell_volume,
-                                                   i,
-                                                   np,
-                                                   m_species_mat[i]->m_density,
-                                                   m_rndeng );
-                } else {
-                    a_init.getSpeciesDistribution( species_mass_h,
-                                                   i,
-                                                   np,
-                                                   m_species_mat[i]->m_density,
-                                                   m_rndeng );
-                }
-                Gpu::copy( Gpu::hostToDevice,
-                           species_mass_h.begin(),
-                           species_mass_h.end(),
-                           species_mass_d.begin() + (i*np) );
-            }
+        // GPU-direct distribution generation: no large host memory allocation needed
+        // Create distribution parameters on host (small, O(num_species + num_aerosols))
+        Vector<SDDistributionParams> sp_params_h(num_sp);
+        for (int i = 0; i < num_sp; i++) {
+            sp_params_h[i] = a_init.getSpeciesDistParams(i, m_species_mat[i]->m_density, cell_volume, sampled_multiplicity);
         }
-        Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
-        Gpu::DeviceVector<Real> multiplicity_d(np);
+        Vector<SDDistributionParams> ae_params_h(num_ae);
+        for (int i = 0; i < num_ae; i++) {
+            ae_params_h[i] = a_init.getAerosolDistParams(i, m_aerosol_mat[i]->m_density, cell_volume, sampled_multiplicity);
+        }
+
+        // Copy parameters to device
+        Gpu::DeviceVector<SDDistributionParams> sp_params_d(num_sp);
+        Gpu::DeviceVector<SDDistributionParams> ae_params_d(num_ae);
+        Gpu::copy(Gpu::hostToDevice, sp_params_h.begin(), sp_params_h.end(), sp_params_d.begin());
+        Gpu::copy(Gpu::hostToDevice, ae_params_h.begin(), ae_params_h.end(), ae_params_d.begin());
+
+        // Only need temporary storage for raw multiplicity values (for sampled case)
+        Gpu::DeviceVector<Real> multiplicity_d(np, zero);
+
+        auto* sp_params_ptr = sp_params_d.data();
+        auto* ae_params_ptr = ae_params_d.data();
+        auto* mult_ptr_init = multiplicity_d.data();
+
+        // Generate species and aerosol distributions directly into particle SoA
+        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int n, const RandomEngine& engine) noexcept
         {
-            Vector<Real> multiplicity_h(np, 0.0);
-            for (int i = 0; i < num_ae; i++) {
-                Vector<Real> aerosol_mass_h;
+            // Sample species masses directly into particle storage
+            for (int s = 0; s < num_sp; s++) {
+                Real sp_mult = zero;
+                sp_mass_ptrs[s][n] = SD_sample_mass_gpu(sp_params_ptr[s], engine, sp_mult);
+            }
+
+            // Sample aerosol masses directly into particle storage
+            Real total_mult = zero;
+            for (int a = 0; a < num_ae; a++) {
+                Real ae_mult = zero;
+                ae_mass_ptrs[a][n] = SD_sample_mass_gpu(ae_params_ptr[a], engine, ae_mult);
                 if (sampled_multiplicity) {
-                    a_init.getAerosolDistribution( aerosol_mass_h,
-                                                   multiplicity_h,
-                                                   cell_volume,
-                                                   i,
-                                                   np,
-                                                   m_aerosol_mat[i]->m_density,
-                                                   m_rndeng );
-                } else {
-                    a_init.getAerosolDistribution( aerosol_mass_h,
-                                                   i,
-                                                   np,
-                                                   m_aerosol_mat[i]->m_density,
-                                                   m_rndeng );
+                    total_mult += ae_mult;
                 }
-                Gpu::copy( Gpu::hostToDevice,
-                           aerosol_mass_h.begin(),
-                           aerosol_mass_h.end(),
-                           aerosol_mass_d.begin() + (i*np) );
             }
             if (sampled_multiplicity) {
-                Gpu::copy( Gpu::hostToDevice,
-                           multiplicity_h.begin(),
-                           multiplicity_h.end(),
-                           multiplicity_d.begin() );
+                mult_ptr_init[n] = total_mult;
             }
-        }
+        });
+
         Gpu::synchronize();
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
+        if (!m_device_props_initialized) { initializeDeviceProperties(); }
+        const ParticleReal* sp_rho_arr = m_sp_density.data();
+        const int* sp_sol_arr = m_sp_solubility.data();
+        const ParticleReal* ae_rho_arr = m_ae_density.data();
+        const int* ae_sol_arr = m_ae_solubility.data();
 
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
-
-        auto species_mass = species_mass_d.data();
-        auto aerosol_mass = aerosol_mass_d.data();
         auto mult_arr = multiplicity_d.data();
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
         auto random_place = m_place_randomly_in_cells;
@@ -423,9 +373,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             Real num_to_add = num_par_per_cell;
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
 
-            Real mult_scale = 1.0;
+            Real mult_scale = one;
             if (sampled_multiplicity) {
-                Real mult_sum = 0.0;
+                Real mult_sum = zero;
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
                 mult_scale = num_par_per_cell / mult_sum;
@@ -445,16 +395,23 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                             p.pos(1) = pdomain.lo(1) + Random(rnd_engine) * (pdomain.hi(1) - pdomain.lo(1));
                             p.pos(2) = pdomain.lo(2) + Random(rnd_engine) * (pdomain.hi(2) - pdomain.lo(2));
                         } else {
-                            p.pos(0) = pdomain.lo(0) + 0.5 * (pdomain.hi(0) - pdomain.lo(0));
-                            p.pos(1) = pdomain.lo(1) + 0.5 * (pdomain.hi(1) - pdomain.lo(1));
-                            p.pos(2) = pdomain.lo(2) + 0.5 * (pdomain.hi(2) - pdomain.lo(2));
+                            p.pos(0) = pdomain.lo(0) + myhalf * (pdomain.hi(0) - pdomain.lo(0));
+                            p.pos(1) = pdomain.lo(1) + myhalf * (pdomain.hi(1) - pdomain.lo(1));
+                            p.pos(2) = pdomain.lo(2) + myhalf * (pdomain.hi(2) - pdomain.lo(2));
                         }
                     } else if (itype == SDInitShape::bubble) {
                         if (random_place) {
-                            ParticleReal u[AMREX_SPACEDIM] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine) };
-                            auto L = std::sqrt(u[0]*u[0]+ u[1]*u[1] + u[2]*u[2]);
-                            auto r = Random(rnd_engine);
-                            ParticleReal xs[AMREX_SPACEDIM] = {r*u[0]/L, r*u[1]/L, r*u[2]/L};
+                            ParticleReal u[AMREX_SPACEDIM];
+                            ParticleReal L = 0.0;
+                            do {
+                                u[0] = 2.0*Random(rnd_engine) - 1.0;
+                                u[1] = 2.0*Random(rnd_engine) - 1.0;
+                                u[2] = 2.0*Random(rnd_engine) - 1.0;
+                                L = std::sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2]);
+                            } while (L <= 1.0e-12);
+
+                            const ParticleReal r = Random(rnd_engine);
+                            const ParticleReal xs[AMREX_SPACEDIM] = {r*u[0]/L, r*u[1]/L, r*u[2]/L};
                             p.pos(0) = pdomain.lo(0) + pdomain.hi(0) * xs[0];
                             p.pos(1) = pdomain.lo(1) + pdomain.hi(1) * xs[1];
                             p.pos(2) = pdomain.lo(2) + pdomain.hi(2) * xs[2];
@@ -470,15 +427,15 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                         p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
                         p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
                     } else {
-                        p.pos(0) = plo[0] + (i + 0.5)*dx[0];
-                        p.pos(1) = plo[1] + (j + 0.5)*dx[1];
-                        p.pos(2) = plo[2] + (k + 0.5)*dx[2];
+                        p.pos(0) = plo[0] + (i + myhalf)*dx[0];
+                        p.pos(1) = plo[1] + (j + myhalf)*dx[1];
+                        p.pos(2) = plo[2] + (k + myhalf)*dx[2];
                     }
                 }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
                 active_ptr[n] = 1;
-                vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
+                vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
                 Real mult_this_sd = 0;
                 if (sampled_multiplicity) {
@@ -494,12 +451,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                 num_to_add -= mult_ptr[n];
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
-                for (int ctr = 0; ctr < num_sp; ctr++) {
-                    sp_mass_ptrs[ctr][n] = species_mass[ctr*np+n];
-                }
-                for (int ctr = 0; ctr < num_ae; ctr++) {
-                    ae_mass_ptrs[ctr][n] = aerosol_mass[ctr*np+n];
-                }
+                // Species and aerosol masses already sampled directly into particle SoA
 
                 radius_ptr[n] = SD_effective_radius( n, idx_w,
                                                      rho_w,
@@ -509,14 +461,13 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                                                      sp_rho_arr, ae_rho_arr );
                 mass_ptr[n] = SD_total_mass( n, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
 
-                vterm_ptr[n] = 0.0;
+                vterm_ptr[n] = zero;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-                condt_ptr[n] = 0.0;
+                condt_ptr[n] = zero;
 #endif
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
         });
-        Gpu::synchronize();
 
         const auto height_arr = (*a_height_ptr)[mfi].array();
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -524,7 +475,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
-                auto& p = aos[n];
+                auto& p = aos[n+size_old];
                 Real x = p.pos(0);
                 Real y = p.pos(1);
                 Real z = p.pos(2);
@@ -532,11 +483,11 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                               (y-plo[1])/dx[1] - j,
                               (z-plo[2])/dx[2] - k };
 
-                Real sx[] = { amrex::Real(1.) - r[0], r[0]};
-                Real sy[] = { amrex::Real(1.) - r[1], r[1]};
+                Real sx[] = { one - r[0], r[0]};
+                Real sy[] = { one - r[1], r[1]};
 
-                Real height_at_pxy_lo = 0.;
-                Real height_at_pxy_hi = 0.;
+                Real height_at_pxy_lo = zero;
+                Real height_at_pxy_hi = zero;
                 for (int ii = 0; ii < 2; ++ii) {
                     for (int jj = 0; jj < 2; ++jj) {
                         height_at_pxy_lo += sx[ii] * sy[jj]

@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Taylor-Green Vortex"
+erf.prob_name = "Taylor-Green Vortex"
+
+erf.init_type = Uniform
 
 max_step = 10
 
@@ -48,5 +50,4 @@ erf.alpha_C           = 0.0
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
 prob.V_0 = 1.0

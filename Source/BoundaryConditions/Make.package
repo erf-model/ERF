@@ -4,7 +4,6 @@ CEXE_sources += ERF_BoundaryConditionsZvel.cpp
 CEXE_sources += ERF_BoundaryConditionsCons.cpp
 CEXE_sources += ERF_BoundaryConditionsBaseState.cpp
 CEXE_sources += ERF_BoundaryConditionsBndryReg.cpp
-CEXE_sources += ERF_BoundaryConditionsRealbdy.cpp
 
 CEXE_headers += ERF_SurfaceLayer.H
 CEXE_sources += ERF_SurfaceLayer.cpp

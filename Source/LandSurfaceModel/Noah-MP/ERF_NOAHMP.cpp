@@ -27,17 +27,21 @@ NOAHMP::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmDataMap.resize(m_lsm_data_size);
-    LsmDataMap = {LsmData_NOAHMP::t_sfc           , LsmData_NOAHMP::sfc_emis       ,
-                  LsmData_NOAHMP::sfc_alb_dir_vis , LsmData_NOAHMP::sfc_alb_dir_nir,
-                  LsmData_NOAHMP::sfc_alb_dif_vis , LsmData_NOAHMP::sfc_alb_dif_nir,
-                  LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
-                  LsmData_NOAHMP::lw_flux_dn                                        };
+    LsmDataMap = {LsmData_NOAHMP::t_sfc             , LsmData_NOAHMP::sfc_emis          ,
+                  LsmData_NOAHMP::sfc_alb_dir_vis   , LsmData_NOAHMP::sfc_alb_dir_nir   ,
+                  LsmData_NOAHMP::sfc_alb_dif_vis   , LsmData_NOAHMP::sfc_alb_dif_nir   ,
+                  LsmData_NOAHMP::cos_zenith_angle  , LsmData_NOAHMP::sw_flux_dn        ,
+                  LsmData_NOAHMP::sw_flux_dn_dir_vis, LsmData_NOAHMP::sw_flux_dn_dir_nir,
+                  LsmData_NOAHMP::sw_flux_dn_dif_vis, LsmData_NOAHMP::sw_flux_dn_dif_nir,
+                  LsmData_NOAHMP::lw_flux_dn        };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"           , "sfc_emis"        ,
-                   "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
-                   "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
-                   "cos_zenith_angle", "sw_flux_dn"      ,
-                   "lw_flux_dn"      };
+    LsmDataName = {"t_sfc"             , "sfc_emis"          ,
+                   "sfc_alb_dir_vis"   , "sfc_alb_dir_nir"   ,
+                   "sfc_alb_dif_vis"   , "sfc_alb_dif_nir"   ,
+                   "cos_zenith_angle"  , "sw_flux_dn"        ,
+                   "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
+                   "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                   "lw_flux_dn"        };
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
@@ -59,9 +63,7 @@ NOAHMP::Init (const int& lev,
     BoxArray ba = cons_in.boxArray();
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
-    for (auto& b : bl_lsm) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl_lsm) { b.setRange(2,0); }
     BoxArray ba_lsm(std::move(bl_lsm));
 
     // Set up lsm geometry
@@ -81,16 +83,16 @@ NOAHMP::Init (const int& lev,
 
         // NOTE: Radiation steps first so we set values
         //       to reasonable initialization for coupling
-        Real val_to_set = 0.0;
+        Real val_to_set = zero;
         if (ivar == LsmData_NOAHMP::t_sfc) {
-            val_to_set = 300.0;
+            val_to_set = Real(300.0);
         } else if (ivar == LsmData_NOAHMP::sfc_emis) {
-            val_to_set = 0.9;
+            val_to_set = Real(0.9);
         } else if ( (ivar>=LsmData_NOAHMP::sfc_alb_dir_vis) &&
                     (ivar<=LsmData_NOAHMP::sfc_alb_dif_nir) ) {
-            val_to_set = 0.06;
+            val_to_set = Real(0.06);
         } else {
-            val_to_set = 0.0;
+            val_to_set = zero;
         }
         lsm_fab_data[ivar]->setVal(val_to_set);
     }
@@ -107,16 +109,21 @@ NOAHMP::Init (const int& lev,
     // Set noahmpio_vect to the size of local blocks (boxes)
     noahmpio_vect.resize(cons_in.local_size(), lev);
 
+    int klo = domain.smallEnd(2);
+
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
     int idb = 0;
-    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi, ++idb) {
 
         // Get bounds for the tile
-        const Box& bx = mfi.tilebox();
+        Box bx = mfi.tilebox();
 
         // Check if tile is at the lower boundary in lower z direction
-        if (bx.smallEnd(2) != domain.smallEnd(2)) { continue; }
+        if (bx.smallEnd(2) != klo) { continue; }
+
+        // Make a slab
+        bx.makeSlab(2,klo);
 
         // Get reference to the noahmpio object
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
@@ -227,19 +234,27 @@ NOAHMP::Advance_With_State (const int& lev,
 
     Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
 
+    bool is_moist = (cons_in.nComp() > RhoQ1_comp);
+
+    int klo = domain.smallEnd(2);
+
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi, ++idb) {
 
         Box bx  = mfi.tilebox();
         Box gbx = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
 
         // Check if tile is at the lower boundary in lower z direction
-        if (bx.smallEnd(2) != domain.smallEnd(2)) { continue; }
+        if (bx.smallEnd(2) != klo) { continue; }
 
-        bx.makeSlab(2,domain.smallEnd(2));
-        gbx.makeSlab(2,domain.smallEnd(2));
+        bx.makeSlab(2,klo);
+        gbx.makeSlab(2,klo);
+
+        // For limiting when populating ghost cells
+        int i_lo = bx.smallEnd(0); int i_hi = bx.bigEnd(0);
+        int j_lo = bx.smallEnd(1); int j_hi = bx.bigEnd(1);
 
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
@@ -268,6 +283,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Create temporary BaseFabs that will be accessible on host
         // Use The_Pinned_Arena() for host-accessible memory that can be used with GPU
+        Box bx2d = makeSlab(bx,2,0);
         FArrayBox tmp_u_phy(bx, 1, The_Pinned_Arena());
         FArrayBox tmp_v_phy(bx, 1, The_Pinned_Arena());
         FArrayBox tmp_t_phy(bx, 1, The_Pinned_Arena());
@@ -298,13 +314,14 @@ NOAHMP::Advance_With_State (const int& lev,
         auto const& tmp_coszen_arr  = tmp_coszen.array();
 
         // Copy forcing data from ERF to Noahmp.
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
-            tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp));
-            tmp_qv_curr_arr(i,j,0) = CONS(i,j,0,RhoQ1_comp)/CONS(i,j,0,Rho_comp);
-            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,0,RhoTheta_comp));
+            Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
+            tmp_u_phy_arr(i,j,0)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
+            tmp_v_phy_arr(i,j,0)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
+            tmp_qv_curr_arr(i,j,0) = qv;
+            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
             tmp_swdown_arr(i,j,0)  = SWDOWN(i,j,0);
             tmp_glw_arr(i,j,0)     = GLW(i,j,0);
             tmp_coszen_arr(i,j,0)  = COSZEN(i,j,0);
@@ -381,25 +398,29 @@ NOAHMP::Advance_With_State (const int& lev,
 
 
         // Copy forcing data from Noahmp to ERF
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Limit indices to the valid box. FillBoundary will pick these up below.
+            int ii = std::min(std::max(i,i_lo),i_hi);
+            int jj = std::min(std::max(j,j_lo),j_hi);
+
             // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,0)    = tmp_hfx_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,0)    = tmp_lh_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*L_v);
+            t_flux_arr(i,j,k)    = tmp_hfx_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,k)    = tmp_lh_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*L_v);
 
             // NOTE: The following fluxes are nodal in xz/yz.
             //       The 2D MFs have 1 ghost cell so we can average these
             //       when using them in the surface layer class.
-            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/CONS(i,j,0,Rho_comp);
-            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/CONS(i,j,0,Rho_comp);
+            tau13_arr(i,j,k)  = tmp_tau_ew_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
+            tau23_arr(i,j,k)  = tmp_tau_ns_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
 
             // RRTMGP variables
-            TSK(i,j,0)           = tmp_tsk_arr(i,j,0);
-            EMISS(i,j,0)         = tmp_emiss_arr(i,j,0);
-            ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(i,j,0);
-            ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(i,j,0);
-            ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(i,j,0);
-            ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(i,j,0);
+            TSK(i,j,0)           = tmp_tsk_arr(ii,jj,0);
+            EMISS(i,j,0)         = tmp_emiss_arr(ii,jj,0);
+            ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(ii,jj,0);
+            ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(ii,jj,0);
+            ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(ii,jj,0);
+            ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(ii,jj,0);
         });
     }
 

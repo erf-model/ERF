@@ -6,7 +6,7 @@ using namespace amrex;
 #ifdef ERF_USE_FFT
 /**
  * Solve the Poisson equation using FFT
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  */
 void ERF::solve_with_fft (int lev, const Box& subdomain,
                           MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)
@@ -49,6 +49,8 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
                    (sub_hi.x+1)*dx[0], (sub_hi.y+1)*dx[1], (sub_hi.z+1)*dx[2]);
         my_geom.define(subdomain, rb, coord_sys, is_per);
     }
+    Vector<Real> stretched_dz_h_sub;
+    Gpu::DeviceVector<Real> stretched_dz_d_sub;
 
     // ****************************************************************************
     // FFT solve
@@ -82,8 +84,18 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
         if (m_2D_poisson.size() <= lev) {
             m_2D_poisson.resize(lev+1);
         }
+
+        // Make new stretched_dz_sub array which only covers my_geom
+        stretched_dz_h_sub.resize(my_geom.Domain().length(2));
+        for (int k = sub_lo.z; k <= sub_hi.z; k++)
+        {
+            stretched_dz_h_sub[k-sub_lo.z] = stretched_dz_h[lev][k];
+        }
+        stretched_dz_d_sub.resize(stretched_dz_h_sub.size());
+        Gpu::copy(Gpu::hostToDevice, stretched_dz_h_sub.begin(), stretched_dz_h_sub.end(), stretched_dz_d_sub.begin());
+
         m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(my_geom,bc_fft);
-        m_2D_poisson[lev]->solve(phi, rhs, stretched_dz_d[lev]);
+        m_2D_poisson[lev]->solve(phi, rhs, stretched_dz_d_sub);
     }
 
     if (mg_verbose > 0) {
@@ -128,9 +140,9 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == dom_lo.z || k == dom_hi.z+1) {
-                    fz_arr(i,j,k) = 0.0;
+                    fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = 0.5 * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
@@ -139,7 +151,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == dom_lo.z || k == dom_hi.z+1) {
-                    fz_arr(i,j,k) = 0.0;
+                    fz_arr(i,j,k) = zero;
                 } else {
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
                 }

@@ -98,7 +98,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         // const auto dx = geom[fine_lev].CellSize();
         // Setting cell_vol to the exact value may cause round-off errors in volume average.
         // const Real cell_vol = dx[0]*dx[1]*dx[2];
-        constexpr Real cell_vol = 1.0;
+        constexpr Real cell_vol = one;
         const BoxArray& ba = vars_new[fine_lev][IntVars::cons].boxArray();
         const DistributionMapping& dm = vars_new[fine_lev][IntVars::cons].DistributionMap();
         MultiFab vol_fine(ba, dm, 1, 0);
@@ -153,7 +153,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     } // lev
 
     // Fill EB covered cells by old values
-    // (This won't be needed because EB_average_down copyies the covered value.)
+    // (This won't be needed because EB_average_down copies the covered value.)
     if (SolverChoice::terrain_type == TerrainType::EB) {
         for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -163,7 +163,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
                 ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
-                    if (detJ_arr(i,j,k) == 0.0) {
+                    if (detJ_arr(i,j,k) == zero) {
                         cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
                     }
                 });

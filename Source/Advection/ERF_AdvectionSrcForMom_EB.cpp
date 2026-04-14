@@ -97,13 +97,13 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_ux_inv(i,j,0) = 1. / mf_ux(i,j,0);
-        mf_uy_inv(i,j,0) = 1. / mf_uy(i,j,0);
+        mf_ux_inv(i,j,0) = one / mf_ux(i,j,0);
+        mf_uy_inv(i,j,0) = one / mf_uy(i,j,0);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_vx_inv(i,j,0) = 1. / mf_vx(i,j,0);
-        mf_vy_inv(i,j,0) = 1. / mf_vy(i,j,0);
+        mf_vx_inv(i,j,0) = one / mf_vx(i,j,0);
+        mf_vy_inv(i,j,0) = one / mf_vy(i,j,0);
     });
 
     // EB u-factory
@@ -143,91 +143,91 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         ParallelFor(bxx_grown[0], bxx_grown[1], bxx_grown[2],
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( u_afrac_x(i,j,k)>0.){
-                flx_u_arr[0](i,j,k) = 0.25 * u_afrac_x(i,j,k)
+            if ( u_afrac_x(i,j,k)>zero){
+                flx_u_arr[0](i,j,k) = fourth * u_afrac_x(i,j,k)
                                     * (rho_u(i,j,k) * mf_ux_inv(i,j,0) + rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0))
                                     * (u(i-1,j,k) + u(i,j,k));
             } else {
-                flx_u_arr[0](i,j,k) = 0.;
+                flx_u_arr[0](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( u_afrac_y(i,j,k)>0.){
-                flx_u_arr[1](i,j,k) = 0.25 * u_afrac_y(i,j,k)
+            if ( u_afrac_y(i,j,k)>zero){
+                flx_u_arr[1](i,j,k) = fourth * u_afrac_y(i,j,k)
                                     * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i-1,j,k) * mf_vy_inv(i-1,j,0))
                                     * (u(i,j-1,k) + u(i,j,k));
             } else {
-                flx_u_arr[1](i,j,k) = 0.;
+                flx_u_arr[1](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( u_afrac_z(i,j,k)>0.){
-                flx_u_arr[2](i,j,k) = 0.25 * (omega(i,j,k) + omega(i-1,j,k)) * (u(i,j,k-1) + u(i,j,k));
+            if ( u_afrac_z(i,j,k)>zero){
+                flx_u_arr[2](i,j,k) = fourth * (omega(i,j,k) + omega(i-1,j,k)) * (u(i,j,k-1) + u(i,j,k));
             } else {
-                flx_u_arr[2](i,j,k) = 0.;
+                flx_u_arr[2](i,j,k) = zero;
             }
         });
         // Fluxes for y-momentum
         ParallelFor(bxy_grown[0], bxy_grown[1], bxy_grown[2],
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( v_afrac_x(i,j,k)>0.){
-                flx_v_arr[0](i,j,k) = 0.25 * v_afrac_x(i,j,k)
+            if ( v_afrac_x(i,j,k)>zero){
+                flx_v_arr[0](i,j,k) = fourth * v_afrac_x(i,j,k)
                                     * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0))
                                     * (v(i-1,j,k) + v(i,j,k));
             } else {
-                flx_v_arr[0](i,j,k) = 0.;
+                flx_v_arr[0](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( v_afrac_y(i,j,k)>0.){
-                flx_v_arr[1](i,j,k) = 0.25 * v_afrac_y(i,j,k)
+            if ( v_afrac_y(i,j,k)>zero){
+                flx_v_arr[1](i,j,k) = fourth * v_afrac_y(i,j,k)
                                     * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0))
                                     * (v(i,j-1,k) + v(i,j,k));
             } else {
-                flx_v_arr[1](i,j,k) = 0.;
+                flx_v_arr[1](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( v_afrac_z(i,j,k)>0.){
-                flx_v_arr[2](i,j,k) = 0.25 * (omega(i,j,k) + omega(i,j-1,k)) * (v(i,j,k-1) + v(i,j,k));
+            if ( v_afrac_z(i,j,k)>zero){
+                flx_v_arr[2](i,j,k) = fourth * (omega(i,j,k) + omega(i,j-1,k)) * (v(i,j,k-1) + v(i,j,k));
             } else {
-                flx_v_arr[2](i,j,k) = 0.;
+                flx_v_arr[2](i,j,k) = zero;
             }
         });
         // Fluxes for z-momentum
         ParallelFor(bxz_grown[0], bxz_grown[1], bxz_grown[2],
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( w_afrac_x(i,j,k)>0.){
-                flx_w_arr[0](i,j,k) = 0.25 * w_afrac_x(i,j,k)
+            if ( w_afrac_x(i,j,k)>zero){
+                flx_w_arr[0](i,j,k) = fourth * w_afrac_x(i,j,k)
                                     * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_ux_inv(i,j,0)
                                     * (w(i-1,j,k) + w(i,j,k));
             } else {
-                flx_w_arr[0](i,j,k) = 0.;
+                flx_w_arr[0](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( w_afrac_y(i,j,k)>0.){
-                flx_w_arr[1](i,j,k) = 0.25 * w_afrac_y(i,j,k)
+            if ( w_afrac_y(i,j,k)>zero){
+                flx_w_arr[1](i,j,k) = fourth * w_afrac_y(i,j,k)
                                     * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0)
                                     * (w(i,j-1,k) + w(i,j,k));
             } else {
-                flx_w_arr[1](i,j,k) = 0.;
+                flx_w_arr[1](i,j,k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if ( w_afrac_z(i,j,k)>0.){
+            if ( w_afrac_z(i,j,k)>zero){
                 flx_w_arr[2](i,j,k) = (k==hi_z_face+1) ? omega(i,j,k) * w(i,j,k) : // Not sure for this line
-                                    0.25 * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+                                    fourth * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
             } else {
-                flx_w_arr[2](i,j,k) = 0.;
+                flx_w_arr[2](i,j,k) = zero;
             }
         });
 
@@ -300,7 +300,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (u_vfrac(i,j,k)>0.) {
+            if (u_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
@@ -308,12 +308,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                     + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
                 rho_u_rhs(i, j, k) = -advectionSrc;
             } else {
-                rho_u_rhs(i, j, k) = 0.;
+                rho_u_rhs(i, j, k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (v_vfrac(i,j,k)>0.) {
+            if (v_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 Real advectionSrc = ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
@@ -321,12 +321,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                     + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
                 rho_v_rhs(i, j, k) = -advectionSrc;
             } else {
-                rho_v_rhs(i, j, k) = 0.;
+                rho_v_rhs(i, j, k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (w_vfrac(i,j,k)>0.) {
+            if (w_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
@@ -347,12 +347,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (u_vfrac(i,j,k)>0.) {
+            if (u_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 if (u_cflag(i,j,k).isCovered())
                 {
-                    rho_u_rhs(i, j, k) = 0.;
+                    rho_u_rhs(i, j, k) = zero;
                 }
                 else if (u_cflag(i,j,k).isRegular())
                 {
@@ -364,74 +364,74 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 {
                     // Bilinear interpolation
                     Real fxm = flx_u_arr[0](i,j,k);
-                    if (u_afrac_x(i,j,k) != Real(0.0) && u_afrac_x(i,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0), u_fcx(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0), u_fcx(i,j,k,1)));
-                        Real fracy = (u_mask(i-1,jj,k) || u_mask(i,jj,k)) ? std::abs(u_fcx(i,j,k,0)) : Real(0.0);
-                        Real fracz = (u_mask(i-1,j,kk) || u_mask(i,j,kk)) ? std::abs(u_fcx(i,j,k,1)) : Real(0.0);
-                        fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
-                            +      fracy *(Real(1.0)-fracz)*flx_u_arr[0](i,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_u_arr[0](i,j ,kk)
+                    if (u_afrac_x(i,j,k) != zero && u_afrac_x(i,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one, u_fcx(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one, u_fcx(i,j,k,1)));
+                        Real fracy = (u_mask(i-1,jj,k) || u_mask(i,jj,k)) ? std::abs(u_fcx(i,j,k,0)) : zero;
+                        Real fracz = (u_mask(i-1,j,kk) || u_mask(i,j,kk)) ? std::abs(u_fcx(i,j,k,1)) : zero;
+                        fxm = (one-fracy)*(one-fracz)*fxm
+                            +      fracy *(one-fracz)*flx_u_arr[0](i,jj,k )
+                            +      fracz *(one-fracy)*flx_u_arr[0](i,j ,kk)
                             +      fracy *           fracz *flx_u_arr[0](i,jj,kk);
                     }
 
                     Real fxp = flx_u_arr[0](i+1,j,k);
-                    if (u_afrac_x(i+1,j,k) != Real(0.0) && u_afrac_x(i+1,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),u_fcx(i+1,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),u_fcx(i+1,j,k,1)));
-                        Real fracy = (u_mask(i,jj,k) || u_mask(i+1,jj,k)) ? std::abs(u_fcx(i+1,j,k,0)) : Real(0.0);
-                        Real fracz = (u_mask(i,j,kk) || u_mask(i+1,j,kk)) ? std::abs(u_fcx(i+1,j,k,1)) : Real(0.0);
-                        fxp = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxp
-                            +      fracy *(Real(1.0)-fracz)*flx_u_arr[0](i+1,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_u_arr[0](i+1,j ,kk)
+                    if (u_afrac_x(i+1,j,k) != zero && u_afrac_x(i+1,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one,u_fcx(i+1,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,u_fcx(i+1,j,k,1)));
+                        Real fracy = (u_mask(i,jj,k) || u_mask(i+1,jj,k)) ? std::abs(u_fcx(i+1,j,k,0)) : zero;
+                        Real fracz = (u_mask(i,j,kk) || u_mask(i+1,j,kk)) ? std::abs(u_fcx(i+1,j,k,1)) : zero;
+                        fxp = (one-fracy)*(one-fracz)*fxp
+                            +      fracy *(one-fracz)*flx_u_arr[0](i+1,jj,k )
+                            +      fracz *(one-fracy)*flx_u_arr[0](i+1,j ,kk)
                             +      fracy *     fracz *flx_u_arr[0](i+1,jj,kk);
                     }
 
                     Real fym = flx_u_arr[1](i,j,k);
-                    if (u_afrac_y(i,j,k) != Real(0.0) && u_afrac_y(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),u_fcy(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),u_fcy(i,j,k,1)));
-                        Real fracx = (u_mask(ii,j-1,k) || u_mask(ii,j,k)) ? std::abs(u_fcy(i,j,k,0)) : Real(0.0);
-                        Real fracz = (u_mask(i,j-1,kk) || u_mask(i,j,kk)) ? std::abs(u_fcy(i,j,k,1)) : Real(0.0);
-                        fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
-                            +      fracx *(Real(1.0)-fracz)*flx_u_arr[1](ii,j,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_u_arr[1](i ,j,kk)
+                    if (u_afrac_y(i,j,k) != zero && u_afrac_y(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,u_fcy(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,u_fcy(i,j,k,1)));
+                        Real fracx = (u_mask(ii,j-1,k) || u_mask(ii,j,k)) ? std::abs(u_fcy(i,j,k,0)) : zero;
+                        Real fracz = (u_mask(i,j-1,kk) || u_mask(i,j,kk)) ? std::abs(u_fcy(i,j,k,1)) : zero;
+                        fym = (one-fracx)*(one-fracz)*fym
+                            +      fracx *(one-fracz)*flx_u_arr[1](ii,j,k )
+                            +      fracz *(one-fracx)*flx_u_arr[1](i ,j,kk)
                             +      fracx *     fracz *flx_u_arr[1](ii,j,kk);
                     }
 
                     Real fyp = flx_u_arr[1](i,j+1,k);
-                    if (u_afrac_y(i,j+1,k) != Real(0.0) && u_afrac_y(i,j+1,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),u_fcy(i,j+1,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),u_fcy(i,j+1,k,1)));
-                        Real fracx = (u_mask(ii,j,k) || u_mask(ii,j+1,k)) ? std::abs(u_fcy(i,j+1,k,0)) : Real(0.0);
-                        Real fracz = (u_mask(i,j,kk) || u_mask(i,j+1,kk)) ? std::abs(u_fcy(i,j+1,k,1)) : Real(0.0);
-                        fyp = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fyp
-                            +      fracx *(Real(1.0)-fracz)*flx_u_arr[1](ii,j+1,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_u_arr[1](i ,j+1,kk)
+                    if (u_afrac_y(i,j+1,k) != zero && u_afrac_y(i,j+1,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,u_fcy(i,j+1,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,u_fcy(i,j+1,k,1)));
+                        Real fracx = (u_mask(ii,j,k) || u_mask(ii,j+1,k)) ? std::abs(u_fcy(i,j+1,k,0)) : zero;
+                        Real fracz = (u_mask(i,j,kk) || u_mask(i,j+1,kk)) ? std::abs(u_fcy(i,j+1,k,1)) : zero;
+                        fyp = (one-fracx)*(one-fracz)*fyp
+                            +      fracx *(one-fracz)*flx_u_arr[1](ii,j+1,k )
+                            +      fracz *(one-fracx)*flx_u_arr[1](i ,j+1,kk)
                             +      fracx *     fracz *flx_u_arr[1](ii,j+1,kk);
                     }
 
                     Real fzm = flx_u_arr[2](i,j,k);
-                    if (u_afrac_z(i,j,k) != Real(0.0) && u_afrac_z(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),u_fcz(i,j,k,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),u_fcz(i,j,k,1)));
-                        Real fracx = (u_mask(ii,j,k-1) || u_mask(ii,j,k)) ? std::abs(u_fcz(i,j,k,0)) : Real(0.0);
-                        Real fracy = (u_mask(i,jj,k-1) || u_mask(i,jj,k)) ? std::abs(u_fcz(i,j,k,1)) : Real(0.0);
-                        fzm = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzm
-                            +      fracx *(Real(1.0)-fracy)*flx_u_arr[2](ii,j ,k)
-                            +      fracy *(Real(1.0)-fracx)*flx_u_arr[2](i ,jj,k)
+                    if (u_afrac_z(i,j,k) != zero && u_afrac_z(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,u_fcz(i,j,k,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,u_fcz(i,j,k,1)));
+                        Real fracx = (u_mask(ii,j,k-1) || u_mask(ii,j,k)) ? std::abs(u_fcz(i,j,k,0)) : zero;
+                        Real fracy = (u_mask(i,jj,k-1) || u_mask(i,jj,k)) ? std::abs(u_fcz(i,j,k,1)) : zero;
+                        fzm = (one-fracx)*(one-fracy)*fzm
+                            +      fracx *(one-fracy)*flx_u_arr[2](ii,j ,k)
+                            +      fracy *(one-fracx)*flx_u_arr[2](i ,jj,k)
                             +      fracx *     fracy *flx_u_arr[2](ii,jj,k);
                     }
 
                     Real fzp = flx_u_arr[2](i,j,k+1);
-                    if (u_afrac_z(i,j,k+1) != Real(0.0) && u_afrac_z(i,j,k+1) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),u_fcz(i,j,k+1,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),u_fcz(i,j,k+1,1)));
-                        Real fracx = (u_mask(ii,j,k) || u_mask(ii,j,k+1)) ? std::abs(u_fcz(i,j,k+1,0)) : Real(0.0);
-                        Real fracy = (u_mask(i,jj,k) || u_mask(i,jj,k+1)) ? std::abs(u_fcz(i,j,k+1,1)) : Real(0.0);
-                        fzp = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzp
-                            +      fracx *(Real(1.0)-fracy)*flx_u_arr[2](ii,j ,k+1)
-                            +      fracy *(Real(1.0)-fracx)*flx_u_arr[2](i ,jj,k+1)
+                    if (u_afrac_z(i,j,k+1) != zero && u_afrac_z(i,j,k+1) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,u_fcz(i,j,k+1,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,u_fcz(i,j,k+1,1)));
+                        Real fracx = (u_mask(ii,j,k) || u_mask(ii,j,k+1)) ? std::abs(u_fcz(i,j,k+1,0)) : zero;
+                        Real fracy = (u_mask(i,jj,k) || u_mask(i,jj,k+1)) ? std::abs(u_fcz(i,j,k+1,1)) : zero;
+                        fzp = (one-fracx)*(one-fracy)*fzp
+                            +      fracx *(one-fracy)*flx_u_arr[2](ii,j ,k+1)
+                            +      fracy *(one-fracx)*flx_u_arr[2](i ,jj,k+1)
                             +      fracx *     fracy *flx_u_arr[2](ii,jj,k+1);
                     }
 
@@ -441,17 +441,17 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 }
 
             } else {
-                rho_u_rhs(i, j, k) = 0.;
+                rho_u_rhs(i, j, k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (v_vfrac(i,j,k)>0.) {
+            if (v_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 if (v_cflag(i,j,k).isCovered())
                 {
-                    rho_v_rhs(i, j, k) = 0.;
+                    rho_v_rhs(i, j, k) = zero;
                 }
                 else if (v_cflag(i,j,k).isRegular())
                 {
@@ -463,74 +463,74 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 {
                     // Bilinear interpolation
                     Real fxm = flx_v_arr[0](i,j,k);
-                    if (v_afrac_x(i,j,k) != Real(0.0) && v_afrac_x(i,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0), v_fcx(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0), v_fcx(i,j,k,1)));
-                        Real fracy = (v_mask(i-1,jj,k) || v_mask(i,jj,k)) ? std::abs(v_fcx(i,j,k,0)) : Real(0.0);
-                        Real fracz = (v_mask(i-1,j,kk) || v_mask(i,j,kk)) ? std::abs(v_fcx(i,j,k,1)) : Real(0.0);
-                        fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
-                            +      fracy *(Real(1.0)-fracz)*flx_v_arr[0](i,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_v_arr[0](i,j ,kk)
+                    if (v_afrac_x(i,j,k) != zero && v_afrac_x(i,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one, v_fcx(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one, v_fcx(i,j,k,1)));
+                        Real fracy = (v_mask(i-1,jj,k) || v_mask(i,jj,k)) ? std::abs(v_fcx(i,j,k,0)) : zero;
+                        Real fracz = (v_mask(i-1,j,kk) || v_mask(i,j,kk)) ? std::abs(v_fcx(i,j,k,1)) : zero;
+                        fxm = (one-fracy)*(one-fracz)*fxm
+                            +      fracy *(one-fracz)*flx_v_arr[0](i,jj,k )
+                            +      fracz *(one-fracy)*flx_v_arr[0](i,j ,kk)
                             +      fracy *     fracz *flx_v_arr[0](i,jj,kk);
                     }
 
                     Real fxp = flx_v_arr[0](i+1,j,k);
-                    if (v_afrac_x(i+1,j,k) != Real(0.0) && v_afrac_x(i+1,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),v_fcx(i+1,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),v_fcx(i+1,j,k,1)));
-                        Real fracy = (v_mask(i,jj,k) || v_mask(i+1,jj,k)) ? std::abs(v_fcx(i+1,j,k,0)) : Real(0.0);
-                        Real fracz = (v_mask(i,j,kk) || v_mask(i+1,j,kk)) ? std::abs(v_fcx(i+1,j,k,1)) : Real(0.0);
-                        fxp = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxp
-                            +      fracy *(Real(1.0)-fracz)*flx_v_arr[0](i+1,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_v_arr[0](i+1,j ,kk)
+                    if (v_afrac_x(i+1,j,k) != zero && v_afrac_x(i+1,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one,v_fcx(i+1,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,v_fcx(i+1,j,k,1)));
+                        Real fracy = (v_mask(i,jj,k) || v_mask(i+1,jj,k)) ? std::abs(v_fcx(i+1,j,k,0)) : zero;
+                        Real fracz = (v_mask(i,j,kk) || v_mask(i+1,j,kk)) ? std::abs(v_fcx(i+1,j,k,1)) : zero;
+                        fxp = (one-fracy)*(one-fracz)*fxp
+                            +      fracy *(one-fracz)*flx_v_arr[0](i+1,jj,k )
+                            +      fracz *(one-fracy)*flx_v_arr[0](i+1,j ,kk)
                             +      fracy *     fracz *flx_v_arr[0](i+1,jj,kk);
                     }
 
                     Real fym = flx_v_arr[1](i,j,k);
-                    if (v_afrac_y(i,j,k) != Real(0.0) && v_afrac_y(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),v_fcy(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),v_fcy(i,j,k,1)));
-                        Real fracx = (v_mask(ii,j-1,k) || v_mask(ii,j,k)) ? std::abs(v_fcy(i,j,k,0)) : Real(0.0);
-                        Real fracz = (v_mask(i,j-1,kk) || v_mask(i,j,kk)) ? std::abs(v_fcy(i,j,k,1)) : Real(0.0);
-                        fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
-                            +      fracx *(Real(1.0)-fracz)*flx_v_arr[1](ii,j,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_v_arr[1](i ,j,kk)
+                    if (v_afrac_y(i,j,k) != zero && v_afrac_y(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,v_fcy(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,v_fcy(i,j,k,1)));
+                        Real fracx = (v_mask(ii,j-1,k) || v_mask(ii,j,k)) ? std::abs(v_fcy(i,j,k,0)) : zero;
+                        Real fracz = (v_mask(i,j-1,kk) || v_mask(i,j,kk)) ? std::abs(v_fcy(i,j,k,1)) : zero;
+                        fym = (one-fracx)*(one-fracz)*fym
+                            +      fracx *(one-fracz)*flx_v_arr[1](ii,j,k )
+                            +      fracz *(one-fracx)*flx_v_arr[1](i ,j,kk)
                             +      fracx *           fracz *flx_v_arr[1](ii,j,kk);
                     }
 
                     Real fyp = flx_v_arr[1](i,j+1,k);
-                    if (v_afrac_y(i,j+1,k) != Real(0.0) && v_afrac_y(i,j+1,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),v_fcy(i,j+1,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),v_fcy(i,j+1,k,1)));
-                        Real fracx = (v_mask(ii,j,k) || v_mask(ii,j+1,k)) ? std::abs(v_fcy(i,j+1,k,0)) : Real(0.0);
-                        Real fracz = (v_mask(i,j,kk) || v_mask(i,j+1,kk)) ? std::abs(v_fcy(i,j+1,k,1)) : Real(0.0);
-                        fyp = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fyp
-                            +      fracx *(Real(1.0)-fracz)*flx_v_arr[1](ii,j+1,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_v_arr[1](i ,j+1,kk)
+                    if (v_afrac_y(i,j+1,k) != zero && v_afrac_y(i,j+1,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,v_fcy(i,j+1,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,v_fcy(i,j+1,k,1)));
+                        Real fracx = (v_mask(ii,j,k) || v_mask(ii,j+1,k)) ? std::abs(v_fcy(i,j+1,k,0)) : zero;
+                        Real fracz = (v_mask(i,j,kk) || v_mask(i,j+1,kk)) ? std::abs(v_fcy(i,j+1,k,1)) : zero;
+                        fyp = (one-fracx)*(one-fracz)*fyp
+                            +      fracx *(one-fracz)*flx_v_arr[1](ii,j+1,k )
+                            +      fracz *(one-fracx)*flx_v_arr[1](i ,j+1,kk)
                             +      fracx *     fracz *flx_v_arr[1](ii,j+1,kk);
                     }
 
                     Real fzm = flx_v_arr[2](i,j,k);
-                    if (v_afrac_z(i,j,k) != Real(0.0) && v_afrac_z(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),v_fcz(i,j,k,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),v_fcz(i,j,k,1)));
-                        Real fracx = (v_mask(ii,j,k-1) || v_mask(ii,j,k)) ? std::abs(v_fcz(i,j,k,0)) : Real(0.0);
-                        Real fracy = (v_mask(i,jj,k-1) || v_mask(i,jj,k)) ? std::abs(v_fcz(i,j,k,1)) : Real(0.0);
-                        fzm = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzm
-                            +      fracx *(Real(1.0)-fracy)*flx_v_arr[2](ii,j ,k)
-                            +      fracy *(Real(1.0)-fracx)*flx_v_arr[2](i ,jj,k)
+                    if (v_afrac_z(i,j,k) != zero && v_afrac_z(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,v_fcz(i,j,k,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,v_fcz(i,j,k,1)));
+                        Real fracx = (v_mask(ii,j,k-1) || v_mask(ii,j,k)) ? std::abs(v_fcz(i,j,k,0)) : zero;
+                        Real fracy = (v_mask(i,jj,k-1) || v_mask(i,jj,k)) ? std::abs(v_fcz(i,j,k,1)) : zero;
+                        fzm = (one-fracx)*(one-fracy)*fzm
+                            +      fracx *(one-fracy)*flx_v_arr[2](ii,j ,k)
+                            +      fracy *(one-fracx)*flx_v_arr[2](i ,jj,k)
                             +      fracx *     fracy *flx_v_arr[2](ii,jj,k);
                     }
 
                     Real fzp = flx_v_arr[2](i,j,k+1);
-                    if (v_afrac_z(i,j,k+1) != Real(0.0) && v_afrac_z(i,j,k+1) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),v_fcz(i,j,k+1,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),v_fcz(i,j,k+1,1)));
-                        Real fracx = (v_mask(ii,j,k) || v_mask(ii,j,k+1)) ? std::abs(v_fcz(i,j,k+1,0)) : Real(0.0);
-                        Real fracy = (v_mask(i,jj,k) || v_mask(i,jj,k+1)) ? std::abs(v_fcz(i,j,k+1,1)) : Real(0.0);
-                        fzp = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzp
-                            +      fracx *(Real(1.0)-fracy)*flx_v_arr[2](ii,j ,k+1)
-                            +      fracy *(Real(1.0)-fracx)*flx_v_arr[2](i ,jj,k+1)
+                    if (v_afrac_z(i,j,k+1) != zero && v_afrac_z(i,j,k+1) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,v_fcz(i,j,k+1,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,v_fcz(i,j,k+1,1)));
+                        Real fracx = (v_mask(ii,j,k) || v_mask(ii,j,k+1)) ? std::abs(v_fcz(i,j,k+1,0)) : zero;
+                        Real fracy = (v_mask(i,jj,k) || v_mask(i,jj,k+1)) ? std::abs(v_fcz(i,j,k+1,1)) : zero;
+                        fzp = (one-fracx)*(one-fracy)*fzp
+                            +      fracx *(one-fracy)*flx_v_arr[2](ii,j ,k+1)
+                            +      fracy *(one-fracx)*flx_v_arr[2](i ,jj,k+1)
                             +      fracx *     fracy *flx_v_arr[2](ii,jj,k+1);
                     }
 
@@ -540,17 +540,17 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 }
 
             } else {
-                rho_v_rhs(i, j, k) = 0.;
+                rho_v_rhs(i, j, k) = zero;
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (w_vfrac(i,j,k)>0.) {
+            if (w_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 if (w_cflag(i,j,k).isCovered())
                 {
-                    rho_w_rhs(i, j, k) = 0.;
+                    rho_w_rhs(i, j, k) = zero;
                 }
                 else if (w_cflag(i,j,k).isRegular())
                 {
@@ -562,74 +562,74 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 {
                     // Bilinear interpolation
                     Real fxm = flx_w_arr[0](i,j,k);
-                    if (w_afrac_x(i,j,k) != Real(0.0) && w_afrac_x(i,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0), w_fcx(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0), w_fcx(i,j,k,1)));
-                        Real fracy = (w_mask(i-1,jj,k) || w_mask(i,jj,k)) ? std::abs(w_fcx(i,j,k,0)) : Real(0.0);
-                        Real fracz = (w_mask(i-1,j,kk) || w_mask(i,j,kk)) ? std::abs(w_fcx(i,j,k,1)) : Real(0.0);
-                        fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
-                            +      fracy *(Real(1.0)-fracz)*flx_w_arr[0](i,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_w_arr[0](i,j ,kk)
+                    if (w_afrac_x(i,j,k) != zero && w_afrac_x(i,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one, w_fcx(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one, w_fcx(i,j,k,1)));
+                        Real fracy = (w_mask(i-1,jj,k) || w_mask(i,jj,k)) ? std::abs(w_fcx(i,j,k,0)) : zero;
+                        Real fracz = (w_mask(i-1,j,kk) || w_mask(i,j,kk)) ? std::abs(w_fcx(i,j,k,1)) : zero;
+                        fxm = (one-fracy)*(one-fracz)*fxm
+                            +      fracy *(one-fracz)*flx_w_arr[0](i,jj,k )
+                            +      fracz *(one-fracy)*flx_w_arr[0](i,j ,kk)
                             +      fracy *     fracz *flx_w_arr[0](i,jj,kk);
                     }
 
                     Real fxp = flx_w_arr[0](i+1,j,k);
-                    if (w_afrac_x(i+1,j,k) != Real(0.0) && w_afrac_x(i+1,j,k) != Real(1.0)) {
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),w_fcx(i+1,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),w_fcx(i+1,j,k,1)));
-                        Real fracy = (w_mask(i,jj,k) || w_mask(i+1,jj,k)) ? std::abs(w_fcx(i+1,j,k,0)) : Real(0.0);
-                        Real fracz = (w_mask(i,j,kk) || w_mask(i+1,j,kk)) ? std::abs(w_fcx(i+1,j,k,1)) : Real(0.0);
-                        fxp = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxp
-                            +      fracy *(Real(1.0)-fracz)*flx_w_arr[0](i+1,jj,k )
-                            +      fracz *(Real(1.0)-fracy)*flx_w_arr[0](i+1,j ,kk)
+                    if (w_afrac_x(i+1,j,k) != zero && w_afrac_x(i+1,j,k) != one) {
+                        int jj = j + static_cast<int>(std::copysign(one,w_fcx(i+1,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,w_fcx(i+1,j,k,1)));
+                        Real fracy = (w_mask(i,jj,k) || w_mask(i+1,jj,k)) ? std::abs(w_fcx(i+1,j,k,0)) : zero;
+                        Real fracz = (w_mask(i,j,kk) || w_mask(i+1,j,kk)) ? std::abs(w_fcx(i+1,j,k,1)) : zero;
+                        fxp = (one-fracy)*(one-fracz)*fxp
+                            +      fracy *(one-fracz)*flx_w_arr[0](i+1,jj,k )
+                            +      fracz *(one-fracy)*flx_w_arr[0](i+1,j ,kk)
                             +      fracy *     fracz *flx_w_arr[0](i+1,jj,kk);
                     }
 
                     Real fym = flx_w_arr[1](i,j,k);
-                    if (w_afrac_y(i,j,k) != Real(0.0) && w_afrac_y(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),w_fcy(i,j,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),w_fcy(i,j,k,1)));
-                        Real fracx = (w_mask(ii,j-1,k) || w_mask(ii,j,k)) ? std::abs(w_fcy(i,j,k,0)) : Real(0.0);
-                        Real fracz = (w_mask(i,j-1,kk) || w_mask(i,j,kk)) ? std::abs(w_fcy(i,j,k,1)) : Real(0.0);
-                        fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
-                            +      fracx *(Real(1.0)-fracz)*flx_w_arr[1](ii,j,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_w_arr[1](i ,j,kk)
+                    if (w_afrac_y(i,j,k) != zero && w_afrac_y(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,w_fcy(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,w_fcy(i,j,k,1)));
+                        Real fracx = (w_mask(ii,j-1,k) || w_mask(ii,j,k)) ? std::abs(w_fcy(i,j,k,0)) : zero;
+                        Real fracz = (w_mask(i,j-1,kk) || w_mask(i,j,kk)) ? std::abs(w_fcy(i,j,k,1)) : zero;
+                        fym = (one-fracx)*(one-fracz)*fym
+                            +      fracx *(one-fracz)*flx_w_arr[1](ii,j,k )
+                            +      fracz *(one-fracx)*flx_w_arr[1](i ,j,kk)
                             +      fracx *     fracz *flx_w_arr[1](ii,j,kk);
                     }
 
                     Real fyp = flx_w_arr[1](i,j+1,k);
-                    if (w_afrac_y(i,j+1,k) != Real(0.0) && w_afrac_y(i,j+1,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),w_fcy(i,j+1,k,0)));
-                        int kk = k + static_cast<int>(std::copysign(Real(1.0),w_fcy(i,j+1,k,1)));
-                        Real fracx = (w_mask(ii,j,k) || w_mask(ii,j+1,k)) ? std::abs(w_fcy(i,j+1,k,0)) : Real(0.0);
-                        Real fracz = (w_mask(i,j,kk) || w_mask(i,j+1,kk)) ? std::abs(w_fcy(i,j+1,k,1)) : Real(0.0);
-                        fyp = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fyp
-                            +      fracx *(Real(1.0)-fracz)*flx_w_arr[1](ii,j+1,k )
-                            +      fracz *(Real(1.0)-fracx)*flx_w_arr[1](i ,j+1,kk)
+                    if (w_afrac_y(i,j+1,k) != zero && w_afrac_y(i,j+1,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,w_fcy(i,j+1,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(one,w_fcy(i,j+1,k,1)));
+                        Real fracx = (w_mask(ii,j,k) || w_mask(ii,j+1,k)) ? std::abs(w_fcy(i,j+1,k,0)) : zero;
+                        Real fracz = (w_mask(i,j,kk) || w_mask(i,j+1,kk)) ? std::abs(w_fcy(i,j+1,k,1)) : zero;
+                        fyp = (one-fracx)*(one-fracz)*fyp
+                            +      fracx *(one-fracz)*flx_w_arr[1](ii,j+1,k )
+                            +      fracz *(one-fracx)*flx_w_arr[1](i ,j+1,kk)
                             +      fracx *     fracz *flx_w_arr[1](ii,j+1,kk);
                     }
 
                     Real fzm = flx_w_arr[2](i,j,k);
-                    if (w_afrac_z(i,j,k) != Real(0.0) && w_afrac_z(i,j,k) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),w_fcz(i,j,k,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),w_fcz(i,j,k,1)));
-                        Real fracx = (w_mask(ii,j,k-1) || w_mask(ii,j,k)) ? std::abs(w_fcz(i,j,k,0)) : Real(0.0);
-                        Real fracy = (w_mask(i,jj,k-1) || w_mask(i,jj,k)) ? std::abs(w_fcz(i,j,k,1)) : Real(0.0);
-                        fzm = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzm
-                            +      fracx *(Real(1.0)-fracy)*flx_w_arr[2](ii,j ,k)
-                            +      fracy *(Real(1.0)-fracx)*flx_w_arr[2](i ,jj,k)
+                    if (w_afrac_z(i,j,k) != zero && w_afrac_z(i,j,k) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,w_fcz(i,j,k,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,w_fcz(i,j,k,1)));
+                        Real fracx = (w_mask(ii,j,k-1) || w_mask(ii,j,k)) ? std::abs(w_fcz(i,j,k,0)) : zero;
+                        Real fracy = (w_mask(i,jj,k-1) || w_mask(i,jj,k)) ? std::abs(w_fcz(i,j,k,1)) : zero;
+                        fzm = (one-fracx)*(one-fracy)*fzm
+                            +      fracx *(one-fracy)*flx_w_arr[2](ii,j ,k)
+                            +      fracy *(one-fracx)*flx_w_arr[2](i ,jj,k)
                             +      fracx *     fracy *flx_w_arr[2](ii,jj,k);
                     }
 
                     Real fzp = flx_w_arr[2](i,j,k+1);
-                    if (w_afrac_z(i,j,k+1) != Real(0.0) && w_afrac_z(i,j,k+1) != Real(1.0)) {
-                        int ii = i + static_cast<int>(std::copysign(Real(1.0),w_fcz(i,j,k+1,0)));
-                        int jj = j + static_cast<int>(std::copysign(Real(1.0),w_fcz(i,j,k+1,1)));
-                        Real fracx = (w_mask(ii,j,k) || w_mask(ii,j,k+1)) ? std::abs(w_fcz(i,j,k+1,0)) : Real(0.0);
-                        Real fracy = (w_mask(i,jj,k) || w_mask(i,jj,k+1)) ? std::abs(w_fcz(i,j,k+1,1)) : Real(0.0);
-                        fzp = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzp
-                            +      fracx *(Real(1.0)-fracy)*flx_w_arr[2](ii,j ,k+1)
-                            +      fracy *(Real(1.0)-fracx)*flx_w_arr[2](i ,jj,k+1)
+                    if (w_afrac_z(i,j,k+1) != zero && w_afrac_z(i,j,k+1) != one) {
+                        int ii = i + static_cast<int>(std::copysign(one,w_fcz(i,j,k+1,0)));
+                        int jj = j + static_cast<int>(std::copysign(one,w_fcz(i,j,k+1,1)));
+                        Real fracx = (w_mask(ii,j,k) || w_mask(ii,j,k+1)) ? std::abs(w_fcz(i,j,k+1,0)) : zero;
+                        Real fracy = (w_mask(i,jj,k) || w_mask(i,jj,k+1)) ? std::abs(w_fcz(i,j,k+1,1)) : zero;
+                        fzp = (one-fracx)*(one-fracy)*fzp
+                            +      fracx *(one-fracy)*flx_w_arr[2](ii,j ,k+1)
+                            +      fracy *(one-fracx)*flx_w_arr[2](i ,jj,k+1)
                             +      fracx *     fracy *flx_w_arr[2](ii,jj,k+1);
                     }
 

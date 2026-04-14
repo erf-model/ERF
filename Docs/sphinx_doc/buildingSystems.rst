@@ -11,29 +11,33 @@ The two build systems serve distinct purposes:
 
 * **CMake** - Framework-centric system designed for cross-platform compatibility and dependency management. Creates versioned libraries, provides automated detection (including Cray systems), and supports testing through CTest. Recommended for HPC environments.
 
-This guide serves as a technical reference for developers and advanced users. For initial setup and quick start instructions, see :ref:`sec:build:quickstart` and :ref:`GettingStarted`. For HPC-specific instructions, see :ref:`sec:build:hpc`.
+This guide serves as a technical reference for developers and advanced users. For initial setup and quick start instructions, see :ref:`sec:build:quickstart` and :ref:`GettingStarted`. For HPC concepts, see :ref:`sec:build:hpc`; for machine-specific build/run workflows, see :ref:`sec:hpc:guides`.
 
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in subdirectories within ``Exec``. With GNU Make, build in the specific problem directory. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
+ERF builds executables in ``ERF/Exec`` when using GNU Make. The exception is development-test work under ``ERF/.Exec_dev``, where GNU Make builds in a problem-specific directory under ``ERF/.Exec_dev``.
 
-The problem directories within ``Exec`` are organized by purpose:
+With CMake, one configures once to build the core libraries and the shared test executable in ``build`` (e.g., ``erf_exec``).
+
+Regardless of how the executable is built, it can be run on regression and canonical tests that have inputs files in subdirectories of ``Exec/RegTests`` and ``Exec/CanonicalTests``.
+Ctests are run on files in subdirectories of ``ERF/Tests/test_files``.
+
+Directories within ``Exec`` are organized into cases used primarily for regression testing and cases representing more canonical tests.
 
 .. code-block:: text
 
    Exec/
-   ├── ABL/                    # Atmospheric boundary layer (science runs)
-   ├── DryRegTests/            # Dry atmospheric regression tests
+   ├── RegTests/               # Regression test input decks
    │   ├── IsentropicVortex/
    │   ├── TaylorGreenVortex/
-   │   └── ...
-   ├── MoistRegTests/          # Moist atmospheric regression tests
    │   ├── Bubble/
-   │   ├── SquallLine/
    │   └── ...
-   └── DevTests/               # Development and experimental features
-       ├── MovingTerrain/
+   ├── CanonicalTests/         # Canonical atmospheric flow input decks
+       ├── ABL/
+       ├── Bomex/
+       ├── SquallLine/
+       ├── SuperCell/
        └── ...
 
 Each problem directory contains a README describing its purpose and functionality.
@@ -44,23 +48,21 @@ Building with GNU Make
 System Overview
 ~~~~~~~~~~~~~~~
 
-The GNU Make system provides a direct path to producing a single, case-specific executable. It uses an application-centric approach, where developers and scientists compile code for a particular problem setup (e.g., atmospheric boundary layer simulation) directly within the ``Exec/`` directory structure.
+The GNU Make system provides a direct path to producing a single, non-case-specific executable that works for all cases
+represented in ``ERF/Exec/RegTests`` and ``ERF/Exec/CanonicalTests``.
 
-Primary use cases:
+Depending on the cases of interest, the user must specify in ``ERF/Exec/GNUmakefile`` whether the executable should be built
+with particle capability (``USE\_PARTICLES = TRUE``), with NetCDF capability (``USE\_NETCDF = TRUE``),
+with radiation (``USE\_RRGMTP = TRUE``), and several other compile-time options.
 
-* Scientific production runs with in-place compilation
-* Development scenarios requiring direct control over compiler flags
-* Debugging build configuration
-* Single executables without library versioning overhead
-
-The build is orchestrated by a ``GNUmakefile`` in each case directory (such as ``Exec/ABL/``), which uses build logic from the AMReX framework.
+The build is orchestrated by a ``GNUmakefile`` in ``ERF/Exec/`` (and similarly in ``ERF/.Exec_dev`` for development tests), which uses build logic from the AMReX framework.
 
 .. dropdown:: How it Works: The Orchestration Process
    :icon: info
 
    The GNU Make process uses a hierarchy of includes separating user configuration from application and framework build logic:
 
-   1. **GNUmakefile Location**: User invokes ``make`` in an application directory, such as ``Exec/ABL/``, which contains the ``GNUmakefile`` control file.
+   1. **GNUmakefile Location**: User invokes ``make`` in ``ERF/Exec/`` for standard builds, or in ``ERF/.Exec_dev/<test>/`` for development-test builds.
 
    2. **Set AMREX_HOME**: The ``GNUmakefile`` defines ``AMREX_HOME``, pointing to the AMReX submodule containing core build logic. Default path is ``$(ERF_HOME)/Submodules/AMReX``.
 
@@ -122,11 +124,15 @@ If building with SHOC or P3, run the setup scripts:
 
 Then set ``USE_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile (step 4).
 
-**3. Navigate to Problem Directory**
+**3. Navigate to GNU Make Build Directory**
 
 .. code-block:: bash
 
-   cd ERF/Exec/DryRegTests/IsentropicVortex/
+   # Standard workflow
+   cd ERF/Exec
+
+   # Development-test workflow (exception)
+   # cd ERF/.Exec_dev/<test_name>
 
 **4. Edit GNUmakefile**
 
@@ -243,14 +249,9 @@ Set build variables in the ``GNUmakefile``:
 
    Typical ``GNUmakefile`` examples:
 
-   **Exec/ABL/GNUmakefile:**
+   **Exec/GNUmakefile:**
 
-   .. literalinclude:: ../../Exec/ABL/GNUmakefile
-      :language: makefile
-
-   **Exec/DryRegTests/IsentropicVortex/GNUmakefile:**
-
-   .. literalinclude:: ../../Exec/DryRegTests/IsentropicVortex/GNUmakefile
+   .. literalinclude:: ../../Exec/GNUmakefile
       :language: makefile
 
 **5. Build**
@@ -259,7 +260,7 @@ Set build variables in the ``GNUmakefile``:
 
    make
 
-The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/DryRegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
+The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
 
 **6. Verify Build (Optional)**
 
@@ -300,20 +301,20 @@ View build configuration:
    .. code-block:: bash
 
       # If built in Build/ directory:
-      cd Build/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+      cd Build/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If out-of-source build (without install):
-      cd build/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+      cd build/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If installed to install/:
       cd install/bin
-      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
       # If using cmake_with_kokkos_many.sh with defaults:
-      cd install/bin  # or cd $ERF_INSTALL_DIR/bin if customized or cd $ERF_BUILD_DIR/Exec/ABL
-      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+      cd install/bin  # or cd $ERF_INSTALL_DIR/bin if customized or cd $ERF_BUILD_DIR/Exec
+      mpiexec -n 4 ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most
 
    For details on input files and job submission, see :ref:`sec:running`.
 
@@ -400,7 +401,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd Build
          ./cmake.sh
 
-      **Executable locations:** ``Build/Exec/ABL/erf_abl``, ``Build/Exec/RegTests/Bubble/erf_bubble``, etc.
+      **Executable locations:** ``Build/Exec/erf_exec``
 
       **Cleanup for rebuild:**
 
@@ -419,7 +420,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          ../Build/cmake.sh
          make install  # optional - copies to install/bin/ (may be needed for builds that require kokkos)
 
-      **Executable locations:** ``build/Exec/ABL/erf_abl``, etc., and optionally ``install/bin/erf_abl`` (if installed)
+      **Executable locations:** ``build/Exec/erf_exec``, etc., and optionally ``install/bin/erf_exec`` (if installed)
 
       **Cleanup for rebuild:**
 
@@ -448,7 +449,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd ERF
          ./Build/cmake_with_kokkos_many.sh
 
-      **Executable locations:** ``$ERF_BUILD_DIR/Exec/ABL/erf_abl`` and ``$ERF_INSTALL_DIR/bin/erf_abl`` (defaults: ``./Exec/ABL/erf_abl`` and ``install/bin/erf_abl``)
+      **Executable locations:** ``$ERF_BUILD_DIR/Exec/erf_exec`` and ``$ERF_INSTALL_DIR/bin/erf_exec`` (defaults: ``./Exec/erf_exec`` and ``install/bin/erf_exec``)
 
       **Cleanup for rebuild:**
 
@@ -713,7 +714,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    - ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
    - ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
    - ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
-   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs)
+   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs); expects ``NETCDF_DIR`` for NetCDF-enabled builds
 
    These profiles are shell scripts that load required modules and set environment variables. Source them before running CMake. For detailed information, see :ref:`sec:build:hpc`.
 

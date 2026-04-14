@@ -125,7 +125,7 @@ Currently the target condition to which the sponge zones should be forced toward
    \frac{dQ}{dt} = \mathrm{RHS} - A\xi^n(Q-Q_\mathrm{target})
 
 where RHS are the other right-hand side terms. The parameters to be set by the user are -- `A` is the sponge amplitude, `n` is the sponge strength and the :math:`Q_\mathrm{target}` -- the target solution in the sponge. :math:`\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder`` and is given below. This list of inputs specifies sponge zones in the inlet and outlet of the domain in the x-direction and the outlet of the domain in the z-direction. The `start` and `end` parameters specify the starting and ending of the sponge zones. At the inlet, the sponge starts at :math:`x=0` and at the outlet the sponge ends at :math:`x=L` -- the end of the domain. The sponge amplitude `A` has to be adjust
-ed in a problem-specific manner. The density and the :math:`x, y, z` velocities to be used in the sponge zones have to be specified in the inputs list.
+ed in a problem-specific manner. In addition to the density and the :math:`x, y, z` velocities, ERF can now also relax :math:`\rho \theta` and :math:`\rho q_v` in the sponge zones. These are controlled with ``erf.sponge_rhotheta`` and ``erf.sponge_rhomoist``, respectively. If either scalar target is omitted or set to a negative value, ERF falls back to the local base-state target, i.e. :math:`\rho_0 \theta_0` for ``erf.sponge_rhotheta`` and :math:`\rho_0 q_{v,0}` for ``erf.sponge_rhomoist``.
 
 ::
 
@@ -138,13 +138,17 @@ ed in a problem-specific manner. The density and the :math:`x, y, z` velocities 
           erf.zhi_sponge_start = 8.0
 
           erf.sponge_density = 1.2
+          erf.sponge_rhotheta = 360.0
+          erf.sponge_rhomoist = 0.012
           erf.sponge_x_velocity = 10.0
           erf.sponge_y_velocity = 0.0
           erf.sponge_z_velocity = 0.0
 
+In that example, ``erf.sponge_density`` and the velocity targets define the momentum sponge state, while ``erf.sponge_rhotheta`` and ``erf.sponge_rhomoist`` define the target values for the conserved potential-temperature and water-vapor fields. If more than one moisture species is present, only :math:`\rho q_v` is relaxed to the specified sponge target; the remaining moisture species are damped toward zero in the sponge region.
+
 Another way of specifying sponge zones is by providing the sponge zone data as a text file input. This is currently implemented only for forcing :math:`x` and :math:`y` velocities in the sponge zones.
 The sponge data is input as a text file with 3 columns containing :math:`z, u, v` values.
-An example can be found in ``Exec/DryRegTests/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
+An example can be found in ``Exec/CanonicalTests/Idealized_Terrain/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
 This list specifies a sponge zone in the inlet in the x-direction.
 The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in from the text file -- `input_sponge_file.txt`.
 
@@ -209,7 +213,7 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_use_most                = BOOL
         erf.immersed_forcing_substep   = BOOL
 
-An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
@@ -244,7 +248,7 @@ However, currently, the user must specify the z-coordinates using ``erf.terrain_
 In the future, this requirement will be removed.
 Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
 
-An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 
 Problem-Specific Forcing
@@ -288,4 +292,3 @@ where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` 
 period (measured in seconds), and the geostrophic wind :math:`(u_{geo}, v_{geo}, 0)` is
 user-specified through ``erf.abl_geo_wind``.  Note that if geostrophic forcing is enabled,
 Coriolis forcing must also be included.
-

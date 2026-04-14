@@ -12,8 +12,8 @@
 #include "ERF_TileNoZ.H"
 
 struct ProbParmDefaults {
-    amrex::Real rho_0 = 1.0;
-    amrex::Real T_0 = 300.0;
+    amrex::Real rho_0 = one;
+    amrex::Real T_0 = amrex::Real(300.0);
 };
 
 template <typename T>
@@ -72,7 +72,30 @@ public:
             << " -- an appropriate init_type should probably have been specified"
             << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
-        amrex::Error("Should never call erf_init_dens_hse for "+name()+" problem");
+        amrex::Error("Should never call this version of erf_init_dens_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_hse(amrex::MultiFab& /*rho_hse*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_and_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
+                                   amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                   amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_and_th_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
+                                           amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                           amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/,
+                                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_and_linear_th_hse for "+name()+" problem");
     }
 
     virtual void
@@ -87,48 +110,63 @@ public:
      * Function to perform custom initialization of a test problem
      *
      * @param[in]  bx cell-centered box on which to initialize scalars
-     * @param[in] xbx box on which to initialize x-component of velocity
-     * @param[in] ybx box on which to initialize y-component of velocity
-     * @param[in] zbx box on which to initialize z-component of velocity
      * @param[out] state cell-centered variables to be filled in this routine
-     * @param[out] x_velocity  x-component of velocity to be filled in this routine
-     * @param[out] y_velocity  y-component of velocity to be filled in this routine
-     * @param[out] z_velocity  z-component of velocity to be filled in this routine
      * @param[out] r_hse       hydrostatic reference density
      * @param[out] p_hse       hydrostatic reference pressure
      * @param[in] z_nd         height coordinate at nodes
      * @param[in] z_cc         height coordinate at cell centers
-     * @param[in] qv           water vapor
-     * @param[in] qc           cloud water
-     * @param[in] qi           cloud ice
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
      * @param[in] sc           SolverChoice structure that carries parameters
+     * @param[in] lev          AMR level
     */
     virtual void
     init_custom_pert (const amrex::Box&  /*bx*/,
-                      const amrex::Box& /*xbx*/,
-                      const amrex::Box& /*ybx*/,
-                      const amrex::Box& /*zbx*/,
                       amrex::Array4<amrex::Real const> const& /*state*/,
                       amrex::Array4<amrex::Real      > const& /*state_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                       amrex::Array4<amrex::Real      > const& /*r_hse*/,
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
                       amrex::Array4<amrex::Real const> const& /*z_cc*/,
                       amrex::GeometryData const& /*geomdata*/,
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
-                      amrex::Array4<amrex::Real const> const& /*mf_u*/,
-                      amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/,
-                      const int /*lev*/)
+                      const SolverChoice& /*sc*/, const int /*lev*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;
+    }
+
+    /**
+     * Function to perform custom initialization of the velocities
+     *
+     * @param[in] xbx box on which to initialize x_vel_pert
+     * @param[in] ybx box on which to initialize y_vel_pert
+     * @param[in] zbx box on which to initialize z_vel_pert
+     * @param[out] x_vel_pert  x-component of velocity perturbation to be filled in this routine
+     * @param[out] y_vel_pert  y-component of velocity perturbation to be filled in this routine
+     * @param[out] z_vel_pert  z-component of velocity perturbation to be filled in this routine
+     * @param[in] z_nd         height coordinate at nodes
+     * @param[in] mf_m         map factor on cell centers
+     * @param[in] mf_u         map factor on x-faces
+     * @param[in] mf_v         map factor on y-faces
+     * @param[in] sc           SolverChoice structure that carries parameters
+     * @param[in] lev          AMR level
+    */
+    virtual void
+    init_custom_pert_vels (const amrex::Box& /*xbx*/,
+                           const amrex::Box& /*ybx*/,
+                           const amrex::Box& /*zbx*/,
+                           amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
+                           amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
+                           amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
+                           amrex::Array4<amrex::Real const> const& /*z_nd*/,
+                           amrex::GeometryData const& /*geomdata*/,
+                           amrex::Array4<amrex::Real const> const& /*mf_u*/,
+                           amrex::Array4<amrex::Real const> const& /*mf_v*/,
+                           const SolverChoice& /*sc*/, const int /*lev*/)
+    {
+        amrex::Print() << "No perturbation velocities supplied for " << name() << " problem" << std::endl;
     }
 
     /**
@@ -156,9 +194,9 @@ public:
             // src is a spatial function if erf.spatial_rhotheta_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
-                src_arr(i, j, k) = 0.0;
+                src_arr(i, j, k) = zero;
             });
         }
     }
@@ -188,9 +226,9 @@ public:
             // src is a spatial function if erf.spatial_moisture_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoQ1 equation based on time, z_cc here
-                qsrc_arr(i, j, k) = 0.0;
+                qsrc_arr(i, j, k) = zero;
             });
         }
     }
@@ -224,9 +262,9 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set vertical velocity profile based on time, z_cc here
-            wbar[k] = 0.0;
+            wbar[k] = zero;
         }
 
         // Copy from host version to device version
@@ -260,10 +298,10 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set RHS term of RhoTheta equation based on time, z_cc here
-            u_geos[k] = 0.0;
-            v_geos[k] = 0.0;
+            u_geos[k] = zero;
+            v_geos[k] = zero;
         }
 
         // Copy from host version to device version
@@ -360,13 +398,13 @@ public:
                 amrex::Real lat_min, lon_min;
 
                 file >> lon_min >> lat_min;
-                 if(std::fabs(lon_min) > 180.0) {
+                 if(std::fabs(lon_min) > amrex::Real(180.0)) {
                     amrex::Error("The value of longitude for entry in the first line in " + fname
-                                 + " should not exceed 180. It is " + std::to_string(lon_min));
+                                 + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
                 }
-                 if(std::fabs(lat_min) > 90.0) {
+                 if(std::fabs(lat_min) > amrex::Real(90.0)) {
                     amrex::Error("The value of latitude for entry in the first line in " + fname
-                                 + " should not exceed 90. It is " + std::to_string(lat_min));
+                                 + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
                 }
 
                 file >> nx >> ny;
@@ -608,7 +646,7 @@ public:
 
         } else {
             amrex::Print() << "Initializing flat terrain" << std::endl;
-            terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+            terrain_fab.template setVal<amrex::RunOn::Device>(0);
 
             if (SolverChoice::mesh_type == MeshType::VariableDz) {
                 SolverChoice::set_mesh_type(MeshType::StretchedDz);
@@ -637,26 +675,7 @@ public:
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        amrex::Real /*zdamp*/)
     {
-        amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
-    }
-
-    /**
-     * Function to set uniform background density and potential temperature fields
-    */
-    void
-    init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)
-    {
-        amrex::Real rho_0 = base_parms.rho_0;
-        amrex::Real T_0 = base_parms.T_0;
-        amrex::Print() << "Initializing uniform fields"
-            << " rho=" << rho_0 << " theta=" << T_0
-            << std::endl;
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            state(i, j, k, Rho_comp) = rho_0;
-            state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
-        });
+        // Default which does no harm
     }
 
 protected:

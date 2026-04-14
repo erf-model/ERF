@@ -60,7 +60,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
         Real x = ProbLoArr[0] + ii * dx[0];
-        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
         // x lo sponge
@@ -117,7 +117,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
         Real z = z_phys_cc(i,j,k);
 

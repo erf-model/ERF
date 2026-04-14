@@ -2,7 +2,7 @@
 #include <ERF_Interpolation.H>
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ * Wrapper function for computing the advective tendency w/ spatial order > two
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 void
@@ -69,13 +69,13 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // x-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_x(i,j,k) > 0. )
+        if ( u_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
+            amrex::Real rho_u_avg = myhalf * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
 
             int icell = 0;
 
-            if (rho_u_avg>0.)
+            if (rho_u_avg>zero)
             {
                 for (int ii=0; ii<ncells_u_horz; ++ii) {
                     if (u_cflag(i-ii-1,j,k).isCovered()) {
@@ -84,7 +84,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     icell++;
                 }
             }
-            else if (rho_u_avg<0.)
+            else if (rho_u_avg<zero)
             {
                 for (int ii=0; ii<ncells_u_horz; ++ii) {
                     if (u_cflag(i+ii,j,k).isCovered()) {
@@ -96,7 +96,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpx = 0.;
+            amrex::Real interpx = zero;
             if (icell==ncells_u_horz) {
                 interp_u_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
@@ -110,19 +110,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_u_arr[0](i,j,k) = 0.;
+            flx_u_arr[0](i,j,k) = zero;
         }
     },
     // x-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_y(i,j,k) > 0. )
+        if ( u_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
 
             int jcell = 0;
 
-            if (rho_v_avg>0.)
+            if (rho_v_avg>zero)
             {
                 for (int jj=0; jj<ncells_u_horz; ++jj) {
                     if (u_cflag(i,j-jj-1,k).isCovered()) {
@@ -131,7 +131,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     jcell++;
                 }
             }
-            else if (rho_v_avg<0.)
+            else if (rho_v_avg<zero)
             {
                 for (int jj=0; jj<ncells_u_horz; ++jj) {
                     if (u_cflag(i,j+jj,k).isCovered()) {
@@ -143,7 +143,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpy = 0.;
+            amrex::Real interpy = zero;
             if (jcell==ncells_u_horz) {
                 interp_u_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
@@ -157,19 +157,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_u_arr[1](i,j,k) = 0.;
+            flx_u_arr[1](i,j,k) = zero;
         }
     },
     // x-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_z(i,j,k) > 0. )
+        if ( u_afrac_z(i,j,k) > zero )
         {
-            amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i-1,j,k));
+            amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i-1,j,k));
 
             int kcell = 0;
 
-            if (rho_w_avg>0.)
+            if (rho_w_avg>zero)
             {
                 for (int kk=0; kk<ncells_u_vert; ++kk) {
                     if (u_cflag(i,j,k-kk-1).isCovered()) {
@@ -178,7 +178,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     kcell++;
                 }
             }
-            else if (rho_w_avg<0.)
+            else if (rho_w_avg<zero)
             {
                 for (int kk=0; kk<ncells_u_vert; ++kk) {
                     if (u_cflag(i,j,k+kk).isCovered()) {
@@ -190,7 +190,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpz = 0.;
+            amrex::Real interpz = zero;
             if (kcell==ncells_u_vert) {
                 interp_u_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
@@ -204,7 +204,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_u_arr[2](i,j,k) = 0.;
+            flx_u_arr[2](i,j,k) = zero;
         }
     });
 
@@ -216,13 +216,13 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // y-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_x(i,j,k) > 0. )
+        if ( v_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
+            amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
 
             int icell = 0;
 
-            if (rho_u_avg>0.)
+            if (rho_u_avg>zero)
             {
                 for (int ii=0; ii<ncells_v_horz; ++ii) {
                     if (v_cflag(i-ii-1,j,k).isCovered()) {
@@ -231,7 +231,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     icell++;
                 }
             }
-            else if (rho_u_avg<0.)
+            else if (rho_u_avg<zero)
             {
                 for (int ii=0; ii<ncells_v_horz; ++ii) {
                     if (v_cflag(i+ii,j,k).isCovered()) {
@@ -243,7 +243,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpx = 0.;
+            amrex::Real interpx = zero;
             if (icell==ncells_v_horz) {
                 interp_v_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
@@ -257,19 +257,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_v_arr[0](i,j,k) = 0.;
+            flx_v_arr[0](i,j,k) = zero;
         }
     },
     // y-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_y(i,j,k) > 0. )
+        if ( v_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
 
             int jcell = 0;
 
-            if (rho_v_avg>0.)
+            if (rho_v_avg>zero)
             {
                 for (int jj=0; jj<ncells_v_horz; ++jj) {
                     if (v_cflag(i,j-jj-1,k).isCovered()) {
@@ -278,7 +278,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     jcell++;
                 }
             }
-            else if (rho_v_avg<0.)
+            else if (rho_v_avg<zero)
             {
                 for (int jj=0; jj<ncells_v_horz; ++jj) {
                     if (v_cflag(i,j+jj,k).isCovered()) {
@@ -290,7 +290,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpy = 0.;
+            amrex::Real interpy = zero;
             if (jcell==ncells_v_horz) {
                 interp_v_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
@@ -304,19 +304,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_v_arr[1](i,j,k) = 0.;
+            flx_v_arr[1](i,j,k) = zero;
         }
     },
     // y-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_z(i,j,k) > 0. )
+        if ( v_afrac_z(i,j,k) > zero )
         {
-            amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j-1,k));
+            amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i,j-1,k));
 
             int kcell = 0;
 
-            if (rho_w_avg>0.)
+            if (rho_w_avg>zero)
             {
                 for (int kk=0; kk<ncells_v_vert; ++kk) {
                     if (v_cflag(i,j,k-kk-1).isCovered()) {
@@ -325,7 +325,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     kcell++;
                 }
             }
-            else if (rho_w_avg<0.)
+            else if (rho_w_avg<zero)
             {
                 for (int kk=0; kk<ncells_v_vert; ++kk) {
                     if (v_cflag(i,j,k+kk).isCovered()) {
@@ -337,7 +337,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpz = 0.;
+            amrex::Real interpz = zero;
             if (kcell==ncells_v_vert) {
                 interp_v_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
@@ -351,7 +351,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_v_arr[2](i,j,k) = 0.;
+            flx_v_arr[2](i,j,k) = zero;
         }
     });
 
@@ -363,13 +363,13 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // z-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_x(i,j,k) > 0. )
+        if ( w_afrac_x(i,j,k) > zero )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
+            amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
 
             int icell = 0;
 
-            if (rho_u_avg>0.)
+            if (rho_u_avg>zero)
             {
                 for (int ii=0; ii<ncells_w_horz; ++ii) {
                     if (w_cflag(i-ii-1,j,k).isCovered()) {
@@ -378,7 +378,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     icell++;
                 }
             }
-            else if (rho_u_avg<0.)
+            else if (rho_u_avg<zero)
             {
                 for (int ii=0; ii<ncells_w_horz; ++ii) {
                     if (w_cflag(i+ii,j,k).isCovered()) {
@@ -390,7 +390,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate w using the highest-order scheme
 
-            amrex::Real interpx = 0.;
+            amrex::Real interpx = zero;
             if (icell==ncells_w_horz) {
                 interp_w_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
@@ -404,19 +404,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_w_arr[0](i,j,k) = 0.;
+            flx_w_arr[0](i,j,k) = zero;
         }
     },
     // z-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_y(i,j,k) > 0. )
+        if ( w_afrac_y(i,j,k) > zero )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
+            amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
 
             int jcell = 0;
 
-            if (rho_v_avg>0.)
+            if (rho_v_avg>zero)
             {
                 for (int jj=0; jj<ncells_w_horz; ++jj) {
                     if (w_cflag(i,j-jj-1,k).isCovered()) {
@@ -425,7 +425,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     jcell++;
                 }
             }
-            else if (rho_v_avg<0.)
+            else if (rho_v_avg<zero)
             {
                 for (int jj=0; jj<ncells_w_horz; ++jj) {
                     if (w_cflag(i,j+jj,k).isCovered()) {
@@ -437,7 +437,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate w using the highest-order scheme
 
-            amrex::Real interpy = 0.;
+            amrex::Real interpy = zero;
             if (jcell==ncells_w_horz) {
                 interp_w_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
@@ -451,24 +451,24 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_w_arr[1](i,j,k) = 0.;
+            flx_w_arr[1](i,j,k) = zero;
         }
     },
     // z-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_z(i,j,k) > 0. )
+        if ( w_afrac_z(i,j,k) > zero )
         {
             if (k==lo_z_face || k==hi_z_face+1) {
 
                 flx_w_arr[2](i,j,k) = rho_w(i,j,k) * w(i,j,k);
 
             } else {
-                amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
+                amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
                 int kcell = 0;
 
-                if (rho_w_avg>0.)
+                if (rho_w_avg>zero)
                 {
                     for (int kk=0; kk<ncells_w_vert; ++kk) {
                         if (w_cflag(i,j,k-kk-1).isCovered()) {
@@ -477,7 +477,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                         kcell++;
                     }
                 }
-                else if (rho_w_avg<0.)
+                else if (rho_w_avg<zero)
                 {
                     for (int kk=0; kk<ncells_w_vert; ++kk) {
                         if (w_cflag(i,j,k+kk).isCovered()) {
@@ -497,7 +497,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
                 // Interpolate w using the highest-order scheme
 
-                amrex::Real interpz = 0.;
+                amrex::Real interpz = zero;
                 if (kcell==ncells_w_vert) {
                     interp_w_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else {
@@ -512,14 +512,14 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         }
         else
         {
-            flx_w_arr[2](i,j,k) = 0.;
+            flx_w_arr[2](i,j,k) = zero;
         }
     });
 
 }
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ * Wrapper function for computing the advective tendency w/ spatial order > two
  */
 template<typename InterpType_H>
 void

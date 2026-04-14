@@ -2,11 +2,16 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
+# Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
+# Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
+BL_NO_FORT = TRUE
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
 BL_NO_FORT = FALSE
-else
-BL_NO_FORT = TRUE
+endif
+ifeq ($(USE_WSM6_FORT), TRUE)
+DEFINES += -DERF_USE_WSM6_FORT
+BL_NO_FORT = FALSE
 endif
 
 ifeq ($(USE_CUDA), TRUE)
@@ -24,6 +29,18 @@ USE_EB = TRUE
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
 EBASE = ERF
+ifeq ($(USE_NETCDF), TRUE)
+  USERSuffix := $(USERSuffix).NC
+endif
+ifeq ($(USE_PARTICLES), TRUE)
+  USERSuffix := $(USERSuffix).PART
+endif
+ifeq ($(USE_FFT), TRUE)
+  USERSuffix := $(USERSuffix).FFT
+endif
+ifeq ($(USE_RADIATION), TRUE)
+  USERSuffix := $(USERSuffix).RAD
+endif
 
 ERF_SOURCE_DIR = $(ERF_HOME)/Source
 include $(ERF_SOURCE_DIR)/Make.package
@@ -130,6 +147,11 @@ ERF_MOISTURE_MORRISON_DIR = $(ERF_SOURCE_DIR)/Microphysics/Morrison
 include $(ERF_MOISTURE_MORRISON_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_MORRISON_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_MORRISON_DIR)
+
+ERF_MOISTURE_WSM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WSM6
+include $(ERF_MOISTURE_WSM6_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_WSM6_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_WSM6_DIR)
 
 ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package

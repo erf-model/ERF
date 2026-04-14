@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Scalar Advection Test"
+erf.prob_name = "Scalar Advection/Diffusion"
+
+erf.init_type = Uniform
 
 max_step = 20
 
@@ -23,7 +25,6 @@ erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -48,14 +49,12 @@ erf.moistscal_vert_adv_type  = "Centered_2nd"
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 
-erf.init_type = "uniform"
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0   = 1.0
 prob.A_0   = 1.0
-prob.u_0   = 10.0
-prob.v_0   = 5.0
+prob.U_0   = 10.0
+prob.V_0   = 5.0
 prob.rad_0 = 0.125
 prob.uRef  = 0.0
 prob.prob_type = 11

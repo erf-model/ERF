@@ -31,7 +31,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                        Real& start_bdy_time)
+                        Real& start_bdy_time,
+                        Real& final_bdy_time)
 {
     Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -73,15 +74,17 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
-                timeInterval = epochTimes[1] - epochTimes[0];
+                timeInterval = static_cast<Real>(epochTimes[1] - epochTimes[0]);
             } else if (nt >= 1) {
-                AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
+                AMREX_ALWAYS_ASSERT(static_cast<Real>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
-        start_bdy_time = epochTimes[0];
+        start_bdy_time = static_cast<Real>(epochTimes[0]);
+        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1]);
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
+    ParallelDescriptor::Bcast(&final_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
@@ -123,7 +126,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // NOTE: the order and number of these must match the WRFBdyVars enum!
     // WRFBdyVars:  U, V, R, T, QV, MU, PC
     //
-    // These fields are at half levels (unstaggered)
+    // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
     Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
@@ -483,7 +486,7 @@ convert_wrfbdy_data (const int itime,
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
     for (int ivar(0); ivar < vsize; ++ivar) {
         bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
-        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
+        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
     }
 
     // BDY data
@@ -537,7 +540,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
                 } else {
                     xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
+                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
@@ -556,7 +559,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
                 } else {
                     xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
+                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
@@ -565,14 +568,14 @@ convert_wrfbdy_data (const int itime,
         });
 
         // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
-        const Real wrf_theta_ref = 300.;
+        const Real wrf_theta_ref = Real(300.);
         ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
                 Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (1. + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
+                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
                 new_bdy_Th      /= qv_fac;
                 bdy_t_tmp(i,j,k) = new_bdy_Th;
             }
@@ -585,7 +588,7 @@ convert_wrfbdy_data (const int itime,
                 Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : 0.;
+                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
             }
         });
     } // mfi

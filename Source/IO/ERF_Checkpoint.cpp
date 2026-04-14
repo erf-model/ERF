@@ -227,6 +227,14 @@ ERF::WriteCheckpointFile () const
             }
         }
 
+        // Write the radiation heating rates
+        if ((solverChoice.rad_type != RadiationType::None) && (qheating_rates[lev])) {
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            MultiFab::Copy(mf_rad,*qheating_rates[lev],0,0,nrad,0);
+            VisMF::Write(mf_rad, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qrad"));
+        }
+
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
         MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::m_x],0,0,1,ng);
@@ -282,7 +290,7 @@ ERF::WriteCheckpointFile () const
                 for (auto& b : bl2d) b.setRange(dir, sm_index);
                 BoxArray ba2d(std::move(bl2d));
 
-                MultiFab   m_var(ba2d,dmap[lev],1,ng);
+                MultiFab m_var(ba2d,dmap[lev],1,ng);
                 MultiFab* src = nullptr;
 
                 std::string face = "_" + std::to_string(ori);
@@ -373,7 +381,7 @@ ERF::WriteCheckpointFile () const
         IntVect ngv = ng; ngv[2] = 0;
 
         // Write lat/lon if it exists
-        if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
+        if (lat_m[lev] && lon_m[lev]) {
             amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -608,35 +616,35 @@ ERF::ReadCheckpointFile ()
             if ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
                  (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ) {
                 MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+1),RhoKE_comp,1,0);
-                vars_new[lev][Vars::cons].mult(0.5,RhoKE_comp,1,0);
+                vars_new[lev][Vars::cons].mult(myhalf,RhoKE_comp,1,0);
             }
 
             // Copy other components
             int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
 
-            vars_new[lev][Vars::cons].setBndry(1.0e34);
+            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-            vars_new[lev][Vars::cons].setBndry(1.0e34);
+            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-        vars_new[lev][Vars::xvel].setBndry(1.0e34);
+        vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-        vars_new[lev][Vars::yvel].setBndry(1.0e34);
+        vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-        vars_new[lev][Vars::zvel].setBndry(1.0e34);
+        vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
 
         if (solverChoice.anelastic[lev] == 1) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
@@ -692,7 +700,7 @@ ERF::ReadCheckpointFile ()
                 Array4<Real> const& fab = base_state[lev].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    fab(i,j,k,BaseState::qv0_comp) = 0.0;
+                    fab(i,j,k,BaseState::qv0_comp) = zero;
                 });
             }
         }
@@ -726,7 +734,7 @@ ERF::ReadCheckpointFile ()
                Real z_max = z_slab.max(0);
 
                auto dz = geom[lev].CellSize()[2];
-               if (z_max - z_min < 1.e-8 * dz) {
+               if (z_max - z_min < Real(1.e-8) * dz) {
                    SolverChoice::set_mesh_type(MeshType::StretchedDz);
                    if (verbose > 0) {
                        amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
@@ -761,6 +769,7 @@ ERF::ReadCheckpointFile ()
 
         // Read the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
+            amrex::Print() << "Reading LSM variables" << std::endl;
             for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
                 BoxArray ba = lsm_data[lev][ivar]->boxArray();
                 DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
@@ -781,6 +790,15 @@ ERF::ReadCheckpointFile ()
             }
         }
 
+        // Read the radiation heating rates
+        std::string RadFileName(restart_chkfile + "/Level_0/Qrad_H");
+        if ((solverChoice.rad_type != RadiationType::None) && amrex::FileExists(RadFileName)) {
+            amrex::Print() << "Reading radiation heating rates" << std::endl;
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            VisMF::Read(mf_rad, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qrad"));
+            MultiFab::Copy(*qheating_rates[lev],mf_rad,0,0,nrad,0);
+        }
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
@@ -914,7 +932,8 @@ ERF::ReadCheckpointFile ()
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
-        if (solverChoice.has_lat_lon) {
+        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
+        if (amrex::FileExists(LatFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -928,7 +947,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        if (solverChoice.variable_coriolis) {
+        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
+        if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
@@ -1066,6 +1086,44 @@ ERF::ReadCheckpointFile ()
     } // init_type == WRFInput or Metgrid
 #endif
 #endif
+}
+
+/**
+ * ERF function for reading data from a checkpoint file during restart.
+ */
+void
+ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_vels)
+{
+    Print() << "Reading vels only from native checkpoint " << chkfile_for_vels << " at level " << lev_to_fill << "\n";
+
+    // Header
+    std::string File(chkfile_for_vels + "/Header");
+
+    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    AMREX_ALWAYS_ASSERT(lev_to_fill >= 0 && lev_to_fill <= finest_level);
+
+    int lev = lev_to_fill;
+
+    MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+    VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
+    MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
+    vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+
+    MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+    VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
+    MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
+    vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+
+    MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+    VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
+    MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
+    vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
 }
 
 /**

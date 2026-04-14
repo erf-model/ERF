@@ -198,13 +198,24 @@ void ERF::advance_dycore (int level,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
                                 no_tau_corr_update_here, no_tau_corr_update_here);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
-                                u, v, w,
-                                tau11, tau22, tau33,
-                                tau12, tau13, tau23,
-                                dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_tau_corr_update_here, no_tau_corr_update_here);
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    ComputeStrain_EB(mfi, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    tau11, tau22, tau33,
+                                    tau12, tau13, tau23,
+                                    dxInv,
+                                    bc_ptr_h,
+                                    get_eb(level),
+                                    no_tau_corr_update_here, no_tau_corr_update_here);
+                } else {
+                    ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    tau11, tau22, tau33,
+                                    tau12, tau13, tau23,
+                                    dxInv,
+                                    mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                    no_tau_corr_update_here, no_tau_corr_update_here);
+                }
             }
         } // mfi
     } // l_use_diff
@@ -221,6 +232,11 @@ void ERF::advance_dycore (int level,
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss  = SFS_diss_lev[level].get();
+
+    MultiFab* Hfx3_EB = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        Hfx3_EB = hfx3_EB[level].get();
+    }
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -246,7 +262,8 @@ void ERF::advance_dycore (int level,
                                   z_phys_nd[level], solverChoice,
                                   m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
-                                  bc_ptr_h);
+                                  bc_ptr_h,
+                                  get_eb(level));
     }
 
     // ***********************************************************************************************
@@ -320,7 +337,7 @@ void ERF::advance_dycore (int level,
 
     const bool l_eb_terrain = (solverChoice.terrain_type == TerrainType::EB);
     MultiFab qt(grids[level], dmap[level], 1, (l_eb_terrain) ? 2 : 1);
-    qt.setVal(0.0);
+    qt.setVal(0);
 
 #include "ERF_TI_no_substep_fun.H"
 #include "ERF_TI_substep_fun.H"

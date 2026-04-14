@@ -13,7 +13,7 @@
  */
 
 #ifndef M_PI
-#define M_PI 3.14159265358979323846
+#define M_PI amrex::Real(3.14159265358979323846)
 #endif
 
 struct {
@@ -73,7 +73,7 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
                        << global_i_min << ", " << global_j_min << ")\n";
     }
 
-    amrex::Gpu::DeviceScalar<amrex::Real> d_eye_lat(0.0), d_eye_lon(0.0);
+    amrex::Gpu::DeviceScalar<amrex::Real> d_eye_lat(zero), d_eye_lon(zero);
 
     amrex::Real* d_eye_lat_ptr = d_eye_lat.dataPtr();
     amrex::Real* d_eye_lon_ptr = d_eye_lon.dataPtr();
@@ -104,8 +104,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     const auto dx = geom.CellSizeArray();
     const auto prob_lo = geom.ProbLoArray();
 
-    amrex::Real eye_x =  prob_lo[0] + (global_i_min+0.5)*dx[0];
-    amrex::Real eye_y =  prob_lo[1] + (global_j_min+0.5)*dx[1];
+    amrex::Real eye_x =  prob_lo[0] + (global_i_min+myhalf)*dx[0];
+    amrex::Real eye_y =  prob_lo[1] + (global_j_min+myhalf)*dx[1];
 
     hurricane_eye_track_xy.push_back({eye_x, eye_y});
     hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
@@ -133,7 +133,7 @@ HurricaneTrackerCircle (const amrex::Vector<std::array<amrex::Real, 2>>& hurrica
 
     // Fill the circle points
     for (int i = 0; i < n_points; ++i) {
-        amrex::Real theta = 2.0 * M_PI * i / n_points;
+        amrex::Real theta = two * M_PI * i / n_points;
         amrex::Real x = x_last + radius * std::cos(theta);
         amrex::Real y = y_last + radius * std::sin(theta);
         hurricane_tracker_circle.push_back({x, y});
@@ -230,8 +230,8 @@ HurricaneEyeTrackerNotInitial (const amrex::Geometry& geom,
 
         amrex::ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
             if(k==0) {
-                amrex::Real x =  prob_lo[0] + (i+0.5)*dx[0];
-                amrex::Real y =  prob_lo[1] + (j+0.5)*dx[1];
+                amrex::Real x =  prob_lo[0] + (i+myhalf)*dx[0];
+                amrex::Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 amrex::Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
                 if(dist < 200e3) {
                     amrex::Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
@@ -297,7 +297,7 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
     const int ncomp = AMREX_SPACEDIM;
 
     amrex::Real* d_val_max_ptr;
-    amrex::Gpu::DeviceVector<amrex::Real> d_val_max(1, -1.0e30);
+    amrex::Gpu::DeviceVector<amrex::Real> d_val_max(1, -amrex::Real(1.0e30));
     d_val_max_ptr = d_val_max.data();
 
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
@@ -312,17 +312,17 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
         const auto& vel_arr = mf_cc_vel.const_array(mfi);
 
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            amrex::Real x = prob_lo[0] + (i+0.5)*dx[0];
-            amrex::Real y = prob_lo[1] + (j+0.5)*dx[1];
+            amrex::Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            amrex::Real y = prob_lo[1] + (j+myhalf)*dx[1];
             amrex::Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
             if(k==1 && dist < 200e3) {
-                amrex::Real velmag = 0.0;
+                amrex::Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     amrex::Real vel = vel_arr(i, j, k, comp);
                     velmag += vel * vel;
                 }
-                velmag = std::sqrt(velmag)*3.6; // km/hr
+                velmag = std::sqrt(velmag)*amrex::Real(3.6); // km/hr
                 amrex::Gpu::Atomic::Max(&d_val_max_ptr[0], velmag);
             }
         });
@@ -330,17 +330,17 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
 
     amrex::Gpu::synchronize();
 
-    amrex::Real h_val_max_local = -1.0e30;
+    amrex::Real h_val_max_local = -amrex::Real(1.0e30);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_val_max.begin(), d_val_max.end(), &h_val_max_local);
 
-    amrex::Real h_val_max_global = -1.0e30;
+    amrex::Real h_val_max_global = -amrex::Real(1.0e30);
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     #else
         h_val_max_global = h_val_max_local;
     #endif
 
-    amrex::Real time_in_hrs = time / 3600.0;
+    amrex::Real time_in_hrs = time / amrex::Real(3600.0);
     hurricane_maxvel_vs_time.push_back({time_in_hrs, h_val_max_global});
 }
 
@@ -355,7 +355,7 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
 {
 
     amrex::Real* d_val_min_ptr;
-    amrex::Gpu::DeviceVector<amrex::Real> d_val_min(1, 1.0e30);
+    amrex::Gpu::DeviceVector<amrex::Real> d_val_min(1, amrex::Real(1.0e30));
     d_val_min_ptr = d_val_min.data();
 
     const amrex::Real x_last = hurricane_eye_track_xy.back()[0];
@@ -371,8 +371,8 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
         const auto& S_arr = mf_cons_var.const_array(mfi);
 
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            amrex::Real x = prob_lo[0] + (i+0.5)*dx[0];
-            amrex::Real y = prob_lo[1] + (j+0.5)*dx[1];
+            amrex::Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            amrex::Real y = prob_lo[1] + (j+myhalf)*dx[1];
             amrex::Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
             if(k==1 && dist2 < 200e3*200e3) {
@@ -386,17 +386,17 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
 
     amrex::Gpu::synchronize();
 
-    amrex::Real h_val_min_local = 1.0e30;
+    amrex::Real h_val_min_local = amrex::Real(1.0e30);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_val_min.begin(), d_val_min.end(), &h_val_min_local);
 
-    amrex::Real h_val_min_global = 1.0e30;
+    amrex::Real h_val_min_global = amrex::Real(1.0e30);
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_min_local, &h_val_min_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     #else
         h_val_min_global = h_val_min_local;
     #endif
 
-    amrex::Real time_in_hrs = time / 3600.0;
+    amrex::Real time_in_hrs = time / amrex::Real(3600.0);
     hurricane_minpressure_vs_time.push_back({time_in_hrs, h_val_min_global});
 }
 #endif

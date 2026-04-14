@@ -17,6 +17,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -69,6 +70,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab* zmom_crse_rhs,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_EB,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,
@@ -79,6 +81,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab* Q1fx3,
                             amrex::MultiFab* Q2fx3,
                             amrex::MultiFab* Diss,
+                            amrex::MultiFab* Hfx3_EB,
                       const amrex::Geometry geom,
                       const SolverChoice& solverChoice,
                       const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
@@ -146,11 +149,11 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
+                       const amrex::Real& old_stage_time_total,
+                       const amrex::Real& start_bdy_time,
+                       const amrex::Real& final_bdy_time,
                        const amrex::Real& bdy_time_interval,
-                       const amrex::Real& new_stage_time,
-                       const amrex::Real& stop_time,
                        int  width,
-                       int  set_width,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
@@ -160,6 +163,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                       std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                        amrex::YAFluxRegister* fr_as_crse,
-                       amrex::YAFluxRegister* fr_as_fine);
+                       amrex::YAFluxRegister* fr_as_fine,
+                       std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 #endif

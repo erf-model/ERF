@@ -18,6 +18,46 @@ using namespace amrex;
 
 #include "ERF_NCWpsFile.H"
 
+bool CheckForDensity (const std::string& fname)
+{
+    int failed = false;
+    int use_alt_density = 0;
+    if (ParallelDescriptor::IOProcessor())
+    {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        int success_al  = ncf.has_var("AL");
+        int success_alb = ncf.has_var("ALB");
+        int success_alt = ncf.has_var("ALT");
+
+        if (success_al && success_alb && !success_alt) {
+            Print() << " Will read density from ALB + AL variables" << std::endl;
+        } else if (!success_al && !success_alb && success_alt) {
+            Print() << " Will read density from ALT variable" << std::endl;
+            use_alt_density = 1;
+        } else if ((success_al != success_alb) && !success_alt) {
+            Print() << " Density must be read through both ALB and AL when ALT is absent" << std::endl;
+            failed = true;
+        } else if (!success_al && !success_alb && !success_alt) {
+            Print() << " Density is not defined in the netcdf file!" << std::endl;
+            failed = true;
+        } else if ( (success_al || success_alb) && success_alt) {
+            Print() << " Density must be read either through ALB/AL or through ALT, not both" << std::endl;
+            failed = true;
+        }
+    }
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+    ParallelDescriptor::Bcast(&failed, 1, ioproc);
+    if (failed) amrex::Abort();
+
+    ParallelDescriptor::Bcast(&use_alt_density, 1, ioproc);
+    return use_alt_density;
+}
+
+Box
+read_subdomain_from_wrfinput(int /*lev*/,
+                             const std::string& fname,
+                             int& ratio);
+
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
@@ -93,44 +133,45 @@ ERF::init_from_wrfinput (int lev,
     Vector<std::string> NC_names;
     NC_names.push_back("ALB");       // 0 DO RHO FIRST
     NC_names.push_back("AL");        // 1 DO RHO FIRST
-    NC_names.push_back("U");         // 2
-    NC_names.push_back("V");         // 3
-    NC_names.push_back("W");         // 4
-    NC_names.push_back("THM");       // 5
-    NC_names.push_back("PH");        // 6
-    NC_names.push_back("PHB");       // 7
-    NC_names.push_back("PB");        // 8
-    NC_names.push_back("P");         // 9
-    NC_names.push_back("PSFC");      // 10
-    NC_names.push_back("MUB");       // 11
-    NC_names.push_back("MAPFAC_U");  // 12
-    NC_names.push_back("MAPFAC_V");  // 13
-    NC_names.push_back("MAPFAC_M");  // 14
-    NC_names.push_back("SST");       // 15
-    NC_names.push_back("TSK");       // 16
-    NC_names.push_back("LANDMASK");  // 17
-    NC_names.push_back("C1H");       // 18
-    NC_names.push_back("C2H");       // 19
-    NC_names.push_back("XLAT_V");    // 20
-    NC_names.push_back("XLONG_U");   // 21
+    NC_names.push_back("ALT");       // 2 DO RHO FIRST
+    NC_names.push_back("U");         // 3
+    NC_names.push_back("V");         // 4
+    NC_names.push_back("W");         // 5
+    NC_names.push_back("THM");       // 6
+    NC_names.push_back("PH");        // 7
+    NC_names.push_back("PHB");       // 8
+    NC_names.push_back("PB");        // 9
+    NC_names.push_back("P");         // 10
+    NC_names.push_back("PSFC");      // 11
+    NC_names.push_back("MUB");       // 12
+    NC_names.push_back("MAPFAC_U");  // 13
+    NC_names.push_back("MAPFAC_V");  // 14
+    NC_names.push_back("MAPFAC_M");  // 15
+    NC_names.push_back("SST");       // 16
+    NC_names.push_back("TSK");       // 17
+    NC_names.push_back("LANDMASK");  // 18
+    NC_names.push_back("C1H");       // 19
+    NC_names.push_back("C2H");       // 20
+    NC_names.push_back("XLAT_V");    // 21
+    NC_names.push_back("XLONG_U");   // 22
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 22
-        NC_names.push_back("QCLOUD"); // 23
-        NC_names.push_back("QRAIN");  // 24
+        NC_names.push_back("QVAPOR"); // 23
+        NC_names.push_back("QCLOUD"); // 24
+        NC_names.push_back("QRAIN");  // 25
     }
-    NC_names.push_back("IVGTYP");     // 25
-    NC_names.push_back("ISLTYP");     // 26
+    NC_names.push_back("IVGTYP");     // 26
+    NC_names.push_back("ISLTYP");     // 27
     if (use_lsm) {
-        NC_names.push_back("TSLB");   // 27
-        NC_names.push_back("SMOIS");  // 28
-        NC_names.push_back("SH2O");   // 29
-        NC_names.push_back("LAI");    // 30
-        NC_names.push_back("ZS");     // 31
-        NC_names.push_back("DZS");    // 32
-        NC_names.push_back("VEGFRA"); // 33
-        NC_names.push_back("TMN");    // 34
-        NC_names.push_back("SHDMIN"); // 35
-        NC_names.push_back("SHDMAX"); // 36
+        NC_names.push_back("TSLB");   // 28
+        NC_names.push_back("SMOIS");  // 29
+        NC_names.push_back("SH2O");   // 30
+        NC_names.push_back("LAI");    // 31
+        NC_names.push_back("ZS");     // 32
+        NC_names.push_back("DZS");    // 33
+        NC_names.push_back("VEGFRA"); // 34
+        NC_names.push_back("TMN");    // 35
+        NC_names.push_back("SHDMIN"); // 36
+        NC_names.push_back("SHDMAX"); // 37
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -145,9 +186,9 @@ ERF::init_from_wrfinput (int lev,
         }
     }
     int nvar = NC_names.size();
-    Vector<Vector<FArrayBox>> NC_fab_var_file;
-    NC_fab_var_file.resize(num_boxes_at_level[lev]);
-    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var_file[idx].resize(nvar); }
+    Vector<Vector<FArrayBox>> NC_fab_var;
+    NC_fab_var.resize(num_boxes_at_level[lev]);
+    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var[idx].resize(nvar); }
 
     auto& lev_new = vars_new[lev];
 
@@ -155,7 +196,7 @@ ERF::init_from_wrfinput (int lev,
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
     MultiFab mf_PH , mf_PHB;         // For geopotential height
-    MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
+    MultiFab mf_PB , mf_P  ; // For base state
 
     // Temporary MFs for derived quantities
     auto& ba    = lev_new[Vars::cons].boxArray();
@@ -171,28 +212,117 @@ ERF::init_from_wrfinput (int lev,
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
+
+        // Check if the density variable is available and uniquely defined
+        // for this specific input file.
+        int use_alt_density = CheckForDensity(nc_init_file[lev][idx]);
+
+        int ratio_from_file;
+        Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
+        Print() << "Box in file " << subdomain_to_read << "\n";
+
+        Box subdomain_to_fill = boxes_at_level[lev][idx];
+        Print() << "Box to fill " << subdomain_to_fill << "\n";
+
         for (int ivar = 0; ivar < nvar; ++ ivar) {
-            Print() << "Checking for " << NC_names[ivar] << " ...";
+            auto var_name = NC_names[ivar];
+
+            // Once the density mode is selected, skip the unused path entirely.
+            // This avoids trying to read optional density variables that are absent.
+            bool skip_density_var =
+                (use_alt_density == 1 && (var_name == "ALB" || var_name == "AL")) ||
+                (use_alt_density == 0 &&  var_name == "ALT");
+            if (skip_density_var) { continue; }
+
+            Print() << "Checking for " << var_name << " ...";
 
             int success, use_theta_m;
-            read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev],
+            read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][idx],
+                               NC_fab_var[idx][ivar], var_name, geom[lev],
                                use_theta_m, success);
 
-            auto var_name = NC_names[ivar];
-            auto& var_fab = NC_fab_var_file[idx][ivar];
+            auto& var_fab_from_file = NC_fab_var[idx][ivar];
+            bool has_fallback_behavior =
+                (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
+                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
+                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+            if (!success && !has_fallback_behavior) {
+                amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
+            }
 
-            if (lev > 1) {
-                Box shift_by_box(subdomains[lev][0].minimalBox());
-                IntVect shift_by(shift_by_box.smallEnd());
-                for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                    shift_by[i] -= var_fab.box().smallEnd(i);
+            FArrayBox var_fab;
+            FArrayBox var_fab_crse;
+
+            if (success) {
+                // This shift occurs only when the coarser grid is at least at level 1,
+                // because the indices are always given relative to that coarser "domain"
+                if (lev > 1) {
+                    Box shift_by_box(subdomains[lev][0].minimalBox());
+                    IntVect shift_by(shift_by_box.smallEnd());
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        shift_by[i] -= var_fab_from_file.box().smallEnd(i);
+                    }
+                    var_fab_from_file.shift(shift_by);
                 }
-                var_fab.shift(shift_by);
+
+
+                // In the case where the array is 1D in the z-direction, the destination box needs to also
+                //    be 1D in the z-direction, but with (i,j) corresponding to the low corner of the box
+                //    to be filled
+                int nx = var_fab_from_file.box().length(0);
+                int ny = var_fab_from_file.box().length(1);
+                Box subdomain_tmp(subdomain_to_fill);
+                if (nx == 1 and ny == 1) {
+                    subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
+                    subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
+                }
+
+                Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
+                Box subdomain_crse(subdomain_to_fill_typed);
+                if (lev > 0) {
+                    subdomain_crse.coarsen(IntVect(1,1,ref_ratio[lev-1][2]));
+                    if (ref_ratio[lev-1][2] > 1) {
+                        amrex::Abort("This pathway in init_from_wrfinput not ready yet");
+                    }
+                }
+#ifdef AMREX_USE_GPU
+                var_fab.resize(subdomain_to_fill_typed, 1, amrex::The_Pinned_Arena());
+                var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena());
+#else
+                var_fab.resize(subdomain_to_fill_typed, 1);
+                var_fab_crse.resize(subdomain_crse, 1);
+#endif
+                Box intersection = var_fab.box() & var_fab_from_file.box();
+                if (intersection.ok()) {
+#if 0
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+#else
+                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
+                        var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+                    } else {
+                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+                    }
+#endif
+                } else if (nx == 1 and ny == 1) {
+                    Print() << " Copying 1D FAB from " << var_fab_from_file.box() << " to " << var_fab.box() << std::endl;
+#if 0
+                    var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+#else
+                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
+                        var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+                    } else {
+                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+                    }
+#endif
+                } else {
+                    Print() <<"var_fab_crse.box()      " << subdomain_crse << std::endl;
+                    Print() <<"var_fab_from_file.box() " << var_fab_from_file.box() << std::endl;
+                    amrex::Error("ERF::init_from_wrfinput: Region we want not contained in region we have");
+                }
             }
 
             // Initialize rho =  1/(ALB + AL)
-            if ( var_name == "ALB" ) {
+            if ( (use_alt_density == 0) && (var_name == "ALB") ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -202,7 +332,7 @@ ERF::init_from_wrfinput (int lev,
                     cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
                 }
 
-            } if ( var_name == "AL" ) {
+            } if ( (use_alt_density == 0) && (var_name == "AL") ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -210,13 +340,31 @@ ERF::init_from_wrfinput (int lev,
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
                     Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // Add "AL" to "ALB" before inverting
                     cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
-                    cons_fab.template invert<RunOn::Device>(1.0, vbx, Rho_comp, 1);
+                    cons_fab.template invert<RunOn::Device>(one, vbx, Rho_comp, 1);
+                }
+            }
+
+            // OR Initialize rho =  1/ALT
+            if ( (use_alt_density == 1) && (var_name == "ALT") ) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                {
+                    FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
+                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // "ALT" holds the full 1/density so we can invert here
+                    cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
+                    cons_fab.template invert<RunOn::Device>(one, vbx, Rho_comp, 1);
                 }
             }
 
             if ( var_name == "THM") {
-                const Real wrf_theta_ref = 300.0;
+                const Real wrf_theta_ref = Real(300.0);
                 var_fab.template plus<RunOn::Device>(wrf_theta_ref);
             }
 
@@ -240,7 +388,7 @@ ERF::init_from_wrfinput (int lev,
                         cur_fab->template copy<RunOn::Device>(var_fab, 0, 0, 1);
                     } else {
                         amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
-                        cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),0,1);
+                        cur_fab->template setVal<RunOn::Device>(0,cur_fab->box(),0,1);
                     }
                 } // mfi
             }
@@ -282,8 +430,8 @@ ERF::init_from_wrfinput (int lev,
                     if (use_theta_m && (var_name == "QVAPOR")) {
                         // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
                         var_fab.template mult<RunOn::Device>(R_v/R_d);
-                        var_fab.template plus<RunOn::Device>(1.0);
-                        var_fab.template invert<RunOn::Device>(1.0);
+                        var_fab.template plus<RunOn::Device>(one);
+                        var_fab.template invert<RunOn::Device>(one);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -296,7 +444,7 @@ ERF::init_from_wrfinput (int lev,
                 } else {
                     if (icomp < lev_new[Vars::cons].nComp()) {
                         amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
-                        lev_new[Vars::cons].setVal(0.0,icomp,1);
+                        lev_new[Vars::cons].setVal(0,icomp,1);
                     } else {
                         amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                     }
@@ -339,17 +487,6 @@ ERF::init_from_wrfinput (int lev,
                   amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
-          } else if ( var_name == "ALB" ) {
-              mf_ALB.define(ba, dm, 1, ng);
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-              for ( MFIter mfi(mf_ALB, false); mfi.isValid(); ++mfi )
-              {
-                FArrayBox &cur_fab = mf_ALB[mfi];
-                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
-              }
-              var_fab.clear();
           } else if ( var_name == "PB" ) {
               mf_PB.define(ba, dm, 1, ng);
 #ifdef _OPENMP
@@ -420,7 +557,6 @@ ERF::init_from_wrfinput (int lev,
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
-              solverChoice.has_lat_lon = true;
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -436,7 +572,7 @@ ERF::init_from_wrfinput (int lev,
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                       dst_arr(i,j,0) = src_arr(li,lj,0);
 
-                      Real lat_rad = dst_arr(i,j,0) * (PI/180.);
+                      Real lat_rad = dst_arr(i,j,0) * (PI/Real(180.));
                       sin_arr(i,j,0) = std::sin(lat_rad);
                       cos_arr(i,j,0) = std::cos(lat_rad);
                   });
@@ -595,11 +731,11 @@ ERF::init_from_wrfinput (int lev,
               Real max_val = var_fab.template max<RunOn::Device>();
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
               if (lat_periodic) {
                   Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -627,11 +763,11 @@ ERF::init_from_wrfinput (int lev,
               Real max_val = var_fab.template max<RunOn::Device>();
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
               if (lat_periodic) {
                   Print() << "MAPFAC_V resetting to 1 with lateral periodic BCs!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -659,11 +795,11 @@ ERF::init_from_wrfinput (int lev,
               Real max_val = var_fab.template max<RunOn::Device>();
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
               if (lat_periodic) {
                   Print() << "MAPFAC_M resetting to 1 with lateral periodic BCs!\n";
-                  var_fab.template setVal<RunOn::Device>(1.0);
+                  var_fab.template setVal<RunOn::Device>(1);
               }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -764,7 +900,7 @@ ERF::init_from_wrfinput (int lev,
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
-        Real tol  = 1.0e-10;
+        Real tol  = Real(1.0e-10);
         Real grav = CONST_GRAV;
         for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
             Box bx  = mfi.tilebox();
@@ -791,8 +927,8 @@ ERF::init_from_wrfinput (int lev,
                 // First integrate from sea level to the height at klo
                 {
                     // Vertical grid spacing
-                    z_lo = 0.0; // corresponding to p_0
-                    z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                    z_lo = zero; // corresponding to p_0
+                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                    +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
                     dz = z_hi - z_lo;
 
@@ -801,16 +937,16 @@ ERF::init_from_wrfinput (int lev,
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_lo  = p_0;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                    rho_tot_lo = R_lo * (1. + qv_lo);
-                    C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+                    rho_tot_lo = R_lo * (one + qv_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
                     qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
                     Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_hi  = p_0;
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                    rho_tot_hi = R_hi * (1. + qv_hi);
-                    F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+                    rho_tot_hi = R_hi * (one + qv_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -828,7 +964,7 @@ ERF::init_from_wrfinput (int lev,
 
                 for (int k(klo+1); k<=khi; ++k) {
                     // Vertical grid spacing
-                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
                                  +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
                   dz   = z_hi - z_lo;
 
@@ -836,15 +972,15 @@ ERF::init_from_wrfinput (int lev,
                   qv_lo = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
                   Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                  rho_tot_lo = R_lo * (1. + qv_lo);
-                  C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+                  rho_tot_lo = R_lo * (one + qv_lo);
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
                   Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                  rho_tot_hi = R_hi * (1. + qv_hi);
-                  F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+                  rho_tot_hi = R_hi * (one + qv_hi);
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
@@ -902,14 +1038,9 @@ ERF::init_from_wrfinput (int lev,
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        // Three points are necessary if a relaxation zone is present.
-        if (real_width > real_set_width) {
-            AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
-        }
-
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time);
+                                                   start_bdy_time, final_bdy_time);
 
         // *******************************************************************************************
         // We intentionally only read in the first three slices here ... we will read the rest in
@@ -924,8 +1055,7 @@ ERF::init_from_wrfinput (int lev,
 
             if (itime == 0) {
                 Print() << "Read in boundary data with width "  << real_width << std::endl;
-                Print() << "Running with specification width: " << real_set_width
-                        << " and relaxation width: " << real_width - real_set_width << std::endl;
+                Print() << "Running with relaxation width: " << real_width << std::endl;
             }
 
             convert_all_wrfbdy_data(itime, geom[lev].Domain(),
@@ -944,8 +1074,8 @@ ERF::init_from_wrfinput (int lev,
         if (lev == 0) {
             Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
                     << " from wrfbdy but note that time variable in simulation is elapsed time" << std::endl;
-            t_new[lev] = 0.;
-            t_old[lev] = -1.e200;
+            t_new[lev] = zero;
+            t_old[lev] = -Real(1.e200);
         } else {
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
@@ -957,9 +1087,7 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if ((lev == 0) && !nc_low_file.empty())
     {
-        low_time_interval = read_times_from_wrflow(nc_low_file,
-                                                   low_data_zlo,
-                                                   start_low_time);
+        low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
 
         int ntimes = low_data_zlo.size();
         sst_lev[lev].resize(ntimes);
@@ -967,7 +1095,7 @@ ERF::init_from_wrfinput (int lev,
 
         // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
         // Thus we only load the first two time slices here and load more only if needed
-        ntimes = amrex::min(ntimes, 2);
+        ntimes = amrex::min(ntimes, 3);
 
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
@@ -985,16 +1113,19 @@ ERF::init_from_wrfinput (int lev,
 /**
  * Helper function to initialize hydrostatic base state data from WRF dataset
  *
- * @param lev Integer specifying current level
- * @param valid_bx Box specifying the index space we are to initialize
- * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
- * @param p_hse FArrayBox specifying the hydrostatic base state pressure we initialize
- * @param pi_hse FArrayBox specifying the hydrostatic base state Exner pressure we initialize
- * @param th_hse FArrayBox specifying the hydrostatic base state potential temperature
- * @param qv_hse FArrayBox specifying the hydrostatic base state qv
- * @param r_hse FArrayBox specifying the hydrostatic base state density we initialize
- * @param NC_ALB_fab Vector of FArrayBox objects containing WRF data specifying 1/density
- * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
+ * @param subomdain        Box specifying the index space we are to initialize
+ * @param l_rdOcp          Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param moisture_type    Number of moist quantities
+ * @param n_qstate_moist   Number of moist quantities
+ * @param cons             MultiFab of cell-centered variables
+ * @param p_hse            MultiFab holding the hydrostatic base state pressure to be initialized
+ * @param pi_hse           MultiFab holding the hydrostatic base state Exner pressure to be initialized
+ * @param th_hse           MultiFab holding the hydrostatic base state potential temperature to be initialized
+ * @param qv_hse           MultiFab holding the hydrostatic base state qv to be initialized
+ * @param r_hse            MultiFab holding the hydrostatic base state density to be initialized
+ * @param mf_PB            MultiFab holding WRF data specifying base state pressure
+ * @param mf_P             MultiFab holding WRF data specifying pressure perturbation -- also used in base state
+ * @param use_P_eos        Should we overwrite the pressure we read by the pressure computed from the EOS?
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
@@ -1043,7 +1174,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
             // Compute pressure from EOS
             Real Qv    = (moisture_type != MoistureType::None) ?
-                         cons_arr(ii,jj,kk,RhoQ1_comp) / cons_arr(ii,jj,kk,Rho_comp) : 0.0;
+                         cons_arr(ii,jj,kk,RhoQ1_comp) / cons_arr(ii,jj,kk,Rho_comp) : zero;
             Real RT    = cons_arr(ii,jj,kk,RhoTheta_comp);
             Real P_eos = getPgivenRTh(RT, Qv);
             if (use_P_eos) { Ptot = P_eos; }
@@ -1052,7 +1183,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
+                if ( (DelP > one) || (DelP/Ptot > 1e-6) ) {
                     AMREX_DEVICE_PRINTF("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
                            i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
                     amrex::Abort("Initial state is inconsistent with EOS!?");
@@ -1077,9 +1208,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
 /**
  * Helper function for verifying the top boundary is valid and computing the bottom boundary.
  *
- * @param z_top      Real imposed top boundary
- * @param NC_PH_fab  Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
- * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
+ * @param mf_PH  MultiFab storing WRF terrain coordinate data (PH)
+ * @param mf_PHB MultiFab storing WRF terrain coordinate data (PHB)
+ * @param domain Box holding index space of computational domain
  */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
@@ -1091,11 +1222,11 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     //
     // For the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> Max_h(3,-1.0e16);
+    Gpu::HostVector  <Real> Max_h(3,-Real(1.0e16));
     Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(2, 1.0e16);
+    Gpu::HostVector  <Real> Min_h(2, Real(1.0e16));
     Gpu::DeviceVector<Real> Min_d(2);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
@@ -1145,10 +1276,10 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_lo = 0.25 * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
-                                      ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
-                                      phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
-                                      phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
+            Real z_calc_lo = Real(0.25) * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
+                                            ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
+                                            phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
+                                            phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Min(&(min_d[0]),z_calc_lo);
             amrex::Gpu::Atomic::Max(&(max_d[0]),z_calc_lo);
         });
@@ -1160,10 +1291,10 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
-                                      ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
-                                      phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
-                                      phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
+            Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
+                                            ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
+                                            phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
+                                            phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
             amrex::Gpu::Atomic::Min(&(min_d[1]),z_calc_hi);
         });
@@ -1175,10 +1306,10 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
-                                      ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
-                                      phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
-                                      phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+            Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
+                                            ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
+                                            phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
+                                            phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Max(&(max_d[2]),z_calc_hi);
         });
     } // mfi
@@ -1203,13 +1334,13 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     Print() << "Top of mesh has min value    = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
 
     // Average the top nodes to define a flat surface at the top
-    z_top = 0.5 * (terrain_top_min + terrain_top_max);
+    z_top = myhalf * (terrain_top_min + terrain_top_max);
 
     // If this creates a case where z_k < z_{k-1} then we do what we used to do
     if (terrain_km1_max > z_top) {
         amrex::Print() << "Max of second-to-highest row = " << terrain_km1_max <<
                           " which is greater than average of top row so defaulting to alternate approach " << std::endl;
-        z_top = 0.5 * (terrain_km1_max + terrain_top_max);
+        z_top = myhalf * (terrain_km1_max + terrain_top_max);
     }
 
     amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
@@ -1242,7 +1373,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-        // PHB and PH are on z-faces (0.5 dx/y ahead of zphys)
+        // PHB and PH are on z-faces (myhalf dx/y ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells
@@ -1259,36 +1390,36 @@ init_terrain_from_wrfinput (int /*lev*/,
             int jj = std::max(std::min(j,jhi),jlo);
 
             if (k < klo) {
-                Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
-                                         nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
-                                         nc_phb_arr(ii,jj  ,klo  ) + nc_phb_arr(ii-1,jj  ,klo  ) +
-                                         nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
-                Real z_klop1 =  0.25 * ( nc_ph_arr (ii,jj  ,klo+1) + nc_ph_arr (ii-1,jj  ,klo+1) +
-                                         nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
-                                         nc_phb_arr(ii,jj  ,klo+1) + nc_phb_arr(ii-1,jj  ,klo+1) +
-                                         nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
-                z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
+                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
+                                              nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
+                                              nc_phb_arr(ii,jj  ,klo  ) + nc_phb_arr(ii-1,jj  ,klo  ) +
+                                              nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
+                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo+1) + nc_ph_arr (ii-1,jj  ,klo+1) +
+                                              nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
+                                              nc_phb_arr(ii,jj  ,klo+1) + nc_phb_arr(ii-1,jj  ,klo+1) +
+                                              nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
+                z_arr(i, j, k) = two * z_klo - z_klop1;
             } else if (k > khi) {
-                Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj  ,khi-1) + nc_ph_arr (ii-1,jj  ,khi-1) +
-                                         nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
-                                         nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +
-                                         nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
-                z_arr(i, j, k) = 2.0 * z_top - z_khim1;
+                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,khi-1) + nc_ph_arr (ii-1,jj  ,khi-1) +
+                                              nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
+                                              nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +
+                                              nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                z_arr(i, j, k) = two * z_top - z_khim1;
             } else if (k == khi) {
-                z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                          nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                          nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                          nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
+                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
+                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
+                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
                 //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
                 //       will end up smoothing the terrain as we average from surface face centers
                 //       to nodes.
-                z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                          nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                          nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                          nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
+                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
+                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
+                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
             }
         });
 

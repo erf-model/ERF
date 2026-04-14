@@ -84,7 +84,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
     Vector<Real> ftime    = {t_old[lev  ], t_new[lev  ]};
     Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-    amrex::Real small_dt = 1.e-8 * (ftime[1] - ftime[0]);
+    amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
 
     Vector<MultiFab*> fmf;
     if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
@@ -183,7 +183,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
         // Set values in the cells outside the domain boundary so that we can do the Add
         //     without worrying about uninitialized values outside the domain -- these
         //     will be filled in the physbcs call
-        mf_c.setDomainBndry(1.234e20,0,2,geom[lev]); // Do both rho and (rho theta) together
+        mf_c.setDomainBndry(Real(1.234e20),0,2,geom[lev]); // Do both rho and (rho theta) together
 
         // Add rho_0 back to rho and theta_0 back to theta
         MultiFab::Add(mf_c, new_base_state,BaseState::r0_comp,Rho_comp,1,ngvect_cons);
@@ -266,7 +266,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d) fill_from_bndryregs(mfs_vel,time);
+    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
@@ -352,19 +352,7 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
     bool do_fb = true;
 
-#ifdef ERF_USE_NETCDF
-    // We call this here because it is an ERF routine
-    if(solverChoice.use_real_bcs && (lev==0)) {
-        if (solverChoice.upwind_real_bcs) {
-            fill_from_realbdy_upwind(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
-        } else {
-            fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
-        }
-        do_fb = false;
-    }
-#endif
-
-    if (m_r2d) fill_from_bndryregs(mfs_vel,time);
+    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call

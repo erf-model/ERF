@@ -27,7 +27,6 @@ realbdy_interior_bxs_xy (const Box& bx,
                          Box& bx_xhi,
                          Box& bx_ylo,
                          Box& bx_yhi,
-                         const int& set_width,
                          const IntVect& ng_vect,
                          const bool get_int_ng)
 {
@@ -55,26 +54,10 @@ realbdy_interior_bxs_xy (const Box& bx,
     gdom_ylo.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_ylo.setBig(0,gdom_xhi.smallEnd(0)-1);
     gdom_yhi.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_yhi.setBig(0,gdom_xhi.smallEnd(0)-1);
 
-    if (set_width>0) {
-        // Cut out the set region (uses offsets)
-        IntVect iv_type = bx.ixType().toIntVect();
-        Box sdom_xlo,sdom_xhi,sdom_ylo,sdom_yhi;
-        realbdy_bc_bxs_xy (grow(domain,ng_vect), domain, set_width,
-                           sdom_xlo, sdom_xhi,
-                           sdom_ylo, sdom_yhi,
-                           ng_vect);
-        gdom_xlo.setSmall(0,sdom_xlo.bigEnd(0)+1); gdom_xhi.setBig(0,sdom_xhi.smallEnd(0)-1);
-        gdom_ylo.setSmall(1,sdom_ylo.bigEnd(1)+1); gdom_yhi.setBig(1,sdom_yhi.smallEnd(1)-1);
-        if (iv_type[1]==1) {
-           gdom_xlo.setSmall(1,sdom_ylo.bigEnd(1)+1); gdom_xhi.setSmall(1,sdom_ylo.bigEnd(1)+1);
-           gdom_xlo.setBig(1,sdom_yhi.smallEnd(1)-1); gdom_xhi.setBig(1,sdom_yhi.smallEnd(1)-1);
-        }
-    } else {
-        // Grow boxes to get external ghost cells only
-        gdom_xlo.growLo(0,ng_vect[0]); gdom_xhi.growHi(0,ng_vect[0]);
-        gdom_xlo.grow  (1,ng_vect[1]); gdom_xhi.grow  (1,ng_vect[1]);
-        gdom_ylo.growLo(1,ng_vect[1]); gdom_yhi.growHi(1,ng_vect[1]);
-    }
+    // Grow boxes to get external ghost cells only
+    gdom_xlo.growLo(0,ng_vect[0]); gdom_xhi.growHi(0,ng_vect[0]);
+    gdom_xlo.grow  (1,ng_vect[1]); gdom_xhi.grow  (1,ng_vect[1]);
+    gdom_ylo.growLo(1,ng_vect[1]); gdom_yhi.growHi(1,ng_vect[1]);
 
     // Grow boxes to get internal ghost cells
     if (get_int_ng) {
@@ -90,129 +73,85 @@ realbdy_interior_bxs_xy (const Box& bx,
     bx_yhi = (bx & gdom_yhi);
 }
 
-/**
- * Get the boxes for looping over interior/exterior ghost cells
- * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
- *
- * @param[in] bx box to intersect with 4 halo regions
- * @param[in] domain box of the whole domain
- * @param[in] width number of cells in (relaxation+specified) zone
- * @param[in] set_width number of cells in (specified) zone
- * @param[out] bx_xlo halo box at x_lo boundary
- * @param[out] bx_xhi halo box at x_hi boundary
- * @param[out] bx_ylo halo box at y_lo boundary
- * @param[out] bx_yhi halo box at y_hi boundary
- * @param[in] ng_vect number of ghost cells in each direction
- * @param[in] get_int_ng flag to get ghost cells inside the domain
- */
-void
-realbdy_bc_bxs_xy (const Box& bx,
-                   const Box& domain,
-                   const int& set_width,
-                   Box& bx_xlo,
-                   Box& bx_xhi,
-                   Box& bx_ylo,
-                   Box& bx_yhi,
-                   const IntVect& ng_vect)
-{
-    AMREX_ALWAYS_ASSERT(bx.ixType() == domain.ixType());
-
-    // Domain bounds without ghost cells
-    const auto& dom_lo = lbound(domain);
-    const auto& dom_hi = ubound(domain);
-
-    // Four boxes matching the domain
-    Box gdom_xlo(domain); Box gdom_xhi(domain);
-    Box gdom_ylo(domain); Box gdom_yhi(domain);
-
-    // Get offsets from box index type
-    IntVect iv_type = bx.ixType().toIntVect();
-    int offx = (iv_type[0]==1) ? 0 : -1;
-    int offy = (iv_type[1]==1) ? 0 : -1;
-
-    // Stagger the boxes based upon index type
-    gdom_xlo += IntVect(offx,0,0); gdom_xhi += IntVect(-offx,0,0);
-    gdom_ylo += IntVect(0,offy,0); gdom_yhi += IntVect(0,-offy,0);
-
-    // Trim the boxes to only include internal ghost cells
-    gdom_xlo.setBig(0,dom_lo.x+set_width+offx-1); gdom_xhi.setSmall(0,dom_hi.x-set_width-offx+1);
-    gdom_ylo.setBig(1,dom_lo.y+set_width+offy-1); gdom_yhi.setSmall(1,dom_hi.y-set_width-offy+1);
-
-    // Remove overlapping corners from y-face boxes
-    gdom_ylo.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_ylo.setBig(0,gdom_xhi.smallEnd(0)-1);
-    gdom_yhi.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_yhi.setBig(0,gdom_xhi.smallEnd(0)-1);
-
-    // Grow boxes to get external ghost cells only
-    gdom_xlo.growLo(0,ng_vect[0]+offx); gdom_xhi.growHi(0,ng_vect[0]+offx);
-    gdom_xlo.grow  (1,ng_vect[1]     ); gdom_xhi.grow  (1,ng_vect[1]     );
-    gdom_ylo.growLo(1,ng_vect[1]+offy); gdom_yhi.growHi(1,ng_vect[1]+offy);
-
-    // Populate everything
-    bx_xlo = (bx & gdom_xlo);
-    bx_xhi = (bx & gdom_xhi);
-    bx_ylo = (bx & gdom_ylo);
-    bx_yhi = (bx & gdom_yhi);
-}
 
 /**
  * Compute the RHS in the relaxation zone
  *
+ * @param[in] time              current (total) time
+ * @param[in] delta_t           timestep
+ * @param[in] start_bdy_time    full time of the first time slice of boundary data
+ * @param[in] final_bdy_time    full time of the  last time slice of boundary data
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
- * @param[in] time    current time
- * @param[in] delta_t timestep
- * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width number of cells in (specified) zone
- * @param[in] geom     container for geometric information
- * @param[out] S_rhs   RHS to be computed here
- * @param[in] S_data   current value of the solution
+ * @param[in] width             number of cells in (relaxation+specified) zone
+ * @param[in] set_width         number of cells in (specified) zone
+ * @param[in] geom              container for geometric information
+ * @param[out] S_rhs            RHS to be computed here
+ * @param[in] S_data            current value of the solution
  * @param[in] bdy_data_xlo boundary data on interior of low x-face
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
  */
 void
-realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
-                                    const Real& time,
+realbdy_compute_interior_ghost_rhs (const Real& time,
                                     const Real& delta_t,
-                                    const Real& stop_time_elapsed,
+                                    const Real& start_bdy_time,
+                                    const Real& final_bdy_time,
+                                    const Real& bdy_time_interval,
+                                    const Real& nudge_factor,
                                     int  width,
-                                    int  set_width,
                                     bool do_upwind,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
-                                    Vector<MultiFab>& S_old_data,
                                     Vector<MultiFab>& S_cur_data,
                                     Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                    Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                                    Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                                    std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
+    // HACK HACK HACK
+    // Get bndry data
+    Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
+
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
     // Relaxation constants
-    Real F1 = 1./delta_t;
+    Real F1 = one/(nudge_factor*delta_t);
 
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // NOTE: this is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
-
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
-
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time_elapsed) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
-        n_time_p1 = n_time;
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+      n_time_p1 = n_time;
+      alpha     = zero;
     }
+
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     /*
     // UNIT TEST DEBUG
-    oma = 1.0; alpha = 0.0;
+    oma = one; alpha = zero;
     */
 
     // Temporary FABs for storage (owned/filled on all ranks)
@@ -246,13 +185,14 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         domain.convert(ixtype);
 
         // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-        IntVect ng_vect(1,1,0);
+        IntVect ng_vect(0);
+        //IntVect ng_vect(1,1,0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         realbdy_interior_bxs_xy(gdom, domain, width,
                                 bx_xlo, bx_xhi,
                                 bx_ylo, bx_yhi,
-                                0, ng_vect, true);
+                                ng_vect, true);
 
         // Size the FABs
         if (ivar  == ivarU) {
@@ -286,18 +226,24 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
+        // BndryReg idx and limiting
+        int bdy_comp = ind_map2[ivar];
+        const auto& dom_cc_lo = lbound(geom.Domain());
+        const auto& dom_cc_hi = ubound(geom.Domain());
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-            IntVect ng_vect(1,1,0);
+            IntVect ng_vect(0);
+            //IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
                                     tbx_xlo, tbx_xhi,
                                     tbx_ylo, tbx_yhi,
-                                    0, ng_vect, true);
+                                    ng_vect, true);
 
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
@@ -328,8 +274,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
             // Limiting offset
-            int offset = set_width - 1;
-            if (width > set_width) offset = width - 1;
+            int offset = width - 1;
 
             // Populate with interpolation (protect from ghost cells)
             ParallelFor(tbx_xlo, tbx_xhi,
@@ -342,14 +287,21 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
-                                              + alpha * bdatxlo_np1(ii,jj,k,0) );
+
+                if (bdatxlo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
+                                                  + alpha * bdatxlo_np1(ii,jj,k,0) );
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -360,14 +312,21 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
-                                              + alpha * bdatxhi_np1(ii,jj,k,0) );
+
+                if (bdatxhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatxhi_np1(ii,jj,k,0) );
+                }
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
@@ -380,14 +339,21 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
-                                             + alpha * bdatylo_np1(ii,jj,k,0) );
+
+                if (bdatylo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
+                                                  + alpha * bdatylo_np1(ii,jj,k,0) );
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -398,187 +364,123 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
-                                              + alpha * bdatyhi_np1(ii,jj,k,0) );
+
+                if (bdatyhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatyhi_np1(ii,jj,k,0) );
+                }
             });
         } // mfi
     } // ivar
 
 
-    // NOTE: These operations use current RHS, so they are
-    //       LOCAL and occur over the data owned by a given rank.
-
-    // Compute RHS in specified region
-    //==========================================================
-    if (set_width > 0) {
-        for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
-            int ivar_idx = ivar_map[ivar];
-            int icomp    = comp_map[ivar];
-
-            Box domain = geom.Domain();
-            auto ix_type = S_old_data[ivar_idx].boxArray().ixType();
-            auto iv_type = ix_type.toIntVect();
-            domain.convert(ix_type);
-
-            int set_width_x = (iv_type[0]) ? set_width : set_width-1;
-            int set_width_y = (iv_type[1]) ? set_width : set_width-1;
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(S_old_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box tbx = mfi.tilebox();
-                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                realbdy_interior_bxs_xy(tbx, domain, width,
-                                        tbx_xlo, tbx_xhi,
-                                        tbx_ylo, tbx_yhi);
-
-                Array4<Real> rhs_arr; Array4<Real> data_arr;
-                Array4<Real> arr_xlo; Array4<Real> arr_xhi;
-                Array4<Real> arr_ylo; Array4<Real> arr_yhi;
-                if (ivar  == ivarU) {
-                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
-                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
-                    data_arr = S_old_data[IntVars::xmom].array(mfi);
-                } else if (ivar  == ivarV) {
-                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
-                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
-                    data_arr = S_old_data[IntVars::ymom].array(mfi);
-                } else if (ivar  == ivarT){
-                    arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
-                    arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
-                    data_arr = S_old_data[IntVars::cons].array(mfi);
-                } else {
-                    continue;
-                }
-
-                Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-                Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
-                Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
-
-                realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
-                                               width, set_width_x, set_width_y,
-                                               domain, geom.Domain(),
-                                               tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                               arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                               u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                               data_arr, rhs_arr, do_upwind);
-
-            } // mfi
-        } // ivar
-    } // set_width
-
-    // NOTE: These operations use current density, so they are
-    //       LOCAL and occur over the data owned by a given rank
-
     // Compute RHS in relaxation region
     //==========================================================
-    if (width > set_width) {
-        auto dx = geom.CellSizeArray();
-        auto ProbLo = geom.ProbLoArray();
-        auto ProbHi = geom.ProbHiArray();
-        for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
-            int ivar_idx = ivar_map[ivar];
-            int icomp    = comp_map[ivar];
+    auto dx = geom.CellSizeArray();
+    auto ProbLo = geom.ProbLoArray();
+    auto ProbHi = geom.ProbHiArray();
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
+        int ivar_idx = ivar_map[ivar];
+        int icomp    = comp_map[ivar];
 
-            Box domain = geom.Domain();
-            domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
-            IntVect ng_vect(0);
+        Box domain = geom.Domain();
+        domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
+        IntVect ng_vect(0);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box tbx = mfi.tilebox();
-                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                realbdy_interior_bxs_xy(tbx, domain, width,
-                                        tbx_xlo, tbx_xhi,
-                                        tbx_ylo, tbx_yhi,
-                                        set_width, ng_vect);
+        for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box tbx = mfi.tilebox();
+            Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+            realbdy_interior_bxs_xy(tbx, domain, width,
+                                    tbx_xlo, tbx_xhi,
+                                    tbx_ylo, tbx_yhi,
+                                    ng_vect);
 
-                Array4<Real> rhs_arr; Array4<Real> data_arr;
-                Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
-                Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-                if (ivar  == ivarU) {
-                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
-                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
-                    data_arr = S_cur_data[IntVars::xmom].array(mfi);
-                } else if (ivar  == ivarV) {
-                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
-                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
-                    data_arr = S_cur_data[IntVars::ymom].array(mfi);
-                } else if (ivar  == ivarT){
-                    arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
-                    arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
-                    data_arr = S_cur_data[IntVars::cons].array(mfi);
-                } else {
-                    continue;
-                }
+            Array4<Real> rhs_arr; Array4<Real> data_arr;
+            Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+            Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
+            if (ivar  == ivarU) {
+                arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
+                arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
+                rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
+                data_arr = S_cur_data[IntVars::xmom].array(mfi);
+            } else if (ivar  == ivarV) {
+                arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
+                arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
+                rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
+                data_arr = S_cur_data[IntVars::ymom].array(mfi);
+            } else if (ivar  == ivarT){
+                arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
+                arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
+                rhs_arr  = S_rhs[IntVars::cons].array(mfi);
+                data_arr = S_cur_data[IntVars::cons].array(mfi);
+            } else {
+                continue;
+            }
 
-                Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-                Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
-                Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
+            Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
+            Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
+            Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
-                realbdy_compute_relaxation(icomp, 1,
-                                           width, dx, ProbLo, ProbHi, F1, geom.Domain(),
-                                           tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                           arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                           u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                           data_arr, rhs_arr, do_upwind);
+            realbdy_compute_relaxation(icomp, 1,
+                                       width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+                                       tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                       arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
+                                       data_arr, rhs_arr, do_upwind);
 
-                /*
-                // UNIT TEST DEBUG
-                realbdy_interior_bxs_xy(tbx, domain, width,
-                                        tbx_xlo, tbx_xhi,
-                                        tbx_ylo, tbx_yhi);
-                ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                  if (std::fabs(arr_xlo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
-                        Print() << "ERROR XLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
-                        Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xlo(i,j,k) << "\n";
-                        exit(0);
-                    }
-                });
-                ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                  if (std::fabs(arr_xhi(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
-                        Print() << "ERROR XHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
-                        Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xhi(i,j,k) << "\n";
-                        exit(0);
-                    }
-                });
-                ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                  if (std::fabs(arr_ylo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
-                        Print() << "ERROR YLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
-                        Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_ylo(i,j,k) << "\n";
-                        exit(0);
-                    }
-                });
-                ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                  if (std::fabs(arr_yhi(i,j,k)-data_arr(i,j,k,icomp)) > 0.01) {
-                        Print() << "ERROR YHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
-                        Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_yhi(i,j,k) << "\n";
-                        exit(0);
-                    }
-                });
-                */
-            } // mfi
-        } // ivar
-    } // width
+            /*
+            // UNIT TEST DEBUG
+            realbdy_interior_bxs_xy(tbx, domain, width,
+            tbx_xlo, tbx_xhi,
+            tbx_ylo, tbx_yhi);
+            ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+              if (std::fabs(arr_xlo(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
+                Print() << "ERROR XLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xlo(i,j,k) << "\n";
+                exit(0);
+              }
+            });
+            ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+              if (std::fabs(arr_xhi(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
+                Print() << "ERROR XHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xhi(i,j,k) << "\n";
+                exit(0);
+              }
+            });
+            ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+              if (std::fabs(arr_ylo(i,j,k) - data_arr(i,j,k,icomp)) > Real(0.01)) {
+                Print() << "ERROR YLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_ylo(i,j,k) << "\n";
+                exit(0);
+              }
+            });
+            ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+              if (std::fabs(arr_yhi(i,j,k)-data_arr(i,j,k,icomp)) > Real(0.01)) {
+                Print() << "ERROR YHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_yhi(i,j,k) << "\n";
+                exit(0);
+              }
+            });
+            */
+        } // mfi
+    } // ivar
     //ParallelDescriptor::Barrier();
     //exit(0);
 }
@@ -586,7 +488,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 /**
  * Compute the RHS in the fine relaxation zone
  *
- * @param[in]  time      current time
+ * @param[in]  time      current (elapsed) time
  * @param[in]  delta_t   timestep
  * @param[in]  width     number of cells in (relaxation+specified) zone
  * @param[in]  set_width number of cells in (specified) zone
@@ -616,8 +518,8 @@ fine_compute_interior_ghost_rhs (const Real& time,
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
     // Relaxation constants
-    Real F1 = 1./(10.*delta_t);
-    Real F2 = 1./(50.*delta_t);
+    Real F1 = one/(Real(10.)*delta_t);
+    Real F2 = one/(Real(50.)*delta_t);
 
     // Vector of MFs to hold data (dm differs w/ fine patch)
     Vector<MultiFab> fmf_p_v;
@@ -680,7 +582,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -707,7 +609,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -734,7 +636,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -758,7 +660,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
-                    rhs_arr(i,j,k) = 0.0;
+                    rhs_arr(i,j,k) = zero;
                 }
             });
         } // mfi
@@ -825,15 +727,15 @@ fine_compute_interior_ghost_rhs (const Real& time,
 
                    // Found a nearby masked cell (valid n_ind)
                    if (mask_x_found && mask_y_found) {
-                       n_ind = std::min(ii,jj) + 1.0;
+                       n_ind = std::min(ii,jj) + one;
                    } else if (mask_x_found) {
-                       n_ind = ii + 1.0;
+                       n_ind = ii + one;
                    } else if (mask_y_found) {
-                       n_ind = jj + 1.0;
+                       n_ind = jj + one;
                    // Pesky corner cell
                    } else {
                        if (near_x_lo_wall || near_x_hi_wall) {
-                           Real dj_min{width-1.0};
+                           Real dj_min{width-one};
                            int j_lb = std::max(vbx_lo.y,j-width);
                            int j_ub = std::min(vbx_hi.y,j+width);
                            int li   = (near_x_lo_wall) ? vbx_lo.x : vbx_hi.x;
@@ -845,12 +747,12 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            }
                            if (mask_y_found) {
                                Real mag = sqrt( Real(dj_min*dj_min + ii*ii) );
-                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near x wall!");
                            }
                        } else if (near_y_lo_wall || near_y_hi_wall) {
-                           Real di_min{width-1.0};
+                           Real di_min{width-one};
                            int i_lb = std::max(vbx_lo.x,i-width);
                            int i_ub = std::min(vbx_hi.x,i+width);
                            int lj   = (near_y_lo_wall) ? vbx_lo.y : vbx_hi.y;
@@ -862,7 +764,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            }
                            if (mask_x_found) {
                                Real mag = sqrt( Real(di_min*di_min + jj*jj) );
-                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near y wall!");
                            }
@@ -882,7 +784,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                   Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+                   Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - Real(4.0)*delta;
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
                }
             });

@@ -26,12 +26,16 @@
             // mixing ratios, depending on whether conditions are saturated or
             // not (see the WRF model description, Skamarock et al 2019).
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
+            if (!use_ref_theta) {
+                // l_inv_theta0 == 1, divide by actual theta
+                cell_rhs(i,j,k,qty_index) /= cell_prim(i,j,k,PrimTheta_comp);
+            }
 
             // TKE shear production
             //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             // Note: This assumes that the horizontal and vertical diffusivities
             // of momentum are equal
-            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
+            cell_rhs(i,j,k,qty_index) += two*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
             cell_rhs(i,j,k,qty_index) -= diss(i,j,k);

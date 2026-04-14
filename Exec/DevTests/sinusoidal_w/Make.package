@@ -1,2 +1,0 @@
-CEXE_headers += ERF_prob.H
-CEXE_sources += ERF_prob.cpp

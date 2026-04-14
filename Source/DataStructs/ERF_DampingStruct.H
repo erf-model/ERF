@@ -85,15 +85,15 @@ struct DampingChoice {
     bool        rayleigh_damp_V        = false;
     bool        rayleigh_damp_W        = false;
     bool        rayleigh_damp_T        = false;
-    amrex::Real rayleigh_dampcoef      = 0.2; // inverse time scale [1/s]
-    amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
+    amrex::Real rayleigh_dampcoef      = amrex::Real(0.2); // inverse time scale [1/s]
+    amrex::Real rayleigh_zdamp         = amrex::Real(500.0); // damping layer depth [m]
     amrex::Real rayleigh_ztop;
 
     bool        w_damping              = false;
-    amrex::Real w_damping_cfl          = 1.0; // from WRF manual -- WRF source code has default
-                                              //   w_crit_cfl=1.2
+    amrex::Real w_damping_cfl          = one; // from WRF manual -- WRF source code has default
+                                              //   w_crit_cfl=amrex::Real(1.2)
     amrex::Real w_damping_const        = -1;  // damping coefficient -- to used a constant value
-                                              //   (WRF uses 0.3 m/s2), set to a positive value;
+                                              //   (WRF uses amrex::Real(0.3) m/s2), set to a positive value;
                                               //   otherwise, the damping coefficient will be
     amrex::Real w_damping_coeff        = -1;  //   grid-dependent: coeff * dz/dt**2
 

@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "ABL with MOST"
+erf.prob_name = "ABL"
 
 max_step = 10
 
@@ -41,8 +41,6 @@ erf.plot_int_1      = 10        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"
@@ -50,10 +48,9 @@ erf.les_type  = "Deardorff"
 erf.Ck        = 0.1
 erf.sigma_k   = 1.0
 erf.Ce        = 0.1
-erf.KE_0      = 0.1
 erf.theta_ref = 300.0
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

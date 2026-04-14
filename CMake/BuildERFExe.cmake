@@ -233,6 +233,17 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WSM6_FORT)
+    target_sources(${erf_lib_name}
+       PRIVATE
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/WSM6/ERF_mp_radar.F90
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
+         ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
+         )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WSM6_FORT)
+  endif()
+
   if(ERF_ENABLE_WINDFARM)
     target_sources(${erf_lib_name} PRIVATE
       ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
@@ -268,7 +279,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
@@ -280,6 +290,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
@@ -305,7 +316,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
-       ${SRC_DIR}/Initialization/ERF_InitUniform.cpp
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
@@ -334,6 +344,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Plot.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_InitWSM6.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_AdvanceWSM6.cpp
+       ${SRC_DIR}/Microphysics/WSM6/ERF_UpdateWSM6.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -437,7 +450,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()
@@ -467,6 +480,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/WSM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)

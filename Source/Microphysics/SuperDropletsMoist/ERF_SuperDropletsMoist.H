@@ -313,66 +313,36 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  amrex::MultiFab& a_mf )  const override
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
+
+            // Helper to copy MultiFab if name matches
+            auto try_copy = [&](const std::string& prefix, int idx) -> bool {
+                if (a_name == prefix) {
+                    amrex::MultiFab::Copy(a_mf, *m_mic_fab_vars[idx],
+                                          0, 0, 1, amrex::IntVect::TheZeroVector());
+                    return true;
+                }
+                return false;
+            };
+
+            // Species variables
             for (int v = 1; v < m_num_species; v++) {
-                {
-                    std::string varname = "qv_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qv_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "qc_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qc_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "qt_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qt_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "sat_ratio_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_sr_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "accum_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_accum_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
+                std::string sp_name = amrex::getEnumNameString(m_species[v]);
+                if (try_copy("qv_" + sp_name, s_qv_idx(v)) ||
+                    try_copy("qc_" + sp_name, s_qc_idx(v)) ||
+                    try_copy("qt_" + sp_name, s_qt_idx(v)) ||
+                    try_copy("sat_ratio_" + sp_name, s_sr_idx(v)) ||
+                    try_copy("accum_" + sp_name, s_accum_idx(v))) {
+                    return;
                 }
             }
+
+            // Aerosol variables
             for (int v = 0; v < m_num_aerosols; v++) {
-                {
-                    std::string varname = "accum_" + amrex::getEnumNameString(m_aerosols[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[a_accum_idx(m_num_species,v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
+                std::string ae_name = amrex::getEnumNameString(m_aerosols[v]);
+                if (try_copy("accum_" + ae_name, a_accum_idx(m_num_species, v))) { return; }
             }
+
             amrex::Abort("SuperDropletsMoist::GetPlotVar() called with invalid name");
-            return;
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -411,9 +381,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! name of model and its particle container */
         std::string m_name;
-        /*! particle container for super-droplets */
-        SuperDropletPC* m_super_droplets;
-
         /*! Geometry object */
         amrex::Geometry m_geom;
 
@@ -452,6 +419,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! species index of water */
         int m_idx_w;
+
+        /*! particle container for super-droplets
+         *  Owned by ERF::particleData which deletes it during teardown;
+         *  raw pointer here to avoid double-free. */
+        SuperDropletPC* m_super_droplets;
 
         /*! \brief read inputs */
         virtual void readInputs();

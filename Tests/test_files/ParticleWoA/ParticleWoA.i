@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Particle Advection over Witch of Agnesi Hill"
+erf.prob_name = "Particles Over Witch of Agnesi Hill"
+
+erf.init_type = Isentropic
 
 max_step =  10
 
@@ -21,6 +23,7 @@ xlo.velocity = 10. 0. 0.
 xlo.density  = 1.16
 xlo.theta    = 300.
 xlo.scalar   = 0.
+xlo.nonreflecting = true
     
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
@@ -55,17 +58,11 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 erf.les_type = "None"
 
 # MULTILEVEL
 amr.max_level = 0
-amr.ref_ratio_vect = 2 2 1
 
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  2. 0.25
-erf.box1.in_box_hi =  8. 0.75
 
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
@@ -90,4 +87,3 @@ prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
 prob.custom_terrain_type = "WoA"
-prob.hill_ampl = 0.5

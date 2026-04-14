@@ -8,6 +8,7 @@
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
@@ -108,6 +109,7 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                        const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                       const eb_& ebfact,
                              bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
@@ -124,19 +126,21 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 void
 moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Box& tbx,
-               const amrex::Array4<amrex::Real const>& old_cons,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
-               const amrex::Real& bdy_time_interval,
-               const amrex::Real& new_stage_time,
+               const amrex::Real& time,
                const amrex::Real& dt,
-               const amrex::Real& stop_time_elapsed,
-               int width, int set_width, bool do_upwind,
+               const amrex::Real& start_bdy_time,
+               const amrex::Real& final_bdy_time,
+               const amrex::Real& bdy_time_interval,
+               const amrex::Real& nudge_factor,
+               int width, bool do_upwind,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+               std::unique_ptr<ReadBndryPlanes>& m_r2d);
 #endif
 
 void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
@@ -145,7 +149,10 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Array4<amrex::Real>& cell_rhs,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<const amrex::Real>& r0,
-                              const amrex::Array4<const amrex::Real>& z_phys_cc);
+                              const amrex::Array4<const amrex::Real>& th0,
+                              const amrex::Array4<const amrex::Real>& qv0,
+                              const amrex::Array4<const amrex::Real>& z_phys_cc,
+                              int n_qstate);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Geometry geom,
