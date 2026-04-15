@@ -407,18 +407,9 @@ struct SolverChoice {
             substepping_type[i] = SubsteppingType::Implicit;
         }
 
-        int nvals = pp.countval("substepping_type");
-        AMREX_ALWAYS_ASSERT(nvals == 0 || nvals == 1 || nvals >= max_level+1);
-
-        if (nvals == 1) {
-            pp.query_enum_case_insensitive("substepping_type",substepping_type[0]);
-            for (int i = 1; i <= max_level; i++) {
-                substepping_type[i] = substepping_type[0];
-            }
-        } else if (nvals > 1) { // in this case we have asserted nvals >= max_level+1
-            for (int i = 0; i <= max_level; i++) {
-                pp.query_enum_case_insensitive("substepping_type",substepping_type[i],i);
-            }
+        for (int i = 0; i <= max_level; i++) {
+            query_one_or_per_level_enum_case_insensitive(
+                pp, "substepping_type", substepping_type[i], i, max_level);
         }
 
         pp.query("substepping_diag", substepping_diag);
@@ -509,8 +500,12 @@ struct SolverChoice {
         pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
-        pert_type = PerturbationType::None; // Default
-        pp.query_enum_case_insensitive("perturbation_type",pert_type);
+        pert_type.resize(max_level+1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            pert_type[lev] = PerturbationType::None; // Default
+            query_one_or_per_level_enum_case_insensitive(
+                pp, "perturbation_type", pert_type[lev], lev, max_level);
+        }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {zero, zero, zero};
         pp.queryarr("abl_pressure_grad",abl_pressure_grad_in);
@@ -1192,8 +1187,38 @@ struct SolverChoice {
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
 
+    bool use_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Source ||
+               pert_type[lev] == PerturbationType::Direct ||
+               pert_type[lev] == PerturbationType::CPM;
+    }
+
+    bool use_direct_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Direct ||
+               pert_type[lev] == PerturbationType::CPM;
+    }
+
+    bool use_source_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Source;
+    }
+
+    bool any_perturbation () const
+    {
+        for (const auto& type : pert_type) {
+            if (type == PerturbationType::Source ||
+                type == PerturbationType::Direct ||
+                type == PerturbationType::CPM) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Type of perturbation
-    PerturbationType pert_type;
+    amrex::Vector<PerturbationType> pert_type;
 
     // Numerical diffusion
     bool use_num_diff{false};
