@@ -843,9 +843,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_energy_quantities(time);
     }
 
-    if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM) {
+    if (solverChoice.any_perturbation()) {
         if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -one)) {
             turbPert.debug(time);
         }
@@ -1314,9 +1312,7 @@ ERF::InitData_post ()
         setSpongeRefFromSounding(restarting);
     }
 
-    if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM) {
+    if (solverChoice.any_perturbation()) {
         if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -one)) {
             turbPert.debug(t_new[0]);
         }
@@ -2287,9 +2283,7 @@ ERF::init_only (int lev, Real elapsed_time)
    }
 
     // Initialize turbulent perturbation
-    if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM) {
+    if (solverChoice.use_perturbation(lev)) {
         turbPert_update(lev, zero);
         turbPert_amplitude(lev);
     }
