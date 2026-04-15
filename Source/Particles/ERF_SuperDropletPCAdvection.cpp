@@ -44,7 +44,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto& particles = GetParticles();
     const bool has_particles = !particles[a_lev].empty();
 
-    if (has_particles) { AMREX_ASSERT(OK(a_lev, a_lev, a_flow_vel[0].nGrow()-1)); }
+    AMREX_ASSERT(OK(a_lev, a_lev, a_flow_vel[0].nGrow()-1));
 
     AMREX_D_TERM(AMREX_ASSERT(a_flow_vel[0].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[1].nGrow() >= 1);,

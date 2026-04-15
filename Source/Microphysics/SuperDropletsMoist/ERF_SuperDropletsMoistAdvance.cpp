@@ -39,9 +39,6 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
     const int current_lev = m_current_lev;
     const int lev = m_current_lev;
 
-    // Number of AMR levels
-    const int finest_level = static_cast<int>(a_flow_vars.size()) - 1;
-
     // Inject particles on level 0 only
     if (current_lev == 0) {
         m_super_droplets->InjectParticles(a_time, a_z[0], m_dt);
