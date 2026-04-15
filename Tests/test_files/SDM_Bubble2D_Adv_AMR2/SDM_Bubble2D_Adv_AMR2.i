@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Bubble"
 
-max_step  = 50
+max_step  = 25
 stop_time = 3600.0
 
 amrex.fpe_trap_invalid = 1
@@ -19,7 +19,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.5
+erf.fixed_dt = 1.0
 erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
@@ -36,7 +36,7 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 50        # number of timesteps between plotfiles
+erf.plot_int_1      = 25        # number of timesteps between plotfiles
 erf.plot_vars_1     = density \
                       rhotheta \
                       x_velocity \
