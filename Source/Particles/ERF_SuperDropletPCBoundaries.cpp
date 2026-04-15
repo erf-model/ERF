@@ -123,7 +123,16 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                     ptrs.sp_mass_ptrs[ctr][i] = zero;
                                 }
 
+                                ParticleReal aerosol_mass_total = zero;
+                                for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
+                                    aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
+                                }
+
                                 ptrs.mult_ptr[i] = multiplicity;
+                                ptrs.a_ptr[i] = zero;
+                                ptrs.c_ptr[i] = zero;
+                                ptrs.mrime_ptr[i] = zero;
+                                ptrs.nmono_ptr[i] = zero;
 
                                 SuperDropletPC::updateParticleAttributes(
                                     i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -131,21 +140,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
                             }
 
-                            ParticleReal aerosol_mass_total = zero;
-                            for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
-                                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
-                            }
-
-                            ptrs.mult_ptr[i] = multiplicity;
-                            ptrs.a_ptr[i] = zero;
-                            ptrs.c_ptr[i] = zero;
-                            ptrs.mrime_ptr[i] = zero;
-                            ptrs.nmono_ptr[i] = zero;
-
-                            SuperDropletPC::updateParticleAttributes(
-                                i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
-                                ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
-                                ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
                         }
 
                     } else if (p.pos(d) > x_max) {
@@ -169,7 +163,16 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                     ptrs.sp_mass_ptrs[ctr][i] = zero;
                                 }
 
+                                ParticleReal aerosol_mass_total = zero;
+                                for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
+                                    aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
+                                }
+
                                 ptrs.mult_ptr[i] = multiplicity;
+                                ptrs.a_ptr[i] = zero;
+                                ptrs.c_ptr[i] = zero;
+                                ptrs.mrime_ptr[i] = zero;
+                                ptrs.nmono_ptr[i] = zero;
 
                                 SuperDropletPC::updateParticleAttributes(
                                     i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -177,21 +180,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
                             }
 
-                            ParticleReal aerosol_mass_total = zero;
-                            for (int ctr = 0; ctr < ctx.num_aerosols; ctr++) {
-                                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
-                            }
-
-                            ptrs.mult_ptr[i] = multiplicity;
-                            ptrs.a_ptr[i] = zero;
-                            ptrs.c_ptr[i] = zero;
-                            ptrs.mrime_ptr[i] = zero;
-                            ptrs.nmono_ptr[i] = zero;
-
-                            SuperDropletPC::updateParticleAttributes(
-                                i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
-                                ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
-                                ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
                         }
 
                     }
