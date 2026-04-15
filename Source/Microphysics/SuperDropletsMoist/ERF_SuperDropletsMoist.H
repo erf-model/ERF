@@ -173,6 +173,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
         }
 
+        /*! \brief Set the current AMR level being processed */
+        void SetCurrentLevel (const int& a_lev) override { m_current_lev = a_lev; }
+
+        /*! \brief Get the diagnostics interval */
+        int getDiagnosticsInterval () const override { return m_diagnostics_iter; }
+
+        /*! \brief Ensure m_mic_fab_vars[lev] is allocated for the given level */
+        void EnsureMicFabVars (const int a_lev, const amrex::MultiFab& a_cons_vars);
+
+        /*! \brief Initialize m_mic_fab_vars for a non-zero AMR level */
+        void InitLevel (const int a_lev, const amrex::MultiFab& a_cons_vars) override;
+
         /*! \brief Advance for one timestep
          * \param[in] dt Timestep
          * \param[in] iteration Current iteration number
@@ -212,7 +224,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         inline virtual amrex::MultiFab* Qmoist_Ptr (const int& a_idx) override
         {
             AMREX_ALWAYS_ASSERT( a_idx < m_qmoist_size );
-            return m_mic_fab_vars[m_mic_var_map[a_idx]].get();
+            const int lev = m_current_lev;
+            if (lev < 0 || lev >= static_cast<int>(m_mic_fab_vars.size()) ||
+                m_mic_var_map[a_idx] < 0 || m_mic_var_map[a_idx] >= static_cast<int>(m_mic_fab_vars[lev].size())) {
+                return nullptr;
+            }
+            return m_mic_fab_vars[lev][m_mic_var_map[a_idx]].get();
         }
 
         /*! \brief returns number of variables in this moisture model */
@@ -290,19 +307,19 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
         /*! \brief Compute phase changes */
-        virtual void phaseChange (  const amrex::Real&, const amrex::Vector<MFPtr>& );
+        virtual void phaseChange (  const amrex::Real&, const amrex::Vector<MFPtr>&, const int );
 
         /*! \brief Evaporation/condensation for water */
-        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&);
+        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
 
         /*! \brief Evaporation/condensation for other species */
-        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&);
+        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
 
         /*! \brief Freezing/melting for water */
-        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&);
+        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
 
         /*! \brief Deposition/sublimation for ice */
-        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&);
+        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
 
         virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {
@@ -318,16 +335,36 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             }
         }
 
-        virtual void GetPlotVar (const std::string& a_name,
-                                 amrex::MultiFab& a_mf )  const override
+        virtual void GetPlotVar (const std::string& /*a_name*/,
+                                 amrex::MultiFab& /*a_mf*/) const override
         {
+            amrex::Abort("SuperDropletsMoist::GetPlotVar() requires a level argument");
+        }
+
+        virtual void GetPlotVar (const std::string& a_name,
+                                 amrex::MultiFab& a_mf,
+                                 const int a_lev) const override
+        {
+            a_mf.setVal(0.0);
             AMREX_ASSERT(a_mf.nComp() >= 1);
+
+            const int lev = a_lev;
+            if (lev < 0 || lev >= static_cast<int>(m_mic_fab_vars.size()) ||
+                m_mic_fab_vars[lev].empty()) {
+                return;
+            }
+
+            const auto& lev_vec = m_mic_fab_vars[lev];
 
             // Helper to copy MultiFab if name matches
             auto try_copy = [&](const std::string& prefix, int idx) -> bool {
                 if (a_name == prefix) {
-                    amrex::MultiFab::Copy(a_mf, *m_mic_fab_vars[idx],
-                                          0, 0, 1, amrex::IntVect::TheZeroVector());
+                    if (idx >= 0 && idx < static_cast<int>(lev_vec.size()) && lev_vec[idx] &&
+                        lev_vec[idx]->boxArray() == a_mf.boxArray() &&
+                        lev_vec[idx]->DistributionMap() == a_mf.DistributionMap()) {
+                        amrex::MultiFab::Copy(a_mf, *lev_vec[idx],
+                                              0, 0, 1, amrex::IntVect::TheZeroVector());
+                    }
                     return true;
                 }
                 return false;
@@ -405,8 +442,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Real m_dt; /*!< timestep */
         amrex::Vector<int> m_mic_var_map; /*!< moisture model variables map */
 
-        /*! moisture model variables */
-        amrex::Vector<FabPtr> m_mic_fab_vars;
+        /*! moisture model variables - per level for AMR support */
+        amrex::Vector<amrex::Vector<FabPtr>> m_mic_fab_vars;
+
+        /*! current AMR level being processed */
+        mutable int m_current_lev = 0;
 
         /*! names of vapour/condensate species */
         std::vector<Species::Name> m_species;

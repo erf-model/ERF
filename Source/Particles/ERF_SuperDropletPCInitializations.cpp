@@ -75,7 +75,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     m_mass_change_log_fname = "unconverged_superdroplets.log";
 
     /* recycled particle position bounds */
-    const Geometry& geom = m_gdb->Geom(m_lev);
+    const Geometry& geom = m_gdb->Geom(0);
     const auto plo = geom.ProbLoArray();
     const auto phi = geom.ProbHiArray();
     m_recyc_xmin = plo[0];
@@ -176,7 +176,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         }
     }
 
-    const auto dx_h = Geom(m_lev).CellSize();
+    const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
     pp.query("num_initializations", m_num_initializations);
@@ -342,7 +342,7 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
         if (m_num_initializations > 1) { Print() << " " << i; }
         Print() << ":\n";
         m_initializations[i]->printParameters(m_species_mat, m_aerosol_mat);
-        addParticles( a_ptr, *(m_initializations[i]) );
+        addParticles( 0, a_ptr, *(m_initializations[i]) );
         Print() << "  Particle container size: " << NumSuperDroplets() << "\n";
     }
     Print() << "  Total number of superdroplets per cell: " << m_num_sd_per_cell << "\n";
@@ -367,7 +367,7 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
              && (a_t <= m_injections[i]->m_tstop) ) {
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
-            addParticles( a_ptr, *(m_injections[i]) );
+            addParticles( 0, a_ptr, *(m_injections[i]) );
             Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }
     }
@@ -383,11 +383,11 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
-    const auto plo = Geom(m_lev).ProbLoArray();
-    const auto dx_h = Geom(m_lev).CellSize();
+    const auto plo = Geom(0).ProbLoArray();
+    const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
-    const auto dxi = Geom(m_lev).InvCellSizeArray();
-    const auto domain = Geom(m_lev).Domain();
+    const auto dxi = Geom(0).InvCellSizeArray();
+    const auto domain = Geom(0).Domain();
 
     const int num_sd_per_cell = m_num_sd_per_cell;
     const int num_sp  = m_num_species;
@@ -397,7 +397,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
-    forEachParticleTile(m_lev,
+    forEachParticleTile(0,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {
@@ -443,11 +443,11 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
     BL_PROFILE("SuperDropletPC::DensityScaling");
     if (!m_density_scaling) { return; }
 
-    const auto plo = Geom(m_lev).ProbLoArray();
-    const auto dxi = Geom(m_lev).InvCellSizeArray();
-    const auto domain = Geom(m_lev).Domain();
+    const auto plo = Geom(0).ProbLoArray();
+    const auto dxi = Geom(0).InvCellSizeArray();
+    const auto domain = Geom(0).Domain();
 
-    forEachParticleTile(m_lev,
+    forEachParticleTile(0,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {

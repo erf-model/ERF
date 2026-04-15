@@ -554,7 +554,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                   const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::Coalescence()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();

@@ -67,7 +67,6 @@ void SuperDropletPC::MassChange_LV (  int                                       
     using namespace SDMassChangeUtils_LV;
 
     BL_PROFILE("SuperDropletPC::MassChange_LV()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const auto ctx = buildProcessContext(a_lev);
 
@@ -266,7 +265,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
                                       const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::MassChange_SL()");
-    AMREX_ASSERT( a_lev == m_lev );
+    AMREX_ASSERT(a_lev >= 0 && a_lev <= finestLevel());
     amrex::ignore_unused(a_dt);
 
     if (m_idx_i < 0) { return; } // ice not being modeled
@@ -361,7 +360,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
     using namespace SDMassChangeUtils_SV;
 
     BL_PROFILE("SuperDropletPC::MassChange_SV()");
-    AMREX_ASSERT( a_lev == m_lev );
+    AMREX_ASSERT(a_lev >= 0 && a_lev <= finestLevel());
 
     const auto ctx = buildProcessContext(a_lev);
 
