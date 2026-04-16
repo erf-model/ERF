@@ -160,6 +160,8 @@ class SuperDropletPC : public ERFPC
         /*! \brief Initialize super-droplets in domain at AMR level a_lev */
         void InitializeParticles (const int a_lev, const amrex::Real a_t, const MFPtr& a_ptr);
 
+        using ERFPC::InitializeParticles;
+
         /*! \brief Inject super-droplets in domain */
         virtual void InjectParticles (const amrex::Real, const MFPtr& a_ptr, const amrex::Real);
 
