@@ -1805,19 +1805,68 @@ ERF::InitData_post ()
 
     }
 
-    if (pp.contains("sample_line_log") && pp.contains("sample_line"))
+    bool has_sample_line = pp.contains("sample_line");
+    bool has_sample_line_real = pp.contains("sample_line_real");
+    if (has_sample_line && has_sample_line_real) {
+        Abort("Specify only one of erf.sample_line or erf.sample_line_real");
+    }
+
+    if (pp.contains("sample_line_log") && (has_sample_line || has_sample_line_real))
     {
         int lev = 0;
 
-        int num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
-        if (num_samplelines > 0) {
-            Vector<int> index; index.resize(num_samplelines*AMREX_SPACEDIM);
-            sampleline.resize(num_samplelines);
+        int num_samplelines = 0;
+        if (has_sample_line) {
+            num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
+            if (num_samplelines > 0) {
+                Vector<int> index; index.resize(num_samplelines*AMREX_SPACEDIM);
+                sampleline.resize(num_samplelines);
 
-            pp.queryarr("sample_line",index,0,num_samplelines*AMREX_SPACEDIM);
-            for (int i = 0; i < num_samplelines; i++) {
-                IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
-                sampleline[i] = iv;
+                pp.queryarr("sample_line",index,0,num_samplelines*AMREX_SPACEDIM);
+                for (int i = 0; i < num_samplelines; i++) {
+                    IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
+                    sampleline[i] = iv;
+                }
+            }
+        } else {
+            int num_real_vals = pp.countval("sample_line_real");
+            if (num_real_vals % AMREX_SPACEDIM != 0) {
+                Abort("erf.sample_line_real must be specified as (x,y,z) triples");
+            }
+
+            num_samplelines = num_real_vals / AMREX_SPACEDIM;
+            if (num_samplelines > 0) {
+                Vector<Real> location; location.resize(num_real_vals);
+                sampleline.resize(num_samplelines);
+
+                pp.queryarr("sample_line_real",location,0,num_real_vals);
+
+                const Box& domain = geom[lev].Domain();
+                const auto* prob_lo = geom[lev].ProbLo();
+                const auto* prob_hi = geom[lev].ProbHi();
+                const auto* dx = geom[lev].CellSize();
+
+                for (int i = 0; i < num_samplelines; i++) {
+                    Real xloc = location[AMREX_SPACEDIM*i+0];
+                    Real yloc = location[AMREX_SPACEDIM*i+1];
+                    Real zloc = location[AMREX_SPACEDIM*i+2];
+
+                    if (xloc < prob_lo[0] || xloc > prob_hi[0] ||
+                        yloc < prob_lo[1] || yloc > prob_hi[1] ||
+                        zloc < prob_lo[2] || zloc > prob_hi[2]) {
+                        Abort("erf.sample_line_real must lie within the level-0 domain");
+                    }
+
+                    int i_cell = domain.smallEnd(0) + static_cast<int>(std::floor((xloc - prob_lo[0]) / dx[0]));
+                    int j_cell = domain.smallEnd(1) + static_cast<int>(std::floor((yloc - prob_lo[1]) / dx[1]));
+                    int k_cell = domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
+
+                    i_cell = std::min(i_cell, domain.bigEnd(0));
+                    j_cell = std::min(j_cell, domain.bigEnd(1));
+                    k_cell = std::min(k_cell, domain.bigEnd(2));
+
+                    sampleline[i] = IntVect(i_cell, j_cell, k_cell);
+                }
             }
         }
 
@@ -1849,7 +1898,7 @@ ERF::InitData_post ()
             Abort("Need to specify line_sampling_interval or line_sampling_per");
         }
         line_sampler = std::make_unique<LineSampler>();
-        line_sampler->write_coords(z_phys_cc);
+        line_sampler->write_coords(z_phys_cc, geom);
     }
     if (do_plane) {
         if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
