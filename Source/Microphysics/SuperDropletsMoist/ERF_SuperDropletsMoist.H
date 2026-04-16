@@ -157,8 +157,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                             MFPtr&,
                             MFPtr& ) override;
 
-        /*! \brief Initialize particles */
-        virtual void InitParticles ( MFPtr& ) override;
+        /*! \brief Initialize particles at AMR level */
+        virtual void InitParticles ( const int, MFPtr& ) override;
 
         /*! \brief Restart particles */
         virtual void RestartParticles ( amrex::ParGDBBase*, const std::string& ) override;
