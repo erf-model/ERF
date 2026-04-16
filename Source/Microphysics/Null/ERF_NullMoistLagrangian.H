@@ -26,9 +26,9 @@ public:
     /*! \brief Default destructor */
     virtual ~NullMoistLagrangian () = default;
 
-    /*! \brief Initialize particles */
+    /*! \brief Initialize particles at AMR level */
     virtual
-    void InitParticles ( std::unique_ptr<amrex::MultiFab>& ) { }
+    void InitParticles ( const int, std::unique_ptr<amrex::MultiFab>& ) { }
 
     /*! \brief Restart particles */
     virtual

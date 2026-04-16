@@ -152,8 +152,8 @@ class SuperDropletPC : public ERFPC
                                      amrex::MultiFab&,
                                      const int ) const override;
 
-        /*! \brief Initialize super-droplets in domain */
-        virtual void InitializeParticles (const amrex::Real, const MFPtr& a_ptr) override;
+        /*! \brief Initialize super-droplets in domain at AMR level a_lev */
+        void InitializeParticles (const int a_lev, const amrex::Real a_t, const MFPtr& a_ptr);
 
         /*! \brief Inject super-droplets in domain */
         virtual void InjectParticles (const amrex::Real, const MFPtr& a_ptr, const amrex::Real);

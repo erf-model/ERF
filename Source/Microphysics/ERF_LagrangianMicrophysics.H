@@ -137,10 +137,11 @@ public:
         return m_moist_model->Qstate_NonMoist_Size();
     }
 
-    /*! \brief initialize particles in particle container */
-    inline void initParticles ( std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights */ )
+    /*! \brief initialize particles in particle container at level a_lev */
+    inline void initParticles ( const int a_lev, /*!< AMR level */
+                                std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights at level a_lev */ )
     {
-        m_moist_model->InitParticles(z_phys_nd);
+        m_moist_model->InitParticles(a_lev, z_phys_nd);
     }
 
     /*! \brief restart particles in particle container */

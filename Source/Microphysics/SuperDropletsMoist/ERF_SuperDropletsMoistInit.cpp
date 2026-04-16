@@ -209,23 +209,17 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
  *
  * \param[in] a_z_phys_nd MultiFab containing terrain height information
  */
-void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd )
+void SuperDropletsMoist::InitParticles ( const int a_lev, MFPtr& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletsMoist::InitParticles()");
 
-    if (m_init_type == SDMoistInit::condensate_density) {
-        /* The conserved variables are not set up yet; the initial condensate
-           density is not available. So, just initialize with a uniform distribution
-           for now; set the radius and multiplicity from condensate density when
-           Update_Micro_Vars() is called for the first time. */
-        m_super_droplets->InitializeParticles(zero, a_z_phys_nd);
-    } else {
-        m_super_droplets->InitializeParticles(zero, a_z_phys_nd);
+    m_super_droplets->InitializeParticles(a_lev, zero, a_z_phys_nd);
+
+    if (m_init_type != SDMoistInit::condensate_density) {
         amrex::Print() << "Initialized "
-                       << m_super_droplets->NumSuperDroplets()
-                       << " super-droplets representing "
-                       << m_super_droplets->TotalNumberOfParticles()
-                       << " particles in super-droplets moisture model.\n";
+                       << m_super_droplets->NumberOfParticlesAtLevel(a_lev)
+                       << " super-droplets at level " << a_lev
+                       << " in super-droplets moisture model.\n";
     }
 }
 
