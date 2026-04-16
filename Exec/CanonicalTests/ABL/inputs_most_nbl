@@ -30,7 +30,6 @@ erf.rayleigh_zdamp    = 400.
 # WIND FORCING (needed to maintain flow against surface drag)
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind    = 6.5  0.0  0.0
-#erf.abl_geo_forcing    = 6.5  0.0  0.0
 
 # TIME STEP CONTROL
 # erf.cfl             = 0.5
@@ -66,8 +65,9 @@ erf.molec_diff_type = "None"
 erf.les_type = "Smagorinsky"
 erf.Cs       = 0.17
 
-erf.init_type = "input_sounding_nbl"
+erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_nbl"
 
 # PROBLEM PARAMETERS
 # these are zeroed because we are using an input_sounding
