@@ -363,7 +363,7 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
             {
                 auto& p = p_pbox[i];
                 if (p.id() <= 0) { mask_ptr[i] = 0; return; }
-                int grd = src_lev_grid(p, 0, cell_assignor);
+                int grd = src_lev_grid(p, 0, cell_assignor).first;
                 mask_ptr[i] = (grd < 0) ? 1 : 0;
             });
 
@@ -404,7 +404,7 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
                                               lg.k_max, zlevels, nz_lev0,
                                               lg.ref_ratio );
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
-                    int grd = ag_ptr[tl](p, 0, cell_assignor);
+                    int grd = ag_ptr[tl](p, 0, cell_assignor).first;
                     if (grd >= 0) { found_lev = tl; break; }
                 }
                 tgt_ptr[i] = found_lev;
