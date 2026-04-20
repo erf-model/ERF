@@ -433,37 +433,122 @@ WSM6::Advance(const Real& dt_advance,
             delz_tmp_arr(i,j,k) = delz_arr(i,j,k);
         });
 
+        // Group B: cpm, xl — computed once from initial state [lines 455-460]
+        const Real xlv1_loc = m_xlv1;
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            cpm_arr(i,j,k) = wsm6_cpmcal(qv_arr(i,j,k), Real(qmin), Real(cpd), Real(cpv));
+            xl_arr(i,j,k)  = wsm6_xlcal(t_arr(i,j,k), Real(xlv0), xlv1_loc, Real(t0c));
+        });
+
         // Outer minor timestep loop (Rule 29)
         const int wsm6_loops = std::max(
             static_cast<int>(std::round(dt / dtcldcr)), 1);
         const Real dtcld = dt / static_cast<Real>(wsm6_loops);
 
         for (int loop = 0; loop < wsm6_loops; ++loop) {
-            // Physics groups G1-G17 will be added here incrementally
-            amrex::ignore_unused(loop, dtcld,
-                denfac_arr, xni_arr, cpm_arr, xl_arr,
-                qsatw_arr, qsati_arr, rhw_arr, rhi_arr,
-                n0sfac_arr, qrs_tmp_r_arr, qrs_tmp_s_arr, qrs_tmp_g_arr,
-                rslope_r_arr, rslope_s_arr, rslope_g_arr,
-                rslope2_r_arr, rslope2_s_arr, rslope2_g_arr,
-                rslope3_r_arr, rslope3_s_arr, rslope3_g_arr,
-                rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr,
-                work1_r_arr, work1_s_arr, work1_g_arr,
+            // G1b: denfac = sqrt(den0/den)  [lines 503-515]
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                denfac_arr(i,j,k) = std::sqrt(Real(den0)/den_arr(i,j,k));
+            });
+
+            // G1c: qsatw, qsati, rhw, rhi  [lines 517-549]
+            {
+                const Real ttp  = Real(t0c) + Real(0.01);
+                const Real dldt = Real(cpv) - Real(cliq);
+                const Real xa   = -dldt / Real(rv);
+                const Real xb   =  xa + Real(xlv0) / (Real(rv)*ttp);
+                const Real dldti= Real(cpv) - Real(cice);
+                const Real xai  = -dldti / Real(rv);
+                const Real xbi  =  xai + Real(xls) / (Real(rv)*ttp);
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real tr = ttp / t_arr(i,j,k);
+                    Real qsw = Real(psat)*std::exp(std::log(tr)*xa)*std::exp(xb*(Real(1.0)-tr));
+                    qsw = amrex::min(qsw, Real(0.99)*p_arr(i,j,k));
+                    qsw = Real(ep2)*qsw / (p_arr(i,j,k) - qsw);
+                    qsw = amrex::max(qsw, Real(qmin));
+                    qsatw_arr(i,j,k) = qsw;
+                    rhw_arr(i,j,k)   = amrex::max(qv_arr(i,j,k)/qsw, Real(qmin));
+                    Real qsi = (t_arr(i,j,k) < ttp)
+                        ? Real(psat)*std::exp(std::log(tr)*xai)*std::exp(xbi*(Real(1.0)-tr))
+                        : Real(psat)*std::exp(std::log(tr)*xa )*std::exp(xb *(Real(1.0)-tr));
+                    qsi = amrex::min(qsi, Real(0.99)*p_arr(i,j,k));
+                    qsi = Real(ep2)*qsi / (p_arr(i,j,k) - qsi);
+                    qsi = amrex::max(qsi, Real(qmin));
+                    qsati_arr(i,j,k) = qsi;
+                    rhi_arr(i,j,k)   = amrex::max(qv_arr(i,j,k)/qsi, Real(qmin));
+                });
+            }
+
+            // G2: zero all process rates each sub-step  [lines 555-594]
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                prevp_arr(i,j,k) = Real(0.0); psdep_arr(i,j,k) = Real(0.0);
+                pgdep_arr(i,j,k) = Real(0.0); praut_arr(i,j,k) = Real(0.0);
+                psaut_arr(i,j,k) = Real(0.0); pgaut_arr(i,j,k) = Real(0.0);
+                pracw_arr(i,j,k) = Real(0.0); praci_arr(i,j,k) = Real(0.0);
+                piacr_arr(i,j,k) = Real(0.0); psaci_arr(i,j,k) = Real(0.0);
+                psacw_arr(i,j,k) = Real(0.0); pracs_arr(i,j,k) = Real(0.0);
+                psacr_arr(i,j,k) = Real(0.0); pgacw_arr(i,j,k) = Real(0.0);
+                paacw_arr(i,j,k) = Real(0.0); pgaci_arr(i,j,k) = Real(0.0);
+                pgacr_arr(i,j,k) = Real(0.0); pgacs_arr(i,j,k) = Real(0.0);
+                pigen_arr(i,j,k) = Real(0.0); pidep_arr(i,j,k) = Real(0.0);
+                pcond_arr(i,j,k) = Real(0.0); psmlt_arr(i,j,k) = Real(0.0);
+                pgmlt_arr(i,j,k) = Real(0.0); pseml_arr(i,j,k) = Real(0.0);
+                pgeml_arr(i,j,k) = Real(0.0); psevp_arr(i,j,k) = Real(0.0);
+                pgevp_arr(i,j,k) = Real(0.0);
+                fall_r_arr(i,j,k) = Real(0.0); fall_s_arr(i,j,k) = Real(0.0);
+                fall_g_arr(i,j,k) = Real(0.0); fallc_arr(i,j,k) = Real(0.0);
+            });
+
+            // G3: xni ice crystal number concentration  [lines 598-604]
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real tmp = den_arr(i,j,k)*amrex::max(qi_arr(i,j,k), Real(qmin));
+                xni_arr(i,j,k) = amrex::min(
+                    amrex::max(Real(5.38e7)*std::sqrt(std::sqrt(tmp*tmp*tmp)), Real(1.e3)),
+                    Real(1.e6));
+            });
+
+            // G4: pack qrs_tmp, first slope_wsm6 [lines 610-618]
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
+                qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
+                qrs_tmp_g_arr(i,j,k) = qg_arr(i,j,k);
+                Real dummy_n0sfac;
+                wsm6_slope_rain_cell(
+                    qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    m_pidn0r, Real(qcrmin), Real(rslopermax), Real(rsloperbmax),
+                    Real(rsloper2max), Real(rsloper3max), Real(bvtr), Real(pvtr),
+                    rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
+                    rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
+                    work1_r_arr(i,j,k));
+                wsm6_slope_snow_cell(
+                    qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
+                    Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
+                    Real(rslopesmax), Real(rslopesbmax),
+                    Real(rslopes2max), Real(rslopes3max),
+                    Real(bvts), Real(pvts),
+                    rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
+                    rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
+                    work1_s_arr(i,j,k), dummy_n0sfac);
+                wsm6_slope_graup_cell(
+                    qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    m_pidn0g, Real(qcrmin),
+                    Real(rslopegmax), Real(rslopegbmax),
+                    Real(rslopeg2max), Real(rslopeg3max),
+                    Real(bvtg), Real(pvtg),
+                    rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
+                    rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
+                    work1_g_arr(i,j,k));
+                n0sfac_arr(i,j,k) = dummy_n0sfac;
+            });
+
+            amrex::ignore_unused(dtcld,
                 work2_arr, workdiffw_arr, workdiffi_arr,
                 workr_arr, worka_arr, work1c_arr,
                 denqrs1_arr, denqrs2_arr, denqrs3_arr, denqci_arr,
-                fall_r_arr, fall_s_arr, fall_g_arr, fallc_arr,
-                qsum_arr,
-                praut_arr, pracw_arr, prevp_arr, psdep_arr, pgdep_arr,
-                psaut_arr, pgaut_arr, praci_arr, piacr_arr,
-                psaci_arr, psacw_arr, pgacw_arr, pgaci_arr, paacw_arr,
-                pracs_arr, psacr_arr, pgacr_arr, pgacs_arr,
-                pigen_arr, pidep_arr, pcond_arr, psmlt_arr, pgmlt_arr,
-                pseml_arr, pgeml_arr, psevp_arr, pgevp_arr,
-                delqrs1_arr, delqrs2_arr, delqrs3_arr, delqi_arr,
+                qsum_arr, delqrs1_arr, delqrs2_arr, delqrs3_arr, delqi_arr,
                 tstepsnow_arr, tstepgraup_arr,
-                ep1, ep2, qmin, xls, xlv0, xlf0,
-                den0, denr, cliq, cice, psat);
+                ep1, xls, xlf0, denr);
         }
 #endif
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {

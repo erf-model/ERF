@@ -228,10 +228,12 @@ namespace WSM6Ind {
         denqci,
         n0sfac,
 
-        // --- 3D species arrays expanded from Fortran dimension(:,:,3) ---
-        // third index 1=rain, 2=snow, 3=graupel → suffix _r/_s/_g
-        rh_r,    rh_s,    rh_g,
-        qsat_r,  qsat_s,  qsat_g,
+        // --- multi-component arrays expanded from Fortran dimension(:,:,N) ---
+        // rh/qsat: N=2, w=over liquid(1), i=over ice(2) — matches Morrison qsatw/qsati
+        // slope/fall/qrs/falk/work1: N=3, _r=rain(1) _s=snow(2) _g=graupel(3)
+        // workdiff: w=liquid diffusion work1(1), i=ice diffusion work1(2) — separate from work1_r/s/g
+        rhw,  rhi,       // relative humidity: w=over liquid, i=over ice (Fortran rh(:,:,1/2))
+        qsatw, qsati,    // saturation mixing ratio: w=over liquid, i=over ice (Fortran qsat(:,:,1/2))
         rslope_r,  rslope_s,  rslope_g,
         rslope2_r, rslope2_s, rslope2_g,
         rslope3_r, rslope3_s, rslope3_g,
@@ -239,10 +241,13 @@ namespace WSM6Ind {
         qrs_tmp_r, qrs_tmp_s, qrs_tmp_g,
         falk_r,  falk_s,  falk_g,
         fall_r,  fall_s,  fall_g,
-        work1_r, work1_s, work1_g,
+        work1_r, work1_s, work1_g,  // fall speeds post slope_wsm6: 1=rain 2=snow 3=graupel
+        workdiffw, workdiffi,        // diffusion denominators post slope_wsm6 call 2: w=liq i=ice
 
         NumInds
     };
 }
+
+constexpr int WSM6_MAX_LEVELS = 256;
 
 #endif
