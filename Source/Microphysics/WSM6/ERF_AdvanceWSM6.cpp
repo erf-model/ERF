@@ -4,6 +4,165 @@
 
 using namespace amrex;
 
+// ---------------------------------------------------------------
+// WSM6 device-callable free functions (Rule 16, Rule 18)
+// Statement functions from mp_wsm6_run declaration section
+// ---------------------------------------------------------------
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_cpmcal (Real x, Real qmin_arg, Real cpd_arg, Real cpv_arg) {
+    return cpd_arg*(Real(1.0)-amrex::max(x,qmin_arg))
+          +amrex::max(x,qmin_arg)*cpv_arg;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_xlcal (Real x, Real xlv0_arg, Real xlv1_arg, Real t0c_arg) {
+    return xlv0_arg - xlv1_arg*(x - t0c_arg);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_diffus (Real x, Real y) {
+    return Real(8.794e-5)*std::exp(std::log(x)*Real(1.81))/y;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_viscos (Real x, Real y) {
+    return Real(1.496e-6)*(x*std::sqrt(x))/(x+Real(120.0))/y;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_xka (Real x, Real y) {
+    return Real(1.414e3)*wsm6_viscos(x,y)*y;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_diffac (Real a, Real b, Real c, Real d, Real e,
+                   Real rv_arg) {
+    return d*a*a/(wsm6_xka(c,d)*rv_arg*c*c)
+          +Real(1.0)/(e*wsm6_diffus(c,b));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_venfac (Real a, Real b, Real c, Real den0_arg) {
+    return std::exp(std::log(wsm6_viscos(b,c)/wsm6_diffus(b,a))
+                   *Real(0.3333333))
+          /std::sqrt(wsm6_viscos(b,c))
+          *std::sqrt(std::sqrt(den0_arg/c));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_conden (Real a, Real b, Real c, Real d, Real e,
+                   Real qmin_arg, Real rv_arg) {
+    return (amrex::max(b,qmin_arg)-c)
+          /(Real(1.0)+d*d/(rv_arg*e)*c/(a*a));
+}
+
+// ---------------------------------------------------------------
+// Slope parameter lambda functions (statement functions from
+// slope_wsm6, slope_rain, slope_snow, slope_graup)
+// pidn0r, pidn0s, pidn0g are class constexpr members from ERF_WSM6.H
+// ---------------------------------------------------------------
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_lamdar (Real x, Real y, Real pidn0r_arg) {
+    return std::sqrt(std::sqrt(pidn0r_arg/(x*y)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_lamdas (Real x, Real y, Real z, Real pidn0s_arg) {
+    return std::sqrt(std::sqrt(pidn0s_arg*z/(x*y)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wsm6_lamdag (Real x, Real y, Real pidn0g_arg) {
+    return std::sqrt(std::sqrt(pidn0g_arg/(x*y)));
+}
+
+// ---------------------------------------------------------------
+// Full slope subroutine device functions (Rule 18)
+// Each takes single-cell scalar inputs, returns slope params
+// by reference — loop over (i,j,k) is provided by ParallelFor
+// ---------------------------------------------------------------
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_slope_rain_cell (Real qr, Real den, Real denfac,
+                            Real pidn0r_arg,
+                            Real qcrmin_arg, Real rslopermax_arg,
+                            Real rsloperbmax_arg, Real rsloper2max_arg,
+                            Real rsloper3max_arg, Real bvtr_arg,
+                            Real pvtr_arg,
+                            Real& rslope, Real& rslopeb,
+                            Real& rslope2, Real& rslope3, Real& vt)
+{
+    if (qr <= qcrmin_arg) {
+        rslope  = rslopermax_arg;
+        rslopeb = rsloperbmax_arg;
+        rslope2 = rsloper2max_arg;
+        rslope3 = rsloper3max_arg;
+    } else {
+        rslope  = Real(1.0)/wsm6_lamdar(qr,den,pidn0r_arg);
+        rslopeb = std::pow(rslope,bvtr_arg);
+        rslope2 = rslope*rslope;
+        rslope3 = rslope2*rslope;
+    }
+    vt = pvtr_arg*rslopeb*denfac;
+    if (qr <= Real(0.0)) vt = Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_slope_snow_cell (Real qs, Real den, Real denfac, Real t,
+                            Real pidn0s_arg, Real alpha_arg,
+                            Real n0smax_arg, Real n0s_arg,
+                            Real t0c_arg, Real qcrmin_arg,
+                            Real rslopesmax_arg, Real rslopesbmax_arg,
+                            Real rslopes2max_arg, Real rslopes3max_arg,
+                            Real bvts_arg, Real pvts_arg,
+                            Real& rslope, Real& rslopeb,
+                            Real& rslope2, Real& rslope3, Real& vt,
+                            Real& n0sfac)
+{
+    Real supcol = t0c_arg - t;
+    n0sfac = amrex::max(amrex::min(std::exp(alpha_arg*supcol),
+                                    n0smax_arg/n0s_arg), Real(1.0));
+    if (qs <= qcrmin_arg) {
+        rslope  = rslopesmax_arg;
+        rslopeb = rslopesbmax_arg;
+        rslope2 = rslopes2max_arg;
+        rslope3 = rslopes3max_arg;
+    } else {
+        rslope  = Real(1.0)/wsm6_lamdas(qs,den,n0sfac,pidn0s_arg);
+        rslopeb = std::pow(rslope,bvts_arg);
+        rslope2 = rslope*rslope;
+        rslope3 = rslope2*rslope;
+    }
+    vt = pvts_arg*rslopeb*denfac;
+    if (qs <= Real(0.0)) vt = Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_slope_graup_cell (Real qg, Real den, Real denfac,
+                             Real pidn0g_arg, Real qcrmin_arg,
+                             Real rslopegmax_arg, Real rslopegbmax_arg,
+                             Real rslopeg2max_arg, Real rslopeg3max_arg,
+                             Real bvtg_arg, Real pvtg_arg,
+                             Real& rslope, Real& rslopeb,
+                             Real& rslope2, Real& rslope3, Real& vt)
+{
+    if (qg <= qcrmin_arg) {
+        rslope  = rslopegmax_arg;
+        rslopeb = rslopegbmax_arg;
+        rslope2 = rslopeg2max_arg;
+        rslope3 = rslopeg3max_arg;
+    } else {
+        rslope  = Real(1.0)/wsm6_lamdag(qg,den,pidn0g_arg);
+        rslopeb = std::pow(rslope,bvtg_arg);
+        rslope2 = rslope*rslope;
+        rslope3 = rslope2*rslope;
+    }
+    vt = pvtg_arg*rslopeb*denfac;
+    if (qg <= Real(0.0)) vt = Real(0.0);
+}
+
 void
 WSM6::Advance(const Real& dt_advance,
               const SolverChoice&)
@@ -24,6 +183,7 @@ WSM6::Advance(const Real& dt_advance,
         mp_wsm6_init_c(den0, denr, dens, cl, cpv, hail_opt);
         wsm6_inited = true;
     }
+#endif
 
     constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
@@ -114,6 +274,7 @@ WSM6::Advance(const Real& dt_advance,
             graupelncv_arr(i,j,0) = Real(0.0);
         });
 
+#ifdef ERF_USE_WSM6_FORT
         mp_wsm6_run_c(
             t_arr.dataPtr(),
             qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),
@@ -126,14 +287,189 @@ WSM6::Advance(const Real& dt_advance,
             graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi);
+#else
+        // --- Phase 4 native C++ kernel ---
 
+        // box2d for 1D per-column arrays (already defined above)
+        // delqrs1/2/3, delqi: surface precipitation flux accumulators
+        FArrayBox delqrs1_fab(box2d,1); delqrs1_fab.setVal(Real(0.0));
+        FArrayBox delqrs2_fab(box2d,1); delqrs2_fab.setVal(Real(0.0));
+        FArrayBox delqrs3_fab(box2d,1); delqrs3_fab.setVal(Real(0.0));
+        FArrayBox delqi_fab(box2d,1);   delqi_fab.setVal(Real(0.0));
+        FArrayBox tstepsnow_fab(box2d,1);  tstepsnow_fab.setVal(Real(0.0));
+        FArrayBox tstepgraup_fab(box2d,1); tstepgraup_fab.setVal(Real(0.0));
+        auto const& delqrs1_arr   = delqrs1_fab.array();
+        auto const& delqrs2_arr   = delqrs2_fab.array();
+        auto const& delqrs3_arr   = delqrs3_fab.array();
+        auto const& delqi_arr     = delqi_fab.array();
+        auto const& tstepsnow_arr = tstepsnow_fab.array();
+        auto const& tstepgraup_arr= tstepgraup_fab.array();
+
+        // 3D working FABs
+        FArrayBox denfac_fab(fab_box,1);  FArrayBox xni_fab(fab_box,1);
+        FArrayBox cpm_fab(fab_box,1);     FArrayBox xl_fab(fab_box,1);
+        FArrayBox qsatw_fab(fab_box,1);   FArrayBox qsati_fab(fab_box,1);
+        FArrayBox rhw_fab(fab_box,1);     FArrayBox rhi_fab(fab_box,1);
+        FArrayBox den_tmp_fab(fab_box,1); FArrayBox delz_tmp_fab(fab_box,1);
+        FArrayBox n0sfac_fab(fab_box,1);
+        FArrayBox qrs_tmp_r_fab(fab_box,1); FArrayBox qrs_tmp_s_fab(fab_box,1);
+        FArrayBox qrs_tmp_g_fab(fab_box,1);
+        FArrayBox rslope_r_fab(fab_box,1);  FArrayBox rslope_s_fab(fab_box,1);
+        FArrayBox rslope_g_fab(fab_box,1);
+        FArrayBox rslope2_r_fab(fab_box,1); FArrayBox rslope2_s_fab(fab_box,1);
+        FArrayBox rslope2_g_fab(fab_box,1);
+        FArrayBox rslope3_r_fab(fab_box,1); FArrayBox rslope3_s_fab(fab_box,1);
+        FArrayBox rslope3_g_fab(fab_box,1);
+        FArrayBox rslopeb_r_fab(fab_box,1); FArrayBox rslopeb_s_fab(fab_box,1);
+        FArrayBox rslopeb_g_fab(fab_box,1);
+        FArrayBox work1_r_fab(fab_box,1);   FArrayBox work1_s_fab(fab_box,1);
+        FArrayBox work1_g_fab(fab_box,1);
+        FArrayBox work2_fab(fab_box,1);     FArrayBox workdiffw_fab(fab_box,1);
+        FArrayBox workdiffi_fab(fab_box,1);
+        FArrayBox workr_fab(fab_box,1);     FArrayBox worka_fab(fab_box,1);
+        FArrayBox work1c_fab(fab_box,1);
+        FArrayBox denqrs1_fab(fab_box,1);   FArrayBox denqrs2_fab(fab_box,1);
+        FArrayBox denqrs3_fab(fab_box,1);   FArrayBox denqci_fab(fab_box,1);
+        FArrayBox fall_r_fab(fab_box,1);    FArrayBox fall_s_fab(fab_box,1);
+        FArrayBox fall_g_fab(fab_box,1);    FArrayBox fallc_fab(fab_box,1);
+        FArrayBox qsum_fab(fab_box,1);
+        // process rates
+        FArrayBox praut_fab(fab_box,1); FArrayBox pracw_fab(fab_box,1);
+        FArrayBox prevp_fab(fab_box,1); FArrayBox psdep_fab(fab_box,1);
+        FArrayBox pgdep_fab(fab_box,1); FArrayBox psaut_fab(fab_box,1);
+        FArrayBox pgaut_fab(fab_box,1); FArrayBox praci_fab(fab_box,1);
+        FArrayBox piacr_fab(fab_box,1); FArrayBox psaci_fab(fab_box,1);
+        FArrayBox psacw_fab(fab_box,1); FArrayBox pgacw_fab(fab_box,1);
+        FArrayBox pgaci_fab(fab_box,1); FArrayBox paacw_fab(fab_box,1);
+        FArrayBox pracs_fab(fab_box,1); FArrayBox psacr_fab(fab_box,1);
+        FArrayBox pgacr_fab(fab_box,1); FArrayBox pgacs_fab(fab_box,1);
+        FArrayBox pigen_fab(fab_box,1); FArrayBox pidep_fab(fab_box,1);
+        FArrayBox pcond_fab(fab_box,1); FArrayBox psmlt_fab(fab_box,1);
+        FArrayBox pgmlt_fab(fab_box,1); FArrayBox pseml_fab(fab_box,1);
+        FArrayBox pgeml_fab(fab_box,1); FArrayBox psevp_fab(fab_box,1);
+        FArrayBox pgevp_fab(fab_box,1);
+
+        auto const& denfac_arr    = denfac_fab.array();
+        auto const& xni_arr       = xni_fab.array();
+        auto const& cpm_arr       = cpm_fab.array();
+        auto const& xl_arr        = xl_fab.array();
+        auto const& qsatw_arr     = qsatw_fab.array();
+        auto const& qsati_arr     = qsati_fab.array();
+        auto const& rhw_arr       = rhw_fab.array();
+        auto const& rhi_arr       = rhi_fab.array();
+        auto const& den_tmp_arr   = den_tmp_fab.array();
+        auto const& delz_tmp_arr  = delz_tmp_fab.array();
+        auto const& n0sfac_arr    = n0sfac_fab.array();
+        auto const& qrs_tmp_r_arr = qrs_tmp_r_fab.array();
+        auto const& qrs_tmp_s_arr = qrs_tmp_s_fab.array();
+        auto const& qrs_tmp_g_arr = qrs_tmp_g_fab.array();
+        auto const& rslope_r_arr  = rslope_r_fab.array();
+        auto const& rslope_s_arr  = rslope_s_fab.array();
+        auto const& rslope_g_arr  = rslope_g_fab.array();
+        auto const& rslope2_r_arr = rslope2_r_fab.array();
+        auto const& rslope2_s_arr = rslope2_s_fab.array();
+        auto const& rslope2_g_arr = rslope2_g_fab.array();
+        auto const& rslope3_r_arr = rslope3_r_fab.array();
+        auto const& rslope3_s_arr = rslope3_s_fab.array();
+        auto const& rslope3_g_arr = rslope3_g_fab.array();
+        auto const& rslopeb_r_arr = rslopeb_r_fab.array();
+        auto const& rslopeb_s_arr = rslopeb_s_fab.array();
+        auto const& rslopeb_g_arr = rslopeb_g_fab.array();
+        auto const& work1_r_arr   = work1_r_fab.array();
+        auto const& work1_s_arr   = work1_s_fab.array();
+        auto const& work1_g_arr   = work1_g_fab.array();
+        auto const& work2_arr     = work2_fab.array();
+        auto const& workdiffw_arr = workdiffw_fab.array();
+        auto const& workdiffi_arr = workdiffi_fab.array();
+        auto const& workr_arr     = workr_fab.array();
+        auto const& worka_arr     = worka_fab.array();
+        auto const& work1c_arr    = work1c_fab.array();
+        auto const& denqrs1_arr   = denqrs1_fab.array();
+        auto const& denqrs2_arr   = denqrs2_fab.array();
+        auto const& denqrs3_arr   = denqrs3_fab.array();
+        auto const& denqci_arr    = denqci_fab.array();
+        auto const& fall_r_arr    = fall_r_fab.array();
+        auto const& fall_s_arr    = fall_s_fab.array();
+        auto const& fall_g_arr    = fall_g_fab.array();
+        auto const& fallc_arr     = fallc_fab.array();
+        auto const& qsum_arr      = qsum_fab.array();
+        auto const& praut_arr     = praut_fab.array();
+        auto const& pracw_arr     = pracw_fab.array();
+        auto const& prevp_arr     = prevp_fab.array();
+        auto const& psdep_arr     = psdep_fab.array();
+        auto const& pgdep_arr     = pgdep_fab.array();
+        auto const& psaut_arr     = psaut_fab.array();
+        auto const& pgaut_arr     = pgaut_fab.array();
+        auto const& praci_arr     = praci_fab.array();
+        auto const& piacr_arr     = piacr_fab.array();
+        auto const& psaci_arr     = psaci_fab.array();
+        auto const& psacw_arr     = psacw_fab.array();
+        auto const& pgacw_arr     = pgacw_fab.array();
+        auto const& pgaci_arr     = pgaci_fab.array();
+        auto const& paacw_arr     = paacw_fab.array();
+        auto const& pracs_arr     = pracs_fab.array();
+        auto const& psacr_arr     = psacr_fab.array();
+        auto const& pgacr_arr     = pgacr_fab.array();
+        auto const& pgacs_arr     = pgacs_fab.array();
+        auto const& pigen_arr     = pigen_fab.array();
+        auto const& pidep_arr     = pidep_fab.array();
+        auto const& pcond_arr     = pcond_fab.array();
+        auto const& psmlt_arr     = psmlt_fab.array();
+        auto const& pgmlt_arr     = pgmlt_fab.array();
+        auto const& pseml_arr     = pseml_fab.array();
+        auto const& pgeml_arr     = pgeml_fab.array();
+        auto const& psevp_arr     = psevp_fab.array();
+        auto const& pgevp_arr     = pgevp_fab.array();
+
+        // Groups A-E: pre-loop setup
+        // Clamp negative values (Group A)
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k), Real(0.0));
+            qr_arr(i,j,k) = amrex::max(qr_arr(i,j,k), Real(0.0));
+            qi_arr(i,j,k) = amrex::max(qi_arr(i,j,k), Real(0.0));
+            qs_arr(i,j,k) = amrex::max(qs_arr(i,j,k), Real(0.0));
+            qg_arr(i,j,k) = amrex::max(qg_arr(i,j,k), Real(0.0));
+            den_tmp_arr(i,j,k)  = den_arr(i,j,k);
+            delz_tmp_arr(i,j,k) = delz_arr(i,j,k);
+        });
+
+        // Outer minor timestep loop (Rule 29)
+        const int wsm6_loops = std::max(
+            static_cast<int>(std::round(dt / dtcldcr)), 1);
+        const Real dtcld = dt / static_cast<Real>(wsm6_loops);
+
+        for (int loop = 0; loop < wsm6_loops; ++loop) {
+            // Physics groups G1-G17 will be added here incrementally
+            amrex::ignore_unused(loop, dtcld,
+                denfac_arr, xni_arr, cpm_arr, xl_arr,
+                qsatw_arr, qsati_arr, rhw_arr, rhi_arr,
+                n0sfac_arr, qrs_tmp_r_arr, qrs_tmp_s_arr, qrs_tmp_g_arr,
+                rslope_r_arr, rslope_s_arr, rslope_g_arr,
+                rslope2_r_arr, rslope2_s_arr, rslope2_g_arr,
+                rslope3_r_arr, rslope3_s_arr, rslope3_g_arr,
+                rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr,
+                work1_r_arr, work1_s_arr, work1_g_arr,
+                work2_arr, workdiffw_arr, workdiffi_arr,
+                workr_arr, worka_arr, work1c_arr,
+                denqrs1_arr, denqrs2_arr, denqrs3_arr, denqci_arr,
+                fall_r_arr, fall_s_arr, fall_g_arr, fallc_arr,
+                qsum_arr,
+                praut_arr, pracw_arr, prevp_arr, psdep_arr, pgdep_arr,
+                psaut_arr, pgaut_arr, praci_arr, piacr_arr,
+                psaci_arr, psacw_arr, pgacw_arr, pgaci_arr, paacw_arr,
+                pracs_arr, psacr_arr, pgacr_arr, pgacs_arr,
+                pigen_arr, pidep_arr, pcond_arr, psmlt_arr, pgmlt_arr,
+                pseml_arr, pgeml_arr, psevp_arr, pgevp_arr,
+                delqrs1_arr, delqrs2_arr, delqrs3_arr, delqi_arr,
+                tstepsnow_arr, tstepgraup_arr,
+                ep1, ep2, qmin, xls, xlv0, xlf0,
+                den0, denr, cliq, cice, psat);
+        }
+#endif
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rain_arr(i,j,klo) = rainacc_arr(i,j,0);
             snow_arr(i,j,klo) = snowacc_arr(i,j,0);
             graup_arr(i,j,klo) = graupacc_arr(i,j,0);
         });
     }
-#else
-    amrex::Abort("WSM6 Fortran bridge requested but ERF was not built with ERF_USE_WSM6_FORT");
-#endif
 }
