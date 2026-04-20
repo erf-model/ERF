@@ -414,9 +414,8 @@ void erf_substep_NS (int step, int nrk,
                          - halfg * ( old_drho_k + old_drho_km1 );
 
             // lines 3-5 residuals (order dtau^2) one <-> beta_2
-            Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
-                                    -slow_rhs_cons(i,j,k-1,Rho_comp)
-                                    +temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1) )
+            Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp) - slow_rhs_cons(i,j,k-1,Rho_comp)
+                                    + temp_rhs_arr(i,j,k  ,Rho_comp) +  temp_rhs_arr(i,j,k-1,Rho_comp) )
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
@@ -533,7 +532,7 @@ void erf_substep_NS (int step, int nrk,
             Real dz_inv = one / dz_ptr[k];
             temp_rhs_arr(i,j,k,Rho_comp     ) += dz_inv * ( zflux_hi - zflux_lo );
             temp_rhs_arr(i,j,k,RhoTheta_comp) += myhalf * dz_inv * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
-                                                                - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
+                                                                   - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
         });
 
         // We only add to the flux registers in the final RK step
