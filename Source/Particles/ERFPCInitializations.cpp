@@ -60,6 +60,12 @@ void ERFPC::readInputs ()
     }
     setStableRedistribute(m_stable_redistribute);
 
+    {
+        int verbose = 0;
+        pp.query("verbose", verbose);
+        SetVerbose(verbose);
+    }
+
     return;
 }
 

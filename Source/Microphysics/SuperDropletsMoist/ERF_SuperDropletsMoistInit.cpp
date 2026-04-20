@@ -51,7 +51,7 @@ void SuperDropletsMoist::readInputs ()
 
     // initial distribution type
     m_init_type = SDMoistInit::uniform;
-    pp.query("initial_distribution_type", m_init_type);
+    pp.query("distribution_type", m_init_type);
 
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers

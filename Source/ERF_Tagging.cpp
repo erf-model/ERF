@@ -288,25 +288,34 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++)
             {
                 std::string tmp_string(particles_namelist[i]+"_count");
-                IntVect rr = IntVect::TheUnitVector();
                 if (ref_tags[j].Field() == tmp_string) {
-                    for (int lev = levc; lev <= finest_level; lev++)
-                    {
-                        MultiFab temp_dat(grids[lev], dmap[lev], 1, 0); temp_dat.setVal(0);
-                        particleData[particles_namelist[i]]->IncrementWithTotal(temp_dat, lev);
+                    auto* pc = particleData[particles_namelist[i]];
+                    pc->resizeData();
+                    int pc_nlevs = static_cast<int>(pc->GetParticles().size());
 
-                        MultiFab temp_dat_crse(grids[levc], dmap[levc], 1, 0); temp_dat_crse.setVal(0);
-
-                        if (lev == levc) {
-                            MultiFab::Copy(*mf, temp_dat, 0, 0, 1, 0);
-                        } else {
-                            for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                                rr[d] *= ref_ratio[levc][d];
-                            }
-                            average_down(temp_dat, temp_dat_crse, 0, 1, rr);
-                            MultiFab::Add(*mf, temp_dat_crse, 0, 0, 1, 0);
+                    // Deposit particle counts at each level into per-level MultiFabs
+                    Vector<MultiFab> count_per_lev(finest_level+1);
+                    for (int lev = levc; lev <= finest_level; lev++) {
+                        count_per_lev[lev].define(grids[lev], dmap[lev], 1, 0);
+                        count_per_lev[lev].setVal(0);
+                        if (lev < pc_nlevs) {
+                            pc->IncrementWithTotal(count_per_lev[lev], lev);
                         }
                     }
+
+                    // Average down level-by-level from finest to levc.
+                    // This avoids multi-level coarsening (e.g. L2->L0 with
+                    // ratio (4,1,4)) which can fail when fine-level boxes
+                    // are not aligned to the composite refinement ratio.
+                    for (int lev = finest_level; lev > levc; lev--) {
+                        MultiFab temp_crse(grids[lev-1], dmap[lev-1], 1, 0);
+                        temp_crse.setVal(0);
+                        average_down(count_per_lev[lev], temp_crse,
+                                     0, 1, ref_ratio[lev-1]);
+                        MultiFab::Add(count_per_lev[lev-1], temp_crse, 0, 0, 1, 0);
+                    }
+
+                    MultiFab::Copy(*mf, count_per_lev[levc], 0, 0, 1, 0);
                 }
             }
 #endif
@@ -485,38 +494,36 @@ ERF::refinement_criteria_setup ()
                         khi = static_cast<int>((rbox_hi[2] - plo[2])/dx[2]-1);
                     }
 
+                    // Snap box indices to ref_ratio alignment (round lo down, hi up)
+                    {
+                        const auto& rr = ref_ratio[lev_for_box-1];
+                        auto snap_lo = [](int idx, int r) { return idx - (idx % r + r) % r; };
+                        auto snap_hi = [](int idx_p1, int r) { // idx_p1 = ihi+1
+                            int rem = idx_p1 % r;
+                            return (rem == 0) ? idx_p1 - 1 : idx_p1 + (r - rem) - 1;
+                        };
+                        int ilo_old = ilo, jlo_old = jlo, klo_old = klo;
+                        int ihi_old = ihi, jhi_old = jhi, khi_old = khi;
+                        ilo = snap_lo(ilo, rr[0]);
+                        jlo = snap_lo(jlo, rr[1]);
+                        klo = snap_lo(klo, rr[2]);
+                        ihi = snap_hi(ihi+1, rr[0]);
+                        jhi = snap_hi(jhi+1, rr[1]);
+                        khi = snap_hi(khi+1, rr[2]);
+                        if (ilo != ilo_old || ihi != ihi_old ||
+                            jlo != jlo_old || jhi != jhi_old ||
+                            klo != klo_old || khi != khi_old) {
+                            amrex::Print() << "Refinement box indices snapped to ref_ratio alignment:\n"
+                                           << "  ilo: " << ilo_old << " -> " << ilo
+                                           << "  ihi: " << ihi_old << " -> " << ihi
+                                           << "  jlo: " << jlo_old << " -> " << jlo
+                                           << "  jhi: " << jhi_old << " -> " << jhi
+                                           << "  klo: " << klo_old << " -> " << klo
+                                           << "  khi: " << khi_old << " -> " << khi << "\n";
+                        }
+                    }
+
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
-                    // Error check for each index
-                    if(ilo%ref_ratio[lev_for_box-1][0] != 0){
-                        amrex::Print()<< "Requested in_box_lo in x direction = " << rbox_lo[0] << " corresponds to ilo = " << ilo << std::endl;
-                        amrex::Print() << "ilo = " << ilo << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
-                        amrex::Error("Adjust in_box_lo in x-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((ihi+1)%ref_ratio[lev_for_box-1][0] != 0){
-                        amrex::Print()<< "Requested in_box_hi in x direction = " << rbox_hi[0] << " corresponds to ihi+1 = " << ihi+1 << std::endl;
-                        amrex::Print() << "ihi+1 = " << ihi+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
-                        amrex::Error("Adjust in_box_hi in x-direction to be divisible by ref_ratio and try again");
-                    }
-                     if(jlo%ref_ratio[lev_for_box-1][1] != 0){
-                        amrex::Print()<< "Requested in_box_lo in y direction = " << rbox_lo[1] << " corresponds to jlo = " << jlo << std::endl;
-                        amrex::Print() << "jlo = " << jlo << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
-                        amrex::Error("Adjust in_box_lo in y-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((jhi+1)%ref_ratio[lev_for_box-1][1] != 0){
-                        amrex::Print()<< "Requested in_box_hi in y direction = " << rbox_hi[1] << " corresponds to jhi+1 = " << jhi+1 << std::endl;
-                        amrex::Print() << "jhi+1 = " << jhi+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
-                        amrex::Error("Adjust in_box_hi in y-direction to be divisible by ref_ratio and try again");
-                    }
-                    if(klo%ref_ratio[lev_for_box-1][2] != 0){
-                        amrex::Print()<< "Requested in_box_lo in z direction = " << rbox_lo[2] << " corresponds to klo = " << klo << std::endl;
-                        amrex::Print() << "klo = " << klo << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Adjust in_box_lo in z-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((khi+1)%ref_ratio[lev_for_box-1][2] != 0){
-                        amrex::Print()<< "Requested in_box_hi in z direction = " << rbox_hi[2] << " corresponds to khi+1 = " << khi+1 << std::endl;
-                        amrex::Print() << "khi+1 = " << khi+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Adjust in_box_hi in z-direction to be divisible by ref_ratio and try again");
-                    }
 
                     bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
                                       solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
@@ -577,41 +584,35 @@ ERF::refinement_criteria_setup ()
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
-                    if(box_lo[0]%ref_ratio[lev_for_box-1][0] != 0){
-                        amrex::Print()<< "Requested ilo in x-direction : " << box_lo[0] << std::endl;
-                        amrex::Print() << "ilo = " << box_lo[0] << " is not divisible by ref_ratio in x direction = " <<
-                                          ref_ratio[lev_for_box-1][0] << std::endl;
-                        amrex::Error("Adjust in_box_lo_indices in x-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0){
-                        amrex::Print()<< "Requested ihi in x-direction : " << box_hi[0] << std::endl;
-                        amrex::Print() << "ihi+1 = " << box_hi[0]+1 << " is not divisible by ref_ratio in x direction = " <<
-                                          ref_ratio[lev_for_box-1][0] << std::endl;
-                        amrex::Error("Adjust in_box_hi_indices in x-direction to be divisible by ref_ratio and try again");
-                    }
-                     if(box_lo[1]%ref_ratio[lev_for_box-1][1] != 0){
-                        amrex::Print()<< "Requested jlo in y-direction : " << box_lo[1] << std::endl;
-                        amrex::Print() << "jlo = " << box_lo[1] << " is not divisible by ref_ratio in y direction = " <<
-                                          ref_ratio[lev_for_box-1][1] << std::endl;
-                        amrex::Error("Adjust in_box_lo_indices in y-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0){
-                        amrex::Print()<< "Requested jhi in y-direction : " << box_hi[1] << std::endl;
-                        amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " <<
-                                          ref_ratio[lev_for_box-1][1] << std::endl;
-                        amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again");
-                    }
-                    if(box_lo[2]%ref_ratio[lev_for_box-1][2] != 0){
-                        amrex::Print()<< "Requested klo in z-direction : " << box_lo[2] << std::endl;
-                        amrex::Print() << "klo = " << box_lo[2] << " is not   divisible by ref_ratio in z direction = " <<
-                                          ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Adjust in_box_lo_indices in z-direction to be divisible by ref_ratio and try again");
-                    }
-                    if((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0){
-                        amrex::Print()<< "Requested khi in z-direction : " << box_hi[2] << std::endl;
-                        amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " <<
-                                          ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
+                    // Snap box indices to ref_ratio alignment (round lo down, hi up)
+                    {
+                        const auto& rr = ref_ratio[lev_for_box-1];
+                        auto snap_lo_fn = [](int idx, int r) { return idx - (idx % r + r) % r; };
+                        auto snap_hi_fn = [](int idx_p1, int r) {
+                            int rem = idx_p1 % r;
+                            return (rem == 0) ? idx_p1 - 1 : idx_p1 + (r - rem) - 1;
+                        };
+                        int lo_old[3] = {box_lo[0], box_lo[1], box_lo[2]};
+                        int hi_old[3] = {box_hi[0], box_hi[1], box_hi[2]};
+                        box_lo[0] = snap_lo_fn(box_lo[0], rr[0]);
+                        box_lo[1] = snap_lo_fn(box_lo[1], rr[1]);
+                        box_lo[2] = snap_lo_fn(box_lo[2], rr[2]);
+                        box_hi[0] = snap_hi_fn(box_hi[0]+1, rr[0]);
+                        box_hi[1] = snap_hi_fn(box_hi[1]+1, rr[1]);
+                        box_hi[2] = snap_hi_fn(box_hi[2]+1, rr[2]);
+                        if (box_lo[0] != lo_old[0] || box_hi[0] != hi_old[0] ||
+                            box_lo[1] != lo_old[1] || box_hi[1] != hi_old[1] ||
+                            box_lo[2] != lo_old[2] || box_hi[2] != hi_old[2]) {
+                            amrex::Print() << "Refinement box indices snapped to ref_ratio alignment:\n"
+                                           << "  ilo: " << lo_old[0] << " -> " << box_lo[0]
+                                           << "  ihi: " << hi_old[0] << " -> " << box_hi[0]
+                                           << "  jlo: " << lo_old[1] << " -> " << box_lo[1]
+                                           << "  jhi: " << hi_old[1] << " -> " << box_hi[1]
+                                           << "  klo: " << lo_old[2] << " -> " << box_lo[2]
+                                           << "  khi: " << hi_old[2] << " -> " << box_hi[2] << "\n";
+                        }
+                        bx = Box(IntVect(box_lo[0],box_lo[1],box_lo[2]),
+                                 IntVect(box_hi[0],box_hi[1],box_hi[2]));
                     }
 
                     bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||

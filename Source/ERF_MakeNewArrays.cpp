@@ -468,13 +468,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************
-    if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM)
+    if (solverChoice.use_perturbation(lev))
     {
-        amrex::Box bnd_bx = ba.minimalBox();
-        turbPert.init_tpi_type(solverChoice.pert_type);
-        turbPert.init_tpi(lev, bnd_bx.smallEnd(), bnd_bx.bigEnd(), geom[lev].CellSizeArray(),
+        turbPert.init_tpi_type(lev, solverChoice.pert_type[lev], max_level);
+        turbPert.init_tpi(lev, subdomains[lev], geom[lev].CellSizeArray(),
                           ba, dm, ngrow_state, pp_prefix, refRatio(), max_level);
     }
 

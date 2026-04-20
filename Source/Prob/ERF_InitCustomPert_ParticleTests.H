@@ -8,10 +8,6 @@
   // Overridden physical constants
   Real C_p = amrex::Real(1004.0);
 
-  const int khi = geomdata.Domain().bigEnd()[2];
-
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
-
   ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
