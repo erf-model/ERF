@@ -70,7 +70,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const Real fx  = (p.pos(0) - plo[0]) * dxi[0] - static_cast<Real>(ix_p);
             const Real fy  = (p.pos(1) - plo[1]) * dxi[1] - static_cast<Real>(iy_p);
 
-            auto zface = [&] (int k_face) -> Real {
+            auto zface = [=] AMREX_GPU_DEVICE (int k_face) -> Real {
                 return zheight(ix_p  , iy_p  , k_face) * (Real(1.0)-fx) * (Real(1.0)-fy)
                      + zheight(ix_p+1, iy_p  , k_face) *            fx  * (Real(1.0)-fy)
                      + zheight(ix_p  , iy_p+1, k_face) * (Real(1.0)-fx) *            fy
@@ -115,7 +115,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             }
 
             // Per-corner node-averaged cell thickness for volume normalization.
-            auto dz_cell = [&] (int ic, int jc, int kc) -> Real {
+            auto dz_cell = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc) -> Real {
                 const Real dz = Real(0.25) * (
                       zheight(ic  , jc  , kc+1) - zheight(ic  , jc  , kc)
                     + zheight(ic+1, jc  , kc+1) - zheight(ic+1, jc  , kc)
@@ -126,7 +126,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
 
             const Real inv_dxdy = Real(1.0) / (dx * dy);
 
-            auto deposit = [&] (int ic, int jc, int kc, Real w_horiz, Real w_z)
+            auto deposit = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc, Real w_horiz, Real w_z)
             {
                 // Clamp kc only for dz lookup; still write to ghost rho cell.
                 const int kc_dz = amrex::max(0, amrex::min(k_max, kc));
