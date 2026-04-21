@@ -1120,6 +1120,41 @@ WSM6::Advance(const Real& dt_advance,
                 fall_g_arr(i,j,klo) = delqrs3_arr(i,j,0);
             });
 
+            // G6: repack qrs_tmp, second slope_wsm6 [lines 655-663]
+            // slope params updated after sedimentation moved mass
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
+                qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
+                qrs_tmp_g_arr(i,j,k) = qg_arr(i,j,k);
+                Real dummy_n0sfac;
+                wsm6_slope_rain_cell(
+                    qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    m_pidn0r, Real(qcrmin), Real(rslopermax), Real(rsloperbmax),
+                    Real(rsloper2max), Real(rsloper3max), Real(bvtr), Real(pvtr),
+                    rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
+                    rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
+                    work1_r_arr(i,j,k));
+                wsm6_slope_snow_cell(
+                    qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
+                    Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
+                    Real(rslopesmax), Real(rslopesbmax),
+                    Real(rslopes2max), Real(rslopes3max),
+                    Real(bvts), Real(pvts),
+                    rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
+                    rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
+                    work1_s_arr(i,j,k), dummy_n0sfac);
+                wsm6_slope_graup_cell(
+                    qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                    m_pidn0g, Real(qcrmin),
+                    Real(rslopegmax), Real(rslopegbmax),
+                    Real(rslopeg2max), Real(rslopeg3max),
+                    Real(bvtg), Real(pvtg),
+                    rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
+                    rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
+                    work1_g_arr(i,j,k));
+            });
+
             amrex::ignore_unused(dtcld,
                 work2_arr, workdiffw_arr, workdiffi_arr,
                 work1c_arr, denqci_arr, delqi_arr,
