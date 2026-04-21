@@ -54,7 +54,6 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     // After redistribution, recompute k-indices from z-position for all
     // particles using each level's geometry.  ERFParticlesAssignor uses
     // idata(k) for grid assignment, so it must stay in sync with pos(z).
-    // z_phys_nd is always allocated (even for flat terrain).
     for (int lev = 0; lev <= a_lev; lev++) {
         const auto& plev = GetParticles();
         if (lev >= static_cast<int>(plev.size())) { continue; }
@@ -166,8 +165,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                                              (*fab[1]).array(),
                                              (*fab[2]).array() )}};
 
-            bool use_terrain = (a_z_height != nullptr);
-            auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+            auto zheight = (*a_z_height)[grid].array();
 
             ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
             {
@@ -176,28 +174,15 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
 
                 ParticleReal v[AMREX_SPACEDIM];
 
-                // With partial-z refinement the particle's k may be outside
-                // the local grid's z-extent.  The terrain interpolation
-                // stencil accesses k+2 for cell-centered components, so we
-                // need that to be within bounds.  Zero velocity for
-                // out-of-bounds particles; Redistribute will move them to
-                // the correct level after advection.
-                if (use_terrain) {
-                    int pk = p.idata(ERFParticlesIntIdxAoS::k);
-                    // With partial-z refinement the particle's k may be
-                    // outside the local grid's z-extent. The stencil
-                    // accesses k-1 through k+2 in height_arr.
-                    if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
-                        v[0] = 0; v[1] = 0; v[2] = 0;
-                    } else {
-                        mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
-                        // Guard against NaN from edge-case stencil issues
-                        if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
-                            v[0] = 0; v[1] = 0; v[2] = 0;
-                        }
-                    }
+                // Partial-z tiles: zero v for particles outside stencil (k-1..k+2); Redistribute will move them.
+                int pk = p.idata(ERFParticlesIntIdxAoS::k);
+                if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
+                    v[0] = 0; v[1] = 0; v[2] = 0;
                 } else {
-                    mac_interpolate(p, plo, dxi, umacarr, v);
+                    mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                    if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                        v[0] = 0; v[1] = 0; v[2] = 0;
+                    }
                 }
 
                 if (ipass == 0) {
@@ -227,21 +212,17 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         // Update the stored particle location
                         p.idata(ERFParticlesIntIdxAoS::k) = kk;
 
-                        if (zheight) {
-                            Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
-                            Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
-                            auto zlo = zheight(ii  ,jj  ,kk  ) * (one-lx) * (one-ly) +
-                                       zheight(ii+1,jj  ,kk  ) *      lx  * (one-ly) +
-                                       zheight(ii  ,jj+1,kk  ) * (one-lx) * ly +
-                                       zheight(ii+1,jj+1,kk  ) *      lx  * ly;
-                            auto zhi = zheight(ii  ,jj  ,kk+1) * (one-lx) * (one-ly) +
-                                       zheight(ii+1,jj  ,kk+1) *      lx  * (one-ly) +
-                                       zheight(ii  ,jj+1,kk+1) * (one-lx) * ly +
-                                       zheight(ii+1,jj+1,kk+1) *      lx  * ly;
-                            p.pos(2) = zlo + Real(0.2) * (zhi - zlo);
-                        } else {
-                            p.pos(2) = plo[2] + Real(0.2) / dxi[2];
-                        }
+                        Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
+                        Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
+                        auto zlo = zheight(ii  ,jj  ,kk  ) * (one-lx) * (one-ly) +
+                                   zheight(ii+1,jj  ,kk  ) *      lx  * (one-ly) +
+                                   zheight(ii  ,jj+1,kk  ) * (one-lx) * ly +
+                                   zheight(ii+1,jj+1,kk  ) *      lx  * ly;
+                        auto zhi = zheight(ii  ,jj  ,kk+1) * (one-lx) * (one-ly) +
+                                   zheight(ii+1,jj  ,kk+1) *      lx  * (one-ly) +
+                                   zheight(ii  ,jj+1,kk+1) * (one-lx) * ly +
+                                   zheight(ii+1,jj+1,kk+1) *      lx  * ly;
+                        p.pos(2) = zlo + Real(0.2) * (zhi - zlo);
                     } // k < 0
                 } // !periodic
             });
@@ -291,8 +272,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
 
         auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
 
-        bool use_terrain = (a_z_height != nullptr);
-        auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*a_z_height)[grid].array();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -383,8 +363,7 @@ void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
         auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
         auto temperature_arr  = T_mf.array(grid);
 
-        bool use_terrain = (a_z_height != nullptr);
-        auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*a_z_height)[grid].array();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -392,13 +371,9 @@ void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
             if (p.id() <= 0) { return; }
 
             ParticleReal temperature = 0;
-            if (use_terrain) {
-                int pk = p.idata(ERFParticlesIntIdxAoS::k);
-                if (pk >= zheight.begin[2] && pk + 2 < zheight.end[2]) {
-                    cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                }
-            } else {
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+            int pk = p.idata(ERFParticlesIntIdxAoS::k);
+            if (pk >= zheight.begin[2] && pk + 2 < zheight.end[2]) {
+                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
             }
             T_ptr[i] = temperature;
         });

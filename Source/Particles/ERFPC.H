@@ -303,15 +303,18 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
                                           const std::unique_ptr<amrex::MultiFab>& );
 
         /*! Compute mass density */
-        virtual void massDensity ( amrex::MultiFab&, const int&, const int& a_comp = 0) const;
+        virtual void massDensity ( amrex::MultiFab&,
+                                   const amrex::MultiFab& a_z_phys_nd,
+                                   const int&, const int& a_comp = 0) const;
 
         /*! Compute mesh variable from particles */
-        virtual void computeMeshVar(    const std::string&  a_var_name,
-                                        amrex::MultiFab&    a_mf,
-                                        const int           a_lev) const
+        virtual void computeMeshVar(    const std::string&      a_var_name,
+                                        amrex::MultiFab&        a_mf,
+                                        const amrex::MultiFab&  a_z_phys_nd,
+                                        const int               a_lev) const
         {
             if (a_var_name == "mass_density") {
-                massDensity( a_mf, a_lev );
+                massDensity( a_mf, a_z_phys_nd, a_lev );
             } else {
                 a_mf.setVal(0.0);
             }
@@ -333,16 +336,17 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         // the following functions should ideally be private or protected, but need to be
         // public due to CUDA extended lambda capture rules
 
-        /*! \brief Helper for ParticleToMesh operations with non-uniform z support
+        /*! \brief Helper for ParticleToMesh operations on terrain-following grids.
          *
          * Generic CIC deposition from particles to a MultiFab. The caller provides
          * a device lambda `value_func(ptd, i)` that returns the per-particle scalar
-         * to deposit (e.g. mass, number, flux). Handles both uniform and non-uniform
-         * vertical grids. Implementation in ERFPCParticleToMesh.H.
+         * to deposit (e.g. mass, number, flux). Implementation in ERFPCParticleToMesh.H.
          */
         template<typename ValueFunc>
-        void ERFPCParticleToMesh(amrex::MultiFab& a_mf, int a_lev, int a_comp,
-                                  ValueFunc&& value_func) const;
+        void ERFPCParticleToMesh(amrex::MultiFab& a_mf,
+                                 const amrex::MultiFab& a_z_phys_nd,
+                                 int a_lev, int a_comp,
+                                 ValueFunc&& value_func) const;
 
         /*! Default particle initialization */
         void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,
