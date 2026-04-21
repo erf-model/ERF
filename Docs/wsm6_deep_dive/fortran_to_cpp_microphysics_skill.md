@@ -1433,3 +1433,22 @@ then add the next. Never add all diagnostics at once.
 
 Compile flag: -DWSM6_DIAG added to CMake for diagnostic builds only.
 Remove all diagnostic prints before Phase 5 assembly.
+
+## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern
+
+Use a runtime ParmParse query, not a build-time flag, to switch
+between Fortran and C++ paths. Build-time flags produce the same
+target name and require make clean to switch reliably.
+
+Pattern (matches Morrison ERF_AdvanceMorrison.cpp lines 520-521):
+
+  bool use_wsm6_cpp_answer = false;
+  { amrex::ParmParse pp("erf");
+    pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
+  bool run_wsm6_fort = !use_wsm6_cpp_answer;
+
+In inputs file:
+  erf.use_wsm6_cpp_answer = 0   # Fortran path
+  erf.use_wsm6_cpp_answer = 1   # native C++ path
+
+Reference: ERF_AdvanceWSM6.cpp lines 672, 781

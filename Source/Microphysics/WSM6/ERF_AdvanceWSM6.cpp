@@ -668,6 +668,11 @@ WSM6::Advance(const Real& dt_advance,
     dt = dt_advance;
 
 #ifdef ERF_USE_WSM6_FORT
+    bool use_wsm6_cpp_answer = false;
+    { amrex::ParmParse pp("erf");
+      pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
+    bool run_wsm6_fort = !use_wsm6_cpp_answer;
+
     static bool wsm6_inited = false;
 
     // Minimal phase-1 initialization for single-moment WSM6.
@@ -773,19 +778,21 @@ WSM6::Advance(const Real& dt_advance,
         });
 
 #ifdef ERF_USE_WSM6_FORT
-        mp_wsm6_run_c(
-            t_arr.dataPtr(),
-            qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),
-            qr_arr.dataPtr(), qs_arr.dataPtr(), qg_arr.dataPtr(),
-            den_arr.dataPtr(), p_arr.dataPtr(), delz_arr.dataPtr(),
-            static_cast<double>(dt), g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin,
-            xls, xlv0, xlf0, den0, denr, cliq, cice, psat,
-            rainacc_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
-            snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
-            graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
-            imlo, imhi, jmlo, jmhi, kmlo, kmhi,
-            ilo, ihi, jlo, jhi, klo, khi);
-#else
+        if (run_wsm6_fort) {
+            mp_wsm6_run_c(
+                t_arr.dataPtr(),
+                qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),
+                qr_arr.dataPtr(), qs_arr.dataPtr(), qg_arr.dataPtr(),
+                den_arr.dataPtr(), p_arr.dataPtr(), delz_arr.dataPtr(),
+                static_cast<double>(dt), g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin,
+                xls, xlv0, xlf0, den0, denr, cliq, cice, psat,
+                rainacc_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
+                snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
+                graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
+                imlo, imhi, jmlo, jmhi, kmlo, kmhi,
+                ilo, ihi, jlo, jhi, klo, khi);
+        } else {
+#endif
         // --- Phase 4 native C++ kernel ---
 
         // box2d for 1D per-column arrays (already defined above)
@@ -918,6 +925,13 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pgeml_arr     = pgeml_fab.array();
         auto const& psevp_arr     = psevp_fab.array();
         auto const& pgevp_arr     = pgevp_fab.array();
+
+        // G18 stub: rainprod2d / evapprod2d are not implemented yet.
+        // Keep this ignore_unused block here until the 2D diagnostics are wired.
+        {
+            const bool g18_stub = false;
+            amrex::ignore_unused(g18_stub);
+        }
 
         // Groups A-E: pre-loop setup
         // Clamp negative values (Group A)
@@ -2081,6 +2095,8 @@ WSM6::Advance(const Real& dt_advance,
                 if (qi_arr(i,j,k) <= Real(qmin)) qi_arr(i,j,k) = Real(0.0);
             });
 
+        }
+#ifdef ERF_USE_WSM6_FORT
         }
 #endif
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
