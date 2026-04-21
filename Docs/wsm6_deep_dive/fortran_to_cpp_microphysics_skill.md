@@ -1452,3 +1452,44 @@ In inputs file:
   erf.use_wsm6_cpp_answer = 1   # native C++ path
 
 Reference: ERF_AdvanceWSM6.cpp lines 672, 781
+
+## Rule 32: C++ validation pipeline — debug-first, backtrace-before-prints
+
+Order of operations for validating a new C++ physics path:
+
+1. Build with DEBUG=TRUE. This gets -ftrapv, AMReX assertions,
+   and Fortran -fbacktrace at no source cost. Do not add
+   diagnostic prints before doing this.
+
+2. Run the Fortran path first, save the plotfile before the
+   next run overwrites it:
+     cp -r plt_<case>00002 plt_<case>_fort_00002
+
+3. Run the C++ path with identical inputs and step count.
+
+4. On crash, read Backtrace.0 immediately. It gives file + line
+   number without any added instrumentation. The format is:
+     function_name at ERF_AdvanceWSM6.cpp:LINE
+   Cross-reference that line against the Fortran source
+   simultaneously (two subagents, one per file).
+
+5. fcompare only after both paths run clean — it is a
+   correctness gate, not a debug tool. A crash must be fixed
+   before fcompare has meaning.
+
+6. Diagnostic prints (microphysics_debug levels, PRE/POST
+   reductions) are for understanding WHY something is wrong
+   after Backtrace.0 tells you WHERE. See:
+   Docs/wsm6_deep_dive/wsm6_diagnostic_sidecar_notes.md
+
+Key finding from WSM6 port: Backtrace.0 is faster than any
+diagnostic print strategy for locating a crash. Prints are
+the scalpel for bisecting correctness divergence, not crashes.
+
+Common crash sources in nislfv-style advection routines:
+- dza(k) = za(k+1) - za(k) can be zero when arrival points
+  collapse; always guard divisions by dza with a minimum.
+- km passed as khi-klo instead of khi-klo+1 leaves garbage
+  in the last array slot, causing downstream zero denominators.
+- Column temporaries sized WSM6_MAX_LEVELS must be filled
+  exactly km = khi-klo+1 elements, no more, no less.

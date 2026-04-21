@@ -272,6 +272,9 @@ void wsm6_nislfv_rain_plm (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 dza[k] = za[k + 1] - za[k];
+            }
+            dza[km] = zi[km] - za[km]; // Fortran: dza(km+1) = zi(km+1)-za(km+1)
+            for (int k = 0; k < km; ++k) {
                 qa[k] = qq[k] * dz[k] / dza[k];
                 qr[k] = qa[k] / den[k];
             }
@@ -513,6 +516,9 @@ void wsm6_nislfv_rain_plm6 (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 dza[k] = za[k + 1] - za[k];
+            }
+            dza[km] = zi[km] - za[km]; // Fortran: dza(km+1) = zi(km+1)-za(km+1)
+            for (int k = 0; k < km; ++k) {
                 qa[k] = qq[k] * dz[k] / dza[k];
                 qa2[k] = qq2[k] * dz[k] / dza[k];
                 qr[k] = qa[k] / den[k];
@@ -1043,8 +1049,8 @@ WSM6::Advance(const Real& dt_advance,
                 Real dummy_n0sfac;
                 wsm6_slope_rain_cell(
                     qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0r, Real(qcrmin), Real(rslopermax), Real(rsloperbmax),
-                    Real(rsloper2max), Real(rsloper3max), Real(bvtr), Real(pvtr),
+                    m_pidn0r, Real(qcrmin), m_rslopermax, m_rsloperbmax,
+                    m_rsloper2max, m_rsloper3max, Real(bvtr), Real(pvtr),
                     rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
                     rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
                     work1_r_arr(i,j,k));
@@ -1052,8 +1058,8 @@ WSM6::Advance(const Real& dt_advance,
                     qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
-                    Real(rslopesmax), Real(rslopesbmax),
-                    Real(rslopes2max), Real(rslopes3max),
+                    m_rslopesmax, m_rslopesbmax,
+                    m_rslopes2max, m_rslopes3max,
                     Real(bvts), Real(pvts),
                     rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
                     rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
@@ -1061,9 +1067,9 @@ WSM6::Advance(const Real& dt_advance,
             wsm6_slope_graup_cell(
                     qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     m_pidn0g, Real(qcrmin),
-                    Real(rslopegmax), Real(rslopegbmax),
-                    Real(rslopeg2max), Real(rslopeg3max),
-                    Real(bvtg), Real(pvtg),
+                    m_rslopegmax, m_rslopegbmax,
+                    m_rslopeg2max, m_rslopeg3max,
+                    m_bvtg, Real(pvtg),
                     rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
@@ -1160,8 +1166,8 @@ WSM6::Advance(const Real& dt_advance,
                 Real dummy_n0sfac;
                 wsm6_slope_rain_cell(
                     qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0r, Real(qcrmin), Real(rslopermax), Real(rsloperbmax),
-                    Real(rsloper2max), Real(rsloper3max), Real(bvtr), Real(pvtr),
+                    m_pidn0r, Real(qcrmin), m_rslopermax, m_rsloperbmax,
+                    m_rsloper2max, m_rsloper3max, Real(bvtr), Real(pvtr),
                     rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
                     rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
                     work1_r_arr(i,j,k));
@@ -1169,8 +1175,8 @@ WSM6::Advance(const Real& dt_advance,
                     qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
-                    Real(rslopesmax), Real(rslopesbmax),
-                    Real(rslopes2max), Real(rslopes3max),
+                    m_rslopesmax, m_rslopesbmax,
+                    m_rslopes2max, m_rslopes3max,
                     Real(bvts), Real(pvts),
                     rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
                     rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
@@ -1178,9 +1184,9 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_slope_graup_cell(
                     qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     m_pidn0g, Real(qcrmin),
-                    Real(rslopegmax), Real(rslopegbmax),
-                    Real(rslopeg2max), Real(rslopeg3max),
-                    Real(bvtg), Real(pvtg),
+                    m_rslopegmax, m_rslopegbmax,
+                    m_rslopeg2max, m_rslopeg3max,
+                    m_bvtg, Real(pvtg),
                     rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
@@ -1263,6 +1269,7 @@ WSM6::Advance(const Real& dt_advance,
             });
 
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                const int km_local = khi - klo + 1;
                 Real den_col[WSM6_MAX_LEVELS];
                 Real denfac_col[WSM6_MAX_LEVELS];
                 Real t_col[WSM6_MAX_LEVELS];
@@ -1385,8 +1392,8 @@ WSM6::Advance(const Real& dt_advance,
                 Real dummy_n0sfac;
                 wsm6_slope_rain_cell(
                     qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0r, Real(qcrmin), Real(rslopermax), Real(rsloperbmax),
-                    Real(rsloper2max), Real(rsloper3max), Real(bvtr), Real(pvtr),
+                    m_pidn0r, Real(qcrmin), m_rslopermax, m_rsloperbmax,
+                    m_rsloper2max, m_rsloper3max, Real(bvtr), Real(pvtr),
                     rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
                     rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
                     work1_r_arr(i,j,k));
@@ -1394,8 +1401,8 @@ WSM6::Advance(const Real& dt_advance,
                     qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
-                    Real(rslopesmax), Real(rslopesbmax),
-                    Real(rslopes2max), Real(rslopes3max),
+                    m_rslopesmax, m_rslopesbmax,
+                    m_rslopes2max, m_rslopes3max,
                     Real(bvts), Real(pvts),
                     rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
                     rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
@@ -1403,9 +1410,9 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_slope_graup_cell(
                     qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
                     m_pidn0g, Real(qcrmin),
-                    Real(rslopegmax), Real(rslopegbmax),
-                    Real(rslopeg2max), Real(rslopeg3max),
-                    Real(bvtg), Real(pvtg),
+                    m_rslopegmax, m_rslopegbmax,
+                    m_rslopeg2max, m_rslopeg3max,
+                    m_bvtg, Real(pvtg),
                     rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
@@ -1469,8 +1476,6 @@ WSM6::Advance(const Real& dt_advance,
             // G13b: cold-rain, mixed-phase, and ice deposition/nucleation
             // [lines 904-1062, 1075-1192]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                constexpr Real pi = Real(3.141592653589793238462643383279502884);
-
                 const Real supcol = Real(t0c) - t_arr(i,j,k);
                 n0sfac_arr(i,j,k) = amrex::max(
                     amrex::min(std::exp(Real(alpha_wsm6) * supcol),
@@ -1558,7 +1563,7 @@ WSM6::Advance(const Real& dt_advance,
                           + Real(2.0) * diameter * rslope2_g_arr(i,j,k)
                           + diameter * diameter * rslope_g_arr(i,j,k);
                         pgaci_arr(i,j,k) = Real(pi) * egi * qi_arr(i,j,k)
-                            * Real(n0g) * std::abs(vt2ave - vt2i) * acrfac
+                             * m_n0g * std::abs(vt2ave - vt2i) * acrfac
                             / Real(4.0);
                         pgaci_arr(i,j,k) = amrex::min(
                             pgaci_arr(i,j,k), qi_arr(i,j,k) / dtcld);
@@ -1648,7 +1653,7 @@ WSM6::Advance(const Real& dt_advance,
                           + Real(0.5) * rslope2_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
                                 * rslope3_g_arr(i,j,k);
                         pgacr_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
-                            * Real(n0g) * std::abs(vt2ave - vt2r)
+                            * m_n0g * std::abs(vt2ave - vt2r)
                             * (Real(denr) / den_arr(i,j,k)) * acrfac;
                         pgacr_arr(i,j,k) *= std::pow(
                             amrex::min(
