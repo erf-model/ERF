@@ -53,6 +53,16 @@ jobs:
       with:
         path: ${{ github.workspace }}/spack_install_dir
 
+    - name: Install CA certificates
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates
+
+    - name: Configure Spack CA certificates
+      run: |
+        export SPACK_SYSTEM_CONFIG_PATH=/etc
+        spack config set 'config:url_fetch_method:curl_command:try_ssl:false'
+
     - name: set up NetCDF
       run: |
         echo ${{ github.workspace }}
@@ -62,8 +72,7 @@ jobs:
         spack env activate erf_netcdf
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
         spack concretize -f
-        spack clean -a
-        spack install --no-cache --verbose
+        spack install
 
     - name: Configure Project and Generate Build System
       run: |
