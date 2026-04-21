@@ -57,9 +57,15 @@ Implementation details:
 `ERF_RRTMGP_Interface.cpp`
 
 Removed unused member declarations and function parameters that were already commented out:
-- Aerosol optical property arrays (`aero_tau_sw`, `aero_ssa_sw`, `aero_g_sw`, `aero_tau_lw`)
 - Cloud band optical depth arrays (`cld_tau_sw_bnd`, `cld_tau_lw_bnd`)
 - Cloud g-point optical depth arrays (`cld_tau_sw_gpt`, `cld_tau_lw_gpt`)
+
+The aerosol optical property arrays (`aero_tau_sw`, `aero_ssa_sw`, `aero_g_sw`, `aero_tau_lw`)
+are retained as dormant scaffolding. They are declared in `ERF_Radiation.H` but only
+allocated when `m_do_aerosol_rad` is true, which currently triggers an abort in the
+`Radiation` constructor (see section 6). This preserves the hook so a future aerosol
+coupling (e.g. SPA, prescribed aerosol climatology) can populate these arrays without
+reintroducing the members.
 
 ### 5. Conditional Allocation of Diagnostic Flux Arrays
 
@@ -69,6 +75,28 @@ Removed unused member declarations and function parameters that were already com
 full size when `m_extra_clnclrsky_diag` or `m_extra_clnsky_diag` are true (both default
 false). When disabled, 1-element placeholders are allocated instead. The flux zeroing
 kernels in `rrtmgp_sw()` and `rrtmgp_lw()` are also made conditional on these flags.
+
+### 6. Abort When Aerosol Forcing Is Requested
+
+**File:** `ERF_Radiation.cpp`
+
+`m_do_aerosol_rad` defaults to `false`. The `Radiation` constructor now aborts with a
+descriptive message if a user sets `erf.rad_do_aerosol = true`, since the aerosol optical
+property pipeline is not implemented (the arrays exist as scaffolding but are never
+populated with real data — see section 4). The flag is preserved so the abort can be
+removed once a real aerosol coupling lands.
+
+### 7. Fence Before Datalog Read to Eliminate Cross-Stream Race
+
+**File:** `ERF_Radiation.cpp`
+
+A `Kokkos::fence()` is inserted between `rrtmgp::compute_heating_rate(...)` and
+`populateDatalogMF()`. Without the fence, the LW clear-sky heating-rate kernel (launched
+on the Kokkos default stream) could still be in flight when `populateDatalogMF()` (an
+AMReX `ParallelFor` on `Gpu::gpuStream()`) read `lw_clrsky_heating`. The race produced
+run-to-run-variable `radqrclw` in the radiation datalog while every other field stayed
+deterministic. This bug exists on the `development` branch as well — it was exposed, not
+introduced, by the chunking refactor.
 
 ## Expected Impact
 

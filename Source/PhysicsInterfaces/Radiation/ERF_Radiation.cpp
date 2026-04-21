@@ -79,8 +79,18 @@ Radiation::Radiation (const int& lev,
     pp.query("o2vmr" , m_o2vmr );
     pp.query("n2vmr" , m_n2vmr );
 
-    // Required aerosol optical properties from SPA
+    // Aerosol forcing hook (not implemented). The aerosol arrays that used to be
+    // passed through rrtmgp_main were never populated with real data, so enabling
+    // this flag only ever multiplied radiation by zero aerosol optics. The hook is
+    // kept so a future SPA/prescribed-aerosol scheme can wire in without touching
+    // the ParmParse surface.
     pp.query("rad_do_aerosol", m_do_aerosol_rad);
+    if (m_do_aerosol_rad) {
+        amrex::Abort("erf.rad_do_aerosol = true is not supported: aerosol forcing is "
+                     "currently not implemented in the ERF RRTMGP interface. The hook "
+                     "is retained for a future aerosol coupling; set rad_do_aerosol = "
+                     "false (or remove it) to continue.");
+    }
 
     // Whether we do extra clean/clear sky calculations
     pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
@@ -329,7 +339,17 @@ Radiation::alloc_buffers ()
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
     sfc_alb_dif = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
 
-    // 2d size (ncol, nlwbands)
+    // Aerosol optical properties — allocated only when aerosol coupling is on.
+    // The flag gates allocation so today (coupling not implemented, abort fires
+    // in the constructor) these stay as empty Views and cost nothing. When a
+    // future aerosol scheme populates them, hook up the plumbing into
+    // rrtmgp_main as well.
+    if (m_do_aerosol_rad) {
+        aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
+        aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
+        aero_g_sw   = real3d_k("aero_g_sw",   m_ncol, m_nlay, m_nswbands);
+        aero_tau_lw = real3d_k("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
+    }
 }
 
 void
@@ -418,6 +438,11 @@ Radiation::dealloc_buffers ()
     sfc_alb_dir = real2d_k();
     sfc_alb_dif = real2d_k();
 
+    // Aerosol scaffolding (no-op unless m_do_aerosol_rad enabled allocation above)
+    aero_tau_sw = real3d_k();
+    aero_ssa_sw = real3d_k();
+    aero_g_sw   = real3d_k();
+    aero_tau_lw = real3d_k();
 }
 
 

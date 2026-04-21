@@ -326,8 +326,11 @@ private:
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
 
-    // Whether we use aerosol forcing in radiation
-    bool m_do_aerosol_rad = true;
+    // Whether we use aerosol forcing in radiation.
+    // Aerosol plumbing is currently not implemented; this hook is retained so a
+    // future aerosol scheme can wire in without reintroducing the parameter.
+    // Setting it true today triggers an abort in the Radiation constructor.
+    bool m_do_aerosol_rad = false;
 
     // Whether we do extra aerosol forcing calls
     bool m_extra_clnsky_diag    = false;
@@ -449,5 +452,16 @@ private:
     real2d_k sfc_alb_dir;
     real2d_k sfc_alb_dif;
 
+    // Aerosol optical properties. Dormant scaffolding kept so a future aerosol
+    // coupling (e.g. SPA, prescribed aerosol climatology) can populate these
+    // without re-adding members. Only allocated when m_do_aerosol_rad is true,
+    // which currently aborts in the constructor; when aerosol coupling is
+    // wired in, remove the abort and pass these into rrtmgp_main.
+    //
+    // 3d size (ncol, nlay, n[sw,lw]bands)
+    real3d_k aero_tau_sw;
+    real3d_k aero_ssa_sw;
+    real3d_k aero_g_sw;
+    real3d_k aero_tau_lw;
 };
 #endif
