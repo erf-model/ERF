@@ -317,7 +317,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    computeQcQrWater();
+    computeQcQrWater(*a_z_phys_nd[lev]);
     computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -332,7 +332,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         });
     }
 
-    computeQcSpecies();
+    computeQcSpecies(*a_z_phys_nd[lev]);
     computeQtSpecies();
 
     for (int is = 1; is < m_num_species; is++) {

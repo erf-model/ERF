@@ -52,7 +52,7 @@ public:
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
-    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
