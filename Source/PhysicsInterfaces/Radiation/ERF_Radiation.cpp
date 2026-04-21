@@ -1321,6 +1321,10 @@ Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
     if (datalog_int > 0) {
         rrtmgp::compute_heating_rate(sw_clrsky_flux_up, sw_clrsky_flux_dn, r_lay, z_del, sw_clrsky_heating);
         rrtmgp::compute_heating_rate(lw_clrsky_flux_up, lw_clrsky_flux_dn, r_lay, z_del, lw_clrsky_heating);
+        // Fence before the datalog read: without this, the LW clear-sky heating
+        // kernel's writes can still be in flight when populateDatalogMF launches,
+        // producing run-to-run-variable radqrclw in the datalog.
+        Kokkos::fence();
 
         populateDatalogMF();
     }
