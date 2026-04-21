@@ -63,7 +63,7 @@ jobs:
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
         spack concretize -f
         spack clean -a
-        spack install --no-cache
+        spack install --no-cache --verbose
 
     - name: Configure Project and Generate Build System
       run: |
