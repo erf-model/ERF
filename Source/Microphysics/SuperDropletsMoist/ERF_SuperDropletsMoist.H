@@ -425,6 +425,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          *  raw pointer here to avoid double-free. */
         SuperDropletPC* m_super_droplets;
 
+        /*! Non-owning z_phys_nd for particle-to-mesh ops. */
+        const amrex::MultiFab* m_z_phys_nd_cached = nullptr;
+
         /*! \brief read inputs */
         virtual void readInputs();
 

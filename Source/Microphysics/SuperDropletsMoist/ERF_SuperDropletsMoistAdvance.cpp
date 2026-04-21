@@ -34,6 +34,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
     // update dt
     m_dt = a_dt;
 
+    m_z_phys_nd_cached = a_z[0].get();
+
     // inject particles
     m_super_droplets->InjectParticles(a_time, a_z[0], m_dt);
 

@@ -292,6 +292,9 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
                                      const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
+
+    m_z_phys_nd_cached = a_z_phys_nd[0].get();
+
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
 
     if (m_init_type == SDMoistInit::condensate_density) {
