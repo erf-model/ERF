@@ -9,6 +9,7 @@ CEXE_sources += ERF_InitSponge.cpp
 CEXE_sources += ERF_Init1D.cpp
 CEXE_sources += ERF_InitTurbPert.cpp
 CEXE_sources += ERF_InitImmersedForcing.cpp
+CEXE_sources += ERF_InitForEnsemble.cpp 
 
 ifeq ($(USE_WINDFARM),TRUE)
 CEXE_sources += ERF_InitWindFarm.cpp

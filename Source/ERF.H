@@ -167,6 +167,8 @@ public:
                                    surface_state_2,
                                    surface_state_interp;
 
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> bckgnd_state;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
@@ -496,17 +498,20 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_background_state_for_ensemble (int lev,
+                                               amrex::MultiFab& mf_cc_pert,
+                                               amrex::MultiFab& cons_pert,
+                                               amrex::MultiFab& xvel_pert,
+                                               amrex::MultiFab& yvel_pert,
+                                               amrex::MultiFab& zvel_pert);
+
     void create_random_perturbations (const int lev,
-                                      amrex::MultiFab& cons_pert,
-                                      amrex::MultiFab& xvel_pert,
-                                      amrex::MultiFab& yvel_pert,
-                                      amrex::MultiFab& zvel_pert);
+                                      amrex::MultiFab& mf_cc_pert);
 
     void apply_gaussian_smoothing_to_perturbations (const int lev,
-                                                    amrex::MultiFab& cons_pert,
-                                                    amrex::MultiFab& xvel_pert,
-                                                    amrex::MultiFab& yvel_pert,
-                                                    amrex::MultiFab& zvel_pert);
+                                                    amrex::MultiFab& mf_cc_pert);
+
+    void ComputeAndWriteEnsemblePerturbations();
 
     void init_custom (int lev);
 

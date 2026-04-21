@@ -23,7 +23,8 @@ ERF::turbPert_update (const int lev, const Real local_dt)
     // Computing perturbation update time
     turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
 
-    Print() << "Successfully initialized turbulent perturbation update time and amplitude with type: "<< turbPert.pt_type <<"\n";
+    Print() << "Successfully initialized turbulent perturbation update time and amplitude at level "
+            << lev << " with type: " << turbPert.pt_type[lev] << "\n";
 }
 
 // Calculate the perturbation region amplitude.

@@ -129,6 +129,7 @@ int main (int argc, char* argv[])
         fs::create_directory(member_dir);
         fs::create_directory(member_dir + "/plotfiles");
         fs::create_directory(member_dir + "/chkfiles");
+        fs::create_directory(member_dir + "/pertfiles");
 
         // Move plotfiles (plt*) from current directory into member_dir/plotfiles
         for (auto &p : fs::directory_iterator(".")) {
@@ -148,8 +149,10 @@ int main (int argc, char* argv[])
     }
     // Optional: barrier after move to ensure rank 0 is done
     ParallelDescriptor::Barrier();
-
    }
+
+   ERF tmp_erf;
+   tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
     BL_PROFILE_VAR_STOP(pmain);
 
@@ -161,4 +164,3 @@ int main (int argc, char* argv[])
 
     return 0;
 }
-
