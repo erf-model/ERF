@@ -5,6 +5,7 @@
 #include <ERF.H>
 #include <ERF_TileNoZ.H>
 #include <AMReX_PlotFileUtil.H>
+#include <filesystem>
 
 using namespace amrex;
 namespace fs = std::filesystem;

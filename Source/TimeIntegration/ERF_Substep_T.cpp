@@ -288,9 +288,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
                 Real gp_zeta_on_iface = (k == 0) ?
                    myhalf  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
+                                   - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
                    fourth * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
+                                  - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
                 Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
                 gpx *= mf_ux(i,j,0);
 
@@ -320,9 +320,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
+                                    - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
                     fourth * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
+                                   - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
                 Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
                 gpy *= mf_vy(i,j,0);
 
