@@ -295,18 +295,18 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
 }
 
 /*! \brief Compute derived quantities and update state variables */
-void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
+void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::Update_State_Vars()");
-    computeQcQrWater();
-    computeQiQgQsWater();
+    computeQcQrWater(a_z_phys_nd);
+    computeQiQgQsWater(a_z_phys_nd);
     computeQtWater();
-    rainAccumulation();
+    rainAccumulation(a_z_phys_nd);
 
-    computeQcSpecies();
+    computeQcSpecies(a_z_phys_nd);
     computeQtSpecies();
-    speciesAccumulation();
-    aerosolAccumulation();
+    speciesAccumulation(a_z_phys_nd);
+    aerosolAccumulation(a_z_phys_nd);
 
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
@@ -366,17 +366,19 @@ void SuperDropletsMoist::ratioToDensity (MultiFab& a_var,
 }
 
 /*! \brief Compute cloud and rain water mixing ratios from superdroplets */
-void SuperDropletsMoist::computeQcQrWater ()
+void SuperDropletsMoist::computeQcQrWater (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
 
     const int lev = m_current_lev;
 
     m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[lev][MicVar_SD::q_c]),
+                                        a_z_phys_nd,
                                         lev,
                                         0,
                                         m_r_rain );
     m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[lev][MicVar_SD::q_r]),
+                                        a_z_phys_nd,
                                         lev,
                                         m_r_rain,
                                         one );
@@ -402,16 +404,16 @@ void SuperDropletsMoist::computeQcQrWater ()
 }
 
 /*! compute ice/graupel/snow mixing ratio */
-void SuperDropletsMoist::computeQiQgQsWater ()
+void SuperDropletsMoist::computeQiQgQsWater (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::computeQiQgQsWater()");
 
     const int lev = m_current_lev;
 
     if (m_with_ice) {
-        m_super_droplets->iceDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_i]), lev, m_rime_ratio );
-        m_super_droplets->snowDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_s]), lev, m_rime_ratio );
-        m_super_droplets->graupelDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_g]), lev, m_rime_ratio );
+        m_super_droplets->iceDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_i]), a_z_phys_nd, lev, m_rime_ratio );
+        m_super_droplets->snowDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_s]), a_z_phys_nd, lev, m_rime_ratio );
+        m_super_droplets->graupelDensity ( *(m_mic_fab_vars[lev][MicVar_SD::q_g]), a_z_phys_nd, lev, m_rime_ratio );
 
         if (m_dimensionality == SDMSimulationDim::one_d_z) {
             for ( MFIter mfi(*m_mic_fab_vars[lev][MicVar_SD::q_c]); mfi.isValid(); ++mfi) {
@@ -469,7 +471,7 @@ void SuperDropletsMoist::computeQtWater ()
 }
 
 /*! Compute rain accumulation */
-void SuperDropletsMoist::rainAccumulation ()
+void SuperDropletsMoist::rainAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::rainAccumulation()");
 
@@ -488,7 +490,7 @@ void SuperDropletsMoist::rainAccumulation ()
                        m_mic_fab_vars[lev][MicVar_SD::rain_accum]->DistributionMap(),
                        1,
                        m_mic_fab_vars[lev][MicVar_SD::rain_accum]->nGrowVect() );
-    m_super_droplets->speciesMassFlux(mf_zflux, lev, m_idx_w, 2);
+    m_super_droplets->speciesMassFlux(mf_zflux, a_z_phys_nd, lev, m_idx_w, 2);
 
     for ( MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rain_accum]),TilingIfNotGPU());
           mfi.isValid(); ++mfi ) {
@@ -507,7 +509,7 @@ void SuperDropletsMoist::rainAccumulation ()
 }
 
 /*! Compute snow accumulation */
-void SuperDropletsMoist::snowAccumulation ()
+void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::snowAccumulation()");
 
@@ -528,7 +530,7 @@ void SuperDropletsMoist::snowAccumulation ()
                            m_mic_fab_vars[lev][MicVar_SD::snow_accum]->DistributionMap(),
                            1,
                            m_mic_fab_vars[lev][MicVar_SD::snow_accum]->nGrowVect() );
-        m_super_droplets->speciesMassFlux(mf_zflux, lev, m_idx_i, 2);
+        m_super_droplets->speciesMassFlux(mf_zflux, a_z_phys_nd, lev, m_idx_i, 2);
 
         for ( MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::snow_accum]),TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
             Box bx = mfi.tilebox();
@@ -547,13 +549,16 @@ void SuperDropletsMoist::snowAccumulation ()
 }
 
 /*! compute condensate mixing ratio */
-void SuperDropletsMoist::computeQcSpecies (const int a_i)
+void SuperDropletsMoist::computeQcSpecies (const int a_i, const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::computeQcSpecies()");
 
     const int lev = m_current_lev;
 
-    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[lev][s_qc_idx(a_i,m_istart_sp)]), lev, a_i );
+    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[lev][s_qc_idx(a_i,m_istart_sp)]),
+                                          a_z_phys_nd,
+                                          lev,
+                                          a_i );
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[lev][s_qc_idx(a_i,m_istart_sp)]); mfi.isValid(); ++mfi) {
             Box bx = mfi.tilebox();
@@ -590,7 +595,7 @@ void SuperDropletsMoist::computeQtSpecies (const int a_i)
 }
 
 /*! Compute ground accumulation for non-water species */
-void SuperDropletsMoist::speciesAccumulation ()
+void SuperDropletsMoist::speciesAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::speciesAccumulation()");
 
@@ -608,7 +613,7 @@ void SuperDropletsMoist::speciesAccumulation ()
                            m_mic_fab_vars[lev][s_sr_idx(is,m_istart_sp)]->DistributionMap(),
                            1,
                            m_mic_fab_vars[lev][s_sr_idx(is,m_istart_sp)]->nGrowVect() );
-        m_super_droplets->speciesMassFlux(mf_zflux, lev, is, 2);
+        m_super_droplets->speciesMassFlux(mf_zflux, a_z_phys_nd, lev, is, 2);
 
         for ( MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rain_accum]),TilingIfNotGPU());
               mfi.isValid(); ++mfi ) {
@@ -628,7 +633,7 @@ void SuperDropletsMoist::speciesAccumulation ()
 }
 
 /*! Compute ground accumulation for aerosol species */
-void SuperDropletsMoist::aerosolAccumulation ()
+void SuperDropletsMoist::aerosolAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::aerosolAccumulation()");
 
@@ -646,7 +651,7 @@ void SuperDropletsMoist::aerosolAccumulation ()
                            m_mic_fab_vars[lev][MicVar_SD::rain_accum]->DistributionMap(),
                            1,
                            m_mic_fab_vars[lev][MicVar_SD::rain_accum]->nGrowVect() );
-        m_super_droplets->aerosolMassFlux(mf_zflux, lev, ia, 2);
+        m_super_droplets->aerosolMassFlux(mf_zflux, a_z_phys_nd, lev, ia, 2);
 
         for ( MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rain_accum]),TilingIfNotGPU());
               mfi.isValid(); ++mfi ) {

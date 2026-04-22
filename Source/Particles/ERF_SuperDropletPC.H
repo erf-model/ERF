@@ -155,6 +155,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute mesh variable from particles */
         virtual void computeMeshVar( const std::string&,
                                      amrex::MultiFab&,
+                                     const amrex::MultiFab&,
                                      const int ) const override;
 
         /*! \brief Initialize super-droplets in domain at AMR level a_lev */
@@ -305,53 +306,60 @@ class SuperDropletPC : public ERFPC
 #endif
 
         /*! \brief Compute the SD number density on a mesh */
-        virtual void SDNumberDensity ( amrex::MultiFab&, int a_lev, const int a_comp=0 ) const;
+        virtual void SDNumberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle number density on a mesh */
-        virtual void numberDensity ( amrex::MultiFab&, int a_lev, const int a_comp=0 ) const;
+        virtual void numberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity ( amrex::MultiFab&, const int& a_lev, const int& a_comp=0 ) const override;
+        virtual void massDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int& a_lev, const int& a_comp=0 ) const override;
         /*! \brief Compute the mass flux component on a mesh */
-        virtual void massFlux ( amrex::MultiFab&, int a_lev, const int, const int a_comp=0 ) const;
+        virtual void massFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the species mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab&,
+                                          const amrex::MultiFab& a_z_phys_nd,
                                           int a_lev,
                                           int,
                                           const int a_comp = 0) const;
 
         /*! \brief Compute the cloud/rain mass density on a mesh */
         virtual void cloudRainDensity ( amrex::MultiFab&,
+                                        const amrex::MultiFab& a_z_phys_nd,
                                         int a_lev,
                                         amrex::Real,
                                         amrex::Real,
                                         const int a_comp = 0) const;
 
         /*! \brief Compute ice category mass density on a mesh (ice, snow, graupel, or total) */
-        virtual void iceCategoryDensity ( amrex::MultiFab&, int a_lev, IceCategory, amrex::Real,
+        virtual void iceCategoryDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                          int a_lev, IceCategory, amrex::Real,
                                           const int a_comp = 0) const;
 
         /*! \brief Compute the ice mass density on a mesh */
-        virtual void iceDensity ( amrex::MultiFab&, int a_lev, amrex::Real, const int a_comp = 0) const;
+        virtual void iceDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                  int a_lev, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the snow mass density on a mesh */
-        virtual void snowDensity ( amrex::MultiFab&, int a_lev, amrex::Real, const int a_comp = 0) const;
+        virtual void snowDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                   int a_lev, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the graupel mass density on a mesh */
-        virtual void graupelDensity ( amrex::MultiFab&, int a_lev, amrex::Real, const int a_comp = 0) const;
+        virtual void graupelDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                      int a_lev, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the frozen water mass density on a mesh */
-        virtual void totalIceDensity ( amrex::MultiFab&, int a_lev, const int a_comp = 0) const;
+        virtual void totalIceDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                       int a_lev, const int a_comp = 0) const;
 
         /*! \brief Compute the species mass flux component on a mesh */
-        virtual void speciesMassFlux ( amrex::MultiFab&, int a_lev, const int, const int, const int a_comp=0 ) const;
+        virtual void speciesMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the aerosol mass density on a mesh */
-        virtual void aerosolMassDensity ( amrex::MultiFab&, int a_lev, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
-        virtual void aerosolMassFlux ( amrex::MultiFab&, int a_lev, const int, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the particle effective radius on a mesh */
-        virtual void effectiveRadius ( amrex::MultiFab&, int a_lev, const int a_comp=0 ) const;
+        virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );

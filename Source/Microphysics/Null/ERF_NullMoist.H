@@ -39,6 +39,13 @@ public:
 
     virtual
     void
+    Update_State_Vars (amrex::MultiFab& cons_in, const amrex::MultiFab& /*z_phys_nd*/)
+    {
+        Update_State_Vars(cons_in);
+    }
+
+    virtual
+    void
     Copy_State_to_Micro (const amrex::MultiFab& /*cons_in*/) { }
 
     virtual

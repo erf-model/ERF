@@ -168,7 +168,7 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
                                       is_water );
 
     // Compute new condensate mixing ratio
-    computeQcQrWater();
+    computeQcQrWater(*a_z[a_lev]);
 
     // Update vapour mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
@@ -269,7 +269,7 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
                                       is_water );
 
     // Compute new condensate mixing ratio
-    computeQcSpecies(a_idx);
+    computeQcSpecies(a_idx, *a_z[a_lev]);
 
     // Update vapour mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
@@ -365,7 +365,7 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
                                       a_z );
 
     // Compute new cloud/rain mixing ratios
-    computeQcQrWater();
+    computeQcQrWater(*a_z[a_lev]);
 
     // Compute latent heat
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
@@ -400,7 +400,7 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
     }
 
     // Now compute new ice/snow/graupel mixing ratio
-    computeQiQgQsWater();
+    computeQiQgQsWater(*a_z[a_lev]);
 }
 
 /*! Deposition/sublimation (solid <--> vapour) for water (ice): shrink/grow the
@@ -508,7 +508,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
                                       a_z );
 
     // Compute new ice/graupel/snow mixing ratios
-    computeQiQgQsWater();
+    computeQiQgQsWater(*a_z[a_lev]);
 
     // Update vapour mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
