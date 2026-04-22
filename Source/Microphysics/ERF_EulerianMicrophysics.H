@@ -99,9 +99,9 @@ public:
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
                                 amrex::MultiFab& cons_in, /*!< Conserved state variables */
-                                const amrex::MultiFab& /*z_phys_nd*/ /*!< Terrain (unused) */) override
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        m_moist_model[lev]->Update_State_Vars(cons_in);
+        m_moist_model[lev]->Update_State_Vars(cons_in, z_phys_nd);
     }
 
     /*! \brief get pointer to a moisture variable */
