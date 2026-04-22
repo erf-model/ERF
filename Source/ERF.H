@@ -429,18 +429,18 @@ public:
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
 
-    void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
+    void WriteMultiLevelPlotfileWithTerrain (const std::string plotfilename,
                                              int nlevels,
-                                             const amrex::Vector<const amrex::MultiFab*> &mf,
-                                             const amrex::Vector<const amrex::MultiFab*> &mf_nd,
-                                             const amrex::Vector<std::string> &varnames,
-                                             const amrex::Vector<amrex::Geometry>& my_geom,
+                                             const amrex::Vector<const amrex::MultiFab*>& mf,
+                                             const amrex::Vector<const amrex::MultiFab*>& mf_nd,
+                                             const amrex::Vector<std::string> varnames,
+                                             const amrex::Vector<amrex::Geometry> my_geom,
                                              amrex::Real time,
-                                             const amrex::Vector<int> &level_steps,
+                                             const amrex::Vector<int>& level_steps,
                                              const amrex::Vector<amrex::IntVect>& my_ref_ratio,
-                                             const std::string &versionName = "HyperCLaw-V1.1",
-                                             const std::string &levelPrefix = "Level_",
-                                             const std::string &mfPrefix = "Cell",
+                                             const std::string versionName = "HyperCLaw-V1.1",
+                                             const std::string levelPrefix = "Level_",
+                                             const std::string mfPrefix = "Cell",
                                              const amrex::Vector<std::string>& extra_dirs = amrex::Vector<std::string>()) const;
 
 

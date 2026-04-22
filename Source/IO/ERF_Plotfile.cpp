@@ -1764,17 +1764,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 }
 
 void
-ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nlevels,
+ERF::WriteMultiLevelPlotfileWithTerrain (const std::string plotfilename,
+                                         int nlevels,
                                          const Vector<const MultiFab*>& mf,
                                          const Vector<const MultiFab*>& mf_nd,
-                                         const Vector<std::string>& varnames,
-                                         const Vector<Geometry>& my_geom,
+                                         const Vector<std::string> varnames,
+                                         const Vector<Geometry> my_geom,
                                          Real time,
                                          const Vector<int>& level_steps,
                                          const Vector<IntVect>& rr,
-                                         const std::string &versionName,
-                                         const std::string &levelPrefix,
-                                         const std::string &mfPrefix,
+                                         const std::string versionName,
+                                         const std::string levelPrefix,
+                                         const std::string mfPrefix,
                                          const Vector<std::string>& extra_dirs) const
 {
     BL_PROFILE("WriteMultiLevelPlotfileWithTerrain()");
