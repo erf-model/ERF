@@ -250,9 +250,7 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
     load_cld_lutcoeff(*cloud_optics_lw_k, cloud_optics_file_lw);
 
     // Initialize kokkos rrtmgp pool allocator
-    // The pool is a stack allocator for RRTMGP internal temporaries.
-    // Peak concurrent usage is ~20 arrays of size ncol*nlay*ngpt.
-    const size_t nvar = 20;
+    const size_t nvar = 12;
     const size_t ngpt = std::max(k_dist_sw_k->get_ngpt(),k_dist_lw_k->get_ngpt());
     const size_t ncol = gas_concs_k.ncol;
     const size_t nlay = gas_concs_k.nlay;
