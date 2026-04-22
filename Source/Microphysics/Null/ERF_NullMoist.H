@@ -35,14 +35,8 @@ public:
 
     virtual
     void
-    Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
-
-    virtual
-    void
-    Update_State_Vars (amrex::MultiFab& cons_in, const amrex::MultiFab& /*z_phys_nd*/)
-    {
-        Update_State_Vars(cons_in);
-    }
+    Update_State_Vars (amrex::MultiFab& /*cons_in*/,
+                       const amrex::MultiFab& /*z_phys_nd*/) { }
 
     virtual
     void
@@ -100,11 +94,17 @@ public:
         GetPlotVar(a_name, a_mf);
     }
 
-    virtual void SetCurrentLevel (const int&) {}
+    virtual
+    void
+    SetCurrentLevel (const int&) {}
 
-    virtual void InitLevel (const int, const amrex::MultiFab&) {}
+    virtual
+    void
+    InitLevel (const int, const amrex::MultiFab&) {}
 
-    virtual int getDiagnosticsInterval () const { return 0; }
+    virtual
+    int
+    getDiagnosticsInterval () const { return 0; }
 
     virtual
     void
