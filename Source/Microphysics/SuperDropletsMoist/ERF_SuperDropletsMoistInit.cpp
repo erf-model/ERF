@@ -293,8 +293,6 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
 
-    m_z_phys_nd_cached = a_z_phys_nd[0].get();
-
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
 
     if (m_init_type == SDMoistInit::condensate_density) {
@@ -323,7 +321,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    computeQcQrWater();
+    computeQcQrWater(*a_z_phys_nd[0]);
     computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -338,7 +336,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         });
     }
 
-    computeQcSpecies();
+    computeQcSpecies(*a_z_phys_nd[0]);
     computeQtSpecies();
 
     for (int is = 1; is < m_num_species; is++) {
