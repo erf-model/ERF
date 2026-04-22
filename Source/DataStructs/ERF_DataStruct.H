@@ -410,18 +410,9 @@ struct SolverChoice {
             substepping_type[i] = SubsteppingType::Implicit;
         }
 
-        int nvals = pp.countval("substepping_type");
-        AMREX_ALWAYS_ASSERT(nvals == 0 || nvals == 1 || nvals >= max_level+1);
-
-        if (nvals == 1) {
-            pp.query_enum_case_insensitive("substepping_type",substepping_type[0]);
-            for (int i = 1; i <= max_level; i++) {
-                substepping_type[i] = substepping_type[0];
-            }
-        } else if (nvals > 1) { // in this case we have asserted nvals >= max_level+1
-            for (int i = 0; i <= max_level; i++) {
-                pp.query_enum_case_insensitive("substepping_type",substepping_type[i],i);
-            }
+        for (int i = 0; i <= max_level; i++) {
+            query_one_or_per_level_enum_case_insensitive(
+                pp, "substepping_type", substepping_type[i], i, max_level);
         }
 
         pp.query("substepping_diag", substepping_diag);
@@ -512,8 +503,12 @@ struct SolverChoice {
         pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
-        pert_type = PerturbationType::None; // Default
-        pp.query_enum_case_insensitive("perturbation_type",pert_type);
+        pert_type.resize(max_level+1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            pert_type[lev] = PerturbationType::None; // Default
+            query_one_or_per_level_enum_case_insensitive(
+                pp, "perturbation_type", pert_type[lev], lev, max_level);
+        }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {zero, zero, zero};
         pp.queryarr("abl_pressure_grad",abl_pressure_grad_in);
@@ -769,15 +764,33 @@ struct SolverChoice {
             }
         }
 
-        amrex::ParmParse pp_ens("ensemble");
-        pp_ens.query("is_init_with_correlated_pert", is_init_with_correlated_pert);
-        if(is_init_with_correlated_pert) {
-            pp_ens.query("pert_correlated_radius", pert_correlated_radius);
-            if(pert_correlated_radius <= zero) {
+        pp.query("is_init_for_ensemble", is_init_for_ensemble);
+        if(is_init_for_ensemble) {
+            amrex::ParmParse pp_ens("ensemble");
+            pp_ens.query("n_members", n_ensemble);
+            pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
+            pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
+            pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
+            if (n_ensemble < 0) {
+                amrex::Abort("You are running an ensemble simulation, There needs to be an entry in the inputs "
+                             "ensemble.n_ensemble which is the number of ensemble members, and should be greater than 0.");
+            }
+            if (coarse_bckgnd_data_file.empty()) {
+                amrex::Abort("coarse_bckgnd_data_file is empty! For ensmeble simulations, there needs to be a coarse background file which "
+                             "contains the data which will be interpolated onto the fine mesh. There has to a entry ensemble.coarse_bckgnd_data_file "
+                             "which contains the filename in the inputs.");
+            }
+            if(ens_pert_amplitude <= 0.0) {
+                amrex::Error("You are using initialization for ensemble simulations using the inputs option "
+                             "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
+                             "ensemble.ens_pert_amplitude which is the value of the amplitude of the perturbation  "
+                             "to be added to the background state and has to be greater than 0.0");
+            }
+            if(ens_pert_correlated_radius <= 0.0) {
                 amrex::Error("You are using initialization with spatially correlated perturbations using the inputs option "
-                             "ensemble.is_init_with_correlated_pert=true. In this case, there has to be an option "
-                             "ensemble.pert_correlated_radius which is the value of the the spatial correlation radius, "
-                             "and has to be greater than zero");
+                             "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
+                             "ensemble.ens_pert_correlated_radius which is the value of the the spatial correlation radius, "
+                             "and has to be greater than 0.0");
             }
         }
     }
@@ -1215,8 +1228,38 @@ struct SolverChoice {
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
 
+    bool use_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Source ||
+               pert_type[lev] == PerturbationType::Direct ||
+               pert_type[lev] == PerturbationType::CPM;
+    }
+
+    bool use_direct_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Direct ||
+               pert_type[lev] == PerturbationType::CPM;
+    }
+
+    bool use_source_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::Source;
+    }
+
+    bool any_perturbation () const
+    {
+        for (const auto& type : pert_type) {
+            if (type == PerturbationType::Source ||
+                type == PerturbationType::Direct ||
+                type == PerturbationType::CPM) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Type of perturbation
-    PerturbationType pert_type;
+    amrex::Vector<PerturbationType> pert_type;
 
     // Numerical diffusion
     bool use_num_diff{false};
@@ -1280,7 +1323,10 @@ struct SolverChoice {
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
-    bool is_init_with_correlated_pert = false;
-    amrex::Real pert_correlated_radius = -one;
+    bool is_init_for_ensemble = false;
+    int n_ensemble = -1;
+    amrex::Real ens_pert_correlated_radius = -1.0;
+    amrex::Real ens_pert_amplitude = -1.0;
+    std::string coarse_bckgnd_data_file;
 };
 #endif

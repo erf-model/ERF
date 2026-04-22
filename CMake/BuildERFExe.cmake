@@ -319,6 +319,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
+       ${SRC_DIR}/Initialization/ERF_InitForEnsemble.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
