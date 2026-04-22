@@ -11,7 +11,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0.   0.   0.
 geometry.prob_hi     =  0.04 0.04 0.04
 amr.n_cell           =  4    4    4      # dx=dy=dz=0.01m
-geometry.is_periodic = 1 1 1
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.00001     # fixed time step [s]
