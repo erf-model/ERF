@@ -1800,7 +1800,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
             boxArrays[level] = mf[level]->boxArray();
         }
 
-        auto f = [=]() {
+        auto f = [=,this]() {
             VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
             std::string HeaderFileName(plotfilename + "/Header");
             std::ofstream HeaderFile;
