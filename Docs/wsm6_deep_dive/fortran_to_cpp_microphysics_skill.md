@@ -1493,3 +1493,59 @@ Common crash sources in nislfv-style advection routines:
   in the last array slot, causing downstream zero denominators.
 - Column temporaries sized WSM6_MAX_LEVELS must be filled
   exactly km = khi-klo+1 elements, no more, no less.
+
+## Rule 33: Pre-compile reflexive alignment pass — group-by-group
+
+After writing a group in C++ but BEFORE compiling, show the
+Fortran source for that group alongside the C++ (two subagents,
+one per file, same line range) and scan for:
+
+1. Statements OUTSIDE the main loop body: initializations
+   before loops, sentinel assignments after loops, scalar
+   resets between loops. These are the most commonly dropped
+   lines in translation because they look like boilerplate.
+   Motivating example: Fortran line 1866
+     dza(km+1) = zi(km+1) - za(km+1)
+   was dropped in the C++ translation of update_wind_and_state,
+   leaving dza[km] uninitialized and producing NaN downstream.
+
+2. Loop bounds: Fortran do k=1,km → C++ for(k=0;k<km;++k)
+                Fortran do k=1,km+1 → C++ for(k=0;k<=km;++k)
+   Arrays sized km+1 in Fortran need index [km] in C++.
+
+3. Every array with size km+1 — verify the km+1 index is
+   always written before it is read.
+
+Translation bugs cluster at loop boundaries, not inside loop
+bodies. The body gets transcribed carefully because it is
+visually prominent. Before/after statements get dropped
+because they look like boilerplate.
+
+## Rule 34: Fortran control flow restructuring hazards
+
+Before translating any Fortran group, scan for these patterns:
+
+1. goto + labeled continue (backward jump = loop):
+   Fortran:
+     n=1
+     100 continue
+       ! body
+       if (n.le.iter) then
+         n=n+1
+         go to 100
+       endif
+   Must become an explicit while/for loop in C++, NOT a
+   one-shot if block. A one-shot if handles iter=0 and iter=1
+   correctly but silently fails for iter>1.
+   Always check ALL call sites for non-zero iter arguments
+   even when the immediate test case passes.
+   Motivating example: nislfv_rain_plm goto 100 loop,
+   currently called with iter=0/1 only — silent for now.
+
+2. cycle → continue, exit → break, but verify which enclosing
+   construct they target. Fortran named loops (i_loop:,
+   find_kb:) make targets explicit; C++ does not.
+
+3. go to that jumps forward past an else block is an early
+   exit — translate as a labeled break or restructure to
+   if/else. Do not use C++ goto.

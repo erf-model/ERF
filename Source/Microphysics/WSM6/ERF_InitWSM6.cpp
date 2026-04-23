@@ -80,12 +80,21 @@ WSM6::initialize_coeffs()
 {
     using amrex::Real;
 
-    // rgmma: reciprocal gamma, matching Fortran rgmma() convention
-    // rgmma(1.0) = 0.0 by Fortran convention; 1/tgamma(1.0) = 1.0 in C++
-    // so we need the special case explicitly
+    // Exact port of Fortran rgmma() — ERF_module_mp_wsm6.F90 lines 1472-1495
+    // Weierstrass infinite product form for Gamma(x).
+    // Special case x==1 returns 0.0 matching Fortran exactly.
+    // Never triggered in practice (bvtr1=1.8, bvts1=1.41, etc.)
+    // but preserved for bit-compatible validation against Fortran reference.
+    // CPU-only: called from initialize_coeffs(), not from GPU kernels.
     auto rgmma = [](Real x) -> Real {
         if (x == Real(1.0)) return Real(0.0);
-        return Real(1.0) / static_cast<Real>(std::tgamma(static_cast<double>(x)));
+        constexpr Real euler = Real(0.577215664901532);
+        Real result = x * std::exp(euler * x);
+        for (int i = 1; i <= 10000; ++i) {
+            Real y = Real(i);
+            result = result * (Real(1.0) + x/y) * std::exp(-x/y);
+        }
+        return Real(1.0) / result;
     };
 
     // Physical constants matching mp_wsm6_init argument list
