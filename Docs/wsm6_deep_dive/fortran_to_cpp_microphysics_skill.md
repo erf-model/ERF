@@ -1434,6 +1434,177 @@ then add the next. Never add all diagnostics at once.
 Compile flag: -DWSM6_DIAG added to CMake for diagnostic builds only.
 Remove all diagnostic prints before Phase 5 assembly.
 
+## Rule 30 Addendum: Runtime High-Precision Diagnostic Instrumentation
+
+### 1. Directive Overview and Purpose
+
+This addendum defines the transition of the Phase 3 diagnostic protocol (Rule 25)
+from legacy compile-time guards to a unified runtime parameter system. The
+primary objective is to facilitate high-precision bit-for-bit comparison between
+Path A (Fortran Bridge) and Path B (Native AMReX C++) without requiring code
+recompilation.
+
+In the microphysics porting workflow, we distinguish between functional stability
+(handled via backtrace analysis per Rule 32) and numerical validation. This
+instrumentation is the "scalpel" for Phase 4 incremental implementation: it
+allows developers to bisect the execution flow, identifying the exact point where
+the C++ implementation diverges from the Fortran ground truth. It is specifically
+designed to catch discrepancies introduced by library substitutions (e.g., using
+std::tgamma instead of the Weierstrass infinite product rgmma implementation
+required by Rule 21) or indexing errors in complex sedimentation kernels.
+
+### 2. The Unified Debug Parameter: erf.microphysics_debug
+
+Instrumentation behavior is controlled via an integer runtime parameter,
+erf.microphysics_debug. This parameter must be queried in the C++ layer using the
+amrex::ParmParse utility within the Advance call or the class constructor.
+
+```cpp
+amrex::ParmParse pp("erf");
+int microphysics_debug = 0;
+pp.query("microphysics_debug", microphysics_debug);
+```
+
+| Level | Mode | Diagnostic Behavior |
+|---|---|---|
+| 0 | Production | Diagnostics disabled; zero performance overhead in production kernels. |
+| 1 | Validation | High-precision summary prints enabled for the target column (i=its, j=jts). |
+| 2 | Exhaustive | Per-cell/per-block dumps enabled. Restricted to small validation test cases only. |
+
+### 3. Isohelper C-Binding Interface Update
+
+To maintain synchronization between layers, the isohelper bridge (Rule 2) must be
+updated to pass the debug integer. The removal of all legacy compile-time flags
+(e.g., #ifdef WSM6_DIAG) is mandatory. Changing the ABI (Application Binary
+Interface) is a non-negotiable requirement to ensure runtime control propagates
+into the core Fortran modules.
+
+Required bind(C) Signature (ERF_module_mp_wsm6_isohelper.F90): The
+microphysics_debug argument must use the value attribute for proper
+C-interoperability.
+
+```fortran
+subroutine mp_wsm6_run_c(t, qv, ..., its, ite, jts, jte, kts, kte, microphysics_debug) &
+           bind(C, name="mp_wsm6_run_c")
+    use iso_c_binding
+    integer(c_int), intent(in), value :: microphysics_debug
+    ! ... interface body ...
+    call mp_wsm6_run(t, qv, ..., its, ite, jts, jte, kts, kte, microphysics_debug)
+end subroutine
+```
+
+### 4. Path A: Fortran Diagnostic Implementation
+
+Instrumentation inside the core mp_wsm6_run routine must use the passed-in
+microphysics_debug integer to gate all write(*, ...) statements. To identify
+machine-epsilon divergence, all floating-point values must be output with
+16-digit precision using the E24.16 format specifier.
+
+Implementation Requirements:
+- Targeting: Print statements must target a single column
+  (i == its .and. j == jts) and the first sub-step loop (loop == 1) to prevent
+  log saturation.
+- Format String: Use the canonical pattern '(A,I3,6E24.16)'. This includes the
+  diagnostic tag (String), the vertical level k (Integer), and exactly six
+  physical variables (Reals).
+- Precision: Use E24.16 for all variables.
+
+Fortran Example:
+
+```fortran
+if (microphysics_debug >= 1 .and. i == its .and. j == jts .and. loop == 1) then
+    write(*,'(A,I3,6E24.16)') 'PRAUT ', k, praut(i,k), qr(i,k), qc(i,k), t(i,k), 0.0, 0.0
+endif
+```
+
+### 5. Path B: C++ Diagnostic Implementation
+
+C++ instrumentation in ERF_AdvanceWSM6.cpp must match the Fortran alignment and
+precision exactly. Use of std::cout is strictly forbidden to prevent interleaved
+output in parallel runs.
+
+Implementation Requirements:
+- GPU Synchronization: Since amrex::Print() executes on the host, you must
+  synchronize the GPU and copy device-resident Array4 values to host-side scalars
+  before printing.
+- Format Matching: To ensure diff-ability, the C++ output must provide exactly
+  six floating-point values to match the Fortran 6E24.16 format. If a process
+  block involves fewer than six variables, pad the remaining fields with 0.0.
+- Gating: Use if (microphysics_debug >= 1 &&
+  amrex::ParallelDescriptor::IOProcessor()).
+
+C++ Example:
+
+```cpp
+if (microphysics_debug >= 1 && loop == 0) {
+    // Synchronize to pull data from Device to Host
+    amrex::Gpu::streamSynchronize();
+    int i = its; int j = jts;
+    for (int k = kts; k <= kte; ++k) {
+        amrex::Print() << amrex::Format("PRAUT %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n")
+            << k << praut_arr(i,j,k) << qr_arr(i,j,k) << qc_arr(i,j,k)
+            << t_arr(i,j,k) << 0.0 << 0.0;
+    }
+}
+```
+
+### 6. Standardized Diagnostic Tags and Execution Order
+
+All diagnostic tags must align with the canonical execution order defined in
+Rule 27. Any divergence in tag naming between Path A and Path B is forbidden.
+
+| Tag | Group | Process Description |
+|---|---|---|
+| DENFAC | G1b | Density factors via vrec/vsqrt |
+| QSAT | G1c | Saturation mixing ratio and relative humidity |
+| SLOPE1 | G4 | First slope_wsm6 call results |
+| NISLFV_R | G5b | Rain sedimentation (nislfv_rain_plm) |
+| NISLFV_SG | G5c | Snow/Graupel sedimentation (nislfv_rain_plm6) |
+| FALL | G5d | Sedimentation mass updates and falk/fall values |
+| SLOPE2 | G6 | Second slope_wsm6 call (post-sedimentation) |
+| MELT | G7 | Melting rates (psmlt, pgmlt) |
+| VICE | G8 | Ice crystal fallout |
+| PRECIP | G9 | Surface precipitation accumulation |
+| PHASE | G10 | Instantaneous phase changes (pimlt, pihmf, etc.) |
+| SLOPE3 | G11 | Third slope_wsm6 call (post-phase change) |
+| PRAUT | G13 | Autoconversion (Cloud to Rain) |
+| PRACW | G13 | Accretion (Cloud by Rain) |
+| PREVP | G13 | Evaporation (Rain to Vapor) |
+| PRACI | G13 | Ice-Rain interactions (praci, piacr) |
+| PSACI | G13 | Snow-Cloud/Snow-Water accretion |
+| PRACS | G13 | Snow-Rain/Rain-Snow interactions |
+| PSEML | G13 | Enhanced snow/graupel melting (T >= T0) |
+| PIDEP | G13 | Deposition/Nucleation (pidep, psdep, pgdep, pigen) |
+| PSAUT | G13 | Snow/Graupel autoconversion/nucleation |
+| PSEVP | G13 | Sublimation/Evaporation (T >= T0) |
+| UPDATE | G14 | State update and mass conservation check |
+| QSAT2 | G15 | Second saturation check |
+| PCOND | G16 | Final condensation/evaporation update |
+
+### 7. Validation Workflow (The "Sidecar" Protocol)
+
+This protocol follows a strict sequence to isolate numerical divergence.
+Note: Per Rule 32, the code must be functionally stable (no crashes) before this
+validation has meaning.
+
+1. Generate Path A Baseline:
+  - Set erf.use_wsm6_cpp_answer = 0 and erf.microphysics_debug = 1 in the inputs file.
+  - Run the simulation: mpirun -n 1 ./ERF3d.gnu.ex inputs_file > log.fortran.
+2. Generate Path B Test Case:
+  - Set erf.use_wsm6_cpp_answer = 1 and erf.microphysics_debug = 1.
+  - Run the simulation: mpirun -n 1 ./ERF3d.gnu.ex inputs_file > log.cpp.
+3. Bisection Analysis:
+  - Execute diff log.fortran log.cpp.
+  - Identify the first tag where values diverge. Because the physics is
+    sequential, errors in G1b (DENFAC) will propagate through all subsequent
+    groups.
+4. Acceptance Criterion:
+  - Final acceptance of Path B requires that the plotfiles pass amrex_fcompare.
+  - The target for dynamics variables (Density, RhoTheta) is a relative difference <= 1e-14.
+  - Any discrepancy larger than machine epsilon at the first diagnostic tag
+    indicates a transcription error or an invalid library substitution that must
+    be corrected.
+
 ## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern
 
 Use a runtime ParmParse query, not a build-time flag, to switch
@@ -1493,6 +1664,120 @@ Common crash sources in nislfv-style advection routines:
   in the last array slot, causing downstream zero denominators.
 - Column temporaries sized WSM6_MAX_LEVELS must be filled
   exactly km = khi-klo+1 elements, no more, no less.
+
+## Rule 32 Addendum: Hardened Phase 4 Validation Workflow (Stop, Diff, Retreat)
+
+### Rule 32.1: The Hardened Phase 4 Mandate (Stop, Diff, Retreat)
+
+The "Stop, Diff, Retreat" workflow is the mandatory protocol for validating
+large routine ports. For complex microphysics routines like the WSM6
+mp_wsm6_run (1,255 lines of Fortran), the 300-line physics threshold
+represents a "critical mass" where manual verification and bulk parity checks
+fail. Without this protocol, errors in early process blocks (e.g., saturation
+vapor pressure) compound and contaminate downstream logic, rendering subsequent
+validation efforts moot.
+
+MANDATE: Architects must enforce a per-process differential analysis. At the
+first sign of numerical divergence from the Fortran ground truth, the developer
+must stop forward porting, isolate the failing block, and retreat to the last
+bit-for-bit identical process group before attempting further implementation.
+
+### Rule 32.2: Strict Asset Grounding (Tracked Assets vs. Untracked Scripts)
+
+Validation must rely exclusively on tracked repository assets. The use of
+ad-hoc, local, or volatile debug scripts is strictly forbidden to ensure
+bit-for-bit reproducibility across the engineering team.
+
+| Permitted Tracked Assets | Forbidden Untracked Assets |
+|---|---|
+| The 120-step run recipe documented in the WSM6/README. | Local ad-hoc audit or "one-off" debug scripts. |
+| Exec/CanonicalTests/SquallLine_2D/inputs_moisture_WSM6 configuration file. | Local, uncommitted modifications to the canonical inputs file. |
+| ${AMREX_HOME}/Tools/PostProcessing/C_subroutines/amrex_fcompare utility. | Custom spreadsheet-based diff tools or local diff scripts. |
+| Exec/CanonicalTests/SquallLine_2D/run_r600b_subtaskA.sh harness. | Volatile shell history commands or unversioned local run-scripts. |
+
+### Rule 32.3: Targeted Column Inspection and Gated Aborts
+
+To resolve numerical divergence, developers must utilize the
+"Gated Isolate/Print/Abort" pattern. This narrows investigation to a single
+active column (typically the center of the squall line) where physics activity
+is highest.
+
+1. Isolate: Target a single active column (e.g., i=ilo, j=jlo) derived from the
+   amrex::MFIter tile or the compute box.
+2. Print: Utilize the diagnostic instrumentation protocol from Rule 30 to emit
+   specific tags (e.g., DENFAC, QSAT, SLOPE1, QSAT2, PCOND) for that specific
+   column.
+3. Abort: Insert amrex::Abort() immediately after the process block under
+   investigation. This prevents downstream propagation from masking the root
+   cause.
+
+Code Snippet: Gated Implementation with GPU Synchronization
+
+When printing from the host after a GPU kernel, developers must ensure the
+device has finished computation to prevent reading stale memory.
+
+```cpp
+// Example: Validating Group 13 Warm-Rain Processes (Rule 27)
+ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    // ... logic for praut, pracw, prevp ...
+});
+
+// Force GPU synchronization before host-side diagnostic print (Rule 15/Rule 32.3)
+Gpu::synchronize();
+
+if (wsm6_diag && loop == 0) { // wsm6_diag parsed from erf.microphysics_debug
+    int ilo = bx.smallEnd(0);
+    int jlo = bx.smallEnd(1);
+
+    for (int k = klo; k <= khi; ++k) {
+        amrex::Print() << "PRAUT " << k << " " << praut_arr(ilo, jlo, k) << "\n";
+    }
+    amrex::Abort("Gated Abort: Phase 4 validation of PRAUT complete.");
+}
+```
+
+### Rule 32.4: The Iterative Retreat Strategy
+
+The retreat strategy uses the Complete Ordered Process Inventory (Rule 27) as
+the authoritative map. If divergence occurs, the developer must implement a
+hybrid execution model to revert the system to a known-good state.
+
+1. Detect: Identify divergence during Phase 5 amrex_fcompare or Phase 4
+   diagnostic checks.
+2. Identify: Locate the specific Group (G1 through G18) in Rule 27 where the
+   divergence first manifests.
+3. Retreat: Implement "Hybrid Execution." Use the #ifdef ERF_USE_WSM6_FORT
+   toggle (from Rule 12 and Rule 31) to disable the native C++ implementation
+   for the failing group and all subsequent groups. Bridge these failing blocks
+   back to the Fortran source. Confirm the system returns to a bit-for-bit match
+   with the Fortran ground truth.
+4. Fix: Perform a "Reflexive Alignment Pass" (Rule 33). Scan C++ against Fortran
+   line-by-line. Prioritize checking loop boundaries (0-based vs 1-based) and
+   verifying that scalars initialized outside the Fortran loop body were not
+   dropped during the C++ translation.
+
+### Rule 32.5: Acceptance Criteria for Resuming Forward Progress
+
+The "Green-Light" state is the mandatory threshold required to move from Phase 4
+(incremental implementation) to Phase 5 (full assembly). Diagnostic outputs for
+the current process group must match the Rule 30 ground truth exactly or within
+the following validated machine epsilon limits.
+
+Validated Epsilon Thresholds for WSM6
+
+Values are established at step 120 of the 2D Squall Line case
+(inputs_moisture_WSM6).
+
+| Variable | Absolute Epsilon | Relative Epsilon |
+|---|---|---|
+| Density | 9.1e-15 | 8.1e-15 |
+| Rhotheta | 1.3e-12 | 3.9e-15 |
+| Precipitation | 0.0 (Exact) | 0.0 (Exact) |
+
+Note on Precipitation: For dry test cases where initial moisture is set below
+threshold, accumulation (Rain/Snow/Graupel) must be an exact zero. Any non-zero
+value, however small, indicates a logic error in the "if-cloudy" branching or a
+failure in the species-indexed array handling (Rule 6).
 
 ## Rule 33: Pre-compile reflexive alignment pass — group-by-group
 
