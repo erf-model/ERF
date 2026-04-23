@@ -101,7 +101,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                             is_water );
 
             // Compute new condensate mixing ratio
-            computeQc(is);
+            computeQc(is, *a_z[0]);
 
             if (a_update_qv) {
 

@@ -16,12 +16,13 @@ namespace {
     };
 }
 
-void ERFPC::massDensity ( MultiFab&  a_mf,
-                          const int& a_lev,
-                          const int& a_comp ) const
+void ERFPC::massDensity ( MultiFab&        a_mf,
+                          const MultiFab&  a_z_phys_nd,
+                          const int&       a_lev,
+                          const int&       a_comp ) const
 {
     BL_PROFILE("ERFPC::massDensity()");
-    ERFPCParticleToMesh(a_mf, a_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const ERFPC::ParticleTileType::ConstParticleTileDataType& ptd, int i) {
             return ptd.m_rdata[ERFParticlesRealIdxSoA::mass][i];
         });
@@ -42,7 +43,6 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
     // Helper lambda: recompute k-indices for all particles on a given level.
     // Uses compute_k_from_z for the initial guess, then refines with the
     // terrain height array (update_location_idata) per tile.
-    // z_phys_nd is always allocated (even for flat terrain).
     auto recompute_k_for_level = [&](int lev, int ref_ratio)
     {
         const auto& particles = GetParticles();
