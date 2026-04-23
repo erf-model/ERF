@@ -1779,6 +1779,106 @@ threshold, accumulation (Rain/Snow/Graupel) must be an exact zero. Any non-zero
 value, however small, indicates a logic error in the "if-cloudy" branching or a
 failure in the species-indexed array handling (Rule 6).
 
+### Rule 32.6: Multi-Step Bitwise Validation Protocol for Rule Addendum
+
+#### 1. Purpose and Scope of Rule 32.6
+
+The objective of this addendum is the formalization of bitwise parity checks
+between Path A (Fortran Bridge) and Path B (Native C++) over extended temporal
+regimes. While single-step verification is necessary, it is insufficient to
+guarantee the long-term stability of the native implementation. This rule is
+explicitly linked to the "Acceptance Criterion for Path B" established in the
+Development Workflow Notes. To satisfy this rule, Path B must maintain machine
+epsilon limits, specifically Density at 8.1e-15 (Relative) and Rhotheta at
+3.9e-15 (Relative), across multiple integration steps to ensure cumulative
+numerical drift does not violate scientific integrity.
+
+#### 2. Multi-Step Step-Regime Protocol (1, 2, and 10-Step Validation)
+
+Validation must proceed through a structured, incremental step-count protocol.
+This tiered approach isolates errors occurring in initializations, single-cycle
+copybacks, or long-term process rate integration.
+
+| Validation Tier | Step Count | Expected Result |
+|---|---|---|
+| Tier 1 (One-Step) | 1 | Verification of initial state consistency and Group 1 (Column Setup) logic. |
+| Tier 2 (Two-Step) | 2 | Verification of the first loops/dtcld cycle and state-to-micro copyback/update logic. |
+| Tier 3 (10-Step) | 10 | Stress test for numerical drift in sedimentation (Group 5/8 nislfv kernels) and process rate compounding. |
+
+During these tests, the "Sidecar" Protocol (Rule 30 Addendum) must be active.
+The developer must set the runtime parameter erf.microphysics_debug = 1 to
+trigger diagnostic tags and monitor the first active column (i=ilo, j=jlo).
+
+#### 3. Canonical Run-Time Benchmarks (3-Minute and 9-Minute Regimes)
+
+To evaluate the stability of the C++ implementation as physics activity
+increases (e.g., as a squall line develops), WSM6 validation must be performed
+at specific simulated times using the SquallLine_2D test case (Rule 32.2).
+
+- 3-Minute Benchmark: Evaluates early-stage physics activation and initial stability.
+- 9-Minute Benchmark: Evaluates mature physics interactions, including complex species interactions in Group 13.
+
+Bit-for-bit parity or validation within machine epsilon (as defined in Rule 25,
+Phase 1) is required at these timestamps. The Path B implementation cannot be
+considered "Green-Lit" until the 9-minute plotfile successfully passes the
+amrex_fcompare validation against the Path A ground truth.
+
+#### 4. Multi-Step Compounding and Rule 27 Interactions
+
+Numerical errors in the early stages of a microphysics routine exhibit a
+"Contamination Effect," where discrepancies in early process groups snowball
+over time. Errors in the polynomial expansion for saturation vapor pressure
+(G1c) are the primary drivers of divergence in G13 (Warm-rain processes)
+autoconversion and accretion rates.
+
+Key "High-Risk Transition Points" from the Rule 27 Ordered Process Inventory
+include:
+
+- G1b (Denfac) & G1c (Qsat): Errors here propagate into all species-dependent process rates.
+- G13 (Warm-rain): Where autoconversion rates amplify small vapor pressure discrepancies.
+- G14 (Mass conservation): Where scaled rates based on erroneous inputs lead to divergent state updates.
+
+Warning: When interpreting diagnostic prints from the host to resolve these
+discrepancies, the developer must invoke Gpu::synchronize() before the print
+statement to ensure the device has completed computation and avoid reading stale
+memory values. If a 10-step run diverges, the developer must use the
+microphysics_debug tags (e.g., SLOPE1, NISLFV_R, UPDATE) to identify exactly
+which sub-step loop iteration introduced the non-epsilon discrepancy.
+
+#### 5. Integration with the "Stop, Diff, Retreat" Workflow
+
+Rule 32.6 modifies the "Retreat" strategy (Rule 32.4) by mandating a Stepwise
+Retreat procedure when multi-step divergence is detected:
+
+1. Stop: Immediately cease forward development if Step N shows a divergence
+   beyond the 1e-14 relative epsilon threshold.
+2. Diff: Execute amrex_fcompare on plotfiles generated from Step N-1 and Step N.
+3. Retreat: Revert the C++ implementation to a Hybrid Execution model. Use the
+   #ifdef ERF_USE_WSM6_FORT toggle to revert the implementation to the Fortran
+   Bridge (Rule 12/31) starting from the last verified Step (N-X) until
+   bit-for-bit parity is restored.
+
+Consistent with the Hardened Phase 4 Mandate (Rule 32.1), further Phase 4
+implementation is strictly gated. Development of additional process groups is
+forbidden until the 10-step bit-for-bit parity (within validated epsilon) is
+restored for all existing implemented groups.
+
+#### 6. Acceptance Criteria and Machine Epsilon Limits
+
+Rule 32.6 certification is granted only upon meeting the following mandatory
+requirements.
+
+Rule 32.6 Mandatory Certification Requirements:
+
+- 10-Step Bitwise Match: Achieving parity within specified relative epsilon
+  limits: Density: 8.1e-15 (Relative) and Rhotheta: 3.9e-15 (Relative).
+- Precipitation Integrity: Zero precipitation accumulation must be maintained in
+  all dry test cases (Exact 0.0 match).
+- Benchmark Validation: Successful amrex_fcompare of the 9-minute
+  SquallLine_2D plotfile against the Fortran Path A ground truth.
+- Diagnostic Verification: All erf.microphysics_debug = 1 tags must match the
+  Fortran-side WSM6-FORT traces for the target validation column.
+
 ## Rule 33: Pre-compile reflexive alignment pass — group-by-group
 
 After writing a group in C++ but BEFORE compiling, show the
