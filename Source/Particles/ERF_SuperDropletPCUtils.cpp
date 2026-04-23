@@ -62,10 +62,10 @@ void SuperDropletPC::updateDeviceProperties()
 }
 
 /*! Compute mesh variable from particles */
-void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
-                                     MultiFab&           a_mf,
-                                     const MultiFab&     a_z_phys_nd,
-                                     const int           a_lev) const
+void SuperDropletPC::computeMeshVar( const std::string& a_var_name,
+                                     MultiFab&          a_mf,
+                                     const MultiFab&    a_z_phys_nd,
+                                     const int          a_lev) const
 {
     BL_PROFILE("SuperDropletPC::computeMeshVar()");
     a_mf.setVal(0.0);
