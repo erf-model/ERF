@@ -87,3 +87,46 @@
   - Build a debug/symbolized WSM6 executable.
   - Re-run the short WSM6 case.
   - Symbolize the first failing frame and pin the exact line.
+
+# Print/Debug Commit Lineage (2026-04-23 refresh)
+- Audit scope: `git log --all` across `Source/Microphysics/WSM6` and `Source/Microphysics/Morrison`, plus docs coverage in `Docs/wsm6_deep_dive/*.md`.
+- This section is a direct backfill for the previously pending items about exact debug-flag and emission locations.
+
+## Exact source anchors now identified
+- WSM6 runtime debug flag parsing in current tree:
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:686`
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:688`
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:689`
+- WSM6 host-side print gate and block-tag dump helper in current tree:
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:785`
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:806`
+  - `Source/Microphysics/WSM6/ERF_AdvanceWSM6.cpp:811`
+  - Block-tag callsites include `WSM6-CPP PRE/POST-*` at lines `995, 1010, 1097, 1106, 1111, 1147, 1151, 1156, 1238, 1242, 1245, 1248, 1252, 1291, 1294, 1352, 1355, 1417`.
+- WSM6 Fortran-side write traces currently present (group tags `WSM6-FORT PRE/POST-*`):
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90:495`
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6.F90:930`
+- WSM6 ISO helper bounds/error writes currently present:
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90:16`
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90:46`
+  - `Source/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90:98`
+
+## Commit lineage most relevant to phase-3/phase-4 diagnostics
+| Commit | Date | Subject | Diagnostic significance | Deep-dive docs coverage |
+|---|---|---|---|---|
+| `357ab3b6` | 2026-04-06 | `WSM6/Morrison debug + restart consistency instrumentation` | Adds `microphysics_debug`/`microphysics_debug_seam`, `MPDBG PRE/POST/STEP`, per-cell `std::printf` patterns for both schemes. | Only in `notebooklm_morrison_print_history.md` |
+| `0e3749e6` | 2026-04-06 | `Morrison: remove microphysics debug print paths` | Removes the Morrison-side `MPDBG*` path added in `357ab3b6`. | Only in `notebooklm_morrison_print_history.md` |
+| `5f6d5057` | 2026-04-06 | `WSM6: remove remaining microphysics debug print paths` | Removes WSM6-side `MPDBG*` path and parse gates. | Not captured in deep-dive docs |
+| `d131c5fc` | 2025-03-28 | `write statements` | Adds high-detail Morrison Fortran write payloads (`write(10,...)`) useful as formatting/indexing precedent. | Not captured in deep-dive docs |
+| `1720371b` | 2025-04-02 | `Try 0,0,k and tweak writes` | Adjusts Morrison Fortran diagnostic write granularity/splitting and adds direct `print*` probes. | Not captured in deep-dive docs |
+| `8a0dccc8` | 2025-03-28 | `Fix indexing to write accumulation to bottom` | Fixes indexing related to accumulation write location in Morrison Fortran path. | Not captured in deep-dive docs |
+
+## Coverage gap summary
+- Not captured in `Docs/wsm6_deep_dive/*` at all:
+  - `5f6d5057`, `d131c5fc`, `1720371b`, `8a0dccc8`
+- Captured only in `Docs/wsm6_deep_dive/notebooklm_morrison_print_history.md` and not yet integrated into sidecar/main deep-dive notes:
+  - `357ab3b6`, `0e3749e6`, and the 2025 Morrison print-series commits (`acbd706a` through `5f6707a5`).
+
+## Practical reuse for current phase-3/phase-4 work
+1. Use `d131c5fc` and `1720371b` as historical templates for Fortran write payload structure and index handling when defining target-column dumps.
+2. Use `357ab3b6` as the reference pattern for runtime-gated C++ summary and per-cell debug output tags.
+3. Keep the symmetry of add/remove lifecycle explicit by pairing `357ab3b6` with both cleanup commits (`0e3749e6` for Morrison, `5f6d5057` for WSM6).

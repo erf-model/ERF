@@ -1,5 +1,6 @@
 #include "ERF_WSM6.H"
 #include "ERF_WSM6_Fortran_Interface.H"
+#include <AMReX_Reduce.H>
 #include <cmath>
 
 using namespace amrex;
@@ -272,8 +273,10 @@ void wsm6_nislfv_rain_plm (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 dza[k] = za[k + 1] - za[k];
+                if (dza[k] <= Real(0.0)) dza[k] = dz[k]; // divergence guard
             }
             dza[km] = zi[km] - za[km]; // Fortran: dza(km+1) = zi(km+1)-za(km+1)
+            if (dza[km] <= Real(0.0)) dza[km] = dz[km > 0 ? km - 1 : 0];
             for (int k = 0; k < km; ++k) {
                 qa[k] = qq[k] * dz[k] / dza[k];
                 qr[k] = qa[k] / den[k];
@@ -516,8 +519,10 @@ void wsm6_nislfv_rain_plm6 (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 dza[k] = za[k + 1] - za[k];
+                if (dza[k] <= Real(0.0)) dza[k] = dz[k]; // divergence guard
             }
             dza[km] = zi[km] - za[km]; // Fortran: dza(km+1) = zi(km+1)-za(km+1)
+            if (dza[km] <= Real(0.0)) dza[km] = dz[km > 0 ? km - 1 : 0];
             for (int k = 0; k < km; ++k) {
                 qa[k] = qq[k] * dz[k] / dza[k];
                 qa2[k] = qq2[k] * dz[k] / dza[k];
@@ -678,6 +683,10 @@ WSM6::Advance(const Real& dt_advance,
     { amrex::ParmParse pp("erf");
       pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
     bool run_wsm6_fort = !use_wsm6_cpp_answer;
+    int microphysics_debug = 0;
+    { amrex::ParmParse pp("erf");
+      pp.query("microphysics_debug", microphysics_debug); }
+    microphysics_debug = std::max(0, std::min(2, microphysics_debug));
 
     static bool wsm6_inited = false;
 
@@ -773,6 +782,50 @@ WSM6::Advance(const Real& dt_advance,
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& snowacc_arr = snowacc_fab.array();
         auto const& graupacc_arr = graupacc_fab.array();
+        auto print_wsm6_state = [&](const char* tag,
+                                    const Array4<const Real>& qv,
+                                    const Array4<const Real>& qc,
+                                    const Array4<const Real>& qr,
+                                    const Array4<const Real>& qi,
+                                    const Array4<const Real>& qs,
+                                    const Array4<const Real>& qg,
+                                    const Array4<const Real>& t,
+                                    const Array4<const Real>& den,
+                                    const Array4<const Real>& denfac,
+                                    const Array4<const Real>& delz,
+                                    const Array4<const Real>& cpm,
+                                    const Array4<const Real>& xni,
+                                    const Array4<const Real>& work1c,
+                                    const Array4<const Real>& work1r,
+                                    const Array4<const Real>& work1s,
+                                    const Array4<const Real>& work1g,
+                                    int ilo, int ihi,
+                                    int jlo, int jhi,
+                                    int klo, int khi) {
+            if (!ParallelDescriptor::IOProcessor()) return;
+            if (microphysics_debug < 1) return;
+            Gpu::synchronize();
+            for (int k = klo; k <= khi; ++k)
+            for (int j = jlo; j <= jhi; ++j)
+            for (int i = ilo; i <= ihi; ++i)
+                std::printf(
+                    "%s i=%d j=%d k=%d "
+                    "qv=%.15e qc=%.15e qr=%.15e "
+                    "qi=%.15e qs=%.15e qg=%.15e t=%.15e "
+                    "den=%.15e denfac=%.15e delz=%.15e "
+                    "cpm=%.15e xni=%.15e work1c=%.15e "
+                    "work1r=%.15e work1s=%.15e work1g=%.15e\n",
+                    tag, i, j, k,
+                    (double)qv(i,j,k), (double)qc(i,j,k),
+                    (double)qr(i,j,k), (double)qi(i,j,k),
+                    (double)qs(i,j,k), (double)qg(i,j,k),
+                    (double)t(i,j,k),
+                    (double)den(i,j,k), (double)denfac(i,j,k),
+                    (double)delz(i,j,k), (double)cpm(i,j,k),
+                    (double)xni(i,j,k), (double)work1c(i,j,k),
+                    (double)work1r(i,j,k), (double)work1s(i,j,k),
+                    (double)work1g(i,j,k));
+        };
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rainacc_arr(i,j,0) = rain_arr(i,j,klo);
             snowacc_arr(i,j,0) = snow_arr(i,j,klo);
@@ -838,7 +891,7 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox work2_fab(fab_box,1);     FArrayBox workdiffw_fab(fab_box,1);
         FArrayBox workdiffi_fab(fab_box,1);
         FArrayBox workr_fab(fab_box,1);     FArrayBox worka_fab(fab_box,1);
-        FArrayBox work1c_fab(fab_box,1);
+        FArrayBox work1c_fab(fab_box,1); work1c_fab.setVal(Real(0.0));
         FArrayBox denqrs1_fab(fab_box,1);   FArrayBox denqrs2_fab(fab_box,1);
         FArrayBox denqrs3_fab(fab_box,1);   FArrayBox denqci_fab(fab_box,1);
         FArrayBox fall_r_fab(fab_box,1);    FArrayBox fall_s_fab(fab_box,1);
@@ -939,6 +992,10 @@ WSM6::Advance(const Real& dt_advance,
             amrex::ignore_unused(g18_stub);
         }
 
+        print_wsm6_state("WSM6-CPP PRE-GA",
+                         qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                         ilo, ihi, jlo, jhi, klo, khi);
+
         // Groups A-E: pre-loop setup
         // Clamp negative values (Group A)
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -950,6 +1007,9 @@ WSM6::Advance(const Real& dt_advance,
             den_tmp_arr(i,j,k)  = den_arr(i,j,k);
             delz_tmp_arr(i,j,k) = delz_arr(i,j,k);
         });
+        print_wsm6_state("WSM6-CPP POST-GA",
+                         qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                         ilo, ihi, jlo, jhi, klo, khi);
 
         // Group B: cpm, xl — computed once from initial state [lines 455-460]
         const Real xlv1_loc = m_xlv1;
@@ -1034,14 +1094,23 @@ WSM6::Advance(const Real& dt_advance,
             });
 
             // G3: xni ice crystal number concentration  [lines 598-604]
+            print_wsm6_state("WSM6-CPP PRE-G3",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real tmp = den_arr(i,j,k)*amrex::max(qi_arr(i,j,k), Real(qmin));
                 xni_arr(i,j,k) = amrex::min(
                     amrex::max(Real(5.38e7)*std::sqrt(std::sqrt(tmp*tmp*tmp)), Real(1.e3)),
                     Real(1.e6));
             });
+            print_wsm6_state("WSM6-CPP POST-G3",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G4: pack qrs_tmp, first slope_wsm6 [lines 610-618]
+            print_wsm6_state("WSM6-CPP PRE-G4",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
                 qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
@@ -1075,8 +1144,18 @@ WSM6::Advance(const Real& dt_advance,
                     work1_g_arr(i,j,k));
                 n0sfac_arr(i,j,k) = dummy_n0sfac;
             });
+            print_wsm6_state("WSM6-CPP POST-G4",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+
+            print_wsm6_state("WSM6-CPP PRE-G1",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G5a-G5e: sedimentation setup, nislfv calls, and flux updates
+            print_wsm6_state("WSM6-CPP PRE-G5",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
                 if (km_local > WSM6_MAX_LEVELS) return;
@@ -1156,6 +1235,23 @@ WSM6::Advance(const Real& dt_advance,
                 fall_s_arr(i,j,klo) = delqrs2_arr(i,j,0);
                 fall_g_arr(i,j,klo) = delqrs3_arr(i,j,0);
             });
+            print_wsm6_state("WSM6-CPP POST-G5",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+
+            print_wsm6_state("WSM6-CPP POST-G1",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+            print_wsm6_state("WSM6-CPP PRE-G2",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+            print_wsm6_state("WSM6-CPP POST-G2",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+
+            print_wsm6_state("WSM6-CPP PRE-G6",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G6: repack qrs_tmp, second slope_wsm6 [lines 655-663]
             // slope params updated after sedimentation moved mass
@@ -1191,6 +1287,13 @@ WSM6::Advance(const Real& dt_advance,
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
             });
+
+            print_wsm6_state("WSM6-CPP POST-G6",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+            print_wsm6_state("WSM6-CPP PRE-G7",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G7: melting (T>T0 only) [lines 665-704]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1245,6 +1348,13 @@ WSM6::Advance(const Real& dt_advance,
                     }
                 }
             });
+
+            print_wsm6_state("WSM6-CPP POST-G7",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
+            print_wsm6_state("WSM6-CPP PRE-G8",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G8: cloud ice sedimentation/fallout [lines 708-735]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1303,6 +1413,10 @@ WSM6::Advance(const Real& dt_advance,
                 delqi_arr(i,j,0) = delqi_col / delz_arr(i,j,klo) / dtcld;
                 fallc_arr(i,j,klo) = delqi_arr(i,j,0);
             });
+
+            print_wsm6_state("WSM6-CPP POST-G8",
+                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
+                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G9: surface precipitation accumulation [lines 741-770]
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {

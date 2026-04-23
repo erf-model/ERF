@@ -490,9 +490,39 @@
 !----------------------------------------------------------------
 ! initialize the large scale variables
 !
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-GA', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
    do i = its, ite
      mstep(i) = 1
      flgcld(i) = .true.
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-GA', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+   enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G1b', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
    enddo
 !
 !  do k = kts, kte
@@ -511,6 +541,16 @@
      call vsqrt(dvec1,tvec1,ite-its+1)
      do i = its,ite
         denfac(i,k) = dvec1(i)
+   enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G1b', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
      enddo
    enddo
 !
@@ -529,6 +569,16 @@
    xbi=xai+hsub/(rv*ttp)
    do k = kts, kte
      do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G1c', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
        tr=ttp/t(i,k)
        qsat(i,k,1)=psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
        qsat(i,k,1) = min(qsat(i,k,1),0.99*p(i,k))
@@ -545,6 +595,16 @@
        qsat(i,k,2) = ep2 * qsat(i,k,2) / (p(i,k) - qsat(i,k,2))
        qsat(i,k,2) = max(qsat(i,k,2),qmin)
        rh(i,k,2) = max(q(i,k) / qsat(i,k,2),qmin)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G1c', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
      enddo
    enddo
 !
@@ -592,6 +652,16 @@
        xni(i,k) = 1.e3
      enddo
    enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G2', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
 !-------------------------------------------------------------
 ! Ni: ice crystal number concentraiton   [HDC 5c]
 !-------------------------------------------------------------
@@ -600,6 +670,26 @@
        temp = (den(i,k)*max(qi(i,k),qmin))
        temp = sqrt(sqrt(temp*temp*temp))
        xni(i,k) = min(max(5.38e7*temp,1.e3),1.e6)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G2', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G3', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
      enddo
    enddo
 !
@@ -614,8 +704,48 @@
        qrs_tmp(i,k,3) = qg(i,k)
      enddo
    enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G4', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G3', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G4', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G5', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
 !
    do k = kte, kts, -1
      do i = its, ite
@@ -654,6 +784,26 @@
    enddo
    do k = kts, kte
      do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G5', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G6', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
        qrs_tmp(i,k,1) = qr(i,k)
        qrs_tmp(i,k,2) = qs(i,k)
        qrs_tmp(i,k,3) = qg(i,k)
@@ -661,6 +811,26 @@
    enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G6', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G7', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
 !
    do k = kte, kts, -1
      do i = its, ite
@@ -702,6 +872,26 @@
        endif
      enddo
    enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G7', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT PRE-G8', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
+   enddo
 !---------------------------------------------------------------
 ! Vice [ms-1] : fallout of ice crystal [HDC 5a]
 !---------------------------------------------------------------
@@ -733,6 +923,16 @@
    enddo
    do i = its, ite
      fallc(i,1) = delqi(i)/delz(i,1)/dtcld
+   enddo
+   do k = kts, kte
+     do i = its, ite
+       write(*,'(A,3(A,I4),7(A,E22.15))') &
+         'WSM6-FORT POST-G8', &
+         ' i=',i,' j=',1,' k=',k, &
+         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
+         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
+         ' t=',t(i,k)
+     enddo
    enddo
 !
 !----------------------------------------------------------------
