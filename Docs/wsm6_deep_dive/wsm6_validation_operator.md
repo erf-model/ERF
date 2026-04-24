@@ -108,3 +108,5 @@ Validate in process order; do not mark downstream groups PASS when upstream fail
 - Keep diagnostics at level 1 unless actively isolating a local issue.
 - Avoid broad code edits during validation runs; isolate one suspected cause at a time.
 - Commit manifest/run-ledger updates in small, reviewable chunks.
+- Enforce strict Rule 30 group-boundary snapshots: emit each canonical tag at the immediate process-group boundary (`NISLFV_R` right after `nislfv_rain_plm`, `NISLFV_SG` right after `nislfv_rain_plm6`), not from a later aggregate `POST-G*` state.
+- If a group boundary value is later copied/reduced in subsequent sub-steps, print from boundary snapshot buffers/derived temporaries captured at the boundary, and note `strict_group_boundary_snapshot` in `validation_runs.tsv` notes.

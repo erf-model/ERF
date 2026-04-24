@@ -880,6 +880,8 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox fall_r_fab(fab_box,1);    FArrayBox fall_s_fab(fab_box,1);
         FArrayBox fall_g_fab(fab_box,1);    FArrayBox fallc_fab(fab_box,1);
         FArrayBox qsum_fab(fab_box,1);
+        FArrayBox nislfv_r_diag_fab(fab_box,6); nislfv_r_diag_fab.setVal(Real(0.0));
+        FArrayBox nislfv_sg_diag_fab(fab_box,6); nislfv_sg_diag_fab.setVal(Real(0.0));
         // process rates
         FArrayBox praut_fab(fab_box,1); FArrayBox pracw_fab(fab_box,1);
         FArrayBox prevp_fab(fab_box,1); FArrayBox psdep_fab(fab_box,1);
@@ -940,6 +942,8 @@ WSM6::Advance(const Real& dt_advance,
         auto const& fall_g_arr    = fall_g_fab.array();
         auto const& fallc_arr     = fallc_fab.array();
         auto const& qsum_arr      = qsum_fab.array();
+        auto const& nislfv_r_diag_arr = nislfv_r_diag_fab.array();
+        auto const& nislfv_sg_diag_arr = nislfv_sg_diag_fab.array();
         auto const& praut_arr     = praut_fab.array();
         auto const& pracw_arr     = pracw_fab.array();
         auto const& prevp_arr     = prevp_fab.array();
@@ -1213,12 +1217,32 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1);
+                // Strict Rule 30 snapshot: immediately after G5b
+                for (int k = klo; k <= khi; ++k) {
+                    const int kk = k - klo;
+                    nislfv_r_diag_arr(i,j,k,0) = amrex::max(denqrs1_col[kk] / den_col[kk], Real(0.0));
+                    nislfv_r_diag_arr(i,j,k,1) = denqrs1_col[kk] * workr_col[kk] / delz_arr(i,j,k);
+                    nislfv_r_diag_arr(i,j,k,2) = workr_col[kk];
+                    nislfv_r_diag_arr(i,j,k,3) = denqrs1_col[kk];
+                    nislfv_r_diag_arr(i,j,k,4) = den_col[kk];
+                    nislfv_r_diag_arr(i,j,k,5) = denfac_col[kk];
+                }
 
                 // G5c: snow + graupel sedimentation
                 wsm6_nislfv_rain_plm6(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     worka_col, denqrs2_col, denqrs3_col,
                     &delqrs2_col, &delqrs3_col, dtcld, 1, 1);
+                // Strict Rule 30 snapshot: immediately after G5c
+                for (int k = klo; k <= khi; ++k) {
+                    const int kk = k - klo;
+                    nislfv_sg_diag_arr(i,j,k,0) = amrex::max(denqrs2_col[kk] / den_col[kk], Real(0.0));
+                    nislfv_sg_diag_arr(i,j,k,1) = amrex::max(denqrs3_col[kk] / den_col[kk], Real(0.0));
+                    nislfv_sg_diag_arr(i,j,k,2) = denqrs2_col[kk] * worka_col[kk] / delz_arr(i,j,k);
+                    nislfv_sg_diag_arr(i,j,k,3) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
+                    nislfv_sg_diag_arr(i,j,k,4) = denqrs2_col[kk];
+                    nislfv_sg_diag_arr(i,j,k,5) = denqrs3_col[kk];
+                }
 
                 // G5d: update species and fall speeds
                 for (int k = klo; k <= khi; ++k) {
@@ -1246,8 +1270,19 @@ WSM6::Advance(const Real& dt_advance,
                 fall_g_arr(i,j,klo) = delqrs3_arr(i,j,0);
             });
             print_wsm6_tag6("WSM6-CPP_NISLFV_R",
-                            qr_arr, fall_r_arr, workr_arr,
-                            denqrs1_arr, den_arr, denfac_arr, loop);
+                            nislfv_r_diag_fab.const_array(0),
+                            nislfv_r_diag_fab.const_array(1),
+                            nislfv_r_diag_fab.const_array(2),
+                            nislfv_r_diag_fab.const_array(3),
+                            nislfv_r_diag_fab.const_array(4),
+                            nislfv_r_diag_fab.const_array(5), loop);
+            print_wsm6_tag6("WSM6-CPP_NISLFV_SG",
+                            nislfv_sg_diag_fab.const_array(0),
+                            nislfv_sg_diag_fab.const_array(1),
+                            nislfv_sg_diag_fab.const_array(2),
+                            nislfv_sg_diag_fab.const_array(3),
+                            nislfv_sg_diag_fab.const_array(4),
+                            nislfv_sg_diag_fab.const_array(5), loop);
             print_wsm6_state("WSM6-CPP POST-G5",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);

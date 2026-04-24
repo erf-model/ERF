@@ -789,8 +789,24 @@
    enddo
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,workr,denqrs1,  &
                         delqrs1,dtcld,1,1)
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_R ', k, &
+         max(denqrs1(its,k)/den(its,k),0.), &
+         denqrs1(its,k)*workr(its,k)/delz(its,k), &
+         workr(its,k), denqrs1(its,k), den(its,k), denfac(its,k)
+     enddo
+   endif
    call nislfv_rain_plm6(idim,kdim,den_tmp,denfac,t,delz_tmp,worka,         &
                          denqrs2,denqrs3,delqrs2,delqrs3,dtcld,1,1)
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_SG ', k, &
+         max(denqrs2(its,k)/den(its,k),0.), max(denqrs3(its,k)/den(its,k),0.), &
+         denqrs2(its,k)*worka(its,k)/delz(its,k), &
+         denqrs3(its,k)*worka(its,k)/delz(its,k), denqrs2(its,k), denqrs3(its,k)
+     enddo
+   endif
    do k = kts, kte
      do i = its, ite
        qr(i,k) = max(denqrs1(i,k)/den(i,k),0.)
@@ -806,12 +822,6 @@
      fall(i,1,2) = delqrs2(i)/delz(i,1)/dtcld
      fall(i,1,3) = delqrs3(i)/delz(i,1)/dtcld
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_R ', k, &
-         qr(its,k), fall(its,k,1), workr(its,k), denqrs1(its,k), den(its,k), denfac(its,k)
-     enddo
-   endif
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
