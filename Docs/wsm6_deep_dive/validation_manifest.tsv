@@ -2,8 +2,8 @@ group_id	fortran_tag	cpp_tag	target_column_ij	status	divergence_variable	compare
 G1b	WSM6-FORT_DENFAC	WSM6-CPP_DENFAC	(its, jts)	EPSILON_OK	none	denfac, den, qv, qc, qr, qi, qs, qg, t	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
 G1c	WSM6-FORT_QSAT	WSM6-CPP_QSAT	(its, jts)	EPSILON_OK	none	qsatw, qsati, rhw, rhi, qv, t, p, den	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
 G4	WSM6-FORT_SLOPE1	WSM6-CPP_SLOPE1	(its, jts)	EPSILON_OK	none	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_dry
-G5b	WSM6-FORT_NISLFV_R	WSM6-CPP_NISLFV_R	(its, jts)	EPSILON_OK	none	qr, fall_r, work1r, denqrs1, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G5c	WSM6-FORT_NISLFV_SG	WSM6-CPP_NISLFV_SG	(its, jts)	EPSILON_OK	none	qs, qg, fall_s, fall_g, work1s, work1g, denqrs2, denqrs3, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G5b	WSM6-FORT_NISLFV_R	WSM6-CPP_NISLFV_R	(its, jts)	EPSILON_OK	none	qr, fall_r, work1r, denqrs1, den, denfac, delz	E24.16_6fields_L1; group_extended_L2; strict_group_boundary_snapshot	1-step_debug|2-step_debug|10-step_debug
+G5c	WSM6-FORT_NISLFV_SG	WSM6-CPP_NISLFV_SG	(its, jts)	EPSILON_OK	none	qs, qg, fall_s, fall_g, work1s, work1g, denqrs2, denqrs3, den, denfac, delz	E24.16_6fields_L1; group_extended_L2; strict_group_boundary_snapshot	1-step_debug|2-step_debug|10-step_debug
 G5d	WSM6-FORT_FALL	WSM6-CPP_FALL	(its, jts)	FAIL	missing_canonical_tags_FALL	qr, qs, qg, fall_r/s/g, denqrs1/2/3, work1r/s/g, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G6	WSM6-FORT_SLOPE2	WSM6-CPP_SLOPE2	(its, jts)	RETREAT	upstream_G5d_missing_tag_contract	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G7	WSM6-FORT_MELT	WSM6-CPP_MELT	(its, jts)	RETREAT	upstream_G5d_missing_tag_contract	psmlt, pgmlt, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
