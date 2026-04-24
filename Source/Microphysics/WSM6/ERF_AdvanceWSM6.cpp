@@ -790,20 +790,11 @@ WSM6::Advance(const Real& dt_advance,
                                     const Array4<const Real>& qs,
                                     const Array4<const Real>& qg,
                                     const Array4<const Real>& t,
-                                    const Array4<const Real>& den,
-                                    const Array4<const Real>& denfac,
-                                    const Array4<const Real>& delz,
-                                    const Array4<const Real>& cpm,
-                                    const Array4<const Real>& xni,
-                                    const Array4<const Real>& work1c,
-                                    const Array4<const Real>& work1r,
-                                    const Array4<const Real>& work1s,
-                                    const Array4<const Real>& work1g,
                                     int ilo, int ihi,
                                     int jlo, int jhi,
                                     int klo, int khi) {
             if (!ParallelDescriptor::IOProcessor()) return;
-            if (microphysics_debug < 1) return;
+            if (microphysics_debug < 2) return;
             Gpu::synchronize();
             for (int k = klo; k <= khi; ++k)
             for (int j = jlo; j <= jhi; ++j)
@@ -811,20 +802,12 @@ WSM6::Advance(const Real& dt_advance,
                 std::printf(
                     "%s i=%d j=%d k=%d "
                     "qv=%.15e qc=%.15e qr=%.15e "
-                    "qi=%.15e qs=%.15e qg=%.15e t=%.15e "
-                    "den=%.15e denfac=%.15e delz=%.15e "
-                    "cpm=%.15e xni=%.15e work1c=%.15e "
-                    "work1r=%.15e work1s=%.15e work1g=%.15e\n",
+                    "qi=%.15e qs=%.15e qg=%.15e t=%.15e\n",
                     tag, i, j, k,
                     (double)qv(i,j,k), (double)qc(i,j,k),
                     (double)qr(i,j,k), (double)qi(i,j,k),
                     (double)qs(i,j,k), (double)qg(i,j,k),
-                    (double)t(i,j,k),
-                    (double)den(i,j,k), (double)denfac(i,j,k),
-                    (double)delz(i,j,k), (double)cpm(i,j,k),
-                    (double)xni(i,j,k), (double)work1c(i,j,k),
-                    (double)work1r(i,j,k), (double)work1s(i,j,k),
-                    (double)work1g(i,j,k));
+                    (double)t(i,j,k));
         };
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rainacc_arr(i,j,0) = rain_arr(i,j,klo);
@@ -849,7 +832,7 @@ WSM6::Advance(const Real& dt_advance,
                 snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
                 graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
                 imlo, imhi, jmlo, jmhi, kmlo, kmhi,
-                ilo, ihi, jlo, jhi, klo, khi);
+                ilo, ihi, jlo, jhi, klo, khi, microphysics_debug);
         } else {
 #endif
         // --- Phase 4 native C++ kernel ---
@@ -984,6 +967,26 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pgeml_arr     = pgeml_fab.array();
         auto const& psevp_arr     = psevp_fab.array();
         auto const& pgevp_arr     = pgevp_fab.array();
+        auto print_wsm6_tag6 = [&](const char* tag,
+                                   const Array4<const Real>& a1,
+                                   const Array4<const Real>& a2,
+                                   const Array4<const Real>& a3,
+                                   const Array4<const Real>& a4,
+                                   const Array4<const Real>& a5,
+                                   const Array4<const Real>& a6,
+                                   int loop) {
+            if (microphysics_debug < 1 || loop != 0) return;
+            if (!ParallelDescriptor::IOProcessor()) return;
+            Gpu::synchronize();
+            for (int k = klo; k <= khi; ++k) {
+                const int k_out = (k - klo) + 1;
+                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            tag, k_out,
+                            (double)a1(ilo,jlo,k), (double)a2(ilo,jlo,k),
+                            (double)a3(ilo,jlo,k), (double)a4(ilo,jlo,k),
+                            (double)a5(ilo,jlo,k), (double)a6(ilo,jlo,k));
+            }
+        };
 
         // G18 stub: rainprod2d / evapprod2d are not implemented yet.
         // Keep this ignore_unused block here until the 2D diagnostics are wired.
@@ -1044,6 +1047,8 @@ WSM6::Advance(const Real& dt_advance,
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 denfac_arr(i,j,k) = std::sqrt(Real(den0)/den_arr(i,j,k));
             });
+            print_wsm6_tag6("WSM6-CPP_DENFAC",
+                            denfac_arr, den_arr, qv_arr, qc_arr, qr_arr, qi_arr, loop);
 
             // G1c: qsatw, qsati, rhw, rhi  [lines 517-549]
             {
@@ -1072,6 +1077,8 @@ WSM6::Advance(const Real& dt_advance,
                     rhi_arr(i,j,k)   = amrex::max(qv_arr(i,j,k)/qsi, Real(qmin));
                 });
             }
+            print_wsm6_tag6("WSM6-CPP_QSAT",
+                            qsatw_arr, qsati_arr, rhw_arr, rhi_arr, qv_arr, t_arr, loop);
 
             // G2: zero all process rates each sub-step  [lines 555-594]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1144,6 +1151,9 @@ WSM6::Advance(const Real& dt_advance,
                     work1_g_arr(i,j,k));
                 n0sfac_arr(i,j,k) = dummy_n0sfac;
             });
+            print_wsm6_tag6("WSM6-CPP_SLOPE1",
+                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
+                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
             print_wsm6_state("WSM6-CPP POST-G4",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);
@@ -1235,6 +1245,9 @@ WSM6::Advance(const Real& dt_advance,
                 fall_s_arr(i,j,klo) = delqrs2_arr(i,j,0);
                 fall_g_arr(i,j,klo) = delqrs3_arr(i,j,0);
             });
+            print_wsm6_tag6("WSM6-CPP_NISLFV_R",
+                            qr_arr, fall_r_arr, workr_arr,
+                            denqrs1_arr, den_arr, denfac_arr, loop);
             print_wsm6_state("WSM6-CPP POST-G5",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);

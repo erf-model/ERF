@@ -23,9 +23,10 @@ contains
                            xlv0, xlf0, den0, denr, cliq, cice, psat, &
                            rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
                            ims, ime, jms, jme, kms, kme, &
-                           its, ite, jts, jte, kts, kte) bind(C, name="mp_wsm6_run_c")
+                           its, ite, jts, jte, kts, kte, microphysics_debug) bind(C, name="mp_wsm6_run_c")
     integer(c_int), value, intent(in) :: ims, ime, jms, jme, kms, kme
     integer(c_int), value, intent(in) :: its, ite, jts, jte, kts, kte
+    integer(c_int), value, intent(in) :: microphysics_debug
     real(c_double), intent(inout), dimension(ims:ime, jms:jme, kms:kme) :: t, qv, qc, qi, qr, qs, qg
     real(c_double), intent(in), dimension(ims:ime, jms:jme, kms:kme) :: den, p, delz
     real(c_double), value, intent(in) :: delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls
@@ -33,7 +34,7 @@ contains
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: rain, rainncv, sr
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
 
-    integer :: i, j, k, kk, kdim
+    integer :: i, j, k, kk, kdim, debug_local
     integer :: errflg
     character(len=256) :: errmsg
 
@@ -89,10 +90,14 @@ contains
         graupelncv_col(i)= graupelncv(i,j)
       end do
 
+      debug_local = int(microphysics_debug, kind(0))
+      if (microphysics_debug == 1_c_int .and. j /= jts) debug_local = 0
+
       call mp_wsm6_run(t_col, q_col, qc_col, qi_col, qr_col, qs_col, qg_col, den_col, p_col, delz_col, &
                        delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, den0, denr, &
                        cliq, cice, psat, rain_col, rainncv_col, sr_col, snow_col, snowncv_col, &
-                       graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, errmsg=errmsg, errflg=errflg)
+                       graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, &
+                       microphysics_debug=debug_local, errmsg=errmsg, errflg=errflg)
 
       if (errflg /= 0) then
         write(*,'(A,1X,I0,2A)') 'mp_wsm6_run_c error at j=', j, ': ', trim(errmsg)

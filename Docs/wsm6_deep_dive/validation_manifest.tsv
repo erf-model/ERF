@@ -1,26 +1,26 @@
 group_id	fortran_tag	cpp_tag	target_column_ij	status	divergence_variable	compare_variables	print_contract	setup_id
-G1b	WSM6-FORT_DENFAC	WSM6-CPP_DENFAC	(its, jts)	PENDING	denfac	denfac, den, qv, qc, qr, qi, qs, qg, t	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
-G1c	WSM6-FORT_QSAT	WSM6-CPP_QSAT	(its, jts)	PENDING	qsatw, qsati, rhw, rhi	qsatw, qsati, rhw, rhi, qv, t, p, den	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
-G4	WSM6-FORT_SLOPE1	WSM6-CPP_SLOPE1	(its, jts)	PENDING	rslope_r/s/g, rslopeb_r/s/g	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_dry
-G5b	WSM6-FORT_NISLFV_R	WSM6-CPP_NISLFV_R	(its, jts)	PENDING	qr, fall_r	qr, fall_r, work1r, denqrs1, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G5c	WSM6-FORT_NISLFV_SG	WSM6-CPP_NISLFV_SG	(its, jts)	PENDING	qs, qg, fall_s, fall_g	qs, qg, fall_s, fall_g, work1s, work1g, denqrs2, denqrs3, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G5d	WSM6-FORT_FALL	WSM6-CPP_FALL	(its, jts)	PENDING	qr, qs, qg, fall_r/s/g	qr, qs, qg, fall_r/s/g, denqrs1/2/3, work1r/s/g, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G6	WSM6-FORT_SLOPE2	WSM6-CPP_SLOPE2	(its, jts)	PENDING	rslope_r/s/g	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G7	WSM6-FORT_MELT	WSM6-CPP_MELT	(its, jts)	PENDING	psmlt, pgmlt	psmlt, pgmlt, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G8	WSM6-FORT_VICE	WSM6-CPP_VICE	(its, jts)	PENDING	qi, fallc	qi, fallc, work1c, denqci, xni, den, denfac, delz, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G9	WSM6-FORT_PRECIP	WSM6-CPP_PRECIP	(its, jts)	PENDING	rainncv, snowncv, graupelncv	rainncv, snowncv, graupelncv, rain, snow, graupel, fall_r/s/g, fallc	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G10	WSM6-FORT_PHASE	WSM6-CPP_PHASE	(its, jts)	PENDING	pimlt, pihmf, pihtf, pgfrz, t, qc	pimlt, pihmf, pihtf, pgfrz, qc, qi, qr, qg, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G11	WSM6-FORT_SLOPE3	WSM6-CPP_SLOPE3	(its, jts)	PENDING	rslope_r/s/g	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13a	WSM6-FORT_PRAUT	WSM6-CPP_PRAUT	(its, jts)	PENDING	qc, qr, praut	praut, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13b	WSM6-FORT_PRACW	WSM6-CPP_PRACW	(its, jts)	PENDING	qc, qr, pracw	pracw, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13c	WSM6-FORT_PREVP	WSM6-CPP_PREVP	(its, jts)	PENDING	qr, qv, prevp	prevp, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13d	WSM6-FORT_PRACI	WSM6-CPP_PRACI	(its, jts)	PENDING	qr, qs, qg, qc, qi, t, praci, piacr	praci, piacr, qr, qs, qg, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13e	WSM6-FORT_PSACI	WSM6-CPP_PSACI	(its, jts)	PENDING	qs, qc, qi, t, psaci, psacw, paacw	psaci, psacw, paacw, qs, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13f	WSM6-FORT_PRACS	WSM6-CPP_PRACS	(its, jts)	PENDING	qr, qs, qg, t, pracs, psacr	pracs, psacr, qr, qs, qg, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13g	WSM6-FORT_PSEML	WSM6-CPP_PSEML	(its, jts)	PENDING	qs, qg, t, pseml, pgeml	pseml, pgeml, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	PENDING	qv, qi, qs, qg, pidep, pigen	pidep, pigen, psdep, pgdep, qv, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	PENDING	qi, qs, qg, psaut	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	PENDING	qv, qs, qg, psevp, pgevp	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	PENDING	q, qc, qi, qr, qs, qg, t	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	PENDING	qsatw	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	PENDING	q, qc, t	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G1b	WSM6-FORT_DENFAC	WSM6-CPP_DENFAC	(its, jts)	EPSILON_OK	none	denfac, den, qv, qc, qr, qi, qs, qg, t	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
+G1c	WSM6-FORT_QSAT	WSM6-CPP_QSAT	(its, jts)	EPSILON_OK	none	qsatw, qsati, rhw, rhi, qv, t, p, den	E24.16_6fields_L1; exhaustive_state_pack_L2	1-step_dry
+G4	WSM6-FORT_SLOPE1	WSM6-CPP_SLOPE1	(its, jts)	EPSILON_OK	none	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_dry
+G5b	WSM6-FORT_NISLFV_R	WSM6-CPP_NISLFV_R	(its, jts)	EPSILON_OK	none	qr, fall_r, work1r, denqrs1, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G5c	WSM6-FORT_NISLFV_SG	WSM6-CPP_NISLFV_SG	(its, jts)	FAIL	missing_canonical_tags_NISLFV_SG	qs, qg, fall_s, fall_g, work1s, work1g, denqrs2, denqrs3, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G5d	WSM6-FORT_FALL	WSM6-CPP_FALL	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	qr, qs, qg, fall_r/s/g, denqrs1/2/3, work1r/s/g, den, denfac, delz	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G6	WSM6-FORT_SLOPE2	WSM6-CPP_SLOPE2	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G7	WSM6-FORT_MELT	WSM6-CPP_MELT	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	psmlt, pgmlt, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G8	WSM6-FORT_VICE	WSM6-CPP_VICE	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	qi, fallc, work1c, denqci, xni, den, denfac, delz, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G9	WSM6-FORT_PRECIP	WSM6-CPP_PRECIP	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	rainncv, snowncv, graupelncv, rain, snow, graupel, fall_r/s/g, fallc	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G10	WSM6-FORT_PHASE	WSM6-CPP_PHASE	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pimlt, pihmf, pihtf, pgfrz, qc, qi, qr, qg, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G11	WSM6-FORT_SLOPE3	WSM6-CPP_SLOPE3	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	rslope_r/s/g, rslopeb_r/s/g, rslope2_r/s/g, rslope3_r/s/g, denfac, t	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13a	WSM6-FORT_PRAUT	WSM6-CPP_PRAUT	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	praut, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13b	WSM6-FORT_PRACW	WSM6-CPP_PRACW	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pracw, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13c	WSM6-FORT_PREVP	WSM6-CPP_PREVP	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	prevp, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13d	WSM6-FORT_PRACI	WSM6-CPP_PRACI	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	praci, piacr, qr, qs, qg, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13e	WSM6-FORT_PSACI	WSM6-CPP_PSACI	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	psaci, psacw, paacw, qs, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13f	WSM6-FORT_PRACS	WSM6-CPP_PRACS	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pracs, psacr, qr, qs, qg, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13g	WSM6-FORT_PSEML	WSM6-CPP_PSEML	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pseml, pgeml, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pidep, pigen, psdep, pgdep, qv, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G5c_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
