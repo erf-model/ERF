@@ -29,6 +29,13 @@ Outputs:
 - On first divergence beyond epsilon, stop forward validation.
 - Record first divergent group/tag/step.
 - Mark current group `FAIL` and downstream groups `RETREAT` as needed.
+- Retreat method is two-stage and fidelity-first:
+  1) Block-by-block: move process-group by process-group to isolate the first failing block.
+  2) Line-by-line inside that block: prove the first failing statement with paired diagnostics around one line/block:
+     `PRE_<site>` (inputs/local vars) and `POST_<site>` (outputs/local vars).
+- Per-line fidelity is required before changing logic: inputs must still match across Fortran/C++ at `PRE_<site>` and first diverge at `POST_<site>`.
+- Bisection inside the block is allowed, but every proposed fix must be backed by this per-line evidence.
+- Record the confirmed site in `validation_runs.tsv` notes (for example `first_line_divergence=<file>:<line>`).
 
 4. Use tracked assets only for formal validation.
 
@@ -96,6 +103,10 @@ rg "WSM6-(FORT|CPP)_(DENFAC|QSAT|SLOPE1|NISLFV_R|NISLFV_SG|FALL|SLOPE2|MELT|VICE
 
 `validation_runs.tsv` append fields (minimum):
 - `run_id`, `timestamp_utc`, `git_sha`, `setup_id`, `use_wsm6_cpp_answer`, `microphysics_debug`, `max_step`, `first_divergence_group`, `first_divergence_tag`, `first_divergence_step`, `status`, `notes`.
+- `git_sha` policy:
+  - `*-dirty` rows are allowed for debug/triage evidence, but are not sufficient for formal status promotion.
+  - Any `validation_manifest.tsv` status/frontier change (`PASS`, `EPSILON_OK`, new `FAIL` frontier, downstream `RETREAT` shift) should be backed by a rerun from a clean commit SHA.
+  - Do not use `git commit --amend` to update failing-run provenance; prefer a new small checkpoint commit, rerun, then append new rows with the new clean SHA.
 
 ## 7. Dependency Ordering
 

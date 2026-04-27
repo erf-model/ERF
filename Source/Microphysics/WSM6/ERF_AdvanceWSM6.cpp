@@ -2,6 +2,8 @@
 #include "ERF_WSM6_Fortran_Interface.H"
 #include <AMReX_Reduce.H>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 using namespace amrex;
 
@@ -170,7 +172,8 @@ void wsm6_nislfv_rain_plm (int im, int km,
                            const Real* tkl, const Real* dzl,
                            Real* wwl, Real* rql,
                            Real* precip, Real dt,
-                           int id, int iter)
+                           int id, int iter,
+                           int line_check_dbg)
 {
     static_cast<void>(id);
 
@@ -223,7 +226,45 @@ void wsm6_nislfv_rain_plm (int im, int km,
             den[k] = denl[idx];
             denfac[k] = denfacl[idx];
             tk[k] = tkl[idx];
+            if (line_check_dbg >= 2 && iter == 0) {
+                auto safe_print = [](Real v) -> double {
+                    std::uint64_t bits = 0;
+                    std::memcpy(&bits, &v, sizeof(bits));
+                    const bool is_nan = ((bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
+                                        ((bits & 0x000fffffffffffffULL) != 0ULL);
+                    return is_nan ? 0.0 : static_cast<double>(v);
+                };
+                std::uint64_t qq_bits = 0;
+                std::memcpy(&qq_bits, &qq[k], sizeof(qq_bits));
+                const Real qq_is_nan = (((qq_bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
+                                        ((qq_bits & 0x000fffffffffffffULL) != 0ULL)) ? Real(1.0) : Real(0.0);
+                std::printf("WSM6-CPP_PRE_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            k + 1,
+                            static_cast<double>(Real(id)),
+                            safe_print(qq[k]), safe_print(allold),
+                            safe_print(dz[k]), safe_print(ww[k]), static_cast<double>(qq_is_nan));
+                std::fflush(stdout);
+            }
             allold += qq[k];
+            if (line_check_dbg >= 2 && iter == 0) {
+                auto safe_print = [](Real v) -> double {
+                    std::uint64_t bits = 0;
+                    std::memcpy(&bits, &v, sizeof(bits));
+                    const bool is_nan = ((bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
+                                        ((bits & 0x000fffffffffffffULL) != 0ULL);
+                    return is_nan ? 0.0 : static_cast<double>(v);
+                };
+                std::uint64_t qq_bits = 0;
+                std::memcpy(&qq_bits, &qq[k], sizeof(qq_bits));
+                const Real qq_is_nan = (((qq_bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
+                                        ((qq_bits & 0x000fffffffffffffULL) != 0ULL)) ? Real(1.0) : Real(0.0);
+                std::printf("WSM6-CPP_POST_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            k + 1,
+                            static_cast<double>(Real(id)),
+                            safe_print(qq[k]), safe_print(allold),
+                            safe_print(dz[k]), safe_print(ww[k]), static_cast<double>(qq_is_nan));
+                std::fflush(stdout);
+            }
         }
 
         precip[i] = Real(0.0);
@@ -237,9 +278,22 @@ void wsm6_nislfv_rain_plm (int im, int km,
         }
 
         auto update_wind_and_state = [&](void) {
+            if (line_check_dbg == 1 && iter == 0) {
+                std::printf("WSM6-CPP_PRE_WI_TOP %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            km,
+                            (double)ww[0], (double)ww[km - 1],
+                            (double)dz[0], (double)dz[km - 1],
+                            (double)dt, (double)Real(km));
+            }
             wi[0] = ww[0];
             wi[km] = ww[km - 1];
-            wi[km + 1] = ww[km - 1];
+            if (line_check_dbg == 1 && iter == 0) {
+                std::printf("WSM6-CPP_POST_WI_TOP %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            km,
+                            (double)wi[0], (double)wi[km],
+                            (double)ww[0], (double)ww[km - 1],
+                            (double)dz[0], (double)dz[km - 1]);
+            }
             for (int k = 1; k < km; ++k) {
                 wi[k] = (ww[k] * dz[k - 1] + ww[k - 1] * dz[k]) / (dz[k - 1] + dz[k]);
             }
@@ -485,7 +539,6 @@ void wsm6_nislfv_rain_plm6 (int im, int km,
         auto update_wind_and_state = [&](void) {
             wi[0] = ww[0];
             wi[km] = ww[km - 1];
-            wi[km + 1] = ww[km - 1];
             for (int k = 1; k < km; ++k) {
                 wi[k] = (ww[k] * dz[k - 1] + ww[k - 1] * dz[k]) / (dz[k - 1] + dz[k]);
             }
@@ -765,7 +818,7 @@ WSM6::Advance(const Real& dt_advance,
                                                      + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
         });
 
-        Box box2d(fab_box);
+        Box box2d(box);
         box2d.makeSlab(2, 0);
         FArrayBox rainncv_fab(box2d, 1);
         FArrayBox sr_fab(box2d, 1);
@@ -1216,7 +1269,7 @@ WSM6::Advance(const Real& dt_advance,
                 // G5b: rain sedimentation
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
-                    workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1);
+                    workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1, 0);
                 // Strict Rule 30 snapshot: immediately after G5b
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
@@ -1457,7 +1510,8 @@ WSM6::Advance(const Real& dt_advance,
 
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
-                    work1c_col, denqci_col, &delqi_col, dtcld, 1, 0);
+                    work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
+                    (microphysics_debug >= 1) ? 2 : 0);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
@@ -1470,6 +1524,9 @@ WSM6::Advance(const Real& dt_advance,
                 delqi_arr(i,j,0) = delqi_col / delz_arr(i,j,klo) / dtcld;
                 fallc_arr(i,j,klo) = delqi_arr(i,j,0);
             });
+            print_wsm6_tag6("WSM6-CPP_VICE",
+                            qi_arr, fallc_arr, work1c_arr,
+                            denqci_arr, xni_arr, den_arr, loop);
 
             print_wsm6_state("WSM6-CPP POST-G8",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,

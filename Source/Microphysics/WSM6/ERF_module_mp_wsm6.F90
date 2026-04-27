@@ -405,7 +405,7 @@
  real(kind=kind_phys):: vt2ave
  real(kind=kind_phys):: holdc, holdci
  integer:: i, j, k, mstepmax,                                     &
-           iprt, latd, lond, loop, loops, ifsat, n, idim, kdim
+           iprt, latd, lond, loop, loops, ifsat, n, idim, kdim, idbg_col
  integer :: mpdbg_level
 
 !Temporaries used for inlining fpvs function
@@ -974,8 +974,10 @@
        denqci(i,k) = den(i,k)*qi(i,k)
      enddo
    enddo
+   idbg_col = 0
+   if (mpdbg_level >= 1 .and. loop == 1) idbg_col = -1
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,work1c,denqci,  &
-                        delqi,dtcld,1,0)
+                        delqi,dtcld,idbg_col,0)
    do k = kts, kte
      do i = its, ite
        qi(i,k) = max(denqci(i,k)/den(i,k),0.)
@@ -984,6 +986,13 @@
    do i = its, ite
      fallc(i,1) = delqi(i)/delz(i,1)/dtcld
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_VICE ', k, &
+         qi(its,k), fallc(its,k), work1c(its,k), &
+         denqci(its,k), xni(its,k), den(its,k)
+     enddo
+   endif
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
@@ -2068,7 +2077,15 @@
 ! skip for no precipitation for all layers
     allold = 0.0
     do k=1,km
+       if (iter == 0 .and. id /= 0 .and. (id < 0 .or. i == id)) then
+          write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRE_ALLOLD ', k, &
+               real(i,kind=kind_phys), qq(k), allold, dz(k), ww(k), den(k)
+       endif
        allold = allold + qq(k)
+       if (iter == 0 .and. id /= 0 .and. (id < 0 .or. i == id)) then
+          write(*,'(A,I3,6E24.16)') 'WSM6-FORT_POST_ALLOLD ', k, &
+               real(i,kind=kind_phys), qq(k), allold, dz(k), ww(k), den(k)
+       endif
     enddo
     if(allold.le.0.0) then
        cycle i_loop
@@ -2086,8 +2103,16 @@
  100  continue
 ! plm is 2nd order, we can use 2nd order wi or 3rd order wi
 ! 2nd order interpolation to get wi
+    if (iter == 0 .and. id > 0 .and. i == id) then
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRE_WI_TOP ', km, &
+            ww(1), ww(km), dz(1), dz(km), dt, real(km,kind=kind_phys)
+    endif
     wi(1) = ww(1)
     wi(km+1) = ww(km)
+    if (iter == 0 .and. id > 0 .and. i == id) then
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_POST_WI_TOP ', km, &
+            wi(1), wi(km+1), ww(1), ww(km), dz(1), dz(km)
+    endif
     do k=2,km
        wi(k) = (ww(k)*dz(k-1)+ww(k-1)*dz(k))/(dz(k-1)+dz(k))
     enddo
