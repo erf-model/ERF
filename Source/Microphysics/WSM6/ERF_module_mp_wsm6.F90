@@ -1151,6 +1151,13 @@ integer:: i, j, k, mstepmax,                                     &
    enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_SLOPE3 ', k, &
+         rslope(its,k,1), rslope(its,k,2), rslope(its,k,3), &
+         rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
+     enddo
+   endif
 !------------------------------------------------------------------
 ! work1: the thermodynamic term in the denominator associated with
 !        heat conduction and vapor diffusion

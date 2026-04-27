@@ -1683,6 +1683,9 @@ WSM6::Advance(const Real& dt_advance,
                     work1_g_arr(i,j,k));
                 n0sfac_arr(i,j,k) = dummy_n0sfac;
             });
+            print_wsm6_tag6("WSM6-CPP_SLOPE3",
+                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
+                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
 
             // G12: workdiffw, workdiffi, work2 [lines 851-857]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
