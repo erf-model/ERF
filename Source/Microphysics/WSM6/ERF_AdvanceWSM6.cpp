@@ -1402,6 +1402,9 @@ WSM6::Advance(const Real& dt_advance,
                     }
                 }
             });
+            print_wsm6_tag6("WSM6-CPP_MELT",
+                            psmlt_arr, pgmlt_arr, qs_arr,
+                            qg_arr, qr_arr, t_arr, loop);
 
             print_wsm6_state("WSM6-CPP POST-G7",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,

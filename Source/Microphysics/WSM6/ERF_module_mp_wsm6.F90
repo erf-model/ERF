@@ -925,6 +925,13 @@
        endif
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_MELT ', k, &
+         psmlt(its,k), pgmlt(its,k), qs(its,k), &
+         qg(its,k), qr(its,k), t(its,k)
+     enddo
+   endif
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
