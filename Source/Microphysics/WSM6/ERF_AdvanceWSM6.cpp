@@ -2115,6 +2115,9 @@ WSM6::Advance(const Real& dt_advance,
             print_wsm6_tag6("WSM6-CPP_PSACI",
                             psaci_arr, psacw_arr, paacw_arr,
                             qs_arr, qc_arr, qi_arr, loop);
+            print_wsm6_tag6("WSM6-CPP_PRACS",
+                            pracs_arr, psacr_arr, qr_arr,
+                            qs_arr, qg_arr, qv_arr, loop);
 
             // G14: mass conservation check and state update [lines 1200-1388]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
