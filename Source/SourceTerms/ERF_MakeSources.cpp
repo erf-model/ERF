@@ -535,7 +535,7 @@ void make_sources (int level,
                 }
 
                 // SURFACE HEAT FLUX
-                if (tflux != 1e-8){
+                if (tflux != Real(1.0e-8)){
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         Real psi_m           = zero;
                         Real psi_h           = zero;
@@ -568,7 +568,7 @@ void make_sources (int level,
                 }
 
                 // OBUKHOV LENGTH
-                if (Olen_in != 1e-8){
+                if (Olen_in != Real(1.0e-8)){
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real Olen  = Olen_in;
                         const Real zeta          = (myhalf) * dx_z / Olen;

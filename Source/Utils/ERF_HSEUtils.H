@@ -475,7 +475,8 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
                   const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
     Real delta_p_k;
-    Real eps = Real(1.e-10);
+    // Use a relative perturbation so that p_k + eps != p_k in single precision.
+    Real eps = std::max(std::abs(p_k) * Real(1.e-5), Real(1.e-5));
 
     for(int iter=0; iter<20; iter++)
     {
@@ -491,7 +492,7 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
     }
 
 
-    if (std::fabs(delta_p_k) > 1e-8) {
+    if (std::fabs(delta_p_k) > Real(1.0)) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 

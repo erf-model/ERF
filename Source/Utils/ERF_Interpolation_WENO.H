@@ -121,7 +121,7 @@ struct WENO3
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    const amrex::Real eps=amrex::Real(1.0e-40);
+    const amrex::Real eps=amrex::Real(1.0e-12);
     static constexpr amrex::Real g1=(amrex::Real(1)/amrex::Real(3));
     static constexpr amrex::Real g2=(amrex::Real(2)/amrex::Real(3));
 };
@@ -258,7 +258,7 @@ struct WENO5
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    const amrex::Real eps=amrex::Real(1.0e-40);
+    const amrex::Real eps=amrex::Real(1.0e-12);
     static constexpr amrex::Real c1=(amrex::Real(13.0)/amrex::Real(12.0));
     static constexpr amrex::Real g1=(amrex::Real(1)/amrex::Real(10.0));
     static constexpr amrex::Real g2=(amrex::Real(3)/amrex::Real(5.0));
@@ -441,7 +441,7 @@ struct WENO7
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    const amrex::Real eps=amrex::Real(1.0e-40);
+    const amrex::Real eps=amrex::Real(1.0e-12);
     static constexpr amrex::Real g1=( amrex::Real(1)/amrex::Real(64.0));
     static constexpr amrex::Real g2=(amrex::Real(21.0)/amrex::Real(64.0));
     static constexpr amrex::Real g3=(amrex::Real(35.0)/amrex::Real(64.0));
