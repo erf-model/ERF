@@ -1511,7 +1511,7 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
-                    (microphysics_debug >= 1) ? 2 : 0);
+                    (microphysics_debug >= 1 && i == ilo && j == jlo) ? 2 : 0);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;

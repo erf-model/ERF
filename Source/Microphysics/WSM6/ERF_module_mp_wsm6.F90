@@ -975,7 +975,7 @@
      enddo
    enddo
    idbg_col = 0
-   if (mpdbg_level >= 1 .and. loop == 1) idbg_col = -1
+   if (mpdbg_level >= 1 .and. loop == 1) idbg_col = 1
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,work1c,denqci,  &
                         delqi,dtcld,idbg_col,0)
    do k = kts, kte
