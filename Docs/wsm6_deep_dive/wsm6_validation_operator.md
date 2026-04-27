@@ -36,6 +36,9 @@ Outputs:
 - Per-line fidelity is required before changing logic: inputs must still match across Fortran/C++ at `PRE_<site>` and first diverge at `POST_<site>`.
 - Bisection inside the block is allowed, but every proposed fix must be backed by this per-line evidence.
 - Record the confirmed site in `validation_runs.tsv` notes (for example `first_line_divergence=<file>:<line>`).
+- Retreat print granularity:
+  - `erf.microphysics_debug=1` is canonical-tag mode for forward validation.
+  - `erf.microphysics_debug>=2` is line-by-line retreat mode (PRE/POST local snapshots).
 
 4. Use tracked assets only for formal validation.
 
@@ -117,6 +120,7 @@ Validate in process order; do not mark downstream groups PASS when upstream fail
 
 - Prefer single-rank (`-n 1`) for deterministic diagnostics.
 - Keep diagnostics at level 1 unless actively isolating a local issue.
+- If heavy Fortran diagnostic output aborts with `corrupted double-linked list`, rerun with `GFORTRAN_UNBUFFERED_ALL=y` and record that env in `validation_runs.tsv` notes.
 - Avoid broad code edits during validation runs; isolate one suspected cause at a time.
 - Commit manifest/run-ledger updates in small, reviewable chunks.
 - Enforce strict Rule 30 group-boundary snapshots: emit each canonical tag at the immediate process-group boundary (`NISLFV_R` right after `nislfv_rain_plm`, `NISLFV_SG` right after `nislfv_rain_plm6`), not from a later aggregate `POST-G*` state.
