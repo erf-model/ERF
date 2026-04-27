@@ -1740,6 +1740,9 @@ WSM6::Advance(const Real& dt_advance,
                     }
                 });
             }
+            print_wsm6_tag6("WSM6-CPP_PRAUT",
+                            praut_arr, qc_arr, qr_arr,
+                            qv_arr, t_arr, den_arr, loop);
 
             // G13b: cold-rain, mixed-phase, and ice deposition/nucleation
             // [lines 904-1062, 1075-1192]
