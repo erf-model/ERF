@@ -184,8 +184,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Update state variables from microphysics variables
          * \param[in,out] a_cons_vars Conservative variables multifab to update
+         * \param[in] a_z_phys_nd Terrain heights (nodal)
          */
-        virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars) override;
+        virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars,
+                                        const amrex::MultiFab& a_z_phys_nd) override;
 
         /*! \brief Copy moisture model vars from state to member multifabs
          * \param[in] a_state State multifab to copy from
@@ -235,22 +237,22 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief compute cloud/rain mixing ratio */
-        virtual void computeQcQrWater ();
+        virtual void computeQcQrWater (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief compute condensate for all non-water species */
-        virtual void computeQcSpecies ()
+        virtual void computeQcSpecies (const amrex::MultiFab& a_z_phys_nd)
         {
-            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is); }
+            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is, a_z_phys_nd); }
         }
 
         /*! \brief compute condensate mixing ratio for a non-water species */
-        virtual void computeQcSpecies (const  int a_i);
+        virtual void computeQcSpecies (const int a_i, const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief compute condensate mixing ratio for a species */
-        virtual void computeQc (const  int a_i)
+        virtual void computeQc (const int a_i, const amrex::MultiFab& a_z_phys_nd)
         {
-            if (a_i == m_idx_w) { computeQcQrWater(); }
-            else                { computeQcSpecies(a_i); }
+            if (a_i == m_idx_w) { computeQcQrWater(a_z_phys_nd); }
+            else                { computeQcSpecies(a_i, a_z_phys_nd); }
         }
 
         /*! \brief compute total water mixing ratio */
@@ -273,13 +275,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief Compute rain accumulation */
-        virtual void rainAccumulation ();
+        virtual void rainAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Compute non-water species accumulation */
-        virtual void speciesAccumulation ();
+        virtual void speciesAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Compute aerosol accumulation */
-        virtual void aerosolAccumulation ();
+        virtual void aerosolAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( amrex::MultiFab&, const int a_comp = 0 );
@@ -313,66 +315,36 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  amrex::MultiFab& a_mf )  const override
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
+
+            // Helper to copy MultiFab if name matches
+            auto try_copy = [&](const std::string& prefix, int idx) -> bool {
+                if (a_name == prefix) {
+                    amrex::MultiFab::Copy(a_mf, *m_mic_fab_vars[idx],
+                                          0, 0, 1, amrex::IntVect::TheZeroVector());
+                    return true;
+                }
+                return false;
+            };
+
+            // Species variables
             for (int v = 1; v < m_num_species; v++) {
-                {
-                    std::string varname = "qv_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qv_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "qc_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qc_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "qt_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qt_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "sat_ratio_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_sr_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
-                {
-                    std::string varname = "accum_" + amrex::getEnumNameString(m_species[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_accum_idx(v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
+                std::string sp_name = amrex::getEnumNameString(m_species[v]);
+                if (try_copy("qv_" + sp_name, s_qv_idx(v)) ||
+                    try_copy("qc_" + sp_name, s_qc_idx(v)) ||
+                    try_copy("qt_" + sp_name, s_qt_idx(v)) ||
+                    try_copy("sat_ratio_" + sp_name, s_sr_idx(v)) ||
+                    try_copy("accum_" + sp_name, s_accum_idx(v))) {
+                    return;
                 }
             }
+
+            // Aerosol variables
             for (int v = 0; v < m_num_aerosols; v++) {
-                {
-                    std::string varname = "accum_" + amrex::getEnumNameString(m_aerosols[v]);
-                    if (a_name == varname) {
-                        amrex::MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[a_accum_idx(m_num_species,v)],
-                                        0, 0, 1, amrex::IntVect::TheZeroVector() );
-                        return;
-                    }
-                }
+                std::string ae_name = amrex::getEnumNameString(m_aerosols[v]);
+                if (try_copy("accum_" + ae_name, a_accum_idx(m_num_species, v))) { return; }
             }
+
             amrex::Abort("SuperDropletsMoist::GetPlotVar() called with invalid name");
-            return;
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

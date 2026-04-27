@@ -1,0 +1,35 @@
+#!/bin/bash
+
+## specify your allocation (with the _g) and that you want GPU nodes
+#SBATCH --account=erf   # Allocation handle
+#SBATCH -p gpu-h100s       # https://natlabrockies.github.io//HPC/Documentation/Systems/Kestrel/Running/
+
+## the job will be named "ERF" in the queue and will save stdout to erf_[job ID].out
+#SBATCH -J erf
+#SBATCH -o erf_%j.out
+
+## set the max walltime
+#SBATCH --time=00:30:00 #/or up to 6 hours
+
+## specify the number of nodes you want
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=4                    # Request all 4 GPUs per node
+#SBATCH --ntasks-per-node=4                  # 8 MPI ranks per node (2 per GPU)
+#SBATCH --cpus-per-task=32                   # CPUs per task
+#SBATCH --exclusive                          # EXCLUSIVE access to prevent memory fragmentation
+
+##SBATCH --gpus-per-task=1                    # Ensures Slurm maps one GPU to each rank
+##SBATCH --gpu-bind=map_gpu:0,1,2,3,4,5,6,7   # Bind GPUs to tasks
+##SBATCH --mem=350G                           # Request most of the available system RAM
+
+# # KOKKOS MEMORY OPTIMIZATION ENVIRONMENT VARIABLES
+# export KOKKOS_ENABLE_MEMORY_POOL=FALSE      # Disable Kokkos memory pool to avoid large allocations
+# export KOKKOS_ENABLE_MANAGED_MEMORY=TRUE    # Enable managed memory in Kokkos
+# export CUDA_LAUNCH_BLOCKING=0               # Allow asynchronous CUDA launches
+# export CUDA_MANAGED_FORCE_DEVICE_ALLOC=0    # Don't force device allocation for managed memory
+
+nvidia-smi
+srun -n $((SLURM_NNODES * SLURM_NTASKS_PER_NODE)) --cpus-per-task=${SLURM_CPUS_PER_TASK:-4} --cpu-bind=cores bash -c '
+#  export CUDA_VISIBLE_DEVICES=$((3-SLURM_LOCALID))
+  ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most amrex.use_gpu_aware_mpi=1  amrex.the_arena_init_size=8388608
+'

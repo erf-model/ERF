@@ -140,6 +140,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "supercell") {
 #include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
+     else if  (my_prob_name_ci == "data_assimilation_isv") {
+#include "Prob/ERF_InitCustomPert_DataAssimilation_ISV.H"
+    }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
@@ -227,6 +230,9 @@ Problem::init_custom_pert_vels (
     }
     else if (my_prob_name_ci == "userdefined") {
 #include "Prob/ERF_InitCustomPertVels_UserDefined.H"
+    }
+     else if  (my_prob_name_ci == "data_assimilation_isv") {
+#include "Prob/ERF_InitCustomPertVels_DataAssimilation_ISV.H"
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"

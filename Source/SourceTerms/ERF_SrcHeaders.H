@@ -149,7 +149,10 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Array4<amrex::Real>& cell_rhs,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<const amrex::Real>& r0,
-                              const amrex::Array4<const amrex::Real>& z_phys_cc);
+                              const amrex::Array4<const amrex::Real>& th0,
+                              const amrex::Array4<const amrex::Real>& qv0,
+                              const amrex::Array4<const amrex::Real>& z_phys_cc,
+                              int n_qstate);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Geometry geom,

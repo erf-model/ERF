@@ -51,7 +51,7 @@ void SuperDropletsMoist::readInputs ()
 
     // initial distribution type
     m_init_type = SDMoistInit::uniform;
-    pp.query("initial_distribution_type", m_init_type);
+    pp.query("distribution_type", m_init_type);
 
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers
@@ -292,6 +292,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
                                      const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
+
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
 
     if (m_init_type == SDMoistInit::condensate_density) {
@@ -320,7 +321,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    computeQcQrWater();
+    computeQcQrWater(*a_z_phys_nd[0]);
     computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -335,7 +336,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         });
     }
 
-    computeQcSpecies();
+    computeQcSpecies(*a_z_phys_nd[0]);
     computeQtSpecies();
 
     for (int is = 1; is < m_num_species; is++) {

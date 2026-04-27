@@ -79,6 +79,8 @@ void make_sources (int level,
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
 
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
+    MultiFab th_hse (base_state, make_alias, BaseState::th0_comp , 1);
+    MultiFab qv_hse (base_state, make_alias, BaseState::qv0_comp , 1);
 
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
@@ -222,6 +224,8 @@ void make_sources (int level,
         const Array4<Real>      & cell_src   = source.array(mfi);
 
         const Array4<const Real>& r0 = r_hse.const_array(mfi);
+        const Array4<const Real>& th0 = th_hse.const_array(mfi);
+        const Array4<const Real>& qv0 = qv_hse.const_array(mfi);
 
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
@@ -426,7 +430,8 @@ void make_sources (int level,
         // Real(7.) Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
-            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
+            const int n_qstate = S_data[IntVars::cons].nComp() - (NDRY + NSCALARS);
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, th0, qv0, z_cc_arr, n_qstate);
         }
 
         if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
@@ -438,7 +443,7 @@ void make_sources (int level,
         // *************************************************************************************
         // Real(8.) Add perturbation
         // *************************************************************************************
-        if (solverChoice.pert_type == PerturbationType::Source && is_slow_step) {
+        if (solverChoice.use_source_perturbation(level) && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term

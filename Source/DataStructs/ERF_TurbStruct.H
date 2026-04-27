@@ -35,6 +35,30 @@ query_one_or_per_level (
   }
 }
 
+template <typename T>
+int
+query_one_or_per_level_enum_case_insensitive (
+  const amrex::ParmParse& pp,
+  const char* query_string,
+  T& query_var,
+  const int lev,
+  const int maxlev)
+{
+  int count = pp.countval(query_string);
+  if (count == 0) {
+    return 0; // nothing to do
+  } else if (count == 1) {
+    return pp.query_enum_case_insensitive(query_string, query_var);
+  } else if (count >= maxlev + 1) {
+    return pp.query_enum_case_insensitive(query_string, query_var, lev);
+  } else {
+    amrex::Error(
+      "For parmparse variable " + pp.prefixedName(query_string) +
+      ": if specified, specify once total or at least once for each level");
+    return 0; // avoid compiler warning
+  }
+}
+
 /**
  * Container holding quantities related to turbulence parametrizations
  */

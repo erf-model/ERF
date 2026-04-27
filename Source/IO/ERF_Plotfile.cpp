@@ -414,6 +414,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
          containerHasElement(plot_var_names, "vorticity_z") )
     {
         amrex::Interpolater* mapper = &cell_cons_interp;
+        FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
@@ -421,16 +422,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
             Vector<Real> ctime    = {t_new[lev], t_new[lev]};
 
-            FillBdyCCVels(mf_cc_vel,lev-1);
-
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
                                t_new[lev], cmf, ctime, fmf, ftime,
                                0, 0, mf_cc_vel[lev].nComp(), geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BaseBCVars::rho0_bc_comp);
+            FillBdyCCVels(mf_cc_vel[lev],geom[lev]);
         } // lev
-        FillBdyCCVels(mf_cc_vel);
     } // if (vort)
 
 
@@ -578,6 +577,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (solverChoice.moisture_type != MoistureType::None) {
             calculate_derived("precipitable"   ,  vars_new[lev][Vars::cons], derived::erf_derprecipitable);
         }
+        calculate_derived("mucape"         ,  vars_new[lev][Vars::cons], derived::erf_dermucape);
 
         calculate_derived("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
         calculate_derived("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
@@ -1197,7 +1197,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
-                      (solverChoice.moisture_type == MoistureType::Morrison) )
+                      (solverChoice.moisture_type == MoistureType::Morrison) ||
+                      (solverChoice.moisture_type == MoistureType::WSM6) )
             {
                 int offset = (solverChoice.moisture_type == MoistureType::Morrison) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
@@ -1469,7 +1470,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (containerHasElement(plot_var_names, plot_var_name) ) {
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
                 temp_dat.setVal(0);
-                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
+                particleData.GetMeshPlotVar(plot_var_name, temp_dat, *z_phys_nd[lev], lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
             }
@@ -1799,7 +1800,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
             boxArrays[level] = mf[level]->boxArray();
         }
 
-        auto f = [=]() {
+        auto f = [=,this]() {
             VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
             std::string HeaderFileName(plotfilename + "/Header");
             std::ofstream HeaderFile;

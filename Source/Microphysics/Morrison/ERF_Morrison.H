@@ -107,7 +107,8 @@ public:
     }
 
     void
-    Update_State_Vars (amrex::MultiFab& cons_in) override
+    Update_State_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& /*z_phys_nd*/) override
     {
         this->Copy_Micro_to_State(cons_in);
     }

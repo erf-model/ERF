@@ -167,6 +167,8 @@ public:
                                    surface_state_2,
                                    surface_state_interp;
 
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> bckgnd_state;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
@@ -253,7 +255,7 @@ public:
     amrex::Real cloud_fraction (amrex::Real time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
-    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel, int levc=0);
+    void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
@@ -496,17 +498,20 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_background_state_for_ensemble (int lev,
+                                               amrex::MultiFab& mf_cc_pert,
+                                               amrex::MultiFab& cons_pert,
+                                               amrex::MultiFab& xvel_pert,
+                                               amrex::MultiFab& yvel_pert,
+                                               amrex::MultiFab& zvel_pert);
+
     void create_random_perturbations (const int lev,
-                                      amrex::MultiFab& cons_pert,
-                                      amrex::MultiFab& xvel_pert,
-                                      amrex::MultiFab& yvel_pert,
-                                      amrex::MultiFab& zvel_pert);
+                                      amrex::MultiFab& mf_cc_pert);
 
     void apply_gaussian_smoothing_to_perturbations (const int lev,
-                                                    amrex::MultiFab& cons_pert,
-                                                    amrex::MultiFab& xvel_pert,
-                                                    amrex::MultiFab& yvel_pert,
-                                                    amrex::MultiFab& zvel_pert);
+                                                    amrex::MultiFab& mf_cc_pert);
+
+    void ComputeAndWriteEnsemblePerturbations();
 
     void init_custom (int lev);
 
@@ -1121,7 +1126,7 @@ private:
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
     // **************************************************************************************
     const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
-                                                    "reflectivity","max_reflectivity", "precipitable",
+                                                    "reflectivity","max_reflectivity", "precipitable", "mucape",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",

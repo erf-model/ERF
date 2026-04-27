@@ -13,7 +13,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0.   0.   0.
 geometry.prob_hi     =  8.   8.   4.
 amr.n_cell           =  8    8    4
-geometry.is_periodic =  1 1 1
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.00125
@@ -79,7 +81,7 @@ erf.alpha_C          = 0.0
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.include_coalescence = false
 super_droplets_moisture.include_phase_change = false
