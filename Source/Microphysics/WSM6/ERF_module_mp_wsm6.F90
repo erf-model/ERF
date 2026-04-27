@@ -1524,6 +1524,12 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRACI ', k, &
+         praci(its,k), piacr(its,k), qr(its,k), qs(its,k), qg(its,k), qc(its,k)
+     enddo
+   endif
 !
 !
 !----------------------------------------------------------------
