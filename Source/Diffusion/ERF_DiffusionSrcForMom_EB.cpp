@@ -332,7 +332,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     } else if (l_surface_layer) {
 
-                        dwdn = - tau33_eb(i,j,k);
+                        dwdn = - tau33_eb;
 
                     }
                 }
