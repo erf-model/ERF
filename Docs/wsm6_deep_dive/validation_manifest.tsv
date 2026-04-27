@@ -14,13 +14,13 @@ G11	WSM6-FORT_SLOPE3	WSM6-CPP_SLOPE3	(its, jts)	EPSILON_OK	none	rslope_r/s/g, rs
 G13a	WSM6-FORT_PRAUT	WSM6-CPP_PRAUT	(its, jts)	EPSILON_OK	none	praut, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G13b	WSM6-FORT_PRACW	WSM6-CPP_PRACW	(its, jts)	EPSILON_OK	none	pracw, qc, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G13c	WSM6-FORT_PREVP	WSM6-CPP_PREVP	(its, jts)	EPSILON_OK	none	prevp, qr, qv, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13d	WSM6-FORT_PRACI	WSM6-CPP_PRACI	(its, jts)	FAIL	missing_canonical_tags_PRACI	praci, piacr, qr, qs, qg, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13e	WSM6-FORT_PSACI	WSM6-CPP_PSACI	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	psaci, psacw, paacw, qs, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13f	WSM6-FORT_PRACS	WSM6-CPP_PRACS	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	pracs, psacr, qr, qs, qg, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13g	WSM6-FORT_PSEML	WSM6-CPP_PSEML	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	pseml, pgeml, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	pidep, pigen, psdep, pgdep, qv, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G13d_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13d	WSM6-FORT_PRACI	WSM6-CPP_PRACI	(its, jts)	EPSILON_OK	none	praci, piacr, qr, qs, qg, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13e	WSM6-FORT_PSACI	WSM6-CPP_PSACI	(its, jts)	FAIL	missing_canonical_tags_PSACI	psaci, psacw, paacw, qs, qc, qi, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13f	WSM6-FORT_PRACS	WSM6-CPP_PRACS	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	pracs, psacr, qr, qs, qg, qv, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13g	WSM6-FORT_PSEML	WSM6-CPP_PSEML	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	pseml, pgeml, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	pidep, pigen, psdep, pgdep, qv, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G13e_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
