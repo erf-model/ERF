@@ -1338,6 +1338,9 @@ WSM6::Advance(const Real& dt_advance,
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
             });
+            print_wsm6_tag6("WSM6-CPP_SLOPE2",
+                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
+                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
 
             print_wsm6_state("WSM6-CPP POST-G6",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,

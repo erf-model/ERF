@@ -857,6 +857,13 @@
    enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_SLOPE2 ', k, &
+         rslope(its,k,1), rslope(its,k,2), rslope(its,k,3), &
+         rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
+     enddo
+   endif
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
