@@ -2103,16 +2103,8 @@
  100  continue
 ! plm is 2nd order, we can use 2nd order wi or 3rd order wi
 ! 2nd order interpolation to get wi
-    if (iter == 0 .and. id > 0 .and. i == id) then
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRE_WI_TOP ', km, &
-            ww(1), ww(km), dz(1), dz(km), dt, real(km,kind=kind_phys)
-    endif
     wi(1) = ww(1)
     wi(km+1) = ww(km)
-    if (iter == 0 .and. id > 0 .and. i == id) then
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_POST_WI_TOP ', km, &
-            wi(1), wi(km+1), ww(1), ww(km), dz(1), dz(km)
-    endif
     do k=2,km
        wi(k) = (ww(k)*dz(k-1)+ww(k-1)*dz(k))/(dz(k-1)+dz(k))
     enddo
