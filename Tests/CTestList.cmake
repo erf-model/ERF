@@ -231,7 +231,7 @@ if(ERF_ENABLE_PARTICLES)
     # terminal velocity
     add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"  "plt00001" 5e-13 1e-14)
     # recycling
-    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00020" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00060" 5e-13 1e-14)
     # Congestus case
     add_test_sdm(SDM_Congestus3D                 "" "erf_exec"  "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case
