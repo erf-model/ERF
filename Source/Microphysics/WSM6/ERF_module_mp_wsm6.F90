@@ -366,7 +366,11 @@
                                                            psmlt, &
                                                            pgmlt, &
                                                            pseml, &
-                                                           pgeml
+                                                           pgeml, &
+                                                           pimlt, &
+                                                           pihmf, &
+                                                           pihtf, &
+                                                           pgfrz
  real(kind=kind_phys),dimension(its:ite,kts:kte)::                &
                                                             qsum, &
                                                               xl, &
@@ -1067,10 +1071,15 @@ integer:: i, j, k, mstepmax,                                     &
 !---------------------------------------------------------------
    do k = kts, kte
      do i = its, ite
+       pimlt(i,k) = 0.
+       pihmf(i,k) = 0.
+       pihtf(i,k) = 0.
+       pgfrz(i,k) = 0.
        supcol = t0c-t(i,k)
        xlf = xls-xl(i,k)
        if(supcol.lt.0.) xlf = xlf0
        if(supcol.lt.0.and.qi(i,k).gt.0.) then
+         pimlt(i,k) = qi(i,k)
          qc(i,k) = qc(i,k) + qi(i,k)
          t(i,k) = t(i,k) - xlf/cpm(i,k)*qi(i,k)
          qi(i,k) = 0.
@@ -1080,6 +1089,7 @@ integer:: i, j, k, mstepmax,                                     &
 !        (T<-40C: C->I)
 !---------------------------------------------------------------
        if(supcol.gt.40..and.qc(i,k).gt.0.) then
+         pihmf(i,k) = qc(i,k)
          qi(i,k) = qi(i,k) + qc(i,k)
          t(i,k) = t(i,k) + xlf/cpm(i,k)*qc(i,k)
          qc(i,k) = 0.
@@ -1094,6 +1104,7 @@ integer:: i, j, k, mstepmax,                                     &
          supcolt=min(supcol,50.)
          pfrzdtc = min(pfrz1*(exp(pfrz2*supcolt)-1.)                        &
                  * den(i,k)/denr/xncr*qc(i,k)*qc(i,k)*dtcld,qc(i,k))
+         pihtf(i,k) = pfrzdtc
          qi(i,k) = qi(i,k) + pfrzdtc
          t(i,k) = t(i,k) + xlf/cpm(i,k)*pfrzdtc
          qc(i,k) = qc(i,k)-pfrzdtc
@@ -1112,12 +1123,20 @@ integer:: i, j, k, mstepmax,                                     &
          pfrzdtr = min(20.*(pi*pi)*pfrz1*n0r*denr/den(i,k)                  &
                  *(exp(pfrz2*supcolt)-1.)*temp*dtcld,                       &
                    qr(i,k))
+         pgfrz(i,k) = pfrzdtr
          qg(i,k) = qg(i,k) + pfrzdtr
          t(i,k) = t(i,k) + xlf/cpm(i,k)*pfrzdtr
          qr(i,k) = qr(i,k)-pfrzdtr
        endif
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PHASE ', k, &
+         pimlt(its,k), pihmf(its,k), pihtf(its,k), &
+         pgfrz(its,k), qc(its,k), qi(its,k)
+     enddo
+   endif
 !
 !
 !----------------------------------------------------------------

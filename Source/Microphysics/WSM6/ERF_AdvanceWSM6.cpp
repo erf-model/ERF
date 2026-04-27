@@ -950,6 +950,8 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox pgmlt_fab(fab_box,1); FArrayBox pseml_fab(fab_box,1);
         FArrayBox pgeml_fab(fab_box,1); FArrayBox psevp_fab(fab_box,1);
         FArrayBox pgevp_fab(fab_box,1);
+        FArrayBox pimlt_fab(fab_box,1); FArrayBox pihmf_fab(fab_box,1);
+        FArrayBox pihtf_fab(fab_box,1); FArrayBox pgfrz_fab(fab_box,1);
 
         auto const& denfac_arr    = denfac_fab.array();
         auto const& xni_arr       = xni_fab.array();
@@ -1024,6 +1026,10 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pgeml_arr     = pgeml_fab.array();
         auto const& psevp_arr     = psevp_fab.array();
         auto const& pgevp_arr     = pgevp_fab.array();
+        auto const& pimlt_arr     = pimlt_fab.array();
+        auto const& pihmf_arr     = pihmf_fab.array();
+        auto const& pihtf_arr     = pihtf_fab.array();
+        auto const& pgfrz_arr     = pgfrz_fab.array();
         auto print_wsm6_tag6 = [&](const char* tag,
                                    const Array4<const Real>& a1,
                                    const Array4<const Real>& a2,
@@ -1590,14 +1596,20 @@ WSM6::Advance(const Real& dt_advance,
                 const Real xlf = (supcol < Real(0.0))
                     ? Real(xlf0)
                     : Real(xls) - xl_arr(i,j,k);
+                pimlt_arr(i,j,k) = Real(0.0);
+                pihmf_arr(i,j,k) = Real(0.0);
+                pihtf_arr(i,j,k) = Real(0.0);
+                pgfrz_arr(i,j,k) = Real(0.0);
 
                 if (supcol < Real(0.0) && qi_arr(i,j,k) > Real(0.0)) {
+                    pimlt_arr(i,j,k) = qi_arr(i,j,k);
                     qc_arr(i,j,k) = qc_arr(i,j,k) + qi_arr(i,j,k);
                     t_arr(i,j,k) = t_arr(i,j,k) - xlf / cpm_arr(i,j,k) * qi_arr(i,j,k);
                     qi_arr(i,j,k) = Real(0.0);
                 }
 
                 if (supcol > Real(40.0) && qc_arr(i,j,k) > Real(0.0)) {
+                    pihmf_arr(i,j,k) = qc_arr(i,j,k);
                     qi_arr(i,j,k) = qi_arr(i,j,k) + qc_arr(i,j,k);
                     t_arr(i,j,k) = t_arr(i,j,k) + xlf / cpm_arr(i,j,k) * qc_arr(i,j,k);
                     qc_arr(i,j,k) = Real(0.0);
@@ -1611,6 +1623,7 @@ WSM6::Advance(const Real& dt_advance,
                         den_arr(i,j,k) / Real(denr) / Real(WSM6::xncr) *
                         qc_arr(i,j,k) * qc_arr(i,j,k) * dtcld,
                         qc_arr(i,j,k));
+                    pihtf_arr(i,j,k) = pfrzdtc;
                     qi_arr(i,j,k) = qi_arr(i,j,k) + pfrzdtc;
                     t_arr(i,j,k) = t_arr(i,j,k) + xlf / cpm_arr(i,j,k) * pfrzdtc;
                     qc_arr(i,j,k) = qc_arr(i,j,k) - pfrzdtc;
@@ -1626,11 +1639,15 @@ WSM6::Advance(const Real& dt_advance,
                         (std::exp(Real(pfrz2) * supcolt) - Real(1.0)) *
                         temp * dtcld,
                         qr_arr(i,j,k));
+                    pgfrz_arr(i,j,k) = pfrzdtr;
                     qg_arr(i,j,k) = qg_arr(i,j,k) + pfrzdtr;
                     t_arr(i,j,k) = t_arr(i,j,k) + xlf / cpm_arr(i,j,k) * pfrzdtr;
                     qr_arr(i,j,k) = qr_arr(i,j,k) - pfrzdtr;
                 }
             });
+            print_wsm6_tag6("WSM6-CPP_PHASE",
+                            pimlt_arr, pihmf_arr, pihtf_arr,
+                            pgfrz_arr, qc_arr, qi_arr, loop);
 
             // G11: third slope_wsm6 call [lines 836-844]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
