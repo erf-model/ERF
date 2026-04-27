@@ -402,9 +402,10 @@
             vt2i,vt2r,vt2s,vt2g,acrfac,egs,egi,                   &
             xlwork2, factor, source, value,                       &
             xlf, pfrzdtc, pfrzdtr, supice, alpha2, delta2, delta3
- real(kind=kind_phys):: vt2ave
- real(kind=kind_phys):: holdc, holdci
- integer:: i, j, k, mstepmax,                                     &
+real(kind=kind_phys):: vt2ave
+real(kind=kind_phys):: holdc, holdci
+real(kind=kind_phys):: diag_snowncv, diag_graupelncv, diag_snow, diag_graupel
+integer:: i, j, k, mstepmax,                                     &
            iprt, latd, lond, loop, loops, ifsat, n, idim, kdim, idbg_col
  integer :: mpdbg_level
 
@@ -1037,6 +1038,26 @@
         if(fallsum.gt.0.)sr(i)=(snowncv(i) + graupelncv(i))/(rainncv(i)+1.e-12)
      else
         if(fallsum.gt.0.)sr(i)=(tstepsnow(i) + tstepgraup(i))/(rainncv(i)+1.e-12)
+     endif
+     if (mpdbg_level >= 1 .and. loop == 1 .and. i == its) then
+        diag_snowncv = tstepsnow(i)
+        diag_graupelncv = tstepgraup(i)
+        diag_snow = tstepsnow(i)
+        diag_graupel = tstepgraup(i)
+        if (present(snowncv) .and. present(snow)) then
+           diag_snowncv = snowncv(i)
+           diag_snow = snow(i)
+        endif
+        if (present(graupelncv) .and. present(graupel)) then
+           diag_graupelncv = graupelncv(i)
+           diag_graupel = graupel(i)
+        endif
+        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRECIP ', 1, &
+             rainncv(i), diag_snowncv, diag_graupelncv, &
+             rain(i), diag_snow, diag_graupel
+        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRECIP ', 2, &
+             fall(i,kts,1), fall(i,kts,2), fall(i,kts,3), &
+             fallc(i,kts), sr(i), 0.
      endif
    enddo
 !

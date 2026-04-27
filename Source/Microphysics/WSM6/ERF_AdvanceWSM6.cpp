@@ -1561,6 +1561,26 @@ WSM6::Advance(const Real& dt_advance,
                         (rainncv_arr(i,j,0) + Real(1.0e-12));
                 }
             });
+            if (microphysics_debug >= 1 && loop == 0 &&
+                ParallelDescriptor::IOProcessor()) {
+                Gpu::synchronize();
+                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            "WSM6-CPP_PRECIP", 1,
+                            (double)rainncv_arr(ilo,jlo,0),
+                            (double)snowncv_arr(ilo,jlo,0),
+                            (double)graupelncv_arr(ilo,jlo,0),
+                            (double)rainacc_arr(ilo,jlo,0),
+                            (double)snowacc_arr(ilo,jlo,0),
+                            (double)graupacc_arr(ilo,jlo,0));
+                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            "WSM6-CPP_PRECIP", 2,
+                            (double)fall_r_arr(ilo,jlo,klo),
+                            (double)fall_s_arr(ilo,jlo,klo),
+                            (double)fall_g_arr(ilo,jlo,klo),
+                            (double)fallc_arr(ilo,jlo,klo),
+                            (double)sr_arr(ilo,jlo,0),
+                            0.0);
+            }
 
             constexpr Real pi = Real(3.141592653589793238462643383279502884);
 
