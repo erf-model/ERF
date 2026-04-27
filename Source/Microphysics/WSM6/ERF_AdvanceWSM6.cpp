@@ -1283,6 +1283,9 @@ WSM6::Advance(const Real& dt_advance,
                             nislfv_sg_diag_fab.const_array(3),
                             nislfv_sg_diag_fab.const_array(4),
                             nislfv_sg_diag_fab.const_array(5), loop);
+            print_wsm6_tag6("WSM6-CPP_FALL",
+                            qr_arr, qs_arr, qg_arr,
+                            fall_r_arr, fall_s_arr, fall_g_arr, loop);
             print_wsm6_state("WSM6-CPP POST-G5",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);

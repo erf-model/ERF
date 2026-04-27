@@ -822,6 +822,12 @@
      fall(i,1,2) = delqrs2(i)/delz(i,1)/dtcld
      fall(i,1,3) = delqrs3(i)/delz(i,1)/dtcld
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_FALL ', k, &
+         qr(its,k), qs(its,k), qg(its,k), fall(its,k,1), fall(its,k,2), fall(its,k,3)
+     enddo
+   endif
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
