@@ -303,6 +303,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
 
+                    // const Real Dirichlet_u {zero};
+                    // const Real Dirichlet_v {zero};
                     const Real Dirichlet_u = (u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ) + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  )
                                             + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1) + u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1))
                                             / (u_volfrac(i,j,k) + u_volfrac(i+1,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1));
@@ -333,15 +335,15 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     if (l_no_slip) {
 
-                        dwdn = -(w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);                    
+                        dwdn = - mu_eff * (w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);                    
 
                     } else if (l_surface_layer) {
 
-                        dwdn = - tau33_eb;
+                        dwdn = - mu_eff * tau33_eb;
 
                     }
                 }
-                rho_w_rhs(i,j,k) -= mu_eff * barea * dwdn / (vol * w_volfrac(i,j,k));
+                rho_w_rhs(i,j,k) -= barea * dwdn / (vol * w_volfrac(i,j,k));
             }
         }
     });
