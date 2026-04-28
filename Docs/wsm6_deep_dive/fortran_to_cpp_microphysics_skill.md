@@ -1934,3 +1934,177 @@ Before translating any Fortran group, scan for these patterns:
 3. go to that jumps forward past an else block is an early
    exit — translate as a labeled break or restructure to
    if/else. Do not use C++ goto.
+
+## Rule 35: Plotfile Parity Lane — Campaign Structure
+
+### What a campaign is
+
+A plotfile parity campaign is one run pair (Fortran path and C++ path)
+compared sequentially at physics-grounded milestone checkpoints.
+Each passed milestone is both a promotion gate and a knowledge artifact:
+record which prognostic species and process regimes are active, and any
+near-threshold behavior, so future retreats can start with better context.
+
+Milestones are compared in strict order. Stop at first failure.
+Do not compare later milestones until the earlier failure is resolved.
+This is stop-diff-retreat in simulation-time space.
+
+### Trigger condition
+
+Activate this lane only when the active tag-frontier validation is closed at
+clean git SHA (no groups in PENDING, FAIL, or RETREAT).
+If a later physics fix reopens any tag group, start a new campaign_id.
+
+### Scope gate: serial parity first
+
+This rule defines serial parity only:
+- single-rank
+- CPU path
+- non-MPI executable mode
+
+MPI and GPU parity are explicitly deferred to later scope, after serial C++
+parity is verified and accepted. Those future lanes must use distinct
+`validation_lane` values and their own acceptance gates.
+
+### Fcompare protocol
+
+`fcompare` binary location is implementation-specific and must be defined in
+scheme notes (for example, implementation appendix docs).
+
+Flags:
+- `-z|--zone_info <var>`: report `i,j,k` for max-error cell of `<var>`
+- `-d|--diffvar <var>`: emit variable diff artifact for `<var>`
+- `-r|--rel_tol <rtol>`: relative tolerance (default 0)
+- `--abs_tol <atol>`: absolute tolerance (default 0)
+
+Never use `--abs_tol` or `--rel_tol` to hide a real divergence.
+Use tolerance flags only when documenting expected floating-point noise.
+
+Per milestone compare:
+
+```bash
+<fcompare_binary> <fortran_plt_N> <cpp_plt_N>
+```
+
+On first failing milestone at step `N`:
+
+```bash
+<fcompare_binary> -z <var> <fortran_plt_N> <cpp_plt_N>
+<fcompare_binary> -d <var> <fortran_plt_N> <cpp_plt_N>
+# archive/rename the produced diff artifact directory immediately
+# Example pattern: mv <diff_output_dir> <diff_output_dir>_plt<N>_<var>
+```
+
+### Milestone structure
+
+Milestones are scheme- and case-specific. Define them in implementation notes,
+including:
+- dry/setup checkpoints,
+- species-onset checkpoints,
+- publication comparison checkpoints,
+- extended-drift checkpoints.
+
+### Notes as knowledge artifact
+
+For every milestone with `EPSILON_OK`, the run ledger notes should include:
+- active prognostic species/process regime,
+- major process groups exercised,
+- near-threshold variables/sensitivities.
+
+### Clean SHA policy
+
+Any milestone PASS/FAIL promotion requires clean git SHA.
+Dirty-SHA runs are triage-only and must be marked as such.
+Record `git_sha` at run time.
+
+## Rule 36: Restart Reproducibility Check
+
+Triggered when a plotfile milestone fails at step `N`.
+
+### Protocol
+
+1. Confirm checkpoint at `N-1` exists.
+   If `N-1` is not checkpointed, use the nearest earlier checkpoint and
+   advance reproducibly to step `N`.
+
+2. Restart both paths from checkpoint at `N-1` and advance exactly one step.
+   The exact run control (for example `max_step`/`stop_time` conventions)
+   must follow the solver/runtime semantics documented in implementation notes.
+
+3. Compare regenerated `plt<N>` pair using the same `fcompare` call pattern.
+
+4. Classify:
+- `MATCH`: restart reproduces full-run divergence at step `N`.
+  Proceed to Rule 37.
+- `MISMATCH`: restart divergence pattern differs.
+  Suspect checkpoint/ghost-state/restart-state issue and open a separate
+  restart-state investigation before physics-group retreat.
+
+### Required artifacts for any FAIL classification
+
+A FAIL record is incomplete unless it includes:
+- `first_failing_step` (`N`)
+- `first_failing_var` (from `-z` target variable)
+- `zone_i`, `zone_j`, `zone_k` (from `-z`)
+- `restart_repro_status` (`MATCH` or `MISMATCH`)
+- `diff_plotfile_path` (archived diff artifact location)
+
+## Rule 37: Plotfile Divergence to Tag Retreat Linkage
+
+Triggered when Rule 36 gives `restart_repro_status=MATCH`.
+Maps plotfile failure metadata (`first_failing_var`, milestone context,
+zone) back to canonical tag retreat.
+
+### Procedure
+
+1. Use milestone regime context from the last passing milestone to narrow
+candidate process groups.
+
+2. Map `first_failing_var` to candidate canonical tags using the
+scheme-specific variable-to-tag table from implementation notes.
+
+3. Start retreat from the earliest candidate tag in canonical process order.
+
+4. At each candidate tag:
+- Set `microphysics_debug=1` for canonical boundary checks.
+- Run both paths, single step, target column `(ilo,jlo)`.
+- If `EPSILON_OK`, continue to next candidate tag.
+- If not `EPSILON_OK`, switch to block-by-block then line-by-line retreat
+  with `microphysics_debug>=2` and paired value-level `PRE/POST` prints.
+- Backtrace-only evidence is insufficient.
+
+5. After root cause confirmation, update manifest:
+- set failing group `status=FAIL`
+- set `divergence_variable=<first_failing_var>`
+- mark downstream dependencies `RETREAT`/`NOT_CHECKED` per operator policy.
+
+## Rule 38: Plotfile Campaign TSV Schema Extension
+
+Group-frontier runs (Rules 30-34) use existing schema.
+Plotfile-lane runs (Rules 35-37) append lane metadata columns after
+existing epsilon columns.
+
+Suggested extension fields:
+- `validation_lane`: `tag_frontier` | `plotfile_parity_serial`
+- `campaign_id`: unique campaign key
+- `run_pair`: short/long or scheme-defined pair label
+- `milestone`: scheme-defined milestone label
+- `milestone_time_s`: simulation time for milestone (or `NA`)
+- `compared_step`: plotfile step compared
+- `active_species`: active species/regime artifact
+- `first_failing_step`: first failing step (or `NA`)
+- `first_failing_var`: variable at first failure (or `NA`)
+- `zone_i`, `zone_j`, `zone_k`: max-error cell from `-z` (or `NA`)
+- `restart_from_chk`: checkpoint path used in Rule 36 (or `NA`)
+- `restart_repro_status`: `MATCH` | `MISMATCH` | `NA`
+- `diff_plotfile_path`: archived diff artifact path (or `NA`)
+
+Column rules:
+- `tag_frontier` rows leave plotfile-only fields `NA`.
+- `plotfile_parity_serial` rows must fill campaign controls and milestone
+  identity fields.
+- On FAIL, `first_failing_step`, `first_failing_var`, `zone_i/j/k`,
+  `restart_from_chk`, `restart_repro_status`, and `diff_plotfile_path`
+  are all required.
+- Keep `notes` for contextual observations, not primary run-control schema.
+- Append-only ledger: never rewrite historical rows.

@@ -369,3 +369,187 @@ amrex::Real m_xlv1, m_pi_wsm6;
 amrex::Real m_rhosu, m_rhow, m_cpw;
 amrex::Real m_ep_2, m_qsmall;
 ```
+
+## Appendix A: Plotfile Parity Campaign — WSM6 SquallLine_2D
+
+This appendix is WSM6-specific implementation guidance for the generic
+Rules 35-38 defined in `fortran_to_cpp_microphysics_skill.md`.
+
+### Scope gate
+
+This appendix covers serial parity only:
+- single-rank
+- CPU path
+- non-MPI executable mode (`ERF3d.gnu.DEBUG.ex`)
+
+MPI and GPU campaign lanes are deferred until serial C++ parity is
+verified and accepted.
+
+### Fcompare binary
+
+Repository-relative location:
+
+```bash
+Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex
+```
+
+### Run location and policy
+
+- Run from: `Exec/CanonicalTests/SquallLine_2D`
+- Input file: `inputs_moisture_WSM6`
+- Set `GFORTRAN_UNBUFFERED_ALL=y` for Fortran-path runs.
+- Use unique `<campaign_id>` root per campaign.
+
+### dt convention
+
+Use `fixed_dt=1.0` for this campaign family so milestone times are
+reproducible and aligned with existing WSM6 comparison practice.
+
+### Milestone table (WSM6 SquallLine_2D)
+
+| Milestone | Stop | Plot step | Active species / regime |
+| --- | --- | --- | --- |
+| A | step 1 | 1 | none |
+| B | step 10 | 10 | none |
+| C | t=300 s | 300 | qc, qr |
+| D | t=500 s | 500 | qc, qr, qg |
+| E | t=600 s | 600 | qc, qr, qg, qs, qi |
+| F | t=3000 s | 3000 | all (paper comparison 1) |
+| G | t=6000 s | 6000 | all (paper comparison 2) |
+| H | t=9000 s | 9000 | all (paper comparison 3) |
+| I | t=12000 s | 12000 | all (extended drift) |
+
+With `fixed_dt=1.0` and `erf.plot_int_1=100`, milestones at
+`t=300/500/600/3000/6000/9000` are exact plot steps.
+
+### Run structure
+
+- Short pair: milestones A-B (`max_step=10`, `erf.plot_int_1=1`,
+  `erf.check_int=1`).
+- Long pair: milestones C-I (`stop_time=12000`, `erf.plot_int_1=100`,
+  `erf.check_int=100`).
+
+### Command templates
+
+Short run, Fortran path:
+
+```bash
+GFORTRAN_UNBUFFERED_ALL=y \
+../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=0 \
+  fixed_dt=1.0 max_step=10 \
+  erf.plot_file_1=<campaign_id>/short_fortran/plt \
+  erf.plot_int_1=1 \
+  erf.check_file=<campaign_id>/short_fortran/chk \
+  erf.check_int=1 \
+  > <campaign_id>/log.short_fortran 2>&1
+```
+
+Short run, C++ path:
+
+```bash
+../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=0 \
+  fixed_dt=1.0 max_step=10 \
+  erf.plot_file_1=<campaign_id>/short_cpp/plt \
+  erf.plot_int_1=1 \
+  erf.check_file=<campaign_id>/short_cpp/chk \
+  erf.check_int=1 \
+  > <campaign_id>/log.short_cpp 2>&1
+```
+
+Long run, Fortran path:
+
+```bash
+GFORTRAN_UNBUFFERED_ALL=y \
+../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=0 \
+  fixed_dt=1.0 stop_time=12000 \
+  erf.plot_file_1=<campaign_id>/long_fortran/plt \
+  erf.plot_int_1=100 \
+  erf.check_file=<campaign_id>/long_fortran/chk \
+  erf.check_int=100 \
+  > <campaign_id>/log.long_fortran 2>&1
+```
+
+Long run, C++ path:
+
+```bash
+../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=0 \
+  fixed_dt=1.0 stop_time=12000 \
+  erf.plot_file_1=<campaign_id>/long_cpp/plt \
+  erf.plot_int_1=100 \
+  erf.check_file=<campaign_id>/long_cpp/chk \
+  erf.check_int=100 \
+  > <campaign_id>/log.long_cpp 2>&1
+```
+
+### Per-milestone fcompare workflow
+
+For matching plot step `N`:
+
+```bash
+Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex \
+  <campaign_id>/<pair>_fortran/plt<N> <campaign_id>/<pair>_cpp/plt<N>
+```
+
+On first failing milestone (`N`, variable `<var>`):
+
+```bash
+Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex -z <var> \
+  <fortran_plt_N> <cpp_plt_N>
+
+Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex -d <var> \
+  <fortran_plt_N> <cpp_plt_N>
+
+# Archive default diff output immediately
+mv diffs <campaign_id>/diffs_plt<N>_<var>
+```
+
+`-d` selects the diff variable; it does not take an output path argument.
+
+### Restart reproducibility (Rule 36)
+
+Restart from checkpoint at step `N-1` and advance exactly one step.
+A typical ERF pattern is:
+
+```bash
+erf.restart=<campaign_id>/long_fortran/chk<N-1_padded> max_step=<N>
+```
+
+Use the same pattern on the C++ path
+(`erf.restart=<campaign_id>/long_cpp/chk<N-1_padded>`) and compare
+regenerated `plt<N>`.
+Record `restart_repro_status=MATCH|MISMATCH`.
+
+### Soft reference baselines (early dry regime)
+
+From terminal G16 dry-regime parity (`96b936d2`, 1-step):
+- `qv` max abs about `5.20e-18`
+- `t` max abs about `5.68e-14`
+- `cpm` max abs about `4.55e-13`
+- `xl` max abs about `4.66e-10`
+
+Use as references for early dry milestones only; do not suppress active-regime
+signal with tolerance flags.
+
+### Variable-to-tag mapping (WSM6 manifest groups)
+
+- `qr` -> NISLFV_R, PRAUT, PRACW, PREVP
+- `qs` -> NISLFV_SG, PSACI, PRACS, PSAUT, PSEVP
+- `qg` -> NISLFV_SG, PSACI, PRACS, PSAUT, PSEVP
+- `qi` -> VICE, PRACI, PIDEP, PSAUT
+- `qv`/`q` -> PREVP, PCOND, QSAT, QSAT2
+- `t` -> MELT, PHASE, UPDATE, PCOND
+- `fall_r/s/g` -> FALL
+- `rho`/`den` -> SLOPE1, SLOPE2, SLOPE3
+
+Canonical retreat order:
+DENFAC -> QSAT -> SLOPE1 -> NISLFV_R -> NISLFV_SG -> FALL -> SLOPE2 ->
+MELT -> VICE -> PRECIP -> PHASE -> SLOPE3 -> PRAUT -> PRACW -> PREVP ->
+PRACI -> PSACI -> PRACS -> PSEML -> PIDEP -> PSAUT -> PSEVP -> UPDATE ->
+QSAT2 -> PCOND
+
+Use milestone active-species context to narrow the candidate set before
+canonical-order retreat.

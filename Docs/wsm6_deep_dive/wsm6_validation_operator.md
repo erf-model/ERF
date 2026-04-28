@@ -125,3 +125,59 @@ Validate in process order; do not mark downstream groups PASS when upstream fail
 - Commit manifest/run-ledger updates in small, reviewable chunks.
 - Enforce strict Rule 30 group-boundary snapshots: emit each canonical tag at the immediate process-group boundary (`NISLFV_R` right after `nislfv_rain_plm`, `NISLFV_SG` right after `nislfv_rain_plm6`), not from a later aggregate `POST-G*` state.
 - If a group boundary value is later copied/reduced in subsequent sub-steps, print from boundary snapshot buffers/derived temporaries captured at the boundary, and note `strict_group_boundary_snapshot` in `validation_runs.tsv` notes.
+
+## 9. Plotfile Parity Lane (Rules 35-38)
+
+### What a campaign is
+
+A campaign is one run pair compared at physics-grounded milestone
+checkpoints. Each passed milestone is both a promotion gate and a
+knowledge artifact. Rule details are in Rules 35-38 of the skill doc.
+Scheme-specific milestone definitions and command templates belong in
+implementation notes appendices.
+
+### Trigger condition
+
+Activate this lane after the active tag-frontier closes at clean SHA.
+For WSM6, this means the frontier is closed through `G16` with no active
+`PENDING`, `FAIL`, or `RETREAT` rows.
+
+### Scope gate: serial parity first
+
+Section 9 is serial-only:
+- single-rank
+- CPU path
+- non-MPI executable mode
+
+MPI and GPU validation are deferred to later scope after serial C++ parity
+is verified. Those future lanes require distinct `validation_lane` values,
+separate acceptance criteria, and separate operator sections.
+
+### microphysics_debug policy
+
+- Plotfile parity runs: `erf.microphysics_debug=0`
+- Tag retreat re-entry: `erf.microphysics_debug=1`
+- Line-level retreat isolation: `erf.microphysics_debug>=2`
+
+### Sequential milestone comparison
+
+After both run legs complete:
+1. Compare milestones from earliest to latest.
+2. If `EPSILON_OK`, record active regime metadata and continue.
+3. On first failure, stop immediately.
+4. Apply Rule 36 (restart reproducibility), then Rule 37 (tag retreat).
+5. Do not compare later milestones while an earlier one fails.
+
+### Dependency ordering extension (extends Section 7)
+
+After terminal tag-frontier closure at clean SHA, open plotfile campaign.
+On milestone failure:
+- Rule 36 -> Rule 37 -> re-enter Section 4 loop at mapped tag group.
+- Mark that group `FAIL`; mark downstream groups `RETREAT` as required.
+- Resume plotfile campaign only after upstream re-validation at clean SHA.
+
+### Campaign directory discipline
+
+Use a unique `campaign_id` directory root per campaign execution.
+Do not reuse campaign output directories.
+Archive only after corresponding `validation_runs.tsv` rows are closed.
