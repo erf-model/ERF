@@ -1784,6 +1784,12 @@ integer:: i, j, k, mstepmax,                                     &
        qsat(i,k,2) = max(qsat(i,k,2),qmin)
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_QSAT2 ', k, &
+         qsat(its,k,1), qsat(its,k,2), q(its,k), t(its,k), p(its,k), den(its,k)
+     enddo
+   endif
 !
 !----------------------------------------------------------------
 ! pcond: condensational/evaporational rate of cloud water [HL A46] [RH83 A6]

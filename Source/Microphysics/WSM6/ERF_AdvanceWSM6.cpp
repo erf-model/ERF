@@ -2372,6 +2372,9 @@ WSM6::Advance(const Real& dt_advance,
                 qsatw_arr(i,j,k) = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsatw_arr(i,j,k) = amrex::max(qsatw_arr(i,j,k), Real(qmin));
             });
+            print_wsm6_tag6("WSM6-CPP_QSAT2",
+                            qsatw_arr, qsati_arr, qv_arr,
+                            t_arr, p_arr, den_arr, loop);
 
             // G16: pcond condensational/evaporational update [lines 1427-1437]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
