@@ -20,7 +20,7 @@ G13f	WSM6-FORT_PRACS	WSM6-CPP_PRACS	(its, jts)	EPSILON_OK	none	pracs, psacr, qr,
 G13g	WSM6-FORT_PSEML	WSM6-CPP_PSEML	(its, jts)	EPSILON_OK	none	pseml, pgeml, qs, qg, qr, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	EPSILON_OK	none	pidep, pigen, psdep, pgdep, qv, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	EPSILON_OK	none	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	FAIL	missing_canonical_tags_PSEVP	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	RETREAT	upstream_G13j_missing_tag_contract	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	RETREAT	upstream_G13j_missing_tag_contract	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G13j_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	EPSILON_OK	none	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	FAIL	missing_canonical_tags_UPDATE	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	RETREAT	upstream_G14_missing_tag_contract	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G14_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
