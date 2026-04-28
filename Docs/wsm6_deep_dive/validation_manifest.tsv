@@ -22,5 +22,5 @@ G13h	WSM6-FORT_PIDEP	WSM6-CPP_PIDEP	(its, jts)	EPSILON_OK	none	pidep, pigen, psd
 G13i	WSM6-FORT_PSAUT	WSM6-CPP_PSAUT	(its, jts)	EPSILON_OK	none	psaut, pgaut, qi, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G13j	WSM6-FORT_PSEVP	WSM6-CPP_PSEVP	(its, jts)	EPSILON_OK	none	psevp, pgevp, qv, qs, qg, t, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
 G14	WSM6-FORT_UPDATE	WSM6-CPP_UPDATE	(its, jts)	EPSILON_OK	none	q, qc, qi, qr, qs, qg, t, den, cpm	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	FAIL	missing_canonical_tags_QSAT2	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
-G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	RETREAT	upstream_G15_missing_tag_contract	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G15	WSM6-FORT_QSAT2	WSM6-CPP_QSAT2	(its, jts)	EPSILON_OK	none	qsatw, qsat2, qv, t, p, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
+G16	WSM6-FORT_PCOND	WSM6-CPP_PCOND	(its, jts)	FAIL	missing_canonical_tags_PCOND	pcond, q, qc, t, xl, cpm, den	E24.16_6fields_L1; group_extended_L2	1-step_debug|2-step_debug|10-step_debug
