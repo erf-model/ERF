@@ -168,6 +168,11 @@ After both run legs complete:
 4. Apply Rule 36 (restart reproducibility), then Rule 37 (tag retreat).
 5. Do not compare later milestones while an earlier one fails.
 
+If the failing milestone was detected on coarse plot cadence (`plot_int_1 > 1`),
+run a bounded restart refinement from the nearest earlier checkpoint with
+`plot_int_1=1`, compare per-step explicit pairs, and identify earliest failing
+substep `N*`. Use `N*` (not the coarse milestone step) for Rule 36 and Rule 37.
+
 ### Dependency ordering extension (extends Section 7)
 
 After terminal tag-frontier closure at clean SHA, open plotfile campaign.

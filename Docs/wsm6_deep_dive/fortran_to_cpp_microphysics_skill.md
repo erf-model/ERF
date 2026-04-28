@@ -2004,6 +2004,23 @@ including:
 - publication comparison checkpoints,
 - extended-drift checkpoints.
 
+### Per-step narrowing inside a failing milestone window
+
+If milestone spacing is coarser than one step (for example `plot_int_1=100`),
+first-fail at milestone step `N` is only a window-level detection. Before
+physics-tag retreat, narrow to the earliest failing substep `N*`:
+
+1. Let `K` be the nearest available checkpoint at or before `N-1`.
+2. Restart both paths from checkpoint `K` with identical controls except
+   implementation switch (`use_wsm6_cpp_answer` or scheme equivalent).
+3. Write per-step plotfiles in `[K+1, N]` using `plot_int_1=1`.
+4. Run explicit paired `fcompare` per step (`plt00001` vs `plt00001`, etc.),
+   never wildcard/glob multi-file expansions.
+5. Stop at first failing substep `N*`.
+
+Promote `N*` as the operational first failing step for Rule 36 and Rule 37.
+Do not use later failing steps while `N*` is unresolved.
+
 ### Notes as knowledge artifact
 
 For every milestone with `EPSILON_OK`, the run ledger notes should include:
@@ -2026,6 +2043,9 @@ Triggered when a plotfile milestone fails at step `N`.
 1. Confirm checkpoint at `N-1` exists.
    If `N-1` is not checkpointed, use the nearest earlier checkpoint and
    advance reproducibly to step `N`.
+
+   If `N` came from sparse milestone detection, first apply the Rule 35
+   per-step narrowing loop and replace `N` with narrowed `N*`.
 
 2. Restart both paths from checkpoint at `N-1` and advance exactly one step.
    The exact run control (for example `max_step`/`stop_time` conventions)
