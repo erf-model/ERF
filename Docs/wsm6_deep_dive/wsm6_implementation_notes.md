@@ -395,6 +395,10 @@ Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex
 
 ### Executable and run policy
 
+Run from: Exec/CanonicalTests/SquallLine_2D
+Input file: inputs_moisture_WSM6
+Use unique <campaign_id> root per campaign.
+
   Tag-frontier runs (Rules 30-34): ../../ERF3d.gnu.DEBUG.ex
   Plotfile short pair (Milestones A-B): ../../ERF3d.gnu.DEBUG.ex
   Plotfile long pair (Milestones C-I): ../../ERF3d.gnu.RELEASE.ex
@@ -421,7 +425,8 @@ Build type convention for run_id and notes:
         if both are run, as separate rows.
         Milestone C-I rows must be release.
 
-No mpirun. GFORTRAN_UNBUFFERED_ALL=y for Fortran path only.
+Set GFORTRAN_UNBUFFERED_ALL=y for Fortran-path runs only.
+No mpirun for any run in this campaign.
 
 ### dt convention
 
