@@ -401,7 +401,7 @@ Use unique <campaign_id> root per campaign.
 
   Tag-frontier runs (Rules 30-34): ../../ERF3d.gnu.DEBUG.ex
   Plotfile short pair (Milestones A-B): ../../ERF3d.gnu.DEBUG.ex
-  Plotfile long pair (Milestones C-I): ../../ERF3d.gnu.RELEASE.ex
+  Plotfile long pair (Milestones C-I): ../../ERF3d.gnu.TEST.ex
 
 Never run long plotfile campaigns with the DEBUG binary —
 at ~38s/step in DEBUG, stop_time=9000 at dt=1.0 is impractical.
