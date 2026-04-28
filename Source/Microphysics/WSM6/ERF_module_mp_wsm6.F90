@@ -1808,6 +1808,12 @@ integer:: i, j, k, mstepmax,                                     &
          t(i,k) = t(i,k)+pcond(i,k)*xl(i,k)/cpm(i,k)*dtcld
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PCOND ', k, &
+         pcond(its,k), q(its,k), qc(its,k), t(its,k), xl(its,k), cpm(its,k)
+     enddo
+   endif
 !
 !
 !----------------------------------------------------------------

@@ -2397,6 +2397,9 @@ WSM6::Advance(const Real& dt_advance,
                              + pcond_arr(i,j,k) * xl_arr(i,j,k)
                              / cpm_arr(i,j,k) * dtcld;
             });
+            print_wsm6_tag6("WSM6-CPP_PCOND",
+                            pcond_arr, qv_arr, qc_arr,
+                            t_arr, xl_arr, cpm_arr, loop);
 
             // G17: padding for small values [lines 1444-1449]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
