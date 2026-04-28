@@ -2011,9 +2011,12 @@ first-fail at milestone step `N` is only a window-level detection. Before
 physics-tag retreat, narrow to the earliest failing substep `N*`:
 
 1. Let `K` be the nearest available checkpoint at or before `N-1`.
-2. Restart both paths from checkpoint `K` with identical controls except
+2. Restart both paths from the same checkpoint source `K` with identical controls except
    implementation switch (`use_wsm6_cpp_answer` or scheme equivalent).
+   Default policy: use the Fortran-leg checkpoint path for both restart legs
+   so restart state is held constant while implementation switch is isolated.
 3. Write per-step plotfiles in `[K+1, N]` using `plot_int_1=1`.
+   For checkpointed substep retreat, set `check_int=1` in this refinement run.
 4. Run explicit paired `fcompare` per step (`plt00001` vs `plt00001`, etc.),
    never wildcard/glob multi-file expansions.
 5. Stop at first failing substep `N*`.
@@ -2050,6 +2053,8 @@ Triggered when a plotfile milestone fails at step `N`.
 2. Restart both paths from checkpoint at `N-1` and advance exactly one step.
    The exact run control (for example `max_step`/`stop_time` conventions)
    must follow the solver/runtime semantics documented in implementation notes.
+   Keep restart source identical across legs (shared checkpoint path) unless
+   the explicit objective is a restart-state sensitivity study.
 
 3. Compare regenerated `plt<N>` pair using the same `fcompare` call pattern.
 

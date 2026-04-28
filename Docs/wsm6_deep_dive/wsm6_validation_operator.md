@@ -172,6 +172,10 @@ If the failing milestone was detected on coarse plot cadence (`plot_int_1 > 1`),
 run a bounded restart refinement from the nearest earlier checkpoint with
 `plot_int_1=1`, compare per-step explicit pairs, and identify earliest failing
 substep `N*`. Use `N*` (not the coarse milestone step) for Rule 36 and Rule 37.
+Use a shared restart source for both legs (same checkpoint path, typically the
+Fortran-leg checkpoint) during refinement and restart reproducibility checks.
+If single-step checkpoint breadcrumbs are needed for tag retreat handoff, set
+`check_int=1` during the bounded refinement run.
 
 ### Dependency ordering extension (extends Section 7)
 

@@ -463,7 +463,7 @@ Short run, Fortran path:
 
 ```bash
 GFORTRAN_UNBUFFERED_ALL=y \
-../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
   erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=0 \
   fixed_dt=1.0 max_step=10 \
   erf.plot_file_1=<campaign_id>/short_fortran/plt \
@@ -476,7 +476,7 @@ GFORTRAN_UNBUFFERED_ALL=y \
 Short run, C++ path:
 
 ```bash
-../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
   erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=0 \
   fixed_dt=1.0 max_step=10 \
   erf.plot_file_1=<campaign_id>/short_cpp/plt \
@@ -490,7 +490,7 @@ Long run, Fortran path:
 
 ```bash
 GFORTRAN_UNBUFFERED_ALL=y \
-../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
   erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=0 \
   fixed_dt=1.0 stop_time=12000 \
   erf.plot_file_1=<campaign_id>/long_fortran/plt \
@@ -503,7 +503,7 @@ GFORTRAN_UNBUFFERED_ALL=y \
 Long run, C++ path:
 
 ```bash
-../../ERF3d.gnu.DEBUG.ex inputs_moisture_WSM6 \
+../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
   erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=0 \
   fixed_dt=1.0 stop_time=12000 \
   erf.plot_file_1=<campaign_id>/long_cpp/plt \
@@ -540,16 +540,50 @@ mv diffs <campaign_id>/diffs_plt<N>_<var>
 ### Restart reproducibility (Rule 36)
 
 Restart from checkpoint at step `N-1` and advance exactly one step.
+If `N-1` is not checkpointed, use nearest earlier `K` and run a bounded
+refinement window to narrow first-fail substep `N*` before Rule 36 compare.
+Use the same restart source path for both legs (default: Fortran checkpoint
+path) to isolate implementation differences.
+
 A typical ERF pattern is:
 
 ```bash
 erf.restart=<campaign_id>/long_fortran/chk<N-1_padded> max_step=<N>
 ```
 
-Use the same pattern on the C++ path
-(`erf.restart=<campaign_id>/long_cpp/chk<N-1_padded>`) and compare
-regenerated `plt<N>`.
+Use the same restart path on the C++ leg as well
+(`erf.restart=<campaign_id>/long_fortran/chk<N-1_padded>`) and compare
+regenerated `plt<N>` (or `plt<N*>` after refinement).
 Record `restart_repro_status=MATCH|MISMATCH`.
+
+### Bounded per-step refinement (coarse milestone failure)
+
+When a long run uses coarse plot cadence (for example `erf.plot_int_1=100`)
+and first fail appears at milestone step `N`, run a bounded restart refinement
+from nearest checkpoint `K <= N-1`:
+
+```bash
+GFORTRAN_UNBUFFERED_ALL=y ../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=0 \
+  erf.fixed_dt=1.0 amr.restart=<campaign_id>/long_fortran/chk<K_padded> \
+  max_step=<N> stop_time=<N> \
+  erf.plot_file_1=<campaign_id>/restart_stepwise/fortran/plt \
+  erf.plot_int_1=1 \
+  erf.check_file=<campaign_id>/restart_stepwise/fortran/chk \
+  erf.check_int=1
+
+../../ERF3d.gnu.TEST.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=0 \
+  erf.fixed_dt=1.0 amr.restart=<campaign_id>/long_fortran/chk<K_padded> \
+  max_step=<N> stop_time=<N> \
+  erf.plot_file_1=<campaign_id>/restart_stepwise/cpp/plt \
+  erf.plot_int_1=1 \
+  erf.check_file=<campaign_id>/restart_stepwise/cpp/chk \
+  erf.check_int=1
+```
+
+Then run explicit per-step paired `fcompare` from `K+1..N`, stop at earliest
+failing substep `N*`, and use `N*` for tag retreat handoff.
 
 ### Soft reference baselines (early dry regime)
 
