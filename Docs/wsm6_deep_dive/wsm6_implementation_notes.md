@@ -393,12 +393,35 @@ Repository-relative location:
 Submodules/AMReX/Tools/Plotfile/fcompare.gnu.ex
 ```
 
-### Run location and policy
+### Executable and run policy
 
-- Run from: `Exec/CanonicalTests/SquallLine_2D`
-- Input file: `inputs_moisture_WSM6`
-- Set `GFORTRAN_UNBUFFERED_ALL=y` for Fortran-path runs.
-- Use unique `<campaign_id>` root per campaign.
+  Tag-frontier runs (Rules 30-34): ../../ERF3d.gnu.DEBUG.ex
+  Plotfile short pair (Milestones A-B): ../../ERF3d.gnu.DEBUG.ex
+  Plotfile long pair (Milestones C-I): ../../ERF3d.gnu.RELEASE.ex
+
+Never run long plotfile campaigns with the DEBUG binary —
+at ~38s/step in DEBUG, stop_time=9000 at dt=1.0 is impractical.
+RELEASE and DEBUG may differ due to optimization and floating
+point contraction — always validate Milestones A and B at
+RELEASE before launching the long pair.
+
+Build commands:
+  DEBUG:   make -j8 USE_MPI=FALSE USE_NETCDF=FALSE \
+                    USE_WSM6_FORT=TRUE DEBUG=TRUE
+  RELEASE: make -j8 USE_MPI=FALSE USE_NETCDF=FALSE \
+                    USE_WSM6_FORT=TRUE DEBUG=FALSE
+
+Build type convention for run_id and notes:
+  Encode build type in run_id token: _debug or _release
+    e.g. 20260429T_plotparity_v1c_A_fortran_release
+  Record in notes as build_type=debug or build_type=release
+  Do not add build_type as a TSV column — notes token is enough.
+  Rule: tag_frontier rows are always debug.
+        Milestone A-B rows may be debug or release — record both
+        if both are run, as separate rows.
+        Milestone C-I rows must be release.
+
+No mpirun. GFORTRAN_UNBUFFERED_ALL=y for Fortran path only.
 
 ### dt convention
 
