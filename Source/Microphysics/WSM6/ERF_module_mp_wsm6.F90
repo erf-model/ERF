@@ -1537,6 +1537,10 @@ integer:: i, j, k, mstepmax,                                     &
        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRACS ', k, &
          pracs(its,k), psacr(its,k), qr(its,k), qs(its,k), qg(its,k), q(its,k)
      enddo
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PSEML ', k, &
+         pseml(its,k), pgeml(its,k), qs(its,k), qg(its,k), qr(its,k), t(its,k)
+     enddo
    endif
 !
 !
