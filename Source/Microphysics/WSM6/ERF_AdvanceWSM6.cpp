@@ -2354,6 +2354,9 @@ WSM6::Advance(const Real& dt_advance,
                     t_arr(i,j,k) = t_arr(i,j,k) - xlwork2 / cpm_arr(i,j,k) * dtcld;
                 }
             });
+            print_wsm6_tag6("WSM6-CPP_UPDATE",
+                            qv_arr, qc_arr, qi_arr,
+                            qr_arr, qs_arr, qg_arr, loop);
 
             // G15: second qsat computation [lines 1390-1420]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {

@@ -1746,6 +1746,12 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
+   if (mpdbg_level >= 1 .and. loop == 1) then
+     do k = kts, kte
+       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_UPDATE ', k, &
+         q(its,k), qc(its,k), qi(its,k), qr(its,k), qs(its,k), qg(its,k)
+     enddo
+   endif
 !
 ! Inline expansion for fpvs
 !  qsat(i,k,1) = fpvs(t(i,k),0,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
