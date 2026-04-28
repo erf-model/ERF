@@ -820,13 +820,26 @@ WSM6::Advance(const Real& dt_advance,
 
         Box box2d(box);
         box2d.makeSlab(2, 0);
-        FArrayBox rainncv_fab(box2d, 1);
-        FArrayBox sr_fab(box2d, 1);
-        FArrayBox snowncv_fab(box2d, 1);
-        FArrayBox graupelncv_fab(box2d, 1);
-        FArrayBox rainacc_fab(box2d, 1);
-        FArrayBox snowacc_fab(box2d, 1);
-        FArrayBox graupacc_fab(box2d, 1);
+        Box fab_box2d(fab_box);
+        fab_box2d.makeSlab(2, 0);
+
+        // Fortran bridge uses ims:ime, jms:jme storage bounds; these buffers must
+        // therefore be allocated on fab_box extents even if C++ kernels only
+        // update the valid tile slab (box2d).
+        FArrayBox rainncv_fab(fab_box2d, 1);
+        FArrayBox sr_fab(fab_box2d, 1);
+        FArrayBox snowncv_fab(fab_box2d, 1);
+        FArrayBox graupelncv_fab(fab_box2d, 1);
+        FArrayBox rainacc_fab(fab_box2d, 1);
+        FArrayBox snowacc_fab(fab_box2d, 1);
+        FArrayBox graupacc_fab(fab_box2d, 1);
+        rainncv_fab.setVal(Real(0.0));
+        sr_fab.setVal(Real(0.0));
+        snowncv_fab.setVal(Real(0.0));
+        graupelncv_fab.setVal(Real(0.0));
+        rainacc_fab.setVal(Real(0.0));
+        snowacc_fab.setVal(Real(0.0));
+        graupacc_fab.setVal(Real(0.0));
 
         auto const& rainncv_arr = rainncv_fab.array();
         auto const& sr_arr = sr_fab.array();
