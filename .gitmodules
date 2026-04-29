@@ -18,3 +18,6 @@
 [submodule "Submodules/ekat"]
 	path = Submodules/ekat
 	url = https://github.com/E3SM-Project/EKAT
+[submodule "Submodules/lapack"]
+	path = Submodules/lapack
+	url = https://github.com/Reference-LAPACK/lapack.git
