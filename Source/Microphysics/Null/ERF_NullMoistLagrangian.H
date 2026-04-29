@@ -51,6 +51,12 @@ public:
                              amrex::MultiFab&, /* Conserved state variable */
                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*terrain*/) {}
 
+    /*! \brief average down moisture multifabs from finest_level to 0 */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) {}
+
+    /*! \brief push moisture multifabs into conserved state on cells covered by a finer level */
+    virtual void RestoreMoistVarsInState_Lev (const int /*lev*/, amrex::MultiFab& /*cons_in*/) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");

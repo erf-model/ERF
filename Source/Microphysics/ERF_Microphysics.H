@@ -54,6 +54,12 @@ public:
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
+    /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) { }
+
+    /*! \brief push moisture multifabs into conserved state on cells covered by a finer level; no-op for non-Lagrangian models */
+    virtual void RestoreMoistVarsInState_Lev (const int /*lev*/, amrex::MultiFab& /*cons_in*/) { }
+
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
 
