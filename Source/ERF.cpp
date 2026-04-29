@@ -2359,8 +2359,8 @@ ERF::ReadParameters ()
         init_string != "metgrid"  &&
         init_string != "ncfile") {
         pp_pn.get("prob_name", prob_name);
-        Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
     }
+    Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
 
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
