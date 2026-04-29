@@ -326,6 +326,17 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     if (ncomp_mf == 0) return;
 
+    // Lagrangian microphysics with AMR (TwoWay): bring fine-level moisture down
+    // to coarse cells so plotfiles at level 0 show the fine-deposit cloud.
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
+        && solverChoice.coupling_type == CouplingType::TwoWay
+        && finest_level >= 1) {
+        micro->AverageDownMicroVars(finest_level);
+        for (int lev = 0; lev < finest_level; ++lev) {
+            micro->RestoreMoistVarsInState_Lev(lev, vars_new[lev][Vars::cons]);
+        }
+    }
+
     // We Fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
     //     because we don't need to set interior fine points.
