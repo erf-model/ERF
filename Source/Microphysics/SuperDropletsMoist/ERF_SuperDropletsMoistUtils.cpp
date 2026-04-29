@@ -101,8 +101,10 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
 
     const auto& gvec = a_cons_vars.nGrowVect();
 
-    // Copy density and vapour mixing ratio from state variables
-    // Note: do *not* copy qc
+    // Read all moisture (qv, qc, qr) from state to keep the micro vars
+    // consistent with dycore-advected values; avoids q_t inconsistency on
+    // AMR coarse/fine boundaries since q_c/q_r in micro fabs would otherwise
+    // lag the dycore by one step.
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         bx.grow(gvec);
@@ -123,11 +125,14 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         {
             auto q_t_arr = m_mic_fab_vars[lev][MicVar_SD::q_t]->array(mfi);
             auto q_v_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->array(mfi);
-            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->const_array(mfi);
-            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->const_array(mfi);
+            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
+            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp);
+                Real inv_rho = Real(1.0) / states_arr(i,j,k,Rho_comp);
+                q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) * inv_rho;
+                q_c_arr(i,j,k) = states_arr(i,j,k,RhoQ2_comp) * inv_rho;
+                q_r_arr(i,j,k) = states_arr(i,j,k,RhoQ3_comp) * inv_rho;
                 q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k);
             });
         }
