@@ -16,6 +16,9 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                        const int a_lev )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange()");
+
+    iMultiFab fine_mask = buildFineMask(a_lev);
+
     for (int is = 0; is < m_num_species; is++) {
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -107,10 +110,13 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                     auto dqc_arr = m_mic_fab_vars[a_lev][MicVar_SD::dqcdt]->array(mfi);
                     auto qr_arr = m_mic_fab_vars[a_lev][MicVar_SD::q_r]->array(mfi);
 
+                    auto mask_arr = fine_mask.const_array(mfi);
+
                     auto fac_cond = vapour_mat.m_lat_vap / m_Cp;
 
                     ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        if (mask_arr(i,j,k) == 0) return;
                         auto old_qv = qv_arr(i,j,k);
                         if (is == idx_w) {
                             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);

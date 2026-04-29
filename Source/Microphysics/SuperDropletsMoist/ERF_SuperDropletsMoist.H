@@ -7,6 +7,8 @@
 #include <string>
 #include <AMReX_Enum.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_iMultiFab.H>
+#include <AMReX_MultiFabUtil.H>
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -170,6 +172,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Ensure m_mic_fab_vars[lev] is allocated for the given level */
         void EnsureMicFabVars (const int a_lev, const amrex::MultiFab& a_cons_vars);
+
+        /*! \brief Build a coarse-cell mask: 1 where exposed, 0 where covered by a finer level */
+        amrex::iMultiFab buildFineMask (const int a_lev) const;
 
         /*! \brief Initialize m_mic_fab_vars for a non-zero AMR level */
         void InitLevel (const int a_lev, const amrex::MultiFab& a_cons_vars) override;
