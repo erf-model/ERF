@@ -78,60 +78,43 @@ read_from_erfbdy(int itime,
         bdy_data_yhi[itime].resize(nvars);
     }
 
-    // Read each variable for each boundary direction using FArrayBox::readFrom
-    if (ParallelDescriptor::IOProcessor())
+    // All processors read the data from files
+    // Since erfbdy files are in a parallel filesystem, all processors can read simultaneously
+    for (int ivar = 0; ivar < nvars; ++ivar)
     {
-        for (int ivar = 0; ivar < nvars; ++ivar)
+        // X-low boundary
         {
-            // X-low boundary
-            {
-                std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
-                std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-                bdy_data_xlo[itime][ivar].readFrom(ifs);
-                ifs.close();
-            }
+            std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
+            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
+            bdy_data_xlo[itime][ivar].readFrom(ifs);
+            ifs.close();
+        }
 
-            // X-high boundary
-            {
-                std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
-                std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-                bdy_data_xhi[itime][ivar].readFrom(ifs);
-                ifs.close();
-            }
+        // X-high boundary
+        {
+            std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
+            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
+            bdy_data_xhi[itime][ivar].readFrom(ifs);
+            ifs.close();
+        }
 
-            // Y-low boundary
-            {
-                std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
-                std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-                bdy_data_ylo[itime][ivar].readFrom(ifs);
-                ifs.close();
-            }
+        // Y-low boundary
+        {
+            std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
+            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
+            bdy_data_ylo[itime][ivar].readFrom(ifs);
+            ifs.close();
+        }
 
-            // Y-high boundary
-            {
-                std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
-                std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-                bdy_data_yhi[itime][ivar].readFrom(ifs);
-                ifs.close();
-            }
+        // Y-high boundary
+        {
+            std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
+            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
+            bdy_data_yhi[itime][ivar].readFrom(ifs);
+            ifs.close();
         }
     }
 
-    // Broadcast data to all processors
+    // Barrier to ensure all reads complete
     ParallelDescriptor::Barrier();
-    for (int ivar = 0; ivar < nvars; ++ivar)
-    {
-        ParallelDescriptor::Bcast(bdy_data_xlo[itime][ivar].dataPtr(),
-                                  bdy_data_xlo[itime][ivar].size(),
-                                  ParallelDescriptor::IOProcessorNumber());
-        ParallelDescriptor::Bcast(bdy_data_xhi[itime][ivar].dataPtr(),
-                                  bdy_data_xhi[itime][ivar].size(),
-                                  ParallelDescriptor::IOProcessorNumber());
-        ParallelDescriptor::Bcast(bdy_data_ylo[itime][ivar].dataPtr(),
-                                  bdy_data_ylo[itime][ivar].size(),
-                                  ParallelDescriptor::IOProcessorNumber());
-        ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),
-                                  bdy_data_yhi[itime][ivar].size(),
-                                  ParallelDescriptor::IOProcessorNumber());
-    }
 }
