@@ -118,13 +118,6 @@ public:
         m_moist_model->AverageDownMicroVars(finest_level);
     }
 
-    /*! \brief push moisture multifabs into conserved state on cells covered by a finer level */
-    void RestoreMoistVarsInState_Lev (const int lev, amrex::MultiFab& cons_in) override
-    {
-        m_moist_model->SetCurrentLevel(lev);
-        m_moist_model->RestoreMoistVarsInState_Lev(lev, cons_in);
-    }
-
     /*! \brief get pointer to a moisture variable */
     amrex::MultiFab* Get_Qmoist_Ptr (const int& lev, /*!< AMR level */
                                      const int& varIdx /*!< moisture variable index */) override

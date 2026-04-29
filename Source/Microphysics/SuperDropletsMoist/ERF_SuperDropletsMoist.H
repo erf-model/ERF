@@ -209,10 +209,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Average down moisture multifabs from finest_level down to 0 */
         virtual void AverageDownMicroVars (const int finest_level) override;
 
-        /*! \brief Push moisture multifabs into conserved state on cells covered by a finer level */
-        virtual void RestoreMoistVarsInState_Lev (const int lev,
-                                                  amrex::MultiFab& cons_in) override;
-
         /*! \brief Copy moisture model vars from state to member multifabs
          * \param[in] a_state State multifab to copy from
          */

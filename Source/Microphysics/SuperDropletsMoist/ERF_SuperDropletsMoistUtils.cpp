@@ -327,58 +327,6 @@ void SuperDropletsMoist::AverageDownMicroVars (const int finest_level)
     }
 }
 
-/*! \brief Push moisture multifabs back into conserved state on cells covered
- *  by a finer level, leaving exposed cells untouched (Copy_Micro_to_State at
- *  this level already handled them).
- *
- * \param[in] lev AMR level whose grid is used as the target state layout
- * \param[in,out] cons_in Conserved state multifab at this level
- */
-void SuperDropletsMoist::RestoreMoistVarsInState_Lev (const int lev,
-                                                      MultiFab& cons_in)
-{
-    BL_PROFILE("SuperDropletsMoist::RestoreMoistVarsInState_Lev()");
-
-    if (lev < 0 || lev >= static_cast<int>(m_mic_fab_vars.size())) return;
-    if (m_mic_fab_vars[lev].empty()) return;
-
-    iMultiFab fine_mask = buildFineMask(lev);
-
-    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-
-        auto S = cons_in.array(mfi);
-        auto mask = fine_mask.const_array(mfi);
-
-        auto theta_arr = m_mic_fab_vars[lev][MicVar_SD::theta]->const_array(mfi);
-        auto qv_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->const_array(mfi);
-        auto qc_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->const_array(mfi);
-        auto qr_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->const_array(mfi);
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
-        {
-            if (mask(i,j,k) != 0) return; // skip exposed cells
-            S(i,j,k,RhoTheta_comp) = S(i,j,k,Rho_comp) * theta_arr(i,j,k);
-            S(i,j,k,RhoQ1_comp)    = S(i,j,k,Rho_comp) * qv_arr(i,j,k);
-            S(i,j,k,RhoQ2_comp)    = S(i,j,k,Rho_comp) * qc_arr(i,j,k);
-            S(i,j,k,RhoQ3_comp)    = S(i,j,k,Rho_comp) * qr_arr(i,j,k);
-        });
-
-        for (int is = 1; is < m_num_species; is++) {
-            auto qv_s_arr = m_mic_fab_vars[lev][s_qv_idx(is)]->const_array(mfi);
-            auto qc_s_arr = m_mic_fab_vars[lev][s_qc_idx(is)]->const_array(mfi);
-            auto qv_comp = q_qv_idx(is);
-            auto qc_comp = q_qc_idx(is);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
-            {
-                if (mask(i,j,k) != 0) return;
-                S(i,j,k,qv_comp) = S(i,j,k,Rho_comp) * qv_s_arr(i,j,k);
-                S(i,j,k,qc_comp) = S(i,j,k,Rho_comp) * qc_s_arr(i,j,k);
-            });
-        }
-    }
-}
-
 /*! \brief Compute derived quantities and update state variables */
 void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFab& a_z_phys_nd)
 {
