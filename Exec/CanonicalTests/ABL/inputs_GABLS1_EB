@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
-# stop_time = 54720.   # ~15.2 hr (14.2 hr + 1 hr buffer), in seconds
+stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
 #max_step = 1
 
 amrex.fpe_trap_invalid = 1
@@ -8,41 +8,32 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 eb2.geometry = "plane"
-eb2.plane_point = 0. 0. 101.25
+eb2.plane_point = 0. 0. 63.28125
 eb2.plane_normal = 0. 0. -1.
 eb2.small_volfrac = 1.e-4
 
-# Full size
-geometry.prob_extent    = 2400.   2400.   1305.
-amr.n_cell              =  160      160     261
+# PROBLEM SIZE & GEOMETRY (dx=dy=dz=3.125 m)
+geometry.prob_extent = 400  400  465.625
+amr.n_cell           = 128  128  149
 geometry.is_periodic = 1 1 0
-
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type = "surface_layer"
-erf.most.z0   = 0.05
-erf.most.zref = 2.5
-erf.most.surf_temp_flux = 0.0
+erf.most.z0   = 0.1
+erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
+erf.most.surf_heating_rate  = -0.25 # [K/h] from Beare et al. 2006
 
 zhi.type = "SlipWall"
-zhi.theta_grad   = 0.003    # for case N02
+zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
 
-erf.rayleigh_damp_U = true
-erf.rayleigh_damp_V = true
-erf.rayleigh_damp_W = true
-erf.rayleigh_damp_T = true
-erf.rayleigh_dampcoef = 0.003
-erf.rayleigh_zdamp    = 400.
-
-# WIND FORCING (needed to maintain flow against surface drag)
-erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind    = 6.5  0.0  0.0
-#erf.abl_geo_forcing    = 6.5  0.0  0.0
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_GABLS1"
 
 # TIME STEP CONTROL
 erf.substepping_type   = None
 # erf.cfl             = 0.5
-erf.fixed_dt        = 0.01
+erf.fixed_dt        = 0.0025
 #erf.substepping_cfl = 0.5
 
 # DIAGNOSTICS & VERBOSITY
@@ -67,45 +58,36 @@ erf.dycore_horiz_adv_type    = "Upwind_5th"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
 erf.use_gravity = true
 erf.use_coriolis = true
-erf.latitude = 33.5
-erf.rotational_time_period = 86374.0
+erf.latitude = 73.0
+erf.rotational_time_period = 86455.2516813368
+
+# Geostrophic wind (Beare et al. 2006)
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0
 
 # TERRAIN GRID TYPE
 erf.terrain_type     = "EB"
 erf.write_eb_surface = TRUE
 erf.terrain_smoothing = 0
 erf.eb_boundary_type = "SurfaceLayer"
-# erf.eb_boundary_type = "NoSlipWall"
 
 erf.molec_diff_type = "None"
 erf.les_type = "Smagorinsky"
 erf.Cs       = 0.17
 
-erf.init_type = "input_sounding"
-erf.sounding_type = Ideal
-#erf.input_sounding_file = "input_sounding_EB"
-erf.input_sounding_file = "input_sounding"
+erf.rayleigh_damp_U = false
+erf.rayleigh_damp_V = false
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = false
+erf.rayleigh_dampcoef = 0.2 # [1/s] following FastEddy
+erf.rayleigh_zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
 
 # PROBLEM PARAMETERS
-# these are zeroed because we are using an input_sounding
-prob.rho_0 = 0.0
-prob.T_0 = 0.0
-prob.A_0 = 0.0
-prob.U_0 = 0.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-
-prob.pert_ref_height = 500.0
-prob.U_0_Pert_Mag = 0.65
-prob.V_0_Pert_Mag = 0.65
-prob.W_0_Pert_Mag = 0.0
-prob.pert_periods_U = 12
-prob.pert_periods_V = 12
-prob.pert_deltaU = 1.0
-prob.pert_deltaV = 1.0
+prob.T_0_Pert_Mag    = 0.1 # [K]
+prob.pert_ref_height = 50. # [m]
 
 # planar averaging (with erf.v = 1)
 erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
-erf.profile_int = 12000
+erf.profile_int = 28800
 erf.destag_profiles = true
 
