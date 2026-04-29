@@ -77,6 +77,15 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                      + zheight(ix_p+1, iy_p+1, k_face) *            fx  *            fy;
             };
 
+            // Effective k bounds for safe zface access: must respect both the
+            // geometry domain (k_max) and the local fab's z extent. With AMR
+            // partial-z fabs (especially with many small boxes from large rank
+            // counts), a particle at the top/bottom of its fab can have kz
+            // such that kz+2 / kz-1 read outside the fab. Use the fallback
+            // (one-sided) span formula in those cases.
+            const int kz_hi_safe = amrex::min(k_max, zheight.end[2] - 2);
+            const int kz_lo_safe = amrex::max(0,     zheight.begin[2] + 1);
+
             const Real z_lo_k = zface(kz);
             const Real z_hi_k = zface(kz + 1);
             const Real z_ctr_k = Real(0.5) * (z_lo_k + z_hi_k);
@@ -90,7 +99,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 kz_lo = kz;
                 kz_hi = kz + 1;
                 Real span;
-                if (kz < k_max) {
+                if (kz < kz_hi_safe) {
                     const Real z_hi2    = zface(kz + 2);
                     const Real z_ctr_hi = Real(0.5) * (z_hi_k + z_hi2);
                     span = z_ctr_hi - z_ctr_k;
@@ -103,7 +112,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 kz_hi = kz;
                 kz_lo = kz - 1;
                 Real span;
-                if (kz > 0) {
+                if (kz > kz_lo_safe) {
                     const Real z_lo2    = zface(kz - 1);
                     const Real z_ctr_lo = Real(0.5) * (z_lo2 + z_lo_k);
                     span = z_ctr_k - z_ctr_lo;
