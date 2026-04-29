@@ -6,6 +6,7 @@
 
 #include "ERF.H"
 #include "AMReX_PlotFileUtil.H"
+#include "ERF_ReadFromERFBdy.H"
 
 using namespace amrex;
 
@@ -1067,6 +1068,40 @@ ERF::ReadCheckpointFile ()
     } // init_type == WRFInput or Metgrid
 #endif
 #endif
+
+    // Load boundary data from erfbdy.
+    if (((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) &&
+        solverChoice.use_real_bcs && use_erfbdy) {
+        Print() << "Restart: Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+        // Read metadata and times from erfbdy.
+        int ntimes_erfbdy;
+        Vector<Real> bdy_times;
+        bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                   ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                   bdy_times, start_bdy_time, final_bdy_time);
+
+        Print() << "Restart: erfbdy file contains " << ntimes_erfbdy << " times" << std::endl;
+
+        bdy_data_xlo.resize(ntimes_erfbdy);
+        bdy_data_xhi.resize(ntimes_erfbdy);
+        bdy_data_ylo.resize(ntimes_erfbdy);
+        bdy_data_yhi.resize(ntimes_erfbdy);
+
+        // Determine which times we need based on current simulation time.
+        Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+        int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
+        int n_time_new = n_time_old + 1;
+
+        // Load the necessary time slices.
+        for (int itime = n_time_old; itime <= std::min(n_time_new + 1, ntimes_erfbdy - 1); ++itime) {
+            read_from_erfbdy(itime, erfbdy_file,
+                             bdy_data_xlo, bdy_data_xhi,
+                             bdy_data_ylo, bdy_data_yhi,
+                             nvars_erfbdy, real_width);
+            Print() << "Restart: Loaded erfbdy time index " << itime << std::endl;
+        }
+    }
 }
 
 /**

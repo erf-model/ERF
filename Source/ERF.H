@@ -1269,6 +1269,12 @@ private:
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
 
+    // Options for ERF boundary files (wrfinput/metgrid)
+    bool        write_erfbdy{false};
+    bool        use_erfbdy{false};
+    std::string erfbdy_file{"erfbdy"};
+    int         nvars_erfbdy{0};
+
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
     std::unique_ptr<amrex::MultiFab> mf_C1H;

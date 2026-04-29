@@ -3,6 +3,8 @@
  */
 #include <ERF_Constants.H>
 #include <ERF_MetgridUtils.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -51,6 +53,45 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em with valid moisture model." << std::endl;
     } else {
         Print() << "Init with met_em without moisture model." << std::endl;
+    }
+
+    // If using erfbdy file, load boundary data and then skip the rest of met_em processing.
+    if (lev == 0 && use_erfbdy) {
+        Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+        int ntimes_erfbdy;
+        Vector<Real> bdy_times;
+        bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                   ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                   bdy_times, start_bdy_time, final_bdy_time);
+
+        AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
+
+        Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
+        Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+        Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+        Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+        bdy_data_xlo.resize(ntimes_erfbdy);
+        bdy_data_xhi.resize(ntimes_erfbdy);
+        bdy_data_ylo.resize(ntimes_erfbdy);
+        bdy_data_yhi.resize(ntimes_erfbdy);
+
+        // Load the first 2 times.
+        for (int itime = 0; itime < 2; ++itime) {
+            read_from_erfbdy(itime, erfbdy_file,
+                             bdy_data_xlo, bdy_data_xhi,
+                             bdy_data_ylo, bdy_data_yhi,
+                             nvars_erfbdy, real_width);
+            Print() << "Loaded erfbdy time slice " << itime << std::endl;
+        }
+
+        // Set the simulation start time.
+        t_new[lev] = zero;
+        t_old[lev] = -Real(1.e200);
+
+        Print() << "Loaded boundaries from erfbdy, skipping met_em processing" << std::endl;
+        return; // Skip the rest of met_em processing.
     }
 
     int ntimes = num_files_at_level[lev];
@@ -223,6 +264,8 @@ ERF::init_from_metgrid (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
+    Vector<Real> bdy_times(ntimes);
+
     for (int itime(0); itime < ntimes; itime++) {
         Print() << " init_from_metgrid: reading nc_init_file[" << lev << "][" << itime << "]\t" << nc_init_file[lev][itime] << std::endl;
         read_from_metgrid(lev, itime,
@@ -239,6 +282,9 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab, geom[lev]);
 
         if (lev == 0) {
+            // Collect time for erfbdy
+            bdy_times[itime] = NC_epochTime[itime];
+
             if (itime == 0) {
                 // Start at the earliest time in nc_init_file[lev].
                 start_bdy_time = NC_epochTime[itime];
@@ -250,6 +296,13 @@ ERF::init_from_metgrid (int lev)
                         << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
                 t_new[lev] = zero;
                 t_old[lev] = -Real(1.e200);
+
+                // Initialize erfbdy file header now that we know domain and real_width
+                if (write_erfbdy) {
+                    InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
+                                   geom[lev].Domain(), MetGridBdyVars::NumTypes, real_width);
+                    Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+                }
             } else {
                 // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
                 AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
@@ -553,6 +606,24 @@ ERF::init_from_metgrid (int lev)
                                        bdy_data_yhi[itime][nvar].size(),
                                        ParallelContext::CommunicatorAll());
             } // nvar
+
+            // Write this time slice to erfbdy immediately to avoid memory accumulation
+            if (write_erfbdy) {
+                WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                     bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                     bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                     MetGridBdyVars::NumTypes);
+                Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
+
+                // CRITICAL: Clear this time slice from memory after writing
+                // (unless it's one of the first two times needed for simulation start)
+                if (itime > 1) {
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+            }
         } // itime
     } // lev==0
 

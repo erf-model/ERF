@@ -52,6 +52,7 @@ Real ERF::final_low_time     = -one;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
 Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+
 #endif
 
 // Time step control
@@ -1102,7 +1103,7 @@ ERF::InitData_post ()
         // This follows init_from_wrfinput()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
 
             if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
                  amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
@@ -2499,6 +2500,11 @@ ERF::ReadParameters ()
         pp.query("metgrid_proximity",        metgrid_proximity);
         pp.query("metgrid_order",            metgrid_order);
         pp.query("metgrid_force_sfc_k",      metgrid_force_sfc_k);
+
+        // Options for boundary file.
+        pp.query("write_erfbdy",             write_erfbdy);
+        pp.query("use_erfbdy",               use_erfbdy);
+        pp.query("erfbdy_file",              erfbdy_file);
 
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
