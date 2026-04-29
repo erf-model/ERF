@@ -109,6 +109,19 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
+            // Skip particles whose idata_k stencil falls outside the local
+            // fab's z range. AMReX's interpolation reads zheight at k and k+1
+            // (and field arrays at k0 and k0+1) — a particle whose kz puts the
+            // stencil at a partial-z fab edge would OOB-read and produce
+            // NaN/Inf interpolated values, which then break the phase-change
+            // Newton solver. Same protection AdvectParticles already has.
+            {
+                const int pk = p.idata(ERFParticlesIntIdxAoS::k);
+                if (pk < zheight.begin[2] || pk + 1 >= zheight.end[2]) {
+                    return;
+                }
+            }
+
             // Interpolate saturation pressure, saturation ratio, temperature, pressure
             constexpr int nf = static_cast<int>(InterpFieldsLV::NUM_FIELDS);
             ParticleReal fv[nf];
