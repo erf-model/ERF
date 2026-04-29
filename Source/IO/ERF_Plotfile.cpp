@@ -332,10 +332,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         && solverChoice.coupling_type == CouplingType::TwoWay
         && finest_level >= 1) {
         micro->AverageDownMicroVars(finest_level);
-        for (int flev = finest_level; flev >= 1; --flev) {
-            micro->AverageDownMoistState_Lev(vars_new[flev-1][Vars::cons],
-                                             vars_new[flev][Vars::cons],
-                                             refRatio(flev-1));
+        for (int flev = finest_level-1; flev >= 0; --flev) {
+            AverageDownMoistStateTo(flev);
         }
     }
 

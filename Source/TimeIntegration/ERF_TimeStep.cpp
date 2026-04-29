@@ -147,10 +147,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                     Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian &&
                     finest_level >= 1) {
                     micro->AverageDownMicroVars(finest_level);
-                    for (int flev = finest_level; flev >= lev+1; --flev) {
-                        micro->AverageDownMoistState_Lev(vars_new[flev-1][Vars::cons],
-                                                         vars_new[flev][Vars::cons],
-                                                         refRatio(flev-1));
+                    for (int flev = finest_level-1; flev >= lev; --flev) {
+                        AverageDownMoistStateTo(flev);
                     }
                 }
 

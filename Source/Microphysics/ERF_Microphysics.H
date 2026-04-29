@@ -8,7 +8,6 @@
 #include <vector>
 #include <string>
 #include <AMReX_MultiFab.H>
-#include <AMReX_MultiFabUtil.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 
@@ -58,20 +57,6 @@ public:
 
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
-
-    /*! \brief Conservation-preserving fine-to-coarse average of moist state components
-     *  (RhoTheta and the contiguous RhoQ_n range covering moist + non-moist species)
-     *  using amrex::average_down on a single (coarse, fine) level pair. */
-    void AverageDownMoistState_Lev (amrex::MultiFab& cons_coarse,
-                                    const amrex::MultiFab& cons_fine,
-                                    const amrex::IntVect& ref_ratio)
-    {
-        amrex::average_down(cons_fine, cons_coarse, RhoTheta_comp, 1, ref_ratio);
-        const int n_moist = Get_Qstate_Size();
-        if (n_moist > 0) {
-            amrex::average_down(cons_fine, cons_coarse, RhoQ1_comp, n_moist, ref_ratio);
-        }
-    }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
