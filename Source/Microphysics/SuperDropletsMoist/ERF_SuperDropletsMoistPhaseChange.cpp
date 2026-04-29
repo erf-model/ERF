@@ -76,7 +76,10 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
             (*sr_ptr).FillBoundary();
 
-            // Compute total water content qt
+            // Recompute qc/qr from current particles, then compute qt = qv + qc + qr
+            // (using particle-derived qc/qr is consistent with what the qv update kernel
+            // sees after MassChange + computeQc, avoiding state-vs-particle mismatch).
+            computeQc(is, *a_z[a_lev]);
             computeQt(is);
 
             // Compute super-droplets mass change
