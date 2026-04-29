@@ -4,6 +4,82 @@
 
 ---
 
+## Vocabulary Reference
+
+This rulebook uses four orthogonal concepts.
+Do not conflate them.
+
+### Implementation Paths
+
+  path_a_fortran_bridge
+    The original Fortran scheme wired into ERF behind a compile
+    flag. Serves as the validation ground truth. Controlled by
+    erf.use_wsm6_cpp_answer=0. Path A is not discarded after
+    Phase 1 — it remains active as the oracle through Phase 4.
+
+  path_b_native_cpp
+    The native AMReX C++ implementation in ParallelFor kernels.
+    Controlled by erf.use_wsm6_cpp_answer=1. Validated
+    incrementally against Path A.
+
+### Port Phases
+
+  phase_1_bridge
+    Establish Path A. Wire Fortran source, compile flag,
+    smoke test. Produces the reference path.
+
+  phase_2_analysis
+    Read the Fortran source. Build process inventory, derive
+    enums, classify locals/arrays/constants. No kernel logic
+    written yet.
+
+  phase_3_instrumentation
+    Add canonical debug prints to Path A at process boundaries.
+    Turns Path A from plotfile reference into block-level oracle.
+
+  phase_4_incremental_cpp
+    Implement Path B one process group at a time.
+    Compare diagnostics against Phase 3 oracle before proceeding.
+
+  phase_5_full_native_validation
+    Assemble full native kernel. Validate with plotfile parity
+    (Milestones A-I). Requires all Phase 4 groups passing.
+
+### Validation Lanes
+
+  tag_frontier
+    Block-by-block and line-by-line comparison between Path A
+    and Path B at controlled scope (small step count, target
+    column). Phase 4 primary lane.
+
+  plotfile_parity
+    Full-domain plotfile comparison at physics-grounded
+    milestone steps. Phase 5 primary lane.
+
+### Validation Questions
+
+  implementation_parity
+    Does Path B match Path A at controlled scope?
+    Answered by tag_frontier lane.
+
+  evolved_input_parity
+    Does Path B match Path A at evolved simulation inputs
+    (non-IC state, shared restart source)?
+    Answered by restart narrowing + tag retreat.
+
+  physical_regression
+    Does the scheme reproduce known physical behavior
+    (e.g. ERF paper Figure 6 h(x))?
+    Answered by plotfile_parity Milestones F/G/H.
+
+### Current WSM6 State (as of campaign plotfile_parity_v1d)
+
+  Path A:  Phase 1 complete. Phase 3 partially active.
+  Path B:  Phase 2 substantially complete.
+           Phase 4 in progress.
+           Phase 5 blocked: G1b/DENFAC evolved-input
+           failure reopened validation question.
+
 ## Overview
 
 This skill documents the repeatable pattern for porting WRF-style
