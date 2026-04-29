@@ -68,13 +68,16 @@ iMultiFab SuperDropletsMoist::buildFineMask (const int a_lev) const
     AMREX_ALWAYS_ASSERT(a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size()));
     const auto& cba = m_mic_fab_vars[a_lev][MicVar_SD::rho]->boxArray();
     const auto& cdm = m_mic_fab_vars[a_lev][MicVar_SD::rho]->DistributionMap();
+    // Match the mic fabs' ghost width so the mask is valid over the same grown
+    // region the phaseChange / Copy_Micro_to_State kernels iterate.
+    const IntVect ng = m_mic_fab_vars[a_lev][MicVar_SD::rho]->nGrowVect();
 
     const int next_lev = a_lev + 1;
     const bool has_fine = (m_super_droplets &&
                            next_lev < m_super_droplets->numLevels() &&
                            !m_super_droplets->ParticleBoxArray(next_lev).empty());
     if (!has_fine) {
-        iMultiFab mask(cba, cdm, 1, 0);
+        iMultiFab mask(cba, cdm, 1, ng);
         mask.setVal(1);
         return mask;
     }
@@ -82,7 +85,7 @@ iMultiFab SuperDropletsMoist::buildFineMask (const int a_lev) const
     const auto& fba = m_super_droplets->ParticleBoxArray(next_lev);
     const IntVect rr = m_super_droplets->GetParGDB()->refRatio(a_lev);
     const Periodicity period = m_super_droplets->Geom(a_lev).periodicity();
-    return makeFineMask(cba, cdm, IntVect(0), fba, rr, period, 1, 0);
+    return makeFineMask(cba, cdm, ng, fba, rr, period, 1, 0);
 }
 
 /*! \brief Copy moisture model variables from conserved state to member MultiFabs
