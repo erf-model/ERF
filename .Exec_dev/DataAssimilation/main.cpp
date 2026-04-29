@@ -156,8 +156,8 @@ int main (int argc, char* argv[])
    // This is only a post-processing step for visualization
    tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
-   // Perform data assimilation 
-   //tmp_erf.PerformDataAssimilation(); 
+   // Perform data assimilation
+   //tmp_erf.PerformDataAssimilation();
 
    BL_PROFILE_VAR_STOP(pmain);
 
