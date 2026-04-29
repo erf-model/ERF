@@ -95,9 +95,10 @@ class ParticleData
             }
         }
 
-        void GetMeshPlotVar (   const std::string& a_var_name,
-                                amrex::MultiFab&   a_mf,
-                                const int          a_lev )
+        void GetMeshPlotVar (   const std::string&      a_var_name,
+                                amrex::MultiFab&        a_mf,
+                                const amrex::MultiFab&  a_z_phys_nd,
+                                const int               a_lev )
         {
             BL_PROFILE("ParticleData::GetMeshPlotVar()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
@@ -110,7 +111,7 @@ class ParticleData
 
                     std::string var_name = particle_name+"_"+particle_var_names[n];
                     if ( var_name == a_var_name ) {
-                        particles->computeMeshVar(particle_var_names[n], a_mf, a_lev);
+                        particles->computeMeshVar(particle_var_names[n], a_mf, a_z_phys_nd, a_lev);
                         return;
                     }
                 }

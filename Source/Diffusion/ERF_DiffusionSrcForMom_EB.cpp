@@ -335,7 +335,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     if (l_no_slip) {
 
-                        dwdn = - mu_eff * (w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);                    
+                        dwdn = - mu_eff * (w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
 
                     } else if (l_surface_layer) {
 

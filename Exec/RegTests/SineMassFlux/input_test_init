@@ -67,7 +67,7 @@ erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 #sdm parameters
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 100
 super_droplets_moisture.include_coalescence = true
 super_droplets_moisture.density_scaling = true

@@ -69,17 +69,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                        domain_bcs_type, c_vfrac);
 
     // Update the inflow perturbation update time and amplitude
-    if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM)
+    if (solverChoice.use_perturbation(lev))
     {
         turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
     }
 
     // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
     // on the conserved field
-    if (solverChoice.pert_type == PerturbationType::Direct ||
-        solverChoice.pert_type == PerturbationType::CPM)
+    if (solverChoice.use_direct_perturbation(lev))
     {
         auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
         for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {

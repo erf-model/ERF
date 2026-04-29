@@ -184,8 +184,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Update state variables from microphysics variables
          * \param[in,out] a_cons_vars Conservative variables multifab to update
+         * \param[in] a_z_phys_nd Terrain heights (nodal)
          */
-        virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars) override;
+        virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars,
+                                        const amrex::MultiFab& a_z_phys_nd) override;
 
         /*! \brief Copy moisture model vars from state to member multifabs
          * \param[in] a_state State multifab to copy from
@@ -235,22 +237,22 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief compute cloud/rain mixing ratio */
-        virtual void computeQcQrWater ();
+        virtual void computeQcQrWater (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief compute condensate for all non-water species */
-        virtual void computeQcSpecies ()
+        virtual void computeQcSpecies (const amrex::MultiFab& a_z_phys_nd)
         {
-            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is); }
+            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is, a_z_phys_nd); }
         }
 
         /*! \brief compute condensate mixing ratio for a non-water species */
-        virtual void computeQcSpecies (const  int a_i);
+        virtual void computeQcSpecies (const int a_i, const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief compute condensate mixing ratio for a species */
-        virtual void computeQc (const  int a_i)
+        virtual void computeQc (const int a_i, const amrex::MultiFab& a_z_phys_nd)
         {
-            if (a_i == m_idx_w) { computeQcQrWater(); }
-            else                { computeQcSpecies(a_i); }
+            if (a_i == m_idx_w) { computeQcQrWater(a_z_phys_nd); }
+            else                { computeQcSpecies(a_i, a_z_phys_nd); }
         }
 
         /*! \brief compute total water mixing ratio */
@@ -273,13 +275,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief Compute rain accumulation */
-        virtual void rainAccumulation ();
+        virtual void rainAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Compute non-water species accumulation */
-        virtual void speciesAccumulation ();
+        virtual void speciesAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Compute aerosol accumulation */
-        virtual void aerosolAccumulation ();
+        virtual void aerosolAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( amrex::MultiFab&, const int a_comp = 0 );
