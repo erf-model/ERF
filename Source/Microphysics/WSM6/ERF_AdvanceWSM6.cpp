@@ -234,15 +234,11 @@ void wsm6_nislfv_rain_plm (int im, int km,
                                         ((bits & 0x000fffffffffffffULL) != 0ULL);
                     return is_nan ? 0.0 : static_cast<double>(v);
                 };
-                std::uint64_t qq_bits = 0;
-                std::memcpy(&qq_bits, &qq[k], sizeof(qq_bits));
-                const Real qq_is_nan = (((qq_bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
-                                        ((qq_bits & 0x000fffffffffffffULL) != 0ULL)) ? Real(1.0) : Real(0.0);
                 std::printf("WSM6-CPP_PRE_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
                             k + 1,
                             static_cast<double>(Real(id)),
                             safe_print(qq[k]), safe_print(allold),
-                            safe_print(dz[k]), safe_print(ww[k]), static_cast<double>(qq_is_nan));
+                            safe_print(dz[k]), safe_print(ww[k]), safe_print(den[k]));
                 std::fflush(stdout);
             }
             allold += qq[k];
@@ -254,15 +250,11 @@ void wsm6_nislfv_rain_plm (int im, int km,
                                         ((bits & 0x000fffffffffffffULL) != 0ULL);
                     return is_nan ? 0.0 : static_cast<double>(v);
                 };
-                std::uint64_t qq_bits = 0;
-                std::memcpy(&qq_bits, &qq[k], sizeof(qq_bits));
-                const Real qq_is_nan = (((qq_bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
-                                        ((qq_bits & 0x000fffffffffffffULL) != 0ULL)) ? Real(1.0) : Real(0.0);
                 std::printf("WSM6-CPP_POST_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
                             k + 1,
                             static_cast<double>(Real(id)),
                             safe_print(qq[k]), safe_print(allold),
-                            safe_print(dz[k]), safe_print(ww[k]), static_cast<double>(qq_is_nan));
+                            safe_print(dz[k]), safe_print(ww[k]), safe_print(den[k]));
                 std::fflush(stdout);
             }
         }
@@ -1530,7 +1522,7 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
-                    (microphysics_debug >= 1 && i == ilo && j == jlo) ? 2 : 0);
+                    (microphysics_debug >= 2 && i == ilo && j == jlo) ? 2 : 0);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
