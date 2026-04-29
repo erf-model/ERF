@@ -101,12 +101,13 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
         finest_ref *= m_gdb->refRatio(lev)[AMREX_SPACEDIM-1];
     }
 
-    // Step 1: Set idata(0) = finest-level k for all particles
-    // Enables Redistribute to place particles correctly on fine grids.
-    // Use compute_k_from_z only (no terrain correction) because we need
-    // finest-level k regardless of which level's height array is available.
-    // Step 3 will correct using terrain after particles are on the right level.
-    {
+    // Helper: set every particle's idata(k) to finest-level k from its position.
+    // Required before any full multi-level Redistribute so the Assignor (which
+    // uses idata_k naively as the queried-level cell index) places particles
+    // on the correct level. Without this, a per-level k from a coarser level
+    // can coincidentally fall inside a finer level's box's k-range and the
+    // particle is mis-assigned to that finer level.
+    auto set_finest_k_all_levels = [&]() {
         const Geometry& geom_fine = m_gdb->Geom(finest);
         const auto plo_fine = geom_fine.ProbLoArray();
         const auto dxi_fine = geom_fine.InvCellSizeArray();
@@ -137,7 +138,12 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
             }
         }
         Gpu::synchronize();
-    }
+    };
+
+    // Step 1: Set idata(k) = finest-level k for all particles.
+    // Use compute_k_from_z only (no terrain correction) because Step 3 will
+    // correct using terrain after particles are on the right level.
+    set_finest_k_all_levels();
 
     // Step 2: Full multi-level Redistribute (k-clamping prevents crashes)
     Redistribute();
@@ -156,6 +162,9 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
     }
 
     // Step 4: Full Redistribute to fix level assignment after terrain correction.
+    // Reset idata(k) to finest-level k before the redistribute so the Assignor
+    // places particles on the correct level (Step 3 left idata_k per-level).
+    set_finest_k_all_levels();
     Redistribute();
 
     // Step 5: Recompute k for particles that changed level in Step 4.
@@ -169,9 +178,12 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
 
     // Step 6: Per-level Redistribute to fix tile assignment after final k.
     // L0 covers the full domain, so per-level is safe. For fine levels with
-    // partial-z boxes, per-level redistribute can fail, so use full.
+    // partial-z boxes, per-level redistribute can fail, so use full — but
+    // first reset idata(k) to finest-level k so the Assignor places
+    // particles on the correct level (Step 5 left idata_k per-level).
     Redistribute(0, 0);
     if (finest > 0) {
+        set_finest_k_all_levels();
         Redistribute();
     }
 
