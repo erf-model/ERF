@@ -111,15 +111,19 @@ void
 ERF::PerformDataAssimilation()
 {
     auto pltfiles = get_plotfile_list();
+    std::string last_pf_name;
+    if (!pltfiles.empty()) {
+        last_pf_name = pltfiles.back();
+        std::cout << "Last plotfile: " << last_pf_name << std::endl;
+    } else {
+        amrex::Abort("No plotfiles found.");
+    }
 
     // Step 2: loop over all plotfiles (timestamps at which the plotfiles are written)
     // ie.find the ensemble mean at iteration 100, loop over the plt00100 file in each of the
     // member*/plotfiles/plt00100
     int Nens = solverChoice.n_ensemble;
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
-    for (const auto& pf_name : pltfiles)
-    {
-        MultiFab xf_bar = compute_ensemble_mean(pf_name, Nens, varnames);
-    }
+    MultiFab xf_bar = compute_ensemble_mean(last_pf_name, Nens, varnames);
 
 }
