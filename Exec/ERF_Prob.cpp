@@ -148,7 +148,7 @@ Problem::init_custom_pert (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << " is not known, no state perturbations added. \n"
+                << " is not known, no state perturbations added. \n";
     }
 
     amrex::Gpu::streamSynchronize();
@@ -243,7 +243,7 @@ Problem::init_custom_pert_vels (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << " is not known, no velocity perturbations added. \n"
+                << " is not known, no velocity perturbations added. \n";
     }
 
     amrex::Gpu::streamSynchronize();
