@@ -2349,7 +2349,17 @@ void
 ERF::ReadParameters ()
 {
     std::string prob_name = "Unknown";
-    ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
+
+    // Only get filename if not doing a real simulation
+    ParmParse pp_pn("erf");
+    std::string init_string = "unknown";
+    pp_pn.query("init_type",init_string);
+    init_string = toLower(init_string);
+    if (init_string != "wrfinput" &&
+        init_string != "metgrid"  &&
+        init_string != "ncfile") {
+        pp_pn.get("prob_name", prob_name);
+    }
     Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
 
     ParmParse pp(pp_prefix);
