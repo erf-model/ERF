@@ -5,12 +5,12 @@
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
-amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
 {
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
 {
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
@@ -146,6 +146,10 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else {
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
+                << "is not known, no state perturbations added. \n";
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -236,6 +240,10 @@ Problem::init_custom_pert_vels (
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else {
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
+                << "is not known, no velocity perturbations added. \n";
     }
 
     amrex::Gpu::streamSynchronize();
