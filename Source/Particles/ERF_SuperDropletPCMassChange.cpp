@@ -110,14 +110,12 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (ptrs.active_ptr[i] == 0) { return; }
 
             // Skip particles whose idata_k stencil falls outside the local
-            // fab's z range. AMReX's interpolation reads zheight at k and k+1
-            // (and field arrays at k0 and k0+1) — a particle whose kz puts the
-            // stencil at a partial-z fab edge would OOB-read and produce
-            // NaN/Inf interpolated values, which then break the phase-change
-            // Newton solver. Same protection AdvectParticles already has.
+            // fab's z range.  cic_interpolate_mapped_z reads cell-centered
+            // data at k0+1 and k0+2 with k0 in {pk-1, pk}, so the maximum
+            // read offset is pk+2.  Bound on pk+2 (not pk+1).
             {
                 const int pk = p.idata(ERFParticlesIntIdxAoS::k);
-                if (pk < zheight.begin[2] || pk + 1 >= zheight.end[2]) {
+                if (pk < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
                     return;
                 }
             }
