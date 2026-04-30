@@ -67,6 +67,16 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         // Terminal velocity calculator (shared across tiles)
         TerminalVelocity<ParticleReal> term_vel { ctx.rho_water };
 
+        // Cumulative refinement ratio from a_lev to finest level — used by
+        // update_location_idata to maintain idata(k_finest).
+        int ref_to_finest = 1;
+        {
+            const int finest = finestLevel();
+            for (int l = a_lev; l < finest; l++) {
+                ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+            }
+        }
+
         forEachParticleTile(a_lev, ctx,
             [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
@@ -178,8 +188,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                     p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel);
                 }
 
-                // Update z-coordinate carried by the particle
-                update_location_idata(p,ctx.plo,ctx.dxi,zheight);
+                // Update z-coordinate carried by the particle (k and k_finest)
+                update_location_idata(p, ctx.plo, ctx.dxi, zheight, ref_to_finest);
 
             });
             Gpu::synchronize();
@@ -199,10 +209,16 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     // After redistribution, update k-index for all affected levels.
     // Particles may have moved from a_lev to coarser levels (via
     // ExtractAndRouteOORParticles), so update k on every level up to a_lev.
+    const int finest_after = finestLevel();
     for (int lev = 0; lev <= a_lev; lev++) {
         const auto& plev = GetParticles();
         if (lev >= static_cast<int>(plev.size())) { continue; }
         if (plev[lev].empty()) { continue; }
+
+        int ref_to_finest_lev = 1;
+        for (int l = lev; l < finest_after; l++) {
+            ref_to_finest_lev *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
 
         const MFPtr& z_height_lev = a_z_phys_nd[lev];
         const auto ctx_lev = buildProcessContext(lev);
@@ -212,11 +228,12 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 const SDProcess::ProcessContext& ctx_inner)
         {
             auto zheight = (*z_height_lev)[grid].array();
+            const int rtf = ref_to_finest_lev;
             ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() > 0) {
-                    update_location_idata(p, ctx_inner.plo, ctx_inner.dxi, zheight);
+                    update_location_idata(p, ctx_inner.plo, ctx_inner.dxi, zheight, rtf);
                 }
             });
             Gpu::synchronize();

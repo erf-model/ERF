@@ -437,6 +437,9 @@ void SuperDropletPC::addParticles ( int a_lev,
                 }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
+                // Particles are injected at level 0; the finest-level k is
+                // refreshed by the next FixKIndexAMR / update_location_idata.
+                p.idata(SuperDropletsIntIdxAoS::k_finest) = k;
                 active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 

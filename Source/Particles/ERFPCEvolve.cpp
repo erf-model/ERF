@@ -52,8 +52,9 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     }
 
     // After redistribution, recompute k-indices from z-position for all
-    // particles using each level's geometry.  ERFParticlesAssignor uses
-    // idata(k) for grid assignment, so it must stay in sync with pos(z).
+    // particles using each level's geometry.  Both idata(k) (level-current)
+    // and idata(k_finest) (Assignor) need to stay in sync with pos(z).
+    const int finest_after = finestLevel();
     for (int lev = 0; lev <= a_lev; lev++) {
         const auto& plev = GetParticles();
         if (lev >= static_cast<int>(plev.size())) { continue; }
@@ -63,6 +64,11 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
         const auto plo_lev = glev.ProbLoArray();
         const auto dxi_lev = glev.InvCellSizeArray();
         const int k_max_lev = glev.Domain().bigEnd(AMREX_SPACEDIM-1);
+
+        int ref_to_finest = 1;
+        for (int l = lev; l < finest_after; l++) {
+            ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
 
         for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
             auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
@@ -77,7 +83,7 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
                         (Real(p.pos(AMREX_SPACEDIM-1)) - plo_lev[AMREX_SPACEDIM-1])
                         * dxi_lev[AMREX_SPACEDIM-1]));
                     p.idata(ERFParticlesIntIdxAoS::k) = amrex::max(0, amrex::min(k_guess, k_max_lev));
-                    update_location_idata(p, plo_lev, dxi_lev, zheight);
+                    update_location_idata(p, plo_lev, dxi_lev, zheight, ref_to_finest);
                 }
             });
         }
@@ -135,6 +141,14 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     }
 
     bool periodic_in_z = (geom.isPeriodic(2));
+
+    int ref_to_finest = 1;
+    {
+        const int finest = finestLevel();
+        for (int l = a_lev; l < finest; l++) {
+            ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
+    }
 
     for (int ipass = 0; ipass < 2; ipass++)
     {
@@ -199,8 +213,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     }
                 }
 
-                // Update z-coordinate carried by the particle
-                update_location_idata(p,plo,dxi,zheight);
+                // Update z-coordinate carried by the particle (sets both k and k_finest)
+                update_location_idata(p, plo, dxi, zheight, ref_to_finest);
 
                 // If the particle crossed below the bottom surface, move it up to 0.2*dz above the surface
                 if (!periodic_in_z) {
@@ -209,8 +223,10 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         int jj = domlo.y + int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1]));
                         int kk = 0;
 
-                        // Update the stored particle location
+                        // Update the stored particle location (both k and k_finest)
                         p.idata(ERFParticlesIntIdxAoS::k) = kk;
+                        p.idata(ERFParticlesIntIdxAoS::k_finest) =
+                            levelK_to_finestK(kk, ref_to_finest);
 
                         Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
                         Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
@@ -258,6 +274,14 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
+    int ref_to_finest = 1;
+    {
+        const int finest = finestLevel();
+        for (int l = a_lev; l < finest; l++) {
+            ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
+    }
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -298,8 +322,8 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             // Update the particle velocity over second half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // also update z-coordinate here
-            update_location_idata(p,plo,dxi,zheight);
+            // also update z-coordinate here (sets both k and k_finest)
+            update_location_idata(p, plo, dxi, zheight, ref_to_finest);
         });
     }
 

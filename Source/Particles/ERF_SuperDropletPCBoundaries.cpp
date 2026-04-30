@@ -21,6 +21,14 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     const auto ctx = buildProcessContext(a_lev);
     const auto save_inac = m_save_inactive;
 
+    int ref_to_finest = 1;
+    {
+        const int finest = finestLevel();
+        for (int l = a_lev; l < finest; l++) {
+            ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
+    }
+
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
     // number of physical particles per cell
@@ -68,7 +76,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
-                        update_location_idata(p,ctx.plo,ctx.dxi,zheight);
+                        update_location_idata(p, ctx.plo, ctx.dxi, zheight, ref_to_finest);
                     }
                 }
 
@@ -88,7 +96,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
-                        update_location_idata(p,ctx.plo,ctx.dxi,zheight);
+                        update_location_idata(p, ctx.plo, ctx.dxi, zheight, ref_to_finest);
                     }
                 }
 

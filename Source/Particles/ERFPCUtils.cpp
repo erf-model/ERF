@@ -7,6 +7,17 @@
 
 using namespace amrex;
 
+// Static Assignor state — initialized to a negative sentinel so the Assignor
+// falls back to using idata(k) directly until RefreshAssignorState() is called.
+AMREX_GPU_MANAGED amrex::Real ERFParticlesAssignor::s_dxi_z_finest = amrex::Real(-1);
+
+void ERFPC::RefreshAssignorState ()
+{
+    const Geometry& finest_geom = m_gdb->Geom(finestLevel());
+    ERFParticlesAssignor::s_dxi_z_finest =
+        finest_geom.InvCellSizeArray()[AMREX_SPACEDIM-1];
+}
+
 namespace {
     struct ERFPCLevelGeom {
         GpuArray<Real,AMREX_SPACEDIM> plo;
@@ -28,31 +39,103 @@ void ERFPC::massDensity ( MultiFab&        a_mf,
         });
 }
 
-/*! \brief Fix k-indices for all particles after AMR regrid */
+/*! \brief Fix k-indices for all particles after AMR regrid.
+ *
+ *  Two-slot convention: idata(k) is the cell index at the particle's current
+ *  AMR level (read by AMReX cic_/mac_interpolate_mapped_z), and idata(k_finest)
+ *  is the cell index at the finest AMR level (used by ERFParticlesAssignor to
+ *  scale to any queried level via dxi).  This decouples the Redistribute
+ *  placement requirement from the kernel stencil requirement, so a single
+ *  multi-level Redistribute places particles correctly without the
+ *  reset/recompute cycles the single-slot convention required.
+ *
+ *  Steps:
+ *   1. Refresh static Assignor state (s_dxi_z_finest).
+ *   2. Set idata(k_finest) for every particle from its z-position using the
+ *      finest-level geometry.
+ *   3. Full multi-level Redistribute — Assignor scales idata(k_finest) to
+ *      each queried level's cell, so particles land on the correct level.
+ *   4. Per-level: walk terrain heights via update_location_idata to set
+ *      idata(k) for the level the particle actually lives on, and refresh
+ *      idata(k_finest) = level_k * ref_to_finest_at_lev.
+ */
 void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
 {
     BL_PROFILE("ERFPC::FixKIndexAMR()");
 
+    // Step 1: refresh Assignor static state for the current finest level.
+    RefreshAssignorState();
+
     const int finest = finestLevel();
+
+    // Cumulative refinement ratio from level 0 to the finest level.
+    int finest_ref = 1;
+    for (int lev = 0; lev < finest; lev++) {
+        finest_ref *= m_gdb->refRatio(lev)[AMREX_SPACEDIM-1];
+    }
 
     // Z-levels for non-uniform vertical grids (level-0 cell interfaces)
     const Real* zlevels = m_zlevels_d.empty() ? nullptr : m_zlevels_d.data();
     const int nz_lev0 = m_zlevels_d.empty() ? 0
                        : static_cast<int>(m_zlevels_d.size()) - 1;
 
-    // Helper lambda: recompute k-indices for all particles on a given level.
-    // Uses compute_k_from_z for the initial guess, then refines with the
-    // terrain height array (update_location_idata) per tile.
-    auto recompute_k_for_level = [&](int lev, int ref_ratio)
+    // Step 2: set idata(k_finest) from each particle's z-position using
+    // finest-level geometry.  This is regardless of which level the particle
+    // currently lives on; Step 3's Redistribute will fix that.
     {
+        const Geometry& geom_fine = m_gdb->Geom(finest);
+        const auto plo_fine = geom_fine.ProbLoArray();
+        const auto dxi_fine = geom_fine.InvCellSizeArray();
+        const int k_max_fine = geom_fine.Domain().bigEnd(AMREX_SPACEDIM-1);
+
         const auto& particles = GetParticles();
-        if (lev >= static_cast<int>(particles.size())) { return; }
-        if (particles[lev].empty()) { return; }
+        for (int lev = 0; lev <= finest; lev++) {
+            if (lev >= static_cast<int>(particles.size())) { continue; }
+            if (particles[lev].empty()) { continue; }
+
+            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+                auto& ptile = ParticlesAt(lev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                auto* p_pbox = aos().data();
+                const int np = aos.numParticles();
+
+                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+                {
+                    auto& p = p_pbox[i];
+                    if (p.id() <= 0) { return; }
+                    p.idata(ERFParticlesIntIdxAoS::k_finest) =
+                        compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
+                                         plo_fine[AMREX_SPACEDIM-1],
+                                         dxi_fine[AMREX_SPACEDIM-1],
+                                         k_max_fine,
+                                         zlevels, nz_lev0, finest_ref);
+                });
+            }
+        }
+        Gpu::synchronize();
+    }
+
+    // Step 3: full multi-level Redistribute.  Assignor uses idata(k_finest)
+    // and scales by dxi to compute the correct cell at each queried level.
+    Redistribute();
+
+    // Step 4: per-level walk through terrain heights to set idata(k) for the
+    // level the particle ended up on.  update_location_idata also refreshes
+    // idata(k_finest) = level_k * ref_to_finest_at_lev.
+    for (int lev = 0; lev <= finest; lev++) {
+        const auto& particles = GetParticles();
+        if (lev >= static_cast<int>(particles.size())) { continue; }
+        if (particles[lev].empty()) { continue; }
+
+        int ref_to_finest = 1;
+        for (int l = lev; l < finest; l++) {
+            ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+        }
 
         const Geometry& geom_lev = m_gdb->Geom(lev);
         const auto plo = geom_lev.ProbLoArray();
         const auto dxi = geom_lev.InvCellSizeArray();
-        const int k_max = geom_lev.Domain().bigEnd(AMREX_SPACEDIM-1);
+        const int k_max_lev = geom_lev.Domain().bigEnd(AMREX_SPACEDIM-1);
 
         for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
             int grid = pti.index();
@@ -67,136 +150,17 @@ void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
             {
                 auto& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
+                // Seed idata(k) with a coordinate-based level-k guess; the
+                // height walk inside update_location_idata refines from there.
+                int k_guess = static_cast<int>(amrex::Math::floor(
+                    (Real(p.pos(AMREX_SPACEDIM-1)) - plo[AMREX_SPACEDIM-1])
+                    * dxi[AMREX_SPACEDIM-1]));
                 p.idata(ERFParticlesIntIdxAoS::k) =
-                    compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
-                                     plo[AMREX_SPACEDIM-1],
-                                     dxi[AMREX_SPACEDIM-1],
-                                     k_max,
-                                     zlevels, nz_lev0, ref_ratio);
-                update_location_idata(p, plo, dxi, zheight);
+                    amrex::max(0, amrex::min(k_guess, k_max_lev));
+                update_location_idata(p, plo, dxi, zheight, ref_to_finest);
             });
         }
         Gpu::synchronize();
-    };
-
-    // No fine levels: recompute k-indices for all particles using L0 geometry
-    // and move them to level 0 to avoid orphaned particles with invalid k values.
-    if (finest < 1) {
-
-        // Recompute k using level-0 geometry for all particles
-        const auto& particles = GetParticles();
-        for (int lev = 0; lev < static_cast<int>(particles.size()); lev++) {
-            recompute_k_for_level(lev, 1);
-        }
-
-        // Full Redistribute demotes all particles to level 0
-        Redistribute();
-
-        return;
-    }
-
-    // Cumulative refinement ratio to finest level
-    int finest_ref = 1;
-    for (int lev = 0; lev < finest; lev++) {
-        finest_ref *= m_gdb->refRatio(lev)[AMREX_SPACEDIM-1];
-    }
-
-    // Helper: set every particle's idata(k) to finest-level k from its position.
-    // Required before any full multi-level Redistribute so the Assignor (which
-    // uses idata_k naively as the queried-level cell index) places particles
-    // on the correct level. Without this, a per-level k from a coarser level
-    // can coincidentally fall inside a finer level's box's k-range and the
-    // particle is mis-assigned to that finer level.
-    auto set_finest_k_all_levels = [&]() {
-        const Geometry& geom_fine = m_gdb->Geom(finest);
-        const auto plo_fine = geom_fine.ProbLoArray();
-        const auto dxi_fine = geom_fine.InvCellSizeArray();
-        const int k_max_fine = geom_fine.Domain().bigEnd(AMREX_SPACEDIM-1);
-
-        for (int lev = 0; lev <= finest; lev++) {
-            const auto& particles = GetParticles();
-            if (lev >= static_cast<int>(particles.size())) { continue; }
-            if (particles[lev].empty()) { continue; }
-
-            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
-                auto& ptile = ParticlesAt(lev, pti);
-                auto& aos = ptile.GetArrayOfStructs();
-                auto* p_pbox = aos().data();
-                const int np = aos.numParticles();
-
-                ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
-                {
-                    auto& p = p_pbox[i];
-                    if (p.id() <= 0) { return; }
-                    p.idata(ERFParticlesIntIdxAoS::k) =
-                        compute_k_from_z(Real(p.pos(AMREX_SPACEDIM-1)),
-                                         plo_fine[AMREX_SPACEDIM-1],
-                                         dxi_fine[AMREX_SPACEDIM-1],
-                                         k_max_fine,
-                                         zlevels, nz_lev0, finest_ref);
-                });
-            }
-        }
-        Gpu::synchronize();
-    };
-
-    // Step 1: Set idata(k) = finest-level k for all particles.
-    // Use compute_k_from_z only (no terrain correction) because Step 3 will
-    // correct using terrain after particles are on the right level.
-    set_finest_k_all_levels();
-
-    // Step 2: Full multi-level Redistribute (k-clamping prevents crashes)
-    Redistribute();
-
-    // Step 3: Recompute idata(k) using each particle's level geometry.
-    // With terrain, the terrain-corrected k may differ from Step 1's flat k,
-    // potentially placing particles outside their current level's partial-z box.
-    // A full Redistribute is needed to move such particles to the correct level,
-    // followed by a second k recomputation for particles that changed level.
-    for (int lev = 0; lev <= finest; lev++) {
-        int lev_ref = 1;
-        for (int l = 0; l < lev; l++) {
-            lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
-        }
-        recompute_k_for_level(lev, lev_ref);
-    }
-
-    // Step 4: Full Redistribute to fix level assignment after terrain correction.
-    // Reset idata(k) to finest-level k before the redistribute so the Assignor
-    // places particles on the correct level (Step 3 left idata_k per-level).
-    set_finest_k_all_levels();
-    Redistribute();
-
-    // Step 5: Recompute k for particles that changed level in Step 4.
-    for (int lev = 0; lev <= finest; lev++) {
-        int lev_ref = 1;
-        for (int l = 0; l < lev; l++) {
-            lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
-        }
-        recompute_k_for_level(lev, lev_ref);
-    }
-
-    // Step 6: Per-level Redistribute to fix tile assignment after final k.
-    // L0 covers the full domain, so per-level is safe. For fine levels with
-    // partial-z boxes, per-level redistribute can fail, so use full — but
-    // first reset idata(k) to finest-level k so the Assignor places
-    // particles on the correct level (Step 5 left idata_k per-level).
-    Redistribute(0, 0);
-    if (finest > 0) {
-        set_finest_k_all_levels();
-        Redistribute();
-    }
-
-    // Step 7: Final k recomputation.  Steps 4-6 may have moved particles
-    // between levels (e.g. from L0 to L1 and back), leaving idata(k) set
-    // to the wrong level's geometry.  Recompute once more on each
-    // particle's final level to guarantee a consistent k.
-    for (int lev = 0; lev <= finest; lev++) {
-        int lev_ref = 1;
-        for (int l = 0; l < lev; l++) {
-            lev_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
-        }
-        recompute_k_for_level(lev, lev_ref);
     }
 }
 
@@ -284,6 +248,11 @@ void ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
  *
  * \param[in] a_lev       Fine level with potentially OOR particles
  * \param[in] a_z_phys_nd Terrain height data (all levels)
+ *
+ * idata(k_finest) is set ONCE per OOR particle from its z-position; the
+ * per-level AssignGrid query then uses ERFParticlesAssignor which scales
+ * idata(k_finest) to the queried level via dxi.  After routing, idata(k) is
+ * recomputed from the target level's geometry.
  */
 void ERFPC::ExtractAndRouteOORParticles ( int                                        a_lev,
                                           const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
@@ -292,6 +261,10 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
     amrex::ignore_unused(a_z_phys_nd);
 
     AMREX_ALWAYS_ASSERT(a_lev > 0);
+
+    // The Assignor relies on s_dxi_z_finest; ensure it matches the current
+    // finest-level geometry before any AssignGrid query below.
+    RefreshAssignorState();
 
     ERFParticlesAssignor cell_assignor;
     const int n_levels = a_lev + 1;
@@ -338,7 +311,16 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
     Gpu::synchronize();
 
     auto* ag_ptr = d_assignors.data();
-    auto* lg_ptr = d_lg.data();
+
+    // Cumulative refinement ratio from level 0 to the finest level (= a_lev here).
+    int finest_ref = 1;
+    for (int l = 0; l < a_lev; l++) {
+        finest_ref *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+    }
+    const Geometry& geom_fine = m_gdb->Geom(a_lev);
+    const Real plo_fine_z = geom_fine.ProbLoArray()[AMREX_SPACEDIM-1];
+    const Real dxi_fine_z = geom_fine.InvCellSizeArray()[AMREX_SPACEDIM-1];
+    const int  k_max_fine = geom_fine.Domain().bigEnd(AMREX_SPACEDIM-1);
 
     // Find one local grid per level for receiving extracted particles
     Gpu::PinnedVector<int> dest_grids(n_levels, 0);
@@ -398,7 +380,8 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
                                                                    int(0), int(0), np);
             AMREX_ASSERT(n_copied == n_oor);
 
-            // Find the correct target level for each particle
+            // Find the correct target level for each particle.  idata(k_finest)
+            // is set ONCE from the position; the per-level Assignor scales it.
             Gpu::DeviceVector<int> target_lev_vec(n_oor);
             auto* tgt_ptr = target_lev_vec.data();
             auto* tmp_pbox = tmp_tile.GetArrayOfStructs()().data();
@@ -406,16 +389,13 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
             ParallelFor(n_oor, [=] AMREX_GPU_DEVICE (int i)
             {
                 auto& p = tmp_pbox[i];
-                int found_lev = -1;
+                p.idata(ERFParticlesIntIdxAoS::k_finest) =
+                    compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
+                                      plo_fine_z, dxi_fine_z,
+                                      k_max_fine, zlevels, nz_lev0, finest_ref );
 
+                int found_lev = -1;
                 for (int tl = finest; tl >= 0; tl--) {
-                    const auto& lg = lg_ptr[tl];
-                    int k = compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
-                                              lg.plo[AMREX_SPACEDIM-1],
-                                              lg.dxi[AMREX_SPACEDIM-1],
-                                              lg.k_max, zlevels, nz_lev0,
-                                              lg.ref_ratio );
-                    p.idata(ERFParticlesIntIdxAoS::k) = k;
                     int grd = ag_ptr[tl](p, 0, cell_assignor).first;
                     if (grd >= 0) { found_lev = tl; break; }
                 }
@@ -423,7 +403,7 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
             });
             Gpu::synchronize();
 
-            // Route particles to their target levels
+            // Route particles to their target levels.
             for (int tl = 0; tl < n_levels; tl++) {
                 if (tl == lev) { continue; }
 
@@ -451,7 +431,7 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
                                                                  int(0), int(0), n_oor);
                 AMREX_ASSERT(nc == n_to_lev);
 
-                // Recompute idata(k) for the actual target level
+                // Recompute idata(k) for the actual target level.
                 auto* tl_pbox = tl_tile.GetArrayOfStructs()().data();
                 const auto tl_plo = h_lg[tl].plo;
                 const auto tl_dxi = h_lg[tl].dxi;
@@ -460,10 +440,11 @@ void ERFPC::ExtractAndRouteOORParticles ( int                                   
                 ParallelFor(n_to_lev, [=] AMREX_GPU_DEVICE (int i)
                 {
                     auto& p = tl_pbox[i];
-                    p.idata(ERFParticlesIntIdxAoS::k) = compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
-                                                                          tl_plo[AMREX_SPACEDIM-1],
-                                                                          tl_dxi[AMREX_SPACEDIM-1],
-                                                                          tl_kmax, zlevels, nz_lev0, tl_ref);
+                    p.idata(ERFParticlesIntIdxAoS::k) =
+                        compute_k_from_z( Real(p.pos(AMREX_SPACEDIM-1)),
+                                          tl_plo[AMREX_SPACEDIM-1],
+                                          tl_dxi[AMREX_SPACEDIM-1],
+                                          tl_kmax, zlevels, nz_lev0, tl_ref);
                 });
                 Gpu::synchronize();
 

@@ -224,6 +224,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
+                    // Particles are initialized at level 0, so the finest-level
+                    // k will be set correctly by the FixKIndexAMR call that
+                    // follows initialization.  Use the level-0 k as a placeholder
+                    // (correct when finest_level == 0 at init time).
+                    p.idata(ERFParticlesIntIdxAoS::k_finest) = k;
 
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
@@ -271,6 +276,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
+                    // Particles are initialized at level 0, so the finest-level
+                    // k will be set correctly by the FixKIndexAMR call that
+                    // follows initialization.  Use the level-0 k as a placeholder
+                    // (correct when finest_level == 0 at init time).
+                    p.idata(ERFParticlesIntIdxAoS::k_finest) = k;
 
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
@@ -300,6 +310,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
+                    // Particles are initialized at level 0, so the finest-level
+                    // k will be set correctly by the FixKIndexAMR call that
+                    // follows initialization.  Use the level-0 k as a placeholder
+                    // (correct when finest_level == 0 at init time).
+                    p.idata(ERFParticlesIntIdxAoS::k_finest) = k;
 
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
@@ -328,6 +343,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
+                    // Particles are initialized at level 0, so the finest-level
+                    // k will be set correctly by the FixKIndexAMR call that
+                    // follows initialization.  Use the level-0 k as a placeholder
+                    // (correct when finest_level == 0 at init time).
+                    p.idata(ERFParticlesIntIdxAoS::k_finest) = k;
 
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 

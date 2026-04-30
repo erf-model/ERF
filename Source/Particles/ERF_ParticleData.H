@@ -119,10 +119,21 @@ class ParticleData
             amrex::Abort("Requested var_name not found in ParticleData::GetMeshPlotVar");
         }
 
+        /*! Refresh ERFParticlesAssignor static state for all species
+         *  (idempotent across species since the state is shared). */
+        inline void RefreshAssignorState ()
+        {
+            BL_PROFILE("ParticleData::RefreshAssignorState()");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                m_particle_species[m_namelist[i]]->RefreshAssignorState();
+            }
+        }
+
         /*! Redistribute/rebalance particles data */
         inline void Redistribute ()
         {
             BL_PROFILE("ParticleData::Redistribute()");
+            RefreshAssignorState();
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                 m_particle_species[m_namelist[i]]->Redistribute();
             }
@@ -133,6 +144,7 @@ class ParticleData
             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd)
         {
             BL_PROFILE("ParticleData::Redistribute(z_phys_nd)");
+            RefreshAssignorState();
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                 auto* pc = m_particle_species[m_namelist[i]];
                 pc->FixKIndexAMR(a_z_phys_nd);

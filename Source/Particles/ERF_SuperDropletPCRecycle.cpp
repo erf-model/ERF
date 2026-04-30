@@ -229,9 +229,18 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         ParallelDescriptor::ReduceLongSum( &np_recycle_total, 1 );
         Print() << "    recycled " << np_recycle_total << " super-droplets.\n";
 
+        RefreshAssignorState();
         Redistribute();
 
-        // Update location data for recycled particles
+        int ref_to_finest = 1;
+        {
+            const int finest = finestLevel();
+            for (int l = a_lev; l < finest; l++) {
+                ref_to_finest *= m_gdb->refRatio(l)[AMREX_SPACEDIM-1];
+            }
+        }
+
+        // Update location data for recycled particles (sets k and k_finest)
         const MFPtr& z_height = a_z_phys_nd[a_lev];
         forEachParticleTile(a_lev, ctx,
             [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
@@ -239,12 +248,13 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 const SDProcess::ProcessContext& ctx)
         {
             auto zheight = (*z_height)[grid].array();
+            const int rtf = ref_to_finest;
 
             ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
-                update_location_idata(p,ctx.plo,ctx.dxi,zheight);
+                update_location_idata(p, ctx.plo, ctx.dxi, zheight, rtf);
             });
             Gpu::synchronize();
         }); // end forEachParticleTile

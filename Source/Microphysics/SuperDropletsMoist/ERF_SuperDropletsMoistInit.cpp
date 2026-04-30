@@ -246,6 +246,7 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
     gettimeofday(&total_start, NULL);
 #endif
     m_super_droplets->Restart(a_fname, m_name);
+    m_super_droplets->RefreshAssignorState();
     m_super_droplets->Redistribute();
 #ifndef _WIN32
     gettimeofday(&total_end,NULL);
