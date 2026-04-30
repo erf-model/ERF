@@ -147,7 +147,7 @@ Problem::init_custom_pert (
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
     else {
-        Print() << "Problem name" << " [" <<  my_prob_name_ci << "] " <<
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
                 << " is not known, no state perturbations added. \n"
     }
 
@@ -242,7 +242,7 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
     else {
-        Print() << "Problem name" << " [" <<  my_prob_name_ci << "] " <<
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
                 << " is not known, no velocity perturbations added. \n"
     }
 
