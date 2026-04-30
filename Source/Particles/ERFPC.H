@@ -56,6 +56,16 @@ namespace ERFParticleNames
     const std::string tracers = "tracer_particles";
 }
 
+/*! \brief Static state shared by all ERFParticlesAssignor instances.
+ *
+ *  CUDA forbids __managed__ on class members, so the storage lives at
+ *  namespace scope.  ERFPC::RefreshAssignorState() updates s_dxi_z_finest
+ *  to the inverse cell size in z at the current finest AMR level.
+ */
+namespace ERFParticlesAssignorState {
+    extern AMREX_GPU_MANAGED amrex::Real s_dxi_z_finest;
+}
+
 /*! \brief Custom particle Assignor for AMR-aware z-cell placement.
  *
  *  The Assignor returns the (i,j,k) IntVect at the queried level for a
@@ -63,14 +73,12 @@ namespace ERFParticleNames
  *  cell index at the FINEST AMR level — to the queried-level cell index
  *  by dividing by the cumulative refinement ratio between the queried and
  *  finest levels.  The ratio is derived from the queried-level dxi[2] and
- *  the static s_dxi_z_finest, set by ERFPC::RefreshAssignorState() after
- *  every regrid.  Single-level mode (sentinel = -1) falls back to using
- *  idata(k) directly.
+ *  the namespace-scope ERFParticlesAssignorState::s_dxi_z_finest, set by
+ *  ERFPC::RefreshAssignorState() after every regrid.  Single-level mode
+ *  (sentinel = -1) falls back to using idata(k) directly.
  */
 struct ERFParticlesAssignor
 {
-    static AMREX_GPU_MANAGED amrex::Real s_dxi_z_finest;
-
     template <typename P>
     AMREX_GPU_HOST_DEVICE
     amrex::IntVect operator() (  P const& p,
@@ -78,9 +86,10 @@ struct ERFParticlesAssignor
                                  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
                                  const amrex::Box& domain ) const noexcept
     {
+        const amrex::Real dxi_finest = ERFParticlesAssignorState::s_dxi_z_finest;
         int k_idx;
-        if (s_dxi_z_finest > amrex::Real(0)) {
-            int ratio = static_cast<int>(amrex::Math::round(s_dxi_z_finest / dxi[AMREX_SPACEDIM-1]));
+        if (dxi_finest > amrex::Real(0)) {
+            int ratio = static_cast<int>(amrex::Math::round(dxi_finest / dxi[AMREX_SPACEDIM-1]));
             if (ratio < 1) { ratio = 1; }
             k_idx = p.idata(ERFParticlesIntIdxAoS::k_finest) / ratio;
         } else {

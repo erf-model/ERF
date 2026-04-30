@@ -7,14 +7,17 @@
 
 using namespace amrex;
 
-// Static Assignor state — initialized to a negative sentinel so the Assignor
-// falls back to using idata(k) directly until RefreshAssignorState() is called.
-AMREX_GPU_MANAGED amrex::Real ERFParticlesAssignor::s_dxi_z_finest = amrex::Real(-1);
+// Namespace-scope Assignor state — initialized to a negative sentinel so
+// the Assignor falls back to using idata(k) directly until
+// RefreshAssignorState() is called.
+namespace ERFParticlesAssignorState {
+    AMREX_GPU_MANAGED amrex::Real s_dxi_z_finest = amrex::Real(-1);
+}
 
 void ERFPC::RefreshAssignorState ()
 {
     const Geometry& finest_geom = m_gdb->Geom(finestLevel());
-    ERFParticlesAssignor::s_dxi_z_finest =
+    ERFParticlesAssignorState::s_dxi_z_finest =
         finest_geom.InvCellSizeArray()[AMREX_SPACEDIM-1];
 }
 
