@@ -625,6 +625,19 @@ PlotFiles
 See :ref:`sec:Plotfiles` for how to control the types and frequency of plotfile
 generation.
 
+Boundary Files
+==============
+
++----------------------+------------------------------+-------------------+----------------------+
+| Parameter            | Definition                   | Acceptable Values | Default              |
++======================+==============================+===================+======================+
+| **erf.write_erfbdy** | Write AMReX-native format    | true / false      | true for non-restart |
+|                      | boundary file for real-data  |                   | real data cases,     |
+|                      | cases only                   |                   | otherwise false      |
++----------------------+------------------------------+-------------------+----------------------+
+| **erf.erfbdy_file**  | Name of the boundary file    | String            | "erfbdy"             |
++----------------------+------------------------------+-------------------+----------------------+
+
 Additional Plotfile Controls
 ----------------------------
 

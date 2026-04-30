@@ -52,7 +52,6 @@ Real ERF::final_low_time     = -one;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
 Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
-
 #endif
 
 // Time step control
@@ -2503,8 +2502,25 @@ ERF::ReadParameters ()
 
         // Options for boundary file.
         pp.query("write_erfbdy",             write_erfbdy);
-        pp.query("use_erfbdy",               use_erfbdy);
         pp.query("erfbdy_file",              erfbdy_file);
+
+        // Set a default value for write_erfbdy.
+        // write_erfbdy should be falst for restarts.
+        // write_erfbdy should be true for clean starts of the metgrid or wrfinput pathways.
+        bool is_restart = !restart_chkfile.empty();
+        if (is_restart) {
+            // Restart run: write_erfbdy must be false
+            if (write_erfbdy) {
+                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
+            }
+        } else {
+            // Initial run: default write_erfbdy to true for metgrid/wrfinput
+            if (!pp.contains("write_erfbdy")) {
+                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
+                    write_erfbdy = true;
+                }
+            }
+        }
 
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;

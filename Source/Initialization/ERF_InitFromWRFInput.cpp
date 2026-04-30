@@ -1036,6 +1036,10 @@ ERF::init_from_wrfinput (int lev,
              amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
         }
 
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+
         // Path 1: Load from existing erfbdy file
         if (use_erfbdy) {
             Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;

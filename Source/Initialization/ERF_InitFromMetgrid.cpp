@@ -55,7 +55,13 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    // If using erfbdy file, load boundary data and then skip the rest of met_em processing.
+    // Check for erfbdy file.
+    if (lev == 0) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+    }
+
+    // If erfbdy file exists, load boundary data and skip met_em processing.
     if (lev == 0 && use_erfbdy) {
         Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
