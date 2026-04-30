@@ -2349,6 +2349,7 @@ void
 ERF::ReadParameters ()
 {
     std::string prob_name = "Undefined";
+    ParmParse pp_pn("erf");
     pp_pn.queryAdd("prob_name", prob_name);
     Print() << "Problem name (from inputs file) is: " << prob_name << std::endl;
 
