@@ -4,6 +4,26 @@ Purpose: move rows in `validation_manifest.tsv` from `PENDING` to `PASS` / `EPSI
 
 This workflow is intentionally agentic and small-process. Do not introduce a large automation script.
 
+## Execution and Decision Ledgers
+
+`validation_runs.tsv` is the legacy combined ledger
+for historical rows recorded before the ledger split.
+
+For all new formal validation runs:
+- `executions.tsv` records one executable invocation
+  per row (execution facts only).
+- `decisions.tsv` records manifest or frontier state
+  changes, each citing one or more `execution_id` values.
+- `validation_manifest.tsv` remains the current-state
+  frontier table.
+
+No manifest change is valid unless a `decisions.tsv`
+row cites clean-SHA execution evidence.
+`dirty_flag=dirty` rows are acceptable for triage
+and debug only — not for promotion or re-open decisions.
+
+---
+
 ## 1. Inputs and Outputs
 
 Inputs:

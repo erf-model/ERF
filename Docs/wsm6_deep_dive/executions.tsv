@@ -1,0 +1,1 @@
+execution_id	timestamp_utc	run_pair_id	git_sha	dirty_flag	executable	build_type	inputs_file	setup_id	restart_from	validation_question	validation_lane	input_scope	temporal_scope	use_wsm6_cpp_answer	microphysics_debug	max_step	stop_time	nprocs	target_column_ij	plot_path	checkpoint_path	log_path	exit_code	execution_status	notes
