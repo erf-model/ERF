@@ -5,8 +5,6 @@ stop_time = 1800
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
-
-erf.prob_name = "userdefined"
     
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  640     640    640

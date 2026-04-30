@@ -146,6 +146,10 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else {
+        Print() << "Problem name" << " [" <<  my_prob_name_ci << "] " <<
+                << " is not known, no state perturbations added. \n"
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -236,6 +240,10 @@ Problem::init_custom_pert_vels (
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else {
+        Print() << "Problem name" << " [" <<  my_prob_name_ci << "] " <<
+                << " is not known, no velocity perturbations added. \n"
     }
 
     amrex::Gpu::streamSynchronize();
