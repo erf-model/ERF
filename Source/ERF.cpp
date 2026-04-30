@@ -2291,7 +2291,7 @@ ERF::init_only (int lev, Real elapsed_time)
                 (solverChoice.init_type == InitType::ConstantDensity) ||
                 (solverChoice.init_type == InitType::Isentropic     ) ||
                 (solverChoice.init_type == InitType::ConstantDensityLinearTheta     ) ||
-        (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::HindCast       ) ||
                 (solverChoice.init_type == InitType::MoistBaseState ) ) {
         // Initialize a uniform density/entropy background field and base state
         // based on the problem-specified reference density and temperature
@@ -2348,11 +2348,11 @@ ERF::init_only (int lev, Real elapsed_time)
 void
 ERF::ReadParameters ()
 {
-    std::string prob_name = "Unknown";
+    std::string prob_name = "Undefined";
 
     // Only get filename if not doing a real simulation
     ParmParse pp_pn("erf");
-    std::string init_string = "unknown";
+    std::string init_string = "Undefined";
     pp_pn.query("init_type",init_string);
     init_string = toLower(init_string);
     if (init_string != "wrfinput" &&

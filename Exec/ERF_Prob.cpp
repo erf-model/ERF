@@ -5,12 +5,12 @@
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
-amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
 {
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
 {
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
