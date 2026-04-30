@@ -110,8 +110,15 @@ Rules below are tagged [Path A], [Path B], or [Both].
 Every new scheme requires exactly four wiring points:
 
 1. Add entry to AMREX_ENUM(MoistureType,...) in ERF_DataStruct.H
-   Example: WSM6, WSM6_Hail (variant flags become separate entries,
-   not SolverChoice booleans — see Morrison_NoIce precedent)
+   Variant policy: if a scheme mode is intentionally exposed as a
+   supported ERF user mode, represent it as a MoistureType entry rather
+   than an ad hoc SolverChoice boolean. Do not expose secondary WRF
+   switches until there is a separate validation campaign for that mode.
+   Morrison precedent: ERF exposes Morrison and Morrison_NoIce as public
+   modes, while the internal rimed-ice/hail switch is not exposed as a
+   MoistureType variant and currently runs in graupel mode.
+   Current WSM6 scope: expose only MoistureType::WSM6 (default graupel
+   path) for the active parity campaign.
 
 2. Add Eulerian branch in ERF_EulerianMicrophysics.H constructor:
    } else if (a_model_type == MoistureType::WSM6) {
@@ -360,8 +367,22 @@ setup hook in the NullMoist interface.
 Schemes have integer or enum flags that switch between physics regimes.
 - WSM6: hail_opt (0=graupel, 1=hail) controls 5 class members
 - MYNN: bl_mynn_closure, bl_mynn_mixlength, bl_mynn_edmf etc.
-In C++: add bool or enum to SolverChoice, pull in Define(), branch in 
-initialize_coeffs() to set affected class members.
+In C++:
+- For scheme modes intentionally exposed to users, register separate
+  `MoistureType` entries (Path A Rule 1 pattern), not ad hoc SolverChoice
+  booleans.
+- Secondary WRF switches are not automatically exposed; they require a
+  dedicated validation lane and acceptance criteria first.
+- Morrison precedent: `Morrison_NoIce` is exposed, but rimed-ice/hail is
+  internal and currently graupel-mode in ERF.
+- Current WSM6 parity scope: expose only `MoistureType::WSM6`, set
+  `m_hail_opt = false`, and run `hail_opt = 0` (graupel). Do not add
+  `WSM6_Hail`, `WSM6_NoIce`, `SolverChoice::use_hail`, or
+  `SolverChoice::wsm6_hail_opt` in this campaign.
+- Future WSM6 extension (separate lane): add `MoistureType::WSM6_Hail`,
+  map both `WSM6` and `WSM6_Hail` to the same model class, derive
+  `m_hail_opt` from `sc.moisture_type` in `Define()`, and validate with
+  separate acceptance criteria.
 
 ## Rule 11: Two Valid AMReX GPU Translation Strategies [COMPLETE]
 Strategy 1 — Enum + FArrayBox working array (Morrison, WSM6):

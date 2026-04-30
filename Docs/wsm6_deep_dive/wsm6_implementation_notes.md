@@ -283,14 +283,15 @@ This means ERF_InitWSM6.cpp can compute all save variables purely
 from ERF_Constants.H constexpr values + class members already set 
 in Define(). No additional arguments needed at Initialize() time.
 
-`rgmma` throughout init → std::tgamma() in C++
+Port the exact Fortran `rgmma` loop in ERF_InitWSM6.cpp; do not use
+`std::tgamma` during parity validation.
 
 Full save variable list becomes private class members in ERF_WSM6.H,
 computed once in Initialize(), captured by value in ParallelFor lambda.
 
 ---
 
-## Rule 10: Runtime Physics Variant Flag → SolverChoice [NEW - WSM6]
+## Rule 10: Runtime Physics Variant Scope [WSM6 current + future]
 
 `hail_opt` is an integer flag that switches WSM6 between two physics 
 regimes — hail vs graupel. It controls 5 save variables:
@@ -303,12 +304,37 @@ regimes — hail vs graupel. It controls 5 save variables:
 | bvtg       | 0.8               | 0.8  (same)          |
 | lamdagmax  | 2.e4              | 6.e4                 |
 
-In C++:
-- Add `bool use_hail = false` to SolverChoice (parsed from input file)
-- Pull in Define(): `m_hail_opt = sc.use_hail`
-- Branch in Initialize() to set the 5 affected class members
-- This is the only save variable that depends on a runtime flag — 
-  all others compute purely from constants
+Current WSM6 parity campaign policy:
+- Expose only `MoistureType::WSM6` (default graupel path).
+- Set `m_hail_opt = false` and use `hail_opt = 0` in init bridge flow.
+- Do not add `WSM6_Hail` yet.
+- Do not add `WSM6_NoIce`.
+- Do not add `SolverChoice::use_hail` or `SolverChoice::wsm6_hail_opt`.
+
+Future extension policy (separate lane):
+- If hail-mode support is needed later, add `MoistureType::WSM6_Hail`.
+- Map `WSM6` and `WSM6_Hail` to the same WSM6 model class.
+- Derive `m_hail_opt` from `sc.moisture_type` in `Define()`.
+- Treat hail-mode validation as a separate campaign with separate
+  acceptance criteria.
+- Until that lane exists, all WSM6 acceptance criteria in this campaign
+  are for default graupel mode only.
+
+Scope precedent note:
+- ERF Morrison exposes `Morrison` and `Morrison_NoIce` as user-visible
+  `MoistureType` variants.
+- Morrison's rimed-ice/hail switch (`morr_rimed_ice` / `IHAIL`) exists
+  internally but is not exposed as `Morrison_Hail`; ERF currently runs
+  graupel mode.
+- WSM6 follows the same scope discipline for this campaign.
+
+WSM6_Hail deferred:
+- ERF Morrison currently hard-codes rimed/hail mode to graupel while
+  exposing only `Morrison_NoIce` as a public variant.
+- To match that scope discipline, the current WSM6 port validates
+  default graupel mode only.
+- Hail mode is a future extension, not part of the current acceptance
+  criterion.
 
 ---
 
@@ -340,7 +366,7 @@ static constexpr amrex::Real n0smax     = Real(1.e11);
 static constexpr amrex::Real n0s        = Real(2.e6);
 static constexpr amrex::Real alpha      = Real(0.12);
 
-// runtime physics variant (from hail_opt)
+// runtime physics variant (current campaign fixed to graupel mode)
 bool m_hail_opt = false;
 
 // hail_opt-dependent class members
