@@ -185,16 +185,53 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
 
-        // This allows dynamic refinement based on the value of qv
-        } else if ( ref_tags[j].Field() == "qv" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 1);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
+        // Refinement based on a moisture mixing ratio (qv, qc, qi, qr, qs, qg).
+        // The map from name to RhoQ component depends on the moisture model and
+        // is held in solverChoice.moisture_indices.
+        } else if ( (ref_tags[j].Field() == "qv") ||
+                    (ref_tags[j].Field() == "qc") ||
+                    (ref_tags[j].Field() == "qi") ||
+                    (ref_tags[j].Field() == "qr") ||
+                    (ref_tags[j].Field() == "qs") ||
+                    (ref_tags[j].Field() == "qg") )
+        {
+            const auto& mi = solverChoice.moisture_indices;
+            int qcomp = -1;
+            if      (ref_tags[j].Field() == "qv") { qcomp = mi.qv; }
+            else if (ref_tags[j].Field() == "qc") { qcomp = mi.qc; }
+            else if (ref_tags[j].Field() == "qi") { qcomp = mi.qi; }
+            else if (ref_tags[j].Field() == "qr") { qcomp = mi.qr; }
+            else if (ref_tags[j].Field() == "qs") { qcomp = mi.qs; }
+            else if (ref_tags[j].Field() == "qg") { qcomp = mi.qg; }
+            AMREX_ALWAYS_ASSERT(qcomp >= 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], qcomp,    0, 1, 1);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons], Rho_comp, 0, 1, 1);
 
-
-        // This allows dynamic refinement based on the value of qc
-        } else if (ref_tags[j].Field() == "qc" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 1);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
+        // qt = total condensed water mixing ratio (qc + qi + qr + qs + qg).
+        // Excludes qv by convention here.
+        } else if (ref_tags[j].Field() == "qt") {
+            const auto& mi = solverChoice.moisture_indices;
+            const int idx_qc = mi.qc, idx_qi = mi.qi, idx_qr = mi.qr,
+                      idx_qs = mi.qs, idx_qg = mi.qg;
+            AMREX_ALWAYS_ASSERT(idx_qc >= 0 || idx_qi >= 0 || idx_qr >= 0 ||
+                                idx_qs >= 0 || idx_qg >= 0);
+            mf->setVal(0.0);
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.growntilebox();
+                auto qt_arr   = mf->array(mfi);
+                auto cons_arr = vars_new[levc][Vars::cons].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real rho_inv = Real(1.0) / cons_arr(i,j,k,Rho_comp);
+                    Real q = Real(0.0);
+                    if (idx_qc >= 0) { q += cons_arr(i,j,k,idx_qc) * rho_inv; }
+                    if (idx_qi >= 0) { q += cons_arr(i,j,k,idx_qi) * rho_inv; }
+                    if (idx_qr >= 0) { q += cons_arr(i,j,k,idx_qr) * rho_inv; }
+                    if (idx_qs >= 0) { q += cons_arr(i,j,k,idx_qs) * rho_inv; }
+                    if (idx_qg >= 0) { q += cons_arr(i,j,k,idx_qg) * rho_inv; }
+                    qt_arr(i,j,k) = q;
+                });
+            }
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
         } else if (ref_tags[j].Field() == "vorticity" ) {
@@ -721,11 +758,40 @@ ERF::refinement_criteria_setup ()
                 info.SetMaxLevel(ref_max_level);
             }
 
+            // Read field_name once and validate moisture-field requests against
+            // the active moisture model so an unsupported field aborts at setup
+            // rather than after the first regrid.
+            std::string field;
+            if (ppr.countval("field_name") > 0) {
+                ppr.get("field_name", field);
+                auto is_moist_field = [](const std::string& f) {
+                    return f == "qv" || f == "qc" || f == "qi" ||
+                           f == "qr" || f == "qs" || f == "qg" || f == "qt";
+                };
+                if (is_moist_field(field)) {
+                    const auto& mi = solverChoice.moisture_indices;
+                    int comp = -1;
+                    if      (field == "qv") { comp = mi.qv; }
+                    else if (field == "qc") { comp = mi.qc; }
+                    else if (field == "qi") { comp = mi.qi; }
+                    else if (field == "qr") { comp = mi.qr; }
+                    else if (field == "qs") { comp = mi.qs; }
+                    else if (field == "qg") { comp = mi.qg; }
+                    else if (field == "qt") {
+                        comp = (mi.qc >= 0 || mi.qi >= 0 || mi.qr >= 0 ||
+                                mi.qs >= 0 || mi.qg >= 0) ? 0 : -1;
+                    }
+                    if (comp < 0) {
+                        amrex::Abort("Refinement field_name '" + field +
+                                     "' is not available for the configured moisture model");
+                    }
+                }
+            }
+
             if (ppr.countval("value_greater")) {
                 int num_val = ppr.countval("value_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_greater",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
             }
             else if (ppr.countval("value_less"))
@@ -733,7 +799,6 @@ ERF::refinement_criteria_setup ()
                 int num_val = ppr.countval("value_less");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
             }
             else if (ppr.countval("adjacent_difference_greater"))
@@ -741,7 +806,6 @@ ERF::refinement_criteria_setup ()
                 int num_val = ppr.countval("adjacent_difference_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
             }
             else if (realbox.ok())
