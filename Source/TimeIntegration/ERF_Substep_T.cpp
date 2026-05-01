@@ -102,7 +102,6 @@ void erf_substep_T (int step, int /*nrk*/,
     MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
-    MultiFab Delta_rho_qv   (        ba                , dm, 1, 1);
 
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
@@ -139,8 +138,7 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
         const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
-        const Array4<Real>& old_drho_qv    = Delta_rho_qv.array(mfi);
-        
+
         const Array4<const Real>&  prev_xmom = S_prev[IntVars::xmom].const_array(mfi);
         const Array4<const Real>&  prev_ymom = S_prev[IntVars::ymom].const_array(mfi);
         const Array4<const Real>&  prev_zmom = S_prev[IntVars::zmom].const_array(mfi);
@@ -195,10 +193,10 @@ void erf_substep_T (int step, int /*nrk*/,
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             //old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
 
-            // Convert to thetam with current data
-            Real qv_cur_fact = (1.0 + R_v/R_d * cur_cons(i,j,k,RhoQ1_comp) / cur_cons(i,j,k,Rho_comp));
-            Real qv_stg_fact = (1.0 + R_v/R_d * stage_cons(i,j,k,RhoQ1_comp) / stage_cons(i,j,k,Rho_comp));
-            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp)   * qv_cur_fact
+            // Convert to theta_m with current data
+            Real qv_cur_fact = (1.0 + RvOverRd *   cur_cons(i,j,k,RhoQ1_comp) /   cur_cons(i,j,k,Rho_comp));
+            Real qv_stg_fact = (1.0 + RvOverRd *       prim(i,j,k,PrimQ1_comp));
+            old_drho_theta(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * qv_cur_fact
                                   - stage_cons(i,j,k,RhoTheta_comp) * qv_stg_fact;
             if (step == 0) {
                 theta_extrap(i,j,k) = old_drho_theta(i,j,k);
@@ -328,7 +326,7 @@ void erf_substep_T (int step, int /*nrk*/,
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
+                Real gp_eta = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                     - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
@@ -374,8 +372,8 @@ void erf_substep_T (int step, int /*nrk*/,
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
 
-        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
-        const Array4<Real const>& cc_src_arr     = cc_src.const_array(mfi);
+        const Array4<Real const>& zmom_src_arr = zmom_src.const_array(mfi);
+        const Array4<Real const>& cc_src_arr   = cc_src.const_array(mfi);
 
         const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
@@ -557,7 +555,7 @@ void erf_substep_T (int step, int /*nrk*/,
             //       of magnitude of qv. However, getting the updated pressure
             //       correct, from advecting qv, is the main target.
             //*******************************************************************
-            
+
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
 
@@ -723,20 +721,17 @@ void erf_substep_T (int step, int /*nrk*/,
                   }
               }
 
-              Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
-
+              Real fast_rhs_rho  = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
               cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
 
               Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + myhalf *
-                ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) -
-                  zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) / detJ(i,j,k);
-
+                  ( zflux_hi * (prim(i,j,k,0) + prim(i,j,k+1,0)) -
+                    zflux_lo * (prim(i,j,k,0) + prim(i,j,k-1,0)) ) * dzi ) / detJ(i,j,k);
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
 
               Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
                 ( zflux_hi * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
                   zflux_lo * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
-
               cur_cons(i,j,k,4) += dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv);
 
               if (l_reflux) {
