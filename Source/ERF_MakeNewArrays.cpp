@@ -783,7 +783,7 @@ ERF::init_zphys (int lev, Real elapsed_time)
         terrain_blanking[lev]->setVal(1.0);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
-        init_immersed_forcing(lev); // needed for real cases
+        // init_immersed_forcing(lev); // needed for real cases
     }
 
     // Compute the min dz and pass to the micro model

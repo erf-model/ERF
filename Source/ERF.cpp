@@ -2289,11 +2289,11 @@ ERF::init_only (int lev, Real elapsed_time)
         turbPert_amplitude(lev);
     }
 
-    // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-        init_immersed_forcing(lev);
-    }
+//     // Set initial velocity field for immersed cells to be close to 0
+//     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+//         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+//         init_immersed_forcing(lev);
+//     }
 }
 
 // Read in some parameters from inputs file
