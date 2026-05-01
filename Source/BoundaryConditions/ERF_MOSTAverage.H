@@ -17,7 +17,8 @@ public:
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
-                          const TerrainType& m_terrain_type);
+                          const TerrainType& m_terrain_type,
+                          const eb_* eb = nullptr);
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -231,6 +232,11 @@ protected:
     //--------------------------------------------
     bool m_interp{false};                                            // Do interpolation on destination?
     bool m_norm_vec{false};                                          // Use normal vector to find IJK?
+
+    // Vars for EB averaging policy
+    //--------------------------------------------
+    const eb_* m_eb{nullptr};                                        // Pointer to EB object for EB averaging
+    amrex::Vector<amrex::Vector<amrex::Real>> m_total_bndry_area;   // Total EB surface areas (maxlev, navg)
 
     // Time average w/ exponential filter fun
     //--------------------------------------------

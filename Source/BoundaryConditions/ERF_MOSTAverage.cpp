@@ -18,11 +18,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const MeshType& mesh_type,
-                          const TerrainType& terrain_type)
+                          const TerrainType& terrain_type,
+                          const eb_* eb)
   : m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
     m_mesh_type(mesh_type),
-    m_terrain_type(terrain_type)
+    m_terrain_type(terrain_type),
+    m_eb(eb)
 {
     // Get basic info
     //--------------------------------------------------------
@@ -409,54 +411,72 @@ MOSTAverage::set_plane_normalization (const int& lev)
 void
 MOSTAverage::set_eb_normalization (const int& lev)
 {
-    // Cells per plane and temp avg storage
-    m_ncell_plane.resize(m_maxlev);
+    AMREX_ALWAYS_ASSERT(m_eb != nullptr);
+
+    // Get EB data - need both cell-centered and face-centered areas
+    const auto& eb_factory = m_eb->get_const_factory();
+    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb->get_v_const_factory()->getMultiEBCellFlagFab();
+
+    // Get boundary areas for different centerings
+    const auto& cc_bndry_area = eb_factory->getBndryArea();  // Cell-centered (for T, Qv, Qr, Tv, Umag)
+    const auto& u_bndry_area = m_eb->get_u_const_factory()->getBndryArea();  // X-face (for U)
+    const auto& v_bndry_area = m_eb->get_v_const_factory()->getBndryArea();  // Y-face (for V)
+
+    // Initialize storage
+    m_total_bndry_area.resize(m_maxlev);
+    m_total_bndry_area[lev].resize(m_navg, zero);
     m_plane_average.resize(m_maxlev);
+    m_plane_average[lev].resize(m_navg, zero);
 
-    // True domain not used for normalization
-    Box domain = m_geom[lev].Domain();
+    // Compute total area for each field type based on its centering
+    // iavg: 0=U(xface), 1=V(yface), 2=T(cc), 3=Qv(cc), 4=Tv(cc), 5=Umag(cc)
 
-    // NOTE: Level 0 spans the whole domain, but finer
-    //       levels do not have such a restriction.
-    //       For now, use the bounding box of the boxArray
-    //       for normalization, consistent with avg routine.
+    for (int iavg = 0; iavg < m_navg; ++iavg) {
+        const MultiFab* bndry_area_mf;
+        const FabArray<EBCellFlagFab>* flags_mf;
 
-    // Bounded box of CC data used for normalization
-    Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
+        // Select appropriate boundary area and flags based on variable centering
+        if (iavg == 0) {
+            // U is x-face centered
+            bndry_area_mf = &u_bndry_area;
+            flags_mf = &u_flags;
+        } else if (iavg == 1) {
+            // V is y-face centered
+            bndry_area_mf = &v_bndry_area;
+            flags_mf = &v_flags;
+        } else {
+            // T, Qv, Tv, Umag are all cell-centered
+            bndry_area_mf = &cc_bndry_area;
+            flags_mf = &cc_flags;
+        }
 
-    // NOTE: Bounding box must lie on the periodic boundaries
-    //       in order to trip the is_per flag
+        Real total_area = zero;
 
-    // Num components, plane avg, cells per plane
-    Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
-    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-        if ( m_geom[lev].isPeriodic(idim) &&
-             bnd_bx.bigEnd(idim)==domain.bigEnd(idim) &&
-             bnd_bx.smallEnd(idim)==domain.smallEnd(idim) ) { is_per[idim] = 1; }
+        for (MFIter mfi(*bndry_area_mf, TileNoZ()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+
+            const auto& flag = (*flags_mf)[mfi];
+            auto const& flag_arr = flag.const_array();
+            auto const& area_arr = bndry_area_mf->const_array(mfi);
+
+            // Sum area only for cut cells
+            auto area_sum = amrex::ReduceSum(bx, zero, [=]
+                AMREX_GPU_DEVICE (int i, int j, int k) -> Real
+            {
+                return flag_arr(i,j,k).isSingleValued() ? area_arr(i,j,k) : zero;
+            });
+            total_area += area_sum;
+        }
+
+        // Parallel reduction across MPI ranks
+        ParallelDescriptor::ReduceRealSum(total_area);
+        m_total_bndry_area[lev][iavg] = total_area;
+
+        Print() << "EB surface area at level " << lev << " for field " << iavg
+                << ": " << total_area << std::endl;
     }
-
-    m_ncell_plane[lev].resize(m_navg);
-    m_plane_average[lev].resize(m_navg);
-    for (int iavg(0); iavg < m_navg; ++iavg) {
-        // Convert bnd_bx to current index type
-        IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
-        bnd_bx.convert(ixt);
-        IntVect bnd_bx_lo(bnd_bx.loVect());
-        IntVect bnd_bx_hi(bnd_bx.hiVect());
-
-        m_plane_average[lev][iavg] = zero;
-
-        m_ncell_plane[lev][iavg] = 1;
-        for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-            if (idim != 2) {
-                if (ixt.nodeCentered(idim) && is_per[idim]) {
-                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
-                } else {
-                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim] + 1);
-                }
-            }
-        } // idim
-    } // iavg
 }
 
 /**
@@ -1601,22 +1621,21 @@ MOSTAverage::compute_region_averages (const int& lev)
 void
 MOSTAverage::compute_eb_averages (const int& lev)
 {
+    AMREX_ALWAYS_ASSERT(m_eb != nullptr);
+
     // Peel back the level
     auto& fields      = m_fields[lev];
     auto& averages    = m_averages[lev];
-    const auto & geom = m_geom[lev];
-
-    auto& z_phys   = m_z_phys_nd[lev];
-    auto& x_pos    = m_x_pos[lev];
-    auto& y_pos    = m_y_pos[lev];
-    auto& z_pos    = m_z_pos[lev];
-
-    auto& i_indx   = m_i_indx[lev];
-    auto& j_indx   = m_j_indx[lev];
-    auto& k_indx   = m_k_indx[lev];
-
-    auto& ncell_plane   = m_ncell_plane[lev];
     auto& plane_average = m_plane_average[lev];
+
+    // Get EB data - need both cell-centered and face-centered
+    const auto& eb_factory = m_eb->get_const_factory();
+    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb->get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& cc_bndry_area = eb_factory->getBndryArea();
+    const auto& u_bndry_area = m_eb->get_u_const_factory()->getBndryArea();
+    const auto& v_bndry_area = m_eb->get_v_const_factory()->getBndryArea();
 
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
@@ -1628,8 +1647,6 @@ MOSTAverage::compute_eb_averages (const int& lev)
         d_fact_old = zero;
     }
 
-    int klo = m_geom[lev].Domain().smallEnd(2);
-
     // GPU array to accumulate averages into
     Gpu::DeviceVector<Real> pavg(plane_average.size(), zero);
     Real* plane_avg = pavg.data();
@@ -1640,62 +1657,51 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
     //
     //----------------------------------------------------------
-    // Averages over all the fields
+    // Averages for U,V,T,Qv (not Qc or W)
     //----------------------------------------------------------
     //
-    Box domain = geom.Domain();
-
-    Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
-    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-        if (geom.isPeriodic(idim)) is_per[idim] = 1;
-    }
-
-    // Averages for U,V,T,Qv (not Qc or W)
     for (int imf(0); imf < 4; ++imf) {
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
 
-        denom[imf]   = one / (Real)ncell_plane[imf];
+        denom[imf]   = one / m_total_bndry_area[lev][imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
+
+        // Select appropriate boundary area and flags based on variable centering
+        const MultiFab* bndry_area_mf;
+        const FabArray<EBCellFlagFab>* flags_mf;
+        if (imf == 0) {
+            bndry_area_mf = &u_bndry_area;  // U is x-face centered
+            flags_mf = &u_flags;
+        } else if (imf == 1) {
+            bndry_area_mf = &v_bndry_area;  // V is y-face centered
+            flags_mf = &v_flags;
+        } else {
+            bndry_area_mf = &cc_bndry_area; // T, Qv are cell-centered
+            flags_mf = &cc_flags;
+        }
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box vbx = mfi.validbox(); // This is the grid (not tile)
-            Box pbx = mfi.tilebox();  // This is the tile (not grid)
+            Box bx = mfi.tilebox();  // Full 3D box
 
-            if (pbx.smallEnd(2) != klo) { continue; }
+            const auto& flag = (*flags_mf)[mfi];
+            auto const& flag_arr = flag.const_array();
+            auto const& area_arr = bndry_area_mf->const_array(mfi);
+            auto const& mf_arr = fields[imf]->const_array(mfi);
 
-            // Make planar since mfiter is over fields
-            pbx.makeSlab(2,klo);
-
-            // Avoid double counting nodal data by changing the high end when we are
-            //     at the high side of the grid (not just of the tile)
-            IndexType ixt = averages[imf]->boxArray().ixType();
-            for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-                if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
-                    int dom_hi = domain.bigEnd(idim)+1;
-                    if (pbx.bigEnd(idim) < dom_hi || is_per[idim]) {
-                        pbx.growHi(idim,-1);
-                    }
-                }
-            }
-
-            auto mf_arr = fields[imf]->const_array(mfi);
-
-            auto k_arr  = k_indx->const_array(mfi);
-            auto j_arr  = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
-            auto i_arr  = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
-                int mk = k_arr(i,j,0);
-                int mj = j_arr ? j_arr(i,j,0) : j;
-                int mi = i_arr ? i_arr(i,j,0) : i;
-                Real val = mf_arr(mi,mj,mk);
-                Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                // Area-weighted averaging over cut cells at any k
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    Real area = area_arr(i,j,k);
+                    Real val = mf_arr(i,j,k) * area;
+                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                }
             });
         }
     }
@@ -1703,13 +1709,12 @@ MOSTAverage::compute_eb_averages (const int& lev)
     //
     //------------------------------------------------------------------------
     // Averages for virtual potential temperature
-    // (This is cell-centered so we don't need to worry about double-counting)
     //------------------------------------------------------------------------
     //
     if (fields[3]) // We have water vapor
     {
         int iavg = 4;
-        denom[iavg]   = one / (Real)ncell_plane[iavg];
+        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
 #ifdef _OPENMP
@@ -1717,42 +1722,39 @@ MOSTAverage::compute_eb_averages (const int& lev)
 #endif
         for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box pbx = mfi.tilebox();
+            Box bx = mfi.tilebox();  // Full 3D box
 
-            if (pbx.smallEnd(2) != klo) { continue; }
-
-            pbx.makeSlab(2,klo);
+            const auto& flag = cc_flags[mfi];
+            auto const& flag_arr = flag.const_array();
+            auto const& area_arr = cc_bndry_area.const_array(mfi);
 
             const Array4<Real const>& T_mf_arr  = fields[2]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = fields[3]->const_array(mfi);
             const Array4<Real const>& qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
                                                                 Array4<const Real> {};
 
-            auto k_arr = k_indx->const_array(mfi);
-            auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
-            auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
-                int mk = k_arr(i,j,0);
-                int mj = j_arr ? j_arr(i,j,0) : j;
-                int mi = i_arr ? i_arr(i,j,0) : i;
-                Real vfac;
-                if (qr_mf_arr) {
-                    // We also have liquid water
-                    vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
-                } else {
-                    vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    Real area = area_arr(i,j,k);
+                    Real vfac;
+                    if (qr_mf_arr) {
+                        // We also have liquid water
+                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                    } else {
+                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k);
+                    }
+                    const Real val = T_mf_arr(i,j,k) * vfac * area;
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 }
-                const Real val = T_mf_arr(mi,mj,mk) * vfac;
-                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
             });
         }
     }
     else // copy temperature
     {
         int iavg    = m_navg - 2;
-        denom[iavg] = one / (Real)ncell_plane[iavg];
+        denom[iavg] = one / m_total_bndry_area[lev][iavg];
         // plane_avg[iavg] = plane_avg[2]
         Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
                   pavg.begin() + iavg);
@@ -1761,14 +1763,11 @@ MOSTAverage::compute_eb_averages (const int& lev)
     //
     //------------------------------------------------------------------------
     // Averages for the tangential velocity magnitude
-    // (This is cell-centered so we don't need to worry about double-counting)
     //------------------------------------------------------------------------
     //
     {
-        int imf_cc = 2;
-        int imf  = 0;
         int iavg = m_navg - 1;
-        denom[iavg]   = one / (Real)ncell_plane[iavg];
+        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
         const Real Vsg = m_Vsg[lev];
@@ -1776,31 +1775,29 @@ MOSTAverage::compute_eb_averages (const int& lev)
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box pbx = mfi.tilebox();
+            Box bx = mfi.tilebox();  // Full 3D box
 
-            if (pbx.smallEnd(2) != klo) { continue; }
+            const auto& flag = cc_flags[mfi];
+            auto const& flag_arr = flag.const_array();
+            auto const& area_arr = cc_bndry_area.const_array(mfi);
 
-            pbx.makeSlab(2,klo);
+            auto const& u_arr = fields[0]->const_array(mfi);
+            auto const& v_arr = fields[1]->const_array(mfi);
 
-            // Last element is Umag and always cell centered
-            auto u_mf_arr = fields[imf  ]->const_array(mfi);
-            auto v_mf_arr = fields[imf+1]->const_array(mfi);
-
-            auto k_arr = k_indx->const_array(mfi);
-            auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
-            auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
-                int mk = k_arr(i,j,0);
-                int mj = j_arr ? j_arr(i,j,0) : j;
-                int mi = i_arr ? i_arr(i,j,0) : i;
-                const Real u_val = myhalf * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
-                const Real v_val = myhalf * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
-                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    Real area = area_arr(i,j,k);
+                    // Interpolate staggered velocities to cell center
+                    const Real u_val = myhalf * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
+                    const Real v_val = myhalf * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
+                    const Real mag = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
+                    const Real val = mag * area;
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                }
             });
         }
     }
@@ -1809,7 +1806,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
     Gpu::copy(Gpu::deviceToHost, pavg.begin(), pavg.end(), plane_average.begin());
     ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
 
-    // No spatial variation with plane averages
+    // Normalize by total area and apply time averaging
     for (int iavg(0); iavg < m_navg; ++iavg){
         plane_average[iavg] *= denom[iavg]*d_fact_new;
         plane_average[iavg] += val_old[iavg];
