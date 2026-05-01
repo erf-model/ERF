@@ -436,49 +436,17 @@ MOSTAverage::set_eb_normalization (const int& lev)
     for (int iavg = 0; iavg < m_navg; ++iavg) {
         Real total_area = zero;
 
-        // Face-centered variables (U, V) use MultiFab from eb_aux_
-        if (iavg == 0 || iavg == 1) {
-            const MultiFab* bndry_area_mf;
-            const FabArray<EBCellFlagFab>* flags_mf;
-
-            if (iavg == 0) {
-                bndry_area_mf = &u_bndry_area;  // MultiFab from eb_aux_
-                flags_mf = &u_flags;
-            } else {
-                bndry_area_mf = &v_bndry_area;  // MultiFab from eb_aux_
-                flags_mf = &v_flags;
-            }
-
-            for (MFIter mfi(*bndry_area_mf, TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = (*flags_mf)[mfi];
-
-                // For MultiFab, check singlevalued before accessing
-                if (flag.getType() != FabType::singlevalued) continue;
-
-                Box bx = mfi.tilebox();
-                auto const& flag_arr = flag.const_array();
-                auto const& area_arr = bndry_area_mf->const_array(mfi);
-
-                // Sum area only for cut cells
-                auto area_sum = amrex::ReduceSum(bx, zero, [=]
-                    AMREX_GPU_DEVICE (int i, int j, int k) -> Real
-                {
-                    return flag_arr(i,j,k).isSingleValued() ? area_arr(i,j,k) : zero;
-                });
-                total_area += area_sum;
-            }
-        }
-        // Cell-centered variables (T, Qv, Tv, Umag) use MultiCutFab from EBFArrayBoxFactory
-        else {
-            for (MFIter mfi(cc_bndry_area, TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = cc_flags[mfi];
+        // Lambda that works with both MultiFab and MultiCutFab
+        auto compute_area_sum = [&](auto const& bndry_area, auto const& flags) {
+            for (MFIter mfi(bndry_area, TileNoZ()); mfi.isValid(); ++mfi) {
+                const auto& flag = flags[mfi];
 
                 // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
                 if (flag.getType() != FabType::singlevalued) continue;
 
                 Box bx = mfi.tilebox();
                 auto const& flag_arr = flag.const_array();
-                auto const& area_arr = cc_bndry_area.const_array(mfi);
+                auto const& area_arr = bndry_area.const_array(mfi);
 
                 // Sum area only for cut cells
                 auto area_sum = amrex::ReduceSum(bx, zero, [=]
@@ -488,6 +456,15 @@ MOSTAverage::set_eb_normalization (const int& lev)
                 });
                 total_area += area_sum;
             }
+        };
+
+        // Select appropriate data based on variable centering
+        if (iavg == 0) {
+            compute_area_sum(u_bndry_area, u_flags);  // MultiFab from eb_aux_
+        } else if (iavg == 1) {
+            compute_area_sum(v_bndry_area, v_flags);  // MultiFab from eb_aux_
+        } else {
+            compute_area_sum(cc_bndry_area, cc_flags);  // MultiCutFab from EBFArrayBoxFactory
         }
 
         // Parallel reduction across MPI ranks
@@ -1688,59 +1665,20 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[imf]   = one / m_total_bndry_area[lev][imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
 
-        // Face-centered variables (U, V) use MultiFab from eb_aux_
-        if (imf == 0 || imf == 1) {
-            const MultiFab* bndry_area_mf;
-            const FabArray<EBCellFlagFab>* flags_mf;
-
-            if (imf == 0) {
-                bndry_area_mf = &u_bndry_area;  // MultiFab from eb_aux_
-                flags_mf = &u_flags;
-            } else {
-                bndry_area_mf = &v_bndry_area;  // MultiFab from eb_aux_
-                flags_mf = &v_flags;
-            }
-
+        // Lambda that works with both MultiFab and MultiCutFab
+        auto compute_area_weighted_sum = [&](auto const& bndry_area, auto const& flags) {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = (*flags_mf)[mfi];
-
-                // For MultiFab, check singlevalued before accessing
-                if (flag.getType() != FabType::singlevalued) continue;
-
-                Box bx = mfi.tilebox();  // Full 3D box
-                auto const& flag_arr = flag.const_array();
-                auto const& area_arr = bndry_area_mf->const_array(mfi);
-                auto const& mf_arr = fields[imf]->const_array(mfi);
-
-                ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
-                {
-                    // Area-weighted averaging over cut cells at any k
-                    if (flag_arr(i,j,k).isSingleValued()) {
-                        Real area = area_arr(i,j,k);
-                        Real val = mf_arr(i,j,k) * area;
-                        Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
-                    }
-                });
-            }
-        }
-        // Cell-centered variables (T, Qv) use MultiCutFab from EBFArrayBoxFactory
-        else {
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-            for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = cc_flags[mfi];
+                const auto& flag = flags[mfi];
 
                 // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
                 if (flag.getType() != FabType::singlevalued) continue;
 
                 Box bx = mfi.tilebox();  // Full 3D box
                 auto const& flag_arr = flag.const_array();
-                auto const& area_arr = cc_bndry_area.const_array(mfi);
+                auto const& area_arr = bndry_area.const_array(mfi);
                 auto const& mf_arr = fields[imf]->const_array(mfi);
 
                 ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
@@ -1754,6 +1692,15 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     }
                 });
             }
+        };
+
+        // Select appropriate data based on variable centering
+        if (imf == 0) {
+            compute_area_weighted_sum(u_bndry_area, u_flags);  // MultiFab from eb_aux_
+        } else if (imf == 1) {
+            compute_area_weighted_sum(v_bndry_area, v_flags);  // MultiFab from eb_aux_
+        } else {
+            compute_area_weighted_sum(cc_bndry_area, cc_flags);  // MultiCutFab from EBFArrayBoxFactory
         }
     }
 
