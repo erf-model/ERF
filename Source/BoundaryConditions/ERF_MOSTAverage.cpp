@@ -1677,9 +1677,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                 if (flag.getType() != FabType::singlevalued) continue;
 
                 Box bx = mfi.tilebox();  // Full 3D box
-                auto const& flag_arr = flag.const_array();
-                auto const& area_arr = bndry_area.const_array(mfi);
-                auto const& mf_arr = fields[imf]->const_array(mfi);
+                auto const flag_arr = flag.const_array();
+                auto const area_arr = bndry_area.const_array(mfi);
+                auto const mf_arr = fields[imf]->const_array(mfi);
 
                 ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
@@ -1726,12 +1726,12 @@ MOSTAverage::compute_eb_averages (const int& lev)
             if (flag.getType() != FabType::singlevalued) continue;
 
             Box bx = mfi.tilebox();  // Full 3D box
-            auto const& flag_arr = flag.const_array();
-            auto const& area_arr = cc_bndry_area.const_array(mfi);
+            auto const flag_arr = flag.const_array();
+            auto const area_arr = cc_bndry_area.const_array(mfi);
 
-            const Array4<Real const>& T_mf_arr  = fields[2]->const_array(mfi);
-            const Array4<Real const>& qv_mf_arr = fields[3]->const_array(mfi);
-            const Array4<Real const>& qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
+            const Array4<Real const> T_mf_arr  = fields[2]->const_array(mfi);
+            const Array4<Real const> qv_mf_arr = fields[3]->const_array(mfi);
+            const Array4<Real const> qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
                                                                 Array4<const Real> {};
 
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
@@ -1784,11 +1784,11 @@ MOSTAverage::compute_eb_averages (const int& lev)
             if (flag.getType() != FabType::singlevalued) continue;
 
             Box bx = mfi.tilebox();  // Full 3D box
-            auto const& flag_arr = flag.const_array();
-            auto const& area_arr = cc_bndry_area.const_array(mfi);
+            auto const flag_arr = flag.const_array();
+            auto const area_arr = cc_bndry_area.const_array(mfi);
 
-            auto const& u_arr = fields[0]->const_array(mfi);
-            auto const& v_arr = fields[1]->const_array(mfi);
+            auto const u_arr = fields[0]->const_array(mfi);
+            auto const v_arr = fields[1]->const_array(mfi);
 
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
