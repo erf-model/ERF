@@ -10,6 +10,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_DataStruct.H"
+#include "ERF_EB.H"
 
 class MOSTAverage {
 public:
@@ -57,6 +58,9 @@ public:
 
     // Compute ncells per plane
     void set_plane_normalization (const int& lev);
+
+    // Compute total boundary area over EB
+    void set_eb_normalization (const int& lev);
 
     // Compute ncells per plane
     void set_region_normalization (const int& /*lev*/)
