@@ -950,8 +950,13 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 9b. Add immersed source terms for buildings
         // *****************************************************************************
+        // geometric properties
+        const Real* dx_arr = geom.CellSize();
+        const Real dx_x = dx_arr[0];
+        const Real dx_y = dx_arr[1];
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) && 
+            (dx_x <= 50.0)) // only use resolved buildings for grid spacings less than 50m in the horizontal
         {
             // geometric properties
             const Real* dx_arr = geom.CellSize();
