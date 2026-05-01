@@ -433,11 +433,16 @@ MOSTAverage::set_eb_normalization (const int& lev)
     // Compute total area for each field type based on its centering
     // iavg: 0=U(xface), 1=V(yface), 2=T(cc), 3=Qv(cc), 4=Tv(cc), 5=Umag(cc)
 
-    for (int iavg = 0; iavg < m_navg; ++iavg) {
-        Real total_area = zero;
+    // GPU array to accumulate areas
+    Gpu::DeviceVector<Real> area_vec(m_navg, zero);
+    Real* area_device = area_vec.data();
 
+    for (int iavg = 0; iavg < m_navg; ++iavg) {
         // Lambda that works with both MultiFab and MultiCutFab
         auto compute_area_sum = [&](auto const& bndry_area, auto const& flags) {
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
             for (MFIter mfi(bndry_area, TileNoZ()); mfi.isValid(); ++mfi) {
                 const auto& flag = flags[mfi];
 
@@ -445,16 +450,18 @@ MOSTAverage::set_eb_normalization (const int& lev)
                 if (flag.getType() != FabType::singlevalued) continue;
 
                 Box bx = mfi.tilebox();
-                auto const& flag_arr = flag.const_array();
-                auto const& area_arr = bndry_area.const_array(mfi);
+                auto const flag_arr = flag.const_array();
+                auto const area_arr = bndry_area.const_array(mfi);
 
-                // Sum area only for cut cells
-                auto area_sum = amrex::ReduceSum(bx, zero, [=]
-                    AMREX_GPU_DEVICE (int i, int j, int k) -> Real
+                // Sum area only for cut cells using atomic reduction
+                ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    return flag_arr(i,j,k).isSingleValued() ? area_arr(i,j,k) : zero;
+                    if (flag_arr(i,j,k).isSingleValued()) {
+                        Real area = area_arr(i,j,k);
+                        Gpu::deviceReduceSum(&area_device[iavg], area, handler);
+                    }
                 });
-                total_area += area_sum;
             }
         };
 
@@ -466,13 +473,16 @@ MOSTAverage::set_eb_normalization (const int& lev)
         } else {
             compute_area_sum(cc_bndry_area, cc_flags);  // MultiCutFab from EBFArrayBoxFactory
         }
+    }
 
-        // Parallel reduction across MPI ranks
-        ParallelDescriptor::ReduceRealSum(total_area);
-        m_total_bndry_area[lev][iavg] = total_area;
+    // Copy to host and sum across MPI ranks
+    Gpu::copy(Gpu::deviceToHost, area_vec.begin(), area_vec.end(),
+              m_total_bndry_area[lev].begin());
+    ParallelDescriptor::ReduceRealSum(m_total_bndry_area[lev].data(), m_navg);
 
+    for (int iavg = 0; iavg < m_navg; ++iavg) {
         Print() << "EB surface area at level " << lev << " for field " << iavg
-                << ": " << total_area << std::endl;
+                << ": " << m_total_bndry_area[lev][iavg] << std::endl;
     }
 }
 
