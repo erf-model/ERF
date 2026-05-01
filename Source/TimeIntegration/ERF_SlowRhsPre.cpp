@@ -555,39 +555,46 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (!l_eb_terrain_cc){
-            AdvectionSrcForRho( bx, cell_rhs,
-                                rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr, // these are being defined from the fluxes
-                                ax_arr, ay_arr, az_arr, detJ_arr,
-                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                                flx_arr, l_fixed_rho);
+            AdvectionSrcForRho(bx, cell_rhs,
+                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                               avg_xmom_arr, avg_ymom_arr, avg_zmom_arr, // these are being defined from the fluxes
+                               ax_arr, ay_arr, az_arr, detJ_arr,
+                               dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                               flx_arr, l_fixed_rho);
             AdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                cell_prim, cell_rhs,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h);
+                                   avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                   cell_prim, cell_rhs,
+                                   detJ_arr, dxInv, mf_mx, mf_my,
+                                   l_horiz_adv_type, l_vert_adv_type,
+                                   l_horiz_upw_frac, l_vert_upw_frac,
+                                   flx_arr, domain, bc_ptr_h);
+            AdvectionSrcForScalars(bx, RhoQ1_comp, ncomp,
+                                   avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                   cell_prim, cell_rhs,
+                                   detJ_arr, dxInv, mf_mx, mf_my,
+                                   l_horiz_adv_type, l_vert_adv_type,
+                                   l_horiz_upw_frac, l_vert_upw_frac,
+                                   flx_arr, domain, bc_ptr_h);
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
-                                rho_u, rho_v, omega_arr,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                mask_arr, cfg_arr,
-                                ax_arr, ay_arr, az_arr,
-                                fcx_arr, fcy_arr, fcz_arr, detJ_arr,
-                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                                flx_arr, l_fixed_rho,
-                                already_on_centroids);
+                                 rho_u, rho_v, omega_arr,
+                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                 mask_arr, cfg_arr,
+                                 ax_arr, ay_arr, az_arr,
+                                 fcx_arr, fcy_arr, fcz_arr, detJ_arr,
+                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                                 flx_arr, l_fixed_rho,
+                                 already_on_centroids);
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                cell_prim, cell_rhs,
-                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                fcx_arr, fcy_arr, fcz_arr,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h,
-                                already_on_centroids);
+                                     avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                     cell_prim, cell_rhs,
+                                     mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                     fcx_arr, fcy_arr, fcz_arr,
+                                     detJ_arr, dxInv, mf_mx, mf_my,
+                                     l_horiz_adv_type, l_vert_adv_type,
+                                     l_horiz_upw_frac, l_vert_upw_frac,
+                                     flx_arr, domain, bc_ptr_h,
+                                     already_on_centroids);
         }
 
         if (l_use_diff) {
