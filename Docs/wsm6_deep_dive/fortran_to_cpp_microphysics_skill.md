@@ -1702,6 +1702,50 @@ validation has meaning.
     indicates a transcription error or an invalid library substitution that must
     be corrected.
 
+## Rule 30B: Tier2 Line-Trace Invocation and Contract Overlay [NEW]
+
+This rule is additive to Rule 30/30A and does not replace existing text.
+It exists to prevent overuse and misuse of Tier2 traces.
+
+### 30B.1 When Tier2 is required
+
+- Use Tier1 (`microphysics_debug=1`) for forward frontier progression.
+- Enable Tier2 only when one of the following is true:
+  - Tier1 has already identified the first failing group/tag and line-level
+    attribution is required.
+  - Tier1 evidence is ambiguous due to index/column-label uncertainty.
+- Scope Tier2 runs to one target column and one failing tag/group. Avoid
+  broad all-tag forensic dumps as a default workflow.
+
+### 30B.2 Tier2 record expectations
+
+- Tier2 is one-value-per-line forensic output with explicit index metadata and
+  computation-path metadata.
+- Required fields for interpretation:
+  `diag_schema, tag, phase, source_layer, path_id, expr_id, store_id, loop, i_dbg, j_dbg, k_dbg, k_raw, var, value`.
+- Non-value tokens are contractual for structure checks; value tokens are used
+  for numerical divergence checks.
+
+### 30B.3 Orthogonal floating-point audit axes
+
+- Expression axis (`expr_id`) and storage axis (`store_id`) are independent.
+- Standing storage paths are `broken_full` and `fused_min`.
+- Investigative paths are temporary and must not be treated as standing
+  evidence until promoted by contract update and parity checks.
+
+### 30B.4 Numeric precision rationale
+
+- Tier2 rendering must preserve enough information to distinguish
+  double-precision values separated by about 1 ULP.
+- Therefore significant precision must be at least 17 decimal digits;
+  implementations may exceed this (for example 20 fractional digits).
+
+### 30B.5 Tier2 does not change physics behavior
+
+- Tier2 diagnostics are observational only.
+- If Tier2 is disabled, Tier1 behavior and production physics paths must remain
+  unchanged.
+
 ## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern
 
 Use a runtime ParmParse query, not a build-time flag, to switch

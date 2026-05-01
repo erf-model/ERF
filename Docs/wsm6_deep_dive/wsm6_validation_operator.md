@@ -1,6 +1,6 @@
 # WSM6 Validation Operator (Agentic, Rule-Gated)
 
-Purpose: move rows in `validation_manifest.tsv` from `PENDING` to `PASS` / `EPSILON_OK` / `FAIL` / `RETREAT` using the rule framework in `fortran_to_cpp_microphysics_skill.md` (Rules 30/31/32/32.6/33/34).
+Purpose: move rows in `validation_manifest.tsv` from `PENDING` to `PASS` / `EPSILON_OK` / `FAIL` / `RETREAT` using the rule framework in `fortran_to_cpp_microphysics_skill.md` (Rules 30/30A/30B/31/32/32.6/33/34).
 
 This workflow is intentionally agentic and small-process. Do not introduce a large automation script.
 
@@ -28,20 +28,24 @@ and debug only — not for promotion or re-open decisions.
 
 Inputs:
 - `Docs/wsm6_deep_dive/validation_manifest.tsv`
-- `Docs/wsm6_deep_dive/validation_runs.tsv`
+- `Docs/wsm6_deep_dive/executions.tsv`
+- `Docs/wsm6_deep_dive/decisions.tsv`
+- `Docs/wsm6_deep_dive/validation_runs.tsv` (legacy only)
 - `Docs/wsm6_deep_dive/fortran_to_cpp_microphysics_skill.md`
 - `Exec/CanonicalTests/SquallLine_2D/inputs_moisture_WSM6`
 
 Outputs:
 - Updated `validation_manifest.tsv` statuses and divergence variables.
-- Appended row(s) in `validation_runs.tsv` for each run pair.
+- Appended row(s) in `executions.tsv` for each run leg.
+- Appended row(s) in `decisions.tsv` for each manifest/frontier status change.
 
 ## 2. Non-Negotiable Rules
 
 1. Runtime toggles only:
 - Fortran path: `erf.use_wsm6_cpp_answer=0`
 - C++ path: `erf.use_wsm6_cpp_answer=1`
-- Diagnostics: `erf.microphysics_debug=1`
+- Tier1 canonical: `erf.microphysics_debug=1`, `erf.micro_diag_mode=canonical|both`
+- Tier2 forensic: `erf.microphysics_debug>=2`, `erf.micro_diag_mode=forensic|both`
 
 2. For any host-side print after GPU kernels, call `Gpu::synchronize()` first.
 
@@ -58,9 +62,22 @@ Outputs:
 - Record the confirmed site in `validation_runs.tsv` notes (for example `first_line_divergence=<file>:<line>`).
 - Retreat print granularity:
   - `erf.microphysics_debug=1` is canonical-tag mode for forward validation.
-  - `erf.microphysics_debug>=2` is line-by-line retreat mode (PRE/POST local snapshots).
+  - `erf.microphysics_debug>=2` is one-value-per-line forensic mode.
 
 4. Use tracked assets only for formal validation.
+
+5. Tier2 schema/format contract (when forensic mode is enabled):
+- Record shape:
+  `WSM6-DIAG-T2 diag_schema=... tag=... phase=... source_layer=... path_id=... expr_id=... store_id=... loop=... i_dbg=... j_dbg=... k_dbg=... k_raw=... debug_level=... var=... value=...`
+- Field order is contractual.
+- `i_dbg,j_dbg` are target-column coordinates in outer C++ space.
+- `k_dbg` is normalized 1..nk; `k_raw` is raw storage index.
+- Numeric token must preserve ULP-level distinguishability for double precision (minimum 17 significant digits; current contract uses 20 fractional digits with explicit sign and fixed exponent width).
+
+6. When Tier2 is required (skill-level trigger):
+- Use Tier1 first for normal frontier progression.
+- Enter Tier2 only after Tier1 identifies the first failing group/tag, or when an index/column-label ambiguity prevents trusted interpretation.
+- Do not run broad Tier2 traces during forward pass validation; scope to a single failing tag/group and a single target column.
 
 ## 3. Setup IDs and Pass Gates
 
@@ -86,28 +103,29 @@ For each `group_id` still `PENDING`:
 1. Select setup from `setup_id`.
 2. Run Path A (Fortran bridge) and capture `log.fortran`.
 3. Run Path B (native C++) and capture `log.cpp`.
-4. Compare matching `fortran_tag` vs `cpp_tag` streams for the target column.
-5. Determine earliest divergence location (group/tag/step/variable).
-6. Update manifest row:
+4. Compare matching `fortran_tag` vs `cpp_tag` streams for the target column (Tier1).
+5. In retreat mode, compare Tier2 schema lines first on structure, then value deltas.
+6. Determine earliest divergence location (group/tag/step/variable).
+7. Update manifest row:
 - `status`
 - `divergence_variable` (first failing variable; keep concise)
-7. Append run metadata to `validation_runs.tsv`.
+8. Append run metadata to `executions.tsv`; append status/frontier actions to `decisions.tsv`.
 
 If current group passes, proceed to next group. If fails, stop forward progress and apply retreat strategy.
 
 ## 5. Command Templates (Minimal)
 
-From `Exec/CanonicalTests/SquallLine_2D` (example executable name only):
+From `Exec/CanonicalTests/SquallLine_2D` using the actively built executable (default shown is DEBUG+MPI):
 
 ```bash
-# Path A
-mpirun -n 1 ./ERF3d.gnu.ex inputs_moisture_WSM6 \
-  erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=1 max_step=<N> \
+# Path A (Fortran bridge; unbuffered recommended for heavy print modes)
+GFORTRAN_UNBUFFERED_ALL=y mpirun -n 1 ../../ERF3d.gnu.DEBUG.MPI.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=0 erf.microphysics_debug=1 erf.micro_diag_mode=canonical max_step=<N> \
   > log.fortran 2>&1
 
 # Path B
-mpirun -n 1 ./ERF3d.gnu.ex inputs_moisture_WSM6 \
-  erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=1 max_step=<N> \
+mpirun -n 1 ../../ERF3d.gnu.DEBUG.MPI.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=1 erf.microphysics_debug=1 erf.micro_diag_mode=canonical max_step=<N> \
   > log.cpp 2>&1
 ```
 
@@ -117,6 +135,37 @@ Tag-focused compare (example):
 rg "WSM6-(FORT|CPP)_(DENFAC|QSAT|SLOPE1|NISLFV_R|NISLFV_SG|FALL|SLOPE2|MELT|VICE|PRECIP|PHASE|SLOPE3|PRAUT|PRACW|PREVP|PRACI|PSACI|PRACS|PSEML|PIDEP|PSAUT|PSEVP|UPDATE|QSAT2|PCOND)" log.fortran log.cpp
 ```
 
+Tier2 retreat pair (target column controlled at runtime):
+
+```bash
+# Path A (Fortran bridge; use unbuffered mode for Tier2 verbosity)
+GFORTRAN_UNBUFFERED_ALL=y mpirun -n 1 ../../ERF3d.gnu.DEBUG.MPI.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=0 \
+  erf.microphysics_debug=2 \
+  erf.micro_diag_mode=forensic \
+  erf.micro_diag_tags=DENFAC \
+  erf.micro_diag_expr=standing \
+  erf.micro_diag_store=standing \
+  erf.micro_diag_target_column="3 3" \
+  max_step=1 > log.fortran.t2 2>&1
+
+# Path B
+mpirun -n 1 ../../ERF3d.gnu.DEBUG.MPI.ex inputs_moisture_WSM6 \
+  erf.use_wsm6_cpp_answer=1 \
+  erf.microphysics_debug=2 \
+  erf.micro_diag_mode=forensic \
+  erf.micro_diag_tags=DENFAC \
+  erf.micro_diag_expr=standing \
+  erf.micro_diag_store=standing \
+  erf.micro_diag_target_column="3 3" \
+  max_step=1 > log.cpp.t2 2>&1
+```
+
+Tier2 compare policy:
+- First compare schema/order/index tokens and path metadata.
+- Then compare numeric values.
+- If a provenance token is intentionally path-specific (for example source-layer naming), normalize that token explicitly and document the normalization in `executions.tsv` notes.
+
 ## 6. Manifest Update Convention
 
 `validation_manifest.tsv`:
@@ -124,12 +173,16 @@ rg "WSM6-(FORT|CPP)_(DENFAC|QSAT|SLOPE1|NISLFV_R|NISLFV_SG|FALL|SLOPE2|MELT|VICE
 - Keep `compare_variables` unchanged unless scope itself changes.
 - Keep `print_contract` unchanged unless formatting contract changes.
 
-`validation_runs.tsv` append fields (minimum):
+`executions.tsv` append fields (minimum):
 - `run_id`, `timestamp_utc`, `git_sha`, `setup_id`, `use_wsm6_cpp_answer`, `microphysics_debug`, `max_step`, `first_divergence_group`, `first_divergence_tag`, `first_divergence_step`, `status`, `notes`.
 - `git_sha` policy:
   - `*-dirty` rows are allowed for debug/triage evidence, but are not sufficient for formal status promotion.
   - Any `validation_manifest.tsv` status/frontier change (`PASS`, `EPSILON_OK`, new `FAIL` frontier, downstream `RETREAT` shift) should be backed by a rerun from a clean commit SHA.
   - Do not use `git commit --amend` to update failing-run provenance; prefer a new small checkpoint commit, rerun, then append new rows with the new clean SHA.
+
+`decisions.tsv` append fields (minimum):
+- `decision_id`, `timestamp_utc`, `manifest_row_id|group_id`, `old_status`, `new_status`, `reason`, `evidence_execution_ids`, `operator_notes`.
+- Every decision row that changes manifest/frontier state must cite one or more clean-SHA execution IDs.
 
 ## 7. Dependency Ordering
 
@@ -140,7 +193,7 @@ Validate in process order; do not mark downstream groups PASS when upstream fail
 
 - Prefer single-rank (`-n 1`) for deterministic diagnostics.
 - Keep diagnostics at level 1 unless actively isolating a local issue.
-- If heavy Fortran diagnostic output aborts with `corrupted double-linked list`, rerun with `GFORTRAN_UNBUFFERED_ALL=y` and record that env in `validation_runs.tsv` notes.
+- If heavy Fortran diagnostic output aborts with `corrupted double-linked list`, rerun with `GFORTRAN_UNBUFFERED_ALL=y` and record that env in `executions.tsv` notes.
 - Avoid broad code edits during validation runs; isolate one suspected cause at a time.
 - Commit manifest/run-ledger updates in small, reviewable chunks.
 - Enforce strict Rule 30 group-boundary snapshots: emit each canonical tag at the immediate process-group boundary (`NISLFV_R` right after `nislfv_rain_plm`, `NISLFV_SG` right after `nislfv_rain_plm6`), not from a later aggregate `POST-G*` state.
