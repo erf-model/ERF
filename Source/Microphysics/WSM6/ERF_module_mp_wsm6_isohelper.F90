@@ -110,16 +110,19 @@ contains
 
     kdim = kte - kts + 1
 
-    allocate(t_col(ims:ime,1:kdim), q_col(ims:ime,1:kdim), qc_col(ims:ime,1:kdim), qi_col(ims:ime,1:kdim))
-    allocate(qr_col(ims:ime,1:kdim), qs_col(ims:ime,1:kdim), qg_col(ims:ime,1:kdim))
-    allocate(den_col(ims:ime,1:kdim), p_col(ims:ime,1:kdim), delz_col(ims:ime,1:kdim))
-    allocate(rain_col(ims:ime), rainncv_col(ims:ime), sr_col(ims:ime))
-    allocate(snow_col(ims:ime), snowncv_col(ims:ime), graupel_col(ims:ime), graupelncv_col(ims:ime))
+    ! Scratch columns passed to mp_wsm6_run use active bounds its:ite
+    ! because the Fortran core dummy arrays are declared dimension(its:...).
+    ! Raw C-binding arrays remain storage-bounded ims:ime.
+    allocate(t_col(its:ite,1:kdim), q_col(its:ite,1:kdim), qc_col(its:ite,1:kdim), qi_col(its:ite,1:kdim))
+    allocate(qr_col(its:ite,1:kdim), qs_col(its:ite,1:kdim), qg_col(its:ite,1:kdim))
+    allocate(den_col(its:ite,1:kdim), p_col(its:ite,1:kdim), delz_col(its:ite,1:kdim))
+    allocate(rain_col(its:ite), rainncv_col(its:ite), sr_col(its:ite))
+    allocate(snow_col(its:ite), snowncv_col(its:ite), graupel_col(its:ite), graupelncv_col(its:ite))
 
     do j = jts, jte
       do k = kts, kte
         kk = k - kts + 1
-        do i = ims, ime
+        do i = its, ite
           t_col(i,kk)    = t(i,j,k)
           q_col(i,kk)    = qv(i,j,k)
           qc_col(i,kk)   = qc(i,j,k)
@@ -140,7 +143,7 @@ contains
         end do
       end if
 
-      do i = ims, ime
+      do i = its, ite
         rain_col(i)      = rain(i,j)
         rainncv_col(i)   = rainncv(i,j)
         sr_col(i)        = sr(i,j)
