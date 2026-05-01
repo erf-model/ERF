@@ -14,8 +14,14 @@ For all new formal validation runs:
   per row (execution facts only).
 - `decisions.tsv` records manifest or frontier state
   changes, each citing one or more `execution_id` values.
-- `validation_manifest.tsv` remains the current-state
-  frontier table.
+- `validation_manifest.tsv` remains the compact current-state
+  frontier table for the active validation scope; it is not
+  append-only history.
+- If the same `group_id` has different outcomes across
+  `validation_question`, `validation_lane`, `input_scope`,
+  `temporal_scope`, or `setup_id`, record the scoped outcome
+  in `decisions.tsv`; do not force `validation_manifest.tsv`
+  to encode both scopes.
 
 No manifest change is valid unless a `decisions.tsv`
 row cites clean-SHA execution evidence.
@@ -35,7 +41,9 @@ Inputs:
 - `Exec/CanonicalTests/SquallLine_2D/inputs_moisture_WSM6`
 
 Outputs:
-- Updated `validation_manifest.tsv` statuses and divergence variables.
+- Updated `validation_manifest.tsv` statuses and divergence variables
+  only when a clean-SHA `decisions.tsv` row explicitly changes the
+  current active frontier state.
 - Appended row(s) in `executions.tsv` for each run leg.
 - Appended row(s) in `decisions.tsv` for each manifest/frontier status change.
 
