@@ -1,11 +1,225 @@
 #include "ERF_WSM6.H"
 #include "ERF_WSM6_Fortran_Interface.H"
 #include <AMReX_Reduce.H>
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 using namespace amrex;
+
+namespace {
+
+constexpr int WSM6_DIAG_SCHEMA_V1 = 1;
+constexpr int WSM6_DIAG_FRAC_DIGITS = 20;
+constexpr int WSM6_DIAG_EXP_DIGITS = 3;
+
+std::string
+wsm6_to_lower(std::string s)
+{
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+std::string
+wsm6_trim(std::string s)
+{
+    auto not_space = [](unsigned char c) { return !std::isspace(c); };
+    auto first = std::find_if(s.begin(), s.end(), not_space);
+    if (first == s.end()) return std::string{};
+    auto last = std::find_if(s.rbegin(), s.rend(), not_space).base();
+    return std::string(first, last);
+}
+
+bool
+wsm6_list_has(const std::vector<std::string>& entries, const std::string& token)
+{
+    if (entries.empty()) return false;
+    const std::string want = wsm6_to_lower(wsm6_trim(token));
+    for (const auto& e : entries) {
+        if (wsm6_to_lower(wsm6_trim(e)) == want) return true;
+    }
+    return false;
+}
+
+std::string
+wsm6_fmt_diag_value(double v)
+{
+    char raw[96];
+    std::snprintf(raw, sizeof(raw), "%+.*E", WSM6_DIAG_FRAC_DIGITS, v);
+
+    const char* epos = std::strchr(raw, 'E');
+    if (epos == nullptr) {
+        return std::string(raw);
+    }
+
+    std::string mant(raw, epos - raw);
+    const int exp_val = std::atoi(epos + 1);
+
+    char expbuf[16];
+    std::snprintf(expbuf, sizeof(expbuf), "%+0*d",
+                  WSM6_DIAG_EXP_DIGITS + 1, exp_val);
+
+    return mant + "E" + std::string(expbuf);
+}
+
+bool
+wsm6_diag_mode_enabled(const std::string& mode, bool want_forensic)
+{
+    const std::string m = wsm6_to_lower(mode);
+    if (want_forensic) {
+        return (m == "forensic" || m == "both");
+    } else {
+        return (m == "canonical" || m == "both");
+    }
+}
+
+bool
+wsm6_store_enabled(const std::vector<std::string>& stores, const std::string& store_id)
+{
+    if (stores.empty()) return false;
+    if (wsm6_list_has(stores, "all")) return true;
+    if (wsm6_list_has(stores, "standing")) {
+        if (store_id == "broken_full" || store_id == "fused_min") return true;
+    }
+    if (wsm6_list_has(stores, store_id)) return true;
+    if (store_id == "broken_full" && wsm6_list_has(stores, "broken")) return true;
+    if (store_id == "fused_min" && wsm6_list_has(stores, "fused")) return true;
+    return false;
+}
+
+bool
+wsm6_expr_enabled(const std::vector<std::string>& exprs, const std::string& expr_id)
+{
+    if (exprs.empty()) return false;
+    if (wsm6_list_has(exprs, "all")) return true;
+    if (wsm6_list_has(exprs, "standing")) {
+        if (expr_id == "recip" || expr_id == "mul_add" || expr_id == "pow_sqrt" ||
+            expr_id == "x_mul_x_mul_x" || expr_id == "x_times_sqrtx" ||
+            expr_id == "sq_then_mul" || expr_id == "mul_then_sq" ||
+            expr_id == "canonical_tag") return true;
+    }
+    return wsm6_list_has(exprs, expr_id);
+}
+
+bool
+wsm6_tag_enabled(const std::vector<std::string>& tags, const std::string& tag)
+{
+    if (tags.empty()) return false;
+    if (wsm6_list_has(tags, "all")) return true;
+    if (wsm6_list_has(tags, "standing")) return true;
+    return wsm6_list_has(tags, tag);
+}
+
+const std::array<const char*, 6>&
+wsm6_tag6_var_names(const char* tag)
+{
+    static const std::array<const char*, 6> fallback =
+        {"v1", "v2", "v3", "v4", "v5", "v6"};
+    static const std::array<const char*, 6> denfac =
+        {"denfac", "den", "qv", "qc", "qr", "qi"};
+    static const std::array<const char*, 6> qsat =
+        {"qsatw", "qsati", "rhw", "rhi", "qv", "t"};
+    static const std::array<const char*, 6> slope =
+        {"rslope_r", "rslope_s", "rslope_g", "rslopeb_r", "rslopeb_s", "rslopeb_g"};
+    static const std::array<const char*, 6> nislfv_r =
+        {"qr", "fall_r", "work1r", "denqrs1", "den", "denfac"};
+    static const std::array<const char*, 6> nislfv_sg =
+        {"qs", "qg", "fall_s", "fall_g", "work1s", "work1g"};
+    static const std::array<const char*, 6> fall =
+        {"qr", "qs", "qg", "fall_r", "fall_s", "fall_g"};
+    static const std::array<const char*, 6> melt =
+        {"psmlt", "pgmlt", "qs", "qg", "qr", "t"};
+    static const std::array<const char*, 6> vice =
+        {"qi", "fallc", "work1c", "denqci", "xni", "den"};
+    static const std::array<const char*, 6> phase =
+        {"pimlt", "pihmf", "pihtf", "pgfrz", "qc", "qi"};
+    static const std::array<const char*, 6> praut =
+        {"praut", "qc", "qr", "qv", "t", "den"};
+    static const std::array<const char*, 6> pracw =
+        {"pracw", "qc", "qr", "qv", "t", "den"};
+    static const std::array<const char*, 6> prevp =
+        {"prevp", "qr", "qv", "t", "den", "cpm"};
+    static const std::array<const char*, 6> praci =
+        {"praci", "piacr", "qr", "qs", "qg", "qc"};
+    static const std::array<const char*, 6> psaci =
+        {"psaci", "psacw", "paacw", "qs", "qc", "qi"};
+    static const std::array<const char*, 6> pracs =
+        {"pracs", "psacr", "qr", "qs", "qg", "qv"};
+    static const std::array<const char*, 6> pseml =
+        {"pseml", "pgeml", "qs", "qg", "qr", "t"};
+    static const std::array<const char*, 6> pidep =
+        {"pidep", "pigen", "psdep", "pgdep", "qv", "qi"};
+    static const std::array<const char*, 6> psaut =
+        {"psaut", "pgaut", "qi", "qs", "qg", "t"};
+    static const std::array<const char*, 6> psevp =
+        {"psevp", "pgevp", "qv", "qs", "qg", "t"};
+    static const std::array<const char*, 6> update =
+        {"qv", "qc", "qi", "qr", "qs", "qg"};
+    static const std::array<const char*, 6> qsat2 =
+        {"qsatw", "qsat2", "qv", "t", "p", "den"};
+    static const std::array<const char*, 6> pcond =
+        {"pcond", "qv", "qc", "t", "xl", "cpm"};
+
+    if (std::strcmp(tag, "WSM6-CPP_DENFAC") == 0) return denfac;
+    if (std::strcmp(tag, "WSM6-CPP_QSAT") == 0) return qsat;
+    if (std::strcmp(tag, "WSM6-CPP_SLOPE1") == 0) return slope;
+    if (std::strcmp(tag, "WSM6-CPP_NISLFV_R") == 0) return nislfv_r;
+    if (std::strcmp(tag, "WSM6-CPP_NISLFV_SG") == 0) return nislfv_sg;
+    if (std::strcmp(tag, "WSM6-CPP_FALL") == 0) return fall;
+    if (std::strcmp(tag, "WSM6-CPP_SLOPE2") == 0) return slope;
+    if (std::strcmp(tag, "WSM6-CPP_MELT") == 0) return melt;
+    if (std::strcmp(tag, "WSM6-CPP_VICE") == 0) return vice;
+    if (std::strcmp(tag, "WSM6-CPP_PHASE") == 0) return phase;
+    if (std::strcmp(tag, "WSM6-CPP_SLOPE3") == 0) return slope;
+    if (std::strcmp(tag, "WSM6-CPP_PRAUT") == 0) return praut;
+    if (std::strcmp(tag, "WSM6-CPP_PRACW") == 0) return pracw;
+    if (std::strcmp(tag, "WSM6-CPP_PREVP") == 0) return prevp;
+    if (std::strcmp(tag, "WSM6-CPP_PRACI") == 0) return praci;
+    if (std::strcmp(tag, "WSM6-CPP_PSACI") == 0) return psaci;
+    if (std::strcmp(tag, "WSM6-CPP_PRACS") == 0) return pracs;
+    if (std::strcmp(tag, "WSM6-CPP_PSEML") == 0) return pseml;
+    if (std::strcmp(tag, "WSM6-CPP_PIDEP") == 0) return pidep;
+    if (std::strcmp(tag, "WSM6-CPP_PSAUT") == 0) return psaut;
+    if (std::strcmp(tag, "WSM6-CPP_PSEVP") == 0) return psevp;
+    if (std::strcmp(tag, "WSM6-CPP_UPDATE") == 0) return update;
+    if (std::strcmp(tag, "WSM6-CPP_QSAT2") == 0) return qsat2;
+    if (std::strcmp(tag, "WSM6-CPP_PCOND") == 0) return pcond;
+    return fallback;
+}
+
+void
+wsm6_emit_diag_t2_line(
+    const char* tag,
+    const char* phase,
+    const char* source_layer,
+    const char* path_id,
+    const char* expr_id,
+    const char* store_id,
+    int loop_out,
+    int i_dbg,
+    int j_dbg,
+    int k_dbg,
+    int k_raw,
+    int debug_level,
+    const char* var,
+    double value)
+{
+    std::printf(
+        "WSM6-DIAG-T2 diag_schema=%d tag=%s phase=%s source_layer=%s path_id=%s expr_id=%s store_id=%s loop=%d "
+        "i_dbg=%d j_dbg=%d k_dbg=%d k_raw=%d debug_level=%d var=%s value=%s\n",
+        WSM6_DIAG_SCHEMA_V1, tag, phase, source_layer, path_id, expr_id, store_id, loop_out,
+        i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, wsm6_fmt_diag_value(value).c_str());
+}
+
+} // namespace
 
 // ---------------------------------------------------------------
 // WSM6 device-callable free functions (Rule 16, Rule 18)
@@ -723,15 +937,33 @@ WSM6::Advance(const Real& dt_advance,
 {
     dt = dt_advance;
 
+    int microphysics_debug = 0;
+    std::string micro_diag_mode = "canonical";
+    std::vector<std::string> micro_diag_tags = {"standing"};
+    std::vector<std::string> micro_diag_expr = {"standing"};
+    std::vector<std::string> micro_diag_store = {"standing"};
+    std::vector<int> micro_diag_target_column;
+    {
+      amrex::ParmParse pp("erf");
+      pp.query("microphysics_debug", microphysics_debug);
+      pp.query("micro_diag_mode", micro_diag_mode);
+      pp.queryarr("micro_diag_tags", micro_diag_tags);
+      pp.queryarr("micro_diag_expr", micro_diag_expr);
+      pp.queryarr("micro_diag_store", micro_diag_store);
+      pp.queryarr("micro_diag_target_column", micro_diag_target_column);
+    }
+    microphysics_debug = std::max(0, std::min(2, microphysics_debug));
+    const bool micro_diag_canonical = wsm6_diag_mode_enabled(micro_diag_mode, false);
+    const bool micro_diag_forensic = wsm6_diag_mode_enabled(micro_diag_mode, true);
+    const int microphysics_debug_bridge = micro_diag_forensic
+        ? microphysics_debug
+        : std::min(microphysics_debug, 1);
+
 #ifdef ERF_USE_WSM6_FORT
     bool use_wsm6_cpp_answer = false;
     { amrex::ParmParse pp("erf");
       pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
     bool run_wsm6_fort = !use_wsm6_cpp_answer;
-    int microphysics_debug = 0;
-    { amrex::ParmParse pp("erf");
-      pp.query("microphysics_debug", microphysics_debug); }
-    microphysics_debug = std::max(0, std::min(2, microphysics_debug));
 
     static bool wsm6_inited = false;
 
@@ -789,6 +1021,11 @@ WSM6::Advance(const Real& dt_advance,
         const int jhi = box.bigEnd(1);
         const int klo = box.smallEnd(2);
         const int khi = box.bigEnd(2);
+        const bool has_target_override = (micro_diag_target_column.size() == 2);
+        const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
+        const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
+        const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
+                                       diag_j >= jlo && diag_j <= jhi);
 
         const int imlo = fab_box.smallEnd(0);
         const int imhi = fab_box.bigEnd(0);
@@ -876,6 +1113,19 @@ WSM6::Advance(const Real& dt_advance,
             snowncv_arr(i,j,0) = Real(0.0);
             graupelncv_arr(i,j,0) = Real(0.0);
         });
+        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
+            wsm6_tag_enabled(micro_diag_tags, "DENFAC") &&
+            wsm6_expr_enabled(micro_diag_expr, "canonical_tag") &&
+            wsm6_store_enabled(micro_diag_store, "fused_min")) {
+            for (int k = klo; k <= khi; ++k) {
+                const int k_dbg = (k - klo) + 1;
+                wsm6_emit_diag_t2_line(
+                    "DENFAC", "PRECALL", "PRECALL_CPP",
+                    "canonical_tag__fused_min", "canonical_tag", "fused_min",
+                    0, diag_i, diag_j, k_dbg, k, microphysics_debug, "den_precall",
+                    (double)den_arr(diag_i,diag_j,k));
+            }
+        }
 
 #ifdef ERF_USE_WSM6_FORT
         if (run_wsm6_fort) {
@@ -890,7 +1140,7 @@ WSM6::Advance(const Real& dt_advance,
                 snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
                 graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
                 imlo, imhi, jmlo, jmhi, kmlo, kmhi,
-                ilo, ihi, jlo, jhi, klo, khi, microphysics_debug);
+                ilo, ihi, jlo, jhi, klo, khi, microphysics_debug_bridge, diag_i, diag_j);
         } else {
 #endif
         // --- Phase 4 native C++ kernel ---
@@ -1043,16 +1293,39 @@ WSM6::Advance(const Real& dt_advance,
                                    const Array4<const Real>& a5,
                                    const Array4<const Real>& a6,
                                    int loop) {
-            if (microphysics_debug < 1 || loop != 0) return;
+            if (microphysics_debug < 1 || loop != 0 || !micro_diag_canonical) return;
             if (!ParallelDescriptor::IOProcessor()) return;
             Gpu::synchronize();
+            const auto& names = wsm6_tag6_var_names(tag);
+            std::string tag_short(tag);
+            const std::string prefix = "WSM6-CPP_";
+            if (tag_short.rfind(prefix, 0) == 0) {
+                tag_short = tag_short.substr(prefix.size());
+            }
             for (int k = klo; k <= khi; ++k) {
-                const int k_out = (k - klo) + 1;
+                const int k_dbg = (k - klo) + 1;
                 std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            tag, k_out,
+                            tag, k_dbg,
                             (double)a1(ilo,jlo,k), (double)a2(ilo,jlo,k),
                             (double)a3(ilo,jlo,k), (double)a4(ilo,jlo,k),
                             (double)a5(ilo,jlo,k), (double)a6(ilo,jlo,k));
+                if (microphysics_debug >= 2 && micro_diag_forensic &&
+                    diag_col_in_tile &&
+                    wsm6_tag_enabled(micro_diag_tags, tag_short) &&
+                    wsm6_expr_enabled(micro_diag_expr, "canonical_tag") &&
+                    wsm6_store_enabled(micro_diag_store, "fused_min")) {
+                    const int loop_out = loop + 1;
+                    const double values[6] = {
+                        (double)a1(diag_i,diag_j,k), (double)a2(diag_i,diag_j,k), (double)a3(diag_i,diag_j,k),
+                        (double)a4(diag_i,diag_j,k), (double)a5(diag_i,diag_j,k), (double)a6(diag_i,diag_j,k)
+                    };
+                    for (int iv = 0; iv < 6; ++iv) {
+                        wsm6_emit_diag_t2_line(
+                            tag_short.c_str(), "INCORE", "INCORE_CPP",
+                            "canonical_tag__fused_min", "canonical_tag", "fused_min",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, names[iv], values[iv]);
+                    }
+                }
             }
         };
 
@@ -1112,8 +1385,52 @@ WSM6::Advance(const Real& dt_advance,
 
         for (int loop = 0; loop < wsm6_loops; ++loop) {
             // G1b: denfac = sqrt(den0/den)  [lines 503-515]
+            if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+                ParallelDescriptor::IOProcessor() &&
+                wsm6_tag_enabled(micro_diag_tags, "DENFAC") &&
+                wsm6_expr_enabled(micro_diag_expr, "recip")) {
+                const int loop_out = loop + 1;
+                for (int k = klo; k <= khi; ++k) {
+                    const int k_dbg = (k - klo) + 1;
+                    const double den_val = (double)den_arr(diag_i,diag_j,k);
+
+                    if (wsm6_store_enabled(micro_diag_store, "broken_full")) {
+                        const double a_broken = 1.0 / den_val;
+                        const double t_broken = a_broken * (double)den0;
+                        const double denfac_broken = std::sqrt(t_broken);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__broken_full", "recip", "broken_full",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "den", den_val);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__broken_full", "recip", "broken_full",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "a", a_broken);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__broken_full", "recip", "broken_full",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "t1", t_broken);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__broken_full", "recip", "broken_full",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "denfac", denfac_broken);
+                    }
+                    if (wsm6_store_enabled(micro_diag_store, "fused_min")) {
+                        const double denfac_fused = std::sqrt((double)den0 / den_val);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__fused_min", "recip", "fused_min",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "den", den_val);
+                        wsm6_emit_diag_t2_line(
+                            "DENFAC", "INCORE", "INCORE_CPP",
+                            "recip__fused_min", "recip", "fused_min",
+                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "denfac", denfac_fused);
+                    }
+                }
+            }
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                denfac_arr(i,j,k) = std::sqrt(Real(den0)/den_arr(i,j,k));
+                const Real invden = Real(1.0) / den_arr(i,j,k);
+                denfac_arr(i,j,k) = std::sqrt(invden * Real(den0));
             });
             print_wsm6_tag6("WSM6-CPP_DENFAC",
                             denfac_arr, den_arr, qv_arr, qc_arr, qr_arr, qi_arr, loop);

@@ -2,8 +2,53 @@ module mp_wsm6_isohelper
   use iso_c_binding
   use mp_wsm6, only: mp_wsm6_init, mp_wsm6_run
   implicit none
+  integer, parameter :: WSM6_DIAG_SCHEMA_V1 = 1
 
 contains
+
+  subroutine wsm6_diag_value_string(val, sout)
+    real(c_double), intent(in) :: val
+    character(len=*), intent(out) :: sout
+    character(len=64) :: tmp
+
+    write(tmp,'(SP,ES30.20E3)') val
+    sout = trim(adjustl(tmp))
+  end subroutine wsm6_diag_value_string
+
+  subroutine wsm6_emit_diag_t2_line(tag, phase, source_layer, path_id, expr_id, store_id, &
+                                    loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
+    character(len=*), intent(in) :: tag, phase, source_layer, path_id, expr_id, store_id, var
+    integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
+    real(c_double), intent(in) :: value
+
+    character(len=32) :: s_schema, s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
+    character(len=64) :: s_value
+
+    write(s_schema,'(I0)') WSM6_DIAG_SCHEMA_V1
+    write(s_loop  ,'(I0)') loop_out
+    write(s_i     ,'(I0)') i_dbg
+    write(s_j     ,'(I0)') j_dbg
+    write(s_kdbg  ,'(I0)') k_dbg
+    write(s_kraw  ,'(I0)') k_raw
+    write(s_dbg   ,'(I0)') debug_level
+    call wsm6_diag_value_string(value, s_value)
+
+    write(*,'(A)') 'WSM6-DIAG-T2 diag_schema='//trim(s_schema)// &
+                   ' tag='//trim(tag)// &
+                   ' phase='//trim(phase)// &
+                   ' source_layer='//trim(source_layer)// &
+                   ' path_id='//trim(path_id)// &
+                   ' expr_id='//trim(expr_id)// &
+                   ' store_id='//trim(store_id)// &
+                   ' loop='//trim(s_loop)// &
+                   ' i_dbg='//trim(s_i)// &
+                   ' j_dbg='//trim(s_j)// &
+                   ' k_dbg='//trim(s_kdbg)// &
+                   ' k_raw='//trim(s_kraw)// &
+                   ' debug_level='//trim(s_dbg)// &
+                   ' var='//trim(var)// &
+                   ' value='//trim(s_value)
+  end subroutine wsm6_emit_diag_t2_line
 
   subroutine mp_wsm6_init_c(den0, denr, dens, cl, cpv, hail_opt) bind(C, name="mp_wsm6_init_c")
     real(c_double), value, intent(in) :: den0, denr, dens, cl, cpv
@@ -23,10 +68,11 @@ contains
                            xlv0, xlf0, den0, denr, cliq, cice, psat, &
                            rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
                            ims, ime, jms, jme, kms, kme, &
-                           its, ite, jts, jte, kts, kte, microphysics_debug) bind(C, name="mp_wsm6_run_c")
+                           its, ite, jts, jte, kts, kte, microphysics_debug, diag_i_dbg, diag_j_dbg) bind(C, name="mp_wsm6_run_c")
     integer(c_int), value, intent(in) :: ims, ime, jms, jme, kms, kme
     integer(c_int), value, intent(in) :: its, ite, jts, jte, kts, kte
     integer(c_int), value, intent(in) :: microphysics_debug
+    integer(c_int), value, intent(in) :: diag_i_dbg, diag_j_dbg
     real(c_double), intent(inout), dimension(ims:ime, jms:jme, kms:kme) :: t, qv, qc, qi, qr, qs, qg
     real(c_double), intent(in), dimension(ims:ime, jms:jme, kms:kme) :: den, p, delz
     real(c_double), value, intent(in) :: delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls
@@ -34,7 +80,8 @@ contains
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: rain, rainncv, sr
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
 
-    integer :: i, j, k, kk, kdim, debug_local
+    integer :: i, j, k, kk, kdim, debug_local, i_dbg_local, j_dbg_target
+    logical :: i_dbg_in_tile
     integer :: errflg
     character(len=256) :: errmsg
 
@@ -54,6 +101,12 @@ contains
       write(*,'(A,6(1X,I0))') '  active its ite jts jte kts kte =', its, ite, jts, jte, kts, kte
       stop 1
     end if
+
+    i_dbg_local = diag_i_dbg
+    i_dbg_in_tile = (i_dbg_local >= its .and. i_dbg_local <= ite)
+    if (.not. i_dbg_in_tile) i_dbg_local = its
+    j_dbg_target = diag_j_dbg
+    if (j_dbg_target < jts .or. j_dbg_target > jte) j_dbg_target = jts - 1
 
     kdim = kte - kts + 1
 
@@ -79,6 +132,13 @@ contains
           delz_col(i,kk) = delz(i,j,k)
         end do
       end do
+      if (microphysics_debug >= 2 .and. j == j_dbg_target .and. i_dbg_in_tile) then
+        do kk = 1, kdim
+          call wsm6_emit_diag_t2_line("DENFAC", "PRECALL", "PRECALL_BRIDGE", &
+               "canonical_tag__fused_min", "canonical_tag", "fused_min", &
+               0, i_dbg_local, j, kk, kts + kk - 1, microphysics_debug, "den_precall", den_col(i_dbg_local,kk))
+        end do
+      end if
 
       do i = ims, ime
         rain_col(i)      = rain(i,j)
@@ -91,13 +151,14 @@ contains
       end do
 
       debug_local = int(microphysics_debug, kind(0))
-      if (microphysics_debug == 1_c_int .and. j /= jts) debug_local = 0
+      if (microphysics_debug >= 1_c_int .and. (j /= j_dbg_target .or. .not. i_dbg_in_tile)) debug_local = 0
 
       call mp_wsm6_run(t_col, q_col, qc_col, qi_col, qr_col, qs_col, qg_col, den_col, p_col, delz_col, &
                        delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, den0, denr, &
                        cliq, cice, psat, rain_col, rainncv_col, sr_col, snow_col, snowncv_col, &
                        graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, &
-                       microphysics_debug=debug_local, errmsg=errmsg, errflg=errflg)
+                       microphysics_debug=debug_local, diag_i_dbg=i_dbg_local, diag_j_dbg=j, diag_k_raw_base=kts, &
+                       errmsg=errmsg, errflg=errflg)
 
       if (errflg /= 0) then
         write(*,'(A,1X,I0,2A)') 'mp_wsm6_run_c error at j=', j, ': ', trim(errmsg)
