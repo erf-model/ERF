@@ -455,9 +455,12 @@ MOSTAverage::set_eb_normalization (const int& lev)
         Real total_area = zero;
 
         for (MFIter mfi(*bndry_area_mf, TileNoZ()); mfi.isValid(); ++mfi) {
-            Box bx = mfi.tilebox();
-
             const auto& flag = (*flags_mf)[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();
             auto const& flag_arr = flag.const_array();
             auto const& area_arr = bndry_area_mf->const_array(mfi);
 
@@ -1686,9 +1689,12 @@ MOSTAverage::compute_eb_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box bx = mfi.tilebox();  // Full 3D box
-
             const auto& flag = (*flags_mf)[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
             auto const& flag_arr = flag.const_array();
             auto const& area_arr = bndry_area_mf->const_array(mfi);
             auto const& mf_arr = fields[imf]->const_array(mfi);
@@ -1722,9 +1728,12 @@ MOSTAverage::compute_eb_averages (const int& lev)
 #endif
         for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx = mfi.tilebox();  // Full 3D box
-
             const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
             auto const& flag_arr = flag.const_array();
             auto const& area_arr = cc_bndry_area.const_array(mfi);
 
@@ -1777,9 +1786,12 @@ MOSTAverage::compute_eb_averages (const int& lev)
 #endif
         for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx = mfi.tilebox();  // Full 3D box
-
             const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
             auto const& flag_arr = flag.const_array();
             auto const& area_arr = cc_bndry_area.const_array(mfi);
 
