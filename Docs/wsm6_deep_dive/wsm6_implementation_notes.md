@@ -563,6 +563,52 @@ mv diffs <campaign_id>/diffs_plt<N>_<var>
 
 `-d` selects the diff variable; it does not take an output path argument.
 
+### Optional extraction workflow (fextract/fextrema)
+
+Use extraction tools only after a first-fail milestone is identified by
+`fcompare` and archived with `-z`/`-d` artifacts.
+
+Repository-local tools:
+
+```bash
+Build/install/bin/amrex_fextract
+Build/install/bin/amrex_fextrema
+```
+
+Common fallback in this repository when MPI-linked tools are unsuitable:
+
+```bash
+tools/fcompare_serial
+```
+
+Use `fextrema` for quick range sanity, then `fextract` for targeted
+line/column sampling on failing variables from Rule 37 mapping.
+
+Example template at first failing step `N` (check `--help` for local
+argument style):
+
+```bash
+Build/install/bin/amrex_fextrema \
+  <campaign_id>/<pair>_fortran/plt<N> \
+  > <campaign_id>/fextrema_fortran_plt<N>.txt
+
+Build/install/bin/amrex_fextrema \
+  <campaign_id>/<pair>_cpp/plt<N> \
+  > <campaign_id>/fextrema_cpp_plt<N>.txt
+
+Build/install/bin/amrex_fextract qrain \
+  <campaign_id>/<pair>_fortran/plt<N> \
+  > <campaign_id>/fextract_fortran_qrain_plt<N>.txt
+
+Build/install/bin/amrex_fextract qrain \
+  <campaign_id>/<pair>_cpp/plt<N> \
+  > <campaign_id>/fextract_cpp_qrain_plt<N>.txt
+```
+
+Archive extraction outputs under the same `<campaign_id>` as the
+matching `fcompare` artifacts. Treat extraction outputs as supporting
+evidence; the first-fail gate remains `fcompare` + Rule 36/37.
+
 ### Restart reproducibility (Rule 36)
 
 Restart from checkpoint at step `N-1` and advance exactly one step.
