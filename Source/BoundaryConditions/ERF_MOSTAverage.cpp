@@ -52,6 +52,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         }
     }
 
+    if ((m_terrain_type == TerrainType::EB) && (m_policy == 0)) {
+        m_policy = 2;
+    }
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -225,6 +228,9 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     case 1: // Local region/point
         set_region_normalization(lev);
         break;
+    case 2: // EB
+        set_eb_normalization(lev);
+        break;
     default:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -396,6 +402,62 @@ MOSTAverage::set_plane_normalization (const int& lev)
     } // iavg
 }
 
+/**
+ * Function to compute normalization for average over EB.
+ *
+ */
+void
+MOSTAverage::set_eb_normalization (const int& lev)
+{
+    // Cells per plane and temp avg storage
+    m_ncell_plane.resize(m_maxlev);
+    m_plane_average.resize(m_maxlev);
+
+    // True domain not used for normalization
+    Box domain = m_geom[lev].Domain();
+
+    // NOTE: Level 0 spans the whole domain, but finer
+    //       levels do not have such a restriction.
+    //       For now, use the bounding box of the boxArray
+    //       for normalization, consistent with avg routine.
+
+    // Bounded box of CC data used for normalization
+    Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
+
+    // NOTE: Bounding box must lie on the periodic boundaries
+    //       in order to trip the is_per flag
+
+    // Num components, plane avg, cells per plane
+    Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
+    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+        if ( m_geom[lev].isPeriodic(idim) &&
+             bnd_bx.bigEnd(idim)==domain.bigEnd(idim) &&
+             bnd_bx.smallEnd(idim)==domain.smallEnd(idim) ) { is_per[idim] = 1; }
+    }
+
+    m_ncell_plane[lev].resize(m_navg);
+    m_plane_average[lev].resize(m_navg);
+    for (int iavg(0); iavg < m_navg; ++iavg) {
+        // Convert bnd_bx to current index type
+        IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
+        bnd_bx.convert(ixt);
+        IntVect bnd_bx_lo(bnd_bx.loVect());
+        IntVect bnd_bx_hi(bnd_bx.hiVect());
+
+        m_plane_average[lev][iavg] = zero;
+
+        m_ncell_plane[lev][iavg] = 1;
+        for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
+            if (idim != 2) {
+                if (ixt.nodeCentered(idim) && is_per[idim]) {
+                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
+                } else {
+                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim] + 1);
+                }
+            }
+        } // idim
+    } // iavg
+}
 
 /**
  * Function to set K indices without terrain.
@@ -844,6 +906,8 @@ MOSTAverage::compute_averages (const int& lev)
     case 1: // Local region/point
         compute_region_averages(lev);
         break;
+    case 2: // EB Terrain average
+        compute_eb_averages(lev);
     default:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -1529,6 +1593,229 @@ MOSTAverage::compute_region_averages (const int& lev)
     } // Not periodic
 }
 
+/**
+ * Function to compute average over an EB surface.
+ *
+ * @param[in] lev Current level
+ */
+void
+MOSTAverage::compute_eb_averages (const int& lev)
+{
+    // Peel back the level
+    auto& fields      = m_fields[lev];
+    auto& averages    = m_averages[lev];
+    const auto & geom = m_geom[lev];
+
+    auto& z_phys   = m_z_phys_nd[lev];
+    auto& x_pos    = m_x_pos[lev];
+    auto& y_pos    = m_y_pos[lev];
+    auto& z_pos    = m_z_pos[lev];
+
+    auto& i_indx   = m_i_indx[lev];
+    auto& j_indx   = m_j_indx[lev];
+    auto& k_indx   = m_k_indx[lev];
+
+    auto& ncell_plane   = m_ncell_plane[lev];
+    auto& plane_average = m_plane_average[lev];
+
+    // Set factors for time averaging
+    Real d_fact_new, d_fact_old;
+    if (m_t_avg && m_t_init[lev]) {
+        d_fact_new = m_fact_new;
+        d_fact_old = m_fact_old;
+    } else {
+        d_fact_new = one;
+        d_fact_old = zero;
+    }
+
+    int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // GPU array to accumulate averages into
+    Gpu::DeviceVector<Real> pavg(plane_average.size(), zero);
+    Real* plane_avg = pavg.data();
+
+    // Vectors for normalization and buffer storage
+    Vector<Real> denom(plane_average.size(),zero);
+    Vector<Real> val_old(plane_average.size(),zero);
+
+    //
+    //----------------------------------------------------------
+    // Averages over all the fields
+    //----------------------------------------------------------
+    //
+    Box domain = geom.Domain();
+
+    Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
+    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+        if (geom.isPeriodic(idim)) is_per[idim] = 1;
+    }
+
+    // Averages for U,V,T,Qv (not Qc or W)
+    for (int imf(0); imf < 4; ++imf) {
+
+        // Continue if no valid Qv pointer
+        if (!fields[imf]) continue;
+
+        denom[imf]   = one / (Real)ncell_plane[imf];
+        val_old[imf] = plane_average[imf]*d_fact_old;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+            Box vbx = mfi.validbox(); // This is the grid (not tile)
+            Box pbx = mfi.tilebox();  // This is the tile (not grid)
+
+            if (pbx.smallEnd(2) != klo) { continue; }
+
+            // Make planar since mfiter is over fields
+            pbx.makeSlab(2,klo);
+
+            // Avoid double counting nodal data by changing the high end when we are
+            //     at the high side of the grid (not just of the tile)
+            IndexType ixt = averages[imf]->boxArray().ixType();
+            for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+                if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
+                    int dom_hi = domain.bigEnd(idim)+1;
+                    if (pbx.bigEnd(idim) < dom_hi || is_per[idim]) {
+                        pbx.growHi(idim,-1);
+                    }
+                }
+            }
+
+            auto mf_arr = fields[imf]->const_array(mfi);
+
+            auto k_arr  = k_indx->const_array(mfi);
+            auto j_arr  = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
+            auto i_arr  = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            {
+                int mk = k_arr(i,j,0);
+                int mj = j_arr ? j_arr(i,j,0) : j;
+                int mi = i_arr ? i_arr(i,j,0) : i;
+                Real val = mf_arr(mi,mj,mk);
+                Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+            });
+        }
+    }
+
+    //
+    //------------------------------------------------------------------------
+    // Averages for virtual potential temperature
+    // (This is cell-centered so we don't need to worry about double-counting)
+    //------------------------------------------------------------------------
+    //
+    if (fields[3]) // We have water vapor
+    {
+        int iavg = 4;
+        denom[iavg]   = one / (Real)ncell_plane[iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box pbx = mfi.tilebox();
+
+            if (pbx.smallEnd(2) != klo) { continue; }
+
+            pbx.makeSlab(2,klo);
+
+            const Array4<Real const>& T_mf_arr  = fields[2]->const_array(mfi);
+            const Array4<Real const>& qv_mf_arr = fields[3]->const_array(mfi);
+            const Array4<Real const>& qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
+                                                                Array4<const Real> {};
+
+            auto k_arr = k_indx->const_array(mfi);
+            auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
+            auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            {
+                int mk = k_arr(i,j,0);
+                int mj = j_arr ? j_arr(i,j,0) : j;
+                int mi = i_arr ? i_arr(i,j,0) : i;
+                Real vfac;
+                if (qr_mf_arr) {
+                    // We also have liquid water
+                    vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                } else {
+                    vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                }
+                const Real val = T_mf_arr(mi,mj,mk) * vfac;
+                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+            });
+        }
+    }
+    else // copy temperature
+    {
+        int iavg    = m_navg - 2;
+        denom[iavg] = one / (Real)ncell_plane[iavg];
+        // plane_avg[iavg] = plane_avg[2]
+        Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
+                  pavg.begin() + iavg);
+    }
+
+    //
+    //------------------------------------------------------------------------
+    // Averages for the tangential velocity magnitude
+    // (This is cell-centered so we don't need to worry about double-counting)
+    //------------------------------------------------------------------------
+    //
+    {
+        int imf_cc = 2;
+        int imf  = 0;
+        int iavg = m_navg - 1;
+        denom[iavg]   = one / (Real)ncell_plane[iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+        const Real Vsg = m_Vsg[lev];
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box pbx = mfi.tilebox();
+
+            if (pbx.smallEnd(2) != klo) { continue; }
+
+            pbx.makeSlab(2,klo);
+
+            // Last element is Umag and always cell centered
+            auto u_mf_arr = fields[imf  ]->const_array(mfi);
+            auto v_mf_arr = fields[imf+1]->const_array(mfi);
+
+            auto k_arr = k_indx->const_array(mfi);
+            auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
+            auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+            ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
+            {
+                int mk = k_arr(i,j,0);
+                int mj = j_arr ? j_arr(i,j,0) : j;
+                int mi = i_arr ? i_arr(i,j,0) : i;
+                const Real u_val = myhalf * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
+                const Real v_val = myhalf * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
+                const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
+                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+            });
+        }
+    }
+
+    // Copy to host and sum across procs
+    Gpu::copy(Gpu::deviceToHost, pavg.begin(), pavg.end(), plane_average.begin());
+    ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
+
+    // No spatial variation with plane averages
+    for (int iavg(0); iavg < m_navg; ++iavg){
+        plane_average[iavg] *= denom[iavg]*d_fact_new;
+        plane_average[iavg] += val_old[iavg];
+        averages[iavg]->setVal(plane_average[iavg]);
+    }
+}
 
 /**
  * Function to write the K indices to text file.
