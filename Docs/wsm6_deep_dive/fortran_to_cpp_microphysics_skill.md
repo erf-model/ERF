@@ -251,6 +251,21 @@ mic_fab_vars before returning from Advance().
 Given Fortran argument list, generate both directions of this mapping 
 automatically using the name correspondence table.
 
+### Rule 2 Addendum: Active-Bound Scratch Arrays for Fortran Core Calls
+
+- Raw C-binding dummies receiving AMReX Array4 data may use
+  storage/fab bounds ims:ime,jms:jme,kms:kme.
+- Isohelper scratch arrays passed to Fortran core dummies declared
+  dimension(its:...) or dimension(its:,:) must be allocated with
+  active lower bound its, not ims.
+- Otherwise Fortran dummy lower-bound remapping can shift the active
+  tile by ims-its while preserving record counts.
+- WSM6 G1b/DENFAC evolved-input retreat exposed this pattern:
+  PRECALL density matched, but INCORE Fortran den(i=92,k) mapped to
+  C++ i=89 when ims=its-3.
+- This is a bridge/index/provenance bug class, not a DENFAC algebra
+  bug.
+
 ---
 
 ## Rule 3: Entry Point Pattern [COMPLETE]
@@ -1745,6 +1760,15 @@ It exists to prevent overuse and misuse of Tier2 traces.
 - Tier2 diagnostics are observational only.
 - If Tier2 is disabled, Tier1 behavior and production physics paths must remain
   unchanged.
+
+## Rule 30C: Differential Diagnosis Axes for Expensive Retreat
+
+- Tier2 is a forensic tool, not the whole diagnosis.
+- Before patching or expanding prints, classify the suspected difference as build/executable, path-selection, runtime-diagnostic, input/restart, schema/index, state-provenance, expression/math, storage/update, or acceptance/scope.
+- Source patches are justified only after build/path/runtime/input/schema axes are trustworthy.
+- If the first differing expression input already differs, retreat upstream to the producer/source of that state.
+- If inputs match but expression result differs, inspect math semantics and compiler behavior.
+- If expressions match but output state differs, inspect storage, pack/unpack, and writeback.
 
 ## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern
 

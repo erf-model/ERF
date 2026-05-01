@@ -87,6 +87,44 @@ Outputs:
 - Enter Tier2 only after Tier1 identifies the first failing group/tag, or when an index/column-label ambiguity prevents trusted interpretation.
 - Do not run broad Tier2 traces during forward pass validation; scope to a single failing tag/group and a single target column.
 
+## Differential Diagnosis Before Expanding Tier2
+
+Retreat identifies the first visible divergence. Before adding
+more Tier2 print sites or patching source, classify the divergence
+axis. Do not assume every Tier2 value delta is an expression bug.
+
+1. Build/executable provenance axis
+- Confirm executable path, build type, embedded git hash, object freshness, and clean/dirty status. If provenance conflicts with executions.tsv, downgrade to triage and rerun clean before formal decisions.
+
+2. Path-selection axis
+- Confirm Path A uses erf.use_wsm6_cpp_answer=0 and Path B uses erf.use_wsm6_cpp_answer=1. Confirm logs contain expected source_layer records.
+
+3. Runtime-diagnostic axis
+- Confirm microphysics_debug, micro_diag_mode, micro_diag_tags, micro_diag_expr, micro_diag_store, and target column produced the expected Tier1/Tier2 schema.
+
+4. Input/restart axis
+- Confirm both legs use the same restart source and temporal scope.
+
+5. Schema/index axis
+- Compare Tier2 schema/order/index/path tokens before values. Do not interpret numeric deltas if structure or coordinate normalization is unresolved.
+
+6. State-provenance axis
+- If an input to the first differing expression already differs, retreat to the producer/source of that state rather than patching the expression.
+
+7. Expression/math axis
+- If inputs match but the expression result differs, inspect operation order, casts, literals, reciprocal/division, sqrt/pow, exact special functions, vector helpers, and compiler FP behavior.
+
+8. Storage/update axis
+- If diagnostic expressions match but production state differs, inspect store path, copyback, pack/unpack, and writeback timing.
+
+9. Acceptance/scope axis
+- If the same group has different outcomes across validation question/lane/input scope, record the scoped result in decisions.tsv and do not force the compact manifest to represent both scopes.
+
+Only add new Tier2 records when existing evidence cannot classify
+the axis. New records must preserve the WSM6-DIAG-T2 schema and
+remain runtime-gated and observational.
+
+
 ## 3. Setup IDs and Pass Gates
 
 Supported setup IDs in manifest:
