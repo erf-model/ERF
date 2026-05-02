@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-terf.prob_name = "SDM_Congestus3D"
+erf.prob_name = "SDM_Congestus3D"
 
 stop_time = 8500
 max_step = 50000
