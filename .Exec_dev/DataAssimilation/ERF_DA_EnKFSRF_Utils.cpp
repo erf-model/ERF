@@ -5,6 +5,11 @@
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_DA_EnKFSRF.H"
 
+#include <vector>
+#include <stdexcept>
+#include <cassert>
+
+
 using namespace amrex;
 // Reads the plotfile data into cell cenetred multifab
 // Does not fill ghost cells
@@ -76,4 +81,70 @@ read_member_multifab(int n,
     read_plot_file(pf, varnames, mf);
 
     return mf;
+}
+
+// Simple matrix multiplication
+Matrix matrix_multiply(const Matrix& A, const Matrix& B)
+{
+    int n = A.size();
+    Matrix C(n);
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+
+            double sum = 0.0;
+            for (int k = 0; k < n; ++k) {
+                sum += A(i,k) * B(k,j);
+            }
+
+            C(i,j) = sum;
+        }
+    }
+
+    return C;
+}
+
+// Print matrix
+void matrix_print(const Matrix& A)
+{
+    int n = A.size();
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            std::cout << A(i,j) << " ";
+        }
+        std::cout << "\n";
+    }
+}
+
+void
+lapack_testing()
+{
+ Matrix S(3);
+    S(0,0) = 4.0;  S(0,1) = 1.0;  S(0,2) = 1.0;
+    S(1,0) = 1.0;  S(1,1) = 3.0;  S(1,2) = 0.5;
+    S(2,0) = 1.0;  S(2,1) = 0.5;  S(2,2) = 2.5;
+
+    Matrix Sinv = S.inverse();
+    // fill Sinv ...
+
+    Matrix T = Sinv.cholesky_lower();
+    Matrix T_trans = T.transpose();
+
+    Matrix T_T_trans = matrix_multiply(T, T_trans);
+    if (ParallelDescriptor::IOProcessor()) {
+        matrix_print(T_T_trans);
+        std::cout << "T*T_trans done" << std::endl;
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::cout  << "Sinv is " << std::endl;
+        matrix_print(Sinv);
+    }
+
+    Matrix I_mat = matrix_multiply(S, Sinv);
+    if (ParallelDescriptor::IOProcessor()) {
+        std::cout << "Checking S*Sinv " << std::endl;
+        matrix_print(I_mat);
+    }
 }
