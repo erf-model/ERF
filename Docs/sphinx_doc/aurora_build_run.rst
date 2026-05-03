@@ -11,34 +11,34 @@ Prerequisites
 -------------
 
 - Aurora compute allocation (PBSPro scheduler)
-- Access to required modules (MPICH, HDF5, CMake, Python)
-- Environment variables:
+- Access to required modules (loaded via ``Build/machines/aurora_erf.profile``)
+- Environment variables set by the modules after sourcing the profile:
 
-  - ``ERF_HOME`` — path to ERF source directory
-  - ``NETCDF_DIR`` — path to parallel NetCDF installation prefix (for NetCDF-enabled builds)
+  - ``NETCDF_C_ROOT`` — path to NetCDF-C installation (set by ``netcdf-c`` module)
+  - ``NETCDF_FORTRAN_ROOT`` — path to NetCDF-Fortran installation (set by ``netcdf-fortran`` module)
+  - ``HDF5_ROOT`` — path to HDF5 installation (set by ``hdf5`` module)
 
 NetCDF Requirements
 ~~~~~~~~~~~~~~~~~~~
 
-ERF requires a user-provided parallel NetCDF installation (set via ``NETCDF_DIR``).
+Aurora provides system NetCDF modules (``netcdf-c``, ``netcdf-fortran``, ``netcdf-cxx4``) that are
+loaded automatically by ``Build/machines/aurora_erf.profile``. No user-built NetCDF installation
+is required.
 
-- **C-only NetCDF** is sufficient for standard ERF NetCDF I/O
-- **NetCDF-Fortran** is required only when enabling features that use it (e.g., Noah-MP land surface model)
-
-For an example parallel NetCDF build with Fortran support, see:
-`Lab-Notebooks/ERF-Noah-Coupling/software/netcdf <https://github.com/Lab-Notebooks/ERF-Noah-Coupling/tree/main/software/netcdf>`_
-
-Quick checks for your NetCDF installation:
+Quick checks for your NetCDF installation after sourcing the profile:
 
 .. code-block:: bash
 
    # C headers and library (required)
-   ls $NETCDF_DIR/include/netcdf.h
-   ls $NETCDF_DIR/lib/libnetcdf*
+   ls $NETCDF_C_ROOT/include/netcdf.h
+   ls $NETCDF_C_ROOT/lib64/libnetcdf*
 
-   # Fortran module and library (only if using Noah-MP or other Fortran consumers)
-   ls $NETCDF_DIR/include/netcdf.mod
-   ls $NETCDF_DIR/lib/libnetcdff*
+   # Fortran module and library (required for Noah-MP)
+   ls $NETCDF_FORTRAN_ROOT/include/netcdf.mod
+   ls $NETCDF_FORTRAN_ROOT/lib64/libnetcdff*
+
+   # HDF5 library
+   ls $HDF5_ROOT/lib/libhdf5*
 
 Quick Checks
 ~~~~~~~~~~~~
@@ -48,9 +48,10 @@ Verify your environment before building:
 .. code-block:: bash
 
    module list
-   which cmake mpicc mpicxx mpifort
-   echo $ERF_HOME
-   echo $NETCDF_DIR
+   which cmake mpicc mpicxx mpifort icpx
+   echo $NETCDF_C_ROOT
+   echo $NETCDF_FORTRAN_ROOT
+   echo $HDF5_ROOT
 
 .. tab-set::
 
@@ -88,6 +89,9 @@ Verify your environment before building:
 
             module load mpich/opt/4.2.3-intel
             module load hdf5/1.14.6
+            module load netcdf-cxx4
+            module load netcdf-c
+            module load netcdf-fortran
             module load python/3.10.14
             module load cmake
 
@@ -97,50 +101,94 @@ Verify your environment before building:
             export MPICH_FC=ifx
             export MPICH_F90=ifx
 
-      **3) Set environment variables**
+            # Derive NETCDF_FORTRAN_ROOT if not set by the module
+            if [[ -z "${NETCDF_FORTRAN_ROOT:-}" ]]; then
+              export NETCDF_FORTRAN_ROOT=$(module show netcdf-fortran 2>&1 | \
+                sed -n 's/.*setenv("NETCDF_FORTRAN_ROOT","\([^"]*\)").*/\1/p')
+            fi
+
+      **3) Set search paths**
 
       .. code-block:: bash
 
-         # MPI and HDF5 paths (auto-detected from loaded modules)
-         export MPI_HOME=$(which mpicc | sed s'/\/bin\/mpicc'//)
-         export HDF5_HOME=$(which h5pfc | sed s'/\/bin\/h5pfc'//)
-         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HDF5_HOME/lib
-         export C_INCLUDE_PATH=$C_INCLUDE_PATH:$HDF5_HOME/include
-
-         # NetCDF path (edit this)
-         export NETCDF_DIR=<PATH_TO_NETCDF>
+         export CPPFLAGS="-I${NETCDF_C_ROOT}/include -I${NETCDF_FORTRAN_ROOT}/include -I${HDF5_ROOT}/include"
+         export LDFLAGS="-L${NETCDF_C_ROOT}/lib64 -L${NETCDF_FORTRAN_ROOT}/lib64 -L${HDF5_ROOT}/lib"
+         export LD_LIBRARY_PATH="${NETCDF_C_ROOT}/lib64:${NETCDF_FORTRAN_ROOT}/lib64:${HDF5_ROOT}/lib:${LD_LIBRARY_PATH:-}"
 
       **4) Configure and build**
 
       .. code-block:: bash
 
          cd $ERF_HOME
-         mkdir -p tmp_build_dir && cd tmp_build_dir
+         git submodule update --init --recursive
 
-         export CRAYPE_LINK_TYPE=dynamic
+         cmake -S . -B build_aurora \
+           -DCMAKE_INSTALL_PREFIX="$(pwd)/install_aurora" \
+           -DCMAKE_BUILD_TYPE=Release \
+           -DCMAKE_C_COMPILER=mpicc \
+           -DCMAKE_CXX_COMPILER=mpicxx \
+           -DCMAKE_Fortran_COMPILER=mpifort \
+           -DCMAKE_PREFIX_PATH="${NETCDF_C_ROOT};${NETCDF_FORTRAN_ROOT};${HDF5_ROOT}" \
+           -DCMAKE_CXX_FLAGS="-fsycl-max-parallel-link-jobs=8 --offload-compress -flink-huge-device-code" \
+           -DERF_ENABLE_MPI=ON \
+           -DERF_ENABLE_NETCDF=ON \
+           -DERF_ENABLE_HDF5=ON \
+           -DERF_ENABLE_NOAHMP=ON \
+           -DERF_ENABLE_RRTMGP=ON \
+           -DERF_ENABLE_SYCL=ON \
+           -DAMReX_GPU_BACKEND=SYCL \
+           -DAMReX_INTEL_ARCH=pvc \
+           -DAMReX_SYCL_AOT=ON \
+           -DAMReX_SYCL_SPLIT_KERNEL=NO \
+           -DKokkos_ENABLE_SERIAL=ON \
+           -DKokkos_ENABLE_SYCL=ON \
+           -DKokkos_ENABLE_SYCL_RELOCATABLE_DEVICE_CODE=ON \
+           -DKokkos_ARCH_INTEL_PVC=ON
 
-         cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
-            -DCMAKE_CXX_COMPILER:STRING=mpicxx \
-            -DCMAKE_C_COMPILER:STRING=mpicc \
-            -DCMAKE_Fortran_COMPILER:STRING=mpifort \
-            -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
-            -DERF_DIM:STRING=3 \
-            -DERF_ENABLE_PARTICLES:BOOL=ON \
-            -DERF_ENABLE_MPI:BOOL=ON \
-            -DERF_ENABLE_CUDA:BOOL=OFF \
-            -DERF_ENABLE_SYCL:BOOL=ON \
-            -DERF_ENABLE_TESTS:BOOL=OFF \
-            -DERF_ENABLE_FCOMPARE:BOOL=ON \
-            -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-            -DERF_ENABLE_NETCDF:BOOL=ON \
-            -DNETCDF_DIR=$NETCDF_DIR \
-            -DAMReX_PARALLEL_LINK_JOBS=8 \
-            $ERF_HOME
-
-         make -j
+         cmake --build build_aurora -j 10
 
       .. note::
-         If compilation runs out of memory, reduce parallelism: ``make -j4`` instead of ``make -j``.
+         The first full build takes significant time — SYCL AOT compilation for Intel PVC is
+         expensive. If compilation runs out of memory on the login node, submit the build
+         as an interactive PBS job (``qsub -I -l select=1 -q debug ...``) or reduce parallelism:
+         ``cmake --build build_aurora -j 4``.
+
+      **CMake flag reference:**
+
+      .. list-table::
+         :header-rows: 1
+         :widths: 40 60
+
+         * - Flag
+           - Purpose
+         * - ``-DERF_ENABLE_MPI=ON``
+           - MPI parallelism
+         * - ``-DERF_ENABLE_NETCDF=ON``
+           - NetCDF I/O (needed for real cases / WPS initialization)
+         * - ``-DERF_ENABLE_HDF5=ON``
+           - Parallel HDF5 I/O
+         * - ``-DERF_ENABLE_NOAHMP=ON``
+           - Noah-MP land-surface model
+         * - ``-DERF_ENABLE_RRTMGP=ON``
+           - RRTMGP radiation package
+         * - ``-DERF_ENABLE_SYCL=ON``
+           - GPU offload via SYCL
+         * - ``-DAMReX_GPU_BACKEND=SYCL``
+           - AMReX SYCL backend
+         * - ``-DAMReX_INTEL_ARCH=pvc``
+           - Target Intel Data Center GPU Max (PVC)
+         * - ``-DAMReX_SYCL_AOT=ON``
+           - Ahead-of-time compilation for PVC (slower build, faster runtime)
+         * - ``-DAMReX_SYCL_SPLIT_KERNEL=NO``
+           - Disable kernel splitting (required for large kernels on PVC)
+         * - ``-DKokkos_ENABLE_SERIAL=ON``
+           - Kokkos serial backend (always required alongside SYCL)
+         * - ``-DKokkos_ENABLE_SYCL=ON``
+           - Kokkos SYCL backend (used by RRTMGP and Noah-MP)
+         * - ``-DKokkos_ENABLE_SYCL_RELOCATABLE_DEVICE_CODE=ON``
+           - Required for linking Kokkos SYCL device code across translation units
+         * - ``-DKokkos_ARCH_INTEL_PVC=ON``
+           - Kokkos target architecture for Intel PVC
 
       **5) Run**
 
@@ -148,22 +196,22 @@ Verify your environment before building:
 
       .. code-block:: bash
 
-         cd $ERF_HOME/tmp_build_dir
+         cd $ERF_HOME
 
          # Compute node count from PBS
          NNODES=$(wc -l < $PBS_NODEFILE)
 
-         # MPI layout
-         NRANKS=4          # MPI ranks per node
-         NDEPTH=16         # Hardware threads per rank (spacing)
+         # MPI layout (Aurora: 12 tiles/GPUs per node)
+         NRANKS=12         # MPI ranks per node (one per GPU tile)
+         NDEPTH=8          # Hardware threads per rank
          NTHREADS=1        # OpenMP threads per rank
          NTOTRANKS=$((NNODES * NRANKS))
 
          echo "NNODES=$NNODES NTOTRANKS=$NTOTRANKS NRANKS=$NRANKS NTHREADS=$NTHREADS"
 
-         mpiexec --np ${NTOTRANKS} -ppn ${NRANKS} -d ${NDEPTH} --cpu-bind depth \
-            -env OMP_NUM_THREADS=${NTHREADS} \
-            ./Exec/erf_exec <PATH_TO_INPUTS_FILE>
+         mpiexec --np ${NTOTRANKS} --ppn ${NRANKS} --depth=${NDEPTH} --cpu-bind=depth \
+           -env OMP_NUM_THREADS=${NTHREADS} \
+           build_aurora/Exec/<case>/erf_<case> <PATH_TO_INPUTS_FILE>
 
       **MPI layout parameters:**
 
@@ -175,11 +223,11 @@ Verify your environment before building:
            - Description
            - Default
          * - ``NRANKS``
-           - MPI ranks per node
-           - 4
+           - MPI ranks per node (Aurora has 12 GPU tiles per node)
+           - 12
          * - ``NDEPTH``
            - Hardware threads per rank (controls rank spacing)
-           - 16
+           - 8
          * - ``NTHREADS``
            - OpenMP threads per rank (``OMP_NUM_THREADS``)
            - 1
@@ -192,26 +240,29 @@ Verify your environment before building:
 
       .. code-block:: bash
 
-         #!/bin/bash
+         #!/bin/bash -l
          #PBS -A <PROJECT>
          #PBS -q <QUEUE>
          #PBS -l select=<NODES>
          #PBS -l walltime=<HH:MM:SS>
-         #PBS -l filesystems=<FILESYSTEMS>
+         #PBS -l filesystems=home:flare
          #PBS -N erf_aurora
          #PBS -j oe
          #PBS -o erf_${PBS_JOBID}.out
+
+         set -euo pipefail
 
          # -------------------------------------------------------------------
          # User configuration (edit these)
          # -------------------------------------------------------------------
          export ERF_HOME=<PATH_TO_ERF>
-         export NETCDF_DIR=<PATH_TO_NETCDF>
-         INPUTS_FILE=<PATH_TO_INPUTS_FILE>
+         CASE_DIR=<PATH_TO_RUN_DIR>
+         EXE=$ERF_HOME/build_aurora/Exec/<case>/erf_<case>
+         INPUTS=<inputs_filename>
 
-         # MPI layout
-         NRANKS=4          # MPI ranks per node
-         NDEPTH=16         # Hardware threads per rank (spacing)
+         # MPI layout (Aurora: 12 GPU tiles per node)
+         NRANKS=12         # MPI ranks per node
+         NDEPTH=8          # Hardware threads per rank
          NTHREADS=1        # OpenMP threads per rank
 
          # -------------------------------------------------------------------
@@ -219,51 +270,36 @@ Verify your environment before building:
          # -------------------------------------------------------------------
          source $ERF_HOME/Build/machines/aurora_erf.profile
 
-         # MPI and HDF5 paths (auto-detected from loaded modules)
-         export MPI_HOME=$(which mpicc | sed s'/\/bin\/mpicc'//)
-         export HDF5_HOME=$(which h5pfc | sed s'/\/bin\/h5pfc'//)
-         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HDF5_HOME/lib
-         export C_INCLUDE_PATH=$C_INCLUDE_PATH:$HDF5_HOME/include
-
-         export CRAYPE_LINK_TYPE=dynamic
+         export CPPFLAGS="-I${NETCDF_C_ROOT}/include -I${NETCDF_FORTRAN_ROOT}/include -I${HDF5_ROOT}/include"
+         export LDFLAGS="-L${NETCDF_C_ROOT}/lib64 -L${NETCDF_FORTRAN_ROOT}/lib64 -L${HDF5_ROOT}/lib"
+         export LD_LIBRARY_PATH="${NETCDF_C_ROOT}/lib64:${NETCDF_FORTRAN_ROOT}/lib64:${HDF5_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+         export OMP_NUM_THREADS=${NTHREADS}
 
          # -------------------------------------------------------------------
-         # Build (optional: skip if already built)
+         # Validate
          # -------------------------------------------------------------------
-         cd $ERF_HOME
-         mkdir -p tmp_build_dir && cd tmp_build_dir
+         if [[ ! -x "$EXE" ]]; then
+           echo "ERROR: executable not found: $EXE"
+           exit 1
+         fi
 
-         cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
-            -DCMAKE_CXX_COMPILER:STRING=mpicxx \
-            -DCMAKE_C_COMPILER:STRING=mpicc \
-            -DCMAKE_Fortran_COMPILER:STRING=mpifort \
-            -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
-            -DERF_DIM:STRING=3 \
-            -DERF_ENABLE_PARTICLES:BOOL=ON \
-            -DERF_ENABLE_MPI:BOOL=ON \
-            -DERF_ENABLE_CUDA:BOOL=OFF \
-            -DERF_ENABLE_SYCL:BOOL=ON \
-            -DERF_ENABLE_TESTS:BOOL=OFF \
-            -DERF_ENABLE_FCOMPARE:BOOL=ON \
-            -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-            -DERF_ENABLE_NETCDF:BOOL=ON \
-            -DNETCDF_DIR=$NETCDF_DIR \
-            -DAMReX_PARALLEL_LINK_JOBS=8 \
-            $ERF_HOME
-
-         make -j
+         if [[ ! -f "$CASE_DIR/$INPUTS" ]]; then
+           echo "ERROR: input file not found: $CASE_DIR/$INPUTS"
+           exit 1
+         fi
 
          # -------------------------------------------------------------------
          # Run
          # -------------------------------------------------------------------
+         cd "$CASE_DIR"
+
          NNODES=$(wc -l < $PBS_NODEFILE)
          NTOTRANKS=$((NNODES * NRANKS))
 
          echo "NNODES=$NNODES NTOTRANKS=$NTOTRANKS NRANKS=$NRANKS NTHREADS=$NTHREADS"
 
-         mpiexec --np ${NTOTRANKS} -ppn ${NRANKS} -d ${NDEPTH} --cpu-bind depth \
-            -env OMP_NUM_THREADS=${NTHREADS} \
-            ./Exec/erf_exec ${INPUTS_FILE}
+         mpiexec --np ${NTOTRANKS} --ppn ${NRANKS} --depth=${NDEPTH} --cpu-bind=depth \
+           "$EXE" "$INPUTS"
 
       **Submit the job:**
 
@@ -276,11 +312,12 @@ Verify your environment before building:
       .. code-block:: bash
 
          qstat -u $USER
+         qstat -f <jobid>
 
       .. tip::
-         **Build once, run many:** For production workflows, build ERF once (interactively
-         or in a dedicated build job), then remove the build section from subsequent
-         batch scripts. This saves allocation time.
+         **Build once, run many:** Build ERF once (interactively or in a dedicated build job),
+         then reuse the executable in subsequent batch scripts. SYCL AOT compilation is expensive
+         — rebuilding per job wastes allocation time.
 
 Example Inputs File
 -------------------
@@ -348,15 +385,18 @@ Troubleshooting
    .. code-block:: bash
 
       module list
-      which cmake mpicc mpicxx mpifort
-      echo $NETCDF_DIR
-      ls $NETCDF_DIR/lib
+      which cmake mpicc mpicxx mpifort icpx
+      echo $NETCDF_C_ROOT
+      echo $NETCDF_FORTRAN_ROOT
+      echo $HDF5_ROOT
+      ls $NETCDF_C_ROOT/include/netcdf.h
+      ls $NETCDF_FORTRAN_ROOT/include/netcdf.mod
 
    **Common causes:**
 
-   - ``NETCDF_DIR`` not set or pointing to wrong location
-   - Modules not loaded (run ``module list`` to verify)
-   - Stale CMake cache — remove ``tmp_build_dir`` and reconfigure
+   - ``NETCDF_C_ROOT`` or ``NETCDF_FORTRAN_ROOT`` not set — re-source ``Build/machines/aurora_erf.profile``
+   - Modules not loaded (run ``module list`` to verify ``netcdf-c``, ``netcdf-fortran``, ``hdf5`` are present)
+   - Stale CMake cache — remove ``build_aurora/`` and reconfigure
 
 .. dropdown:: Compilation runs out of memory
    :icon: alert
@@ -366,9 +406,13 @@ Troubleshooting
 
    .. code-block:: bash
 
-      make -j4
+      cmake --build build_aurora -j 4
 
-   Or request more memory in your PBS allocation.
+   Or submit the build as an interactive PBS job to get a full compute node:
+
+   .. code-block:: bash
+
+      qsub -I -A <PROJECT> -q debug -l select=1 -l walltime=1:00:00 -l filesystems=flare
 
 .. dropdown:: mpiexec fails with PBS errors
    :icon: alert
@@ -391,10 +435,22 @@ Troubleshooting
 
    .. code-block:: bash
 
-      mpiexec --np 4 -ppn 4 -d 16 --cpu-bind depth \
-         -env OMP_NUM_THREADS=1 \
-         ./Exec/erf_exec <inputs_file> max_step=10
+      mpiexec --np 12 --ppn 12 --depth=8 --cpu-bind=depth \
+        -env OMP_NUM_THREADS=1 \
+        build_aurora/Exec/<case>/erf_<case> <inputs_file> max_step=10
 
    Check ``Backtrace.*`` files for stack traces.
+
+.. dropdown:: NETCDF_FORTRAN_ROOT not set after sourcing profile
+   :icon: alert
+   :color: warning
+
+   If the ``netcdf-fortran`` module does not export ``NETCDF_FORTRAN_ROOT``, derive it manually:
+
+   .. code-block:: bash
+
+      export NETCDF_FORTRAN_ROOT=$(module show netcdf-fortran 2>&1 | \
+        sed -n 's/.*setenv("NETCDF_FORTRAN_ROOT","\([^"]*\)").*/\1/p')
+      echo $NETCDF_FORTRAN_ROOT   # should be non-empty
 
 For additional troubleshooting, see :ref:`sec:build:troubleshooting`.
