@@ -691,7 +691,11 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.get("prob_name",prob_name); return prob_name; }
+    std::string name() {
+        std::string prob_name;
+        amrex::ParmParse pp("erf");
+        pp.get("prob_name",prob_name); return prob_name;
+    }
 };
 
 
