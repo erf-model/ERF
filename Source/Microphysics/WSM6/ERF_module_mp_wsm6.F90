@@ -117,6 +117,46 @@
 
  end subroutine wsm6_emit_diag_t2_line
 
+!=================================================================================================================
+ subroutine wsm6_emit_diag_t2_blocksig_line(tag, phase, source_layer, block_id, role, &
+                                            loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
+!=================================================================================================================
+ character(len=*), intent(in) :: tag, phase, source_layer, block_id, role, var
+ integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
+ real(kind=kind_phys), intent(in) :: value
+
+ character(len=32) :: s_schema, s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
+ character(len=64) :: s_value
+
+ write(s_schema,'(I0)') WSM6_DIAG_SCHEMA_V1
+ write(s_loop  ,'(I0)') loop_out
+ write(s_i     ,'(I0)') i_dbg
+ write(s_j     ,'(I0)') j_dbg
+ write(s_kdbg  ,'(I0)') k_dbg
+ write(s_kraw  ,'(I0)') k_raw
+ write(s_dbg   ,'(I0)') debug_level
+ call wsm6_diag_value_string(value, s_value)
+
+ write(*,'(A)') 'WSM6-DIAG-T2 diag_schema='//trim(s_schema)// &
+                ' tag='//trim(tag)// &
+                ' phase='//trim(phase)// &
+                ' source_layer='//trim(source_layer)// &
+                ' path_id='//trim(block_id)//'__block_signature'// &
+                ' expr_id=block_signature'// &
+                ' store_id=block_signature'// &
+                ' block_id='//trim(block_id)// &
+                ' role='//trim(role)// &
+                ' loop='//trim(s_loop)// &
+                ' i_dbg='//trim(s_i)// &
+                ' j_dbg='//trim(s_j)// &
+                ' k_dbg='//trim(s_kdbg)// &
+                ' k_raw='//trim(s_kraw)// &
+                ' debug_level='//trim(s_dbg)// &
+                ' var='//trim(var)// &
+                ' value='//trim(s_value)
+
+ end subroutine wsm6_emit_diag_t2_blocksig_line
+
 
 !=================================================================================================================
 !>\section arg_table_mp_wsm6_init
@@ -531,6 +571,44 @@ integer:: i, j, k, mstepmax,                                     &
      xl(i,k) = xlcal(t(i,k))
    enddo
  enddo
+ if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "cpd", cpd)
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "cpv", cpv)
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "qmin", qmin)
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "xlv0", xlv0)
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "xlv1", xlv1)
+   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "t0c", t0c)
+   do k = kts, kte
+     if (.not. (((k-kts+1) >= 1 .and. (k-kts+1) <= 4) .or. (k-kts+1) == 29 .or. (k-kts+1) == 30)) cycle
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "t_entry", t(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "p_entry", p(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "qv_entry", q(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "derived", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "xl", xl(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "derived", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "cpm", cpm(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "t_for_xl", t(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "qv_for_cpm", q(i_dbg_local,k))
+   enddo
+ endif
  do k = kts, kte
    do i = its, ite
      delz_tmp(i,k) = delz(i,k)

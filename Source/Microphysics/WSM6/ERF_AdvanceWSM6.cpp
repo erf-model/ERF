@@ -104,7 +104,7 @@ wsm6_expr_enabled(const std::vector<std::string>& exprs, const std::string& expr
         if (expr_id == "recip" || expr_id == "mul_add" || expr_id == "pow_sqrt" ||
             expr_id == "x_mul_x_mul_x" || expr_id == "x_times_sqrtx" ||
             expr_id == "sq_then_mul" || expr_id == "mul_then_sq" ||
-            expr_id == "canonical_tag") return true;
+            expr_id == "canonical_tag" || expr_id == "block_signature") return true;
     }
     return wsm6_list_has(exprs, expr_id);
 }
@@ -116,6 +116,12 @@ wsm6_tag_enabled(const std::vector<std::string>& tags, const std::string& tag)
     if (wsm6_list_has(tags, "all")) return true;
     if (wsm6_list_has(tags, "standing")) return true;
     return wsm6_list_has(tags, tag);
+}
+
+bool
+wsm6_thermo_k_focus(int k_dbg)
+{
+    return ((k_dbg >= 1 && k_dbg <= 4) || k_dbg == 29 || k_dbg == 30);
 }
 
 const std::array<const char*, 6>&
@@ -216,6 +222,31 @@ wsm6_emit_diag_t2_line(
         "WSM6-DIAG-T2 diag_schema=%d tag=%s phase=%s source_layer=%s path_id=%s expr_id=%s store_id=%s loop=%d "
         "i_dbg=%d j_dbg=%d k_dbg=%d k_raw=%d debug_level=%d var=%s value=%s\n",
         WSM6_DIAG_SCHEMA_V1, tag, phase, source_layer, path_id, expr_id, store_id, loop_out,
+        i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, wsm6_fmt_diag_value(value).c_str());
+}
+
+void
+wsm6_emit_diag_t2_blocksig_line(
+    const char* tag,
+    const char* phase,
+    const char* source_layer,
+    const char* block_id,
+    const char* role,
+    int loop_out,
+    int i_dbg,
+    int j_dbg,
+    int k_dbg,
+    int k_raw,
+    int debug_level,
+    const char* var,
+    double value)
+{
+    const std::string path_id = std::string(block_id) + "__block_signature";
+    std::printf(
+        "WSM6-DIAG-T2 diag_schema=%d tag=%s phase=%s source_layer=%s path_id=%s expr_id=block_signature "
+        "store_id=block_signature block_id=%s role=%s loop=%d i_dbg=%d j_dbg=%d k_dbg=%d k_raw=%d "
+        "debug_level=%d var=%s value=%s\n",
+        WSM6_DIAG_SCHEMA_V1, tag, phase, source_layer, path_id.c_str(), block_id, role, loop_out,
         i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, wsm6_fmt_diag_value(value).c_str());
 }
 
@@ -997,6 +1028,7 @@ WSM6::Advance(const Real& dt_advance,
     constexpr double cliq = static_cast<double>(Cp_l);
     constexpr double cice = 2106.0;
     constexpr double psat = 610.78;
+    const double xlv1_const = static_cast<double>(m_xlv1);
 
     for (MFIter mfi(*mic_fab_vars[MicVar_WSM6::qv], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box box = mfi.tilebox();
@@ -1124,6 +1156,40 @@ WSM6::Advance(const Real& dt_advance,
                     "canonical_tag__fused_min", "canonical_tag", "fused_min",
                     0, diag_i, diag_j, k_dbg, k, microphysics_debug, "den_precall",
                     (double)den_arr(diag_i,diag_j,k));
+            }
+        }
+        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
+            wsm6_tag_enabled(micro_diag_tags, "THERMO_STATE") &&
+            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+            wsm6_store_enabled(micro_diag_store, "fused_min")) {
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpd", (double)cpd);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpv", (double)cpv);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "qmin", (double)qmin);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv0", (double)xlv0);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv1", xlv1_const);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "t0c", (double)t0c);
+            for (int k = klo; k <= khi; ++k) {
+                const int k_dbg = (k - klo) + 1;
+                if (!wsm6_thermo_k_focus(k_dbg)) continue;
+                const double t_entry = (double)t_arr(diag_i,diag_j,k);
+                const double p_entry = (double)p_arr(diag_i,diag_j,k);
+                const double qv_entry = (double)qv_arr(diag_i,diag_j,k);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_entry", t_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "p_entry", p_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_entry", qv_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_for_xl", t_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_for_cpm", qv_entry);
             }
         }
 
@@ -1361,6 +1427,47 @@ WSM6::Advance(const Real& dt_advance,
             cpm_arr(i,j,k) = wsm6_cpmcal(qv_arr(i,j,k), Real(qmin), Real(cpd), Real(cpv));
             xl_arr(i,j,k)  = wsm6_xlcal(t_arr(i,j,k), Real(xlv0), xlv1_loc, Real(t0c));
         });
+        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+            ParallelDescriptor::IOProcessor() &&
+            wsm6_tag_enabled(micro_diag_tags, "THERMO_STATE") &&
+            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+            wsm6_store_enabled(micro_diag_store, "fused_min")) {
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpd", (double)cpd);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpv", (double)cpv);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "qmin", (double)qmin);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv0", (double)xlv0);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv1", xlv1_const);
+            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "t0c", (double)t0c);
+            for (int k = klo; k <= khi; ++k) {
+                const int k_dbg = (k - klo) + 1;
+                if (!wsm6_thermo_k_focus(k_dbg)) continue;
+                const double t_entry = (double)t_arr(diag_i,diag_j,k);
+                const double p_entry = (double)p_arr(diag_i,diag_j,k);
+                const double qv_entry = (double)qv_arr(diag_i,diag_j,k);
+                const double xl_derived = (double)xl_arr(diag_i,diag_j,k);
+                const double cpm_derived = (double)cpm_arr(diag_i,diag_j,k);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_entry", t_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "p_entry", p_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_entry", qv_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "derived", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "xl", xl_derived);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "derived", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "cpm", cpm_derived);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_for_xl", t_entry);
+                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_for_cpm", qv_entry);
+            }
+        }
 
         // Outer minor timestep loop (Rule 29)
         const int wsm6_loops = std::max(
