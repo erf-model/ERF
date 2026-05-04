@@ -106,6 +106,9 @@ struct LineSampler
                     amrex::RealBox rbx(rv_lo[i].data(),rv_hi[i].data());
                     m_bnd_rbx[i] = rbx;
                 }
+
+                // Construct vector of bounding boxes
+                m_bnd_bx.resize(nline);
             }
         }
 
@@ -242,8 +245,8 @@ struct LineSampler
             for (int iline(0); iline<nline; ++iline) {
                 int dir = m_dir[iline];
                 amrex::Box bnd_bx = (m_use_real_bx)
-                    ? getIndexBox(m_bnd_rbx[iline], geom[lev])
-                    : m_bnd_bx[iline];
+                                  ? getIndexBox(m_bnd_rbx[iline], geom[lev])
+                                  : m_bnd_bx[iline];
                 amrex::IntVect first_cell = bnd_bx.smallEnd();
 
                 // Create multifab with "sampled" z_phys values
@@ -286,8 +289,8 @@ struct LineSampler
             // Search each level to get the finest data possible
             for (int ilev(nlev-1); ilev>=0; --ilev) {
                 amrex::Box bnd_bx = (m_use_real_bx)
-                    ? getIndexBox(m_bnd_rbx[iline], geom[ilev])
-                    : m_bnd_bx[iline];
+                                  ? getIndexBox(m_bnd_rbx[iline], geom[ilev])
+                                  : m_bnd_bx[iline];
                 amrex::IntVect cell = bnd_bx.smallEnd();
 
                 // Construct CC velocities
@@ -440,6 +443,12 @@ struct LineSampler
                 if (bnd_bx == min_bnd_bx) { break; }
 
             } // ilev
+
+            // Fill bnd_bx if use_rbx
+            if (m_use_real_bx) {
+                m_bnd_bx[iline] = m_ls_mf[iline].boxArray().minimalBox();
+            }
+
         }// iline
     }
 
@@ -470,7 +479,7 @@ struct LineSampler
             int dir = m_dir[iline];
             int lev = m_lev[iline];
             amrex::Real m_time = time[lev];
-            amrex::Box m_dom = m_bnd_bx[iline];
+            amrex::Box m_dom   = m_bnd_bx[iline];
 
             for (int ivar(0); ivar<nvar; ++ivar) {
                 // Convert multifab to vector
