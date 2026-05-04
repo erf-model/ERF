@@ -55,7 +55,8 @@ void make_sources (int level,
                    const MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
-                   bool is_slow_step)
+                   bool is_slow_step,
+                   int real_width)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -749,7 +750,18 @@ void make_sources (int level,
         // 12. Add macrophysics source for RhoTheta, RhoQ1, and RhoQ2
         // *************************************************************************************
         if (is_slow_step && has_moisture && tight_macro) {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            auto domain = geom.Domain();
+            int i_lo = domain.smallEnd(0);
+            int i_hi = domain.bigEnd(0);
+            int j_lo = domain.smallEnd(1);
+            int j_hi = domain.bigEnd(1);
+
+            auto tbx = bx;
+            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-real_width); }
+            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-real_width); }
+            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-real_width); }
+            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-real_width); }
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Conserved CC vars initially
                 Real rho      = cell_data(i,j,k,Rho_comp);

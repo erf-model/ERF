@@ -108,7 +108,7 @@
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, true);
+                     input_sounding_data, turbPert, true, real_width);
 
         // *****************************************************************************
         // Define the pressure gradient

@@ -77,7 +77,8 @@ void make_sources (int level, int nrk,
                    const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
-                   bool is_slow_step);
+                   bool is_slow_step,
+                   int real_width);
 
 void make_mom_sources (amrex::Real time,
                        amrex::Real dt,

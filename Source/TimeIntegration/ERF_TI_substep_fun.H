@@ -68,7 +68,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, false);
+                     input_sounding_data, turbPert, false, real_width);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
