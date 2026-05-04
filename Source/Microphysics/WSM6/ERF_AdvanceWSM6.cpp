@@ -1383,6 +1383,14 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pihmf_arr     = pihmf_fab.array();
         auto const& pihtf_arr     = pihtf_fab.array();
         auto const& pgfrz_arr     = pgfrz_fab.array();
+        FArrayBox qr_update_before_dbg_fab(fab_box, 1);
+        FArrayBox qr_update_increment_dbg_fab(fab_box, 1);
+        FArrayBox qr_update_after_dbg_fab(fab_box, 1);
+        FArrayBox qr_update_clamp_flag_dbg_fab(fab_box, 1);
+        auto const& qr_update_before_dbg_arr = qr_update_before_dbg_fab.array();
+        auto const& qr_update_increment_dbg_arr = qr_update_increment_dbg_fab.array();
+        auto const& qr_update_after_dbg_arr = qr_update_after_dbg_fab.array();
+        auto const& qr_update_clamp_flag_dbg_arr = qr_update_clamp_flag_dbg_fab.array();
         auto print_wsm6_tag6 = [&](const char* tag,
                                    const Array4<const Real>& a1,
                                    const Array4<const Real>& a2,
@@ -2593,6 +2601,18 @@ WSM6::Advance(const Real& dt_advance,
                             qs_arr, qg_arr, t_arr, loop);
 
             // G14: mass conservation check and state update [lines 1200-1388]
+            const bool emit_qr_update_inputs =
+                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+                 ParallelDescriptor::IOProcessor() &&
+                 wsm6_tag_enabled(micro_diag_tags, "QR_UPDATE_INPUTS") &&
+                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+                 wsm6_store_enabled(micro_diag_store, "fused_min"));
+            if (emit_qr_update_inputs) {
+                qr_update_before_dbg_fab.setVal(Real(0.0));
+                qr_update_increment_dbg_fab.setVal(Real(0.0));
+                qr_update_after_dbg_fab.setVal(Real(0.0));
+                qr_update_clamp_flag_dbg_fab.setVal(Real(-1.0));
+            }
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real qmin_l  = Real(qmin);
                 const Real qcrmin_l= Real(qcrmin);
@@ -2793,12 +2813,30 @@ WSM6::Advance(const Real& dt_advance,
                                        + paacw_arr(i,j,k) + paacw_arr(i,j,k))
                                        * dtcld,
                         Real(0.0));
+                    const bool emit_qr_update_k =
+                        emit_qr_update_inputs &&
+                        (i == diag_i) && (j == diag_j) &&
+                        ((k - klo + 1) >= 10) && ((k - klo + 1) <= 20);
+                    if (emit_qr_update_k) {
+                        qr_update_before_dbg_arr(i,j,k) = qr_arr(i,j,k);
+                        qr_update_increment_dbg_arr(i,j,k) =
+                            (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                           + prevp_arr(i,j,k) + paacw_arr(i,j,k)
+                           + paacw_arr(i,j,k) - pseml_arr(i,j,k)
+                           - pgeml_arr(i,j,k)) * dtcld;
+                    }
                     qr_arr(i,j,k) = amrex::max(
                         qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + prevp_arr(i,j,k) + paacw_arr(i,j,k)
                                        + paacw_arr(i,j,k) - pseml_arr(i,j,k)
                                        - pgeml_arr(i,j,k)) * dtcld,
                         Real(0.0));
+                    if (emit_qr_update_k) {
+                        qr_update_after_dbg_arr(i,j,k) = qr_arr(i,j,k);
+                        qr_update_clamp_flag_dbg_arr(i,j,k) =
+                            ((qr_update_before_dbg_arr(i,j,k) + qr_update_increment_dbg_arr(i,j,k)) <= Real(0.0))
+                            ? Real(1.0) : Real(0.0);
+                    }
                     qs_arr(i,j,k) = amrex::max(
                         qs_arr(i,j,k) + (psevp_arr(i,j,k) - pgacs_arr(i,j,k)
                                        + pseml_arr(i,j,k)) * dtcld,
@@ -2818,6 +2856,49 @@ WSM6::Advance(const Real& dt_advance,
             print_wsm6_tag6("WSM6-CPP_UPDATE",
                             qv_arr, qc_arr, qi_arr,
                             qr_arr, qs_arr, qg_arr, loop);
+            if (emit_qr_update_inputs && ParallelDescriptor::IOProcessor()) {
+                const int loop_out = loop + 1;
+                Gpu::synchronize();
+                for (int k = klo; k <= khi; ++k) {
+                    const int k_dbg = (k - klo) + 1;
+                    if (!wsm6_qr_k_focus(k_dbg)) continue;
+                    const double clamp_flag = (double)qr_update_clamp_flag_dbg_arr(diag_i,diag_j,k);
+                    if (clamp_flag < -0.5) continue;
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "input", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "qr_before_update", (double)qr_update_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "praut", (double)praut_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "pracw", (double)pracw_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "prevp", (double)prevp_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "paacw", (double)paacw_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "pseml", (double)pseml_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "pgeml", (double)pgeml_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "timestep", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "dtcld", (double)dtcld);
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "update_increment", (double)qr_update_increment_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "output", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "qr_after_update", (double)qr_update_after_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
+                                                    "clamp", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                    "clamp_flag", clamp_flag);
+                }
+            }
 
             // G15: second qsat computation [lines 1390-1420]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {

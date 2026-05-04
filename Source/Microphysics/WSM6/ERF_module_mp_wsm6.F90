@@ -503,6 +503,7 @@
 real(kind=kind_phys):: vt2ave
 real(kind=kind_phys):: holdc, holdci
 real(kind=kind_phys):: diag_snowncv, diag_graupelncv, diag_snow, diag_graupel
+real(kind=kind_phys):: qr_before_update_dbg, update_increment_dbg, qr_after_update_dbg, clamp_flag_dbg
 integer:: i, j, k, mstepmax,                                     &
            iprt, latd, lond, loop, loops, ifsat, n, idim, kdim, idbg_col
  integer :: mpdbg_level
@@ -1897,9 +1898,54 @@ integer:: i, j, k, mstepmax,                                     &
          q(i,k) = q(i,k)+work2(i,k)*dtcld
          qc(i,k) = max(qc(i,k)-(praut(i,k)+pracw(i,k)                       &
                  + paacw(i,k)+paacw(i,k))*dtcld,0.)
+         if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+             (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
+           qr_before_update_dbg = qr(i,k)
+          update_increment_dbg = (praut(i,k)+pracw(i,k)+prevp(i,k)+paacw(i,k)+paacw(i,k) &
+               -pseml(i,k)-pgeml(i,k))*dtcld
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "input", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "qr_before_update", qr_before_update_dbg)
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "praut", praut(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "pracw", pracw(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "prevp", prevp(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "paacw", paacw(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "pseml", pseml(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "pgeml", pgeml(i,k))
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "timestep", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "dtcld", dtcld)
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "update_increment", update_increment_dbg)
+         endif
          qr(i,k) = max(qr(i,k)+(praut(i,k)+pracw(i,k)                       &
                  + prevp(i,k)+paacw(i,k)+paacw(i,k)-pseml(i,k)              &
                - pgeml(i,k))*dtcld,0.)
+         if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+             (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
+           qr_after_update_dbg = qr(i,k)
+           clamp_flag_dbg = 0.0
+           if (qr_before_update_dbg + update_increment_dbg <= 0.0) clamp_flag_dbg = 1.0
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "output", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "qr_after_update", qr_after_update_dbg)
+           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                "FINAL_QR_UPDATE", "clamp", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+                "clamp_flag", clamp_flag_dbg)
+         endif
          qs(i,k) = max(qs(i,k)+(psevp(i,k)-pgacs(i,k)                       &
                  + pseml(i,k))*dtcld,0.)
          qg(i,k) = max(qg(i,k)+(pgacs(i,k)+pgevp(i,k)                       &
