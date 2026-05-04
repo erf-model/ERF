@@ -513,6 +513,8 @@ public:
 
     void ComputeAndWriteEnsemblePerturbations();
 
+    void PerformDataAssimilation();
+
     void init_custom (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK

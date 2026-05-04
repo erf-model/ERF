@@ -392,6 +392,25 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
 
+# ---- LAPACK support ----
+USE_LAPACK ?= FALSE
+
+ifeq ($(USE_LAPACK), TRUE)
+  DEFINES += -DUSE_LAPACK  
+  # Try pkg-config first (works on many systems)
+  has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
+  ifeq ($(has_lapack),0)
+    includes  += $(shell pkg-config --cflags lapack)
+    LIBRARIES += $(shell pkg-config --libs lapack)
+  else
+    # Fallback guesses
+    # Linux (generic)
+    LIBRARIES += -llapack -lblas
+  endif
+
+endif
+# ------------------------
+
 
 include $(AMREX_HOME)/Src/Base/Make.package
 
