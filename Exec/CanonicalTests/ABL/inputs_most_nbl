@@ -1,0 +1,94 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL"
+stop_time = 54720.   # ~15.2 hr (14.2 hr + 1 hr buffer), in seconds
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# Full size
+geometry.prob_extent    = 2400.   2400.   1200.
+amr.n_cell              =   160      160   240
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type = "surface_layer"
+erf.most.z0   = 0.05
+erf.most.zref = 2.5
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+zhi.theta_grad   = 0.003    # for case N02
+
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
+erf.rayleigh_dampcoef = 0.003
+erf.rayleigh_zdamp    = 400.
+
+# WIND FORCING (needed to maintain flow against surface drag)
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind    = 6.5  0.0  0.0
+
+# TIME STEP CONTROL
+# erf.cfl             = 0.5
+erf.fixed_dt        = 0.2
+erf.substepping_cfl = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1     # timesteps between computing mass
+erf.v               = 1     # verbosity in ERF.cpp
+amr.v               = 1     # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 10000     # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 100000    # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta
+
+# SOLVER CHOICES
+erf.dycore_horiz_adv_type    = "Upwind_5th"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.use_gravity = true
+erf.use_coriolis = true
+erf.latitude = 33.5
+erf.rotational_time_period = 86400.0
+
+erf.molec_diff_type = "None"
+erf.les_type = "Smagorinsky"
+erf.Cs       = 0.17
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_nbl"
+
+# PROBLEM PARAMETERS
+# these are zeroed because we are using an input_sounding
+prob.rho_0 = 0.0
+prob.T_0 = 0.0
+prob.A_0 = 0.0
+prob.U_0 = 0.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
+
+prob.pert_ref_height = 500.0
+prob.U_0_Pert_Mag = 0.65
+prob.V_0_Pert_Mag = 0.65
+prob.W_0_Pert_Mag = 0.0
+prob.pert_periods_U = 12
+prob.pert_periods_V = 12
+prob.pert_deltaU = 1.0
+prob.pert_deltaV = 1.0
+
+# planar averaging (with erf.v = 1)
+erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
+erf.profile_int = 1200
+erf.destag_profiles = true
+
