@@ -55,7 +55,7 @@ public:
     {
         m_fac_cond = lcond / sc.c_p;
         m_axis     = sc.ave_plane;
-        m_do_cond  = (!sc.use_shoc);
+        m_do_cond  = (!sc.use_shoc && !sc.macrophysics_tight_coupling);
     }
 
     // init

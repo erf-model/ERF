@@ -44,7 +44,7 @@ public:
     void Define(SolverChoice& sc) override
     {
         m_axis = sc.ave_plane;
-        m_do_cond = (!sc.use_shoc);
+        m_do_cond  = (!sc.use_shoc && !sc.macrophysics_tight_coupling);
     }
 
     void Init(const amrex::MultiFab& cons_in,

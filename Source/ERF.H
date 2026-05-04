@@ -24,7 +24,7 @@
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
 
-#include <ERF_EB.H>
+#include "ERF_EB.H"
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -36,20 +36,20 @@
 
 #include "ERF_ProbCommon.H"
 
-#include <ERF_IndexDefines.H>
-#include <ERF_DataStruct.H>
-#include <ERF_TurbPertStruct.H>
-#include <ERF_InputSoundingData.H>
-#include <ERF_InputSpongeData.H>
-#include <ERF_SurfaceLayer.H>
-#include <ERF_Derive.H>
-#include <ERF_ReadBndryPlanes.H>
-#include <ERF_WriteBndryPlanes.H>
-#include <ERF_MRI.H>
-#include <ERF_PhysBCFunct.H>
-#include <ERF_FillPatcher.H>
-#include <ERF_SampleData.H>
-#include <ERF_ForestDrag.H>
+#include "ERF_IndexDefines.H"
+#include "ERF_DataStruct.H"
+#include "ERF_TurbPertStruct.H"
+#include "ERF_InputSoundingData.H"
+#include "ERF_InputSpongeData.H"
+#include "ERF_SurfaceLayer.H"
+#include "ERF_Derive.H"
+#include "ERF_ReadBndryPlanes.H"
+#include "ERF_WriteBndryPlanes.H"
+#include "ERF_MRI.H"
+#include "ERF_PhysBCFunct.H"
+#include "ERF_FillPatcher.H"
+#include "ERF_SampleData.H"
+#include "ERF_ForestDrag.H"
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -63,7 +63,7 @@
 #include "ERF_WindFarm.H"
 #endif
 
-#include <ERF_RadiationModels.H>
+#include "ERF_RadiationModels.H"
 
 #ifdef ERF_USE_SHOC
 #include "ERF_ShocInterface.H"

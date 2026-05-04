@@ -4,10 +4,11 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
-#include <ERF_NumericalDiffusion.H>
-#include <ERF_SrcHeaders.H>
-#include <ERF_TI_slow_headers.H>
-#include <ERF_MOSTStress.H>
+#include "ERF_NumericalDiffusion.H"
+#include "ERF_SrcHeaders.H"
+#include "ERF_TI_slow_headers.H"
+#include "ERF_MOSTStress.H"
+#include "ERF_MacroPhysics.H"
 
 using namespace amrex;
 
@@ -67,7 +68,11 @@ void make_sources (int level,
         source.setVal(0.0,Rho_comp,2);
     }
 
-    const bool l_use_ndiff      = solverChoice.use_num_diff;
+    Real idt        = amrex::Real(1.0) / dt;
+    Real d_rdOcp    = R_d / Cp_d;
+    Real d_fac_cond = L_v / Cp_d;
+
+    const bool l_use_ndiff = solverChoice.use_num_diff;
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_KE  = tc.use_tke;
@@ -91,6 +96,9 @@ void make_sources (int level,
 
     // flag for a moisture model
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+
+    // flag for tight macrophysics coupling
+    bool tight_macro = solverChoice.macrophysics_tight_coupling;
 
     // *****************************************************************************
     // Planar averages for subsidence terms
@@ -194,18 +202,19 @@ void make_sources (int level,
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
-    //    one user-defined source terms for (rho theta) and (rho q_t)
-    //    two radiation           for (rho theta)
-    //    three Rayleigh damping    for (rho theta)
-    //    Real(4.) custom forcing      for (rho theta) and (rho Q1)
-    //    Real(5.) custom subsidence   for (rho theta) and (rho Q1)
-    //    Real(6.) numerical diffusion for (rho theta)
-    //    Real(7.) sponging
-    //    Real(8.) turbulent perturbation
-    //    Real(9.) nudging towards input sounding values (only for theta)
+    //    1. user-defined source terms for (rho theta) and (rho q_t)
+    //    2. radiation           for (rho theta)
+    //    3. Rayleigh damping    for (rho theta)
+    //    4. custom forcing      for (rho theta) and (rho Q1)
+    //    5. custom subsidence   for (rho theta) and (rho Q1)
+    //    6. numerical diffusion for (rho theta)
+    //    7. sponging
+    //    8. turbulent perturbation
+    //    9. nudging towards input sounding values (only for theta)
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
-    //   Real(11.) Four stream radiation source for (rho theta)
+    //   11. Four stream radiation source for (rho theta)
+    //   12. Macrophysics source for (rho theta; rho Q1; rho Q2)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -223,18 +232,17 @@ void make_sources (int level,
         const Array4<const Real>& cell_prim  = S_prim.array(mfi);
         const Array4<Real>      & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& r0 = r_hse.const_array(mfi);
+        const Array4<const Real>& r0  = r_hse.const_array(mfi);
         const Array4<const Real>& th0 = th_hse.const_array(mfi);
         const Array4<const Real>& qv0 = qv_hse.const_array(mfi);
 
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
-                                                               Array4<const Real>{};
-
+                                                                  Array4<const Real>{};
 
         // *************************************************************************************
-        // two Add radiation source terms to (rho theta)
+        // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
         if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
@@ -247,7 +255,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // three Add Rayleigh damping for (rho theta)
+        // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
         Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -267,7 +275,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(4.) Add custom forcing for (rho theta)
+        // 4. Add custom forcing for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
@@ -303,7 +311,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(4.) Add custom forcing for RhoQ1
+        // 4. Add custom forcing for RhoQ1
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
@@ -339,7 +347,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(5.) Add custom subsidence for (rho theta)
+        // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
@@ -366,7 +374,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(5.) Add custom subsidence for RhoQ1 and RhoQ2
+        // 5. Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
@@ -399,7 +407,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(6.) Add numerical diffusion for rho and (rho theta)
+        // 6. Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step) {
             int sc;
@@ -427,7 +435,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(7.) Add sponging
+        // 7. Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
             const int n_qstate = S_data[IntVars::cons].nComp() - (NDRY + NSCALARS);
@@ -441,7 +449,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // Real(8.) Add perturbation
+        // 8. Add perturbation
         // *************************************************************************************
         if (solverChoice.use_source_perturbation(level) && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
@@ -450,7 +458,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(9.) Add nudging towards value specified in input sounding
+        // 9. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
@@ -679,7 +687,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(11.) Add 4 stream radiation src to RhoTheta
+        // 11. Add 4 stream radiation src to RhoTheta
         // *************************************************************************************
         if (solverChoice.four_stream_radiation && has_moisture && is_slow_step)
         {
@@ -734,6 +742,51 @@ void make_sources (int level,
                     // Convert dT/dt to dTheta/dt and multiply rho
                     cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
                 }
+            });
+        }
+
+        // *************************************************************************************
+        // 12. Add macrophysics source for RhoTheta, RhoQ1, and RhoQ2
+        // *************************************************************************************
+        if (is_slow_step && has_moisture && tight_macro) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // Conserved CC vars initially
+                Real rho      = cell_data(i,j,k,Rho_comp);
+                Real rt_old   = cell_data(i,j,k,RhoTheta_comp);
+                Real th_old   = rt_old/rho;
+                Real qv_old   = cell_data(i,j,k,RhoQ1_comp   )/rho;
+                Real qc_old   = cell_data(i,j,k,RhoQ2_comp   )/rho;
+                Real qt       = qv_old + qc_old;
+                Real tabs_old = getTgivenRandRTh(rho, rt_old, qv_old);
+
+                // To be updated in place
+                Real qv   = qv_old;
+                Real tabs = tabs_old;
+                Real pres = getPgivenRTh(rt_old, qv_old);
+
+                // Vapor frac at saturation
+                Real qs;
+
+                // Valid Newton iteration
+                erf_qsatw(tabs, pres*Real(0.01), qs);
+                if (qt > qs) {
+                    NewtonIterSat(d_fac_cond, tabs, pres*Real(0.01), qv);
+                }
+                // Put qc into qv and double check Newton iter criteria
+                else {
+                    qv   += qc_old;
+                    tabs -= d_fac_cond * qc_old;
+                    erf_qsatw(tabs, pres*Real(0.01), qs);
+                    if (qv > qs) {
+                        NewtonIterSat(d_fac_cond, tabs, pres*Real(0.01), qv);
+                    }
+                }
+
+                // Populate tendencies
+                cell_src(i,j,k,RhoTheta_comp) += rho * idt * ( getThgivenTandP(tabs, pres, d_rdOcp) - th_old );
+                cell_src(i,j,k,RhoQ1_comp   ) += rho * idt * ( qv - qv_old );
+                cell_src(i,j,k,RhoQ2_comp   ) += -cell_src(i,j,k,RhoQ1_comp);
             });
         }
     } // mfi

@@ -222,6 +222,7 @@ struct SolverChoice {
             }
 
             pp.query("moisture_tight_coupling",moisture_tight_coupling);
+            pp.query("macrophysics_tight_coupling",macrophysics_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
@@ -1266,7 +1267,8 @@ struct SolverChoice {
     // Microphysics params
     MoistureComponentIndices moisture_indices;
 
-    bool moisture_tight_coupling {false};
+    bool moisture_tight_coupling     {false};
+    bool macrophysics_tight_coupling {false};
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
