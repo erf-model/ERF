@@ -288,7 +288,6 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab, geom[lev]);
 
         if (lev == 0) {
-            // Collect time for erfbdy
             bdy_times[itime] = NC_epochTime[itime];
 
             if (itime == 0) {
@@ -303,7 +302,7 @@ ERF::init_from_metgrid (int lev)
                 t_new[lev] = zero;
                 t_old[lev] = -Real(1.e200);
 
-                // Initialize erfbdy file header now that we know domain and real_width
+                // Initialize erfbdy file header now that we have the domain and real_width.
                 if (write_erfbdy) {
                     InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
                                    geom[lev].Domain(), MetGridBdyVars::NumTypes, real_width);
@@ -613,7 +612,6 @@ ERF::init_from_metgrid (int lev)
                                        ParallelContext::CommunicatorAll());
             } // nvar
 
-            // Write this time slice to erfbdy immediately to avoid memory accumulation
             if (write_erfbdy) {
                 WriteERFBdyTimeSlice(erfbdy_file, itime,
                                      bdy_data_xlo[itime], bdy_data_xhi[itime],
@@ -621,8 +619,9 @@ ERF::init_from_metgrid (int lev)
                                      MetGridBdyVars::NumTypes);
                 Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
 
-                // CRITICAL: Clear this time slice from memory after writing
-                // (unless it's one of the first two times needed for simulation start)
+                // Clear this time from memory after writing unless
+                // it's one of the first two times, which are needed
+                // at initialization.
                 if (itime > 1) {
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();

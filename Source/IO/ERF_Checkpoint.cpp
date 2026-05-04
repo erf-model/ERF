@@ -1077,7 +1077,6 @@ ERF::ReadCheckpointFile ()
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
 
-        // Handle metgrid case: erfbdy is required
         if (solverChoice.init_type == InitType::Metgrid) {
             if (!use_erfbdy) {
                 Abort("Restart with init_type=metgrid requires erfbdy file: " + erfbdy_file);

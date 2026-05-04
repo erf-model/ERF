@@ -4,8 +4,8 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Vector.H>
 
-// Read metadata and time values from erfbdy Header
-// Returns bdy_time_interval
+// Read metadata and time values from erfbdy Header.
+// Returns bdy_time_interval.
 amrex::Real
 read_times_from_erfbdy(const std::string& bdy_file_name,
                        int& ntimes,
@@ -15,7 +15,7 @@ read_times_from_erfbdy(const std::string& bdy_file_name,
                        amrex::Real& start_bdy_time,
                        amrex::Real& final_bdy_time);
 
-// Read a single time slice from erfbdy file
+// Read a single time index from erfbdy file.
 void
 read_from_erfbdy(int itime,
                  const std::string& bdy_file_name,

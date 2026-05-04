@@ -5,7 +5,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Vector.H>
 
-// Initialize erfbdy file and write header (call once at start)
+// Initialize erfbdy file and write header.
 void InitERFBdyFile(const std::string& bdy_file_name,
                     int ntimes,
                     const amrex::Vector<amrex::Real>& bdy_times,
@@ -13,7 +13,7 @@ void InitERFBdyFile(const std::string& bdy_file_name,
                     int nvars,
                     int real_width);
 
-// Write a single time slice (call once per time)
+// Write a single time index.
 void WriteERFBdyTimeSlice(const std::string& bdy_file_name,
                           int itime,
                           const amrex::Vector<amrex::FArrayBox>& bdy_data_xlo,

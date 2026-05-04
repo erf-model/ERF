@@ -39,7 +39,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
 
-        // Handle erfbdy files (AMReX native format)
+        // Handle erfbdy files (AMReX native format).
         if (use_erfbdy) {
             for (int itime = 0; itime < ntimes; itime++)
             {
@@ -62,7 +62,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 }
             } // itime
         }
-        // Handle wrfbdy files (NetCDF format)
+        // Handle wrfbdy files (NetCDF format).
         else {
             for (int itime = 0; itime < ntimes; itime++)
             {

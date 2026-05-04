@@ -1040,11 +1040,11 @@ ERF::init_from_wrfinput (int lev,
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
 
-        // Path 1: Load from existing erfbdy file
+        // Path 1: Load from existing erfbdy file.
         if (use_erfbdy) {
             Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
-            // Read metadata and times from erfbdy
+            // Read metadata and times from erfbdy.
             int ntimes_erfbdy;
             Vector<Real> bdy_times;
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
@@ -1056,13 +1056,12 @@ ERF::init_from_wrfinput (int lev,
             Print() << "final_bdy_time = " << final_bdy_time << std::endl;
             Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
 
-            // Resize boundary data structures
             bdy_data_xlo.resize(ntimes_erfbdy);
             bdy_data_xhi.resize(ntimes_erfbdy);
             bdy_data_ylo.resize(ntimes_erfbdy);
             bdy_data_yhi.resize(ntimes_erfbdy);
 
-            // Load first 2 time slices for simulation start
+            // Load the first 2 times for simulation initialization.
             for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
                 read_from_erfbdy(itime, erfbdy_file,
                                 bdy_data_xlo, bdy_data_xhi,
@@ -1074,7 +1073,7 @@ ERF::init_from_wrfinput (int lev,
             Print() << "Read in boundary data with width "  << real_width << std::endl;
             Print() << "Running with relaxation width: " << real_width << std::endl;
         }
-        // Path 2: Load from wrfbdy and optionally write to erfbdy
+        // Path 2: Load from wrfbdy and optionally write to erfbdy.
         else {
             if (nc_bdy_file.empty()) {
                 amrex::Error("NetCDF boundary file name must be provided via input");
@@ -1087,10 +1086,8 @@ ERF::init_from_wrfinput (int lev,
             int ntimes_total = bdy_data_xlo.size();
             Vector<Real> bdy_times(ntimes_total);
 
-            // Initialize erfbdy file if writing is enabled
+            // Initialize erfbdy file.
             if (write_erfbdy) {
-                // Collect times (we'll need to read them from wrfbdy to fill this properly)
-                // For now, construct from start_bdy_time and bdy_time_interval
                 for (int itime = 0; itime < ntimes_total; ++itime) {
                     bdy_times[itime] = start_bdy_time + itime * bdy_time_interval;
                 }
@@ -1122,19 +1119,17 @@ ERF::init_from_wrfinput (int lev,
                                         lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                         geom[lev], use_moist);
 
-                // Write this time slice to erfbdy immediately after conversion
+                // Write this time to erfbdy.
                 if (write_erfbdy) {
                     WriteERFBdyTimeSlice(erfbdy_file, itime,
                                          bdy_data_xlo[itime], bdy_data_xhi[itime],
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
                                          WRFBdyVars::NumTypes);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
-
-                    // Note: We don't clear time slices here since we only load first 3
                 }
             } // itime
 
-            // If writing erfbdy and we have more times, process them now
+            // If writing erfbdy and we have more than 3 times, then process the remaining times.
             if (write_erfbdy && ntimes_total > 3) {
                 Print() << "Processing remaining " << ntimes_total - 3 << " boundary times..." << std::endl;
                 for (int itime = 3; itime < ntimes_total; ++itime) {
@@ -1154,7 +1149,6 @@ ERF::init_from_wrfinput (int lev,
                                          WRFBdyVars::NumTypes);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
 
-                    // Clear this time from memory after writing.
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();
                     bdy_data_ylo[itime].clear();
