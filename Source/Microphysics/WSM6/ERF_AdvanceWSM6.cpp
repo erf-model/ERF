@@ -124,6 +124,12 @@ wsm6_thermo_k_focus(int k_dbg)
     return ((k_dbg >= 1 && k_dbg <= 4) || k_dbg == 29 || k_dbg == 30);
 }
 
+bool
+wsm6_qr_k_focus(int k_dbg)
+{
+    return (k_dbg >= 10 && k_dbg <= 20);
+}
+
 const std::array<const char*, 6>&
 wsm6_tag6_var_names(const char* tag)
 {
@@ -1190,6 +1196,32 @@ WSM6::Advance(const Real& dt_advance,
                                                 "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_for_xl", t_entry);
                 wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
                                                 "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_for_cpm", qv_entry);
+            }
+        }
+        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
+            wsm6_tag_enabled(micro_diag_tags, "QR_STATE") &&
+            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+            wsm6_store_enabled(micro_diag_store, "fused_min")) {
+            for (int k = klo; k <= khi; ++k) {
+                const int k_dbg = (k - klo) + 1;
+                if (!wsm6_qr_k_focus(k_dbg)) continue;
+                const double qr_working_pre = (double)qr_arr(diag_i,diag_j,k);
+                const double rho_pre = (double)den_arr(diag_i,diag_j,k);
+                const double rhoq4_pre_equiv = rho_pre * qr_working_pre;
+                const double qrain_persistent_pre = (rho_pre > 0.0)
+                    ? (rhoq4_pre_equiv / rho_pre) : 0.0;
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
+                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "qr_working_pre", qr_working_pre);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "rho_pre", rho_pre);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
+                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "RhoQ4_pre_equiv", rhoq4_pre_equiv);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
+                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "qrain_persistent_pre", qrain_persistent_pre);
             }
         }
 
@@ -2840,6 +2872,35 @@ WSM6::Advance(const Real& dt_advance,
 #ifdef ERF_USE_WSM6_FORT
         }
 #endif
+        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
+            wsm6_tag_enabled(micro_diag_tags, "QR_STATE") &&
+            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+            wsm6_store_enabled(micro_diag_store, "fused_min")) {
+            for (int k = klo; k <= khi; ++k) {
+                const int k_dbg = (k - klo) + 1;
+                if (!wsm6_qr_k_focus(k_dbg)) continue;
+                const double qr_incore_final = (double)qr_arr(diag_i,diag_j,k);
+                const double rho_post = (double)den_arr(diag_i,diag_j,k);
+                const double rhoq4_post_equiv = rho_post * qr_incore_final;
+                const double qrain_persistent_post = (rho_post > 0.0)
+                    ? (rhoq4_post_equiv / rho_post) : 0.0;
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "QR_STATE",
+                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "qr_incore_final", qr_incore_final);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
+                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "qr_working_post", qr_incore_final);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
+                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "rho_post", rho_post);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
+                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "RhoQ4_post_equiv", rhoq4_post_equiv);
+                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
+                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                                                "qrain_persistent_post", qrain_persistent_post);
+            }
+        }
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rain_arr(i,j,klo) = rainacc_arr(i,j,0);
             snow_arr(i,j,klo) = snowacc_arr(i,j,0);

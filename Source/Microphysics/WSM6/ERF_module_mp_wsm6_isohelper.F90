@@ -213,6 +213,20 @@ contains
                "qv_for_cpm", q_col(i_dbg_local,kk))
         end do
       end if
+      if (microphysics_debug >= 2 .and. j == j_dbg_target .and. i_dbg_in_tile) then
+        do kk = 1, kdim
+          if (kk < 10 .or. kk > 20) cycle
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_BRIDGE", &
+               "QR_STATE", "working", 0, i_dbg_local, j, kk, kts + kk - 1, microphysics_debug, &
+               "qr_col_pre", qr_col(i_dbg_local,kk))
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_BRIDGE", &
+               "QR_STATE", "input", 0, i_dbg_local, j, kk, kts + kk - 1, microphysics_debug, &
+               "rho_col_pre", den_col(i_dbg_local,kk))
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_BRIDGE", &
+               "QR_STATE", "persistent", 0, i_dbg_local, j, kk, kts + kk - 1, microphysics_debug, &
+               "RhoQ4_col_pre_equiv", den_col(i_dbg_local,kk) * qr_col(i_dbg_local,kk))
+        end do
+      end if
 
       do i = its, ite
         rain_col(i)      = rain(i,j)
@@ -253,6 +267,24 @@ contains
           qg(i,j,k) = qg_col(i,kk)
         end do
       end do
+      if (microphysics_debug >= 2 .and. j == j_dbg_target .and. i_dbg_in_tile) then
+        do k = kts, kte
+          kk = k - kts + 1
+          if (kk < 10 .or. kk > 20) cycle
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", &
+               "QR_STATE", "working", 0, i_dbg_local, j, kk, k, microphysics_debug, &
+               "qr_working_post", qr(i_dbg_local,j,k))
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", &
+               "QR_STATE", "input", 0, i_dbg_local, j, kk, k, microphysics_debug, &
+               "rho_post", den(i_dbg_local,j,k))
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", &
+               "QR_STATE", "persistent", 0, i_dbg_local, j, kk, k, microphysics_debug, &
+               "RhoQ4_post_equiv", den(i_dbg_local,j,k) * qr(i_dbg_local,j,k))
+          call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", &
+               "QR_STATE", "persistent", 0, i_dbg_local, j, kk, k, microphysics_debug, &
+               "qrain_persistent_post", qr(i_dbg_local,j,k))
+        end do
+      end if
 
       do i = its, ite
         rain(i,j)       = rain_col(i)

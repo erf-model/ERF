@@ -1992,6 +1992,21 @@ integer:: i, j, k, mstepmax,                                     &
    enddo
  enddo                  ! big loops
 
+ if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
+   do k = kts, kte
+     if ((k-kts+1) < 10 .or. (k-kts+1) > 20) cycle
+     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "QR_STATE", "working", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "qr_incore_final", qr(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "QR_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "rho_incore_final", den(i_dbg_local,k))
+     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+          "QR_STATE", "persistent", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
+          "RhoQ4_incore_equiv", den(i_dbg_local,k) * qr(i_dbg_local,k))
+   enddo
+ endif
+
  if(present(rainprod2d) .and. present(evapprod2d)) then
    do k = kts, kte
      do i = its,ite
