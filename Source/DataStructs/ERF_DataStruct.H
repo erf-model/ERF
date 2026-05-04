@@ -194,6 +194,7 @@ struct SolverChoice {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
+                -1,          // cloud ice
                 RhoQ3_comp   // rain
             );
         }
