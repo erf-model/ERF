@@ -148,10 +148,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 if (l_no_slip) {
 
-                const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
-                const Real Dirichlet_u {zero};
-                const Real Dirichlet_v {zero};
-                const Real Dirichlet_w {zero};
+                    const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
+                    const Real Dirichlet_u {zero};
+                    const Real Dirichlet_v {zero};
+                    const Real Dirichlet_w {zero};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -169,9 +169,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdx = slopes_w[0];
                     Real dwdz = slopes_w[2];
 
-                Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                Real tau12_eb = myhalf * (dudy + dvdx);
-                Real tau13_eb = myhalf * (dudz + dwdx);
+                    Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                    Real tau12_eb = myhalf * (dudy + dvdx);
+                    Real tau13_eb = myhalf * (dudz + dwdx);
 
                     dudn = - mu_eff * (u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
 
@@ -205,7 +205,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             rho_v_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_y && l_no_slip && v_cellflg(i,j,k).isSingleValued()) {
+            // Apply EB boundary contribution for both no-slip and surface-layer wall models.
+            // (Previously this block was incorrectly gated on `l_no_slip`, which prevented
+            //  SurfaceLayer stresses (tau_eb23) from contributing to the y-momentum RHS.)
+            if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = v_afrac_x(i  ,j  ,k  );
                 Real axp = v_afrac_x(i+1,j  ,k  );
@@ -224,10 +227,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 if (l_no_slip) {
 
-                const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
-                const Real Dirichlet_u {zero};
-                const Real Dirichlet_v {zero};
-                const Real Dirichlet_w {zero};
+                    const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
+                    const Real Dirichlet_u {zero};
+                    const Real Dirichlet_v {zero};
+                    const Real Dirichlet_w {zero};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -245,9 +248,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
-                Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                Real tau12_eb = myhalf * (dudy + dvdx);
-                Real tau23_eb = myhalf * (dvdz + dwdy);
+                    Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                    Real tau12_eb = myhalf * (dudy + dvdx);
+                    Real tau23_eb = myhalf * (dvdz + dwdy);
 
                     dvdn = - mu_eff * (v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
 
@@ -279,27 +282,36 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             diffContrib      /= w_volfrac(i,j,k);
             rho_w_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_z && l_no_slip && w_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
 
-                if (l_no_slip) {
+                Real axm = w_afrac_x(i  ,j  ,k  );
+                Real axp = w_afrac_x(i+1,j  ,k  );
+                Real aym = w_afrac_y(i  ,j  ,k  );
+                Real ayp = w_afrac_y(i  ,j+1,k  );
+                Real azm = w_afrac_z(i  ,j  ,k  );
+                Real azp = w_afrac_z(i  ,j  ,k+1);
 
-                    Real axm = w_afrac_x(i  ,j  ,k  );
-                    Real axp = w_afrac_x(i+1,j  ,k  );
-                    Real aym = w_afrac_y(i  ,j  ,k  );
-                    Real ayp = w_afrac_y(i  ,j+1,k  );
-                    Real azm = w_afrac_z(i  ,j  ,k  );
-                    Real azp = w_afrac_z(i  ,j  ,k+1);
+                Real adx = (axm-axp) * dy * dz;
+                Real ady = (aym-ayp) * dx * dz;
+                Real adz = (azm-azp) * dx * dy;
 
-                    Real adx = (axm-axp) * dy * dz;
-                    Real ady = (aym-ayp) * dx * dz;
-                    Real adz = (azm-azp) * dx * dy;
+                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+                Real dwdn = zero;
 
-                const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
-                const Real Dirichlet_u {zero};
-                const Real Dirichlet_v {zero};
-                const Real Dirichlet_w {zero};
+                if (l_no_slip || l_surface_layer) {
+
+                    const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
+
+                    // const Real Dirichlet_u {zero};
+                    // const Real Dirichlet_v {zero};
+                    const Real Dirichlet_u = (u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ) + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  )
+                                            + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1) + u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1))
+                                            / (u_volfrac(i,j,k) + u_volfrac(i+1,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1));
+                    const Real Dirichlet_v = (v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ) + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  )
+                                            + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1) + v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1))
+                                            / (v_volfrac(i,j,k) + v_volfrac(i,j+1,k) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j,k-1));
+                    const Real Dirichlet_w {zero};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -317,15 +329,21 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
-                Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                Real tau13_eb = myhalf * (dudz + dwdx);
-                Real tau23_eb = myhalf * (dvdz + dwdy);
+                    Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                    Real tau13_eb = myhalf * (dudz + dwdx);
+                    Real tau23_eb = myhalf * (dvdz + dwdy);
 
-                    Real dwdn = -(w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
+                    if (l_no_slip) {
 
-                    rho_w_rhs(i,j,k) -= mu_eff * barea * dwdn / (vol * w_volfrac(i,j,k));
+                        dwdn = - mu_eff * (w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
 
+                    } else if (l_surface_layer) {
+
+                        dwdn = - mu_eff * tau33_eb;
+
+                    }
                 }
+                rho_w_rhs(i,j,k) -= barea * dwdn / (vol * w_volfrac(i,j,k));
             }
         }
     });
