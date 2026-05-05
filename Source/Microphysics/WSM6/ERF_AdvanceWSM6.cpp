@@ -452,11 +452,18 @@ void wsm6_nislfv_rain_plm (int im, int km,
 
     constexpr Real pi = Real(3.141592653589793238462643383279502884);
     auto rgmma = [](Real x) -> Real {
+        // Match Fortran rgmma() semantics used in WSM6 rain setup.
         if (x == Real(1.0)) return Real(0.0);
-        return Real(1.0) / std::tgamma(static_cast<double>(x));
+        constexpr Real euler = Real(0.577215664901532);
+        Real rg = x * std::exp(euler * x);
+        for (int ii = 1; ii <= 10000; ++ii) {
+            const Real y = static_cast<Real>(ii);
+            rg = rg * (Real(1.0) + x / y) * std::exp(-x / y);
+        }
+        return Real(1.0) / rg;
     };
 
-    const Real pidn0r = Real(4.0) * pi * Real(rhoh2o) * WSM6::n0r;
+    const Real pidn0r = pi * Real(rhoh2o) * WSM6::n0r;
     const Real rslopermax = Real(1.0) / WSM6::lamdarmax;
     const Real rsloperbmax = std::pow(rslopermax, WSM6::bvtr);
     const Real rsloper2max = rslopermax * rslopermax;
