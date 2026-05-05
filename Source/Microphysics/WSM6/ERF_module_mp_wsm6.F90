@@ -955,11 +955,34 @@ integer:: i, j, k, mstepmax,                                     &
        denqrs1(i,k) = den(i,k)*qr(i,k)
        denqrs2(i,k) = den(i,k)*qs(i,k)
        denqrs3(i,k) = den(i,k)*qg(i,k)
+       if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+           (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
+         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_input_for_denqrs1", qr(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den_input_for_denqrs1", den(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5b_RAIN_SEDIMENTATION_DENQRS1", "working", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_after_init", denqrs1(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_before_sedimentation", denqrs1(i,k))
+       endif
        if(qr(i,k).le.0.0) workr(i,k) = 0.0
      enddo
    enddo
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,workr,denqrs1,  &
                         delqrs1,dtcld,1,1)
+   if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
+     do k = kts, kte
+       if ((k-kts+1) < 10 .or. (k-kts+1) > 20) cycle
+       call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+            "G5b_RAIN_SEDIMENTATION_DENQRS1", "output", loop, i_dbg_local, j_dbg_local, &
+            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_after_sedimentation", denqrs1(i_dbg_local,k))
+     enddo
+   endif
    if (mpdbg_level >= 1 .and. loop == 1) then
      do k = kts, kte
        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_R ', k, &

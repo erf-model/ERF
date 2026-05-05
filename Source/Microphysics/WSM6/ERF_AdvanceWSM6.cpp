@@ -1391,6 +1391,11 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox qr_prod_denqrs1_dbg_fab(fab_box, 1);
         FArrayBox qr_prod_den_dbg_fab(fab_box, 1);
         FArrayBox qr_prod_after_dbg_fab(fab_box, 1);
+        FArrayBox denqrs1_prod_qr_input_dbg_fab(fab_box, 1);
+        FArrayBox denqrs1_prod_den_input_dbg_fab(fab_box, 1);
+        FArrayBox denqrs1_prod_after_init_dbg_fab(fab_box, 1);
+        FArrayBox denqrs1_prod_before_sed_dbg_fab(fab_box, 1);
+        FArrayBox denqrs1_prod_after_sed_dbg_fab(fab_box, 1);
         auto const& qr_update_before_dbg_arr = qr_update_before_dbg_fab.array();
         auto const& qr_update_increment_dbg_arr = qr_update_increment_dbg_fab.array();
         auto const& qr_update_after_dbg_arr = qr_update_after_dbg_fab.array();
@@ -1399,6 +1404,11 @@ WSM6::Advance(const Real& dt_advance,
         auto const& qr_prod_denqrs1_dbg_arr = qr_prod_denqrs1_dbg_fab.array();
         auto const& qr_prod_den_dbg_arr = qr_prod_den_dbg_fab.array();
         auto const& qr_prod_after_dbg_arr = qr_prod_after_dbg_fab.array();
+        auto const& denqrs1_prod_qr_input_dbg_arr = denqrs1_prod_qr_input_dbg_fab.array();
+        auto const& denqrs1_prod_den_input_dbg_arr = denqrs1_prod_den_input_dbg_fab.array();
+        auto const& denqrs1_prod_after_init_dbg_arr = denqrs1_prod_after_init_dbg_fab.array();
+        auto const& denqrs1_prod_before_sed_dbg_arr = denqrs1_prod_before_sed_dbg_fab.array();
+        auto const& denqrs1_prod_after_sed_dbg_arr = denqrs1_prod_after_sed_dbg_fab.array();
         auto print_wsm6_tag6 = [&](const char* tag,
                                    const Array4<const Real>& a1,
                                    const Array4<const Real>& a2,
@@ -1712,11 +1722,24 @@ WSM6::Advance(const Real& dt_advance,
                  wsm6_tag_enabled(micro_diag_tags, "QR_PRODUCER_BOUNDARY") &&
                  wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
                  wsm6_store_enabled(micro_diag_store, "fused_min"));
+            const bool emit_denqrs1_producer_boundary =
+                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+                 ParallelDescriptor::IOProcessor() &&
+                 wsm6_tag_enabled(micro_diag_tags, "DENQRS1_PRODUCER_BOUNDARY") &&
+                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+                 wsm6_store_enabled(micro_diag_store, "fused_min"));
             if (emit_qr_producer_boundary) {
                 qr_prod_before_dbg_fab.setVal(Real(0.0));
                 qr_prod_denqrs1_dbg_fab.setVal(Real(0.0));
                 qr_prod_den_dbg_fab.setVal(Real(0.0));
                 qr_prod_after_dbg_fab.setVal(Real(0.0));
+            }
+            if (emit_denqrs1_producer_boundary) {
+                denqrs1_prod_qr_input_dbg_fab.setVal(Real(0.0));
+                denqrs1_prod_den_input_dbg_fab.setVal(Real(0.0));
+                denqrs1_prod_after_init_dbg_fab.setVal(Real(0.0));
+                denqrs1_prod_before_sed_dbg_fab.setVal(Real(0.0));
+                denqrs1_prod_after_sed_dbg_fab.setVal(Real(0.0));
             }
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
@@ -1753,9 +1776,21 @@ WSM6::Advance(const Real& dt_advance,
                     } else {
                         worka_col[kk] = Real(0.0);
                     }
+                    const bool emit_denqrs1_prod_k =
+                        emit_denqrs1_producer_boundary &&
+                        (i == diag_i) && (j == diag_j) &&
+                        wsm6_qr_k_focus(kk + 1);
+                    if (emit_denqrs1_prod_k) {
+                        denqrs1_prod_qr_input_dbg_arr(i,j,k) = qr_arr(i,j,k);
+                        denqrs1_prod_den_input_dbg_arr(i,j,k) = den_col[kk];
+                    }
                     denqrs1_col[kk] = den_col[kk] * qr_arr(i,j,k);
                     denqrs2_col[kk] = den_col[kk] * qs_arr(i,j,k);
                     denqrs3_col[kk] = den_col[kk] * qg_arr(i,j,k);
+                    if (emit_denqrs1_prod_k) {
+                        denqrs1_prod_after_init_dbg_arr(i,j,k) = denqrs1_col[kk];
+                        denqrs1_prod_before_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
+                    }
                     if (qr_arr(i,j,k) <= Real(0.0)) {
                         workr_col[kk] = Real(0.0);
                     }
@@ -1765,6 +1800,16 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1, 0);
+                for (int k = klo; k <= khi; ++k) {
+                    const int kk = k - klo;
+                    const bool emit_denqrs1_prod_k =
+                        emit_denqrs1_producer_boundary &&
+                        (i == diag_i) && (j == diag_j) &&
+                        wsm6_qr_k_focus(kk + 1);
+                    if (emit_denqrs1_prod_k) {
+                        denqrs1_prod_after_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
+                    }
+                }
                 // Strict Rule 30 snapshot: immediately after G5b
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
@@ -1846,6 +1891,39 @@ WSM6::Advance(const Real& dt_advance,
             print_wsm6_tag6("WSM6-CPP_FALL",
                             qr_arr, qs_arr, qg_arr,
                             fall_r_arr, fall_s_arr, fall_g_arr, loop);
+            if (emit_denqrs1_producer_boundary && ParallelDescriptor::IOProcessor()) {
+                const int loop_out = loop + 1;
+                Gpu::synchronize();
+                for (int k = klo; k <= khi; ++k) {
+                    const int k_dbg = (k - klo) + 1;
+                    if (!wsm6_qr_k_focus(k_dbg)) continue;
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qr_input_for_denqrs1", (double)denqrs1_prod_qr_input_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "den_input_for_denqrs1", (double)denqrs1_prod_den_input_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs1_after_init", (double)denqrs1_prod_after_init_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs1_before_sedimentation", (double)denqrs1_prod_before_sed_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "output",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs1_after_sedimentation", (double)denqrs1_prod_after_sed_dbg_arr(diag_i,diag_j,k));
+                }
+            }
             if (emit_qr_producer_boundary && ParallelDescriptor::IOProcessor()) {
                 const int loop_out = loop + 1;
                 Gpu::synchronize();
