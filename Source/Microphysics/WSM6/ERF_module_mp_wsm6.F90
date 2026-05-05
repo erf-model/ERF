@@ -980,7 +980,25 @@ integer:: i, j, k, mstepmax,                                     &
    endif
    do k = kts, kte
      do i = its, ite
+      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+          (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
+        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_before_block", qr(i,k))
+        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "working", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1", denqrs1(i,k))
+        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den", den(i,k))
+      endif
        qr(i,k) = max(denqrs1(i,k)/den(i,k),0.)
+      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+          (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
+        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "output", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_after_block", qr(i,k))
+      endif
        qs(i,k) = max(denqrs2(i,k)/den(i,k),0.)
        qg(i,k) = max(denqrs3(i,k)/den(i,k),0.)
        fall(i,k,1) = denqrs1(i,k)*workr(i,k)/delz(i,k)
