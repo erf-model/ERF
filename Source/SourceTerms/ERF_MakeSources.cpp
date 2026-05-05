@@ -228,7 +228,8 @@ void make_sources (int level,
         const Array4<const Real>& cell_prim  = S_prim.array(mfi);
         const Array4<Real>      & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& mac_src    = macrophysics_src->const_array(mfi);
+        const Array4<const Real>& mac_src    = (macrophysics_src) ? macrophysics_src->const_array(mfi) :
+                                                                    Array4<const Real>{};
 
         const Array4<const Real>& r0  = r_hse.const_array(mfi);
         const Array4<const Real>& th0 = th_hse.const_array(mfi);
@@ -744,7 +745,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 12. Add macrophysics source for RhoTheta, RhoQ1, and RhoQ2
+        // 12. Add macrophysics source for RhoTheta
         // *************************************************************************************
         if (is_slow_step && has_moisture && tight_macro) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
