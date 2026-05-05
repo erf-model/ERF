@@ -2506,23 +2506,6 @@ ERF::ReadParameters ()
         pp.query("write_erfbdy",             write_erfbdy);
         pp.query("erfbdy_file",              erfbdy_file);
 
-        // Set a default value for write_erfbdy following these rules.
-        // Prioritize write_erfbdy provided by user.
-        // write_erfbdy must be false for restarts.
-        // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
-        bool is_restart = !restart_chkfile.empty();
-        if (is_restart) {
-            if (write_erfbdy) {
-                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
-            }
-        } else {
-            if (!pp.contains("write_erfbdy")) {
-                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
-                    write_erfbdy = true;
-                }
-            }
-        }
-
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
@@ -2733,6 +2716,26 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    // Set a default value for write_erfbdy following these rules.
+    // Prioritize write_erfbdy provided by user.
+    // write_erfbdy must be false for restarts.
+    // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
+    {
+        ParmParse pp(pp_prefix);
+        bool is_restart = !restart_chkfile.empty();
+        if (is_restart) {
+            if (write_erfbdy) {
+                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
+            }
+        } else {
+            if (!pp.contains("write_erfbdy")) {
+                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
+                    write_erfbdy = true;
+                }
+            }
+        }
+    }
 
     {
         ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.

@@ -76,8 +76,20 @@ read_from_metgrid (int lev, int itime,
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
         }
 
-        { // Global Attributes (string)
-            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+        { // Read Times variable (character array).
+            auto times_var = ncf.var("Times");
+            std::vector<size_t> start = {0, 0};  // Time index 0, character index 0.
+            std::vector<size_t> count = times_var.shape();
+            count[0] = 1;  // Read the first time entry.
+
+            // Allocate buffer for the time string.
+            std::vector<char> time_chars(count[1]);
+            times_var.get(time_chars.data(), start, count);
+
+            // Convert to std::string and trim trailing whitespace/null characters.
+            NC_dateTime = std::string(time_chars.begin(), time_chars.end());
+            NC_dateTime.erase(NC_dateTime.find_last_not_of(" \0") + 1);
+
             const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
             NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
         }

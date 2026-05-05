@@ -24,7 +24,19 @@ read_start_time_from_metgrid(int lev, const std::string& fname)
     if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
-        NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+        // Read the Times variable (character array).
+        auto times_var = ncf.var("Times");
+        std::vector<size_t> start = {0, 0};  // Time index 0, character index 0.
+        std::vector<size_t> count = times_var.shape();
+        count[0] = 1;  // Read only the first time entry.
+
+        // Allocate buffer for the time string.
+        std::vector<char> time_chars(count[1]);
+        times_var.get(time_chars.data(), start, count);
+
+        // Convert to std::string and trim trailing whitespace/null characters.
+        NC_dateTime = std::string(time_chars.begin(), time_chars.end());
+        NC_dateTime.erase(NC_dateTime.find_last_not_of(" \0") + 1);
 
         const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
         NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
@@ -272,6 +284,19 @@ ERF::init_from_metgrid (int lev)
 
     Vector<Real> bdy_times(ntimes);
 
+    // Read times from met_em files (necessary for erfbdy header initialization).
+    if (lev == 0 && write_erfbdy) {
+        Print() << "Reading times from " << ntimes << " met_em files for erfbdy initialization" << std::endl;
+        for (int itime(0); itime < ntimes; itime++) {
+            bdy_times[itime] = read_start_time_from_metgrid(lev, nc_init_file[lev][itime]);
+        }
+
+        // Initialize erfbdy file header.
+        InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
+                       geom[lev].Domain(), MetGridBdyVars::NumTypes, real_width);
+        Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+    }
+
     for (int itime(0); itime < ntimes; itime++) {
         Print() << " init_from_metgrid: reading nc_init_file[" << lev << "][" << itime << "]\t" << nc_init_file[lev][itime] << std::endl;
         read_from_metgrid(lev, itime,
@@ -301,13 +326,6 @@ ERF::init_from_metgrid (int lev)
                         << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
                 t_new[lev] = zero;
                 t_old[lev] = -Real(1.e200);
-
-                // Initialize erfbdy file header now that we have the domain and real_width.
-                if (write_erfbdy) {
-                    InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
-                                   geom[lev].Domain(), MetGridBdyVars::NumTypes, real_width);
-                    Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
-                }
             } else {
                 // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
                 AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
@@ -580,23 +598,13 @@ ERF::init_from_metgrid (int lev)
 
         } // itime==0
 
-    } // itime
-
-    // FillBoundary to populate the internal halo cells
-     r_hse.FillBoundary(geom[lev].periodicity());
-     p_hse.FillBoundary(geom[lev].periodicity());
-    pi_hse.FillBoundary(geom[lev].periodicity());
-    th_hse.FillBoundary(geom[lev].periodicity());
-    qv_hse.FillBoundary(geom[lev].periodicity());
-
-    // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
-    //       However, the operations needed to define the data on the ERF
-    //       grid are done over MultiFab boxes that are local to the rank.
-    //       So when we save the data in fabs_for_bc, only regions owned
-    //       by the rank are populated. Use an allreduce sum to make the
-    //       complete data set; initialized to 0 above.
-    if (lev == 0) {
-        for (int itime(0); itime < ntimes; itime++) {
+        if (lev == 0) {
+            // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
+            //       However, the operations needed to define the data on the ERF
+            //       grid are done over MultiFab boxes that are local to the rank.
+            //       So when we save the data in fabs_for_bc, only regions owned
+            //       by the rank are populated. Use an allreduce sum to make the
+            //       complete data set; initialized to 0 above.
             for (int nvar(0); nvar<MetGridBdyEnd; ++nvar) {
                 ParallelAllReduce::Sum(bdy_data_xlo[itime][nvar].dataPtr(),
                                        bdy_data_xlo[itime][nvar].size(),
@@ -619,9 +627,8 @@ ERF::init_from_metgrid (int lev)
                                      MetGridBdyVars::NumTypes);
                 Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
 
-                // Clear this time from memory after writing unless
-                // it's one of the first two times, which are needed
-                // at initialization.
+                // Clear this time from memory after writing unless it's one
+                // of the first two times, which are needed at initialization.
                 if (itime > 1) {
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();
@@ -629,8 +636,16 @@ ERF::init_from_metgrid (int lev)
                     bdy_data_yhi[itime].clear();
                 }
             }
-        } // itime
-    } // lev==0
+        } // lev==0
+
+    } // itime
+
+    // FillBoundary to populate the internal halo cells
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 
     Print() << "Running with relaxation width: " << real_width << std::endl;
 }
