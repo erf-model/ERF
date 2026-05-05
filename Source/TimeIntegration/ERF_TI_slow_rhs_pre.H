@@ -100,7 +100,7 @@
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
-                     S_data, S_prim, cc_src, base_state[level], zpc_to_use,
+                     S_old, S_data, S_prim, cc_src, base_state[level], zpc_to_use,
                      xvel_new, yvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,

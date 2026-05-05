@@ -57,6 +57,7 @@ void compute_gradp_interpz (const amrex::MultiFab& p,
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
+                   const amrex::Vector<amrex::MultiFab>& S_old,
                    const amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,

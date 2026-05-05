@@ -35,6 +35,7 @@ void make_sources (int level,
                    int /*nrk*/,
                    Real dt,
                    Real time,
+                   const Vector<MultiFab>& S_old,
                    const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -229,6 +230,7 @@ void make_sources (int level,
     {
         Box bx  = mfi.tilebox();
 
+        const Array4<const Real>& cell_old   = S_old[IntVars::cons].array(mfi);
         const Array4<const Real>& cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real>& cell_prim  = S_prim.array(mfi);
         const Array4<Real>      & cell_src   = source.array(mfi);
@@ -750,7 +752,6 @@ void make_sources (int level,
         // 12. Add macrophysics source for RhoTheta, RhoQ1, and RhoQ2
         // *************************************************************************************
         if (is_slow_step && has_moisture && tight_macro) {
-            auto domain = geom.Domain();
             int i_lo = domain.smallEnd(0);
             int i_hi = domain.bigEnd(0);
             int j_lo = domain.smallEnd(1);
@@ -763,41 +764,44 @@ void make_sources (int level,
             if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-real_width); }
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                // Conserved CC vars initially
-                Real rho      = cell_data(i,j,k,Rho_comp);
-                Real rt_old   = cell_data(i,j,k,RhoTheta_comp);
-                Real th_old   = rt_old/rho;
-                Real qv_old   = cell_data(i,j,k,RhoQ1_comp   )/rho;
-                Real qc_old   = cell_data(i,j,k,RhoQ2_comp   )/rho;
-                Real qt       = qv_old + qc_old;
-                Real tabs_old = getTgivenRandRTh(rho, rt_old, qv_old);
+                // Conserved CC vars at start of step
+                Real rho_old  = cell_old(i,j,k,Rho_comp);
+                Real th_old   = cell_old(i,j,k,RhoTheta_comp) / rho_old;
+                Real qv_old   = cell_old(i,j,k,RhoQ1_comp   ) / rho_old;
+
+                // Conserved CC vars at start of RK stage
+                Real rho_s  = cell_data(i,j,k,Rho_comp);
+                Real rt_s   = cell_data(i,j,k,RhoTheta_comp);
+                Real qv_s   = cell_data(i,j,k,RhoQ1_comp   ) / rho_s;
+                Real qc_s   = cell_data(i,j,k,RhoQ2_comp   ) / rho_s;
 
                 // To be updated in place
-                Real qv   = qv_old;
-                Real tabs = tabs_old;
-                Real pres = getPgivenRTh(rt_old, qv_old);
-
-                // Vapor frac at saturation
                 Real qs;
+                Real qv_f   = qv_s;
+                Real tabs_f = getTgivenRandRTh(rho_s, rt_s, qv_s);
+
+                // Invariants
+                Real qt   = qv_s + qc_s;
+                Real pres = getPgivenRTh(rt_s, qv_s);
 
                 // Valid Newton iteration
-                erf_qsatw(tabs, pres*Real(0.01), qs);
+                erf_qsatw(tabs_f, pres*Real(0.01), qs);
                 if (qt > qs) {
-                    NewtonIterSat(d_fac_cond, tabs, pres*Real(0.01), qv);
+                    NewtonIterSat(d_fac_cond, tabs_f, pres*Real(0.01), qv_f);
                 }
                 // Put qc into qv and double check Newton iter criteria
                 else {
-                    qv   += qc_old;
-                    tabs -= d_fac_cond * qc_old;
-                    erf_qsatw(tabs, pres*Real(0.01), qs);
-                    if (qv > qs) {
-                        NewtonIterSat(d_fac_cond, tabs, pres*Real(0.01), qv);
+                    qv_f   += qc_s;
+                    tabs_f -= d_fac_cond * qc_s;
+                    erf_qsatw(tabs_f, pres*Real(0.01), qs);
+                    if (qv_f > qs) {
+                        NewtonIterSat(d_fac_cond, tabs_f, pres*Real(0.01), qv_f);
                     }
                 }
 
                 // Populate tendencies
-                cell_src(i,j,k,RhoTheta_comp) += rho * idt * ( getThgivenTandP(tabs, pres, d_rdOcp) - th_old );
-                cell_src(i,j,k,RhoQ1_comp   ) += rho * idt * ( qv - qv_old );
+                cell_src(i,j,k,RhoTheta_comp) += rho_s * idt * ( getThgivenTandP(tabs_f, pres, d_rdOcp) - th_old );
+                cell_src(i,j,k,RhoQ1_comp   ) += rho_s * idt * ( qv_f - qv_old );
                 cell_src(i,j,k,RhoQ2_comp   ) += -cell_src(i,j,k,RhoQ1_comp);
             });
         }
