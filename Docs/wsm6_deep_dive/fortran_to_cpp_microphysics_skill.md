@@ -1020,6 +1020,24 @@ wrf_gamma(4.8) will agree to ~6 significant digits but not exactly.
 Do not use Morrison's wrf_gamma to initialize WSM6 coefficients —
 this would break one-to-one Fortran/C++ validation for WSM6.
 
+### Rule 21 Addendum: Exact Special-Function Semantics Apply Beyond Init
+
+Do not replace a Fortran special helper with a mathematically related
+standard-library expression unless parity has been proven. This applies
+both to coefficient initialization and to local helper definitions inside
+runtime kernels.
+
+WSM6 example:
+  Fortran `rgmma` semantics used by NISLFV_R fall-speed coefficients
+  were not reproduced by a local C++ `1/std::tgamma(x)` shortcut.
+  The rain sedimentation qrain band closed only after matching the
+  Fortran-style `rgmma` product loop and the Fortran `pidn0r =
+  pi*denr*n0r` coefficient definition.
+
+Record no-effect parity patches separately:
+  the kb/kt search-backstep source mismatch was real but non-causal for
+  this scoped qrain failure.
+
 ---
 
 ## Rule 22: Name New Enum Entries by Convention Survey Before Writing [process rule]
@@ -1193,6 +1211,25 @@ Call sites in mp_wsm6_run:
 
 iter=0 path skips the mean-wind correction entirely.
 iter=1 path runs one mean-wind correction iteration.
+
+### Rule 24 Addendum: Sedimentation Kernel Boundary Proof
+
+For `nislfv`-style sedimentation kernels, compact canonical tags may
+not expose the working temporary that actually carries the divergence.
+Before patching remap/search/PLM code, bracket the kernel with Tier1.5
+block signatures.
+
+For rain sedimentation in WSM6, the useful boundary chain was:
+  qr input
+  den input
+  denqrs1_after_init
+  denqrs1_before_sedimentation
+  denqrs1_after_sedimentation
+  qr_after_writeback
+  qrain_persistent_post
+
+Patch only after the boundary proves which working temporary first
+diverges.
 
 ---
 
@@ -1769,6 +1806,48 @@ It exists to prevent overuse and misuse of Tier2 traces.
 - If the first differing expression input already differs, retreat upstream to the producer/source of that state.
 - If inputs match but expression result differs, inspect math semantics and compiler behavior.
 - If expressions match but output state differs, inspect storage, pack/unpack, and writeback.
+
+## Rule 30D: Tier1.5 Block-Signature Diagnostics
+
+Tier1.5 block signatures sit between compact Tier1 canonical tags and
+line-level Tier2 forensic traces. Use Tier1.5 when Tier1 identifies a
+failing group or boundary but the compact tag does not expose the full
+input/output signature needed to classify the divergence axis.
+
+A Tier1.5 probe treats a process block as a function. It prints all
+formal inputs immediately before the block and all formal outputs
+immediately after the block for one target column and a narrow k-window.
+
+Tier1.5 is appropriate for distinguishing:
+- input-state divergence
+- derived-working-state divergence
+- expression/update divergence
+- pack/unpack or writeback divergence
+- diagnostic-source mismatch
+
+Required schema tokens:
+  tag
+  phase=BLOCK_SIGNATURE
+  block_id
+  source_layer
+  role=input|output|inout|derived|constant|working|persistent
+  i_dbg
+  j_dbg
+  k_dbg
+  k_raw
+  var
+  value
+
+Rules:
+- Runtime-gated only.
+- One target column unless explicitly justified.
+- Narrow k-window around the failing band.
+- Observational only; do not change production expressions or update order.
+- Compare schema/order/index tokens before values.
+- Document any normalization, such as source_layer, duplicate emit collapse,
+  or Fortran/C++ index-base normalization.
+- Use Tier2 only after Tier1.5 identifies the unresolved sub-block or
+  first-line attribution is required.
 
 ## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern
 

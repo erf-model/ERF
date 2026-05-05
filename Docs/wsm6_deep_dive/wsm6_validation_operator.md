@@ -124,6 +124,47 @@ Only add new Tier2 records when existing evidence cannot classify
 the axis. New records must preserve the WSM6-DIAG-T2 schema and
 remain runtime-gated and observational.
 
+## Tier1.5 Block-Signature Probe Policy
+
+Tier1.5 is allowed when Tier1 is too sparse but Tier2 line tracing is
+premature.
+
+Tier1.5 block signatures sit between compact Tier1 canonical tags and
+line-level Tier2 forensic traces. Use Tier1.5 when Tier1 identifies a
+failing group or boundary but the compact tag does not expose the full
+input/output signature needed to classify the divergence axis.
+
+A Tier1.5 probe treats a process block as a function. It prints all
+formal inputs immediately before the block and all formal outputs
+immediately after the block for one target column and a narrow k-window.
+
+Tier1.5 follows the same clean-SHA execution evidence and ledger rules
+as Tier1 and Tier2.
+
+Tier1.5 required schema tokens:
+- `tag`
+- `phase=BLOCK_SIGNATURE`
+- `block_id`
+- `source_layer`
+- `role=input|output|inout|derived|constant|working|persistent`
+- `i_dbg`
+- `j_dbg`
+- `k_dbg`
+- `k_raw`
+- `var`
+- `value`
+
+Tier1.5 rules:
+- Runtime-gated only.
+- One target column unless explicitly justified.
+- Narrow k-window around the failing band.
+- Observational only; do not change production expressions or update order.
+- Compare schema/order/index tokens before values.
+- Document any normalization, including source_layer mapping, duplicate
+  emit collapse, or Fortran/C++ index-base normalization.
+- Use Tier2 only after Tier1.5 identifies the unresolved sub-block or
+  first-line attribution is required.
+
 
 ## 3. Setup IDs and Pass Gates
 

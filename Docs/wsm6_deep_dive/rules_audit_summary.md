@@ -17,6 +17,7 @@ Rules currently in `fortran_to_cpp_microphysics_skill.md`:
   - `Rule_29` (`## Rule 29: The loops/dtcld Minor Timestep Outer Loop`): Minor-timestep subdivision wrapping the full process group sequence is generic across bulk schemes; WSM6 `dtcld` is the demonstrated instance.
   - `Rule_30` (`## Rule 30: Phase 3 Diagnostic Instrumentation Protocol`): Defines canonical per-group diagnostic tags and gated target-column prints to create a Fortran-versus-C++ retreat oracle.
   - `Rule_30A` (`## Rule 30 Addendum: Runtime High-Precision Diagnostic Instrumentation`): Upgrades diagnostics to runtime-controlled high-precision output with synchronized Path A/Path B print contracts.
+  - `Rule_30D` (`## Rule 30D: Tier1.5 Block-Signature Diagnostics`): Defines scoped block-signature probes between compact Tier1 tags and Tier2 line traces for axis classification before first-line escalation.
   - `Rule_31` (`## Rule 31: Runtime Fortran/C++ toggle — Morrison pattern`): Requires a runtime implementation-path toggle via ParmParse instead of brittle build-time switching.
   - `Rule_33` (`## Rule 33: Pre-compile reflexive alignment pass — group-by-group`): Requires a pre-compile side-by-side scan for dropped boundary statements and off-by-one loop-bound translation errors.
   - `Rule_35` (`## Rule 35: Plotfile Parity Lane — Campaign Structure`): Defines ordered milestone-based plotfile parity campaigns, serial-first scope, and first-fail narrowing before retreat.
@@ -86,6 +87,8 @@ These rows encode knowledge learned from real failures and should be treated as 
 
   - `Rule_13`: Prevents slab allocation/indexing mismatch for 2D accumulators (`box2d` vs full `fab_box`) that can trigger parity drift or memory faults.
   - `Rule_21`: Prevents silent numerical drift from replacing exact special-function behavior with non-equivalent approximations at initialization time.
+  - `Rule_21_Addendum_ExactHelperSemantics`: Extends exact-helper parity requirements into runtime local helper paths and records non-causal parity cleanups separately from causal fixes.
+  - `Rule_24_Addendum_NISLFVBoundary`: Captures the high-loss boundary-proof method for sedimentation kernels: bracket working temporaries (for example `denqrs1`) before patching downstream update logic.
   - `Rule_32A`: Prevents uncontrolled forward implementation after first divergence by enforcing stop-diff-retreat and stepwise narrowing gates.
   - `Rule_34`: Prevents semantic mistranslation of Fortran control flow (`goto`, loop targets, `cycle`/`exit` mapping) that can pass smoke tests but fail later.
 
