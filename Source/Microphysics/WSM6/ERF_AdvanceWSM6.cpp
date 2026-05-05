@@ -424,7 +424,27 @@ void wsm6_nislfv_rain_plm (int im, int km,
                            Real* wwl, Real* rql,
                            Real* precip, Real dt,
                            int id, int iter,
-                           int line_check_dbg)
+                           int line_check_dbg,
+                           Real* dbg_zi = nullptr,
+                           Real* dbg_za = nullptr,
+                           Real* dbg_dza = nullptr,
+                           Real* dbg_wi = nullptr,
+                           Real* dbg_ww = nullptr,
+                           Real* dbg_wa = nullptr,
+                           Real* dbg_was = nullptr,
+                           Real* dbg_qa = nullptr,
+                           Real* dbg_qmi = nullptr,
+                           Real* dbg_qpi = nullptr,
+                           Real* dbg_kb_before_backstep = nullptr,
+                           Real* dbg_kt_before_backstep = nullptr,
+                           Real* dbg_kb_after_backstep = nullptr,
+                           Real* dbg_kt_after_backstep = nullptr,
+                           Real* dbg_kb_after_search = nullptr,
+                           Real* dbg_kt_after_search = nullptr,
+                           Real* dbg_zsum = nullptr,
+                           Real* dbg_qsum = nullptr,
+                           Real* dbg_qn = nullptr,
+                           Real* dbg_denqrs1_after_kernel = nullptr)
 {
     static_cast<void>(id);
 
@@ -467,6 +487,7 @@ void wsm6_nislfv_rain_plm (int im, int km,
         Real qmi[WSM6_MAX_LEVELS + 1];
         Real qpi[WSM6_MAX_LEVELS + 1];
 
+        const bool emit_search_dbg = (dbg_qn != nullptr);
         Real allold = Real(0.0);
         for (int k = 0; k < km; ++k) {
             const int idx = i * km + k;
@@ -518,6 +539,9 @@ void wsm6_nislfv_rain_plm (int im, int km,
         zi[0] = Real(0.0);
         for (int k = 0; k < km; ++k) {
             zi[k + 1] = zi[k] + dz[k];
+            if (emit_search_dbg) {
+                dbg_zi[k] = zi[k];
+            }
         }
 
         auto update_wind_and_state = [&](void) {
@@ -577,6 +601,15 @@ void wsm6_nislfv_rain_plm (int im, int km,
             for (int k = 0; k < km; ++k) {
                 qa[k] = qq[k] * dz[k] / dza[k];
                 qr[k] = qa[k] / den[k];
+                if (emit_search_dbg) {
+                    dbg_za[k] = za[k];
+                    dbg_dza[k] = dza[k];
+                    dbg_wi[k] = wi[k];
+                    dbg_ww[k] = ww[k];
+                    dbg_wa[k] = wa[k];
+                    dbg_was[k] = was[k];
+                    dbg_qa[k] = qa[k];
+                }
             }
             qa[km] = Real(0.0);
         };
@@ -612,21 +645,48 @@ void wsm6_nislfv_rain_plm (int im, int km,
                     qmi[k] = qa[k];
                 }
             }
+            if (emit_search_dbg) {
+                dbg_qmi[k] = qmi[k];
+                dbg_qpi[k] = qpi[k];
+            }
         }
         qpi[0] = qa[0];
         qmi[0] = qa[0];
         qmi[km] = qa[km];
         qpi[km] = qa[km];
+        if (emit_search_dbg) {
+            dbg_qmi[0] = qmi[0];
+            dbg_qpi[0] = qpi[0];
+        }
 
         for (int k = 0; k < km; ++k) {
             qn[k] = Real(0.0);
+            if (emit_search_dbg) {
+                dbg_kb_before_backstep[k] = Real(-1.0);
+                dbg_kt_before_backstep[k] = Real(-1.0);
+                dbg_kb_after_backstep[k] = Real(-1.0);
+                dbg_kt_after_backstep[k] = Real(-1.0);
+                dbg_kb_after_search[k] = Real(-1.0);
+                dbg_kt_after_search[k] = Real(-1.0);
+                dbg_zsum[k] = Real(0.0);
+                dbg_qsum[k] = Real(0.0);
+                dbg_qn[k] = Real(0.0);
+            }
         }
 
         int kb = 0;
         int kt = 0;
         for (int k = 0; k < km; ++k) {
+            if (emit_search_dbg) {
+                dbg_kb_before_backstep[k] = Real(kb);
+                dbg_kt_before_backstep[k] = Real(kt);
+            }
             kb = amrex::max(kb - 1, 0);
             kt = amrex::max(kt - 1, 0);
+            if (emit_search_dbg) {
+                dbg_kb_after_backstep[k] = Real(kb);
+                dbg_kt_after_backstep[k] = Real(kt);
+            }
 
             if (zi[k] >= za[km]) {
                 break;
@@ -646,6 +706,10 @@ void wsm6_nislfv_rain_plm (int im, int km,
                 }
             }
             kt = amrex::max(kt - 1, 0);
+            if (emit_search_dbg) {
+                dbg_kb_after_search[k] = Real(kb);
+                dbg_kt_after_search[k] = Real(kt);
+            }
 
             if (kt == kb) {
                 const Real tl = (zi[k] - za[kb]) / dza[kb];
@@ -656,6 +720,10 @@ void wsm6_nislfv_rain_plm (int im, int km,
                 const Real qqh = qqd * th2 + qmi[kb] * th;
                 const Real qql = qqd * tl2 + qmi[kb] * tl;
                 qn[k] = (qqh - qql) / (th - tl);
+                if (emit_search_dbg) {
+                    dbg_zsum[k] = dza[kb];
+                    dbg_qsum[k] = qn[k] * dza[kb];
+                }
             } else if (kt > kb) {
                 const Real tl = (zi[k] - za[kb]) / dza[kb];
                 const Real tl2 = tl * tl;
@@ -676,6 +744,13 @@ void wsm6_nislfv_rain_plm (int im, int km,
                 zsum += th * dza[kt];
                 qsum += dqh * dza[kt];
                 qn[k] = qsum / zsum;
+                if (emit_search_dbg) {
+                    dbg_zsum[k] = zsum;
+                    dbg_qsum[k] = qsum;
+                }
+            }
+            if (emit_search_dbg) {
+                dbg_qn[k] = qn[k];
             }
         }
 
@@ -693,6 +768,9 @@ void wsm6_nislfv_rain_plm (int im, int km,
         for (int k = 0; k < km; ++k) {
             rql[i * km + k] = qn[k];
             wwl[i * km + k] = ww[k];
+            if (emit_search_dbg) {
+                dbg_denqrs1_after_kernel[k] = qn[k];
+            }
         }
     }
 }
@@ -1386,6 +1464,35 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pihmf_arr     = pihmf_fab.array();
         auto const& pihtf_arr     = pihtf_fab.array();
         auto const& pgfrz_arr     = pgfrz_fab.array();
+        FArrayBox nislfv_r_search_denqrs1_before_kernel_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qq_or_rql_initial_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_den_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_denfac_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_dz_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_tk_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_ww_input_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_dtcld_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_zi_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_za_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_dza_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_wi_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_ww_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_wa_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_was_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qa_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qmi_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qpi_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kb_before_backstep_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kt_before_backstep_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kb_after_backstep_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kt_after_backstep_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kb_after_search_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_kt_after_search_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_zsum_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qsum_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_qn_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_denqrs1_after_kernel_dbg_fab(fab_box, 1);
+        FArrayBox nislfv_r_search_precip_or_delqrs1_dbg_fab(fab_box, 1);
         FArrayBox qr_update_before_dbg_fab(fab_box, 1);
         FArrayBox qr_update_increment_dbg_fab(fab_box, 1);
         FArrayBox qr_update_after_dbg_fab(fab_box, 1);
@@ -1412,6 +1519,35 @@ WSM6::Advance(const Real& dt_advance,
         auto const& denqrs1_prod_after_init_dbg_arr = denqrs1_prod_after_init_dbg_fab.array();
         auto const& denqrs1_prod_before_sed_dbg_arr = denqrs1_prod_before_sed_dbg_fab.array();
         auto const& denqrs1_prod_after_sed_dbg_arr = denqrs1_prod_after_sed_dbg_fab.array();
+        auto const& nislfv_r_search_denqrs1_before_kernel_dbg_arr = nislfv_r_search_denqrs1_before_kernel_dbg_fab.array();
+        auto const& nislfv_r_search_qq_or_rql_initial_dbg_arr = nislfv_r_search_qq_or_rql_initial_dbg_fab.array();
+        auto const& nislfv_r_search_den_dbg_arr = nislfv_r_search_den_dbg_fab.array();
+        auto const& nislfv_r_search_denfac_dbg_arr = nislfv_r_search_denfac_dbg_fab.array();
+        auto const& nislfv_r_search_dz_dbg_arr = nislfv_r_search_dz_dbg_fab.array();
+        auto const& nislfv_r_search_tk_dbg_arr = nislfv_r_search_tk_dbg_fab.array();
+        auto const& nislfv_r_search_ww_input_dbg_arr = nislfv_r_search_ww_input_dbg_fab.array();
+        auto const& nislfv_r_search_dtcld_dbg_arr = nislfv_r_search_dtcld_dbg_fab.array();
+        auto const& nislfv_r_search_zi_dbg_arr = nislfv_r_search_zi_dbg_fab.array();
+        auto const& nislfv_r_search_za_dbg_arr = nislfv_r_search_za_dbg_fab.array();
+        auto const& nislfv_r_search_dza_dbg_arr = nislfv_r_search_dza_dbg_fab.array();
+        auto const& nislfv_r_search_wi_dbg_arr = nislfv_r_search_wi_dbg_fab.array();
+        auto const& nislfv_r_search_ww_dbg_arr = nislfv_r_search_ww_dbg_fab.array();
+        auto const& nislfv_r_search_wa_dbg_arr = nislfv_r_search_wa_dbg_fab.array();
+        auto const& nislfv_r_search_was_dbg_arr = nislfv_r_search_was_dbg_fab.array();
+        auto const& nislfv_r_search_qa_dbg_arr = nislfv_r_search_qa_dbg_fab.array();
+        auto const& nislfv_r_search_qmi_dbg_arr = nislfv_r_search_qmi_dbg_fab.array();
+        auto const& nislfv_r_search_qpi_dbg_arr = nislfv_r_search_qpi_dbg_fab.array();
+        auto const& nislfv_r_search_kb_before_backstep_dbg_arr = nislfv_r_search_kb_before_backstep_dbg_fab.array();
+        auto const& nislfv_r_search_kt_before_backstep_dbg_arr = nislfv_r_search_kt_before_backstep_dbg_fab.array();
+        auto const& nislfv_r_search_kb_after_backstep_dbg_arr = nislfv_r_search_kb_after_backstep_dbg_fab.array();
+        auto const& nislfv_r_search_kt_after_backstep_dbg_arr = nislfv_r_search_kt_after_backstep_dbg_fab.array();
+        auto const& nislfv_r_search_kb_after_search_dbg_arr = nislfv_r_search_kb_after_search_dbg_fab.array();
+        auto const& nislfv_r_search_kt_after_search_dbg_arr = nislfv_r_search_kt_after_search_dbg_fab.array();
+        auto const& nislfv_r_search_zsum_dbg_arr = nislfv_r_search_zsum_dbg_fab.array();
+        auto const& nislfv_r_search_qsum_dbg_arr = nislfv_r_search_qsum_dbg_fab.array();
+        auto const& nislfv_r_search_qn_dbg_arr = nislfv_r_search_qn_dbg_fab.array();
+        auto const& nislfv_r_search_denqrs1_after_kernel_dbg_arr = nislfv_r_search_denqrs1_after_kernel_dbg_fab.array();
+        auto const& nislfv_r_search_precip_or_delqrs1_dbg_arr = nislfv_r_search_precip_or_delqrs1_dbg_fab.array();
         auto print_wsm6_tag6 = [&](const char* tag,
                                    const Array4<const Real>& a1,
                                    const Array4<const Real>& a2,
@@ -1731,6 +1867,12 @@ WSM6::Advance(const Real& dt_advance,
                  wsm6_tag_enabled(micro_diag_tags, "DENQRS1_PRODUCER_BOUNDARY") &&
                  wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
                  wsm6_store_enabled(micro_diag_store, "fused_min"));
+            const bool emit_nislfv_r_search_state =
+                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+                 ParallelDescriptor::IOProcessor() &&
+                 wsm6_tag_enabled(micro_diag_tags, "NISLFV_R_SEARCH_STATE") &&
+                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+                 wsm6_store_enabled(micro_diag_store, "fused_min"));
             if (emit_qr_producer_boundary) {
                 qr_prod_before_dbg_fab.setVal(Real(0.0));
                 qr_prod_denqrs1_dbg_fab.setVal(Real(0.0));
@@ -1743,6 +1885,37 @@ WSM6::Advance(const Real& dt_advance,
                 denqrs1_prod_after_init_dbg_fab.setVal(Real(0.0));
                 denqrs1_prod_before_sed_dbg_fab.setVal(Real(0.0));
                 denqrs1_prod_after_sed_dbg_fab.setVal(Real(0.0));
+            }
+            if (emit_nislfv_r_search_state) {
+                nislfv_r_search_denqrs1_before_kernel_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qq_or_rql_initial_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_den_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_denfac_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_dz_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_tk_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_ww_input_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_dtcld_dbg_fab.setVal(Real(dtcld));
+                nislfv_r_search_zi_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_za_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_dza_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_wi_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_ww_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_wa_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_was_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qa_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qmi_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qpi_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_kb_before_backstep_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_kt_before_backstep_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_kb_after_backstep_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_kt_after_backstep_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_kb_after_search_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_kt_after_search_dbg_fab.setVal(Real(-1.0));
+                nislfv_r_search_zsum_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qsum_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_qn_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_denqrs1_after_kernel_dbg_fab.setVal(Real(0.0));
+                nislfv_r_search_precip_or_delqrs1_dbg_fab.setVal(Real(0.0));
             }
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
@@ -1762,6 +1935,52 @@ WSM6::Advance(const Real& dt_advance,
                 Real delqrs1_col = Real(0.0);
                 Real delqrs2_col = Real(0.0);
                 Real delqrs3_col = Real(0.0);
+                Real search_zi_col[WSM6_MAX_LEVELS];
+                Real search_za_col[WSM6_MAX_LEVELS];
+                Real search_dza_col[WSM6_MAX_LEVELS];
+                Real search_wi_col[WSM6_MAX_LEVELS];
+                Real search_ww_col[WSM6_MAX_LEVELS];
+                Real search_wa_col[WSM6_MAX_LEVELS];
+                Real search_was_col[WSM6_MAX_LEVELS];
+                Real search_qa_col[WSM6_MAX_LEVELS];
+                Real search_qmi_col[WSM6_MAX_LEVELS];
+                Real search_qpi_col[WSM6_MAX_LEVELS];
+                Real search_kb_before_backstep_col[WSM6_MAX_LEVELS];
+                Real search_kt_before_backstep_col[WSM6_MAX_LEVELS];
+                Real search_kb_after_backstep_col[WSM6_MAX_LEVELS];
+                Real search_kt_after_backstep_col[WSM6_MAX_LEVELS];
+                Real search_kb_after_search_col[WSM6_MAX_LEVELS];
+                Real search_kt_after_search_col[WSM6_MAX_LEVELS];
+                Real search_zsum_col[WSM6_MAX_LEVELS];
+                Real search_qsum_col[WSM6_MAX_LEVELS];
+                Real search_qn_col[WSM6_MAX_LEVELS];
+                Real search_denqrs1_after_kernel_col[WSM6_MAX_LEVELS];
+                const bool emit_nislfv_r_search_kcol =
+                    emit_nislfv_r_search_state && (i == diag_i) && (j == diag_j);
+                if (emit_nislfv_r_search_kcol) {
+                    for (int kk = 0; kk < km_local; ++kk) {
+                        search_zi_col[kk] = Real(0.0);
+                        search_za_col[kk] = Real(0.0);
+                        search_dza_col[kk] = Real(0.0);
+                        search_wi_col[kk] = Real(0.0);
+                        search_ww_col[kk] = Real(0.0);
+                        search_wa_col[kk] = Real(0.0);
+                        search_was_col[kk] = Real(0.0);
+                        search_qa_col[kk] = Real(0.0);
+                        search_qmi_col[kk] = Real(0.0);
+                        search_qpi_col[kk] = Real(0.0);
+                        search_kb_before_backstep_col[kk] = Real(-1.0);
+                        search_kt_before_backstep_col[kk] = Real(-1.0);
+                        search_kb_after_backstep_col[kk] = Real(-1.0);
+                        search_kt_after_backstep_col[kk] = Real(-1.0);
+                        search_kb_after_search_col[kk] = Real(-1.0);
+                        search_kt_after_search_col[kk] = Real(-1.0);
+                        search_zsum_col[kk] = Real(0.0);
+                        search_qsum_col[kk] = Real(0.0);
+                        search_qn_col[kk] = Real(0.0);
+                        search_denqrs1_after_kernel_col[kk] = Real(0.0);
+                    }
+                }
 
                 // G5a: pack sedimentation work arrays
                 for (int k = klo; k <= khi; ++k) {
@@ -1794,6 +2013,17 @@ WSM6::Advance(const Real& dt_advance,
                         denqrs1_prod_after_init_dbg_arr(i,j,k) = denqrs1_col[kk];
                         denqrs1_prod_before_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
                     }
+                    if (emit_nislfv_r_search_kcol && wsm6_qr_k_focus(kk + 1)) {
+                        nislfv_r_search_denqrs1_before_kernel_dbg_arr(i,j,k) = denqrs1_col[kk];
+                        // qq_or_rql_initial maps to the local qq state transported by nislfv_rain_plm
+                        nislfv_r_search_qq_or_rql_initial_dbg_arr(i,j,k) = denqrs1_col[kk];
+                        nislfv_r_search_den_dbg_arr(i,j,k) = den_col[kk];
+                        nislfv_r_search_denfac_dbg_arr(i,j,k) = denfac_col[kk];
+                        nislfv_r_search_dz_dbg_arr(i,j,k) = dz_col[kk];
+                        nislfv_r_search_tk_dbg_arr(i,j,k) = t_col[kk];
+                        nislfv_r_search_ww_input_dbg_arr(i,j,k) = workr_col[kk];
+                        nislfv_r_search_dtcld_dbg_arr(i,j,k) = dtcld;
+                    }
                     if (qr_arr(i,j,k) <= Real(0.0)) {
                         workr_col[kk] = Real(0.0);
                     }
@@ -1802,7 +2032,27 @@ WSM6::Advance(const Real& dt_advance,
                 // G5b: rain sedimentation
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
-                    workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1, 0);
+                    workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1, 0,
+                    emit_nislfv_r_search_kcol ? search_zi_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_za_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_dza_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_wi_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_ww_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_wa_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_was_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_qa_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_qmi_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_qpi_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kb_before_backstep_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kt_before_backstep_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kb_after_backstep_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kt_after_backstep_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kb_after_search_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_kt_after_search_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_zsum_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_qsum_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_qn_col : nullptr,
+                    emit_nislfv_r_search_kcol ? search_denqrs1_after_kernel_col : nullptr);
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
                     const bool emit_denqrs1_prod_k =
@@ -1811,6 +2061,29 @@ WSM6::Advance(const Real& dt_advance,
                         wsm6_qr_k_focus(kk + 1);
                     if (emit_denqrs1_prod_k) {
                         denqrs1_prod_after_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
+                    }
+                    if (emit_nislfv_r_search_kcol && wsm6_qr_k_focus(kk + 1)) {
+                        nislfv_r_search_zi_dbg_arr(i,j,k) = search_zi_col[kk];
+                        nislfv_r_search_za_dbg_arr(i,j,k) = search_za_col[kk];
+                        nislfv_r_search_dza_dbg_arr(i,j,k) = search_dza_col[kk];
+                        nislfv_r_search_wi_dbg_arr(i,j,k) = search_wi_col[kk];
+                        nislfv_r_search_ww_dbg_arr(i,j,k) = search_ww_col[kk];
+                        nislfv_r_search_wa_dbg_arr(i,j,k) = search_wa_col[kk];
+                        nislfv_r_search_was_dbg_arr(i,j,k) = search_was_col[kk];
+                        nislfv_r_search_qa_dbg_arr(i,j,k) = search_qa_col[kk];
+                        nislfv_r_search_qmi_dbg_arr(i,j,k) = search_qmi_col[kk];
+                        nislfv_r_search_qpi_dbg_arr(i,j,k) = search_qpi_col[kk];
+                        nislfv_r_search_kb_before_backstep_dbg_arr(i,j,k) = search_kb_before_backstep_col[kk];
+                        nislfv_r_search_kt_before_backstep_dbg_arr(i,j,k) = search_kt_before_backstep_col[kk];
+                        nislfv_r_search_kb_after_backstep_dbg_arr(i,j,k) = search_kb_after_backstep_col[kk];
+                        nislfv_r_search_kt_after_backstep_dbg_arr(i,j,k) = search_kt_after_backstep_col[kk];
+                        nislfv_r_search_kb_after_search_dbg_arr(i,j,k) = search_kb_after_search_col[kk];
+                        nislfv_r_search_kt_after_search_dbg_arr(i,j,k) = search_kt_after_search_col[kk];
+                        nislfv_r_search_zsum_dbg_arr(i,j,k) = search_zsum_col[kk];
+                        nislfv_r_search_qsum_dbg_arr(i,j,k) = search_qsum_col[kk];
+                        nislfv_r_search_qn_dbg_arr(i,j,k) = search_qn_col[kk];
+                        nislfv_r_search_denqrs1_after_kernel_dbg_arr(i,j,k) = search_denqrs1_after_kernel_col[kk];
+                        nislfv_r_search_precip_or_delqrs1_dbg_arr(i,j,k) = delqrs1_col;
                     }
                 }
                 // Strict Rule 30 snapshot: immediately after G5b
@@ -1925,6 +2198,159 @@ WSM6::Advance(const Real& dt_advance,
                         "G5b_RAIN_SEDIMENTATION_DENQRS1", "output",
                         loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
                         "denqrs1_after_sedimentation", (double)denqrs1_prod_after_sed_dbg_arr(diag_i,diag_j,k));
+                }
+            }
+            if (emit_nislfv_r_search_state && ParallelDescriptor::IOProcessor()) {
+                const int loop_out = loop + 1;
+                Gpu::synchronize();
+                for (int k = klo; k <= khi; ++k) {
+                    const int k_dbg = (k - klo) + 1;
+                    if (!wsm6_qr_k_focus(k_dbg)) continue;
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs1_before_kernel", (double)nislfv_r_search_denqrs1_before_kernel_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qq_or_rql_initial", (double)nislfv_r_search_qq_or_rql_initial_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "den", (double)nislfv_r_search_den_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denfac", (double)nislfv_r_search_denfac_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "dz", (double)nislfv_r_search_dz_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "tk", (double)nislfv_r_search_tk_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "ww_or_fall_speed_input", (double)nislfv_r_search_ww_input_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "timestep",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "dtcld", (double)nislfv_r_search_dtcld_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "zi", (double)nislfv_r_search_zi_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "za", (double)nislfv_r_search_za_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "dza", (double)nislfv_r_search_dza_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "wi", (double)nislfv_r_search_wi_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "ww", (double)nislfv_r_search_ww_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "wa", (double)nislfv_r_search_wa_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "was", (double)nislfv_r_search_was_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qa", (double)nislfv_r_search_qa_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qmi", (double)nislfv_r_search_qmi_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qpi", (double)nislfv_r_search_qpi_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kb_before_backstep", (double)nislfv_r_search_kb_before_backstep_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kt_before_backstep", (double)nislfv_r_search_kt_before_backstep_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kb_after_backstep", (double)nislfv_r_search_kb_after_backstep_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kt_after_backstep", (double)nislfv_r_search_kt_after_backstep_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kb_after_search", (double)nislfv_r_search_kb_after_search_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "kt_after_search", (double)nislfv_r_search_kt_after_search_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "zsum", (double)nislfv_r_search_zsum_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qsum", (double)nislfv_r_search_qsum_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qn", (double)nislfv_r_search_qn_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "output",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs1_after_kernel", (double)nislfv_r_search_denqrs1_after_kernel_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5b_NISLFV_RAIN_SEDIMENTATION", "output",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "precip_or_delqrs1", (double)nislfv_r_search_precip_or_delqrs1_dbg_arr(diag_i,diag_j,k));
                 }
             }
             if (emit_qr_producer_boundary && ParallelDescriptor::IOProcessor()) {

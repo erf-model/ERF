@@ -974,7 +974,13 @@ integer:: i, j, k, mstepmax,                                     &
      enddo
    enddo
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,workr,denqrs1,  &
-                        delqrs1,dtcld,1,1)
+                        delqrs1,dtcld,1,1,                                  &
+                        emit_search_state=(mpdbg_level >= 2 .and. j_dbg_local >= 0), &
+                        diag_i_local=max(1,min(idim,i_dbg_local-its+1)),    &
+                        diag_j_dbg=j_dbg_local,                              &
+                        diag_k_raw_base=k_raw_base_local,                    &
+                        diag_loop_out=loop,                                  &
+                        diag_debug_level=mpdbg_level)
    if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
      do k = kts, kte
        if ((k-kts+1) < 10 .or. (k-kts+1) > 20) cycle
@@ -2394,7 +2400,9 @@ integer:: i, j, k, mstepmax,                                     &
  end subroutine slope_graup
 
 !=================================================================================================================
- subroutine nislfv_rain_plm(im,km,denl,denfacl,tkl,dzl,wwl,rql,precip,dt,id,iter)
+subroutine nislfv_rain_plm(im,km,denl,denfacl,tkl,dzl,wwl,rql,precip,dt,id,iter, &
+                           emit_search_state,diag_i_local,diag_j_dbg,diag_k_raw_base, &
+                           diag_loop_out,diag_debug_level)
 !=================================================================================================================
 !
 ! for non-iteration semi-Lagrangain forward advection for cloud
@@ -2418,7 +2426,10 @@ integer:: i, j, k, mstepmax,                                     &
 !
 
 !--- input arguments:
- integer,intent(in):: im,km,id,iter
+integer,intent(in):: im,km,id,iter
+logical,intent(in),optional :: emit_search_state
+integer,intent(in),optional :: diag_i_local,diag_j_dbg,diag_k_raw_base
+integer,intent(in),optional :: diag_loop_out,diag_debug_level
 
  real(kind=kind_phys),intent(in):: dt
  real(kind=kind_phys),intent(in),dimension(im,km):: dzl,denl,denfacl,tkl
@@ -2428,18 +2439,34 @@ integer:: i, j, k, mstepmax,                                     &
  real(kind=kind_phys),intent(inout),dimension(im,km):: rql,wwl
 
 !---- local variables and arrays:
- integer:: i,k,n,m,kk,kb,kt
- real(kind=kind_phys):: tl,tl2,qql,dql,qqd
- real(kind=kind_phys):: th,th2,qqh,dqh
- real(kind=kind_phys):: zsum,qsum,dim,dip,c1,con1,fa1,fa2
- real(kind=kind_phys):: allold,allnew,zz,dzamin,cflmax,decfl
- real(kind=kind_phys),dimension(km):: dz,ww,qq,wd,wa,was
- real(kind=kind_phys),dimension(km):: den,denfac,tk
- real(kind=kind_phys),dimension(km):: qn,qr,tmp,tmp1,tmp2,tmp3
- real(kind=kind_phys),dimension(km+1):: wi,zi,za
- real(kind=kind_phys),dimension(km+1):: dza,qa,qmi,qpi
+integer:: i,k,n,m,kk,kb,kt
+integer:: diag_i_local_use,diag_j_dbg_use,diag_k_raw_base_use
+integer:: diag_loop_out_use,diag_debug_level_use
+real(kind=kind_phys):: tl,tl2,qql,dql,qqd
+real(kind=kind_phys):: th,th2,qqh,dqh
+real(kind=kind_phys):: zsum,qsum,dim,dip,c1,con1,fa1,fa2
+real(kind=kind_phys):: allold,allnew,zz,dzamin,cflmax,decfl
+real(kind=kind_phys),dimension(km):: dz,ww,qq,wd,wa,was
+real(kind=kind_phys),dimension(km):: den,denfac,tk
+real(kind=kind_phys),dimension(km):: qn,qr,tmp,tmp1,tmp2,tmp3
+real(kind=kind_phys),dimension(km+1):: wi,zi,za
+real(kind=kind_phys),dimension(km+1):: dza,qa,qmi,qpi
+logical :: do_search_state_probe,emit_search_k
 
 !-----------------------------------------------------------------------------------------------------------------
+
+ do_search_state_probe = .false.
+ if (present(emit_search_state)) do_search_state_probe = emit_search_state
+ diag_i_local_use = 1
+ if (present(diag_i_local)) diag_i_local_use = max(1,min(im,diag_i_local))
+ diag_j_dbg_use = -1
+ if (present(diag_j_dbg)) diag_j_dbg_use = diag_j_dbg
+ diag_k_raw_base_use = 0
+ if (present(diag_k_raw_base)) diag_k_raw_base_use = diag_k_raw_base
+ diag_loop_out_use = 0
+ if (present(diag_loop_out)) diag_loop_out_use = diag_loop_out
+ diag_debug_level_use = 2
+ if (present(diag_debug_level)) diag_debug_level_use = diag_debug_level
 
  precip(:) = 0.0
 
@@ -2461,6 +2488,35 @@ integer:: i, j, k, mstepmax,                                     &
        if (iter == 0 .and. id /= 0 .and. (id < 0 .or. i == id)) then
           write(*,'(A,I3,6E24.16)') 'WSM6-FORT_POST_ALLOLD ', k, &
                real(i,kind=kind_phys), qq(k), allold, dz(k), ww(k), den(k)
+       endif
+       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
+       if (emit_search_k) then
+          ! qq is the local transported rain-mass state; we emit it as qq_or_rql_initial
+          ! to align with the C++ probe vocabulary.
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denqrs1_before_kernel", qq(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qq_or_rql_initial", qq(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "den", den(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denfac", denfac(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dz", dz(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "tk", tk(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "ww_or_fall_speed_input", ww(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "timestep", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dtcld", dt)
        endif
     enddo
     if(allold.le.0.0) then
@@ -2522,6 +2578,33 @@ integer:: i, j, k, mstepmax,                                     &
     do k=1,km
        qa(k) = qq(k)*dz(k)/dza(k)
        qr(k) = qa(k)/den(k)
+       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
+       if (emit_search_k) then
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "zi", zi(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "za", za(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dza", dza(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "wi", wi(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "ww", ww(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "wa", wa(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "was", was(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qa", qa(k))
+       endif
     enddo
     qa(km+1) = 0.0
 !     call maxmin(km,1,qa,' arrival points ')
@@ -2558,6 +2641,15 @@ integer:: i, j, k, mstepmax,                                     &
              qmi(k) = qa(k)
           endif
        endif
+       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
+       if (emit_search_k) then
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qmi", qmi(k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qpi", qpi(k))
+       endif
     enddo
     qpi(1)=qa(1)
     qmi(1)=qa(1)
@@ -2569,8 +2661,25 @@ integer:: i, j, k, mstepmax,                                     &
     kb=1
     kt=1
     intp : do k=1,km
+       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
+       if (emit_search_k) then
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_before_backstep", real(kb,kind=kind_phys))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_before_backstep", real(kt,kind=kind_phys))
+       endif
        kb=max(kb-1,1)
        kt=max(kt-1,1)
+       if (emit_search_k) then
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_after_backstep", real(kb,kind=kind_phys))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_after_backstep", real(kt,kind=kind_phys))
+       endif
 ! find kb and kt
        if( zi(k).ge.za(km+1) ) then
           exit intp
@@ -2592,6 +2701,14 @@ integer:: i, j, k, mstepmax,                                     &
              endif
           enddo find_kt
           kt = kt - 1
+          if (emit_search_k) then
+             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_after_search", real(kb,kind=kind_phys))
+             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_after_search", real(kt,kind=kind_phys))
+          endif
 ! compute q with piecewise constant method
           if( kt.eq.kb ) then
              tl=(zi(k)-za(kb))/dza(kb)
@@ -2602,6 +2719,8 @@ integer:: i, j, k, mstepmax,                                     &
              qqh=qqd*th2+qmi(kb)*th
              qql=qqd*tl2+qmi(kb)*tl
              qn(k) = (qqh-qql)/(th-tl)
+             zsum = dza(kb)
+             qsum = qn(k)*zsum
           else if( kt.gt.kb ) then
              tl=(zi(k)-za(kb))/dza(kb)
              tl2=tl*tl
@@ -2624,6 +2743,17 @@ integer:: i, j, k, mstepmax,                                     &
              qsum  = qsum + dqh*dza(kt)
              qn(k) = qsum/zsum
           endif
+          if (emit_search_k) then
+             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "zsum", zsum)
+             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qsum", qsum)
+             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+                  "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qn", qn(k))
+          endif
           cycle intp
        endif
 !
@@ -2643,6 +2773,17 @@ integer:: i, j, k, mstepmax,                                     &
 !
 ! replace the new values
     rql(i,:) = qn(:)
+    if (do_search_state_probe .and. i == diag_i_local_use) then
+       do k=1,km
+          if (k < 10 .or. k > 20) cycle
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "output", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denqrs1_after_kernel", rql(i,k))
+          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+               "G5b_NISLFV_RAIN_SEDIMENTATION", "output", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
+               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "precip_or_delqrs1", precip(i))
+       enddo
+    endif
  enddo i_loop
 
  end subroutine nislfv_rain_plm
