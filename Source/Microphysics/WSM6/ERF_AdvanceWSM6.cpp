@@ -625,6 +625,9 @@ void wsm6_nislfv_rain_plm (int im, int km,
         int kb = 0;
         int kt = 0;
         for (int k = 0; k < km; ++k) {
+            kb = amrex::max(kb - 1, 0);
+            kt = amrex::max(kt - 1, 0);
+
             if (zi[k] >= za[km]) {
                 break;
             }
