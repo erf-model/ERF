@@ -2144,6 +2144,7 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     }
 
     qmoist.resize(a_nlevsmax);
+    macrophysics_src.resize(a_nlevsmax);
     return;
 }
 

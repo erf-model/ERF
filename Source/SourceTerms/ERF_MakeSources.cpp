@@ -8,7 +8,6 @@
 #include "ERF_SrcHeaders.H"
 #include "ERF_TI_slow_headers.H"
 #include "ERF_MOSTStress.H"
-#include "ERF_MacroPhysics.H"
 
 using namespace amrex;
 
@@ -35,7 +34,6 @@ void make_sources (int level,
                    int /*nrk*/,
                    Real dt,
                    Real time,
-                   const Vector<MultiFab>& S_old,
                    const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -48,6 +46,7 @@ void make_sources (int level,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
                    Vector<std::unique_ptr<MultiFab>>& mapfac,
+                   const MultiFab* macrophysics_src,
                    const MultiFab* rhotheta_src,
                    const MultiFab* rhoqt_src,
                    const Real* dptr_wbar_sub,
@@ -56,8 +55,7 @@ void make_sources (int level,
                    const MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
-                   bool is_slow_step,
-                   int real_width)
+                   bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -69,10 +67,6 @@ void make_sources (int level,
     } else {
         source.setVal(0.0,Rho_comp,2);
     }
-
-    Real idt        = amrex::Real(1.0) / dt;
-    Real d_rdOcp    = R_d / Cp_d;
-    Real d_fac_cond = L_v / Cp_d;
 
     const bool l_use_ndiff = solverChoice.use_num_diff;
 
@@ -216,7 +210,7 @@ void make_sources (int level,
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
     //   11. Four stream radiation source for (rho theta)
-    //   12. Macrophysics source for (rho theta; rho Q1; rho Q2)
+    //   12. Macrophysics source for (rho theta)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -230,10 +224,11 @@ void make_sources (int level,
     {
         Box bx  = mfi.tilebox();
 
-        const Array4<const Real>& cell_old   = S_old[IntVars::cons].array(mfi);
         const Array4<const Real>& cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real>& cell_prim  = S_prim.array(mfi);
         const Array4<Real>      & cell_src   = source.array(mfi);
+
+        const Array4<const Real>& mac_src    = macrophysics_src->const_array(mfi);
 
         const Array4<const Real>& r0  = r_hse.const_array(mfi);
         const Array4<const Real>& th0 = th_hse.const_array(mfi);
@@ -752,57 +747,9 @@ void make_sources (int level,
         // 12. Add macrophysics source for RhoTheta, RhoQ1, and RhoQ2
         // *************************************************************************************
         if (is_slow_step && has_moisture && tight_macro) {
-            int i_lo = domain.smallEnd(0);
-            int i_hi = domain.bigEnd(0);
-            int j_lo = domain.smallEnd(1);
-            int j_hi = domain.bigEnd(1);
-
-            auto tbx = bx;
-            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-real_width); }
-            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-real_width); }
-            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-real_width); }
-            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-real_width); }
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                // Conserved CC vars at start of step
-                Real rho_old  = cell_old(i,j,k,Rho_comp);
-                Real th_old   = cell_old(i,j,k,RhoTheta_comp) / rho_old;
-                Real qv_old   = cell_old(i,j,k,RhoQ1_comp   ) / rho_old;
-
-                // Conserved CC vars at start of RK stage
-                Real rho_s  = cell_data(i,j,k,Rho_comp);
-                Real rt_s   = cell_data(i,j,k,RhoTheta_comp);
-                Real qv_s   = cell_data(i,j,k,RhoQ1_comp   ) / rho_s;
-                Real qc_s   = cell_data(i,j,k,RhoQ2_comp   ) / rho_s;
-
-                // To be updated in place
-                Real qs;
-                Real qv_f   = qv_s;
-                Real tabs_f = getTgivenRandRTh(rho_s, rt_s, qv_s);
-
-                // Invariants
-                Real qt   = qv_s + qc_s;
-                Real pres = getPgivenRTh(rt_s, qv_s);
-
-                // Valid Newton iteration
-                erf_qsatw(tabs_f, pres*Real(0.01), qs);
-                if (qt > qs) {
-                    NewtonIterSat(d_fac_cond, tabs_f, pres*Real(0.01), qv_f);
-                }
-                // Put qc into qv and double check Newton iter criteria
-                else {
-                    qv_f   += qc_s;
-                    tabs_f -= d_fac_cond * qc_s;
-                    erf_qsatw(tabs_f, pres*Real(0.01), qs);
-                    if (qv_f > qs) {
-                        NewtonIterSat(d_fac_cond, tabs_f, pres*Real(0.01), qv_f);
-                    }
-                }
-
-                // Populate tendencies
-                cell_src(i,j,k,RhoTheta_comp) += rho_s * idt * ( getThgivenTandP(tabs_f, pres, d_rdOcp) - th_old );
-                cell_src(i,j,k,RhoQ1_comp   ) += rho_s * idt * ( qv_f - qv_old );
-                cell_src(i,j,k,RhoQ2_comp   ) += -cell_src(i,j,k,RhoQ1_comp);
+                cell_src(i,j,k,RhoTheta_comp) += mac_src(i,j,k);
             });
         }
     } // mfi

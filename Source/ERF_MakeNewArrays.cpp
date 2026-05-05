@@ -43,7 +43,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Allocate terrain arrays
     // ********************************************************************************************
-
     BoxArray ba_nd(ba);
     ba_nd.surroundingNodes();
 
@@ -463,6 +462,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(0);
         rad_fluxes[lev]->setVal(0);
+    }
+
+    //*********************************************************
+    // Macrophysics heating source terms
+    //*********************************************************
+    if (solverChoice.moisture_type != MoistureType::None &&
+        solverChoice.macrophysics_tight_coupling)
+    {
+        macrophysics_src[lev] = std::make_unique<MultiFab>(ba, dm, 1, 0);
+        macrophysics_src[lev]->setVal(0);
     }
 
     //*********************************************************

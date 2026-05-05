@@ -100,15 +100,15 @@
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
-                     S_old, S_data, S_prim, cc_src, base_state[level], zpc_to_use,
+                     S_data, S_prim, cc_src, base_state[level], zpc_to_use,
                      xvel_new, yvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
-                     rhotheta_src[level].get(), rhoqt_src[level].get(),
+                     macrophysics_src[level].get(), rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, true, real_width);
+                     input_sounding_data, turbPert, true);
 
         // *****************************************************************************
         // Define the pressure gradient

@@ -59,16 +59,16 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         }
 
         make_sources(level, nrk, dtau, old_substep_time,
-                     S_old, Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
+                     Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
                      xvel_new, yvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
-                     rhotheta_src[level].get(), rhoqt_src[level].get(),
+                     macrophysics_src[level].get(), rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, false, real_width);
+                     input_sounding_data, turbPert, false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling

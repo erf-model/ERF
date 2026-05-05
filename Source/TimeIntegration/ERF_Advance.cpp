@@ -1,8 +1,9 @@
-#include <ERF.H>
-#include <ERF_Utils.H>
+#include "ERF.H"
+#include "ERF_Utils.H"
+#include "ERF_MacroPhysics.H"
 
 #ifdef ERF_USE_WINDFARM
-#include <ERF_WindFarm.H>
+#include "ERF_WindFarm.H"
 #endif
 
 using namespace amrex;
@@ -203,6 +204,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rU_new[lev], amrex::make_alias, 0,     1)); // xmom
     state_new.push_back(MultiFab(rV_new[lev], amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
+
+    // **************************************************************************************
+    // Macrophysics source term computed pre-step
+    // **************************************************************************************
+    if (solverChoice.moisture_type != MoistureType::None &&
+        solverChoice.macrophysics_tight_coupling)
+    {
+        GetMacroPhysicsSrc(real_width, dt_lev, Geom(lev), macrophysics_src[lev].get(), S_old);
+    }
 
     // **************************************************************************************
     // Tests on the reasonableness of the solution before the dycore
