@@ -21,6 +21,7 @@ compute_ensemble_mean(const std::string& pf_name,
                       int Nens,
                       const amrex::Vector<std::string>& varnames);
 
+void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
 
 extern "C" {
     void dgetrf_(int* M, int* N, double* A, int* lda, int* ipiv, int* info);
