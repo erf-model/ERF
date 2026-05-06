@@ -485,7 +485,7 @@ void erf_substep_T (int step, int /*nrk*/,
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
                 (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * myhalf * (prim(i,j,k,0) + prim(i-1,j,k,0));
-                (flx_arr[0])(i,j,k,2) = (flx_arr[0])(i  ,j,k,0) * myhalf * (prim(i,j,k,3) + prim(i-1,j,k,4));
+                (flx_arr[0])(i,j,k,2) = (flx_arr[0])(i  ,j,k,0) * myhalf * (prim(i,j,k,3) + prim(i-1,j,k,3));
 
                 (flx_arr[1])(i,j,k,0) = yflux_lo;
                 (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * myhalf * (prim(i,j,k,0) + prim(i,j-1,k,0));
@@ -717,7 +717,7 @@ void erf_substep_T (int step, int /*nrk*/,
                   if (l_reflux) {
                       (flx_arr[2])(i,j,k+1,0) =      zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                       (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * myhalf * (prim(i,j,k,0) + prim(i,j,k+1,0));
-                      (flx_arr[2])(i,j,k+1,3) = (flx_arr[2])(i,j,k+1,0) * myhalf * (prim(i,j,k,3) + prim(i,j,k+1,3));
+                      (flx_arr[2])(i,j,k+1,2) = (flx_arr[2])(i,j,k+1,0) * myhalf * (prim(i,j,k,3) + prim(i,j,k+1,3));
                   }
               }
 
