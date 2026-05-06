@@ -803,21 +803,35 @@ void wsm6_nislfv_rain_plm6 (int im, int km,
     constexpr Real pi = Real(3.141592653589793238462643383279502884);
     auto rgmma = [](Real x) -> Real {
         if (x == Real(1.0)) return Real(0.0);
-        return Real(1.0) / std::tgamma(static_cast<double>(x));
+        constexpr Real euler = Real(0.577215664901532);
+        Real rg = x * std::exp(euler * x);
+        for (int ii = 1; ii <= 10000; ++ii) {
+            const Real y = static_cast<Real>(ii);
+            rg = rg * (Real(1.0) + x / y) * std::exp(-x / y);
+        }
+        return Real(1.0) / rg;
     };
 
-    const Real pidn0s = Real(4.0) * pi * Real(rhoh2o) * WSM6::n0s;
-    const Real pidn0g = Real(4.0) * pi * Real(rhoh2o) * Real(4.0e6);
+    // Match Fortran mp_wsm6_init graupel-mode coefficient definitions.
+    const Real dens = WSM6::dens_snow;
+    const Real n0g = Real(4.0e6);
+    const Real deng = Real(500.0);
+    const Real avtg = Real(330.0);
+    const Real bvtg = Real(0.8);
+    const Real lamdagmax = Real(6.0e4);
+
+    const Real pidn0s = pi * dens * WSM6::n0s;
+    const Real pidn0g = pi * deng * n0g;
     const Real rslopesmax = Real(1.0) / WSM6::lamdasmax;
     const Real rslopesbmax = std::pow(rslopesmax, WSM6::bvts);
     const Real rslopes2max = rslopesmax * rslopesmax;
     const Real rslopes3max = rslopes2max * rslopesmax;
-    const Real rslopegmax = Real(1.0) / Real(6.0e4);
-    const Real rslopegbmax = std::pow(rslopegmax, Real(0.8));
+    const Real rslopegmax = Real(1.0) / lamdagmax;
+    const Real rslopegbmax = std::pow(rslopegmax, bvtg);
     const Real rslopeg2max = rslopegmax * rslopegmax;
     const Real rslopeg3max = rslopeg2max * rslopegmax;
     const Real pvts = WSM6::avts * rgmma(Real(4.0) + WSM6::bvts) / Real(6.0);
-    const Real pvtg = Real(330.0) * rgmma(Real(4.0) + Real(0.8)) / Real(6.0);
+    const Real pvtg = avtg * rgmma(Real(4.0) + bvtg) / Real(6.0);
 
     for (int i = 0; i < im; ++i) {
         Real dz[WSM6_MAX_LEVELS];
