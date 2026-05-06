@@ -273,10 +273,16 @@ ERF::init_from_wrfinput (int lev,
                 //    to be filled
                 int nx = var_fab_from_file.box().length(0);
                 int ny = var_fab_from_file.box().length(1);
+                int nz = var_fab_from_file.box().length(2);
                 Box subdomain_tmp(subdomain_to_fill);
                 if (nx == 1 and ny == 1) {
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
+                }
+                // Handle 2D horizontal data (single layer in z)
+                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
+                if (nz == 1) {
+                    subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
@@ -731,6 +737,9 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac U
           if ( var_name == "MAPFAC_U" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
+//              Box bx2d = var_fab.box();
+//              bx2d.setRange(2, 0, 1);
+//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -763,6 +772,9 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac V
           if ( var_name == "MAPFAC_V" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
+//              Box bx2d = var_fab.box();
+//              bx2d.setRange(2, 0, 1);
+//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -795,6 +807,9 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac M
           if ( var_name == "MAPFAC_M" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
+//              Box bx2d = var_fab.box();
+//              bx2d.setRange(2, 0, 1);
+//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1048,8 +1063,8 @@ ERF::init_from_wrfinput (int lev,
             int ntimes_erfbdy;
             Vector<Real> bdy_times;
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
-                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
-                                                        bdy_times, start_bdy_time, final_bdy_time);
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
 
             Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
             Print() << "start_bdy_time = " << start_bdy_time << std::endl;
