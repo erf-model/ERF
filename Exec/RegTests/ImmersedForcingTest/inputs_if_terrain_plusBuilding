@@ -81,8 +81,3 @@ erf.rotational_time_period = 86400.0
 # Geostrophic wind 
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
-
-# Higher values of perturbations lead to instability
-# Instability seems to be coming from BC
-prob.T_0_Pert_Mag    = 0.5 # [K]
-prob.pert_ref_height = 500. # [m]

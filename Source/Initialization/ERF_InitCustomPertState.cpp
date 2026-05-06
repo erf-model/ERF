@@ -89,7 +89,7 @@ ERF::init_custom (int lev)
             ParallelFor(bx,
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 if (c_cellflg(i,j,k).isCovered()) {
-                    cons_pert_arr(i,j,k) = 0.0;
+                    cons_pert_arr(i,j,k,RhoTheta_comp) = 0.0;
                 }
             });
 
