@@ -130,6 +130,12 @@ wsm6_qr_k_focus(int k_dbg)
     return (k_dbg >= 10 && k_dbg <= 20);
 }
 
+bool
+wsm6_mixedphase_k_focus(int k_dbg)
+{
+    return (k_dbg >= 21 && k_dbg <= 24);
+}
+
 const std::array<const char*, 6>&
 wsm6_tag6_var_names(const char* tag)
 {
@@ -1513,6 +1519,16 @@ WSM6::Advance(const Real& dt_advance,
         FArrayBox denqrs1_prod_after_init_dbg_fab(fab_box, 1);
         FArrayBox denqrs1_prod_before_sed_dbg_fab(fab_box, 1);
         FArrayBox denqrs1_prod_after_sed_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_qr_before_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_qs_before_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_qg_before_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_den_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_denqrs2_before_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_denqrs3_before_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_denqrs2_after_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_denqrs3_after_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_qs_after_dbg_fab(fab_box, 1);
+        FArrayBox mixedphase_prod_qg_after_dbg_fab(fab_box, 1);
         auto const& qr_update_before_dbg_arr = qr_update_before_dbg_fab.array();
         auto const& qr_update_increment_dbg_arr = qr_update_increment_dbg_fab.array();
         auto const& qr_update_after_dbg_arr = qr_update_after_dbg_fab.array();
@@ -1526,6 +1542,16 @@ WSM6::Advance(const Real& dt_advance,
         auto const& denqrs1_prod_after_init_dbg_arr = denqrs1_prod_after_init_dbg_fab.array();
         auto const& denqrs1_prod_before_sed_dbg_arr = denqrs1_prod_before_sed_dbg_fab.array();
         auto const& denqrs1_prod_after_sed_dbg_arr = denqrs1_prod_after_sed_dbg_fab.array();
+        auto const& mixedphase_prod_qr_before_dbg_arr = mixedphase_prod_qr_before_dbg_fab.array();
+        auto const& mixedphase_prod_qs_before_dbg_arr = mixedphase_prod_qs_before_dbg_fab.array();
+        auto const& mixedphase_prod_qg_before_dbg_arr = mixedphase_prod_qg_before_dbg_fab.array();
+        auto const& mixedphase_prod_den_dbg_arr = mixedphase_prod_den_dbg_fab.array();
+        auto const& mixedphase_prod_denqrs2_before_dbg_arr = mixedphase_prod_denqrs2_before_dbg_fab.array();
+        auto const& mixedphase_prod_denqrs3_before_dbg_arr = mixedphase_prod_denqrs3_before_dbg_fab.array();
+        auto const& mixedphase_prod_denqrs2_after_dbg_arr = mixedphase_prod_denqrs2_after_dbg_fab.array();
+        auto const& mixedphase_prod_denqrs3_after_dbg_arr = mixedphase_prod_denqrs3_after_dbg_fab.array();
+        auto const& mixedphase_prod_qs_after_dbg_arr = mixedphase_prod_qs_after_dbg_fab.array();
+        auto const& mixedphase_prod_qg_after_dbg_arr = mixedphase_prod_qg_after_dbg_fab.array();
         auto const& nislfv_r_search_denqrs1_before_kernel_dbg_arr = nislfv_r_search_denqrs1_before_kernel_dbg_fab.array();
         auto const& nislfv_r_search_qq_or_rql_initial_dbg_arr = nislfv_r_search_qq_or_rql_initial_dbg_fab.array();
         auto const& nislfv_r_search_den_dbg_arr = nislfv_r_search_den_dbg_fab.array();
@@ -1880,6 +1906,12 @@ WSM6::Advance(const Real& dt_advance,
                  wsm6_tag_enabled(micro_diag_tags, "NISLFV_R_SEARCH_STATE") &&
                  wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
                  wsm6_store_enabled(micro_diag_store, "fused_min"));
+            const bool emit_mixedphase_producer_boundary =
+                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
+                 ParallelDescriptor::IOProcessor() &&
+                 wsm6_tag_enabled(micro_diag_tags, "MIXEDPHASE_PRODUCER_BOUNDARY") &&
+                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
+                 wsm6_store_enabled(micro_diag_store, "fused_min"));
             if (emit_qr_producer_boundary) {
                 qr_prod_before_dbg_fab.setVal(Real(0.0));
                 qr_prod_denqrs1_dbg_fab.setVal(Real(0.0));
@@ -1892,6 +1924,18 @@ WSM6::Advance(const Real& dt_advance,
                 denqrs1_prod_after_init_dbg_fab.setVal(Real(0.0));
                 denqrs1_prod_before_sed_dbg_fab.setVal(Real(0.0));
                 denqrs1_prod_after_sed_dbg_fab.setVal(Real(0.0));
+            }
+            if (emit_mixedphase_producer_boundary) {
+                mixedphase_prod_qr_before_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_qs_before_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_qg_before_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_den_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_denqrs2_before_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_denqrs3_before_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_denqrs2_after_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_denqrs3_after_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_qs_after_dbg_fab.setVal(Real(0.0));
+                mixedphase_prod_qg_after_dbg_fab.setVal(Real(0.0));
             }
             if (emit_nislfv_r_search_state) {
                 nislfv_r_search_denqrs1_before_kernel_dbg_fab.setVal(Real(0.0));
@@ -2016,6 +2060,18 @@ WSM6::Advance(const Real& dt_advance,
                     denqrs1_col[kk] = den_col[kk] * qr_arr(i,j,k);
                     denqrs2_col[kk] = den_col[kk] * qs_arr(i,j,k);
                     denqrs3_col[kk] = den_col[kk] * qg_arr(i,j,k);
+                    const bool emit_mixedphase_prod_k =
+                        emit_mixedphase_producer_boundary &&
+                        (i == diag_i) && (j == diag_j) &&
+                        wsm6_mixedphase_k_focus(kk + 1);
+                    if (emit_mixedphase_prod_k) {
+                        mixedphase_prod_qr_before_dbg_arr(i,j,k) = qr_arr(i,j,k);
+                        mixedphase_prod_qs_before_dbg_arr(i,j,k) = qs_arr(i,j,k);
+                        mixedphase_prod_qg_before_dbg_arr(i,j,k) = qg_arr(i,j,k);
+                        mixedphase_prod_den_dbg_arr(i,j,k) = den_col[kk];
+                        mixedphase_prod_denqrs2_before_dbg_arr(i,j,k) = denqrs2_col[kk];
+                        mixedphase_prod_denqrs3_before_dbg_arr(i,j,k) = denqrs3_col[kk];
+                    }
                     if (emit_denqrs1_prod_k) {
                         denqrs1_prod_after_init_dbg_arr(i,j,k) = denqrs1_col[kk];
                         denqrs1_prod_before_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
@@ -2118,6 +2174,14 @@ WSM6::Advance(const Real& dt_advance,
                     nislfv_sg_diag_arr(i,j,k,3) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
                     nislfv_sg_diag_arr(i,j,k,4) = denqrs2_col[kk];
                     nislfv_sg_diag_arr(i,j,k,5) = denqrs3_col[kk];
+                    const bool emit_mixedphase_prod_k =
+                        emit_mixedphase_producer_boundary &&
+                        (i == diag_i) && (j == diag_j) &&
+                        wsm6_mixedphase_k_focus(kk + 1);
+                    if (emit_mixedphase_prod_k) {
+                        mixedphase_prod_denqrs2_after_dbg_arr(i,j,k) = denqrs2_col[kk];
+                        mixedphase_prod_denqrs3_after_dbg_arr(i,j,k) = denqrs3_col[kk];
+                    }
                 }
 
                 // G5d: update species and fall speeds
@@ -2144,6 +2208,14 @@ WSM6::Advance(const Real& dt_advance,
                     }
                     qs_arr(i,j,k) = amrex::max(denqrs2_col[kk] / den_col[kk], Real(0.0));
                     qg_arr(i,j,k) = amrex::max(denqrs3_col[kk] / den_col[kk], Real(0.0));
+                    const bool emit_mixedphase_prod_k =
+                        emit_mixedphase_producer_boundary &&
+                        (i == diag_i) && (j == diag_j) &&
+                        wsm6_mixedphase_k_focus(kk + 1);
+                    if (emit_mixedphase_prod_k) {
+                        mixedphase_prod_qs_after_dbg_arr(i,j,k) = qs_arr(i,j,k);
+                        mixedphase_prod_qg_after_dbg_arr(i,j,k) = qg_arr(i,j,k);
+                    }
                     fall_r_arr(i,j,k) = denqrs1_col[kk] * workr_col[kk] / delz_arr(i,j,k);
                     fall_s_arr(i,j,k) = denqrs2_col[kk] * worka_col[kk] / delz_arr(i,j,k);
                     fall_g_arr(i,j,k) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
@@ -2205,6 +2277,75 @@ WSM6::Advance(const Real& dt_advance,
                         "G5b_RAIN_SEDIMENTATION_DENQRS1", "output",
                         loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
                         "denqrs1_after_sedimentation", (double)denqrs1_prod_after_sed_dbg_arr(diag_i,diag_j,k));
+                }
+            }
+            if (emit_mixedphase_producer_boundary && ParallelDescriptor::IOProcessor()) {
+                const int loop_out = loop + 1;
+                Gpu::synchronize();
+                for (int k = klo; k <= khi; ++k) {
+                    const int k_dbg = (k - klo) + 1;
+                    if (!wsm6_mixedphase_k_focus(k_dbg)) continue;
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qr_before_block", (double)mixedphase_prod_qr_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qs_before_block", (double)mixedphase_prod_qs_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qg_before_block", (double)mixedphase_prod_qg_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "den", (double)mixedphase_prod_den_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs2_before_block", (double)mixedphase_prod_denqrs2_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "working",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs3_before_block", (double)mixedphase_prod_denqrs3_before_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "output",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs2_after_block", (double)mixedphase_prod_denqrs2_after_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "output",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "denqrs3_after_block", (double)mixedphase_prod_denqrs3_after_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qs_after_block", (double)mixedphase_prod_qs_after_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qg_after_block", (double)mixedphase_prod_qg_after_dbg_arr(diag_i,diag_j,k));
+                    // qs/qg are the snow/graupel state variables in this kernel.
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qsnow_or_qs_state", (double)mixedphase_prod_qs_after_dbg_arr(diag_i,diag_j,k));
+                    wsm6_emit_diag_t2_blocksig_line(
+                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
+                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
+                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
+                        "qgraup_or_qg_state", (double)mixedphase_prod_qg_after_dbg_arr(diag_i,diag_j,k));
                 }
             }
             if (emit_nislfv_r_search_state && ParallelDescriptor::IOProcessor()) {

@@ -956,6 +956,27 @@ integer:: i, j, k, mstepmax,                                     &
        denqrs2(i,k) = den(i,k)*qs(i,k)
        denqrs3(i,k) = den(i,k)*qg(i,k)
        if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+           (k-kts+1) >= 21 .and. (k-kts+1) <= 24) then
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_before_block", qr(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qs_before_block", qs(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qg_before_block", qg(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den", den(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "working", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs2_before_block", denqrs2(i,k))
+         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+              "G5c_to_G6_SNOW_GRAUPEL_STATE", "working", loop, i_dbg_local, j_dbg_local, &
+              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs3_before_block", denqrs3(i,k))
+       endif
+       if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
            (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
          call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
               "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
@@ -999,6 +1020,17 @@ integer:: i, j, k, mstepmax,                                     &
    endif
    call nislfv_rain_plm6(idim,kdim,den_tmp,denfac,t,delz_tmp,worka,         &
                          denqrs2,denqrs3,delqrs2,delqrs3,dtcld,1,1)
+   if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
+     do k = kts, kte
+       if ((k-kts+1) < 21 .or. (k-kts+1) > 24) cycle
+       call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+            "G5c_to_G6_SNOW_GRAUPEL_STATE", "output", loop, i_dbg_local, j_dbg_local, &
+            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs2_after_block", denqrs2(i_dbg_local,k))
+       call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+            "G5c_to_G6_SNOW_GRAUPEL_STATE", "output", loop, i_dbg_local, j_dbg_local, &
+            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs3_after_block", denqrs3(i_dbg_local,k))
+     enddo
+   endif
    if (mpdbg_level >= 1 .and. loop == 1) then
      do k = kts, kte
        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_SG ', k, &
@@ -1030,6 +1062,22 @@ integer:: i, j, k, mstepmax,                                     &
       endif
        qs(i,k) = max(denqrs2(i,k)/den(i,k),0.)
        qg(i,k) = max(denqrs3(i,k)/den(i,k),0.)
+      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
+          (k-kts+1) >= 21 .and. (k-kts+1) <= 24) then
+        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qs_after_block", qs(i,k))
+        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qg_after_block", qg(i,k))
+        ! qs/qg are the snow/graupel state variables in this kernel.
+        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qsnow_or_qs_state", qs(i,k))
+        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
+             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
+             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qgraup_or_qg_state", qg(i,k))
+      endif
        fall(i,k,1) = denqrs1(i,k)*workr(i,k)/delz(i,k)
        fall(i,k,2) = denqrs2(i,k)*worka(i,k)/delz(i,k)
        fall(i,k,3) = denqrs3(i,k)*worka(i,k)/delz(i,k)
