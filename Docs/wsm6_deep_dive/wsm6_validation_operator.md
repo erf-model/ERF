@@ -165,6 +165,51 @@ Tier1.5 rules:
 - Use Tier2 only after Tier1.5 identifies the unresolved sub-block or
   first-line attribution is required.
 
+## Rule36 Restart-State Matrix Policy
+
+Use this matrix only after a one-step shared-source Rule36 check returns
+`MISMATCH`.
+
+Do not enter Rule37 while restart-source reproducibility is unresolved.
+Resolve restart/source-state provenance first.
+
+Run the four-leg matrix from the same bounded-refinement checkpoint step:
+- `Fpath_from_Fchk`
+- `Cpath_from_Fchk`
+- `Fpath_from_Cchk`
+- `Cpath_from_Cchk`
+
+Classify the matrix outcome explicitly:
+- shared-source path divergence
+- source-state divergence
+- same-path restart artifact
+- provenance/setup mismatch
+
+Record the matrix as formal evidence:
+- append one `executions.tsv` row per leg
+- append one `decisions.tsv` row with `decision_type=RULE36_RESTART_STATE_MATRIX`
+- keep `manifest_update=none` unless later clean-SHA evidence justifies
+  a compact frontier change
+
+## Variable-Aware Growth Adjudication
+
+A zero-tolerance `fcompare` nonzero is not automatically material.
+
+When residuals are pressure/density/thermo dominated, inspect growth from
+existing `fcompare` artifacts before launching new Rule36 scans.
+
+Use variable-aware acceptance:
+- pressure/density/rhotheta/theta/temp use relative-scale acceptance
+- moisture/hydrometeors retain absolute material thresholds
+
+If residuals remain ULP-scale relative and non-growing, adjudicate as
+`EPSILON_OK` and continue the plotfile lane.
+
+This is a read-only artifact adjudication path unless new ERF runs are
+actually launched.
+
+Store growth-table and artifact paths in `decisions.tsv` notes.
+
 
 ## 3. Setup IDs and Pass Gates
 

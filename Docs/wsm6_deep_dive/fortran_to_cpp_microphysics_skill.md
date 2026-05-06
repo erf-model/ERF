@@ -1034,6 +1034,13 @@ WSM6 example:
   Fortran-style `rgmma` product loop and the Fortran `pidn0r =
   pi*denr*n0r` coefficient definition.
 
+NISLFV_SG analog:
+  The same helper/coefficient pattern applies to snow/graupel
+  sedimentation. SG closure required matching Fortran-style `rgmma`
+  semantics plus `pidn0s=pi*dens*n0s` and `pidn0g=pi*deng*n0g`.
+  This closure is validated for default graupel mode only. Hail-mode
+  coefficient routing is a separate validation lane.
+
 Record no-effect parity patches separately:
   the kb/kt search-backstep source mismatch was real but non-causal for
   this scoped qrain failure.

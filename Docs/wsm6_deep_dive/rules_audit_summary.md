@@ -34,6 +34,10 @@ Rules currently in `wsm6_implementation_notes.md` that are generic and should mo
   - `ImplNote_AppendixA_RestartRepro` (`### Restart reproducibility (Rule 36)`): Applies shared-source one-step restart reproducibility protocol before classifying divergence for retreat.
   - `ImplNote_AppendixA_BoundedRefinement` (`### Bounded per-step refinement (coarse milestone failure)`): Defines bounded per-step restart refinement to narrow coarse-cadence failures to earliest failing substep `N*`.
 
+Operator-policy additions now captured in `wsm6_validation_operator.md`:
+  - `Rule36_RestartStateMatrixPolicy` (`## Rule36 Restart-State Matrix Policy`): Formalizes the four-leg restart-state matrix (`Fpath_from_Fchk`, `Cpath_from_Fchk`, `Fpath_from_Cchk`, `Cpath_from_Cchk`) after one-step mismatch and blocks Rule37 until restart/source-state provenance is classified.
+  - `VariableAwareGrowthAdjudication` (`## Variable-Aware Growth Adjudication`): Requires read-only growth adjudication over existing fcompare artifacts so epsilon-scale pressure/thermo residuals are not over-classified as material failures.
+
 ## 2. The name-layer crossover
 Many sections sit at a three-way crossover: generic physics concept, conventional name, and WSM6-specific implementation detail. Future porters should inherit concepts and workflow, reuse conventional names where they match, and re-derive only the truly scheme-specific layer.
 
@@ -78,6 +82,7 @@ These are `SCHEME_SPECIFIC_FACT` rows and must be re-derived for other schemes.
   - `Rule_28`: WSM6 working-array allocation layout across `fab_box`, `box2d`, and column-local stack arrays.
   - `ImplNote_Rule5_StructuralDiff`: WSM6-specific structural deltas relative to Morrison baseline.
   - `ImplNote_Rule10_RuntimeVariantFlag`: WSM6 hail-versus-graupel runtime branch and exact `hail_opt`-controlled variable set.
+  - `Caveat_WSM6_SG_DefaultGraupelOnly_HailDeferred`: The NISLFV_SG closure evidence is scoped to default graupel mode; hail-mode coefficient routing is deferred to a separate validation lane.
 
 Lower-confidence flag:
   - `Rule_28` could partially be convention-layer because the FAB allocation pattern itself is reusable, but the concrete field layout remains WSM6-specific.
@@ -89,6 +94,7 @@ These rows encode knowledge learned from real failures and should be treated as 
   - `Rule_21`: Prevents silent numerical drift from replacing exact special-function behavior with non-equivalent approximations at initialization time.
   - `Rule_21_Addendum_ExactHelperSemantics`: Extends exact-helper parity requirements into runtime local helper paths and records non-causal parity cleanups separately from causal fixes.
   - `Rule_24_Addendum_NISLFVBoundary`: Captures the high-loss boundary-proof method for sedimentation kernels: bracket working temporaries (for example `denqrs1`) before patching downstream update logic.
+  - `RegCase_WSM6_SG_RULE37_NISLFV_SG_STEP506_TO_600`: Captures the SG mixed-phase closure chain (`patch_commit=4264cfb4`) from Tier1.5 boundary proof through Rule36 restart-state matrix and variable-aware growth adjudication.
   - `Rule_32A`: Prevents uncontrolled forward implementation after first divergence by enforcing stop-diff-retreat and stepwise narrowing gates.
   - `Rule_34`: Prevents semantic mistranslation of Fortran control flow (`goto`, loop targets, `cycle`/`exit` mapping) that can pass smoke tests but fail later.
 
@@ -174,6 +180,7 @@ Enum placement check:
 
 ### 6d. From skill doc or implementation notes → regression_cases.tsv
   - Regression case: `WSM6_G1b_DENFAC_EVOLVED_STEP254`. Required artifact: shared restart source `plotfile_parity_v1d/long_fortran/chk00253`. Pass criterion: `G1b/DENFAC EPSILON_OK` at step 254 with structural count parity and clean-SHA evidence. Status today: row exists and is structurally complete but still `OPEN`.
+  - Regression case: `WSM6_SG_RULE37_NISLFV_SG_STEP506_TO_600`. Required artifacts: shared `F505` Rule37 Tier1.5 boundary run and postpatch stepwise `501..600` fcompare growth artifacts. Pass criterion: boundary exact at `k_dbg=21..24`, shared-source step-506 mixed-phase signal removed, step-508 pressure failure removed, and `501..600` variable-aware acceptance (`STEP511_EPSILON_OK_CONTINUE`).
   - Regression case family to add: milestone parity gates A-I as explicit cases. Required artifacts: per-milestone paired plotfiles plus first-fail `-z/-d` artifacts when failing. Pass criterion: `PLOTFILE_AGREE` or within agreed epsilon for each milestone.
   - Regression case family to add: bounded refinement `N*` cases for coarse cadence failures. Required artifacts: shared-checkpoint restart pair and per-step `fcompare` series from `K+1..N`. Pass criterion: earliest fail `N*` identified and reproducible under Rule 36.
 
