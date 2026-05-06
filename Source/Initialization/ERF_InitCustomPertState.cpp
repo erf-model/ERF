@@ -140,14 +140,6 @@ ERF::init_custom (int lev)
     if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
         ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
     } else {
-        // Zero the velocity fields before adding perturbations.
-        // lev_new[Vars::xvel] and yvel are pre-filled with a large sentinel
-        // (1.234e20) in init_stuff; lev_new[Vars::zvel] is uninitialized.
-        // Adding small perturbations to those values yields garbage, which in
-        // single precision produces NaN during the first dycore advance.
-        lev_new[Vars::xvel].setVal(0.);
-        lev_new[Vars::yvel].setVal(0.);
-        lev_new[Vars::zvel].setVal(0.);
         MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
         MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
         MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());

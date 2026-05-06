@@ -166,10 +166,17 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
     // Set these to avoid operations on uninitialized data
+#ifdef AMREX_USE_FLOAT
+    lev_new[Vars::xvel].setVal(1.234e10);
+    lev_old[Vars::xvel].setVal(1.234e10);
+    lev_new[Vars::yvel].setVal(1.234e10);
+    lev_old[Vars::yvel].setVal(1.234e10);
+#else
     lev_new[Vars::xvel].setVal(1.234e20);
     lev_old[Vars::xvel].setVal(1.234e20);
     lev_new[Vars::yvel].setVal(1.234e20);
     lev_old[Vars::yvel].setVal(1.234e20);
+#endif
 
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
