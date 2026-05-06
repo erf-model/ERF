@@ -36,7 +36,7 @@ Rules currently in `wsm6_implementation_notes.md` that are generic and should mo
 
 Operator-policy additions now captured in `wsm6_validation_operator.md`:
   - `Rule36_RestartStateMatrixPolicy` (`## Rule36 Restart-State Matrix Policy`): Formalizes the four-leg restart-state matrix (`Fpath_from_Fchk`, `Cpath_from_Fchk`, `Fpath_from_Cchk`, `Cpath_from_Cchk`) after one-step mismatch and blocks Rule37 until restart/source-state provenance is classified.
-  - `VariableAwareGrowthAdjudication` (`## Variable-Aware Growth Adjudication`): Requires read-only growth adjudication over existing fcompare artifacts so epsilon-scale pressure/thermo residuals are not over-classified as material failures.
+  - `VariableAwareGrowthAdjudication` (`## Variable-Aware Growth Adjudication`): Requires read-only growth adjudication over existing fcompare artifacts so epsilon-scale pressure/thermo residuals are not over-classified as material failures; includes diff-plotfile + fextract checks for quantized binary-quantum roundoff lattices.
 
 ## 2. The name-layer crossover
 Many sections sit at a three-way crossover: generic physics concept, conventional name, and WSM6-specific implementation detail. Future porters should inherit concepts and workflow, reuse conventional names where they match, and re-derive only the truly scheme-specific layer.
@@ -95,6 +95,7 @@ These rows encode knowledge learned from real failures and should be treated as 
   - `Rule_21_Addendum_ExactHelperSemantics`: Extends exact-helper parity requirements into runtime local helper paths and records non-causal parity cleanups separately from causal fixes.
   - `Rule_24_Addendum_NISLFVBoundary`: Captures the high-loss boundary-proof method for sedimentation kernels: bracket working temporaries (for example `denqrs1`) before patching downstream update logic.
   - `RegCase_WSM6_SG_RULE37_NISLFV_SG_STEP506_TO_600`: Captures the SG mixed-phase closure chain (`patch_commit=4264cfb4`) from Tier1.5 boundary proof through Rule36 restart-state matrix and variable-aware growth adjudication.
+  - `Evidence_WSM6_SG_PostFix_Pressure_ULP_Lattice`: Captures the postpatch ULP-lattice pattern (`pressure_quantum=2^-36`) used to adjudicate step-511 pressure residuals as non-material.
   - `Rule_32A`: Prevents uncontrolled forward implementation after first divergence by enforcing stop-diff-retreat and stepwise narrowing gates.
   - `Rule_34`: Prevents semantic mistranslation of Fortran control flow (`goto`, loop targets, `cycle`/`exit` mapping) that can pass smoke tests but fail later.
 
@@ -112,6 +113,9 @@ The following rows are specific to SquallLine_2D and should not be treated as WS
   - `ImplNote_AppendixA_SoftBaselines`: Generic concept is soft epsilon reference; testcase-specific part is numeric values from a specific WSM6 run.
 
 Milestone step numbers, onset timing, and campaign artifact paths should live in `regression_cases.tsv`-linked records, not in generic entry rules.
+
+Post-SG-fix testcase-specific evidence now recorded:
+  - `Evidence_WSM6_SG_PostFix_Pressure_ULP_Lattice`: ULP-scan artifacts under `rule36_refine_plt00600_from_chk00500_post_sg_fix_clean_6782b1f6_20260506T094302Z/artifacts/ulpscan` show step-511 isolated pressure delta (`4.3655745685100555e-11`) and steps 558/600 quantization to `1.4551915228366852e-11` (`2^-36`), supporting variable-aware `EPSILON_OK` adjudication.
 
 ## 5. Short entry skill index
 The lists below are lookup indices only.

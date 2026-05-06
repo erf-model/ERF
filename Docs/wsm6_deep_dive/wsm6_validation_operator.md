@@ -198,6 +198,15 @@ A zero-tolerance `fcompare` nonzero is not automatically material.
 When residuals are pressure/density/thermo dominated, inspect growth from
 existing `fcompare` artifacts before launching new Rule36 scans.
 
+When pressure/density/thermo residuals are small by relative scale, use
+diff plotfiles plus `fextract` to inspect the spatial/value pattern before
+launching more Rule36 scans. Quantized residuals that appear as exact
+multiples of a fixed binary quantum, remain ULP-scale relative to the
+field magnitude, and do not form a coherent growing physical structure
+may be classified as roundoff-lattice `EPSILON_OK`. Record the quantum,
+inspected steps, `fextract` artifacts, and acceptance basis in
+`decisions.tsv` or the linked regression case.
+
 Use variable-aware acceptance:
 - pressure/density/rhotheta/theta/temp use relative-scale acceptance
 - moisture/hydrometeors retain absolute material thresholds
