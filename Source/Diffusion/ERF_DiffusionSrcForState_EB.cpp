@@ -244,7 +244,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             {
                 if (cfg_arr(i,j,k).isSingleValued()) {
 
-                    cell_rhs(i,j,k,qty_index) += barea_arr(i,j,k) * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
+                    cell_rhs(i,j,k,qty_index) += dx * dy * barea_arr(i,j,k) * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
                 }
             });
         }
