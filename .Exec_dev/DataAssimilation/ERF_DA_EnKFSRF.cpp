@@ -144,48 +144,13 @@ Real Compute_YT_Rinv_Y(const MultiFab& Yi, const MultiFab& Yj)
     return amrex::get<0>(hv);
 }
 
-
-void
-ERF::PerformDataAssimilation()
+void 
+compute_S_matrix(Matrix& S, 
+                 const int& Nens,
+                 const MultiFab& mean_H_xf,  
+                 const std::string& last_pf_name, 
+                 const Vector<std::string>& varnames)
 {
-    //lapack_testing();
-
-    auto pltfiles = get_plotfile_list();
-    std::string last_pf_name;
-    if (!pltfiles.empty()) {
-        last_pf_name = pltfiles.back();
-        std::cout << "Last plotfile: " << last_pf_name << std::endl;
-    } else {
-        amrex::Abort("No plotfiles found.");
-    }
-
-    // Step 2: loop over all plotfiles (timestamps at which the plotfiles are written)
-    // ie.find the ensemble mean at iteration 100, loop over the plt00100 file in each of the
-    // member*-plotfiles-plt00100
-    int Nens = solverChoice.n_ensemble;
-    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
-    MultiFab xf_bar = compute_ensemble_mean(last_pf_name, Nens, varnames);
-
-    MultiFab yf_bar;
-
-    Apply_H(xf_bar, yf_bar);
-
-    MultiFab mean_H_xf;
-    for (int n = 0; n < Nens; ++n)
-    {
-        MultiFab xf_i = read_member_multifab(n, last_pf_name, varnames);
-        MultiFab H_xf_i;
-        Apply_H(xf_i, H_xf_i);
-
-        if(n==0){
-            MultiFab sum_H_xf_i(xf_i.boxArray(), xf_i.DistributionMap(), xf_i.nComp(), xf_i.nGrow());
-        }
-
-        MultiFab::Add(mean_H_xf, xf_i, 0, 0, xf_i.nComp(), xf_i.nGrow());
-    }
-
-    mean_H_xf.mult(1.0 / Nens);
-
     for (int i = 0; i < Nens; ++i) {
         MultiFab yf_prime_i;
         MultiFab xf_i = read_member_multifab(i, last_pf_name, varnames);
@@ -207,7 +172,67 @@ ERF::PerformDataAssimilation()
            // y_prime -= mean_H_xf
             MultiFab::Subtract(y_prime_j, mean_H_xf, 0, 0, 2, H_xf_j.nGrow());
             Real val = Compute_YT_Rinv_Y(yf_prime_i, y_prime_j);
+            S(i,j) = val;
         }
     }
+}
+
+void  
+compute_mean_H_xf(MultiFab& mean_H_xf, 
+                  const int Nens, 
+                  const std::string& last_pf_name, 
+                  const Vector<std::string>& varnames)
+{
+    for (int n = 0; n < Nens; ++n)
+    {
+        MultiFab xf_i = read_member_multifab(n, last_pf_name, varnames);
+        MultiFab H_xf_i;
+        Apply_H(xf_i, H_xf_i);
+
+        if(n==0){
+            MultiFab sum_H_xf_i(xf_i.boxArray(), xf_i.DistributionMap(), xf_i.nComp(), xf_i.nGrow());
+        }
+
+        MultiFab::Add(mean_H_xf, xf_i, 0, 0, xf_i.nComp(), xf_i.nGrow());
+    }
+
+    mean_H_xf.mult(1.0 / Nens);
+}
+
+
+void
+ERF::PerformDataAssimilation(int da_iter)
+{
+    //lapack_testing();
+
+    auto pltfiles = get_plotfile_list();
+    std::string last_pf_name;
+    if (!pltfiles.empty()) {
+        last_pf_name = pltfiles.back();
+        std::cout << "Last plotfile: " << last_pf_name << std::endl;
+    } else {
+        amrex::Abort("No plotfiles found.");
+    }
+
+    // Step 2: loop over all plotfiles (timestamps at which the plotfiles are written)
+    // ie.find the ensemble mean at iteration 100, loop over the plt00100 file in each of the
+    // member*-plotfiles-plt00100
+    int Nens = solverChoice.n_ensemble;
+    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
+
+    // Compute the ensemble mean
+    MultiFab xf_bar = compute_ensemble_mean(last_pf_name, Nens, varnames);
+
+    // Compute the mean of forecast observations yf_bar = Hx_f
+    MultiFab mean_H_xf;
+
+    compute_mean_H_xf(mean_H_xf, Nens, last_pf_name, varnames);
+
+    MultiFab y_obs;
+    read_in_observations(da_iter, y_obs);
+  
+    Matrix S(Nens); 
+    compute_S_matrix(S, Nens, mean_H_xf, last_pf_name, varnames);
+
 }
 
