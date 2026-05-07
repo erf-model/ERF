@@ -486,9 +486,6 @@ MOSTAverage::set_eb_normalization (const int& lev)
                         Gpu::deviceReduceSum(&area_device[iavg], area, handler);
                     }
                 });
-                // ===================== DEBUG =====================
-                Print()<<"SK: set_eb_normalization: area_vec["<<iavg<<"] = "<<area_vec[iavg]<<std::endl;
-                // =================================================
             }
         };
 
