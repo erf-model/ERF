@@ -145,8 +145,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
             ptrs.vterm_ptr[i] = terminal_vel;
 
-            // Round-trip integration: convert pos(2) (zeta) to physical z,
-            // advance in physical (x, y, z), convert back to zeta.
+            // Advance in physical (x, y, z); pos(2) is zeta on disk so go
+            // through z_from_zeta / zeta_from_z around the update.
             if (advect_w_flow || advect_w_gravity) {
                 const Real x0 = p.pos(0);
                 const Real y0 = p.pos(1);
@@ -168,36 +168,12 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
                     ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, ctx.plo, ctx.dxi, zheight, k_max));
             }
-
-            update_location_idata(p,ctx.plo,ctx.dxi,zheight);
-
         });
         Gpu::synchronize();
     }); // end forEachParticleTile
 
     applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
     Redistribute();
-
-    // After redistribution, update k-index for particles that moved to new tiles.
-    // This is needed because update_location_idata skips particles outside the
-    // local tile bounds (to avoid out-of-bounds array access). After Redistribute,
-    // those particles are now on the correct tile and can update their k-index.
-    forEachParticleTile(a_lev, ctx,
-        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-            const SDProcess::ParticlePointers& ptrs,
-            const SDProcess::ProcessContext& ctx)
-    {
-        auto zheight = (*z_height)[grid].array();
-
-        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
-        {
-            ParticleType& p = p_pbox[i];
-            if (p.id() > 0) {
-                update_location_idata(p, ctx.plo, ctx.dxi, zheight);
-            }
-        });
-        Gpu::synchronize();
-    });
 }
 
 #endif

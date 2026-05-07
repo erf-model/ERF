@@ -5,20 +5,16 @@
 #include <AMReX_Array4.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
-#include <AMReX_RealVect.H>
 
 // Particle position storage convention:
 //  * pos(0), pos(1): physical x, y (no horizontal mapping in ERF).
 //  * pos(AMREX_SPACEDIM-1): computational vertical coordinate zeta.
 //
 // For uniform-z grids the computational zeta equals the physical z, so the
-// helpers below are identity transforms and add only the cost of reading the
-// height array (which the caller has at hand inside a tile loop).
+// helpers below are identity transforms.
 //
 // For terrain-fitted grids the physical z at a column (x, y) is bilinearly
-// interpolated from z_phys_nd(i, j, k_face).  Conversions only need per-tile
-// data (no global terrain mirror) because the inverse map at (x, y) only
-// reads heights in the same (x, y) column.
+// interpolated from z_phys_nd(i, j, k_face).
 
 namespace ERF {
 namespace ParticlePos {
@@ -97,101 +93,6 @@ zeta_from_z (amrex::Real x, amrex::Real y, amrex::Real z,
                          : amrex::Real(0);
     return plo[AMREX_SPACEDIM-1]
          + (static_cast<amrex::Real>(k) + fz) / dxi[AMREX_SPACEDIM-1];
-}
-
-// Local terrain metric d(physical z) / d(computational zeta) at (x, y, zeta).
-// Used to convert physical w to zeta_dot during particle advection:
-//   zeta_dot = (w - u * dz/dxi - v * dz/deta) / dz/dzeta
-// where dxi is the slope of physical z along x (held fixed in zeta) and
-// dz/dzeta is the local cell thickness in physical z.
-struct TerrainMetric
-{
-    amrex::Real dz_dxi   = amrex::Real(0); // d(z) / d(x)  at fixed zeta
-    amrex::Real dz_deta  = amrex::Real(0); // d(z) / d(y)  at fixed zeta
-    amrex::Real dz_dzeta = amrex::Real(1); // d(z) / d(zeta) — physical cell thickness
-};
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-TerrainMetric
-metric_at (amrex::Real x, amrex::Real y, amrex::Real zeta,
-           amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& plo,
-           amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& dxi,
-           amrex::Array4<amrex::Real const> const& height_arr) noexcept
-{
-    TerrainMetric m;
-    if (!height_arr) {
-        return m;  // uniform z: identity metric
-    }
-    const amrex::Real dx = amrex::Real(1) / dxi[0];
-    const amrex::Real dy = amrex::Real(1) / dxi[1];
-    const amrex::Real dz = amrex::Real(1) / dxi[AMREX_SPACEDIM-1];
-
-    // Physical z at (x, y, zeta) and at small offsets in each direction.
-    const amrex::Real z0   = z_from_zeta(x        , y        , zeta       , plo, dxi, height_arr);
-    const amrex::Real z_xp = z_from_zeta(x + dx*amrex::Real(0.5), y, zeta, plo, dxi, height_arr);
-    const amrex::Real z_xm = z_from_zeta(x - dx*amrex::Real(0.5), y, zeta, plo, dxi, height_arr);
-    const amrex::Real z_yp = z_from_zeta(x, y + dy*amrex::Real(0.5), zeta, plo, dxi, height_arr);
-    const amrex::Real z_ym = z_from_zeta(x, y - dy*amrex::Real(0.5), zeta, plo, dxi, height_arr);
-    const amrex::Real z_zp = z_from_zeta(x, y, zeta + dz*amrex::Real(0.5), plo, dxi, height_arr);
-    const amrex::Real z_zm = z_from_zeta(x, y, zeta - dz*amrex::Real(0.5), plo, dxi, height_arr);
-
-    amrex::ignore_unused(z0);
-    m.dz_dxi   = (z_xp - z_xm) / dx;
-    m.dz_deta  = (z_yp - z_ym) / dy;
-    m.dz_dzeta = (z_zp - z_zm) / dz;
-    if (m.dz_dzeta == amrex::Real(0)) { m.dz_dzeta = amrex::Real(1); }
-    return m;
-}
-
-// pos_phys / pos_comp helpers — preferred over reading p.pos() directly so
-// that the convention is explicit at every call site.
-//
-// pos_comp_d returns the stored value for component d.  For x and y this is
-// also the physical position; for the vertical it is the computational zeta.
-template <typename P>
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real pos_comp_d (const P& p, int d) noexcept
-{
-    return amrex::Real(p.pos(d));
-}
-
-// pos_phys_d returns the physical position for component d.  For x and y this
-// equals pos_comp_d (no horizontal mapping); for the vertical it converts
-// zeta -> z using the local height array.  Pass an invalid Array4 (default-
-// constructed) to get the uniform-z identity.
-template <typename P>
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real pos_phys_d (const P& p, int d,
-                        amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& plo,
-                        amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& dxi,
-                        amrex::Array4<amrex::Real const> const& height_arr) noexcept
-{
-    if (d != AMREX_SPACEDIM - 1) {
-        return amrex::Real(p.pos(d));
-    }
-    return z_from_zeta(amrex::Real(p.pos(0)), amrex::Real(p.pos(1)),
-                       amrex::Real(p.pos(d)), plo, dxi, height_arr);
-}
-
-template <typename P>
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::RealVect pos_comp (const P& p) noexcept
-{
-    return amrex::RealVect(AMREX_D_DECL(amrex::Real(p.pos(0)),
-                                        amrex::Real(p.pos(1)),
-                                        amrex::Real(p.pos(AMREX_SPACEDIM-1))));
-}
-
-template <typename P>
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::RealVect pos_phys (const P& p,
-                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& plo,
-                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& dxi,
-                          amrex::Array4<amrex::Real const> const& height_arr) noexcept
-{
-    return amrex::RealVect(AMREX_D_DECL(amrex::Real(p.pos(0)),
-                                        amrex::Real(p.pos(1)),
-                                        pos_phys_d(p, AMREX_SPACEDIM-1, plo, dxi, height_arr)));
 }
 
 } // namespace ParticlePos

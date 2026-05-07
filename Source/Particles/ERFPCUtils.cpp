@@ -25,17 +25,8 @@ void ERFPC::massDensity ( MultiFab&        a_mf,
     BL_PROFILE("ERFPC::massDensity()");
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const ERFPC::ParticleTileType::ConstParticleTileDataType& ptd, int i) {
-            return ptd.m_rdata[ERFParticlesRealIdxSoA::mass][i];
+            return ptd.m_rdata[ERFParticlesRealIdx::mass][i];
         });
-}
-
-/*! \brief Redistribute particles after AMR regrid.  With pos stored in
- *         computational coordinates the cell index is exact in one pass, so
- *         no terrain-correction dance is needed. */
-void ERFPC::FixKIndexAMR (const Vector<std::unique_ptr<MultiFab>>& /*a_z_phys_nd*/)
-{
-    BL_PROFILE("ERFPC::FixKIndexAMR()");
-    Redistribute();
 }
 
 /*! \brief Diagnostic: count particles per level and, for level 1, in the halo.

@@ -167,11 +167,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         particle_tile.resize(np);
         auto aos = &particle_tile.GetArrayOfStructs()[0];
         auto& soa = particle_tile.GetStructOfArrays();
-        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
-        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
-        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
+        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdx::vx).data();
+        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdx::vy).data();
+        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdx::vz).data();
+        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdx::mass).data();
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdx::temperature).data();
 
         const auto num_particles_arr = num_particles[mfi].array();
 

@@ -123,9 +123,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             auto *p_pbox = aos().data();
 
             Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
-            v_ptr[0] = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-            v_ptr[1] = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-            v_ptr[2] = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+            v_ptr[0] = soa.GetRealData(ERFParticlesRealIdx::vx).data();
+            v_ptr[1] = soa.GetRealData(ERFParticlesRealIdx::vy).data();
+            v_ptr[2] = soa.GetRealData(ERFParticlesRealIdx::vz).data();
 
             const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&((*umac_pointer[0])[grid]),
                                                                   &((*umac_pointer[1])[grid]),
@@ -157,10 +157,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     }
                 }
 
-                // Round-trip integration: convert pos(2) (zeta) to physical z,
-                // advance in physical (x,y,z) using physical (u,v,w), convert
-                // back to zeta in the new column.  Identity for uniform-z;
-                // exact w-preservation on terrain (no linearization).
+                // Advance in physical (x, y, z); pos(2) is zeta on disk so go
+                // through z_from_zeta / zeta_from_z around the update.
                 if (ipass == 0) {
                     const Real x0 = p.pos(0);
                     const Real y0 = p.pos(1);
@@ -249,7 +247,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
 
-        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdx::vz).data();
 
         auto zheight = (*a_z_height)[grid].array();
 
@@ -271,7 +269,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             // Update the particle velocity over first half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // Round-trip integration in physical z, then back to zeta.
+            // Advance in physical z, then back to zeta.
             {
                 const Real x0 = p.pos(0);
                 const Real y0 = p.pos(1);
@@ -284,8 +282,6 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
 
             // Update the particle velocity over second half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
-
-            update_location_idata(p,plo,dxi,zheight);
         });
     }
 
@@ -346,7 +342,7 @@ void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
 
-        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdx::temperature).data();
         auto temperature_arr  = T_mf.array(grid);
 
         auto zheight = (*a_z_height)[grid].array();
