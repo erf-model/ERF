@@ -13,6 +13,31 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+std::vector<std::string>
+get_plotfile_list()
+{
+    std::vector<std::string> pltfiles;
+    const std::string member_prefix = "member_";
+
+    std::string pf_dir = member_prefix + "00/plotfiles";
+
+    if (!fs::exists(pf_dir)) {
+        amrex::Abort("Plotfile directory not found: " + pf_dir);
+    }
+
+    for (const auto& entry : fs::directory_iterator(pf_dir)) {
+        if (entry.is_directory()) {
+            std::string name = entry.path().filename().string();
+            if (name.rfind("plt", 0) == 0) {  // starts with "plt"
+                pltfiles.push_back(name);
+            }
+        }
+    }
+
+    std::sort(pltfiles.begin(), pltfiles.end());
+    return pltfiles;
+}
+
 // Reads the plotfile data into cell cenetred multifab
 // Does not fill ghost cells
 void
@@ -151,31 +176,6 @@ lapack_testing()
     }
 }
 
-std::vector<std::string>
-get_plotfile_list()
-{
-    std::vector<std::string> pltfiles;
-    const std::string member_prefix = "member_";
-
-    std::string pf_dir = member_prefix + "00/plotfiles";
-
-    if (!fs::exists(pf_dir)) {
-        amrex::Abort("Plotfile directory not found: " + pf_dir);
-    }
-
-    for (const auto& entry : fs::directory_iterator(pf_dir)) {
-        if (entry.is_directory()) {
-            std::string name = entry.path().filename().string();
-            if (name.rfind("plt", 0) == 0) {  // starts with "plt"
-                pltfiles.push_back(name);
-            }
-        }
-    }
-
-    std::sort(pltfiles.begin(), pltfiles.end());
-    return pltfiles;
-}
-
 void
 compute_d_vec(const MultiFab& mf1,
               const MultiFab& mf2,
@@ -202,4 +202,36 @@ compute_d_vec(const MultiFab& mf1,
                        0, 0,
                        mf1.nComp(),
                        mf1.nGrowVect());
+}
+
+void
+compute_d_prime_vec(MultiFab& d_prime_vec,
+                    const MultiFab& d_vec,
+                    const Vector<Real>& R_diag)
+{
+    AMREX_ALWAYS_ASSERT(d_vec.nComp() == R_diag.size());
+
+    const int ncomp = d_vec.nComp();
+
+    d_prime_vec.define(d_vec.boxArray(),
+                       d_vec.DistributionMap(),
+                       ncomp,
+                       d_vec.nGrowVect());
+
+    amrex::Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
+    const Real* R_diag_d_ptr = R_diag_d.data();
+
+    for (MFIter mfi(d_vec, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> d_arr = d_vec.const_array(mfi);
+        const Array4<Real> dp_arr = d_prime_vec.array(mfi);
+
+        amrex::ParallelFor(bx, ncomp,
+                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        {
+            dp_arr(i,j,k,n) = d_arr(i,j,k,n) / R_diag_d_ptr[n];
+        });
+    }
 }

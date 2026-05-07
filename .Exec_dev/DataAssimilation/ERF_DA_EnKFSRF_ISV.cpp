@@ -84,35 +84,3 @@ void compute_R_diag_vals(Vector<Real>& R_diag)
     R_diag[0] = 0.01;
     R_diag[1] = 0.01;
 }
-
-void
-compute_d_prime_vec(MultiFab& d_prime_vec,
-                    const MultiFab& d_vec,
-                    const Vector<Real>& R_diag)
-{
-    AMREX_ALWAYS_ASSERT(d_vec.nComp() == R_diag.size());
-
-    const int ncomp = d_vec.nComp();
-
-    d_prime_vec.define(d_vec.boxArray(),
-                       d_vec.DistributionMap(),
-                       ncomp,
-                       d_vec.nGrowVect());
-
-    amrex::Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
-    const Real* R_diag_d_ptr = R_diag_d.data();
-
-    for (MFIter mfi(d_vec, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.tilebox();
-        const Array4<const Real> d_arr = d_vec.const_array(mfi);
-        const Array4<Real> dp_arr = d_prime_vec.array(mfi);
-
-        amrex::ParallelFor(bx, ncomp,
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
-        {
-            dp_arr(i,j,k,n) = d_arr(i,j,k,n) / R_diag_d_ptr[n];
-        });
-    }
-}
