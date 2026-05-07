@@ -90,11 +90,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             ParticleReal v[AMREX_SPACEDIM];
             v[0] = v[1] = v[2] = zero;
 
-            if (is_periodic_z) {
-                mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
-            } else {
-                mac_interpolate_mapped_z(p, ctx.plo, ctx.dxi, umacarr, zheight, v);
-            }
+            mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
+            amrex::ignore_unused(zheight, is_periodic_z);
 
             // Interpolate density, pressure, temperature at particle position
             constexpr int nf = static_cast<int>(InterpFieldsAdv::NUM_FIELDS);

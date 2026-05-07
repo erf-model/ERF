@@ -64,7 +64,9 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const Real wy1 = ly - static_cast<Real>(iy + 1);
             const Real wy0 = Real(1.0) - wy1;
 
-            const int kz = p.idata(ERFParticlesIntIdxAoS::k);
+            const int kz = static_cast<int>(amrex::Math::floor(
+                                (p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                * dxi[AMREX_SPACEDIM-1]));
             const int ix_p = static_cast<int>(Math::floor((p.pos(0) - plo[0]) * dxi[0]));
             const int iy_p = static_cast<int>(Math::floor((p.pos(1) - plo[1]) * dxi[1]));
             const Real fx  = (p.pos(0) - plo[0]) * dxi[0] - static_cast<Real>(ix_p);

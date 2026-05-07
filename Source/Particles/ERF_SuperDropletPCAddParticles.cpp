@@ -433,7 +433,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                     }
                 }
 
-                p.idata(SuperDropletsIntIdxAoS::k) = k;
                 active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
