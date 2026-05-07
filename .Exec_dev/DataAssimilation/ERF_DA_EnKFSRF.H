@@ -24,6 +24,20 @@ compute_ensemble_mean(const std::string& pf_name,
 void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
 void read_in_observations(const int& da_iter, amrex::MultiFab& y_obs);
 
+std::vector<std::string> get_plotfile_list();
+void read_in_observations(const int& da_iter,
+                          const amrex::Vector<std::string>& varnames,
+                          amrex::MultiFab& y_obs);
+void compute_d_vec(const amrex::MultiFab& mf1,
+                   const amrex::MultiFab& mf2,
+                   amrex::MultiFab& d_vec);
+
+void compute_R_diag_vals(amrex::Vector<amrex::Real>& R_diag);
+
+void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
+                    const amrex::MultiFab& d_vec,
+                    const amrex::Vector<amrex::Real>& R_diag);
+
 extern "C" {
     void dgetrf_(int* M, int* N, double* A, int* lda, int* ipiv, int* info);
     void dgetri_(int* N, double* A, int* lda, int* ipiv,

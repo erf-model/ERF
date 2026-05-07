@@ -2,6 +2,7 @@
 #include <array>
 #include <vector>
 #include <stdexcept>
+#include <filesystem>
 
 #include <ERF.H>
 #include <ERF_DataStruct.H>
@@ -20,7 +21,6 @@ compute_ensemble_mean(const std::string& pf_name,
 {
     MultiFab mf_mean;
     bool initialized = false;
-    const std::string member_prefix = "member_";
 
     for (int n = 0; n < Nens; ++n)
     {
@@ -41,32 +41,6 @@ compute_ensemble_mean(const std::string& pf_name,
     mf_mean.mult(1.0 / Real(Nens));
     return mf_mean;
 }
-
-std::vector<std::string>
-get_plotfile_list()
-{
-    std::vector<std::string> pltfiles;
-    const std::string member_prefix = "member_";
-
-    std::string pf_dir = member_prefix + "00/plotfiles";
-
-    if (!fs::exists(pf_dir)) {
-        amrex::Abort("Plotfile directory not found: " + pf_dir);
-    }
-
-    for (const auto& entry : fs::directory_iterator(pf_dir)) {
-        if (entry.is_directory()) {
-            std::string name = entry.path().filename().string();
-            if (name.rfind("plt", 0) == 0) {  // starts with "plt"
-                pltfiles.push_back(name);
-            }
-        }
-    }
-
-    std::sort(pltfiles.begin(), pltfiles.end());
-    return pltfiles;
-}
-
 
 void
 ERF::ComputeAndWriteEnsemblePerturbations()
@@ -111,7 +85,10 @@ ERF::ComputeAndWriteEnsemblePerturbations()
     }
 }
 
-Real Compute_YT_Rinv_Y(const MultiFab& Yi, const MultiFab& Yj)
+Real
+Compute_y_prime_i_T_Rinv_y_prime_j(const MultiFab& Yi,
+                                   const MultiFab& Yj,
+                                   const Vector<Real>& R_diag)
 {
     const int ncomp = Yi.nComp();
 
@@ -119,6 +96,10 @@ Real Compute_YT_Rinv_Y(const MultiFab& Yi, const MultiFab& Yj)
     ReduceData<Real> reduce_data(reduce_op);
 
     using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    amrex::Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
+    const Real* R_diag_d_ptr = R_diag_d.data();
 
     for (MFIter mfi(Yi, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -133,7 +114,7 @@ Real Compute_YT_Rinv_Y(const MultiFab& Yi, const MultiFab& Yj)
             Real local = 0.0;
 
             for (int n = 0; n < ncomp; ++n) {
-                local += yi(i,j,k,n) * yj(i,j,k,n);
+                local += yi(i,j,k,n) * yj(i,j,k,n)/R_diag_d_ptr[n];
             }
 
             return {local};
@@ -144,11 +125,12 @@ Real Compute_YT_Rinv_Y(const MultiFab& Yi, const MultiFab& Yj)
     return amrex::get<0>(hv);
 }
 
-void 
-compute_S_matrix(Matrix& S, 
+void
+compute_S_matrix(Matrix& S,
                  const int& Nens,
-                 const MultiFab& mean_H_xf,  
-                 const std::string& last_pf_name, 
+                 const MultiFab& mean_H_xf,
+                 const Vector<Real>& R_diag,
+                 const std::string& last_pf_name,
                  const Vector<std::string>& varnames)
 {
     for (int i = 0; i < Nens; ++i) {
@@ -171,16 +153,16 @@ compute_S_matrix(Matrix& S,
 
            // y_prime -= mean_H_xf
             MultiFab::Subtract(y_prime_j, mean_H_xf, 0, 0, 2, H_xf_j.nGrow());
-            Real val = Compute_YT_Rinv_Y(yf_prime_i, y_prime_j);
+            Real val = Compute_y_prime_i_T_Rinv_y_prime_j(yf_prime_i, y_prime_j, R_diag);
             S(i,j) = val;
         }
     }
 }
 
-void  
-compute_mean_H_xf(MultiFab& mean_H_xf, 
-                  const int Nens, 
-                  const std::string& last_pf_name, 
+void
+compute_mean_H_xf(MultiFab& mean_H_xf,
+                  const int Nens,
+                  const std::string& last_pf_name,
                   const Vector<std::string>& varnames)
 {
     for (int n = 0; n < Nens; ++n)
@@ -190,10 +172,10 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
         Apply_H(xf_i, H_xf_i);
 
         if(n==0){
-            MultiFab sum_H_xf_i(xf_i.boxArray(), xf_i.DistributionMap(), xf_i.nComp(), xf_i.nGrow());
+            MultiFab sum_H_xf_i(H_xf_i.boxArray(), H_xf_i.DistributionMap(), H_xf_i.nComp(), H_xf_i.nGrow());
         }
 
-        MultiFab::Add(mean_H_xf, xf_i, 0, 0, xf_i.nComp(), xf_i.nGrow());
+        MultiFab::Add(mean_H_xf, xf_i, 0, 0, H_xf_i.nComp(), H_xf_i.nGrow());
     }
 
     mean_H_xf.mult(1.0 / Nens);
@@ -225,14 +207,25 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute the mean of forecast observations yf_bar = Hx_f
     MultiFab mean_H_xf;
-
     compute_mean_H_xf(mean_H_xf, Nens, last_pf_name, varnames);
 
+    // Read in the observation file
     MultiFab y_obs;
-    read_in_observations(da_iter, y_obs);
-  
-    Matrix S(Nens); 
-    compute_S_matrix(S, Nens, mean_H_xf, last_pf_name, varnames);
+    read_in_observations(da_iter, varnames, y_obs);
 
+    // Compute y_obs - yf_bar
+    MultiFab d_vec;
+    compute_d_vec(mean_H_xf, y_obs, d_vec);
+
+    // Assign values for the observation error covarinace matrix
+    Vector<Real> R_diag;
+    compute_R_diag_vals(R_diag);
+
+    // Compute d'=R_inv*d
+    MultiFab d_prime_vec;
+    compute_d_prime_vec(d_prime_vec, d_vec, R_diag);
+
+    // Compute the S matrix
+    Matrix S(Nens);
+    compute_S_matrix(S, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
 }
-
