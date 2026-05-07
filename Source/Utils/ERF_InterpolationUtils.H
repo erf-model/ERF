@@ -6,6 +6,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Array4.H>
 #include "ERF_Constants.H"
+#include "ERF_TerrainConversion.H"
 
 /**
  * @file ERF_InterpolationUtils.H
