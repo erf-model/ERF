@@ -641,13 +641,32 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         [[maybe_unused]] MultiFab* xqv_flux,
                                         [[maybe_unused]] MultiFab* yqv_flux,
                                         [[maybe_unused]] MultiFab* zqv_flux,
-                                        [[maybe_unused]] const eb_& ebfact,
+                                        const eb_& ebfact,
                                         const FluxCalc& flux_comp)
 {
-    const int klo = m_geom[lev].Domain().smallEnd(2);
-    // const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    // Get EB flags for all centerings
+    const auto& eb_factory = ebfact.get_const_factory();
+    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();  // Cell-centered flags
+    const auto& u_flags = ebfact.get_u_const_factory()->getMultiEBCellFlagFab();  // X-face flags
+    const auto& v_flags = ebfact.get_v_const_factory()->getMultiEBCellFlagFab();  // Y-face flags
+
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
+        // Get flags for this box (all centerings)
+        const auto& cc_flag = cc_flags[mfi];
+        const auto& u_flag = u_flags[mfi];
+        const auto& v_flag = v_flags[mfi];
+
+        // Skip boxes that have no cut cells at any centering
+        if (cc_flag.getType() != FabType::singlevalued &&
+            u_flag.getType() != FabType::singlevalued &&
+            v_flag.getType() != FabType::singlevalued) continue;
+
+        // Get flag arrays for GPU kernels
+        auto const cc_flag_arr = cc_flag.const_array();
+        auto const u_flag_arr = u_flag.const_array();
+        auto const v_flag_arr = v_flag.const_array();
+
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
@@ -665,14 +684,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         const auto *const t_mean     = m_ma.get_average(lev,2);
         // const auto *const q_mean     = m_ma.get_average(lev,3);
         const auto *const u_mag_mean = m_ma.get_average(lev,5);
-        const auto *const k_indx = m_ma.get_k_indices(lev);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
         // const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);
-        const auto k_arr = k_indx->const_array(mfi);
 
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
@@ -682,44 +699,41 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
-
-        if (bx.smallEnd(2) != klo) { continue; }
-        bx.makeSlab(2,klo);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real Tflux = flux_comp.compute_t_flux(i, j, mk,
-                                                 cons_arr, velx_arr, vely_arr,
-                                                 umm_arr, tm_arr, u_star_arr,
-                                                 t_star_arr, t_surf_arr);
-            hfx3_arr(i,j,mk) = Tflux;
+            if (cc_flag_arr(i,j,k).isSingleValued()) {
+                Real Tflux = flux_comp.compute_t_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, tm_arr, u_star_arr,
+                                                    t_star_arr, t_surf_arr);
+                hfx3_arr(i,j,k) = Tflux;
+            }
         });
 
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
-        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real stressx = flux_comp.compute_u_flux(i, j, mk,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, um_arr, u_star_arr);
-            t13_arr(i,j,mk) = stressx;
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, um_arr, u_star_arr);
+                t13_arr(i,j,k) = stressx;
+            }
         });
 
         // Rho*v flux
         //============================================================================
         Box bxy = surroundingNodes(bx,1);
-        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real stressy = flux_comp.compute_v_flux(i, j, mk,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, vm_arr, u_star_arr);
-            t23_arr(i,j,mk) = stressy;
+            if (v_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, vm_arr, u_star_arr);
+                t23_arr(i,j,k) = stressy;
+            }
         });
     } // mfiter
 }
