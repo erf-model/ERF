@@ -41,7 +41,16 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
 
-    Redistribute();
+    // Per-level Redistribute keeps each level's particles on that level for
+    // the duration of the coarse step, avoiding double-advection of particles
+    // that geometrically cross between levels mid-step.  Cross-level moves
+    // happen only at regrid time.  For fine levels, particles that leave the
+    // level's BA must first be routed back to the coarse level.
+    if (a_lev == 0) {
+        Redistribute(0, 0);
+    } else {
+        ExtractAndRouteOORParticles(a_lev);
+    }
 
     ComputeTemperature( a_flow_vars[a_lev][Vars::cons], a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
 

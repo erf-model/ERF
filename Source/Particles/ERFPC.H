@@ -254,6 +254,11 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         /*! Fix k-indices for all particles after AMR regrid/removal */
         void FixKIndexAMR (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd);
 
+        /*! Route fine-level particles whose position is outside the level's
+         *  BA down to coarser levels, so per-level Redistribute on the fine
+         *  level does not assert. */
+        void ExtractAndRouteOORParticles ( int a_lev );
+
         /*! Diagnostic: count particles per level and halo (for AMR) */
         void CountParticlesPerLevelAndHalo ( int a_finest_level );
 

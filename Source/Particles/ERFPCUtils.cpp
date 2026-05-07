@@ -118,7 +118,76 @@ void ERFPC::CountParticlesPerLevelAndHalo (int a_finest_level)
                    << " (L1 total=" << n_per_lev[1] << ")\n";
 }
 
+void ERFPC::ExtractAndRouteOORParticles (int a_lev)
+{
+    BL_PROFILE("ERFPC::ExtractAndRouteOORParticles()");
+    AMREX_ALWAYS_ASSERT(a_lev > 0);
 
+    // GPU spatial index for the fine level (used to detect OOR particles).
+    ParticleLocator<DenseBins<Box>> locator_fine;
+    locator_fine.build(ParticleBoxArray(a_lev), m_gdb->Geom(a_lev));
+    auto ag_fine = locator_fine.getGridAssignor();
+
+    // Find a local L0 grid index to receive routed particles.  Particles that
+    // leave the fine level always fall to L0 (which covers the full domain).
+    int dest_grid_L0 = -1;
+    {
+        const int my_proc = ParallelDescriptor::MyProc();
+        const auto& dm0 = ParticleDistributionMap(0);
+        for (int i = 0; i < static_cast<int>(dm0.size()); i++) {
+            if (dm0[i] == my_proc) { dest_grid_L0 = i; break; }
+        }
+    }
+    DefaultAssignor cell_assignor;
+
+    if (dest_grid_L0 >= 0) {
+      for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+        auto& src_tile = ParticlesAt(a_lev, pti);
+        auto& aos = src_tile.GetArrayOfStructs();
+        auto* p_pbox = aos().data();
+        const int np = aos.numParticles();
+        if (np == 0) { continue; }
+
+        Gpu::DeviceVector<int> oor_mask(np);
+        auto* mask_ptr = oor_mask.data();
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+        {
+            auto& p = p_pbox[i];
+            if (p.id() <= 0) { mask_ptr[i] = 0; return; }
+            const int grd = ag_fine(p, 0, cell_assignor).first;
+            mask_ptr[i] = (grd < 0) ? 1 : 0;
+        });
+
+        ReduceOps<ReduceOpSum> reduce_op;
+        ReduceData<int> reduce_data(reduce_op);
+        using TT = typename decltype(reduce_data)::Type;
+        reduce_op.eval(np, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i) -> TT { return {mask_ptr[i]}; });
+        const int n_oor = amrex::get<0>(reduce_data.value(reduce_op));
+        if (n_oor == 0) { continue; }
+
+        ParticleTileType tmp_tile;
+        tmp_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+        tmp_tile.resize(n_oor);
+        [[maybe_unused]] int nc = amrex::filterParticles(tmp_tile, src_tile, mask_ptr,
+                                                         int(0), int(0), np);
+        AMREX_ASSERT(nc == n_oor);
+
+        auto& dst_tile = DefineAndReturnParticleTile(0, dest_grid_L0, 0);
+        const auto dst_start = static_cast<int>(dst_tile.numParticles());
+        dst_tile.resize(dst_start + n_oor);
+        amrex::copyParticles(dst_tile, tmp_tile, int(0), dst_start, n_oor);
+
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+            if (mask_ptr[i]) { p_pbox[i].id() = -1; }
+        });
+        Gpu::synchronize();
+      }
+    }
+
+    Redistribute(0, 0);
+    Redistribute(a_lev, a_lev);
+}
 
 #endif
 
