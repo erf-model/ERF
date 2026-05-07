@@ -85,7 +85,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
-                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                       Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -495,9 +495,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
 
         Array4<Real> tau_eb13{}, tau_eb23{};
-        if (l_use_eb && Tau_EB[EBTauType::tau_eb13] && Tau_EB[EBTauType::tau_eb23]) {
-            tau_eb13 = Tau_EB[EBTauType::tau_eb13]->array(mfi);
-            tau_eb23 = Tau_EB[EBTauType::tau_eb23]->array(mfi);
+        if (l_use_eb && Tau_EB[EBTauType::tau_eb13][EBGridType::xface] && Tau_EB[EBTauType::tau_eb23][EBGridType::yface]) {
+            tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+            tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
         }
 
         // Strain magnitude

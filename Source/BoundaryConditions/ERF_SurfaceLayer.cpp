@@ -369,7 +369,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
 void
 SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
                                        Vector<const MultiFab*> mfs,
-                                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                       Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                                        MultiFab* xheat_flux,
                                        MultiFab* yheat_flux,
                                        MultiFab* Hfx3_EB,
@@ -379,7 +379,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
                                        const eb_& ebfact)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        moeng_flux flux_comp;
+        eb_moeng_flux flux_comp;
         compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_EB,
                                  xheat_flux, yheat_flux, Hfx3_EB,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -623,7 +623,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 }
 
 /**
- * Function to calculate MOST fluxes for populating ghost cells.
+ * Function to calculate MOST fluxes for EB.
  *
  * @param[in] lev Current level
  * @param[in,out] mfs MultiFabs to populate
@@ -634,7 +634,7 @@ template <typename FluxCalc>
 void
 SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         Vector<const MultiFab*> mfs,
-                                        Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                        Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                                         [[maybe_unused]] MultiFab* xheat_flux,
                                         [[maybe_unused]] MultiFab* yheat_flux,
                                         MultiFab* Hfx3_EB,
@@ -646,9 +646,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
 {
     // Get EB flags for all centerings
     const auto& eb_factory = ebfact.get_const_factory();
-    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();  // Cell-centered flags
-    const auto& u_flags = ebfact.get_u_const_factory()->getMultiEBCellFlagFab();  // X-face flags
-    const auto& v_flags = ebfact.get_v_const_factory()->getMultiEBCellFlagFab();  // Y-face flags
+    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
+    const auto& u_flags = ebfact.get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = ebfact.get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& w_flags = ebfact.get_w_const_factory()->getMultiEBCellFlagFab();
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -656,25 +657,35 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         const auto& cc_flag = cc_flags[mfi];
         const auto& u_flag = u_flags[mfi];
         const auto& v_flag = v_flags[mfi];
+        const auto& w_flag = w_flags[mfi];
 
         // Skip boxes that have no cut cells at any centering
         if (cc_flag.getType() != FabType::singlevalued &&
             u_flag.getType() != FabType::singlevalued &&
-            v_flag.getType() != FabType::singlevalued) continue;
+            v_flag.getType() != FabType::singlevalued &&
+            w_flag.getType() != FabType::singlevalued 
+        ) continue;
 
         // Get flag arrays for GPU kernels
         auto const cc_flag_arr = cc_flag.const_array();
         auto const u_flag_arr = u_flag.const_array();
         auto const v_flag_arr = v_flag.const_array();
+        auto const w_flag_arr = w_flag.const_array();
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
-        // Diffusive stress vars
-        auto t13_arr =  Tau_EB[EBTauType::tau_eb13]->array(mfi);
-        auto t23_arr =  Tau_EB[EBTauType::tau_eb23]->array(mfi);
+        // Diffusive stress vars - t13 and t23 components for all grid types
+        auto u_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+        auto v_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::yface]->array(mfi);
+        auto w_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::zface]->array(mfi);
+
+        auto u_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::xface]->array(mfi);
+        auto v_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+        auto w_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::zface]->array(mfi);
 
         auto hfx3_arr = Hfx3_EB->array(mfi);
 
@@ -713,26 +724,63 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
+        Box bxy = surroundingNodes(bx,1);
+        Box bxz = surroundingNodes(bx,2);
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             if (u_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
                                                         cons_arr, velx_arr, vely_arr,
                                                         umm_arr, um_arr, u_star_arr);
-                t13_arr(i,j,k) = stressx;
+                u_t13_arr(i,j,k) = stressx;
+            }
+        });
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (v_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, um_arr, u_star_arr);
+                v_t13_arr(i,j,k) = stressx;
+            }
+        });
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, um_arr, u_star_arr);
+                w_t13_arr(i,j,k) = stressx;
             }
         });
 
         // Rho*v flux
         //============================================================================
-        Box bxy = surroundingNodes(bx,1);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, vm_arr, u_star_arr);
+                u_t23_arr(i,j,k) = stressy;
+            }
+        });
         ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             if (v_flag_arr(i,j,k).isSingleValued()) {
                 Real stressy = flux_comp.compute_v_flux(i, j, k,
                                                         cons_arr, velx_arr, vely_arr,
                                                         umm_arr, vm_arr, u_star_arr);
-                t23_arr(i,j,k) = stressy;
+                v_t23_arr(i,j,k) = stressy;
+            }
+        });
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (w_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr,
+                                                        umm_arr, vm_arr, u_star_arr);
+                w_t23_arr(i,j,k) = stressy;
             }
         });
     } // mfiter
