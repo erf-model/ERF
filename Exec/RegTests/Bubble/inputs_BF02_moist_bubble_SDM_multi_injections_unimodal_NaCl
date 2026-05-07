@@ -64,7 +64,7 @@ erf.alpha_T          = 0.0 # [m^2/s]
 erf.alpha_C          = 0.0
 
 #sdm parameters
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 100
 super_droplets_moisture.coalescence_kernel = "Halls"
 super_droplets_moisture.multiplicity_type = "constant"

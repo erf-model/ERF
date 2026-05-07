@@ -140,7 +140,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 

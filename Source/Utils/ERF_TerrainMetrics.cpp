@@ -12,7 +12,8 @@ using namespace amrex;
  * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
  */
 void
-init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc)
+init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc,
+                    Real z_offset)
 {
     const auto& dx = geom.CellSize();
     Real dz = dx[2];
@@ -23,7 +24,7 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
         const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_nd_arr(i,j,k) = k * dz;
+            z_nd_arr(i,j,k) = k * dz - z_offset;
         });
     }
 
@@ -33,7 +34,7 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
         const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_cc_arr(i,j,k) = (k + myhalf) * dz;
+            z_cc_arr(i,j,k) = (k + myhalf) * dz - z_offset;
         });
     }
 }

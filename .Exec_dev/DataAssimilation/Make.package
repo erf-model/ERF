@@ -1,2 +1,5 @@
 CEXE_headers += ERF_Prob.H
+CEXE_headers += ERF_DA_EnKFSRF.H
 CEXE_sources += ERF_Prob.cpp
+CEXE_sources += ERF_DA_EnKFSRF.cpp
+CEXE_sources += ERF_DA_EnKFSRF_Utils.cpp

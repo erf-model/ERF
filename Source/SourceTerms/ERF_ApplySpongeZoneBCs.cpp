@@ -10,7 +10,10 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                          const Array4<Real>& cell_rhs,
                          const Array4<const Real>& cell_data,
                          const Array4<const Real>& r0,
-                         const Array4<const Real>& z_phys_cc)
+                         const Array4<const Real>& th0,
+                         const Array4<const Real>& qv0,
+                         const Array4<const Real>& z_phys_cc,
+                         int n_qstate)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -40,7 +43,11 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
     const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
     const Real sponge_density_tmp = spongeChoice.sponge_density;
-    const bool use_base = (sponge_density_tmp < zero);
+    const Real sponge_rhotheta_tmp = spongeChoice.sponge_rhotheta;
+    const Real sponge_rhomoist_tmp = spongeChoice.sponge_rhomoist;
+    const bool use_base_density = (sponge_density_tmp < zero);
+    const bool use_base_rhotheta = (sponge_rhotheta_tmp < zero);
+    const bool use_base_rhomoist = (sponge_rhomoist_tmp < zero);
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -65,13 +72,22 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
-        Real sponge_density = (use_base) ? r0(i,j,k) : sponge_density_tmp;
+        Real sponge_density = (use_base_density) ? r0(i,j,k) : sponge_density_tmp;
+        Real sponge_rhotheta = (use_base_rhotheta) ? r0(i,j,k)*th0(i,j,k) : sponge_rhotheta_tmp;
+        Real sponge_rhomoist = (use_base_rhomoist) ? r0(i,j,k)*qv0(i,j,k) : sponge_rhomoist_tmp;
 
         // x left sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
         // x right sponge
@@ -79,6 +95,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
             if (x > xhi_sponge_start) {
                 Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
 
@@ -87,6 +110,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
             if (y < ylo_sponge_end) {
                 Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
         // x right sponge
@@ -94,6 +124,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
             if (y > yhi_sponge_start) {
                 Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
 
@@ -102,6 +139,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
             if (z < zlo_sponge_end) {
                 Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
         // x right sponge
@@ -109,6 +153,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
                 cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 1) -= sponge_strength * xi * xi * (cell_data(i, j, k, 1) - sponge_rhotheta);
+                if (n_qstate > 0) {
+                    cell_rhs(i, j, k, RhoQ1_comp) -= sponge_strength * xi * xi * (cell_data(i, j, k, RhoQ1_comp) - sponge_rhomoist);
+                    for (int n = RhoQ2_comp; n < RhoQ1_comp+n_qstate; ++n) {
+                        cell_rhs(i, j, k, n) -= sponge_strength * xi * xi * cell_data(i, j, k, n);
+                    }
+                }
             }
         }
     });

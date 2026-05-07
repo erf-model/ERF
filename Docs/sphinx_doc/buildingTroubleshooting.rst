@@ -28,6 +28,18 @@ Quick Diagnostic
       echo $CRAY_ACCEL_TARGET
       echo $NETCDF_DIR
 
+.. dropdown:: Cray GPU link error: ``cannot find -lcudart``
+   :icon: info
+   :color: warning
+
+   If configure/link fails with ``cannot find -lcudart``, check what the Cray wrapper is injecting:
+
+   .. code-block:: bash
+
+      CC --cray-print-opts=libs | grep -E 'cuda|mpi_gtl|mpich|libsci'
+
+   If CUDA ``-L`` paths are missing (or stale), reload your machine profile/module stack and reconfigure from a clean build directory.
+
 .. dropdown:: Compilation fails
    :icon: alert
    :color: warning

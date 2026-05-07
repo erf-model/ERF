@@ -4,7 +4,6 @@
 #include <string>
 
 #include "AMReX_REAL.H"
-
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
@@ -29,6 +28,8 @@ class Problem : public ProblemBase
 public:
     Problem(const amrex_real* problo, const amrex_real* probhi);
 
+#include "Prob/ERF_InitDensityHSE.H"
+#include "Prob/ERF_InitRayleighDamping.H"
 #include "Prob/ERF_InitCustomPert.H"
 
 protected:

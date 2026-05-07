@@ -81,12 +81,11 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     m_recyc_zmax = phi[2];
 
     std::string coal_kernel_name = "";
-    std::string term_vel_name = "";
 
     m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     coal_kernel_name = "sedimentation";
     m_include_brownian_coalescence = false;
-    term_vel_name = "CloudRainShima";
+    m_term_vel_type_w = SDTerminalVelocityType::CloudRainShima;
 
     /* read these parameters if specified */
     pp.query("density_scaling", m_density_scaling);
@@ -153,15 +152,11 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
-    pp.query("terminal_velocity_model", term_vel_name);
-    if (term_vel_name == "AtlasUlbrich") {
-        m_term_vel_type = SDTerminalVelocityType::AtlasUlbrich;
-    } else if (term_vel_name == "RogersYau") {
-        m_term_vel_type = SDTerminalVelocityType::RogersYau;
-    } else if (term_vel_name == "CloudRainShima") {
-        m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
-    } else {
-        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid terminal velocity choice!");
+    {
+        std::string inp_string = "terminal_velocity_model";
+        if (pp.contains(inp_string.c_str())) {
+            pp.get(inp_string.c_str(), m_term_vel_type_w);
+        }
     }
 
     {
@@ -224,12 +219,29 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     setAerosolMaterial( a_aerosol_mat );
     m_num_aerosols = m_aerosol_mat.size();
 
-    AMREX_ASSERT(m_num_species  > 0);
-    AMREX_ASSERT(m_num_species  <= SupDropInit::num_species_max);
-    AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
+    AMREX_ALWAYS_ASSERT(m_num_species  > 0);
+    AMREX_ALWAYS_ASSERT(m_num_species  <= SupDropInit::num_species_max);
+    AMREX_ALWAYS_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
+    AMREX_ALWAYS_ASSERT(m_idx_w >= 0);
 
     add_superdroplet_attributes();
     readInputs(a_dt);
+
+    // Initialize device properties for efficient GPU access
+    initializeDeviceProperties();
+
+    // Initialize staggered z-levels for non-uniform vertical grids (from terrain_z_levels)
+    {
+        ParmParse pp_erf("erf");
+        int n_zlevels = pp_erf.countval("terrain_z_levels");
+        if (n_zlevels > 0) {
+            Vector<Real> zlevels_h(n_zlevels);
+            pp_erf.getarr("terrain_z_levels", zlevels_h, 0, n_zlevels);
+            m_zlevels_d.resize(n_zlevels);
+            Gpu::copy(Gpu::hostToDevice, zlevels_h.begin(), zlevels_h.end(),
+                      m_zlevels_d.begin());
+        }
+    }
 
 #ifdef AMREX_USE_GPU
     AMREX_ASSERT(!m_mass_change_logging);
@@ -309,14 +321,8 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
         Print() << "dirk2";
     }
     Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-    Print() << "  Terminal velocity model: ";
-    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
-        Print() << "AtlasUlbrich" << "\n";
-    } else if (m_term_vel_type == SDTerminalVelocityType::RogersYau) {
-        Print() << "RogersYau" << "\n";
-    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
-        Print() << "CloudRainShima" << "\n";
-    }
+    Print() << "    Terminal velocity model: "
+            << getEnumNameString(m_term_vel_type_w) << "\n";
 
     for (int i = 0; i < m_num_initializations; i++) {
         Print() << "  SuperDropletPC(" << m_name << ") Initialization";
@@ -378,37 +384,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
-        auto& particle_tile = ParticlesAt(m_lev, pti);
-        auto& soa = particle_tile.GetStructOfArrays();
-        auto& aos = particle_tile.GetArrayOfStructs();
-        auto *p_pbox = aos().data();
-        const int n = aos.numParticles();
+    forEachParticleTile(m_lev,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            const SDProcess::ParticlePointers& ptrs, int np)
+    {
+        auto condensate_mass_density = a_rhoc[grid].array();
 
-        /* SoA attributes */
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-
-        /* Runtime-added SoA attributes */
-        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-
-        SDSpeciesMassArr sp_mass_ptrs;
-        for (int i = 0; i < num_sp; i++) {
-            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-        }
-
-        SDAerosolMassArr ae_mass_ptrs;
-        for (int i = 0; i < num_ae; i++) {
-            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-        }
-
-        auto condensate_mass_density = a_rhoc[pti.index()].array();
-
-        ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
+        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -417,32 +399,29 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
             const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;
 
-            Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*Random(rnd_engine);
-            mult_ptr[i] += mult_rnd;
+            Real mult_rnd = -ptrs.mult_ptr[i]/3 + 2*ptrs.mult_ptr[i]/3*Random(rnd_engine);
+            ptrs.mult_ptr[i] += mult_rnd;
 
             ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += sp_mass_ptrs[ctr][n];
+                    species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
                 }
             }
 
             ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ae_mass_ptrs[ctr][n];
+                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
             }
 
-            const Real mass_particle = mass_condensate_sd / mult_ptr[i] + aerosol_mass_total + species_mass_total;
-            mass_ptr[i] = mass_particle;
+            const Real mass_particle = mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total;
+            ptrs.mass_ptr[i] = mass_particle;
 
-            Real radius_cubed = mass_particle / ((Real(4.0)/three)*PI*rho_w);
+            Real radius_cubed = mass_particle / (four_thirds_pi*rho_w);
             Real radius = (radius_cubed == zero ? zero : std::cbrt(radius_cubed));
-            radius_ptr[i] = radius;
+            ptrs.radius_ptr[i] = radius;
         });
-
-    }
-
-    return;
+    }); // end forEachParticleTile
 }
 
 /*! Scale the multiplicities with density of air */
@@ -455,35 +434,22 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
     const auto dxi = Geom(m_lev).InvCellSizeArray();
     const auto domain = Geom(m_lev).Domain();
 
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
-        auto& particle_tile = ParticlesAt(m_lev, pti);
-        auto& soa = particle_tile.GetStructOfArrays();
-        auto& aos = particle_tile.GetArrayOfStructs();
-        auto *p_pbox = aos().data();
-        const int n = aos.numParticles();
+    forEachParticleTile(m_lev,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            const SDProcess::ParticlePointers& ptrs, int np)
+    {
+        auto density = a_rho[grid].const_array();
 
-        /* Runtime-added SoA attributes */
-        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
-        auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-
-        auto density = a_rho[pti.index()].const_array();
-
-        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
             auto iv = getParticleCell(p, plo, dxi, domain);
 
             auto rho_air = density(iv[0],iv[1],iv[2],0);
-            mult_ptr[i] *= rho_air;
+            ptrs.mult_ptr[i] *= rho_air;
         });
-
-    }
-
-    return;
+    }); // end forEachParticleTile
 }
 
 #endif

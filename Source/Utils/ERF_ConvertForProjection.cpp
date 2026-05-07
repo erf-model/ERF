@@ -115,14 +115,14 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir)
             {
                 ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momx(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                    momx(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                 });
             }
             else if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir_upwind)
             {
-                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     if (momx(i,j,k) <= zero) {
-                        momx(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                        momx(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                     } else {
                         momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
                                      / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i-1,j,k,Rho_comp) );
@@ -135,17 +135,17 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                    momy(i,j,k) *= den_mlt_arr(i,j-1,k,Rho_comp) / den_div_arr(i,j-1,k,Rho_comp) ;
                 });
             }
             else if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     if (momy(i,j,k) >= zero) {
-                        momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                        momy(i,j,k) *= den_mlt_arr(i,j-1,k,Rho_comp) / den_div_arr(i,j-1,k,Rho_comp) ;
                     } else {
-                        momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
-                                     / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i-1,j,k,Rho_comp) );
+                        momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i,j-1,k,Rho_comp) )
+                                     / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i,j-1,k,Rho_comp) );
                     }
                 });
             }
@@ -155,17 +155,17 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir)
             {
                 ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                    momy(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                 });
             }
             else if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir_upwind)
             {
                 ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     if (momy(i,j,k) <= zero) {
-                        momy(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
+                        momy(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                     } else {
-                        momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
-                                     / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i-1,j,k,Rho_comp) );
+                        momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i,j-1,k,Rho_comp) )
+                                     / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i,j-1,k,Rho_comp) );
                     }
                 });
             }

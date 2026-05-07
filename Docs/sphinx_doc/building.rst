@@ -52,6 +52,7 @@ Quick Start
 * :ref:`sec:build:quickstart` - **Quick start**: Copyable clone-build-run commands for common scenarios
 * :ref:`sec:build:overview` - **Concepts**: Prerequisites, choosing build systems, and general workflow
 * :ref:`sec:build:systems` - **Complete guide**: Detailed step-by-step instructions from cloning to executable with custom configurations
-* :ref:`sec:build:hpc` - **HPC platforms**: Cray detection, machine profiles, and job submission scripts
+* :ref:`sec:build:hpc` - **HPC concepts**: Cray detection, machine profiles, and build script references
+* :ref:`sec:hpc:guides` - **HPC system guides**: Perlmutter, Kestrel, and Aurora build/run walkthroughs
 * :ref:`sec:build:library` - **Dependencies**: Configuring I/O libraries (NetCDF, HDF5) and physics packages (SHOC, P3, RRTMGP)
 * :ref:`sec:build:troubleshooting` - **Help**: Common build errors, debugging tools, and getting assistance

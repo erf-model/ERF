@@ -21,13 +21,12 @@ jobs:
     name: CUDA v${{matrix.cuda_ver}} - Particles ${{matrix.particles}}
     strategy:
       matrix:
-        cuda_pkg: [12-0]
+        cuda_pkg: [12-2]
         particles: [OFF, ON]
         include:
-          - cuda_ver: "12.0"
-            cuda_pkg: 12-0
-          - cuda_arch: "8.0"
-            cuda_pkg: 12-0
+          - cuda_ver: "12.2"
+            cuda_pkg: 12-2
+            cuda_arch: "8.0"
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.6.0

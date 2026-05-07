@@ -1,0 +1,12 @@
+CEXE_sources += ERF_InitWSM6.cpp
+CEXE_sources += ERF_AdvanceWSM6.cpp
+CEXE_sources += ERF_UpdateWSM6.cpp
+CEXE_headers += ERF_WSM6.H
+CEXE_headers += ERF_WSM6_Fortran_Interface.H
+
+ifeq ($(USE_WSM6_FORT),TRUE)
+     F90EXE_sources += ERF_module_libmassv.F90
+     F90EXE_sources += ERF_mp_radar.F90
+     F90EXE_sources += ERF_module_mp_wsm6.F90
+     F90EXE_sources += ERF_module_mp_wsm6_isohelper.F90
+endif

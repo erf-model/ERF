@@ -3,7 +3,7 @@ erf.prob_name = "Particles Over Flat Ground"
 
 erf.init_type = Isentropic
 
-max_step =  80
+max_step =  400
 
 amrex.fpe_trap_invalid = 1
 
@@ -23,6 +23,7 @@ xlo.velocity = 10. 0. 0.
 xlo.density  = 1.16
 xlo.theta    = 300.
 xlo.scalar   = 0.
+xlo.nonreflecting = true
     
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
@@ -30,9 +31,10 @@ zhi.type = "SlipWall"
 # PARTICLES
 erf.use_tracer_particles = 1
 tracer_particles.initial_distribution_type = box
-tracer_particles.particle_box_lo = 3.95 -1.0 -1.0
-tracer_particles.particle_box_hi = 4.00  2.0  3.0
-tracer_particles.place_randomly_in_cells = true
+tracer_particles.particle_box_lo = 2.95 -1.0 -1.0
+tracer_particles.particle_box_hi = 3.00  2.0  1.0
+tracer_particles.place_randomly_in_cells = false
+tracer_particles.verbose = 1
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1E-3
@@ -43,31 +45,18 @@ erf.sum_interval   = 1        # timesteps between computing mass
 erf.v              = 1        # verbosity in ERF.cpp
 amr.v              = 1        # verbosity in Amr.cpp
 
-# REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
-
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = 100 # number of timesteps between checkpoints
+erf.check_int       = -1  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 50      # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens dpdx dpdy pres_hse_x pres_hse_y tracer_particles_count tracer_particles_mass_density
+erf.plot_int_1      = 20      # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particles_count tracer_particles_mass_density
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 erf.les_type = "None"
-
-# MULTILEVEL
-amr.max_level = 0
-amr.ref_ratio_vect = 2 2 1
-
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  2. 0.25
-erf.box1.in_box_hi =  8. 0.75
 
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd
@@ -83,8 +72,9 @@ erf.alpha_T           = 0.0 # [m^2/s]
 #erf.abl_pressure_grad = -0.2 0. 0.
 
 # PROBLEM PARAMETERS (optional)
-prob.custom_terrain_type = "FlatRaised"
-
 prob.T_0   = 300.0
 prob.U_0   = 10.0
 prob.rho_0 = 1.16
+
+# MULTILEVEL
+amr.max_level = 1

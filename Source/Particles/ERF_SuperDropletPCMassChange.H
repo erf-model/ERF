@@ -1,11 +1,14 @@
-#ifndef SUPERDROPLET_PC_COALESCENCE_H_
-#define SUPERDROPLET_PC_COALESCENCE_H_
+#ifndef SUPERDROPLET_PC_MASSCHANGE_H_
+#define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
+#include "ERF_Constants.H"
 
 #ifdef ERF_USE_PARTICLES
 
-namespace SDMassChangeUtils
+/*! \brief Namespace with classes and functions for condensation/evaporation
+ *  (liquid <--> vapour) */
+namespace SDMassChangeUtils_LV
 {
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     /*! \brief Phase change equation (in terms of R) */
@@ -32,13 +35,13 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/a_R;
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = one/a_R;
+            RT R_inv = RT(1.0)/a_R;
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = (a_S-one) / (F_k + F_d);
+            RT alpha = (a_S-RT(1.0)) / (F_k + F_d);
             RT retval = alpha*R_inv;
 
             RT beta = -(a_a/a_T) / (F_k + F_d);
@@ -77,19 +80,19 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = std::exp(-myhalf*std::log(a_R_sq));
+            RT R_inv = RT(1.0)/std::sqrt(a_R_sq);
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
-            RT alpha = two * (a_S-one) / (F_k + F_d);
+            RT alpha = RT(2.0) * (a_S-RT(1.0)) / (F_k + F_d);
             RT retval = alpha;
 
-            RT beta = -two * (a_a/a_T) / (F_k + F_d);
+            RT beta = -RT(2.0) * (a_a/a_T) / (F_k + F_d);
             retval += beta*R_inv;
 
-            RT gamma = two * a_b * a_N_s / (F_k + F_d);
+            RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed;
 
             return retval;
@@ -109,19 +112,19 @@ namespace SDMassChangeUtils
             RT Kn = lambda_v/std::sqrt(a_R_sq);
             RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
 
-            RT F_k = ( L/(Rv*a_T) - one) * ((L*rho_l) / (K*a_T));
+            RT F_k = ( L/(Rv*a_T) - RT(1.0)) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = one/std::sqrt(a_R_sq);
+            RT R_inv = RT(1.0)/std::sqrt(a_R_sq);
             RT R_inv_3 = R_inv*R_inv*R_inv;
             RT R_inv_5 = R_inv_3*R_inv*R_inv;
 
-            RT retval = zero;
+            RT retval = RT(0.0);
 
-            RT beta = -two * (a_a/a_T) / (F_k + F_d);
+            RT beta = -RT(2.0) * (a_a/a_T) / (F_k + F_d);
             retval -= myhalf * beta*R_inv_3;
 
-            RT gamma = two * a_b * a_N_s / (F_k + F_d);
+            RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
             retval -= myhalf * three*gamma*R_inv_5;
 
             return retval;
@@ -167,7 +170,7 @@ namespace SDMassChangeUtils
                          ) const
         {
             a_converged = false;
-            RT res_norm0 = zero;
+            RT res_norm0 = RT(0.0);
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u
@@ -179,7 +182,7 @@ namespace SDMassChangeUtils
                     if (a_res_norm_a > 0) {
                         res_norm0 = a_res_norm_a;
                     } else {
-                        res_norm0 = one;
+                        res_norm0 = RT(1.0);
                     }
                 }
                 a_res_norm_r = a_res_norm_a / res_norm0;
@@ -198,7 +201,7 @@ namespace SDMassChangeUtils
                 }
 
                 RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_D, a_a, a_b, a_N_s );
-                RT du = zero;
+                RT du = RT(0.0);
                 du = - residual / slope;
 
                 RT du_norm = std::sqrt(du*du);
@@ -209,7 +212,7 @@ namespace SDMassChangeUtils
                 }
 
                 a_u += du;
-                if (a_u <= zero) {
+                if (a_u <= RT(0.0)) {
                     a_converged = false;
                     break;
                 }
@@ -244,13 +247,76 @@ namespace SDMassChangeUtils
         bool m_adapt_dt;  /*!< use error-based adaptive dt? */
         bool m_verbose;   /*!< verbosity */
 
+        /*! \brief Compute timestep from stiffness estimate */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT computeTimestep (const RT& a_u) const
+        {
+            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            return m_cfl / std::sqrt(tau*tau);
+        }
+
+        /*! \brief Compute stiffness estimate (tau) */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT computeTau (const RT& a_u) const
+        {
+            return m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+        }
+
+        /*! \brief Limit timestep to not exceed final time */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT limitTimestep (RT dt, RT cur_time) const
+        {
+            if ((cur_time + dt) > m_t_final) {
+                dt = m_t_final - cur_time;
+            }
+            return dt;
+        }
+
+        /*! \brief Check if timestep is too small to continue */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        bool isTimestepTooSmall (RT dt, RT tau) const
+        {
+            return (dt < (RT(1.0e-12) * m_cfl / std::sqrt(tau*tau)))
+                && (dt < (RT(1.0e-12) * m_t_final));
+        }
+
+        /*! \brief Evaluate ODE right-hand side */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT evalRHS (const RT& a_u) const
+        {
+            return m_ode.rhs_func(a_u, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+        }
+
+        /*! \brief Print verbose step information */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void printStepInfo (RT cur_time, RT dt, RT tau, RT radius, RT snorm) const
+        {
+            if (m_verbose) {
+                AMREX_DEVICE_PRINTF("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                                    cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+            }
+        }
+
+        /*! \brief Print verbose step info with Newton solver details */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void printStepInfoNewton (RT cur_time, RT dt, RT tau, RT radius, RT snorm,
+                                  RT res_norm_a, RT res_norm_r, bool converged) const
+        {
+            if (m_verbose) {
+                AMREX_DEVICE_PRINTF("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                                    cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+                AMREX_DEVICE_PRINTF("    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
+                                    res_norm_a, res_norm_r, (converged ? "yes" : "no"));
+            }
+        }
+
         /*! \brief 3rd-order, 4-stage Bogacki-Shampine explicit RK method
          *  with 2nd order embedded method */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         void rk3bs ( RT& a_u,  /*!< solution */
                      bool& a_success  /*!< success/failure flag */ ) const
         {
-            RT cur_time = zero;
+            RT cur_time = RT(0.0);
             a_success = true;
 
             RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);

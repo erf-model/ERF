@@ -242,6 +242,7 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010")
+add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
@@ -250,6 +251,12 @@ add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_PARTICLES)
   add_test_r(ParticleAdvect                  ""  "erf_exec" "plt00010")
   add_test_r(ParticleWoA                     ""  "erf_exec" "plt00010")
+  add_test_r(ParticleAdvect_AMR1_box         ""  "erf_exec" "plt00050")
+  add_test_sdm(ParticleAdvect_AMR1_pcount      ""  "erf_exec" "plt00050" 2e-8 3e-9)
+  # Skip AMR2_pcount for Debug/RelWithDebInfo builds with AMD GPUs (it freezes!)
+  if((CMAKE_BUILD_TYPE STREQUAL "Release") OR (NOT ERF_ENABLE_HIP))
+    add_test_sdm(ParticleAdvect_AMR2_pcount    ""  "erf_exec" "plt00050" 1e-7 5e-9)
+  endif()
 endif( )
 if(ERF_ENABLE_RRGMTP)
   add_test_r(Radiation                       ""  "erf_exec" "plt00010")
@@ -290,6 +297,8 @@ if(ERF_ENABLE_PARTICLES)
         add_test_sdm(SDM_Bubble2D_Adv_InitSampling   ""  "erf_exec"   "plt00000" 1e-14 1e-14)
         # column case to test condensation
         add_test_sdm(SDM_SineMassFlux                "" "erf_exec" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
+        # recycling
+        add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00060" 5e-13 1e-14)
     endif()
 
     # passive advection of particles
@@ -300,8 +309,6 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_Box3D_Cond                  "" "erf_exec"  "plt00010" 2e-12 3e-13)
     # terminal velocity
     add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"  "plt00001" 5e-13 1e-14)
-    # recycling
-    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00020" 5e-13 1e-14)
     # Congestus case
     add_test_sdm(SDM_Congestus3D                 "" "erf_exec"  "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case

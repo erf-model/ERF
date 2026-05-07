@@ -106,6 +106,15 @@ The following problems are currently tested in the CI:
 | TaylorGreenAdvectingDiffusing | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                                 |
 |                               |          |          |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ParticleAdvect_AMR1_box       | 128 4 32 | Inflow   | Periodic | SlipWall   | None  | particle advection, 1 AMR level |
+|                               |          | Outflow  |          | SlipWall   |       | static box tagging, partial z   |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ParticleAdvect_AMR1_pcount    | 128 4 32 | Inflow   | Periodic | SlipWall   | None  | particle advection, 1 AMR level |
+|                               |          | Outflow  |          | SlipWall   |       | particle-count tagging          |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ParticleAdvect_AMR2_pcount    | 128 4 32 | Inflow   | Periodic | SlipWall   | None  | particle advection, 2 AMR levels|
+|                               |          | Outflow  |          | SlipWall   |       | particle-count tagging          |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 
 while the following tests are run nightly:
 

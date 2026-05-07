@@ -62,19 +62,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     subdomains.resize(lev+1);
-    if ( (lev == 0) || (
-         (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) &&
-         (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        //
-        // Create subdomains at each level within the domain such that
-        // 1) all boxes in a given subdomain are "connected"
-        // 2) no boxes in a subdomain touch any boxes in any other subdomain
-        //
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    //
+    // Create subdomains at each level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -344,9 +337,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (lev == 0) {
             initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
-        } else {
-            particleData.Redistribute();
         }
+        // For lev > 0: particle redistribute is handled in timeStep() AFTER
+        // regrid() completes, not here inside MakeNewLevelFromCoarse.
     }
 #endif
 }
@@ -377,12 +370,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if ( (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -630,9 +618,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
-#ifdef ERF_USE_PARTICLES
-    // particleData.Redistribute();
-#endif
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -663,9 +648,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if (solverChoice.anelastic[lev] == 1) {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    subdomains[lev].clear();
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
@@ -932,9 +916,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
-#ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
-#endif
+    // Particle redistribute handled in timeStep() after regrid() completes.
+    // Calling it here causes stale-grid crashes.
 }
 
 //

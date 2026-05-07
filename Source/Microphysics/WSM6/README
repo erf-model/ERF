@@ -1,0 +1,123 @@
+# WSM6 Fortran-Bridge Reproduction (Morrison-Parity)
+
+This workflow reproduces a like-for-like WSM6 vs Morrison comparison using the same ERF executable, runtime controls, and `fcompare` postprocessing.
+
+## Setup
+
+Set `ERF_HOME` and derived paths once:
+
+```bash
+export ERF_HOME="/path/to/ERF"
+export BUILD_DIR="${ERF_HOME}/build"
+export INSTALL_DIR="${ERF_HOME}/install"
+export CASE_DIR="${ERF_HOME}/Exec/CanonicalTests/SquallLine_2D"
+export ERF_EXE="${BUILD_DIR}/Exec/erf_exec"
+export FCOMPARE="${FCOMPARE:-${INSTALL_DIR}/bin/amrex_fcompare}"
+```
+
+Required inputs in `${CASE_DIR}`:
+- `inputs_moisture_WSM6`
+- `inputs_moisture_Morrison_short`
+
+## Build
+
+```bash
+cmake -S "${ERF_HOME}" -B "${BUILD_DIR}" \
+  -DERF_ENABLE_NETCDF=OFF \
+  -DERF_ENABLE_WSM6_FORT=ON \
+  -DERF_ENABLE_FCOMPARE=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}"
+
+cmake --build "${BUILD_DIR}" -j 8
+cmake --install "${BUILD_DIR}"
+```
+
+Optional strict-contract debug build (for bounds/FPE debugging):
+
+```bash
+cmake -S "${ERF_HOME}" -B "${ERF_HOME}/build_debug" \
+  -DERF_ENABLE_NETCDF=OFF \
+  -DERF_ENABLE_WSM6_FORT=ON \
+  -DERF_ENABLE_FCOMPARE=ON \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+  -DCMAKE_Fortran_FLAGS_DEBUG='-O0 -g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow'
+
+cmake --build "${ERF_HOME}/build_debug" -j 8
+```
+
+## Run WSM6 (120 steps)
+
+```bash
+cd "${CASE_DIR}"
+
+"${ERF_EXE}" \
+  inputs_moisture_WSM6 \
+  max_step=120 \
+  erf.plot_int_1=30 \
+  erf.plot_file_1=plt_wsm6_run \
+  erf.check_file=chk_wsm6_run \
+  amrex.fpe_trap_invalid=0 \
+  > run_wsm6.log 2>&1
+```
+
+## Run Morrison (120 steps, matched controls)
+
+```bash
+"${ERF_EXE}" \
+  inputs_moisture_Morrison_short \
+  max_step=120 \
+  erf.plot_int_1=30 \
+  erf.plot_file_1=plt_morr_run \
+  erf.check_file=chk_morr_run \
+  amrex.fpe_trap_invalid=0 \
+  > run_morr.log 2>&1
+```
+
+## Quick verification
+
+```bash
+rg -n "Moisture Model: WSM6|Coarse STEP 120 ends" run_wsm6.log
+rg -n "Moisture Model: Morrison|Coarse STEP 120 ends" run_morr.log
+```
+
+Expected final outputs:
+- `plt_wsm6_run00120`, `chk_wsm6_run00120`
+- `plt_morr_run00120`, `chk_morr_run00120`
+
+## Compare step-120 plotfiles
+
+```bash
+"${FCOMPARE}" \
+  plt_wsm6_run00120 \
+  plt_morr_run00120
+```
+
+Exact example from this branch (step-120 parity check):
+
+```bash
+"${FCOMPARE}" \
+  plt_wsm6_run00120 \
+  plt_morr_run00120
+```
+
+```text
+            variable name            absolute error            relative error
+                                        (||A - B||)         (||A - B||/||A||)
+ ----------------------------------------------------------------------------
+ level = 0
+ density                            9.103828802e-15           8.068305415e-15
+ rhotheta                           1.307398634e-12            3.86091667e-15
+ x_velocity                         5.080380561e-13           4.182172327e-14
+ z_velocity                         9.108771951e-13           1.541701669e-12
+ pressure                           5.238689482e-10           5.285028379e-15
+ rain_accum                                       0                         0
+ snow_accum                                       0                         0
+ graup_accum                                      0                         0
+```
+
+Notes:
+- If `${FCOMPARE}` is not executable on your machine, set `FCOMPARE` to your local `amrex_fcompare` path.
+- If your `fcompare` is MPI-enabled, run it in an environment where MPI singleton/process launch is supported.
+- Morrison GNUmake docs sometimes mention `-fdefault-real-8`; this README uses the CMake path shown above.
