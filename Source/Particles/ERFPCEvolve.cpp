@@ -80,6 +80,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+    const Box&  dom = geom.Domain();
+    const int   k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
     auto domlo = lbound(geom.Domain());
 
@@ -155,29 +157,42 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     }
                 }
 
-                // Physical (u,v,w) -> computational (xi_dot, eta_dot, zeta_dot).
-                // Identity for uniform-z; metric is exact for terrain.
-                {
-                    const auto m = ERF::ParticlePos::metric_at(
-                        p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
-                        plo, dxi, zheight);
-                    v[AMREX_SPACEDIM-1] = (v[AMREX_SPACEDIM-1]
-                                           - v[0] * m.dz_dxi
-                                           - v[1] * m.dz_deta) / m.dz_dzeta;
-                }
-
+                // Round-trip integration: convert pos(2) (zeta) to physical z,
+                // advance in physical (x,y,z) using physical (u,v,w), convert
+                // back to zeta in the new column.  Identity for uniform-z;
+                // exact w-preservation on terrain (no linearization).
                 if (ipass == 0) {
-                    for (int dim=0; dim < AMREX_SPACEDIM; dim++)
-                    {
-                        v_ptr[dim][i] = p.pos(dim);
-                        p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*v[dim]);
-                    }
+                    const Real x0 = p.pos(0);
+                    const Real y0 = p.pos(1);
+                    const Real zeta0 = p.pos(AMREX_SPACEDIM-1);
+                    const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight);
+                    const Real x_h = x0 + Real(0.5)*a_dt*v[0];
+                    const Real y_h = y0 + Real(0.5)*a_dt*v[1];
+                    const Real z_h = z_phys0 + Real(0.5)*a_dt*v[2];
+                    v_ptr[0][i] = static_cast<ParticleReal>(x0);
+                    v_ptr[1][i] = static_cast<ParticleReal>(y0);
+                    v_ptr[2][i] = static_cast<ParticleReal>(zeta0);
+                    p.pos(0) = static_cast<ParticleReal>(x_h);
+                    p.pos(1) = static_cast<ParticleReal>(y_h);
+                    p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                        ERF::ParticlePos::zeta_from_z(x_h, y_h, z_h, plo, dxi, zheight, k_max));
                 } else {
-                    for (int dim=0; dim < AMREX_SPACEDIM; dim++)
-                    {
-                        p.pos(dim) = v_ptr[dim][i] + static_cast<ParticleReal>(a_dt*v[dim]);
-                        v_ptr[dim][i] = v[dim];
-                    }
+                    const Real x0 = v_ptr[0][i];
+                    const Real y0 = v_ptr[1][i];
+                    const Real zeta0 = v_ptr[2][i];
+                    const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight);
+                    const Real x_n = x0 + a_dt*v[0];
+                    const Real y_n = y0 + a_dt*v[1];
+                    const Real z_n = z_phys0 + a_dt*v[2];
+                    p.pos(0) = static_cast<ParticleReal>(x_n);
+                    p.pos(1) = static_cast<ParticleReal>(y_n);
+                    p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                        ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, plo, dxi, zheight, k_max));
+                    v_ptr[0][i] = static_cast<ParticleReal>(v[0]);
+                    v_ptr[1][i] = static_cast<ParticleReal>(v[1]);
+                    v_ptr[2][i] = static_cast<ParticleReal>(v[2]);
                 }
 
                 // Particle crossed below the bottom: move to 0.2*dz above floor
@@ -219,6 +234,8 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+    const Box&  dom = geom.Domain();
+    const int   k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -254,15 +271,15 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             // Update the particle velocity over first half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // Convert physical w to zeta_dot for the position update.  Gravity
-            // is purely vertical (no horizontal velocity), so the metric
-            // contribution reduces to vz / dz_dzeta.
+            // Round-trip integration in physical z, then back to zeta.
             {
-                const auto m = ERF::ParticlePos::metric_at(
-                    p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
-                    plo, dxi, zheight);
-                p.pos(2) += static_cast<ParticleReal>(
-                    ParticleReal(0.5) * a_dt * vz_ptr[i] / m.dz_dzeta);
+                const Real x0 = p.pos(0);
+                const Real y0 = p.pos(1);
+                const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
+                    x0, y0, p.pos(AMREX_SPACEDIM-1), plo, dxi, zheight);
+                const Real z_phys_n = z_phys0 + Real(0.5) * a_dt * vz_ptr[i];
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x0, y0, z_phys_n, plo, dxi, zheight, k_max));
             }
 
             // Update the particle velocity over second half of step (a_dt/2)

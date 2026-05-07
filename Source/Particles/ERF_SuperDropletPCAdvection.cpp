@@ -53,6 +53,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto ctx = buildProcessContext(a_lev);
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto is_periodic_z = geom.isPeriodic(2);
+    const Box& dom = geom.Domain();
+    const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
@@ -143,21 +145,28 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
             ptrs.vterm_ptr[i] = terminal_vel;
 
-            // Local terrain metric for converting physical (u,v,w) and the
-            // gravitational fall to the computational vertical coordinate.
-            const auto m = ERF::ParticlePos::metric_at(
-                p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
-                ctx.plo, ctx.dxi, zheight);
-
-            if (advect_w_flow) {
-                const ParticleReal zeta_dot =
-                    (v[AMREX_SPACEDIM-1] - v[0]*m.dz_dxi - v[1]*m.dz_deta) / m.dz_dzeta;
-                p.pos(0) += static_cast<ParticleReal>(a_dt*v[0]);
-                p.pos(1) += static_cast<ParticleReal>(a_dt*v[1]);
-                p.pos(AMREX_SPACEDIM-1) += static_cast<ParticleReal>(a_dt*zeta_dot);
-            }
-            if (advect_w_gravity) {
-                p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel / m.dz_dzeta);
+            // Round-trip integration: convert pos(2) (zeta) to physical z,
+            // advance in physical (x, y, z), convert back to zeta.
+            if (advect_w_flow || advect_w_gravity) {
+                const Real x0 = p.pos(0);
+                const Real y0 = p.pos(1);
+                const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
+                    x0, y0, p.pos(AMREX_SPACEDIM-1), ctx.plo, ctx.dxi, zheight);
+                Real x_n = x0;
+                Real y_n = y0;
+                Real z_n = z_phys0;
+                if (advect_w_flow) {
+                    x_n += a_dt * v[0];
+                    y_n += a_dt * v[1];
+                    z_n += a_dt * v[AMREX_SPACEDIM-1];
+                }
+                if (advect_w_gravity) {
+                    z_n -= a_dt * terminal_vel;
+                }
+                p.pos(0) = static_cast<ParticleReal>(x_n);
+                p.pos(1) = static_cast<ParticleReal>(y_n);
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, ctx.plo, ctx.dxi, zheight, k_max));
             }
 
             update_location_idata(p,ctx.plo,ctx.dxi,zheight);
