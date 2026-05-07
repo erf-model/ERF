@@ -932,7 +932,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Diffusive fluxes for EB
-    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_EB;
+    // Tau_EB[level][component][grid_type]
+    amrex::Vector<amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>> Tau_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx3_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qfx3_EB;
 
