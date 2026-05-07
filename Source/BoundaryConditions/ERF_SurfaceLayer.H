@@ -12,6 +12,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_EBMOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
@@ -506,7 +507,7 @@ public:
 
   void impose_SurfaceLayer_bcs_EB (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
-                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
                                 amrex::MultiFab* xheat_flux,
                                 amrex::MultiFab* yheat_flux,
                                 amrex::MultiFab* zheat_flux,
@@ -530,7 +531,7 @@ public:
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs_EB (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
-                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                 amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
                                  amrex::MultiFab* xheat_flux,
                                  amrex::MultiFab* yheat_flux,
                                  amrex::MultiFab* zheat_flux,

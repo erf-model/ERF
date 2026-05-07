@@ -11,6 +11,7 @@ CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 CEXE_headers += ERF_EBAux.H
 CEXE_headers += ERF_EBCutCell.H
 CEXE_headers += ERF_EBIFTerrain.H
+CEXE_headers += ERF_EBMOSTStress.H
 CEXE_headers += ERF_EBPolygon.H
 CEXE_headers += ERF_EBRedistribute.H
 CEXE_headers += ERF_EBSlopes.H
