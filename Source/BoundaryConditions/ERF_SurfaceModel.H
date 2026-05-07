@@ -127,52 +127,52 @@ public:
             amrex::IntVect ng_od(0, 0, 0); // ng outside domain
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
-                                         m_geom2d[lev-1], m_geom2d[lev],
+                                         m_geom[lev-1], m_geom[lev],
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_star[lev], t_star[lev-1]->nGrowVect(), ng_od,
                                          *t_star[lev-1], 0, 0, 1,
-                                         m_geom2d[lev-1], m_geom2d[lev],
+                                         m_geom[lev-1], m_geom[lev],
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*q_star[lev], q_star[lev-1]->nGrowVect(), ng_od,
                                          *q_star[lev-1], 0, 0, 1,
-                                         m_geom2d[lev-1], m_geom2d[lev],
+                                         m_geom[lev-1], m_geom[lev],
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_surf[lev], t_surf[lev-1]->nGrowVect(), ng_od,
                                          *t_surf[lev-1], 0, 0, 1,
-                                         m_geom2d[lev-1], m_geom2d[lev],
+                                         m_geom[lev-1], m_geom[lev],
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
 
             amrex::Interpolater* mapper = &amrex::cell_cons_interp;
             amrex::Vector<amrex::MultiFab*> fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
             amrex::Vector<amrex::MultiFab*> cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev-1]->nGrowVect(), ng_od,
+            amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 2, m_geom2d[lev-1], m_geom2d[lev],
+                                      0, 0, 2, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
             fmf = {t_star[lev  ].get(), t_star[lev  ].get()};
             cmf = {t_star[lev-1].get(), t_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_star[lev].get(), t_star[lev-1]->nGrowVect(), ng_od,
+            amrex::FillPatchTwoLevels(*t_star[lev].get(), t_star[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom2d[lev-1], m_geom2d[lev],
+                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
             fmf = {q_star[lev  ].get(), q_star[lev  ].get()};
             cmf = {q_star[lev-1].get(), q_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*q_star[lev].get(), q_star[lev-1]->nGrowVect(), ng_od,
+            amrex::FillPatchTwoLevels(*q_star[lev].get(), q_star[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom2d[lev-1], m_geom2d[lev],
+                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
             fmf = {t_surf[lev  ].get(), t_surf[lev  ].get()};
             cmf = {t_surf[lev-1].get(), t_surf[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_surf[lev].get(), t_surf[lev-1]->nGrowVect(), ng_od,
+            amrex::FillPatchTwoLevels(*t_surf[lev].get(), t_surf[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom2d[lev-1], m_geom2d[lev],
+                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
 
@@ -180,14 +180,14 @@ public:
                 amrex::IntVect ngv = fields[field][lev-1]->nGrowVect(); ngv[2] = 0;
                 amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
                                              *fields[field][lev-1], 0, 0, 1,
-                                             m_geom2d[lev-1], m_geom2d[lev],
+                                             m_geom[lev-1], m_geom[lev],
                                              refRatio[lev-1], &amrex::cell_cons_interp,
                                              domain_bcs_type, BCVars::cons_bc);
                 fmf = {fields[field][lev  ].get(), fields[field][lev  ].get()};
                 cmf = {fields[field][lev-1].get(), fields[field][lev-1].get()};
                 amrex::FillPatchTwoLevels(*fields[field][lev].get(), ngv, ng_od,
                                           time_for_fp, cmf, ctime, fmf, ftime,
-                                          0, 0, 1, m_geom2d[lev-1], m_geom2d[lev],
+                                          0, 0, 1, m_geom[lev-1], m_geom[lev],
                                           refRatio[lev-1], mapper, domain_bcs_type,
                                           BCVars::cons_bc);
             }
