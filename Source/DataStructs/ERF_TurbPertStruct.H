@@ -25,16 +25,23 @@ struct TurbulentPerturbation {
 
     ~TurbulentPerturbation () {}
 
-    void init_tpi_type (const PerturbationType& pert_type)
+    void init_tpi_type (const int lev,
+                        const PerturbationType& pert_type,
+                        const int max_level)
     {
-        if (pert_type == PerturbationType::Source) {
-            pt_type = 0;
-        } else if (pert_type == PerturbationType::Direct) {
-            pt_type = 1;
-        } else if (pert_type == PerturbationType::CPM) {
-            pt_type = 2;
+        if (pt_type.size() < max_level + 1) {
+            pt_type.resize(max_level + 1, -1);
         }
-        AMREX_ALWAYS_ASSERT(pt_type >= 0);
+
+        if (pert_type == PerturbationType::Source) {
+            pt_type[lev] = 0;
+        } else if (pert_type == PerturbationType::Direct) {
+            pt_type[lev] = 1;
+        } else if (pert_type == PerturbationType::CPM) {
+            pt_type[lev] = 2;
+        } else {
+            pt_type[lev] = -1;
+        }
     }
 
     // Initializing Perturbation Region
@@ -43,8 +50,7 @@ struct TurbulentPerturbation {
     // therefore efficiency is not required. Dont spend too much time
     // here other than to correctly setup the perturbation box region
     void init_tpi (const int lev,
-                   const amrex::IntVect& valid_box_lo, // start points of the valid box
-                   const amrex::IntVect& valid_box_hi, // end points of the valid box
+                   const amrex::Vector<amrex::BoxArray>& subdomains_lev,
                    const amrex::GpuArray<amrex::Real,3> dx,
                    const amrex::BoxArray& ba,
                    const amrex::DistributionMapping& dm,
@@ -77,18 +83,12 @@ struct TurbulentPerturbation {
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
         for (int i = 0; i < tpi_boxDim.size(); i++) {
-            if (tpi_boxDim[i] == 0) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
+            if (tpi_boxDim[i] < 3) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
         if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
-        if (input_Ug < zero) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = amrex::Real(10.0) m/s)"); }
-        if (tpi_Tinf < zero) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
-        if (tpi_Ti < zero) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-one)"); }
-
-        // Creating perturbation regions and initializing with generic size. Temporary size for now
-        amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
-        amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
-        amrex::Box lo_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
-        amrex::Box hi_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+        if (input_Ug   < zero) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = amrex::Real(10.0) m/s)"); }
+        if (tpi_Tinf   < zero) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
+        if (tpi_Ti     < zero) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-one)"); }
 
         // Create a temporary box list to accumulate all the perturbation regions after box modification
         amrex::BoxList tmp_bl;
@@ -96,80 +96,105 @@ struct TurbulentPerturbation {
         // boxSize for individual boxes
         amrex::IntVect boxSize(tpi_boxDim[0],tpi_boxDim[1],tpi_boxDim[2]);
 
-        // Starting logic to set the size of the perturbation region(s)
-        //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
-        // ***** X-direction perturbation *****
-        if (tpi_direction[0]) { // West
-            lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-            lo_x_bx.setBig(amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
-            //amrex::PrintToFile("BoxPerturbationOutput") << " West face";
-        }
-
-        if (tpi_direction[3]) { // East
-            hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-            hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
-            //amrex::PrintToFile("BoxPerturbationOutput") << " East face";
-        }
-
-        // ***** Y-direction Perturbation *****
-        if (tpi_direction[1]) { // North
-            lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
-            lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
-            //amrex::PrintToFile("BoxPerturbationOutput") << " North face";
-        }
-
-        if (tpi_direction[4]) { // South
-            hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
-            hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
-            //amrex::PrintToFile("BoxPerturbationOutput") << " South face";
-        }
-
         if (tpi_direction[2] || tpi_direction[5]) { amrex::Abort("Currently not supporting z-direction flow perturbation"); }
 
-        // Performing box union for intersecting perturbation regions to avoid overlapping sections (double counting at corners)
-        if (tpi_direction[0] && tpi_direction[1]) {  // Reshaping South smallEnd
-            amrex::Box lo_x_lo_y_u = lo_x_bx & lo_y_bx;
-            lo_y_bx.setSmall(amrex::IntVect(lo_x_lo_y_u.bigEnd(0)+1, lo_x_lo_y_u.smallEnd(1), lo_x_lo_y_u.smallEnd(2)));
+        for (int isub = 0; isub < subdomains_lev.size(); ++isub) {
+            const amrex::BoxArray& subdomain = subdomains_lev[isub];
+            amrex::Box subdomain_box(subdomain.minimalBox());
+
+            if (subdomain_box.numPts() != subdomain.numPts()) {
+                amrex::Abort("Turbulent perturbations require rectangular subdomains. "
+                             "Level " + std::to_string(lev) +
+                             ", subdomain " + std::to_string(isub) +
+                             " is not a rectangular region fully covered by grids.");
+            }
+
+            const amrex::IntVect& valid_box_lo = subdomain_box.smallEnd();
+            const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
+
+            // Creating perturbation regions and initializing with generic size.
+            amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+            amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+            amrex::Box lo_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+            amrex::Box hi_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+
+            // Starting logic to set the size of the perturbation region(s)
+            //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
+            // ***** X-direction perturbation *****
+            if (tpi_direction[0]) { // West
+                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
+                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                amrex::PrintToFile("BoxPerturbationOutput") << " West face";
+            }
+
+            if (tpi_direction[3]) { // East
+                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
+                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                amrex::PrintToFile("BoxPerturbationOutput") << " East face";
+            }
+
+            // ***** Y-direction Perturbation *****
+            if (tpi_direction[1]) { // North
+                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
+                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
+                amrex::PrintToFile("BoxPerturbationOutput") << " North face";
+            }
+
+            if (tpi_direction[4]) { // South
+                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
+                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
+                amrex::PrintToFile("BoxPerturbationOutput") << " South face";
+            }
+
+            // Performing box union for intersecting perturbation regions to avoid overlapping sections (double counting at corners)
+            if (tpi_direction[0] && tpi_direction[1]) {  // Reshaping South smallEnd
+                amrex::Box lo_x_lo_y_u = lo_x_bx & lo_y_bx;
+                lo_y_bx.setSmall(amrex::IntVect(lo_x_lo_y_u.bigEnd(0)+1, lo_x_lo_y_u.smallEnd(1), lo_x_lo_y_u.smallEnd(2)));
+            }
+
+            if (tpi_direction[3] && tpi_direction[1]) { // Reshaping South bigEnd
+                 amrex::Box hi_x_lo_y_u = hi_x_bx & lo_y_bx;
+                 lo_y_bx.setBig(amrex::IntVect(hi_x_lo_y_u.smallEnd(0)-1, hi_x_lo_y_u.bigEnd(1), hi_x_lo_y_u.bigEnd(2)));
+            }
+
+            if (tpi_direction[0] && tpi_direction[4]) {  // Reshaping North smallEnd
+                amrex::Box lo_x_hi_y_u = lo_x_bx & hi_y_bx;
+                hi_y_bx.setSmall(amrex::IntVect(lo_x_hi_y_u.bigEnd(0)+1, lo_x_hi_y_u.smallEnd(1), lo_x_hi_y_u.smallEnd(2)));
+            }
+
+            if (tpi_direction[3] && tpi_direction[4]) { // Reshaping North bigEnd
+                 amrex::Box hi_x_hi_y_u = hi_x_bx & hi_y_bx;
+                 hi_y_bx.setBig(amrex::IntVect(hi_x_hi_y_u.smallEnd(0)-1, hi_x_hi_y_u.bigEnd(1), hi_x_hi_y_u.bigEnd(2)));
+            }
+
+            // Creating structure box array for conserved quantity
+            if (tpi_direction[0]) { tmp_bl.push_back(lo_x_bx); }
+            if (tpi_direction[1]) { tmp_bl.push_back(lo_y_bx); }
+            if (tpi_direction[3]) { tmp_bl.push_back(hi_x_bx); }
+            if (tpi_direction[4]) { tmp_bl.push_back(hi_y_bx); }
         }
 
-        if (tpi_direction[3] && tpi_direction[1]) { // Reshaping South bigEnd
-             amrex::Box hi_x_lo_y_u = hi_x_bx & lo_y_bx;
-             lo_y_bx.setBig(amrex::IntVect(hi_x_lo_y_u.smallEnd(0)-1, hi_x_lo_y_u.bigEnd(1), hi_x_lo_y_u.bigEnd(2)));
-        }
-
-        if (tpi_direction[0] && tpi_direction[4]) {  // Reshaping North smallEnd
-            amrex::Box lo_x_hi_y_u = lo_x_bx & hi_y_bx;
-            hi_y_bx.setSmall(amrex::IntVect(lo_x_hi_y_u.bigEnd(0)+1, lo_x_hi_y_u.smallEnd(1), lo_x_hi_y_u.smallEnd(2)));
-        }
-
-        if (tpi_direction[3] && tpi_direction[4]) { // Reshaping North bigEnd
-             amrex::Box hi_x_hi_y_u = hi_x_bx & hi_y_bx;
-             hi_y_bx.setBig(amrex::IntVect(hi_x_hi_y_u.smallEnd(0)-1, hi_x_hi_y_u.bigEnd(1), hi_x_hi_y_u.bigEnd(2)));
-        }
-
-        // Creating structure box array for conserved quantity
-        if (tpi_direction[0]) { tmp_bl.push_back(lo_x_bx); }
-        if (tpi_direction[1]) { tmp_bl.push_back(lo_y_bx); }
-        if (tpi_direction[3]) { tmp_bl.push_back(hi_x_bx); }
-        if (tpi_direction[4]) { tmp_bl.push_back(hi_y_bx); }
         //amrex::PrintToFile("BoxPerturbationOutput") << "\nBoxList: " << tmp_bl << "\n";
         amrex::BoxArray tmp_ba(tmp_bl);
         tmp_ba.maxSize(boxSize);
-        pb_ba.push_back(tmp_ba);
 
-        if (lev == 0) {
-            pb_mag.resize(max_level+1);
-            pb_dir.resize(max_level+1);
-            pb_netZero.resize(max_level+1);
-            pb_interval.resize(max_level+1);
-            pb_local_etime.resize(max_level+1);
-            pb_amp.resize(max_level+1);
-            pb_cell.resize(max_level+1);
-            tpi_Lpb.resize(max_level+1);
-            tpi_Wpb.resize(max_level+1);
-            tpi_Hpb.resize(max_level+1);
-            tpi_lref.resize(max_level+1);
+        const int num_levels = max_level + 1;
+        if (pb_ba.size() < num_levels) {
+            pb_ba.resize(num_levels);
+            pb_mag.resize(num_levels);
+            pb_dir.resize(num_levels);
+            pb_netZero.resize(num_levels);
+            pb_interval.resize(num_levels);
+            pb_local_etime.resize(num_levels);
+            pb_amp.resize(num_levels);
+            pb_cell.resize(num_levels);
+            tpi_Lpb.resize(num_levels);
+            tpi_Wpb.resize(num_levels);
+            tpi_Hpb.resize(num_levels);
+            tpi_lref.resize(num_levels);
         }
+
+        pb_ba[lev] = tmp_ba;
 
         // Initializing mean magnitude and direction vectors
         pb_mag[lev].resize(pb_ba[lev].size(), zero);
@@ -250,7 +275,7 @@ struct TurbulentPerturbation {
 
             bool update_box = true; // initialize flag
             // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
-            if (pt_type == 2) {
+            if (pt_type[lev] == 2) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
                 update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
             } else {
@@ -265,7 +290,7 @@ struct TurbulentPerturbation {
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=zero) {
                     amrex::Real interval = zero;
-                    if (pt_type == 2) {
+                    if (pt_type[lev] == 2) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
                         if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
@@ -292,20 +317,20 @@ struct TurbulentPerturbation {
 
             } else {
                 // set perturbation amplitudes to 0 for CPM. A little inefficient but leverages as much as existing code as possible.
-                if (pt_type == 2) { zero_amp(boxIdx, lev, m_ixtype); }
+                if (pt_type[lev] == 2) { zero_amp(boxIdx, lev, m_ixtype); }
 
                 // Increase by timestep of level 0 (but only if the box is owned by this rank)
                 if (pb_local_etime[lev][boxIdx] != -one) { pb_local_etime[lev][boxIdx] += dt; }
             } // if
 
-            if (pt_type < 2) { // box perturbation method only
+            if (pt_type[lev] < 2) { // box perturbation method only
                 // Per iteration operation of net-zero buoyant force check
                 if (pb_mag[lev][boxIdx] !=zero) netZeroBuoyantAdd(boxIdx, lev);
                 tpi_net_buoyant += pb_netZero[lev][boxIdx];
             }
         } // for
 
-        if (pt_type < 2) { // box perturbation method only
+        if (pt_type[lev] < 2) { // box perturbation method only
             // Normalizing the adjustment based on how many boxes there are
             // the values within the array is already normalized by the number
             // of cells within each box
@@ -350,7 +375,7 @@ struct TurbulentPerturbation {
                        const amrex::Real& interval)
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
-        if (pt_type == 2) { // CPM
+        if (pt_type[lev] == 2) { // CPM
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
             amrex::Real Ec = amrex::Real(0.2); // Eckert number
             pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
@@ -371,7 +396,7 @@ struct TurbulentPerturbation {
             // Ma and Senocak (2023) Eq. 8, solving for delta phi
             pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
-            if (pt_type == 0) {
+            if (pt_type[lev] == 0) {
                 // Performing this step converts the perturbation proportionality into
                 // the forcing term
                 // Ma & Senocak (2023) Eq. 7
@@ -395,7 +420,7 @@ struct TurbulentPerturbation {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
-                if (pt_type == 2) { // CPM
+                if (pt_type[lev] == 2) { // CPM
                     amrex::Real rand_number_const = RandomReal(-one, one);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
@@ -628,7 +653,7 @@ struct TurbulentPerturbation {
         */
     }
 
-    int pt_type = -1;
+    amrex::Vector<int> pt_type;
 
     // Public data members
     amrex::Vector<amrex::BoxArray>                 pb_ba;  // PB box array

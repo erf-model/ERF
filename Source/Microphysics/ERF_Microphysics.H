@@ -52,7 +52,7 @@ public:
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
-    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
@@ -103,6 +103,7 @@ public:
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
              || (a_moisture_type == MoistureType::Morrison)
              || (a_moisture_type == MoistureType::Morrison_NoIce)
+             || (a_moisture_type == MoistureType::WSM6)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)

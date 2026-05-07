@@ -236,7 +236,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta;
-            if (!need_to_test || u(dom_lo.x,j,k) <= zero) {
+            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
                  tau13(i,j,k) = myhalf * ( du_dz
                                       + ( (-(Real(8.)/three) * w(i-1,j,k) + three * w(i,j,k) - (one/three) * w(i+1,j,k))*dxInv[0]
                                         - (met_h_xi)*GradWz ) * mfx );
@@ -362,7 +362,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             Real met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
 
-            if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
                 tau12(i,j,k) = myhalf * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - (one/three) * u(i,j-2,k))*dxInv[1]*mfy +
                                      + (v(i, j, k) - v(i-1, j, k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
@@ -438,7 +438,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta;
-            if (!need_to_test || v(i,dom_hi.y+1,k) >= zero) {
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
                 tau23(i,j,k) = myhalf * ( dv_dz
                                      - ( (-(Real(8.)/three) * w(i,j  ,k) + three * w(i,j-1,k) - (one/three) * w(i,j-2,k))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );

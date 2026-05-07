@@ -35,7 +35,8 @@ public:
 
     virtual
     void
-    Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
+    Update_State_Vars (amrex::MultiFab& /*cons_in*/,
+                       const amrex::MultiFab& /*z_phys_nd*/) { }
 
     virtual
     void

@@ -304,7 +304,6 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     //       defined in ERF.H
     // *****************************************************************************************
 
-    calculate_derived("soundspeed",  vars_new[lev_for_sub][Vars::cons], derived::erf_dersoundspeed);
     if (solverChoice.moisture_type != MoistureType::None) {
         calculate_derived("temp",    vars_new[lev_for_sub][Vars::cons], derived::erf_dermoisttemp);
     } else {
@@ -313,6 +312,11 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     calculate_derived("theta",       vars_new[lev_for_sub][Vars::cons], derived::erf_dertheta);
     calculate_derived("KE",          vars_new[lev_for_sub][Vars::cons], derived::erf_derKE);
     calculate_derived("scalar",      vars_new[lev_for_sub][Vars::cons], derived::erf_derscalar);
+    calculate_derived("soundspeed",  vars_new[lev_for_sub][Vars::cons], derived::erf_dersoundspeed);
+    if (solverChoice.moisture_type != MoistureType::None) {
+        calculate_derived("precipitable", vars_new[lev_for_sub][Vars::cons], derived::erf_derprecipitable);
+        calculate_derived("mucape",      vars_new[lev_for_sub][Vars::cons], derived::erf_dermucape);
+    }
 
     // *****************************************************************************************
 

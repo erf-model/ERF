@@ -12,7 +12,8 @@
  */
 void
 init_default_zphys (int lev, const amrex::Geometry& geom,
-                    amrex::MultiFab& z_phys_nd, amrex::MultiFab& z_phys_cc);
+                    amrex::MultiFab& z_phys_nd, amrex::MultiFab& z_phys_cc,
+                    amrex::Real z_offset = zero);
 
 /**
  * Utility routines for constructing terrain metric terms

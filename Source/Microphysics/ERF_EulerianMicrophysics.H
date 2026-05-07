@@ -9,6 +9,7 @@
 #include "ERF_SAM.H"
 #include "ERF_Kessler.H"
 #include "ERF_Morrison.H"
+#include "ERF_WSM6.H"
 #include "ERF_SatAdj.H"
 #include "ERF_Microphysics.H"
 
@@ -39,6 +40,8 @@ public:
         } else if (a_model_type == MoistureType::Morrison ||
                    a_model_type == MoistureType::Morrison_NoIce) {
             SetModel<Morrison>();
+        } else if (a_model_type == MoistureType::WSM6) {
+            SetModel<WSM6>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
         } else if (a_model_type == MoistureType::None) {
@@ -95,9 +98,10 @@ public:
 
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        m_moist_model[lev]->Update_State_Vars(cons_in);
+        m_moist_model[lev]->Update_State_Vars(cons_in, z_phys_nd);
     }
 
     /*! \brief get pointer to a moisture variable */

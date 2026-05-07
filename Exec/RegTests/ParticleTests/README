@@ -4,3 +4,12 @@ The terrain-fitted coordinates follow the contour of the hill.
 
 This problem is primarily designed to test the implementation of the terrain-fitted coordinates.
 
+The AMR input files test tracer particle advection with adaptive mesh refinement.
+The naming convention is inputs_over_{terrain}_{AMRlevels}_{tagging}, where:
+  - terrain: "flat" (no terrain) or "hill" (Witch of Agnesi profile)
+  - AMRlevels: "AMR1" (1 refined level) or "AMR2" (2 refined levels)
+  - tagging: "box_fullz" (static box covering full z-extent),
+             "box_partialz" (static box covering partial z-extent),
+             "particlecount" (dynamic tagging based on deposited particle count)
+
+All cases use anisotropic refinement (2,1,2) per level.

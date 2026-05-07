@@ -35,6 +35,30 @@ query_one_or_per_level (
   }
 }
 
+template <typename T>
+int
+query_one_or_per_level_enum_case_insensitive (
+  const amrex::ParmParse& pp,
+  const char* query_string,
+  T& query_var,
+  const int lev,
+  const int maxlev)
+{
+  int count = pp.countval(query_string);
+  if (count == 0) {
+    return 0; // nothing to do
+  } else if (count == 1) {
+    return pp.query_enum_case_insensitive(query_string, query_var);
+  } else if (count >= maxlev + 1) {
+    return pp.query_enum_case_insensitive(query_string, query_var, lev);
+  } else {
+    amrex::Error(
+      "For parmparse variable " + pp.prefixedName(query_string) +
+      ": if specified, specify once total or at least once for each level");
+    return 0; // avoid compiler warning
+  }
+}
+
 /**
  * Container holding quantities related to turbulence parametrizations
  */
@@ -46,7 +70,6 @@ public:
     amrex::ParmParse pp(pp_prefix);
 
     // Which LES closure?
-    std::string les_type_string = "None";
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
 
     // Handle 2-D Smag
@@ -56,7 +79,6 @@ public:
     }
 
     // Which RANS closure?
-    std::string rans_type_string = "None";
     query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
     if ((rans_type != RANSType::None) && (les_type != LESType::None)) {
@@ -64,7 +86,6 @@ public:
     }
 
     // Which PBL Closure
-    static std::string pbl_type_string = "None";
     query_one_or_per_level(pp, "pbl_type", pbl_type, lev, max_level);
 
     // Do some more stuff for PBL Modeling

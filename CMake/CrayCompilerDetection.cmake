@@ -96,7 +96,7 @@ else()
 endif()
 
 # Find Cray Fortran compiler wrapper (if needed)
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
     find_program(ERF_CRAY_FC ftn)
     if(ERF_CRAY_FC)
         set(CMAKE_Fortran_COMPILER "${ERF_CRAY_FC}" CACHE FILEPATH "Fortran compiler")

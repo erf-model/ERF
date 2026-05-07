@@ -13,7 +13,6 @@ edit `Re_tau`, `height_end`, and `kinematic_viscosity` values to the target simu
 Once this is done, double check that the input file for ERF corresponds with the 
 files created by the python script.
 
-A quick setup tip to run the perturbation method is included in,
-"InflowPerturbationGeneration_HowTo.pdf" For more detailed description of how to
+For a detailed description of how to
 run a simulation using the turbulent inflow generation technique presented here, please visit:
-https://erf.readthedocs.io/en/latest/BoundaryConditions.html#inflow-turbulence-generation
+https://erf.readthedocs.io/en/latest/InflowTurbulenceGeneration.html

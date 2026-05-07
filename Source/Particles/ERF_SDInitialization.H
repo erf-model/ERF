@@ -10,6 +10,8 @@
 #include <AMReX_REAL.H>
 #include <AMReX_RealBox.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_Random.H>
+#include <AMReX_GpuContainers.H>
 
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
@@ -20,6 +22,14 @@ AMREX_ENUM(SDInitShape,
     null
 );
 
+/*! \brief Distribution type enum for GPU compatibility */
+AMREX_ENUM(SDDistributionType,
+    mass_constant,
+    mass_exponential,
+    radius_log_normal,
+    radius_lognormal_autorange
+);
+
 /*! \brief List of super-droplet initializations */
 namespace SupDropInit
 {
@@ -28,16 +38,112 @@ namespace SupDropInit
 
     /*! Maximum number of aerosols */
     const int num_aerosols_max = 8;
-
-    const std::string attrib_init_const = "mass_constant";
-    const std::string attrib_init_exp = "mass_exponential";
-    const std::string attrib_init_lnr = "radius_log_normal";
-    const std::string attrib_init_lnr_auto = "radius_lognormal_autorange";
 }
 
 AMREX_ENUM(SDMultiplicityType,
     constant, sampled
 );
+
+/*! \brief GPU-compatible structure holding distribution parameters */
+struct SDDistributionParams {
+    SDDistributionType dist_type;  /*!< Type of distribution */
+    amrex::Real mass_min;          /*!< Minimum mass */
+    amrex::Real mass_max;          /*!< Maximum mass */
+    amrex::Real mass_mean;         /*!< Mean mass */
+    amrex::Real radius_min;        /*!< Minimum radius */
+    amrex::Real radius_max;        /*!< Maximum radius */
+    amrex::Real radius_mean;       /*!< Mean radius (mu for log-normal) */
+    amrex::Real radius_gstd;       /*!< Geometric std dev for radius */
+    amrex::Real density;           /*!< Material density */
+    amrex::Real numdens;           /*!< Number density for multiplicity */
+    amrex::Real cell_volume;       /*!< Cell volume for multiplicity scaling */
+    // Pre-computed values for log-normal CDF inversion (truncated distribution)
+    amrex::Real cdf_min;           /*!< CDF at radius_min */
+    amrex::Real cdf_max;           /*!< CDF at radius_max */
+    amrex::Real sigma;             /*!< log(radius_gstd) */
+    amrex::Real lnrng;             /*!< log(radius_max) - log(radius_min) */
+    amrex::Real lnmin;             /*!< log(radius_min) or log(mass_min) */
+    amrex::Real delta;             /*!< mass_mean - mass_min for exponential */
+    int sampled_mult;              /*!< 1 if sampled multiplicity, 0 if constant */
+};
+
+/*! \brief Inverse error function approximation for GPU
+ *  \param[in] x Input value in (-1, 1)
+ *  \return Approximate inverse error function value
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real SD_erfinv_gpu(const amrex::Real x) {
+    amrex::Real a = 0.147;
+    amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    amrex::Real term = std::log(1 - x * x + eps);
+    amrex::Real p1 = 2 / (PI * a) + term / 2.0;
+    amrex::Real p2 = term / a;
+    amrex::Real sign = (x >= 0) ? 1.0 : -1.0;
+    return sign * std::sqrt(std::sqrt(p1 * p1 - p2) - p1);
+}
+
+/*! \brief Generate mass from distribution parameters on GPU
+ *  \param[in] params Distribution parameters
+ *  \param[in] engine Random engine
+ *  \param[out] mult_contribution Contribution to multiplicity (added, not set)
+ *  \return Generated mass value
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real SD_sample_mass_gpu(const SDDistributionParams& params,
+                                const amrex::RandomEngine& engine,
+                                amrex::Real& mult_contribution)
+{
+    using amrex::Random;
+    amrex::Real mass = 0.0;
+    amrex::Real u = Random(engine);
+
+    switch (params.dist_type) {
+        case SDDistributionType::mass_constant:
+            mass = params.mass_mean;
+            mult_contribution = u;  // Random [0,1] for later rescaling
+            break;
+
+        case SDDistributionType::mass_exponential: {
+            if (params.sampled_mult) {
+                // Sampled multiplicity: sample uniformly in log-space, weight by exponential PDF
+                amrex::Real lnval = params.lnmin + u * params.lnrng;
+                mass = std::exp(lnval);
+                mult_contribution = (params.numdens * params.cell_volume) * std::exp(-mass / params.delta);
+            } else {
+                // Constant multiplicity: true exponential distribution via inverse transform
+                // If U ~ Uniform(0,1), then -delta*ln(U) ~ Exponential(1/delta)
+                mass = -params.delta * std::log(u) + params.mass_min;
+                mult_contribution = 0.0;  // Not used for constant multiplicity
+            }
+            break;
+        }
+
+        case SDDistributionType::radius_log_normal:
+        case SDDistributionType::radius_lognormal_autorange: {
+            amrex::Real dry_r;
+            if (params.sampled_mult) {
+                // Sampled multiplicity: sample uniformly in log-space, weight by log-normal PDF
+                amrex::Real lnval = params.lnmin + u * params.lnrng;
+                dry_r = std::exp(lnval);
+                // Log-normal PDF contribution for multiplicity weighting
+                amrex::Real term = std::exp(-std::log(dry_r/params.radius_mean)*std::log(dry_r/params.radius_mean)
+                                            /(2.0*params.sigma*params.sigma));
+                mult_contribution = (params.numdens * params.cell_volume) / (params.sigma * std::sqrt(2.0*PI)) * term;
+            } else {
+                // Constant multiplicity: true log-normal via inverse CDF
+                // Map u from [0,1] to [cdf_min, cdf_max] for truncated distribution
+                amrex::Real u_trunc = params.cdf_min + u * (params.cdf_max - params.cdf_min);
+                // Inverse CDF: r = mu * exp(sigma * sqrt(2) * erfinv(2*u - 1))
+                amrex::Real z = SD_erfinv_gpu(2.0 * u_trunc - 1.0) * std::sqrt(2.0);
+                dry_r = params.radius_mean * std::exp(params.sigma * z);
+                mult_contribution = 0.0;  // Not used for constant multiplicity
+            }
+            mass = four_thirds_pi * dry_r * dry_r * dry_r * params.density;
+            break;
+        }
+    }
+    return mass;
+}
 
 /*! \brief Super-droplets initial properties */
 class SDInitProperties
@@ -72,7 +178,7 @@ class SDInitProperties
         /*! Standard deviation of species dry radius */
         std::vector<amrex::Real> m_radius_species_geom_std;
         /*! Initial distribution type for species */
-        std::vector<std::string> m_species_init_type;
+        std::vector<SDDistributionType> m_species_init_type;
 
         /*! Minimum aerosol mass */
         std::vector<amrex::Real> m_mass_aerosol_min;
@@ -89,7 +195,7 @@ class SDInitProperties
         /*! Standard deviation of aerosol dry radius */
         std::vector<amrex::Real> m_radius_aerosol_geom_std;
         /*! Initial distribution type for aerosol */
-        std::vector<std::string> m_aerosol_init_type;
+        std::vector<SDDistributionType> m_aerosol_init_type;
 
         /*! Number of species */
         int m_num_species = 0;
@@ -151,16 +257,16 @@ class SDInitProperties
          * \param[in,out] a_rng Random number generator
          */
         void getDistribution( amrex::Vector<amrex::Real>& a_mass,
-                              const int a_np,
-                              const amrex::Real a_density,
-                              const std::string& a_init_type,
-                              const amrex::Real a_mass_min,
-                              const amrex::Real a_mass_max,
-                              const amrex::Real a_mass_mean,
-                              const amrex::Real a_radius_min,
-                              const amrex::Real a_radius_max,
-                              const amrex::Real a_radius_mean,
-                              const amrex::Real a_radius_gstd,
+                              int a_np,
+                              amrex::Real a_density,
+                              SDDistributionType a_init_type,
+                              amrex::Real a_mass_min,
+                              amrex::Real a_mass_max,
+                              amrex::Real a_mass_mean,
+                              amrex::Real a_radius_min,
+                              amrex::Real a_radius_max,
+                              amrex::Real a_radius_mean,
+                              amrex::Real a_radius_gstd,
                               std::mt19937& a_rng ) const;
 
         /*! \brief Get a distribution with sampled multiplicity
@@ -181,17 +287,17 @@ class SDInitProperties
          */
         void getDistribution( amrex::Vector<amrex::Real>& a_mass,
                               amrex::Vector<amrex::Real>& a_mult,
-                              const amrex::Real a_dV,
-                              const int a_np,
-                              const amrex::Real a_density,
-                              const std::string& a_init_type,
-                              const amrex::Real a_mass_min,
-                              const amrex::Real a_mass_max,
-                              const amrex::Real a_mass_mean,
-                              const amrex::Real a_radius_min,
-                              const amrex::Real a_radius_max,
-                              const amrex::Real a_radius_mean,
-                              const amrex::Real a_radius_gstd,
+                              amrex::Real a_dV,
+                              int a_np,
+                              amrex::Real a_density,
+                              SDDistributionType a_init_type,
+                              amrex::Real a_mass_min,
+                              amrex::Real a_mass_max,
+                              amrex::Real a_mass_mean,
+                              amrex::Real a_radius_min,
+                              amrex::Real a_radius_max,
+                              amrex::Real a_radius_mean,
+                              amrex::Real a_radius_gstd,
                               std::mt19937& a_rng ) const;
 
         /*! \brief Compute the aerosol mass distribution
@@ -314,6 +420,87 @@ class SDInitProperties
                              a_rng);
         }
 
+        /*! \brief Get GPU-compatible distribution parameters for a species
+         * \param[in] a_idx Species index
+         * \param[in] a_density Density of the species material
+         * \param[in] a_cell_volume Cell volume for multiplicity scaling
+         * \param[in] a_sampled_mult Whether using sampled multiplicity mode
+         * \return SDDistributionParams structure for GPU use
+         */
+        [[nodiscard]] SDDistributionParams getSpeciesDistParams(
+            int a_idx,
+            amrex::Real a_density,
+            amrex::Real a_cell_volume,
+            bool a_sampled_mult) const
+        {
+            return makeDistributionParams(
+                m_species_init_type[a_idx],
+                m_mass_species_min[a_idx],
+                m_mass_species_max[a_idx],
+                m_mass_species_mean[a_idx],
+                m_radius_species_min[a_idx],
+                m_radius_species_max[a_idx],
+                m_radius_species_mean[a_idx],
+                m_radius_species_geom_std[a_idx],
+                a_density,
+                a_cell_volume,
+                a_sampled_mult);
+        }
+
+        /*! \brief Get GPU-compatible distribution parameters for an aerosol
+         * \param[in] a_idx Aerosol species index
+         * \param[in] a_density Density of the aerosol material
+         * \param[in] a_cell_volume Cell volume for multiplicity scaling
+         * \param[in] a_sampled_mult Whether using sampled multiplicity mode
+         * \return SDDistributionParams structure for GPU use
+         */
+        [[nodiscard]] SDDistributionParams getAerosolDistParams(
+            int a_idx,
+            amrex::Real a_density,
+            amrex::Real a_cell_volume,
+            bool a_sampled_mult) const
+        {
+            return makeDistributionParams(
+                m_aerosol_init_type[a_idx],
+                m_mass_aerosol_min[a_idx],
+                m_mass_aerosol_max[a_idx],
+                m_mass_aerosol_mean[a_idx],
+                m_radius_aerosol_min[a_idx],
+                m_radius_aerosol_max[a_idx],
+                m_radius_aerosol_mean[a_idx],
+                m_radius_aerosol_geom_std[a_idx],
+                a_density,
+                a_cell_volume,
+                a_sampled_mult);
+        }
+
+        /*! \brief Create GPU-compatible distribution parameters structure
+         * \param[in] a_init_type Distribution type
+         * \param[in] a_mass_min Minimum mass
+         * \param[in] a_mass_max Maximum mass
+         * \param[in] a_mass_mean Mean mass
+         * \param[in] a_radius_min Minimum radius
+         * \param[in] a_radius_max Maximum radius
+         * \param[in] a_radius_mean Mean radius
+         * \param[in] a_radius_gstd Geometric standard deviation
+         * \param[in] a_density Material density
+         * \param[in] a_cell_volume Cell volume
+         * \param[in] a_sampled_mult Whether using sampled multiplicity mode
+         * \return SDDistributionParams structure
+         */
+        [[nodiscard]] SDDistributionParams makeDistributionParams(
+            SDDistributionType a_init_type,
+            amrex::Real a_mass_min,
+            amrex::Real a_mass_max,
+            amrex::Real a_mass_mean,
+            amrex::Real a_radius_min,
+            amrex::Real a_radius_max,
+            amrex::Real a_radius_mean,
+            amrex::Real a_radius_gstd,
+            amrex::Real a_density,
+            amrex::Real a_cell_volume,
+            bool a_sampled_mult) const;
+
         /*! \brief Determine whether multiplicity is sampled or constant
          * \return True if multiplicity is sampled, false if constant
          */
@@ -336,7 +523,7 @@ class SDInitProperties
                 vol = m_particle_domain.volume();
             } else if (m_type == SDInitShape::bubble) {
                 const auto& radius = m_particle_domain.hi();
-                vol = (amrex::Real(4.0)/three)*PI*radius[0]*radius[1]*radius[2];
+                vol = four_thirds_pi*radius[0]*radius[1]*radius[2];
             }
             return vol;
         }
@@ -372,9 +559,9 @@ class SDInjection : public SDInitProperties
         /*! \brief Update time-dependent quantities for particle injection
          *
          * This function updates:
-         * one Number density based on injection rate and timestep
-         * two Super-droplet number density based on SD injection rate
-         * three Position of the injection domain based on domain velocity
+         * 1. Number density based on injection rate and timestep
+         * 2. Super-droplet number density based on SD injection rate
+         * 3. Position of the injection domain based on domain velocity
          *
          * \param[in] a_dt Timestep size in seconds
          */
@@ -434,8 +621,8 @@ class SDInjection : public SDInitProperties
         /*! \brief Compute number of super-droplets to inject per grid cell
          *
          * Determines the number of super-droplets to inject based on either:
-         * one The super-droplet number density and cell volume, or
-         * two A constant number per cell (m_ppc) if number density is not set
+         * 1. The super-droplet number density and cell volume, or
+         * 2. A constant number per cell (m_ppc) if number density is not set
          *
          * \param[in] a_dv Volume of the grid cell
          * \return Number of super-droplets to inject in this cell
