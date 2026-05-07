@@ -93,6 +93,9 @@ public:
     // Fill averages for policy::point
     void compute_region_averages (const int& lev);
 
+    // Fill averages for policy::EB
+    void compute_eb_averages (const int& lev);
+
     // Write k indices
     void write_k_indices (const int& lev);
 
