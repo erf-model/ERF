@@ -254,6 +254,14 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         /*! Fix k-indices for all particles after AMR regrid/removal */
         void FixKIndexAMR (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd);
 
+        /*! Replace pos(2) (zeta) with the corresponding physical z, in place,
+         *  on every level.  Used around plotfile writes so the on-disk
+         *  particles are in physical coordinates. */
+        void ConvertZetaToZ (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd);
+
+        /*! Inverse of ConvertZetaToZ: replace pos(2) (physical z) with zeta. */
+        void ConvertZToZeta (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd);
+
         /*! Route fine-level particles whose position is outside the level's
          *  BA down to coarser levels, so per-level Redistribute on the fine
          *  level does not assert. */

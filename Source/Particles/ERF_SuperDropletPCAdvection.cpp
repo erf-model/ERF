@@ -6,6 +6,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_TerminalVelocity.H"
 #include "ERF_InterpolationUtils.H"
+#include "ERF_TerrainConversion.H"
 
 using namespace amrex;
 using namespace SDPCDefn;
@@ -142,16 +143,23 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
             ptrs.vterm_ptr[i] = terminal_vel;
 
+            // Local terrain metric for converting physical (u,v,w) and the
+            // gravitational fall to the computational vertical coordinate.
+            const auto m = ERF::ParticlePos::metric_at(
+                p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
+                ctx.plo, ctx.dxi, zheight);
+
             if (advect_w_flow) {
-                for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
-                    p.pos(dim) += static_cast<ParticleReal>(a_dt*v[dim]);
-                }
+                const ParticleReal zeta_dot =
+                    (v[AMREX_SPACEDIM-1] - v[0]*m.dz_dxi - v[1]*m.dz_deta) / m.dz_dzeta;
+                p.pos(0) += static_cast<ParticleReal>(a_dt*v[0]);
+                p.pos(1) += static_cast<ParticleReal>(a_dt*v[1]);
+                p.pos(AMREX_SPACEDIM-1) += static_cast<ParticleReal>(a_dt*zeta_dot);
             }
             if (advect_w_gravity) {
-                p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel);
+                p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel / m.dz_dzeta);
             }
 
-            // Update z-coordinate carried by the particle
             update_location_idata(p,ctx.plo,ctx.dxi,zheight);
 
         });

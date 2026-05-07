@@ -5,6 +5,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include <ERF_TerrainConversion.H>
 #include <AMReX_TracerParticle_mod_K.H>
 
 using namespace amrex;
@@ -154,7 +155,16 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     }
                 }
 
-                // TODO terrain: convert physical (u,v,w) -> (xi_dot, eta_dot, zeta_dot) via metric_at()
+                // Physical (u,v,w) -> computational (xi_dot, eta_dot, zeta_dot).
+                // Identity for uniform-z; metric is exact for terrain.
+                {
+                    const auto m = ERF::ParticlePos::metric_at(
+                        p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
+                        plo, dxi, zheight);
+                    v[AMREX_SPACEDIM-1] = (v[AMREX_SPACEDIM-1]
+                                           - v[0] * m.dz_dxi
+                                           - v[1] * m.dz_deta) / m.dz_dzeta;
+                }
 
                 if (ipass == 0) {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
@@ -244,13 +254,20 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             // Update the particle velocity over first half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // Update the particle position over (a_dt)
-            p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*vz_ptr[i]);
+            // Convert physical w to zeta_dot for the position update.  Gravity
+            // is purely vertical (no horizontal velocity), so the metric
+            // contribution reduces to vz / dz_dzeta.
+            {
+                const auto m = ERF::ParticlePos::metric_at(
+                    p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
+                    plo, dxi, zheight);
+                p.pos(2) += static_cast<ParticleReal>(
+                    ParticleReal(0.5) * a_dt * vz_ptr[i] / m.dz_dzeta);
+            }
 
             // Update the particle velocity over second half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // also update z-coordinate here
             update_location_idata(p,plo,dxi,zheight);
         });
     }

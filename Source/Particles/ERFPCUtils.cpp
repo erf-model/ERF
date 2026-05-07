@@ -1,6 +1,7 @@
 #include <ERFPC.H>
 #include <ERFPCParticleToMesh.H>
 #include <ERF_Constants.H>
+#include <ERF_TerrainConversion.H>
 #include <AMReX_ParticleLocator.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -187,6 +188,66 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
 
     Redistribute(0, 0);
     Redistribute(a_lev, a_lev);
+}
+
+void ERFPC::ConvertZetaToZ (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
+{
+    BL_PROFILE("ERFPC::ConvertZetaToZ()");
+    const int finest = finestLevel();
+    for (int lev = 0; lev <= finest; lev++) {
+        if (!a_z_phys_nd[lev]) { continue; }
+        const Geometry& geom = m_gdb->Geom(lev);
+        const auto plo = geom.ProbLoArray();
+        const auto dxi = geom.InvCellSizeArray();
+        for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+            const int grid = pti.index();
+            auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
+            const int np = aos.numParticles();
+            if (np == 0) { continue; }
+            auto* p_pbox = aos().data();
+            auto zheight = (*a_z_phys_nd[lev])[grid].array();
+            ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+            {
+                ParticleType& p = p_pbox[i];
+                if (p.id() <= 0) { return; }
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::z_from_zeta(p.pos(0), p.pos(1),
+                                                  p.pos(AMREX_SPACEDIM-1),
+                                                  plo, dxi, zheight));
+            });
+        }
+    }
+}
+
+void ERFPC::ConvertZToZeta (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd)
+{
+    BL_PROFILE("ERFPC::ConvertZToZeta()");
+    const int finest = finestLevel();
+    for (int lev = 0; lev <= finest; lev++) {
+        if (!a_z_phys_nd[lev]) { continue; }
+        const Geometry& geom = m_gdb->Geom(lev);
+        const auto plo = geom.ProbLoArray();
+        const auto dxi = geom.InvCellSizeArray();
+        const Box& dom = geom.Domain();
+        const int k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
+        for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+            const int grid = pti.index();
+            auto& aos = ParticlesAt(lev, pti).GetArrayOfStructs();
+            const int np = aos.numParticles();
+            if (np == 0) { continue; }
+            auto* p_pbox = aos().data();
+            auto zheight = (*a_z_phys_nd[lev])[grid].array();
+            ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+            {
+                ParticleType& p = p_pbox[i];
+                if (p.id() <= 0) { return; }
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(p.pos(0), p.pos(1),
+                                                  p.pos(AMREX_SPACEDIM-1),
+                                                  plo, dxi, zheight, k_max));
+            });
+        }
+    }
 }
 
 #endif
