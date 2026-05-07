@@ -1605,7 +1605,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
 
 #ifdef ERF_USE_PARTICLES
-            particleData.writePlotFile(plotfilename);
+            particleData.writePlotFile(plotfilename, z_phys_nd);
 #endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
@@ -1745,7 +1745,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.writePlotFile(plotfilename);
+            particleData.writePlotFile(plotfilename, z_phys_nd);
 #endif
 
 #ifdef ERF_USE_NETCDF
