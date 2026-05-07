@@ -129,7 +129,7 @@ Real ERF::bndry_output_planes_start_time =  zero;
 // 2D BndryRegister input
 int  ERF::input_bndry_planes             = 0;
 
-Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+static Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
