@@ -35,12 +35,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
+        // Wrap the copy in zeta<->physical-z conversion so the dumped
+        // plotfile holds physical z, matching the main plotfile convention.
+        this->ConvertZetaToZ(a_z_phys_nd);
         auto tmp = this->make_alike<amrex::PinnedArenaAllocator>();
         tmp.copyParticles(*this, [=] AMREX_GPU_HOST_DEVICE (const SrcData& a_src, int i)
                           {
                               auto ai = a_src.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                               return (ai == 0);
                           }, true);
+        this->ConvertZToZeta(a_z_phys_nd);
 
         char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string fname = "deac_SD_" + std::string(iter_str);
