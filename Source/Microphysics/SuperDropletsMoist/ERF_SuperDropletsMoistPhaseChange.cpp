@@ -32,20 +32,25 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
     BL_PROFILE("SuperDropletsMoist::phaseChange()");
     auto dt_s = a_dt / static_cast<Real>(m_num_substeps_phase_change);
 
+    // Mask of cells not covered by a finer level.  Built once and shared by
+    // every sub-phase-change call so that cell-centred q/T updates skip
+    // coarse cells whose values will be overwritten by averaging-down.
+    iMultiFab fine_mask = buildFineMask(a_lev);
+
     for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
 
         // freezing/melting (solid <--> liquid) -  water
-        if (m_with_ice) { phaseChange_SL_w(dt_s, a_z, a_lev); }
+        if (m_with_ice) { phaseChange_SL_w(dt_s, a_z, a_lev, fine_mask); }
 
         // evaporation and condensation (vapour <--> liquid) - water
-        phaseChange_LV_w(dt_s, a_z, a_lev);
+        phaseChange_LV_w(dt_s, a_z, a_lev, fine_mask);
 
         // deposition and sublimation (vapour <--> solid) - water (ice)
-        if (m_with_ice) { phaseChange_SV_i(dt_s, a_z, a_lev); }
+        if (m_with_ice) { phaseChange_SV_i(dt_s, a_z, a_lev, fine_mask); }
 
         // evaporation and condensation (vapour <--> liquid) - other species
         for (int is = m_istart_sp; is < m_num_species; is++) {
-            phaseChange_LV_s(is, dt_s, a_z, a_lev);
+            phaseChange_LV_s(is, dt_s, a_z, a_lev, fine_mask);
         }
 
         // Update pressure and temperature
@@ -108,7 +113,8 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
  * and condensate mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
-                                            const int a_lev )
+                                            const int a_lev,
+                                            const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_LV_w()");
 
@@ -185,10 +191,13 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
         auto dqc_arr = m_mic_fab_vars[a_lev][MicVar_SD::dqcdt]->array(mfi);
 
+        auto mask_arr = fine_mask.const_array(mfi);
+
         auto fac_cond = species_mat.m_lat_vap / m_Cp;
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            if (mask_arr(i,j,k) == 0) { return; }
             auto old_qv = qv_arr(i,j,k);
             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
             if (qw > qt_arr(i,j,k)) {
@@ -223,7 +232,8 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
 void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
                                             const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
-                                            const int a_lev )
+                                            const int a_lev,
+                                            const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_LV_s()");
 
@@ -285,8 +295,11 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
         auto L_by_Cp = species_mat.m_lat_vap / m_Cp;
 
+        auto mask_arr = fine_mask.const_array(mfi);
+
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            if (mask_arr(i,j,k) == 0) { return; }
             auto old_qv = qv_arr(i,j,k);
             if (qc_arr(i,j,k) > qt_arr(i,j,k)) {
                 qv_arr(i,j,k) = 0.0;
@@ -310,7 +323,8 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
  * ice and cloud/rain mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
-                                            const int a_lev )
+                                            const int a_lev,
+                                            const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_SL_w()");
 
@@ -383,10 +397,13 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
 
+        auto mask_arr = fine_mask.const_array(mfi);
+
         auto fac_cond = species_mat.m_lat_fus / m_Cp;
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            if (mask_arr(i,j,k) == 0) { return; }
             auto q_liquid = qc_arr(i,j,k) + qr_arr(i,j,k);
 
             auto q_solid  = qi_arr(i,j,k) + qs_arr(i,j,k) + qg_arr(i,j,k);
@@ -409,7 +426,8 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
  * and ice/graupel mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
-                                            const int a_lev )
+                                            const int a_lev,
+                                            const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_SV_i()");
 
@@ -525,10 +543,13 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
 
+        auto mask_arr = fine_mask.const_array(mfi);
+
         auto fac_cond = species_mat.m_lat_vap / m_Cp;
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            if (mask_arr(i,j,k) == 0) { return; }
             auto old_qv = qv_arr(i,j,k);
             auto qw = qi_arr(i,j,k) + qg_arr(i,j,k) + qs_arr(i,j,k);
             if (qw > qt_arr(i,j,k)) {

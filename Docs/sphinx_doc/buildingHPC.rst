@@ -42,7 +42,7 @@ ERF provides pre-configured profiles for major DOE HPC systems:
 
 * ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
 * ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
-* ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs); expects ``NETCDF_DIR`` for NetCDF-enabled builds (NetCDF-Fortran only if enabling Noah-MP) — see also :ref:`sec:aurora_build_run`
+* ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs); uses system NetCDF modules (``NETCDF_C_ROOT``, ``NETCDF_FORTRAN_ROOT``, ``HDF5_ROOT`` set by modules) — see also :ref:`sec:aurora_build_run`
 * ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
 * ``kestrel_erf.profile`` - NREL Kestrel (NVIDIA H100)
 

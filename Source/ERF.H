@@ -521,6 +521,8 @@ public:
 
     void ComputeAndWriteEnsemblePerturbations();
 
+    void PerformDataAssimilation();
+
     void init_custom (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -592,7 +594,15 @@ public:
     void make_eb_regular ();
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
-    void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+    void AverageDownTo (int crse_lev,
+                        int scomp,
+                        int ncomp,
+                        bool do_perturbational_and_momenta = true); // NOLINT
+
+    /*! \brief Conservation-preserving fine→coarse average of moist state components
+     *  (RhoTheta and the contiguous moist q range) using detJ/mfac weighting,
+     *  reusing AverageDownTo with perturbational/momenta handling disabled. */
+    void AverageDownMoistStateTo (int crse_lev);
 
     // Write checkpoint file to disk
     void WriteCheckpointFile () const;

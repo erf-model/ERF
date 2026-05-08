@@ -6,6 +6,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_TerminalVelocity.H"
 #include "ERF_InterpolationUtils.H"
+#include "ERF_TerrainConversion.H"
 
 using namespace amrex;
 using namespace SDPCDefn;
@@ -41,11 +42,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     BL_PROFILE("SuperDropletPC::AdvectParticles()");
     AMREX_ALWAYS_ASSERT((a_lev >= 0) && (a_lev <= finestLevel()));
 
-    const auto& particles = GetParticles();
-    const bool has_particles = !particles[a_lev].empty();
+    const MFPtr& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ASSERT(OK(a_lev, a_lev, a_flow_vel[0].nGrow()-1));
-
     AMREX_D_TERM(AMREX_ASSERT(a_flow_vel[0].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[1].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[2].nGrow() >= 1););
@@ -53,203 +52,163 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
-    if (has_particles) {
+    const auto ctx = buildProcessContext(a_lev);
+    const Geometry& geom = m_gdb->Geom(a_lev);
+    const Box& dom = geom.Domain();
+    const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
-        const MFPtr& z_height = a_z_phys_nd[a_lev];
-        const auto ctx = buildProcessContext(a_lev);
-        const Geometry& geom = m_gdb->Geom(a_lev);
-        const auto is_periodic_z = geom.isPeriodic(2);
+    const bool advect_w_flow = m_advect_w_flow;
+    const bool advect_w_gravity = m_advect_w_gravity;
+    const bool prescribed_advection = m_prescribed_advection;
 
-        const bool advect_w_flow = m_advect_w_flow;
-        const bool advect_w_gravity = m_advect_w_gravity;
-        const bool prescribed_advection = m_prescribed_advection;
+    const auto vterm_type_w = m_term_vel_type_w;
+    const auto vterm_type_i = m_term_vel_type_i;
 
-        const auto vterm_type_w = m_term_vel_type_w;
-        const auto vterm_type_i = m_term_vel_type_i;
+    Real rho_i = DBL_MAX;
+    if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
-        Real rho_i = DBL_MAX;
-        if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
+    // Terminal velocity calculator (shared across tiles)
+    TerminalVelocity<ParticleReal> term_vel { ctx.rho_water, rho_i };
 
-        // Terminal velocity calculator (shared across tiles)
-        TerminalVelocity<ParticleReal> term_vel { ctx.rho_water, rho_i };
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& ctx)
+    {
+        auto zheight = (*z_height)[grid].array();
 
-        forEachParticleTile(a_lev, ctx,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-                const SDProcess::ParticlePointers& ptrs,
-                const SDProcess::ProcessContext& ctx)
+        const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&(a_flow_vel[0][grid]),
+                                                              &(a_flow_vel[1][grid]),
+                                                              &(a_flow_vel[2][grid])) };
+        amrex::GpuArray<amrex::Array4<const Real>, AMREX_SPACEDIM>
+            const umacarr {{AMREX_D_DECL((*fab[0]).array(),
+                                         (*fab[1]).array(),
+                                         (*fab[2]).array() )}};
+
+        const auto& density_arr = a_density[grid].array();
+        const auto& temperature_arr = a_temperature[grid].array();
+        const auto& pressure_arr = a_pressure[grid].array();
+
+        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
-            auto zheight = (*z_height)[grid].array();
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            if (ptrs.active_ptr[i] == 0) { return; }
 
-            const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&(a_flow_vel[0][grid]),
-                                                                  &(a_flow_vel[1][grid]),
-                                                                  &(a_flow_vel[2][grid])) };
-            amrex::GpuArray<amrex::Array4<const Real>, AMREX_SPACEDIM>
-                const umacarr {{AMREX_D_DECL((*fab[0]).array(),
-                                             (*fab[1]).array(),
-                                             (*fab[2]).array() )}};
+            ParticleReal v[AMREX_SPACEDIM];
+            v[0] = v[1] = v[2] = zero;
 
-            const auto& density_arr = a_density[grid].array();
-            const auto& temperature_arr = a_temperature[grid].array();
-            const auto& pressure_arr = a_pressure[grid].array();
+            mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
+            if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                v[0] = zero; v[1] = zero; v[2] = zero;
+            }
 
-            ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
-            {
-                ParticleType& p = p_pbox[i];
-                if (p.id() <= 0) { return; }
-                if (ptrs.active_ptr[i] == 0) { return; }
+            // Interpolate density, pressure, temperature at particle position
+            constexpr int nf = static_cast<int>(InterpFieldsAdv::NUM_FIELDS);
+            ParticleReal fv[nf];
+            const Array4<const Real> fa[nf] = {
+                density_arr, pressure_arr, temperature_arr
+            };
+            ERF::Interpolation::interpolateFields(
+                p, ctx.plo, ctx.dxi, fa, fv, nf
+            );
+            const auto density     = fv[static_cast<int>(InterpFieldsAdv::density)];
+            const auto pressure    = fv[static_cast<int>(InterpFieldsAdv::pressure)];
+            const auto temperature = fv[static_cast<int>(InterpFieldsAdv::temperature)];
 
-                ParticleReal v[AMREX_SPACEDIM];
-                v[0] = v[1] = v[2] = zero;
-                ParticleReal terminal_vel = zero;
+            if (prescribed_advection) {
+               if (a_time < 600) {
+                   v[2] = two*sin(PI*a_time/600)/density;
+               } else {
+                   v[2] = zero;
+               }
+            }
 
-                // With partial-z AMR tiles, a particle's idata(k) may be
-                // outside the local grid's z-extent (after advection, before
-                // redistribution).  The mapped-z stencil reads zheight(k-1..k+2),
-                // so an OOB k causes a garbage memory read -> NaN velocity ->
-                // NaN position.  Skip interpolation (leave v=0, vterm=0) for
-                // such particles; Redistribute will move them to the right tile.
-                bool stencil_ok = true;
-                if (!is_periodic_z) {
-                    int pk = p.idata(ERFParticlesIntIdxAoS::k);
-                    if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
-                        stencil_ok = false;
-                    }
+            // compute effective radius
+            auto r_eff = SD_effective_radius( i, ctx.idx_water,
+                                              ctx.rho_water,
+                                              ctx.num_species, ctx.num_aerosols,
+                                              ptrs.sp_sol_arr, ptrs.ae_sol_arr,
+                                              ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
+                                              ptrs.sp_rho_arr, ptrs.ae_rho_arr );
+
+            ParticleReal terminal_vel = zero;
+            auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
+            if (par_phase == SDPhase::water) {
+                if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (vterm_type_w == SDTerminalVelocityType::CloudRainShima) {
+                    terminal_vel = term_vel.CloudRainShima( r_eff,
+                                                            density,
+                                                            pressure,
+                                                            temperature );
+                } else {
+                    amrex::Abort("Invalid option for water droplet terminal velocity model");
                 }
-
-                if (stencil_ok) {
-                    if (is_periodic_z) {
-                        mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
-                    } else {
-                        mac_interpolate_mapped_z(p, ctx.plo, ctx.dxi, umacarr, zheight, v);
-                    }
-                    if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
-                        v[0] = v[1] = v[2] = zero;
-                    }
-
-                    // Interpolate density, pressure, temperature at particle position
-                    constexpr int nf = static_cast<int>(InterpFieldsAdv::NUM_FIELDS);
-                    ParticleReal fv[nf];
-                    const Array4<const Real> fa[nf] = {
-                        density_arr, pressure_arr, temperature_arr
-                    };
-                    ERF::Interpolation::interpolateFields(
-                        p, ctx.plo, ctx.dxi, fa, fv, nf,
-                        is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
-                    );
-                    const auto density     = fv[static_cast<int>(InterpFieldsAdv::density)];
-                    const auto pressure    = fv[static_cast<int>(InterpFieldsAdv::pressure)];
-                    const auto temperature = fv[static_cast<int>(InterpFieldsAdv::temperature)];
-
-                    if (prescribed_advection) {
-                       if (a_time < 600) {
-                           v[2] = two*sin(PI*a_time/600)/density;
-                       } else {
-                           v[2] = zero;
-                       }
-                    }
-
-                    // compute effective radius
-                    auto r_eff = SD_effective_radius( i, ctx.idx_water,
-                                                      ctx.rho_water,
-                                                      ctx.num_species, ctx.num_aerosols,
-                                                      ptrs.sp_sol_arr, ptrs.ae_sol_arr,
-                                                      ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
-                                                      ptrs.sp_rho_arr, ptrs.ae_rho_arr );
-
-                    auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
-                    if (par_phase == SDPhase::water) {
-                        if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
-                            terminal_vel = term_vel.AtlasUlbrich( r_eff );
-                        } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {
-                            terminal_vel = term_vel.RogersYau( r_eff );
-                        } else if (vterm_type_w == SDTerminalVelocityType::CloudRainShima) {
-                            terminal_vel = term_vel.CloudRainShima( r_eff,
-                                                                    density,
-                                                                    pressure,
-                                                                    temperature );
-                        } else {
-                            amrex::Abort("Invalid option for water droplet terminal velocity model");
-                        }
-                    } else if (par_phase == SDPhase::ice) {
-                        AMREX_ALWAYS_ASSERT(ctx.idx_ice >= 0);
-                        if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
-                            terminal_vel = term_vel.AtlasUlbrich( r_eff );
-                        } else if (vterm_type_i == SDTerminalVelocityType::RogersYau) {
-                            terminal_vel = term_vel.RogersYau( r_eff );
-                        } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
-                            auto m_total = SD_total_mass( i, ctx.num_species, ctx.num_aerosols,
-                                                          ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
-                            terminal_vel = term_vel.IceBohm( m_total,
-                                                             ptrs.a_ptr[i], ptrs.c_ptr[i],
-                                                             ice_rho(ptrs.a_ptr[i],ptrs.c_ptr[i],
-                                                                     ptrs.sp_mass_ptrs[ctx.idx_ice][i]),
-                                                             density, temperature );
-                        } else {
-                            amrex::Abort("Invalid option for ice particle terminal velocity model");
-                        }
-                    } else {
-                        amrex::Abort("Unknown value for particle phase (must be ice or water)");
-                    }
+            } else if (par_phase == SDPhase::ice) {
+                AMREX_ALWAYS_ASSERT(ctx.idx_ice >= 0);
+                if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
+                    auto m_total = SD_total_mass( i, ctx.num_species, ctx.num_aerosols,
+                                                  ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
+                    terminal_vel = term_vel.IceBohm( m_total,
+                                                     ptrs.a_ptr[i], ptrs.c_ptr[i],
+                                                     ice_rho(ptrs.a_ptr[i], ptrs.c_ptr[i],
+                                                             ptrs.sp_mass_ptrs[ctx.idx_ice][i]),
+                                                     density, temperature );
+                } else {
+                    amrex::Abort("Invalid option for ice particle terminal velocity model");
                 }
+            } else {
+                amrex::Abort("Unknown value for particle phase (must be ice or water)");
+            }
 
-                for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
-                    ptrs.v_ptr[dim][i] = v[dim];
-                }
-                ptrs.vterm_ptr[i] = terminal_vel;
+            for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
+                ptrs.v_ptr[dim][i] = v[dim];
+            }
+            ptrs.vterm_ptr[i] = terminal_vel;
 
+            // Advance in physical (x, y, z); pos(2) is zeta on disk so go
+            // through z_from_zeta / zeta_from_z around the update.
+            if (advect_w_flow || advect_w_gravity) {
+                const Real x0 = p.pos(0);
+                const Real y0 = p.pos(1);
+                const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
+                    x0, y0, p.pos(AMREX_SPACEDIM-1), ctx.plo, ctx.dxi, zheight);
+                Real x_n = x0;
+                Real y_n = y0;
+                Real z_n = z_phys0;
                 if (advect_w_flow) {
-                    for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
-                        p.pos(dim) += static_cast<ParticleReal>(a_dt*v[dim]);
-                    }
+                    x_n += a_dt * v[0];
+                    y_n += a_dt * v[1];
+                    z_n += a_dt * v[AMREX_SPACEDIM-1];
                 }
                 if (advect_w_gravity) {
-                    p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel);
+                    z_n -= a_dt * terminal_vel;
                 }
-
-                // Update z-coordinate carried by the particle
-                update_location_idata(p,ctx.plo,ctx.dxi,zheight);
-
-            });
-            Gpu::synchronize();
-        }); // end forEachParticleTile
-
-    } // has_particles — advection per-tile work
-
-    // MPI collectives — all ranks must participate
-    applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
-
-    if (a_lev == 0) {
-        Redistribute(0, 0);
-    } else {
-        ExtractAndRouteOORParticles(a_lev, a_z_phys_nd);
-    }
-
-    // After redistribution, update k-index for all affected levels.
-    // Particles may have moved from a_lev to coarser levels (via
-    // ExtractAndRouteOORParticles), so update k on every level up to a_lev.
-    for (int lev = 0; lev <= a_lev; lev++) {
-        const auto& plev = GetParticles();
-        if (lev >= static_cast<int>(plev.size())) { continue; }
-        if (plev[lev].empty()) { continue; }
-
-        const MFPtr& z_height_lev = a_z_phys_nd[lev];
-        const auto ctx_lev = buildProcessContext(lev);
-        forEachParticleTile(lev, ctx_lev,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-                const SDProcess::ParticlePointers& ptrs,
-                const SDProcess::ProcessContext& ctx_inner)
-        {
-            auto zheight = (*z_height_lev)[grid].array();
-            ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
-            {
-                ParticleType& p = p_pbox[i];
-                if (p.id() > 0) {
-                    update_location_idata(p, ctx_inner.plo, ctx_inner.dxi, zheight);
-                }
-            });
-            Gpu::synchronize();
+                int qi = int(amrex::Math::floor((x_n - ctx.plo[0]) * ctx.dxi[0]));
+                int qj = int(amrex::Math::floor((y_n - ctx.plo[1]) * ctx.dxi[1]));
+                int qk = int(amrex::Math::floor((z_n - ctx.plo[AMREX_SPACEDIM-1])
+                                                * ctx.dxi[AMREX_SPACEDIM-1]));
+                if (qi     < zheight.begin[0] || qi + 1 >= zheight.end[0] ||
+                    qj     < zheight.begin[1] || qj + 1 >= zheight.end[1] ||
+                    qk     < zheight.begin[2] || qk + 1 >= zheight.end[2]) { return; }
+                p.pos(0) = static_cast<ParticleReal>(x_n);
+                p.pos(1) = static_cast<ParticleReal>(y_n);
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, ctx.plo, ctx.dxi, zheight, k_max));
+            }
         });
-    }
+        Gpu::synchronize();
+    }); // end forEachParticleTile
+
+    applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
+    Redistribute();
 }
 
 #endif

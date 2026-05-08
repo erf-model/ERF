@@ -112,6 +112,12 @@ public:
         m_moist_model->Update_State_Vars(cons_in, z_phys_nd);
     }
 
+    /*! \brief average down moisture multifabs from finest_level to 0 */
+    void AverageDownMicroVars (const int finest_level) override
+    {
+        m_moist_model->AverageDownMicroVars(finest_level);
+    }
+
     /*! \brief get pointer to a moisture variable */
     amrex::MultiFab* Get_Qmoist_Ptr (const int& lev, /*!< AMR level */
                                      const int& varIdx /*!< moisture variable index */) override

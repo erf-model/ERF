@@ -70,9 +70,6 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
     const auto ctx = buildProcessContext(a_lev);
 
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
-
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     // Find vapour species index
@@ -111,7 +108,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
                              therco,
                              vapour_mat.m_Rv,
                              mat_density };
-    constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+    constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
     forEachParticleTile(a_lev, ctx,
@@ -152,6 +149,8 @@ void SuperDropletPC::MassChange_LV (  int                                       
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (a_is_water && (par_phase == SDPhase::ice)) { return; }
 
+            if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
+
             // Interpolate saturation pressure, saturation ratio, temperature, pressure
             constexpr int nf = static_cast<int>(InterpFieldsLV::NUM_FIELDS);
             ParticleReal fv[nf];
@@ -159,8 +158,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
                 sat_pressure_arr, sat_ratio_arr, temperature_arr, pressure_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto e_sat       = fv[static_cast<int>(InterpFieldsLV::e_sat)];
             const auto sat_ratio   = fv[static_cast<int>(InterpFieldsLV::sat_ratio)];
@@ -272,9 +270,6 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
     const auto ctx = buildProcessContext(a_lev);
 
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
-
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
@@ -295,6 +290,8 @@ void SuperDropletPC::MassChange_SL (  int                                       
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
+            if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
+
             // Interpolate temperature, saturation ratio
             constexpr int nf = static_cast<int>(InterpFieldsSL::NUM_FIELDS);
             ParticleReal fv[nf];
@@ -302,8 +299,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
                 temperature_arr, sat_ratio_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto temperature = fv[static_cast<int>(InterpFieldsSL::temperature)];
             const auto sat_ratio   = fv[static_cast<int>(InterpFieldsSL::sat_ratio)];
@@ -364,9 +360,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
     const auto ctx = buildProcessContext(a_lev);
 
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
-
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
@@ -404,6 +397,8 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) { return; }
 
+            if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
+
             // Interpolate fields for solid-vapour mass change
             constexpr int nf = static_cast<int>(InterpFieldsSV::NUM_FIELDS);
             ParticleReal fv[nf];
@@ -412,8 +407,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                 density_arr, temperature_arr, pressure_arr, moist_density_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto e_sat          = fv[static_cast<int>(InterpFieldsSV::e_sat)];
             const auto e_sat_ratio_wi = fv[static_cast<int>(InterpFieldsSV::e_sat_ratio_wi)];

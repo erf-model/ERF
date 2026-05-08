@@ -7,6 +7,8 @@
 #include <string>
 #include <AMReX_Enum.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_iMultiFab.H>
+#include <AMReX_MultiFabUtil.H>
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -182,6 +184,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Ensure m_mic_fab_vars[lev] is allocated for the given level */
         void EnsureMicFabVars (const int a_lev, const amrex::MultiFab& a_cons_vars);
 
+        /*! \brief Build a coarse-cell mask: 1 where exposed, 0 where covered by a finer level */
+        amrex::iMultiFab buildFineMask (const int a_lev) const;
+
         /*! \brief Initialize m_mic_fab_vars for a non-zero AMR level */
         void InitLevel (const int a_lev, const amrex::MultiFab& a_cons_vars) override;
 
@@ -211,6 +216,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          */
         virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars,
                                         const amrex::MultiFab& a_z_phys_nd) override;
+
+        /*! \brief Average down moisture multifabs from finest_level down to 0 */
+        virtual void AverageDownMicroVars (const int finest_level) override;
 
         /*! \brief Copy moisture model vars from state to member multifabs
          * \param[in] a_state State multifab to copy from
@@ -320,16 +328,20 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void phaseChange (  const amrex::Real&, const amrex::Vector<MFPtr>&, const int );
 
         /*! \brief Evaporation/condensation for water */
-        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
+        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
 
         /*! \brief Evaporation/condensation for other species */
-        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
+        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
 
         /*! \brief Freezing/melting for water */
-        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
+        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
 
         /*! \brief Deposition/sublimation for ice */
-        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&, const int);
+        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
 
         virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {

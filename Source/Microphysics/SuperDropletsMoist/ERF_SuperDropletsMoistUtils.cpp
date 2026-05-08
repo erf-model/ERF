@@ -55,6 +55,39 @@ void SuperDropletsMoist::InitLevel (const int a_lev, const MultiFab& a_cons_vars
     EnsureMicFabVars(a_lev, a_cons_vars);
 }
 
+/*! \brief Build a coarse-cell mask: 1 where the coarse cell is exposed (not
+ *  covered by a finer level), 0 where covered. If no finer level exists or the
+ *  fine BoxArray is empty, the returned mask is all 1s.
+ *
+ * \param[in] a_lev AMR level whose grid is used as the coarse layout
+ */
+iMultiFab SuperDropletsMoist::buildFineMask (const int a_lev) const
+{
+    BL_PROFILE("SuperDropletsMoist::buildFineMask()");
+
+    AMREX_ALWAYS_ASSERT(a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size()));
+    const auto& cba = m_mic_fab_vars[a_lev][MicVar_SD::rho]->boxArray();
+    const auto& cdm = m_mic_fab_vars[a_lev][MicVar_SD::rho]->DistributionMap();
+    // Match the mic fabs' ghost width so the mask is valid over the same grown
+    // region the phaseChange / Copy_Micro_to_State kernels iterate.
+    const IntVect ng = m_mic_fab_vars[a_lev][MicVar_SD::rho]->nGrowVect();
+
+    const int next_lev = a_lev + 1;
+    const bool has_fine = (m_super_droplets &&
+                           next_lev < m_super_droplets->numLevels() &&
+                           !m_super_droplets->ParticleBoxArray(next_lev).empty());
+    if (!has_fine) {
+        iMultiFab mask(cba, cdm, 1, ng);
+        mask.setVal(1);
+        return mask;
+    }
+
+    const auto& fba = m_super_droplets->ParticleBoxArray(next_lev);
+    const IntVect rr = m_super_droplets->GetParGDB()->refRatio(a_lev);
+    const Periodicity period = m_super_droplets->Geom(a_lev).periodicity();
+    return makeFineMask(cba, cdm, ng, fba, rr, period, 1, 0);
+}
+
 /*! \brief Copy moisture model variables from conserved state to member MultiFabs
  *
  * \param[in] a_cons_vars MultiFab containing the conserved state variables
@@ -68,8 +101,12 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
 
     const auto& gvec = a_cons_vars.nGrowVect();
 
-    // Copy density and vapour mixing ratio from state variables
-    // Note: do *not* copy other q
+    // Read all moisture (qv, qc, qi, qr, qs, qg) from state into the micro
+    // fabs so phase change sees the dycore-advected values for the q_t
+    // conservation invariant.  computeQc*/computeQt* in Update_State_Vars at
+    // the end of the SDM step will overwrite condensate fields with their
+    // particle-derived values before Copy_Micro_to_State pushes them back
+    // to the state.
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         bx.grow(gvec);
@@ -90,19 +127,23 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         {
             auto q_t_arr = m_mic_fab_vars[lev][MicVar_SD::q_t]->array(mfi);
             auto q_v_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->array(mfi);
-            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->const_array(mfi);
-            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->const_array(mfi);
-            auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->const_array(mfi);
-            auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->const_array(mfi);
-            auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->const_array(mfi);
+            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
+            auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
+            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
+            auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
+            auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp);
+                Real inv_rho = Real(1.0) / states_arr(i,j,k,Rho_comp);
+                q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) * inv_rho;
+                q_c_arr(i,j,k) = states_arr(i,j,k,RhoQ2_comp) * inv_rho;
+                q_i_arr(i,j,k) = states_arr(i,j,k,RhoQ3_comp) * inv_rho;
+                q_r_arr(i,j,k) = states_arr(i,j,k,RhoQ4_comp) * inv_rho;
+                q_s_arr(i,j,k) = states_arr(i,j,k,RhoQ5_comp) * inv_rho;
+                q_g_arr(i,j,k) = states_arr(i,j,k,RhoQ6_comp) * inv_rho;
                 q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k)
-                                 + q_r_arr(i,j,k)
-                                 + q_i_arr(i,j,k)
-                                 + q_s_arr(i,j,k)
-                                 + q_g_arr(i,j,k);
+                                 + q_i_arr(i,j,k) + q_r_arr(i,j,k)
+                                 + q_s_arr(i,j,k) + q_g_arr(i,j,k);
             });
         }
 
@@ -231,18 +272,22 @@ void SuperDropletsMoist::Copy_Micro_to_State (MultiFab& a_cons_vars)
     const int lev = m_current_lev;
     const auto& gvec = a_cons_vars.nGrowVect();
 
+    iMultiFab fine_mask = buildFineMask(lev);
+
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
         bx.grow(gvec);
 
         auto states_arr = a_cons_vars.array(mfi);
+        auto mask_arr = fine_mask.const_array(mfi);
 
         // state variables
         {
             auto theta_arr = m_mic_fab_vars[lev][MicVar_SD::theta]->const_array(mfi);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                if (mask_arr(i,j,k) == 0) return;
                 states_arr(i,j,k,RhoTheta_comp) = states_arr(i,j,k,Rho_comp)*theta_arr(i,j,k);
             });
         }
@@ -258,6 +303,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (MultiFab& a_cons_vars)
 
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                if (mask_arr(i,j,k) == 0) return;
                 states_arr(i,j,k,RhoQ1_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
                 states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
                 states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
@@ -275,6 +321,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (MultiFab& a_cons_vars)
             auto qc_comp = q_qc_idx(is,m_istart_sp);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                if (mask_arr(i,j,k) == 0) return;
                 states_arr(i,j,k,qv_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
                 states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
             });
@@ -292,6 +339,40 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Update_Micro_Vars()");
     Copy_State_to_Micro(a_cons_vars);
+}
+
+/*! \brief Average down moisture multifabs from the finest level down to 0
+ *
+ * For each level pair (lev, lev-1) from finest_level down to 1, restrict
+ * fine-level micro multifabs onto coarse cells covered by the fine level.
+ * This keeps coarse-level micro variables consistent with the particle deposit
+ * on finer levels for tagging, plotting, and pre-regrid synchronization.
+ *
+ * \param[in] finest_level Top AMR level to restrict from
+ */
+void SuperDropletsMoist::AverageDownMicroVars (const int finest_level)
+{
+    BL_PROFILE("SuperDropletsMoist::AverageDownMicroVars()");
+
+    for (int lev = finest_level; lev >= 1; --lev) {
+        if (lev >= static_cast<int>(m_mic_fab_vars.size())) continue;
+        if (m_mic_fab_vars[lev].empty() || m_mic_fab_vars[lev-1].empty()) continue;
+
+        const IntVect rr = (m_super_droplets && lev <= m_super_droplets->numLevels())
+                         ? m_super_droplets->GetParGDB()->refRatio(lev-1)
+                         : IntVect(2);
+
+        const int n = std::min<int>(m_mic_fab_vars[lev].size(),
+                                    m_mic_fab_vars[lev-1].size());
+        for (int v = 0; v < n; ++v) {
+            if (!m_mic_fab_vars[lev][v] || !m_mic_fab_vars[lev-1][v]) continue;
+            average_down( *m_mic_fab_vars[lev][v],
+                          *m_mic_fab_vars[lev-1][v],
+                          0,
+                          m_mic_fab_vars[lev][v]->nComp(),
+                          rr );
+        }
+    }
 }
 
 /*! \brief Compute derived quantities and update state variables */

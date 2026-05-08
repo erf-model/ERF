@@ -560,9 +560,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
-    const auto is_periodic = geom.isPeriodic();
-    auto is_periodic_z = is_periodic[2];
-
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     const auto rho_water = m_species_mat[m_idx_w]->m_density;
@@ -573,11 +570,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
+
+    // Scale bin size by refinement ratio so each level's bins span the same
+    // physical volume as level 0 (same MC pair-density per bin)
+    IntVect bin_size = m_coalescence_bin_size;
+    for (int k = 0; k < a_lev; k++) {
+        bin_size *= m_gdb->refRatio(k);
+    }
+
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = ParticleReal(one) / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[1])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
+        = ParticleReal(one) / (  static_cast<ParticleReal>(bin_size[0])
+                 * static_cast<ParticleReal>(bin_size[1])
+                 * static_cast<ParticleReal>(bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
     Real num_collisions = 0;
@@ -597,8 +602,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
     {
         const size_t np = static_cast<size_t>(ptrs.num_particles);
         Box box = a_temperature[grid].box(); box.grow(-gvec);
-        int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
-        auto binner = GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box};
+        int ntiles = numTilesInBox(box, true, bin_size);
+        auto binner = GetParticleBin{plo, dxi, domain, bin_size, box};
         DenseBins<ParticleType> bins;
         bins.build( np, pstruct_ptr, ntiles, binner);
         AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
@@ -842,14 +847,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 // interpolate flow quantities at ice particle location
                 ParticleType& p_ice = pstruct_ptr[id_i];
+                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
                 constexpr int nf = static_cast<int>(InterpFieldsTR::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {
                     temperature_arr, moist_density_arr
                 };
                 ERF::Interpolation::interpolateFields(
-                    p_ice, plo, dxi, fa, fv, nf,
-                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                    p_ice, plo, dxi, fa, fv, nf
                 );
                 const auto temperature   = fv[static_cast<int>(InterpFieldsTR::temperature)];
                 const auto moist_density = fv[static_cast<int>(InterpFieldsTR::moist_density)];
@@ -1040,14 +1045,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      || ((phase_i == SDPhase::water) && (phase_j == SDPhase::ice)) );
 
                 ParticleType& p_ice = pstruct_ptr[i];
+                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
                 constexpr int nf = static_cast<int>(InterpFieldsFull::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {
                     temperature_arr, pressure_arr, moist_density_arr, qv_arr
                 };
                 ERF::Interpolation::interpolateFields(
-                    p_ice, plo, dxi, fa, fv, nf,
-                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                    p_ice, plo, dxi, fa, fv, nf
                 );
                 const auto temperature   = fv[static_cast<int>(InterpFieldsFull::temperature)];
                 const auto pressure      = fv[static_cast<int>(InterpFieldsFull::pressure)];
