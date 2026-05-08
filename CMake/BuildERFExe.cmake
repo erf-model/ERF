@@ -270,6 +270,13 @@ function(build_erf_lib erf_lib_name)
                    ${PROJECT_SOURCE_DIR}/Exec/ERF_Prob.cpp)
   endif()
 
+  # Coupling source is present only on coupling branches.
+  # Build/link branches should compile without requiring this file.
+  if(EXISTS "${SRC_DIR}/ERF_Coupling.cpp")
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/ERF_Coupling.cpp)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
@@ -277,7 +284,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
        ${SRC_DIR}/ERF_ReadWaves.cpp
-       ${SRC_DIR}/ERF_Coupling.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
