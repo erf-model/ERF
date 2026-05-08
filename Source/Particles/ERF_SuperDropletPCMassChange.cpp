@@ -73,7 +73,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                              therco,
                              vapour_mat.m_Rv,
                              mat_density };
-    constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+    constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
     forEachParticleTile(a_lev, ctx,

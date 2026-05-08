@@ -430,16 +430,16 @@ class SuperDropletPC : public ERFPC
         {
             using namespace SDPCDefn;
 
-            constexpr int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
-            constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+            constexpr int rtoff_i = SuperDropletsIntIdx::ncomps;
+            constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 
             ptrs.num_particles = aos.numParticles();
-            ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+            ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdx::mass).data();
             ptrs.radius_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::radius).data();
             ptrs.active_ptr = soa.GetIntData(rtoff_i + SuperDropletsIntIdxSoA_RT::active).data();
-            ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-            ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-            ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
+            ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdx::vx).data();
+            ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdx::vy).data();
+            ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdx::vz).data();
             ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
             ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
