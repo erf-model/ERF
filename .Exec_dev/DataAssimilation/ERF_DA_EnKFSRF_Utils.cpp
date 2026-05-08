@@ -259,7 +259,7 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
 }
 
 Real
-Compute_y_prime_i_T_Rinv_y_prime_j(const MultiFab& Yi,
+Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
                                    const MultiFab& Yj,
                                    const Vector<Real>& R_diag)
 {
@@ -299,6 +299,40 @@ Compute_y_prime_i_T_Rinv_y_prime_j(const MultiFab& Yi,
 }
 
 void
+compute_yf_prime (int i,
+                const std::string& last_pf_name,
+                const Vector<std::string>& varnames,
+                const MultiFab& mean_H_xf,
+                MultiFab& yf_prime_i)
+{
+    // Read ensemble member
+    MultiFab xf_i = read_member_multifab(i, last_pf_name, varnames);
+
+    // Apply observation operator
+    MultiFab H_xf_i;
+    Apply_H(xf_i, H_xf_i);
+
+    // Allocate output
+    yf_prime_i.define(H_xf_i.boxArray(),
+                      H_xf_i.DistributionMap(),
+                      H_xf_i.nComp(),
+                      H_xf_i.nGrow());
+
+    // y'_i = H(xf_i) - mean(H(xf))
+    MultiFab::Copy(yf_prime_i,
+                   H_xf_i,
+                   0, 0,
+                   H_xf_i.nComp(),
+                   H_xf_i.nGrow());
+
+    MultiFab::Subtract(yf_prime_i,
+                       mean_H_xf,
+                       0, 0,
+                       H_xf_i.nComp(),
+                       H_xf_i.nGrow());
+}
+
+void
 compute_S_matrix(Matrix& S,
                  const int& Nens,
                  const MultiFab& mean_H_xf,
@@ -308,25 +342,12 @@ compute_S_matrix(Matrix& S,
 {
     for (int i = 0; i < Nens; ++i) {
         MultiFab yf_prime_i;
-        MultiFab xf_i = read_member_multifab(i, last_pf_name, varnames);
-        MultiFab H_xf_i;
-        Apply_H(xf_i, H_xf_i);
-        MultiFab y_prime_i(xf_i.boxArray(), xf_i.DistributionMap(), 2, xf_i.nGrow());
-        MultiFab::Subtract(y_prime_i, mean_H_xf, 0, 0, 2, mean_H_xf.nGrow());
-
+        compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
+                
         for (int j = 0; j < Nens; ++j) {
-            MultiFab yf_prime_j;
-            MultiFab xf_j = read_member_multifab(j, last_pf_name, varnames);
-            MultiFab H_xf_j;
-            Apply_H(xf_j, H_xf_j);
-
-            MultiFab y_prime_j(mean_H_xf.boxArray(), mean_H_xf.DistributionMap(), 2, mean_H_xf.nGrow());
-            // y_prime = H_xf_i
-            MultiFab::Copy(y_prime_i, H_xf_j, 0, 0, 2, H_xf_i.nGrow());
-
-           // y_prime -= mean_H_xf
-            MultiFab::Subtract(y_prime_j, mean_H_xf, 0, 0, 2, H_xf_j.nGrow());
-            Real val = Compute_y_prime_i_T_Rinv_y_prime_j(yf_prime_i, y_prime_j, R_diag);
+            MultiFab yf_prime_j;            
+            compute_yf_prime(j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
+            Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag);
             S(i,j) = val;
         }
     }
