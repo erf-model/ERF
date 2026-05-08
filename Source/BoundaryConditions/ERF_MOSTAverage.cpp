@@ -54,9 +54,15 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         }
     }
 
+    Print()<<"SK: MOSTAverage::MOSTAverage: m_policy = "<<m_policy<<std::endl;
+
     if ((m_terrain_type == TerrainType::EB) && (m_policy == 0)) {
         m_policy = 2;
     }
+
+    Print()<<"SK: MOSTAverage::MOSTAverage: m_policy = "<<m_policy<<std::endl;
+
+
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -953,6 +959,8 @@ MOSTAverage::compute_averages (const int& lev)
 {
     if (m_rotate) set_rotated_fields(lev);
 
+    Print() << "SK: Compute Averages: m_policy = "<<m_policy << std::endl;
+
     switch(m_policy) {
     case 0: // Standard plane average
         compute_plane_averages(lev);
@@ -962,6 +970,7 @@ MOSTAverage::compute_averages (const int& lev)
         break;
     case 2: // EB Terrain average
         compute_eb_averages(lev);
+        break;
     default:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
