@@ -106,7 +106,7 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
-                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
+                                                       + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
     return met_h_zeta;
 }
 
@@ -133,7 +133,7 @@ Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
-                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
+                                                       + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
     return met_h_eta;
 }
 
@@ -146,7 +146,7 @@ Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
-                                                    + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
+                                                       + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
     return met_h_zeta;
 }
 
@@ -159,7 +159,7 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_xi   = myhalf * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
-                                                    + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
+                                                       + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
     return met_h_xi;
 }
 
@@ -213,7 +213,7 @@ Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
-                                                    + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
+                                                       + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
     return met_h_eta;
 }
 
@@ -278,7 +278,7 @@ Compute_h_zeta_AtEdgeCenterJ (const int &i, const int &j, const int &k,
 {
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = fourth * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                                             -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
+                                               -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
     return met_h_zeta;
 }
 
@@ -322,7 +322,7 @@ Compute_h_zeta_AtEdgeCenterI (const int &i, const int &j, const int &k,
 {
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = fourth * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                                             -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
+                                               -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
     return met_h_zeta;
 }
 
@@ -362,9 +362,9 @@ Compute_Z_AtCellCenter (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
     const amrex::Real z_cc = amrex::Real(0.125)*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1)
-                                    + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
-                                    + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
-                                    + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
+                                                + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
+                                                + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
+                                                + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
 
     return z_cc;
 }
@@ -377,7 +377,7 @@ Compute_Z_AtWFace (const int &i, const int &j, const int &k,
                    const amrex::Array4<const amrex::Real>& z_nd)
 {
     const amrex::Real z_wf = fourth*( z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                                  + z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  ) );
+                                    + z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  ) );
 
     return z_wf;
 }
@@ -390,14 +390,14 @@ Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
                            const amrex::Array4<const amrex::Real>& z_nd)
 {
     const amrex::Real z_cc = amrex::Real(0.125)*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
-                                    + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
-                                    + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
-                                    + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
+                                                + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
+                                                + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
+                                                + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
 
     // Note: we assume the z_nd array spans from the bottom to top of the domain
     // i.e. no domain decomposition across processors in vertical direction
     const amrex::Real z0_cc = fourth*(  z_nd(i  ,j  ,0) + z_nd(i  ,j+1,0)
-                                    + z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
+                                     + z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
 
     return (z_cc - z0_cc);
 }

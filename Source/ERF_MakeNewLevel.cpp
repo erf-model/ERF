@@ -13,6 +13,7 @@
 
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_SrcHeaders.H"
 #include "ERF_ProbCommon.H"
 
 using namespace amrex;
@@ -116,8 +117,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
-
-
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -245,6 +244,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (solverChoice.rad_type != RadiationType::None)
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
+    }
+
+    //********************************************************************************************
+    // Gradient of base state pressure
+    // *******************************************************************************************
+    if (solverChoice.anelastic[lev] == 0) {
+        MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+        compute_gradp0(p0, geom[lev], *z_phys_cc[lev], mapfac[lev],
+                       get_eb(lev), gradp0[lev], solverChoice);
     }
 
     // ********************************************************************************************
@@ -517,6 +525,14 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
+    //********************************************************************************************
+    // Gradient of base state pressure at this (new) level
+    // *******************************************************************************************
+    if (solverChoice.anelastic[lev] == 0) {
+        MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+        compute_gradp0(p0, geom[lev], *z_phys_cc[lev], mapfac[lev],
+                       get_eb(lev), gradp0[lev], solverChoice);
+    }
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -791,6 +807,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
+    //********************************************************************************************
+    // Gradient of base state pressure at this (new) level
+    // *******************************************************************************************
+    if (solverChoice.anelastic[lev] == 0) {
+        MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+        compute_gradp0(p0, geom[lev], *z_phys_cc[lev], mapfac[lev],
+                       get_eb(lev), gradp0[lev], solverChoice);
+    }
+
     // Particle redistribute handled in timeStep() after regrid() completes.
     // Calling it here causes stale-grid crashes.
 }
@@ -865,6 +890,10 @@ ERF::ClearLevel (int lev)
     }
     if (cosPhi_m[lev]) {
         cosPhi_m[lev].reset();
+    }
+
+    for (int i(0); i<Gp0Vars::NumTypes; ++i) {
+        gradp0[lev][i].clear();
     }
 }
 

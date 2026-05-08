@@ -512,3 +512,218 @@ compute_gradp_interpz (const MultiFab& p,
         });
     } // mfi
 }
+
+void
+compute_gradp0 (const MultiFab& p0,
+                const Geometry& geom,
+                const MultiFab& z_phys_cc,
+                Vector<std::unique_ptr<MultiFab>>& mapfac,
+                const eb_& ebfact,
+                Vector<MultiFab>& gradp0,
+                const SolverChoice& solverChoice)
+{
+    const bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
+
+    const Box domain = geom.Domain();
+    const int domain_klo = domain.smallEnd(2);
+    const int domain_khi = domain.bigEnd(2);
+
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
+    // *****************************************************************************
+    // Take gradient of relevant quantity (p0, pres, or pert_pres = pres - p0)
+    // *****************************************************************************
+    for ( MFIter mfi(p0); mfi.isValid(); ++mfi)
+    {
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+
+        // Terrain metrics
+        const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
+
+        const Array4<const Real>& p0_arr = p0.const_array(mfi);
+
+        const Array4<      Real>& gp0x_arr = gradp0[Gp0Vars::gp0x].array(mfi);
+        const Array4<      Real>& gp0y_arr = gradp0[Gp0Vars::gp0y].array(mfi);
+
+        const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
+
+        if (solverChoice.terrain_type != TerrainType::EB) {
+
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                //Note : mx/my == 1, so no map factor needed here
+                Real gp0x = dxInv[0] * (p0_arr(i,j,k) - p0_arr(i-1,j,k));
+
+                if (l_use_terrain_fitted_coords) {
+                    Real met_h_xi = (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k)) * dxInv[0];
+
+                    Real dz_phys_hi, dz_phys_lo;
+                    Real gp0z_lo, gp0z_hi;
+                    if (k==domain_klo) {
+                        dz_phys_hi = z_cc_arr(i  ,j,k+1) -   z_cc_arr(i  ,j,k  );
+                        dz_phys_lo = z_cc_arr(i-1,j,k+1) -   z_cc_arr(i-1,j,k  );
+                        gp0z_hi  = (p0_arr(i  ,j,k+1) - p0_arr(i  ,j,k  )) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i-1,j,k+1) - p0_arr(i-1,j,k  )) / dz_phys_lo;
+                    } else if (k==domain_khi) {
+                        dz_phys_hi = z_cc_arr(i  ,j,k  ) -   z_cc_arr(i  ,j,k-1);
+                        dz_phys_lo = z_cc_arr(i-1,j,k  ) -   z_cc_arr(i-1,j,k-1);
+                        gp0z_hi  = (p0_arr(i  ,j,k  ) - p0_arr(i  ,j,k-1)) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i-1,j,k  ) - p0_arr(i-1,j,k-1)) / dz_phys_lo;
+                    } else {
+                        dz_phys_hi = z_cc_arr(i  ,j,k+1) -   z_cc_arr(i  ,j,k-1);
+                        dz_phys_lo = z_cc_arr(i-1,j,k+1) -   z_cc_arr(i-1,j,k-1);
+                        gp0z_hi  = (p0_arr(i  ,j,k+1) - p0_arr(i  ,j,k-1)) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i-1,j,k+1) - p0_arr(i-1,j,k-1)) / dz_phys_lo;
+                    }
+                    Real gp0x_metric = met_h_xi * myhalf * (gp0z_hi + gp0z_lo);
+                    gp0x -= gp0x_metric;
+                }
+                gp0x_arr(i,j,k) = gp0x;
+
+                // NOTE that the gradp array now carries the map factor!
+                gp0x_arr(i,j,k) *= mf_ux_arr(i,j,0);
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                //Note : mx/my == 1, so no map factor needed here
+                Real gp0y = dxInv[1] * (p0_arr(i,j,k) - p0_arr(i,j-1,k));
+
+                if (l_use_terrain_fitted_coords) {
+                    Real met_h_eta = (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k)) * dxInv[1];
+
+                    Real dz_phys_hi, dz_phys_lo;
+                    Real gp0z_lo, gp0z_hi;
+                    if (k==domain_klo) {
+                        dz_phys_hi = z_cc_arr(i,j  ,k+1) -   z_cc_arr(i,j  ,k  );
+                        dz_phys_lo = z_cc_arr(i,j-1,k+1) -   z_cc_arr(i,j-1,k  );
+                        gp0z_hi  = (p0_arr(i,j  ,k+1) - p0_arr(i,j  ,k  )) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i,j-1,k+1) - p0_arr(i,j-1,k  )) / dz_phys_lo;
+                    } else if (k==domain_khi) {
+                        dz_phys_hi = z_cc_arr(i,j  ,k  ) -   z_cc_arr(i,j  ,k-1);
+                        dz_phys_lo = z_cc_arr(i,j-1,k  ) -   z_cc_arr(i,j-1,k-1);
+                        gp0z_hi  = (p0_arr(i,j  ,k  ) - p0_arr(i,j  ,k-1)) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i,j-1,k  ) - p0_arr(i,j-1,k-1)) / dz_phys_lo;
+                    } else {
+                        dz_phys_hi = z_cc_arr(i,j  ,k+1) -   z_cc_arr(i,j  ,k-1);
+                        dz_phys_lo = z_cc_arr(i,j-1,k+1) -   z_cc_arr(i,j-1,k-1);
+                        gp0z_hi  = (p0_arr(i,j  ,k+1) - p0_arr(i,j  ,k-1)) / dz_phys_hi;
+                        gp0z_lo  = (p0_arr(i,j-1,k+1) - p0_arr(i,j-1,k-1)) / dz_phys_lo;
+                    }
+                    Real gp0y_metric = met_h_eta * myhalf * (gp0z_hi + gp0z_lo);
+                    gp0y -= gp0y_metric;
+                }
+                gp0y_arr(i,j,k) = gp0y;
+
+                // NOTE that the gradp array now carries the map factor!
+                gp0y_arr(i,j,k) *= mf_vy_arr(i,j,0);
+            });
+
+        } else {
+
+            // Pressure gradients are fitted at the centroids of cut cells, if EB and Compressible.
+            // Least-Squares Fitting: Compute slope using 3x3x3 stencil
+
+            const bool l_fitting = false;
+
+            const Real* dx_arr = geom.CellSize();
+            const Real dx = dx_arr[0];
+            const Real dy = dx_arr[1];
+            const Real dz = dx_arr[2];
+
+            // EB factory
+            Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+            // EB u-factory
+            Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > u_volcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
+
+            // EB v-factory
+            Array4<const EBCellFlag> v_cellflg = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
+
+            if (l_fitting) {
+
+                ParallelFor(tbx, tby,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k)
+                {
+                    if (u_volfrac(i,j,k) > zero) {
+
+                        if (u_cellflg(i,j,k).isSingleValued()) {
+
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, p0_arr, u_volcent, u_cellflg);
+
+                            gp0x_arr(i,j,k) = slopes[0];
+
+                        } else {
+                            gp0x_arr(i,j,k) = dxInv[0] * (p0_arr(i,j,k) - p0_arr(i-1,j,k));
+                        }
+
+                    } else {
+                        gp0x_arr(i,j,k) = zero;
+                    }
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k)
+                {
+                    if (v_volfrac(i,j,k) > zero) {
+
+                        if (v_cellflg(i,j,k).isSingleValued()) {
+
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, p0_arr, v_volcent, v_cellflg);
+
+                            gp0y_arr(i,j,k) = slopes[1];
+
+                        } else {
+                            gp0y_arr(i,j,k) = dxInv[1] * (p0_arr(i,j,k) - p0_arr(i,j-1,k));
+                        }
+                    } else {
+                        gp0y_arr(i,j,k) = zero;
+                    }
+                });
+
+            } else {
+
+                // Simple calculation: assuming pressures at cell centers
+
+                ParallelFor(tbx, tby,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    if (u_volfrac(i,j,k) > zero) {
+                        if (cellflg(i,j,k).isCovered()) {
+                            gp0x_arr(i,j,k) = dxInv[0] * (p0_arr(i-3,j,k) - three*p0_arr(i-2,j,k) + two*p0_arr(i-1,j,k));
+                        } else if (cellflg(i-1,j,k).isCovered()) {
+                            gp0x_arr(i,j,k) = dxInv[0] * (three*p0_arr(i+1,j,k) - p0_arr(i+2,j,k) - two*p0_arr(i,j,k));
+                        } else {
+                            gp0x_arr(i,j,k) = dxInv[0] * (p0_arr(i,j,k) - p0_arr(i-1,j,k));
+                        }
+                    } else {
+                        gp0x_arr(i,j,k) = zero;
+                    }
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    if (v_volfrac(i,j,k) > zero) {
+                        if (cellflg(i,j,k).isCovered()) {
+                            gp0y_arr(i,j,k) = dxInv[1] * (p0_arr(i,j-3,k) - three*p0_arr(i,j-2,k) + two*p0_arr(i,j-1,k));
+                        } else if (cellflg(i,j-1,k).isCovered()) {
+                            gp0y_arr(i,j,k) = dxInv[1] * (three*p0_arr(i,j+1,k) - p0_arr(i,j+2,k) - two*p0_arr(i,j,k));
+                        } else {
+                            gp0y_arr(i,j,k) = dxInv[1] * (p0_arr(i,j,k) - p0_arr(i,j-1,k));
+                        }
+                    } else {
+                        gp0y_arr(i,j,k) = zero;
+                    }
+                });
+
+            } // l_fitting
+
+        } // TerrainType::EB
+
+    } // mfi
+}

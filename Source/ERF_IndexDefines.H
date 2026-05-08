@@ -168,6 +168,15 @@ namespace GpVars {
         gpx = 0,
         gpy,
         gpz,
+        NumTypes
+    };
+}
+
+namespace Gp0Vars {
+    enum {
+        gp0x = 0,
+        gp0y,
+        NumTypes
     };
 }
 

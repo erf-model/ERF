@@ -828,6 +828,9 @@ private:
     // Pressure gradient at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
 
+    // HSE pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp0;
+
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<amrex::Real> t_avg_cnt;

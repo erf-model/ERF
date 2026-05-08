@@ -117,6 +117,10 @@
                         p0_to_use, *zpn_to_use, *zpc_to_use,
                         mapfac[level],
                         get_eb(level), gradp[level]);
+        if (solverChoice.anelastic[level] == 0) {
+            MultiFab::Add(gradp[level][GpVars::gpx], gradp0[level][Gp0Vars::gp0x], 0, 0, 1, 0);
+            MultiFab::Add(gradp[level][GpVars::gpy], gradp0[level][Gp0Vars::gp0y], 0, 0, 1, 0);
+        }
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction

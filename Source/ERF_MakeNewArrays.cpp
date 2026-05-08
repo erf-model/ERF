@@ -180,6 +180,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0);
     gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0);
 
+    if (solverChoice.anelastic[lev] == 0) {
+        gradp0[lev][Gp0Vars::gp0x].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
+        gradp0[lev][Gp0Vars::gp0y].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
+        gradp0[lev][Gp0Vars::gp0x].setVal(0);
+        gradp0[lev][Gp0Vars::gp0y].setVal(0);
+    }
+
     if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0);

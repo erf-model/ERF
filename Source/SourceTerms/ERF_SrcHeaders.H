@@ -47,6 +47,14 @@ void compute_gradp (const amrex::MultiFab& p,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
 
+void compute_gradp0 (const amrex::MultiFab& p0,
+                     const amrex::Geometry& geom,
+                     const amrex::MultiFab& z_phys_cc,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                     const eb_& ebfact,
+                     amrex::Vector<amrex::MultiFab>& gradp0,
+                     const SolverChoice& solverChoice);
+
 void compute_gradp_interpz (const amrex::MultiFab& p,
                             const amrex::Geometry& geom,
                             const amrex::MultiFab& z_phys_nd,
