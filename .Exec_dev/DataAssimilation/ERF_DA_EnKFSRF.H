@@ -38,6 +38,11 @@ void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
                     const amrex::MultiFab& d_vec,
                     const amrex::Vector<amrex::Real>& R_diag);
 
+void compute_mean_H_xf(amrex::MultiFab& mean_H_xf,
+                       const int Nens,
+                       const std::string& last_pf_name,
+                       const amrex::Vector<std::string>& varnames);
+
 extern "C" {
     void dgetrf_(int* M, int* N, double* A, int* lda, int* ipiv, int* info);
     void dgetri_(int* N, double* A, int* lda, int* ipiv,
@@ -155,6 +160,13 @@ private:
 // Simple matrix multiplication
 Matrix matrix_multiply(const Matrix& A, const Matrix& B);
 void matrix_print(const Matrix& A);
-
 void lapack_testing();
+
+void compute_S_matrix(Matrix& S,
+                      const int& Nens,
+                      const amrex::MultiFab& mean_H_xf,
+                      const amrex::Vector<amrex::Real>& R_diag,
+                      const std::string& last_pf_name,
+                      const amrex::Vector<std::string>& varnames);
+
 #endif
