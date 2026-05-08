@@ -411,18 +411,17 @@ MOSTAverage::set_plane_normalization (const int& lev)
 void
 MOSTAverage::set_eb_normalization (const int& lev)
 {
-    AMREX_ALWAYS_ASSERT(m_eb != nullptr);
+    AMREX_ALWAYS_ASSERT(m_eb_vec[lev] != nullptr);
 
     // Get EB data - need both cell-centered and face-centered flags
-    const auto& eb_factory = m_eb->get_const_factory();
-    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
-    const auto& u_flags = m_eb->get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = m_eb->get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
 
     // Get area fractions for different centerings
-    auto cc_afrac = eb_factory->getAreaFrac();  // Cell-centered area fractions (Array of 3 MultiCutFab*)
-    auto u_afrac = m_eb->get_u_const_factory()->getAreaFrac();  // X-face area fractions
-    auto v_afrac = m_eb->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
+    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();  // Cell-centered area fractions (Array of 3 MultiCutFab*)
+    auto u_afrac = m_eb_vec[lev]->get_u_const_factory()->getAreaFrac();  // X-face area fractions
+    auto v_afrac = m_eb_vec[lev]->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
 
     // Initialize storage
     m_total_bndry_area.resize(m_maxlev);
@@ -1664,15 +1663,14 @@ MOSTAverage::compute_eb_averages (const int& lev)
     auto& plane_average = m_plane_average[lev];
 
     // Get EB data - need both cell-centered and face-centered
-    const auto& eb_factory = m_eb_vec[lev]->get_const_factory();
-    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
     const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
     const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
 
     // Get area fractions for different centerings
-    auto cc_afrac = eb_factory->getAreaFrac();  // Cell-centered area fractions
-    auto u_afrac = m_eb->get_u_const_factory()->getAreaFrac();  // X-face area fractions
-    auto v_afrac = m_eb->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
+    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();  // Cell-centered area fractions
+    auto u_afrac = m_eb_vec[lev]->get_u_const_factory()->getAreaFrac();  // X-face area fractions
+    auto v_afrac = m_eb_vec[lev]->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
 
     // Get geometry for cell sizes
     auto const& dx_arr = m_geom[lev].CellSizeArray();
