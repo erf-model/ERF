@@ -207,7 +207,7 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-            auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+            auto par_mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
             return ai * num_par * par_mass;
         });
 }
@@ -223,8 +223,8 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-            auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
-            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+            auto par_mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
+            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
             if (a_dim == 2) {
                 par_velocity -= ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
             }
@@ -265,7 +265,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
-            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
             if (a_dim == 2) {
                 par_velocity -= ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
             }
@@ -326,7 +326,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
-            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+            auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
             if (a_dim == 2) {
                 par_velocity -= ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
             }

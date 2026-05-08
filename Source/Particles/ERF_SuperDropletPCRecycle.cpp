@@ -35,12 +35,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
+        // Wrap the copy in zeta<->physical-z conversion so the dumped
+        // plotfile holds physical z, matching the main plotfile convention.
+        this->ConvertZetaToZ(a_z_phys_nd);
         auto tmp = this->make_alike<amrex::PinnedArenaAllocator>();
         tmp.copyParticles(*this, [=] AMREX_GPU_HOST_DEVICE (const SrcData& a_src, int i)
                           {
                               auto ai = a_src.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                               return (ai == 0);
                           }, true);
+        this->ConvertZToZeta(a_z_phys_nd);
 
         char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string fname = "deac_SD_" + std::string(iter_str);
@@ -100,6 +104,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto dx_h = Geom(m_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
+        const Box& dom = Geom(a_lev).Domain();
+        const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
+        const MFPtr& z_height = a_z_phys_nd[a_lev];
+
         // number of super-droplets per cell
         int num_sd_per_cell = m_num_sd_per_cell;
         // number of physical particles per cell
@@ -120,11 +128,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_max = m_recyc_zmax;
 
         forEachParticleTile(a_lev, ctx,
-            [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
+            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
             const int np = ptrs.num_particles;
+            auto zheight = (*z_height)[grid].array();
 
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
@@ -182,10 +191,17 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 if (p.id() <= 0) { return; }
                 if (ptrs.active_ptr[i] > 0) { return; }
 
-                // Place particle randomly in domain within specified bounds
-                p.pos(0) = x_min + Random(rnd_engine)*(x_max - x_min);
-                p.pos(1) = y_min + Random(rnd_engine)*(y_max - y_min);
-                p.pos(2) = z_min + Random(rnd_engine)*(z_max - z_min);
+                // Place particle randomly in physical (x, y, z) within the
+                // user-specified bounds, then map physical z to computational
+                // zeta in the new column for storage in pos(2).
+                const Real x_new = x_min + Random(rnd_engine)*(x_max - x_min);
+                const Real y_new = y_min + Random(rnd_engine)*(y_max - y_min);
+                const Real z_new = z_min + Random(rnd_engine)*(z_max - z_min);
+                p.pos(0) = static_cast<ParticleReal>(x_new);
+                p.pos(1) = static_cast<ParticleReal>(y_new);
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x_new, y_new, z_new,
+                                                  ctx.plo, ctx.dxi, zheight, k_max));
 
                 // Set velocities to zero
                 ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
@@ -230,24 +246,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         Print() << "    recycled " << np_recycle_total << " super-droplets.\n";
 
         Redistribute();
-
-        // Update location data for recycled particles
-        const MFPtr& z_height = a_z_phys_nd[a_lev];
-        forEachParticleTile(a_lev, ctx,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-                const SDProcess::ParticlePointers& ptrs,
-                const SDProcess::ProcessContext& ctx)
-        {
-            auto zheight = (*z_height)[grid].array();
-
-            ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
-            {
-                ParticleType& p = p_pbox[i];
-                if (p.id() <= 0) { return; }
-                update_location_idata(p,ctx.plo,ctx.dxi,zheight);
-            });
-            Gpu::synchronize();
-        }); // end forEachParticleTile
 
     } else {
 

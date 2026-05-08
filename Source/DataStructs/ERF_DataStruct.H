@@ -194,6 +194,7 @@ struct SolverChoice {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
+                -1,          // cloud ice
                 RhoQ3_comp   // rain
             );
         }
@@ -677,7 +678,6 @@ struct SolverChoice {
         windfarm_type = WindFarmType::None; // Default
         pp.query_enum_case_insensitive("windfarm_type",windfarm_type);
 
-        static std::string windfarm_loc_type_string = "None";
         windfarm_loc_type = WindFarmLocType::None;
         pp.query_enum_case_insensitive("windfarm_loc_type",windfarm_loc_type);
 

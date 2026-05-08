@@ -134,16 +134,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto pstruct_ptr = aos().dataPtr();
 
         /* SoA attributes */
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdx::mass).data();
         Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
-        v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-        v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-        v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
+        v_ptr[0] = soa.GetRealData(SuperDropletsRealIdx::vx).data();
+        v_ptr[1] = soa.GetRealData(SuperDropletsRealIdx::vy).data();
+        v_ptr[2] = soa.GetRealData(SuperDropletsRealIdx::vz).data();
 
         /* Runtime-added SoA attributes */
-        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        int rtoff_i = SuperDropletsIntIdx::ncomps;
         auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
-        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        int rtoff_r = SuperDropletsRealIdx::ncomps;
         auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
