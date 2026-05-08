@@ -278,15 +278,15 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         auto& soa = particle_tile.GetStructOfArrays();
 
         /* SoA attributes */
-        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data() + size_old;
-        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data() + size_old;
-        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data() + size_old;
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data() + size_old;
+        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdx::vx).data() + size_old;
+        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdx::vy).data() + size_old;
+        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdx::vz).data() + size_old;
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdx::mass).data() + size_old;
 
         /* Runtime-added SoA attributes */
-        int rt_off_i = SuperDropletsIntIdxSoA::ncomps;
+        int rt_off_i = SuperDropletsIntIdx::ncomps;
         auto* active_ptr = soa.GetIntData(rt_off_i+SuperDropletsIntIdxSoA_RT::active).data() + size_old;
-        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+        int rt_off_r = SuperDropletsRealIdx::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
         auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
         auto* vterm_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
@@ -433,7 +433,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                     }
                 }
 
-                p.idata(SuperDropletsIntIdxAoS::k) = k;
                 active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
