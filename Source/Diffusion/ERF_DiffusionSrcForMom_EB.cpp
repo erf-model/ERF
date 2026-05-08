@@ -205,9 +205,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             rho_v_rhs(i,j,k) -= diffContrib;
 
-            // Apply EB boundary contribution for both no-slip and surface-layer wall models.
-            // (Previously this block was incorrectly gated on `l_no_slip`, which prevented
-            //  SurfaceLayer stresses (tau_eb23) from contributing to the y-momentum RHS.)
             if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = v_afrac_x(i  ,j  ,k  );
@@ -303,15 +300,18 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
 
-                    // const Real Dirichlet_u {zero};
-                    // const Real Dirichlet_v {zero};
-                    const Real Dirichlet_u = (u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ) + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  )
-                                            + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1) + u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1))
-                                            / (u_volfrac(i,j,k) + u_volfrac(i+1,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1));
-                    const Real Dirichlet_v = (v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ) + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  )
-                                            + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1) + v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1))
-                                            / (v_volfrac(i,j,k) + v_volfrac(i,j+1,k) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j,k-1));
+                    Real Dirichlet_u {zero};
+                    Real Dirichlet_v {zero};
                     const Real Dirichlet_w {zero};
+                    if (l_surface_layer) {
+                        Dirichlet_u = (u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ) + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  )
+                                        + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1) + u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1))
+                                        / (u_volfrac(i,j,k) + u_volfrac(i+1,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1));
+                        Dirichlet_v = (v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ) + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  )
+                                        + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1) + v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1))
+                                        / (v_volfrac(i,j,k) + v_volfrac(i,j+1,k) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j,k-1));
+
+                    }
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;

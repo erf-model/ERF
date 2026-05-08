@@ -271,10 +271,15 @@ ERF::init_from_wrfinput (int lev,
                 //    to be filled
                 int nx = var_fab_from_file.box().length(0);
                 int ny = var_fab_from_file.box().length(1);
+                int nz = var_fab_from_file.box().length(2);
                 Box subdomain_tmp(subdomain_to_fill);
                 if (nx == 1 and ny == 1) {
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
+                }
+                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
+                if (nz == 1) {
+                    subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));

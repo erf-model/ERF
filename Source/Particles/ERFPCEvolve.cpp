@@ -83,8 +83,6 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     const Box&  dom = geom.Domain();
     const int   k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
-    auto domlo = lbound(geom.Domain());
-
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
     if (OnSameGrids(a_lev, a_umac[0]))
