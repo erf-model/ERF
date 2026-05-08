@@ -256,6 +256,14 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
+  if(ERF_BUILD_LIBRARY_ONLY)
+    # Avoid cross-application symbol collision when ERF and REMORA are linked
+    # into one parent executable.
+    target_compile_definitions(${erf_lib_name} PRIVATE amrex_probinit=erf_probinit)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${PROJECT_SOURCE_DIR}/Exec/ERF_Prob.cpp)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
