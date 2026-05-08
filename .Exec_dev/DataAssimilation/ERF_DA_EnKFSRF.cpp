@@ -15,8 +15,8 @@ using namespace amrex;
 namespace fs = std::filesystem;
 
 MultiFab
-compute_ensemble_mean(const std::string& pf_name,
-                      int Nens,
+compute_ensemble_mean(int Nens,
+                      const std::string& pf_name,
                       const Vector<std::string>& varnames)
 {
     MultiFab mf_mean;
@@ -56,7 +56,7 @@ ERF::ComputeAndWriteEnsemblePerturbations()
     const std::string member_prefix = "member_";
     for (const auto& pf_name : pltfiles)
     {
-        MultiFab mf_mean = compute_ensemble_mean(pf_name, Nens, varnames);
+        MultiFab mf_mean = compute_ensemble_mean(Nens, pf_name, varnames);
         // -------------------------------
         // Step 3 & 4: Compute perturbations and write plotfiles
         // -------------------------------
@@ -106,7 +106,7 @@ ERF::PerformDataAssimilation(int da_iter)
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
 
     // Compute the ensemble mean
-    MultiFab xf_bar = compute_ensemble_mean(last_pf_name, Nens, varnames);
+    MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
 
     // Compute the mean of forecast observations yf_bar = Hx_f
     MultiFab mean_H_xf;
@@ -128,8 +128,9 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab d_prime_vec;
     compute_d_prime_vec(d_prime_vec, d_vec, R_diag);
 
-    // Compute r = Y'^Td'
-    //compute_r_vec (
+    // Compute r = Y'^Td'    
+    Vector<Real> r_vec;
+    compute_r_vec(Nens, last_pf_name, varnames, mean_H_xf, d_prime_vec, r_vec);
     
     // Compute the S matrix
     Matrix S(Nens);

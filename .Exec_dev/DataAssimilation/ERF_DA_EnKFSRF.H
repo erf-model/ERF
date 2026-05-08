@@ -17,8 +17,8 @@ read_member_multifab(int n,
                      const amrex::Vector<std::string>& varnames);
 
 amrex::MultiFab
-compute_ensemble_mean(const std::string& pf_name,
-                      int Nens,
+compute_ensemble_mean(int Nens,
+                      const std::string& pf_name,
                       const amrex::Vector<std::string>& varnames);
 
 void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
@@ -42,6 +42,13 @@ void compute_mean_H_xf(amrex::MultiFab& mean_H_xf,
                        const int Nens,
                        const std::string& last_pf_name,
                        const amrex::Vector<std::string>& varnames);
+
+void compute_r_vec (int Nens,
+                    const std::string& last_pf_name,
+                    const amrex::Vector<std::string>& varnames,
+                    const amrex::MultiFab& mean_H_xf,
+                    const amrex::MultiFab& d_prime_vec,
+                    amrex::Vector<amrex::Real>& r_vec);
 
 extern "C" {
     void dgetrf_(int* M, int* N, double* A, int* lda, int* ipiv, int* info);

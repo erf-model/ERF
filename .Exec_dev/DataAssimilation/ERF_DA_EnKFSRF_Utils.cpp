@@ -353,3 +353,72 @@ compute_S_matrix(Matrix& S,
     }
 }
 
+Real
+compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
+                                const MultiFab& d_prime_vec)
+{
+    AMREX_ALWAYS_ASSERT(yf_prime.nComp() ==
+                        d_prime_vec.nComp());
+
+    const int ncomp = yf_prime.nComp();
+
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+
+    using ReduceTuple =
+        typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(yf_prime, TilingIfNotGPU());
+         mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        auto const& yf_arr =
+            yf_prime.const_array(mfi);
+
+        auto const& d_arr =
+            d_prime_vec.const_array(mfi);
+
+        reduce_op.eval(
+        bx,
+        reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            -> ReduceTuple
+        {
+            Real local = 0.0;
+
+            for (int n = 0; n < ncomp; ++n)
+            {
+                local +=
+                    yf_arr(i,j,k,n) *
+                    d_arr(i,j,k,n);
+            }
+
+            return {local};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value();
+
+    return amrex::get<0>(hv);
+}
+
+void
+compute_r_vec (int Nens,
+               const std::string& last_pf_name,
+               const Vector<std::string>& varnames,
+               const MultiFab& mean_H_xf,
+               const MultiFab& d_prime_vec,
+               Vector<Real>& r_vec)
+{
+    r_vec.resize(Nens);
+
+    for (int i = 0; i < Nens; ++i)
+    {
+        MultiFab yf_prime_i;
+
+        compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
+
+        r_vec[i] = compute_yf_prime_T_d_prime_vec(yf_prime_i, d_prime_vec);
+    }
+}
