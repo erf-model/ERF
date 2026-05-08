@@ -237,7 +237,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const tvm_ptr  = m_ma.get_average(lev,4); // virtual potential temperature
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
-
+    const bool l_use_eb = (m_terrain_type == TerrainType::EB);
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+    
     const int klo = m_geom[lev].Domain().smallEnd(2);
     IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
@@ -245,9 +247,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
     {
         Box gtbx = mfi.tilebox(IntVect(0),ng);
 
-        if (gtbx.smallEnd(2) != klo) { continue; }
+        if (!l_use_eb && gtbx.smallEnd(2) != klo) { continue; }
 
-        gtbx.makeSlab(2,klo);
+        if (!l_use_eb) { gtbx.makeSlab(2,klo); }
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -277,24 +279,51 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
-        {
-            if (( is_land && lmask_arr(i,j,0) == 1) ||
-                (!is_land && lmask_arr(i,j,0) == 0))
+        // Get EB flags if needed
+        const auto flag_arr = (l_use_eb) ? cc_flags[mfi].const_array() : Array4<const EBCellFlag>{};
+
+        if (!l_use_eb) { 
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
             {
-                // NOTE: All 2D MFs so k index is always 0 from ba2d definition
-                most_flux.iterate_flux(i, j, 0, max_iters,
-                                       zref_arr,                            // set in most average
-                                       z0_arr,                              // updated if(!is_land)
-                                       umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr,                          // updated
-                                       w_star_arr,                          // updated if(m_include_wstar)
-                                       t_star_arr, q_star_arr,              // updated
-                                       t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                       pblh_arr,                            // updated if(m_include_wstar)
-                                       Hwave_arr, Lwave_arr, eta_arr);
-            }
-        });
+                if (( is_land && lmask_arr(i,j,0) == 1) ||
+                    (!is_land && lmask_arr(i,j,0) == 0))
+                {
+                    // NOTE: All 2D MFs so k index is always 0 from ba2d definition
+                    most_flux.iterate_flux(i, j, 0, max_iters,
+                                        zref_arr,                            // set in most average
+                                        z0_arr,                              // updated if(!is_land)
+                                        umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                        u_star_arr,                          // updated
+                                        w_star_arr,                          // updated if(m_include_wstar)
+                                        t_star_arr, q_star_arr,              // updated
+                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                        pblh_arr,                            // updated if(m_include_wstar)
+                                        Hwave_arr, Lwave_arr, eta_arr);
+                }
+            });
+        // EB
+        } else {
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // if (( is_land && lmask_arr(i,j,0) == 1) ||
+                //     (!is_land && lmask_arr(i,j,0) == 0))
+                {
+                    // EB: 3D MFs
+                    if (flag_arr(i,j,k).isSingleValued()) {
+                        most_flux.iterate_flux(i, j, k, max_iters,
+                                            zref_arr,                            // set in most average
+                                            z0_arr,                              // updated if(!is_land)
+                                            umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                            u_star_arr,                          // updated
+                                            w_star_arr,                          // updated if(m_include_wstar)
+                                            t_star_arr, q_star_arr,              // updated
+                                            t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                            pblh_arr,                            // updated if(m_include_wstar)
+                                            Hwave_arr, Lwave_arr, eta_arr);
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -645,8 +674,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         const FluxCalc& flux_comp)
 {
     // Get EB flags for all centerings
-    const auto& eb_factory = ebfact.get_const_factory();
-    const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
+    const auto& cc_flags = ebfact.get_const_factory()->getMultiEBCellFlagFab();
     const auto& u_flags = ebfact.get_u_const_factory()->getMultiEBCellFlagFab();
     const auto& v_flags = ebfact.get_v_const_factory()->getMultiEBCellFlagFab();
     const auto& w_flags = ebfact.get_w_const_factory()->getMultiEBCellFlagFab();
