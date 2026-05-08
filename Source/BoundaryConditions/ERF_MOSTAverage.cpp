@@ -19,12 +19,12 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           std::string a_pp_prefix,
                           const MeshType& mesh_type,
                           const TerrainType& terrain_type,
-                          const eb_* eb)
+                          const Vector<const eb_*>& eb_vec)
   : m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
     m_mesh_type(mesh_type),
     m_terrain_type(terrain_type),
-    m_eb(eb)
+    m_eb_vec(eb_vec)
 {
     // Get basic info
     //--------------------------------------------------------
@@ -54,15 +54,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         }
     }
 
-    Print()<<"SK: MOSTAverage::MOSTAverage: m_policy = "<<m_policy<<std::endl;
-
     if ((m_terrain_type == TerrainType::EB) && (m_policy == 0)) {
         m_policy = 2;
     }
-
-    Print()<<"SK: MOSTAverage::MOSTAverage: m_policy = "<<m_policy<<std::endl;
-
-
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -959,8 +953,6 @@ MOSTAverage::compute_averages (const int& lev)
 {
     if (m_rotate) set_rotated_fields(lev);
 
-    Print() << "SK: Compute Averages: m_policy = "<<m_policy << std::endl;
-
     switch(m_policy) {
     case 0: // Standard plane average
         compute_plane_averages(lev);
@@ -1664,7 +1656,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 void
 MOSTAverage::compute_eb_averages (const int& lev)
 {
-    AMREX_ALWAYS_ASSERT(m_eb != nullptr);
+    AMREX_ALWAYS_ASSERT(m_eb_vec[lev] != nullptr);
 
     // Peel back the level
     auto& fields      = m_fields[lev];
@@ -1672,10 +1664,10 @@ MOSTAverage::compute_eb_averages (const int& lev)
     auto& plane_average = m_plane_average[lev];
 
     // Get EB data - need both cell-centered and face-centered
-    const auto& eb_factory = m_eb->get_const_factory();
+    const auto& eb_factory = m_eb_vec[lev]->get_const_factory();
     const auto& cc_flags = eb_factory->getMultiEBCellFlagFab();
-    const auto& u_flags = m_eb->get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = m_eb->get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
 
     // Get area fractions for different centerings
     auto cc_afrac = eb_factory->getAreaFrac();  // Cell-centered area fractions

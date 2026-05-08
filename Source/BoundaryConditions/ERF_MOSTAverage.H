@@ -19,7 +19,7 @@ public:
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
                           const TerrainType& m_terrain_type,
-                          const eb_* eb = nullptr);
+                          const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -242,7 +242,7 @@ protected:
 
     // Vars for EB averaging policy
     //--------------------------------------------
-    const eb_* m_eb{nullptr};                                        // Pointer to EB object for EB averaging
+    amrex::Vector<const eb_*> m_eb_vec;                              // Vector of pointers to EB objects (one per level)
     amrex::Vector<amrex::Vector<amrex::Real>> m_total_bndry_area;   // Total EB surface areas (maxlev, navg)
 
     // Time average w/ exponential filter fun

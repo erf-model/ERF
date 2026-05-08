@@ -45,15 +45,15 @@ public:
                          amrex::Real start_low_time,
                          amrex::Real final_low_time,
                          amrex::Real low_time_interval = zero,
-                         const eb_* eb = nullptr)
+                         const amrex::Vector<const eb_*>& eb_vec = {})
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
     m_final_low_time(final_low_time),
     m_low_time_interval(low_time_interval),
-    m_eb(eb),
+    m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -736,7 +736,7 @@ private:
 
   bool m_ignore_sst = false;
 
-  const eb_* m_eb{nullptr};
+  amrex::Vector<const eb_*> m_eb_vec;
   TerrainType m_terrain_type;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
