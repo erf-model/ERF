@@ -658,6 +658,8 @@ ERF::Evolve ()
         timeStep(0, cur_time, iteration);
 
         cur_time += static_cast<double>(dt[0]);
+        // Sync t_new[0] from accurate double to prevent float32 accumulation drift in SP builds.
+        t_new[0] = static_cast<Real>(cur_time);
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;

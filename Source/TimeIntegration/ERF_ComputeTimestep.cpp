@@ -36,8 +36,8 @@ ERF::ComputeDt (int step, double cur_time_d)
     }
     //
     // Limit dt by the value of stop_time.
-    // Use double-precision cur_time_d (passed from Evolve) to avoid float32 drift
-    // causing premature dt shortening in single-precision builds.
+    // Recall that stop_time is total time, but t_new is elapsed time,
+    //     so we must add start_time to t_new
     //
     const Real eps = Real(1.e-3)*dt_0;
     if (cur_time_d + static_cast<double>(dt_0) > static_cast<double>(stop_time - start_time) - static_cast<double>(eps)) {
