@@ -257,9 +257,15 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_BUILD_LIBRARY_ONLY)
-    # Avoid cross-application symbol collision when ERF and REMORA are linked
-    # into one parent executable.
-    target_compile_definitions(${erf_lib_name} PRIVATE amrex_probinit=erf_probinit)
+    # In library-only superbuild mode, archive extraction + weak amrex_probinit
+    # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
+    target_compile_definitions(${erf_lib_name} PRIVATE
+                   ERF_REMORA_FORCE_PROBINIT_LINK=1
+                   amrex_probinit=erf_probinit)
+    target_compile_definitions(${erf_lib_name} PRIVATE
+                   Problem=ERFProblem
+                   ProblemBase=ERFProblemBase
+                   SolverChoice=ERFSolverChoice)
     target_sources(${erf_lib_name} PRIVATE
                    ${PROJECT_SOURCE_DIR}/Exec/ERF_Prob.cpp)
   endif()
