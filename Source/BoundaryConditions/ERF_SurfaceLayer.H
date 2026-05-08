@@ -52,6 +52,7 @@ public:
     m_final_low_time(final_low_time),
     m_low_time_interval(low_time_interval),
     m_eb(eb),
+    m_terrain_type(a_terrain_type),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb)
   {
       // We have a moisture model if Qv_prim is a valid pointer
@@ -400,18 +401,28 @@ public:
 
       // Attributes for MFs and FABs
       //--------------------------------------------------------
-      // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba  = mf.boxArray();
-      amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) { b.setRange(2,0); }
-      amrex::BoxArray ba2d(std::move(bl2d));
+      // Create a 2D ba for planar terrain, 3D for EB terrain
+      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba_flux;
+      amrex::IntVect ng{1,1,0};
+
+      if (m_terrain_type == TerrainType::EB) {
+          // Use full 3D BoxArray for EB terrain
+          ba_flux = ba;
+          ng = amrex::IntVect{1,1,1};  // Include z ghost cells
+      } else {
+          // Collapse to 2D for planar terrain
+          amrex::BoxList bl2d = ba.boxList();
+          for (auto& b : bl2d) { b.setRange(2,0); }
+          ba_flux = amrex::BoxArray(std::move(bl2d));
+      }
+
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-      amrex::IntVect ng{1,1,0};
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].define(ba_flux, dm, ncomp, ng);
       z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
@@ -419,28 +430,28 @@ public:
 
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
-      u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       u_star[lev]->setVal(1.E34);
 
-      w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      w_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       w_star[lev]->setVal(1.E34);
 
-      t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      t_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       t_star[lev]->setVal(0.0); // default to neutral
 
-      q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      q_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_star[lev]->setVal(0.0); // default to dry
 
-      olen[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      olen[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       olen[lev]->setVal(1.E34);
 
-      pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      pblh[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       pblh[lev]->setVal(1.E34);
 
-      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       t_surf[lev]->setVal(default_land_surf_temp);
 
-      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
@@ -726,6 +737,7 @@ private:
   bool m_ignore_sst = false;
 
   const eb_* m_eb{nullptr};
+  TerrainType m_terrain_type;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;
