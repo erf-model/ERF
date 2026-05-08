@@ -524,8 +524,7 @@ public:
                                 amrex::MultiFab* zheat_flux,
                                 amrex::MultiFab* xqv_flux,
                                 amrex::MultiFab* yqv_flux,
-                                amrex::MultiFab* zqv_flux,
-                                const eb_& ebfact);
+                                amrex::MultiFab* zqv_flux);
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
@@ -549,7 +548,6 @@ public:
                                  amrex::MultiFab* xqv_flux,
                                  amrex::MultiFab* yqv_flux,
                                  amrex::MultiFab* zqv_flux,
-                                 const eb_& ebfact,
                                  const FluxCalc& flux_comp);
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,

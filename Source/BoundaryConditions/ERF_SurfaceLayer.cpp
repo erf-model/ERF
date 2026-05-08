@@ -404,15 +404,14 @@ SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
                                        MultiFab* Hfx3_EB,
                                        MultiFab* xqv_flux,
                                        MultiFab* yqv_flux,
-                                       MultiFab* zqv_flux,
-                                       const eb_& ebfact)
+                                       MultiFab* zqv_flux)
 {
     if (flux_type == FluxCalcType::MOENG) {
         eb_moeng_flux flux_comp;
         compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_EB,
                                  xheat_flux, yheat_flux, Hfx3_EB,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 ebfact, flux_comp);
+                                 flux_comp);
     } else {
         amrex::Abort("Not implemented surface layer flux calculation type for EB");
     }
@@ -670,14 +669,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         [[maybe_unused]] MultiFab* xqv_flux,
                                         [[maybe_unused]] MultiFab* yqv_flux,
                                         [[maybe_unused]] MultiFab* zqv_flux,
-                                        const eb_& ebfact,
                                         const FluxCalc& flux_comp)
 {
     // Get EB flags for all centerings
-    const auto& cc_flags = ebfact.get_const_factory()->getMultiEBCellFlagFab();
-    const auto& u_flags = ebfact.get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = ebfact.get_v_const_factory()->getMultiEBCellFlagFab();
-    const auto& w_flags = ebfact.get_w_const_factory()->getMultiEBCellFlagFab();
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& w_flags = m_eb_vec[lev]->get_w_const_factory()->getMultiEBCellFlagFab();
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
