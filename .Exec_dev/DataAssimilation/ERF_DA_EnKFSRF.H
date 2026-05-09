@@ -6,49 +6,6 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
-void
-read_plot_file(amrex::PlotFileData& pf,
-               const std::vector<std::string> varnames,
-               amrex::MultiFab& mf);
-
-amrex::MultiFab
-read_member_multifab(int n,
-                     const std::string& pf_name,
-                     const amrex::Vector<std::string>& varnames);
-
-amrex::MultiFab
-compute_ensemble_mean(int Nens,
-                      const std::string& pf_name,
-                      const amrex::Vector<std::string>& varnames);
-
-void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
-void read_in_observations(const int& da_iter, amrex::MultiFab& y_obs);
-
-std::vector<std::string> get_plotfile_list();
-void read_in_observations(const int& da_iter,
-                          const amrex::Vector<std::string>& varnames,
-                          amrex::MultiFab& y_obs);
-void compute_d_vec(const amrex::MultiFab& mf1,
-                   const amrex::MultiFab& mf2,
-                   amrex::MultiFab& d_vec);
-
-void compute_R_diag_vals(amrex::Vector<amrex::Real>& R_diag);
-
-void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
-                    const amrex::MultiFab& d_vec,
-                    const amrex::Vector<amrex::Real>& R_diag);
-
-void compute_mean_H_xf(amrex::MultiFab& mean_H_xf,
-                       const int Nens,
-                       const std::string& last_pf_name,
-                       const amrex::Vector<std::string>& varnames);
-
-void compute_r_vec (int Nens,
-                    const std::string& last_pf_name,
-                    const amrex::Vector<std::string>& varnames,
-                    const amrex::MultiFab& mean_H_xf,
-                    const amrex::MultiFab& d_prime_vec,
-                    amrex::Vector<amrex::Real>& r_vec);
 
 extern "C" {
     void dgetrf_(int* M, int* N, double* A, int* lda, int* ipiv, int* info);
@@ -164,6 +121,58 @@ private:
     int n_;
     std::vector<double> data_;
 };
+
+
+void
+read_plot_file(amrex::PlotFileData& pf,
+               const std::vector<std::string> varnames,
+               amrex::MultiFab& mf);
+
+amrex::MultiFab
+read_member_multifab(int n,
+                     const std::string& pf_name,
+                     const amrex::Vector<std::string>& varnames);
+
+amrex::MultiFab
+compute_ensemble_mean(int Nens,
+                      const std::string& pf_name,
+                      const amrex::Vector<std::string>& varnames);
+
+void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
+void read_in_observations(const int& da_iter, amrex::MultiFab& y_obs);
+
+std::vector<std::string> get_plotfile_list();
+void read_in_observations(const int& da_iter,
+                          const amrex::Vector<std::string>& varnames,
+                          amrex::MultiFab& y_obs);
+void compute_d_vec(const amrex::MultiFab& mf1,
+                   const amrex::MultiFab& mf2,
+                   amrex::MultiFab& d_vec);
+
+void compute_R_diag_vals(amrex::Vector<amrex::Real>& R_diag);
+
+void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
+                    const amrex::MultiFab& d_vec,
+                    const amrex::Vector<amrex::Real>& R_diag);
+
+void compute_mean_H_xf(amrex::MultiFab& mean_H_xf,
+                       const int Nens,
+                       const std::string& last_pf_name,
+                       const amrex::Vector<std::string>& varnames);
+
+void compute_r_vec (int Nens,
+                    const std::string& last_pf_name,
+                    const amrex::Vector<std::string>& varnames,
+                    const amrex::MultiFab& mean_H_xf,
+                    const amrex::MultiFab& d_prime_vec,
+                    amrex::Vector<amrex::Real>& r_vec);
+
+void compute_alpha_vec (const int& Nens,
+                        const Matrix& S,
+                        const amrex::Vector<amrex::Real>& r_vec,
+                        amrex::Vector<amrex::Real>& alpha_vec);
+
+
 // Simple matrix multiplication
 Matrix matrix_multiply(const Matrix& A, const Matrix& B);
 void matrix_print(const Matrix& A);

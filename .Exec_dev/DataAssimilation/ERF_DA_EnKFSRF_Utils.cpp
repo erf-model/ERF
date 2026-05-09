@@ -13,6 +13,75 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+
+// Simple matrix multiplication
+Matrix 
+matrix_multiply(const Matrix& A, const Matrix& B)
+{
+    int n = A.size();
+    Matrix C(n);
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+
+            double sum = 0.0;
+            for (int k = 0; k < n; ++k) {
+                sum += A(i,k) * B(k,j);
+            }
+
+            C(i,j) = sum;
+        }
+    }
+
+    return C;
+}
+
+// Print matrix
+void matrix_print(const Matrix& A)
+{
+    int n = A.size();
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            std::cout << A(i,j) << " ";
+        }
+        std::cout << "\n";
+    }
+}
+
+void
+lapack_testing()
+{
+ Matrix S(3);
+    S(0,0) = 4.0;  S(0,1) = 1.0;  S(0,2) = 1.0;
+    S(1,0) = 1.0;  S(1,1) = 3.0;  S(1,2) = 0.5;
+    S(2,0) = 1.0;  S(2,1) = 0.5;  S(2,2) = 2.5;
+
+    Matrix Sinv = S.inverse();
+    // fill Sinv ...
+
+    Matrix T = Sinv.cholesky_lower();
+    Matrix T_trans = T.transpose();
+
+    Matrix T_T_trans = matrix_multiply(T, T_trans);
+    if (ParallelDescriptor::IOProcessor()) {
+        matrix_print(T_T_trans);
+        std::cout << "T*T_trans done" << std::endl;
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::cout  << "Sinv is " << std::endl;
+        matrix_print(Sinv);
+    }
+
+    Matrix I_mat = matrix_multiply(S, Sinv);
+    if (ParallelDescriptor::IOProcessor()) {
+        std::cout << "Checking S*Sinv " << std::endl;
+        matrix_print(I_mat);
+    }
+}
+
+
 std::vector<std::string>
 get_plotfile_list()
 {
@@ -110,70 +179,32 @@ read_member_multifab(int n,
     return mf;
 }
 
-// Simple matrix multiplication
-Matrix matrix_multiply(const Matrix& A, const Matrix& B)
+MultiFab
+compute_ensemble_mean(int Nens,
+                      const std::string& pf_name,
+                      const Vector<std::string>& varnames)
 {
-    int n = A.size();
-    Matrix C(n);
+    MultiFab mf_mean;
+    bool initialized = false;
 
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
+    for (int n = 0; n < Nens; ++n)
+    {
+        MultiFab mf_tmp = read_member_multifab(n, pf_name, varnames);
 
-            double sum = 0.0;
-            for (int k = 0; k < n; ++k) {
-                sum += A(i,k) * B(k,j);
-            }
-
-            C(i,j) = sum;
+        if (!initialized) {
+            mf_mean.define(mf_tmp.boxArray(),
+                           mf_tmp.DistributionMap(),
+                           mf_tmp.nComp(),
+                           mf_tmp.nGrow());
+            mf_mean.setVal(0.0);
+            initialized = true;
         }
+
+        MultiFab::Add(mf_mean, mf_tmp, 0, 0, mf_tmp.nComp(), mf_tmp.nGrow());
     }
 
-    return C;
-}
-
-// Print matrix
-void matrix_print(const Matrix& A)
-{
-    int n = A.size();
-
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            std::cout << A(i,j) << " ";
-        }
-        std::cout << "\n";
-    }
-}
-
-void
-lapack_testing()
-{
- Matrix S(3);
-    S(0,0) = 4.0;  S(0,1) = 1.0;  S(0,2) = 1.0;
-    S(1,0) = 1.0;  S(1,1) = 3.0;  S(1,2) = 0.5;
-    S(2,0) = 1.0;  S(2,1) = 0.5;  S(2,2) = 2.5;
-
-    Matrix Sinv = S.inverse();
-    // fill Sinv ...
-
-    Matrix T = Sinv.cholesky_lower();
-    Matrix T_trans = T.transpose();
-
-    Matrix T_T_trans = matrix_multiply(T, T_trans);
-    if (ParallelDescriptor::IOProcessor()) {
-        matrix_print(T_T_trans);
-        std::cout << "T*T_trans done" << std::endl;
-    }
-
-    if (ParallelDescriptor::IOProcessor()) {
-        std::cout  << "Sinv is " << std::endl;
-        matrix_print(Sinv);
-    }
-
-    Matrix I_mat = matrix_multiply(S, Sinv);
-    if (ParallelDescriptor::IOProcessor()) {
-        std::cout << "Checking S*Sinv " << std::endl;
-        matrix_print(I_mat);
-    }
+    mf_mean.mult(1.0 / Real(Nens));
+    return mf_mean;
 }
 
 void
@@ -420,5 +451,91 @@ compute_r_vec (int Nens,
         compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
 
         r_vec[i] = compute_yf_prime_T_d_prime_vec(yf_prime_i, d_prime_vec);
+    }
+}
+
+
+void
+compute_alpha_vec (const int& Nens,
+                   const Matrix& S,
+                   const Vector<Real>& r_vec,
+                   Vector<Real>& alpha_vec)
+{
+    AMREX_ALWAYS_ASSERT(r_vec.size() == Nens);
+
+    Matrix Sinv = S.inverse();
+
+    alpha_vec.resize(Nens, 0.0);
+
+    const Real fac = 1.0_rt / static_cast<Real>(Nens - 1);
+
+    for (int i = 0; i < Nens; ++i)
+    {
+        Real sum = 0.0_rt;
+
+        for (int j = 0; j < Nens; ++j)
+        {
+            sum += Sinv(i,j) * r_vec[j];
+        }
+
+        alpha_vec[i] = fac * sum;
+    }
+}
+
+void
+compute_Xf_prime_alpha_vec (const int Nens,
+                            const std::string& last_pf_name,
+                            const Vector<std::string>& varnames,
+                            const Vector<Real>& alpha_vec,
+                            const MultiFab& xf_bar,
+                            MultiFab& result)
+{
+    AMREX_ALWAYS_ASSERT(alpha_vec.size() == Nens);
+
+    // Read first member to define result
+    MultiFab xf_0 =
+        read_member_multifab(0,
+                             last_pf_name,
+                             varnames);
+
+    result.define(xf_0.boxArray(),
+                  xf_0.DistributionMap(),
+                  xf_0.nComp(),
+                  xf_0.nGrow());
+
+    result.setVal(0.0);
+
+    for (int n = 0; n < Nens; ++n)
+    {
+        MultiFab xf_n =
+            read_member_multifab(n,
+                                 last_pf_name,
+                                 varnames);
+
+        // xf_n_prime = xf_n - xf_bar
+        MultiFab xf_n_prime(xf_n.boxArray(),
+                            xf_n.DistributionMap(),
+                            xf_n.nComp(),
+                            xf_n.nGrow());
+
+        MultiFab::Copy(xf_n_prime,
+                       xf_n,
+                       0, 0,
+                       xf_n.nComp(),
+                       xf_n.nGrow());
+
+        MultiFab::Subtract(xf_n_prime,
+                           xf_bar,
+                           0, 0,
+                           xf_n.nComp(),
+                           xf_n.nGrow());
+
+        // result += alpha_vec[n] * xf_n_prime
+        MultiFab::Saxpy(result,
+                        alpha_vec[n],
+                        xf_n_prime,
+                        0, 0,
+                        xf_n.nComp(),
+                        xf_n.nGrow());
     }
 }

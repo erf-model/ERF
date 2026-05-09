@@ -14,34 +14,6 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
-MultiFab
-compute_ensemble_mean(int Nens,
-                      const std::string& pf_name,
-                      const Vector<std::string>& varnames)
-{
-    MultiFab mf_mean;
-    bool initialized = false;
-
-    for (int n = 0; n < Nens; ++n)
-    {
-        MultiFab mf_tmp = read_member_multifab(n, pf_name, varnames);
-
-        if (!initialized) {
-            mf_mean.define(mf_tmp.boxArray(),
-                           mf_tmp.DistributionMap(),
-                           mf_tmp.nComp(),
-                           mf_tmp.nGrow());
-            mf_mean.setVal(0.0);
-            initialized = true;
-        }
-
-        MultiFab::Add(mf_mean, mf_tmp, 0, 0, mf_tmp.nComp(), mf_tmp.nGrow());
-    }
-
-    mf_mean.mult(1.0 / Real(Nens));
-    return mf_mean;
-}
-
 void
 ERF::ComputeAndWriteEnsemblePerturbations()
 {
@@ -135,4 +107,8 @@ ERF::PerformDataAssimilation(int da_iter)
     // Compute the S matrix
     Matrix S(Nens);
     compute_S_matrix(S, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
+
+    Vector<Real> alpha_vec;
+    compute_alpha_vec(Nens, S, r_vec, alpha_vec);
+
 }
