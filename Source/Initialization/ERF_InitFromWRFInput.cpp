@@ -279,7 +279,6 @@ ERF::init_from_wrfinput (int lev,
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
                 }
-                // Handle 2D horizontal data (single layer in z)
                 // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
                 if (nz == 1) {
                     subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
@@ -737,9 +736,6 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac U
           if ( var_name == "MAPFAC_U" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
-//              Box bx2d = var_fab.box();
-//              bx2d.setRange(2, 0, 1);
-//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -772,9 +768,6 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac V
           if ( var_name == "MAPFAC_V" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
-//              Box bx2d = var_fab.box();
-//              bx2d.setRange(2, 0, 1);
-//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -807,9 +800,6 @@ ERF::init_from_wrfinput (int lev,
           // Initialize MapFac M
           if ( var_name == "MAPFAC_M" ) {
               Real max_val = var_fab.template max<RunOn::Device>();
-//              Box bx2d = var_fab.box();
-//              bx2d.setRange(2, 0, 1);
-//              Real max_val = var_fab.template max<RunOn::Device>(bx2d, 0);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);

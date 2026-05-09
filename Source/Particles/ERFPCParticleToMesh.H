@@ -9,6 +9,7 @@
 #define ERFPC_PARTICLE_TO_MESH_H_
 
 #include <ERFPC.H>
+#include <ERF_TerrainConversion.H>
 
 template<typename ValueFunc>
 void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
@@ -64,7 +65,9 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const Real wy1 = ly - static_cast<Real>(iy + 1);
             const Real wy0 = Real(1.0) - wy1;
 
-            const int kz = p.idata(ERFParticlesIntIdxAoS::k);
+            const int kz = static_cast<int>(amrex::Math::floor(
+                                (p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                * dxi[AMREX_SPACEDIM-1]));
             const int ix_p = static_cast<int>(Math::floor((p.pos(0) - plo[0]) * dxi[0]));
             const int iy_p = static_cast<int>(Math::floor((p.pos(1) - plo[1]) * dxi[1]));
             const Real fx  = (p.pos(0) - plo[0]) * dxi[0] - static_cast<Real>(ix_p);
@@ -81,12 +84,16 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const Real z_hi_k = zface(kz + 1);
             const Real z_ctr_k = Real(0.5) * (z_lo_k + z_hi_k);
 
-            // Vertical bracket: at k = 0 / k = k_max the bracket extends to
-            // k = -1 / k_max+1; SumBoundary wraps those in periodic-z, Copy
-            // discards them otherwise (matches old Linear CIC).
+            // Particle pos(2) is computational zeta; convert to physical z so
+            // the cell-center comparison and weight span are in the same units
+            // as zface() (which is built from the height array).
+            const Real p_z = ERF::ParticlePos::z_from_zeta(
+                p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
+                plo, dxi, zheight);
+
             int  kz_lo, kz_hi;
             Real wz_lo, wz_hi;
-            if (p.pos(2) >= z_ctr_k) {
+            if (p_z >= z_ctr_k) {
                 kz_lo = kz;
                 kz_hi = kz + 1;
                 Real span;
@@ -97,7 +104,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 } else {
                     span = z_hi_k - z_lo_k;
                 }
-                wz_hi = (p.pos(2) - z_ctr_k) / span;
+                wz_hi = (p_z - z_ctr_k) / span;
                 wz_lo = Real(1.0) - wz_hi;
             } else {
                 kz_hi = kz;
@@ -110,7 +117,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 } else {
                     span = z_hi_k - z_lo_k;
                 }
-                wz_lo = (z_ctr_k - p.pos(2)) / span;
+                wz_lo = (z_ctr_k - p_z) / span;
                 wz_hi = Real(1.0) - wz_lo;
             }
 

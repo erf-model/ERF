@@ -122,10 +122,10 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                 {
                     const Real n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     const Real radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
-                    const Real mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
-                    const Real vx = ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i];
-                    const Real vy = ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i];
-                    const Real vz = ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i];
+                    const Real mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
+                    const Real vx = ptd.m_rdata[SuperDropletsRealIdx::vx][i];
+                    const Real vy = ptd.m_rdata[SuperDropletsRealIdx::vy][i];
+                    const Real vz = ptd.m_rdata[SuperDropletsRealIdx::vz][i];
                     const Real term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
                     const Real cond_t = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i];

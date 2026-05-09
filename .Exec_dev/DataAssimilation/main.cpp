@@ -94,6 +94,7 @@ int main (int argc, char* argv[])
     int n_ens = 1;
     pp_ens.query("n_members", n_ens);
 
+    // Ensemble run loop
     for (int ie = 0; ie < n_ens; ++ie)
     {
         // --------------------------------------------------------
@@ -149,14 +150,18 @@ int main (int argc, char* argv[])
     }
     // Optional: barrier after move to ensure rank 0 is done
     ParallelDescriptor::Barrier();
-   }
+   } // Ensemble run loop complete
 
    ERF tmp_erf;
+   // This is only a post-processing step for visualization
    tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
-    BL_PROFILE_VAR_STOP(pmain);
+   // Perform data assimilation
+   tmp_erf.PerformDataAssimilation();
 
-    amrex::Finalize();
+   BL_PROFILE_VAR_STOP(pmain);
+
+   amrex::Finalize();
 
 #ifdef AMREX_USE_MPI
     MPI_Finalize();
