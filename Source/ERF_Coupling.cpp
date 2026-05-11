@@ -1,5 +1,7 @@
 #include <ERF.H>
 
+#include <AMReX_Box.H>
+#include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 
@@ -36,6 +38,42 @@ fill_coupling_states (amrex::Vector<amrex::MultiFab*>& states,
         }
     }
 }
+
+int
+bottom_cell_k (const amrex::MultiFab& mf)
+{
+    return mf.boxArray().minimalBox().smallEnd(2);
+}
+
+int
+top_cell_k (const amrex::MultiFab& mf)
+{
+    return mf.boxArray().minimalBox().bigEnd(2);
+}
+
+void
+copy_plane_to_plane_xy (amrex::MultiFab& dst,
+                        int dst_k,
+                        const amrex::MultiFab& src,
+                        int src_k)
+{
+    AMREX_ALWAYS_ASSERT(dst.nComp() >= 1);
+    AMREX_ALWAYS_ASSERT(src.nComp() >= 1);
+    AMREX_ALWAYS_ASSERT(dst.boxArray() == src.boxArray());
+    AMREX_ALWAYS_ASSERT(dst.DistributionMap() == src.DistributionMap());
+
+    for (amrex::MFIter mfi(dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
+
+        auto const& dst_arr = dst.array(mfi);
+        auto const& src_arr = src.const_array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
+        });
+    }
+}
 }
 
 void
@@ -59,13 +97,24 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
     amrex::ignore_unused(time);
 
     // Example (legacy state-passing): state[0] carries SST [K].
-    // If SST is a constant slab (e.g., 290.5 K), we copy that slab into
-    // ERF's active LSM data pointer for ocean-coupled surface application.
+    // We intentionally copy only one horizontal slab, derived from the
+    // interface face convention:
+    // - ocean/atmos interface face index on source: k_face = src.bigEnd(2) + 1
+    // - source cell below that face (ocean top cell): src_k = k_face - 1
+    // - destination LSM surface-facing slab uses its bottom-most k index
+    //   (for current level-0 matched-grid tests this is the interface slab).
+    // This encodes the physical alignment note from coupled discussions:
+    // ERF k=0 atmospheric cell lies above REMORA k=nz-1 ocean cell.
+    // For initial matched-grid tests, require identical horizontal BoxArray/DM.
     if (solverChoice.lsm_type == LandSurfaceType::None) {
         return;
     }
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
-        amrex::MultiFab::Copy(*lsm.Get_Data_Ptr(0, 0), *state[0], 0, 0, 1, 0);
+        auto* dst = lsm.Get_Data_Ptr(0, 0);
+        const int dst_k = bottom_cell_k(*dst);
+        const int src_face_k = top_cell_k(*state[0]) + 1;
+        const int src_k = src_face_k - 1;
+        copy_plane_to_plane_xy(*dst, dst_k, *state[0], src_k);
     }
 }
