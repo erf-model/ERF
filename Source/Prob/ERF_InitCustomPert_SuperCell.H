@@ -37,7 +37,7 @@
     pp_prob.query("z_tr",z_tr);
 
     Real x_c  = zero  ; pp_prob.query("x_c", x_c);
-    Real y_c  = zero  ; pp_prob.query("x_c", x_c);
+    Real y_c  = zero  ; pp_prob.query("y_c", y_c);
     Real z_c  = amrex::Real(1.5e3); pp_prob.query("z_c", z_c);
 
     Real r_c = one;
@@ -73,7 +73,7 @@
         const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
-        // Introduce the warm bubble. Assume that the bubble is pressure matche with the background
+        // Introduce the warm bubble. Assume that the bubble is pressure matched with the background
 
         rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((y - y_c)/y_r,2) + std::pow((z - z_c)/z_r,2), myhalf);
 

@@ -16,7 +16,7 @@ function(erf_suggest_machine_profile)
         ERROR_QUIET
     )
 
-    file(GLOB profiles "${CMAKE_SOURCE_DIR}/Build/machines/*_erf.profile")
+    file(GLOB profiles "${PROJECT_SOURCE_DIR}/Build/machines/*_erf.profile")
 
     message(STATUS "  Load modules from your machine profile:")
     message(STATUS "")
@@ -32,7 +32,7 @@ function(erf_suggest_machine_profile)
             endif()
         endforeach()
     else()
-        message(STATUS "    No profiles found in ${CMAKE_SOURCE_DIR}/Build/machines/")
+        message(STATUS "    No profiles found in ${PROJECT_SOURCE_DIR}/Build/machines/")
     endif()
 endfunction()
 

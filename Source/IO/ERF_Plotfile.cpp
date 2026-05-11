@@ -6,7 +6,7 @@
 
 using namespace amrex;
 
-PhysBCFunctNoOp null_bc_for_fill;
+static PhysBCFunctNoOp null_bc_for_fill;
 
 #ifdef ERF_USE_NETCDF
 void
