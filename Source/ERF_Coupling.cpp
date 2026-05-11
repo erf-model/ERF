@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_MicrophysicsUtils.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
@@ -85,7 +86,6 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
        - ROMS/Nonlinear/bulk_flux.F
      This file currently implements the legacy state-passing test path only.
 */
-
 
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
@@ -191,7 +191,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
     }
 
-    // --- Moisture fields: from cons when available, else REMORA inputs-file constants ---
+    // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
     if (has_moisture) {
         if (iRH < static_cast<int>(states.size()) && states[iRH] != nullptr) {
             MultiFab tmp(ba2d, dm, 1, 0);
@@ -200,7 +200,13 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 auto const& c = cons.const_array(mfi);
                 auto         t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = c(i,j,k,RhoQ1_comp) / c(i,j,k,Rho_comp);
+                    const Real qv = c(i,j,k,RhoQ1_comp) / c(i,j,k,Rho_comp);
+                    const Real p_pa = getPgivenRTh(c(i,j,k,RhoTheta_comp), qv);
+                    const Real temp = getTgivenRandRTh(c(i,j,k,Rho_comp), c(i,j,k,RhoTheta_comp), qv);
+                    Real qsat = Real(0.0);
+                    erf_qsatw(temp, p_pa * Real(0.01), qsat);
+                    t(i,j,k) = amrex::max(Real(0.0), amrex::min(Real(1.0),
+                                                                 qv / amrex::max(qsat, Real(1.0e-12))));
                 });
             }
             IntVect ratio = ba2d.minimalBox().length() / states[iRH]->boxArray().minimalBox().length();
