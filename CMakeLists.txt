@@ -6,7 +6,7 @@ cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 
 # Include Cray compiler detection BEFORE project() to set compilers
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(CrayCompilerDetection)
 
 if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
@@ -16,8 +16,8 @@ else()
 endif()
 
 message(STATUS "Configuring ERF")
-message(VERBOSE "Source directory: ${CMAKE_SOURCE_DIR}")
-message(VERBOSE "Build directory: ${CMAKE_BINARY_DIR}")
+message(VERBOSE "Source directory: ${PROJECT_SOURCE_DIR}")
+message(VERBOSE "Build directory: ${PROJECT_BINARY_DIR}")
 
 function(print_target_properties target_name)
   if(NOT TARGET ${target_name})
@@ -105,7 +105,7 @@ if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
 # Include Cray/Perlmutter auto-detection and fixes
@@ -193,8 +193,8 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "AMReX")
 
 if (${ERF_USE_INTERNAL_AMREX})
     message(STATUS "Using internal AMReX submodule")
-    set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
-    include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
+    set(AMREX_SUBMOD_LOCATION "${PROJECT_SOURCE_DIR}/Submodules/AMReX")
+    include(${PROJECT_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
     list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
@@ -203,72 +203,87 @@ if (${ERF_USE_INTERNAL_AMREX})
     print_target_properties(amrex)
 
     if(WIN32)
-      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
+      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
     else()
-      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
 else()
     message(STATUS "Using external AMReX")
 
-    set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
-    list(APPEND AMREX_COMPONENTS
-      "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
-    if (ERF_ENABLE_MPI)
-      list(APPEND AMREX_COMPONENTS "MPI")
-    endif()
-    if (ERF_ENABLE_OPENMP)
-      list(APPEND AMREX_COMPONENTS "OMP")
-    endif()
-    if (ERF_ENABLE_CUDA)
-      list(APPEND AMREX_COMPONENTS "CUDA")
-    endif()
-    if (ERF_ENABLE_SYCL)
-      list(APPEND AMREX_COMPONENTS "SYCL")
-    endif()
-    if (ERF_ENABLE_ROCM)
-      list(APPEND AMREX_COMPONENTS "HIP")
-    endif()
-    if (ERF_ENABLE_HYPRE)
-      list(APPEND AMREX_COMPONENTS "HYPRE")
-    endif()
-    if (ERF_ENABLE_TINY_PROFILE)
-      list(APPEND AMREX_COMPONENTS "TINY_PROFILE")
-    endif()
+    if (TARGET AMReX::amrex OR TARGET amrex)
+      message(STATUS "Using AMReX target from parent project")
+      if (TARGET amrex AND NOT TARGET AMReX::amrex)
+        add_library(AMReX::amrex ALIAS amrex)
+      endif()
+      if (TARGET AMReX::amrex)
+        print_target_properties(AMReX::amrex)
+      else()
+        print_target_properties(amrex)
+      endif()
+    else()
+      set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
+      list(APPEND AMREX_COMPONENTS
+        "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
+      if (ERF_ENABLE_MPI)
+        list(APPEND AMREX_COMPONENTS "MPI")
+      endif()
+      if (ERF_ENABLE_OPENMP)
+        list(APPEND AMREX_COMPONENTS "OMP")
+      endif()
+      if (ERF_ENABLE_CUDA)
+        list(APPEND AMREX_COMPONENTS "CUDA")
+      endif()
+      if (ERF_ENABLE_SYCL)
+        list(APPEND AMREX_COMPONENTS "SYCL")
+      endif()
+      if (ERF_ENABLE_ROCM)
+        list(APPEND AMREX_COMPONENTS "HIP")
+      endif()
+      if (ERF_ENABLE_HYPRE)
+        list(APPEND AMREX_COMPONENTS "HYPRE")
+      endif()
+      if (ERF_ENABLE_TINY_PROFILE)
+        list(APPEND AMREX_COMPONENTS "TINY_PROFILE")
+      endif()
 
-    separate_arguments(AMREX_COMPONENTS)
-    message(VERBOSE "Required AMReX components: ${AMREX_COMPONENTS}")
+      separate_arguments(AMREX_COMPONENTS)
+      message(VERBOSE "Required AMReX components: ${AMREX_COMPONENTS}")
 
-    find_package(AMReX CONFIG QUIET COMPONENTS ${AMREX_COMPONENTS})
+      find_package(AMReX CONFIG QUIET COMPONENTS ${AMREX_COMPONENTS})
 
-    if(NOT AMReX_FOUND)
-      message(STATUS "")
-      message(STATUS "====================================================================")
-      message(STATUS "AMReX Detection Failed")
-      message(STATUS "====================================================================")
-      message(STATUS "")
-      message(STATUS "Required components: ${AMREX_COMPONENTS}")
-      message(STATUS "")
-      message(STATUS "To resolve:")
-      message(STATUS "")
-      message(STATUS "  Option 1: Use internal AMReX (recommended):")
-      message(STATUS "    cmake -DERF_USE_INTERNAL_AMREX=ON ..")
-      message(STATUS "")
-      message(STATUS "  Option 2: Build and install AMReX separately, then:")
-      message(STATUS "    cmake -DAMReX_DIR=/path/to/amrex/lib/cmake/AMReX ..")
-      message(STATUS "")
-      message(STATUS "====================================================================")
-      message(STATUS "")
-      message(FATAL_ERROR "AMReX required but not found")
+      if(NOT AMReX_FOUND)
+        message(STATUS "")
+        message(STATUS "====================================================================")
+        message(STATUS "AMReX Detection Failed")
+        message(STATUS "====================================================================")
+        message(STATUS "")
+        message(STATUS "Required components: ${AMREX_COMPONENTS}")
+        message(STATUS "")
+        message(STATUS "To resolve:")
+        message(STATUS "")
+        message(STATUS "  Option 1: Use internal AMReX (recommended):")
+        message(STATUS "    cmake -DERF_USE_INTERNAL_AMREX=ON ..")
+        message(STATUS "")
+        message(STATUS "  Option 2: Build and install AMReX separately, then:")
+        message(STATUS "    cmake -DAMReX_DIR=/path/to/amrex/lib/cmake/AMReX ..")
+        message(STATUS "")
+        message(STATUS "====================================================================")
+        message(STATUS "")
+        message(FATAL_ERROR "AMReX required but not found")
+      endif()
+
+      message(STATUS "Found AMReX: ${AMReX_DIR}")
+      message(VERBOSE "  AMReX_VERSION: ${AMReX_VERSION}")
+
+      if (TARGET AMReX::amrex)
+        print_target_properties(AMReX::amrex)
+      else()
+        print_target_properties(amrex)
+      endif()
     endif()
-
-    message(STATUS "Found AMReX: ${AMReX_DIR}")
-    message(VERBOSE "  AMReX_VERSION: ${AMReX_VERSION}")
-
-    # Print AMReX properties
-    print_target_properties(amrex)
 
     if(WIN32)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
@@ -326,14 +341,14 @@ if(ERF_ENABLE_EKAT)
   set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
-  set(EKAT_BIN ${CMAKE_BINARY_DIR}/Submodules/ekat)
+  set(EKAT_BIN ${PROJECT_BINARY_DIR}/Submodules/ekat)
 
   # Force use of internal spdlog from EKAT
   message(STATUS "Forcing Ekat to build their own spdlog")
   set(CMAKE_DISABLE_FIND_PACKAGE_spdlog TRUE)
 
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
-  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
+  add_subdirectory(${PROJECT_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
   # Print Kokkos properties
   if(TARGET Kokkos::kokkos)
@@ -517,8 +532,8 @@ if(ERF_ENABLE_NOAHMP)
   message(STATUS "Configuring Noah-MP")
 
   if(ERF_ENABLE_NETCDF)
-     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf)
-     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/Noah-MP/drivers/erf)
+     set(NOAHMP_HOME ${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf)
+     set(NOAHMP_BIN  ${PROJECT_BINARY_DIR}/Submodules/Noah-MP/drivers/erf)
      message(VERBOSE "Noah-MP source: ${NOAHMP_HOME}")
      message(VERBOSE "Noah-MP binary: ${NOAHMP_BIN}")
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
@@ -550,9 +565,9 @@ if(ERF_ENABLE_RRTMGP)
   message(DEBUG "Adding -Wno-c++11-narrowing for mo_gas_optics_rrtmgp issue on sycl/hip RRTMGP target")
 
   # Build the static rrtmgp library
-  set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/Submodules/rrtmgp)
+  set(RRTMGP_BIN ${PROJECT_BINARY_DIR}/Submodules/rrtmgp)
   message(VERBOSE "RRTMGP binary directory: ${RRTMGP_BIN}")
-  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
+  add_subdirectory(${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
 
   # Set up kokkos library and definitions
   set(RRTMGP_ENABLE_KOKKOS TRUE)
@@ -585,19 +600,19 @@ if(ERF_ENABLE_SHOC)
   if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
-    set(E3SM_EXPECTED_PATH "${CMAKE_SOURCE_DIR}/external/E3SM")
+    set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
 
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
+    if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
         message(FATAL_ERROR
             "E3SM provides eamxx required for SHOC/P3 but not found.\n"
             "\n"
             "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
             "\n"
             "Option 1 - Use provided script (recommended):\n"
-            "  ${CMAKE_SOURCE_DIR}/Build/eamxx_clone.sh\n"
+            "  ${PROJECT_SOURCE_DIR}/Build/eamxx_clone.sh\n"
             "\n"
             "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
-            "  ln -s /path/to/your/E3SM ${CMAKE_SOURCE_DIR}/external/E3SM\n"
+            "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
             "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
@@ -621,7 +636,7 @@ message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 # Turn on rpath stuff
-include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
+include(${PROJECT_SOURCE_DIR}/CMake/SetRpath.cmake)
 
 #Build erf executables and intermediate object library and link to amrex library
 add_subdirectory(Exec)
@@ -657,43 +672,45 @@ target_link_libraries(erf_api PUBLIC erf_srclib)
 add_library(${PROJECT_NAME}::erf_api ALIAS erf_srclib)
 
 # Collect all headers and make them installable with the target
-file(GLOB_RECURSE ERF_INCLUDES "${CMAKE_SOURCE_DIR}/Source/*.H")
+file(GLOB_RECURSE ERF_INCLUDES "${PROJECT_SOURCE_DIR}/Source/*.H")
 
 set_target_properties(
   erf_srclib PROPERTIES PUBLIC_HEADER "${ERF_INCLUDES}")
 
-# Install ERF
-install(
-  TARGETS erf_api erf_srclib
-  EXPORT ${PROJECT_NAME}Targets
-  RUNTIME       DESTINATION bin
-  ARCHIVE       DESTINATION lib
-  LIBRARY       DESTINATION lib
-  INCLUDES      DESTINATION include
-  PUBLIC_HEADER DESTINATION include
-  )
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  # Install ERF
+  install(
+    TARGETS erf_api erf_srclib
+    EXPORT ${PROJECT_NAME}Targets
+    RUNTIME       DESTINATION bin
+    ARCHIVE       DESTINATION lib
+    LIBRARY       DESTINATION lib
+    INCLUDES      DESTINATION include
+    PUBLIC_HEADER DESTINATION include
+    )
 
-# Install all headers in include directories
-#install(
-#  DIRECTORY ${ERF_INCLUDE_DIRECTORIES}
-#  DESTINATION include
-#  FILES_MATCHING PATTERN "*.H")
+  # Install all headers in include directories
+  #install(
+  #  DIRECTORY ${ERF_INCLUDE_DIRECTORIES}
+  #  DESTINATION include
+  #  FILES_MATCHING PATTERN "*.H")
 
-# Make ERF discoverable using `find_package`
-install(
-  EXPORT ${PROJECT_NAME}Targets
-  NAMESPACE ${PROJECT_NAME}::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-configure_package_config_file(
-  CMake/${PROJECT_NAME}Config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
+  # Make ERF discoverable using `find_package`
+  install(
+    EXPORT ${PROJECT_NAME}Targets
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+    )
+  configure_package_config_file(
+    CMake/${PROJECT_NAME}Config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+    )
+  install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+    )
+endif()
 
 message(VERBOSE "Install prefix: ${CMAKE_INSTALL_PREFIX}")
 message(VERBOSE "Install libdir: ${CMAKE_INSTALL_LIBDIR}")
