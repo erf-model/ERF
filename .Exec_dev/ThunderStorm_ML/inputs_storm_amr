@@ -19,8 +19,17 @@ amr.n_cell           =    300    200      48    # dx=dy=dz=500 m
 geometry.is_periodic = 1 0 0
 ylo.type = "Open"
 yhi.type = "Open"
-zlo.type = "SlipWall"
-zhi.type = "HO_Outflow"
+zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "bulk_coeff"
+erf.most.Cd  = 0.0 # ustar
+erf.most.Ch  = 0.0 # theta flux
+erf.most.Cq  = 0.0 # qv    flux
+erf.most.surf_temp  = 300.0
+erf.most.surf_moist = 0.0 
+erf.most.z0   = 0.1
+erf.most.zref = 250.0
 
     
 # TIME STEP CONTROL
@@ -38,11 +47,13 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level      = 1       # maximum level number allowed
 amr.ref_ratio_vect = 5 5 5
 
-erf.regrid_int               = 1
-erf.coupling_type            = OneWay
-erf.refinement_indicators    = helicity max_reflectivity
-erf.helicity.value_greater         = 40.0
-erf.max_reflectivity.value_greater = 40.0
+erf.regrid_int    = 1
+erf.coupling_type = OneWay
+erf.refinement_indicators         = hi_helicity hi_reflectivity
+erf.hi_helicity.field_name        = helicity
+erf.hi_helicity.value_greater     = 40.0
+erf.hi_reflectivity.field_name    = max_reflectivity
+erf.hi_reflectivity.value_greater = 40.0
 
     
 # CHECKPOINT FILES
