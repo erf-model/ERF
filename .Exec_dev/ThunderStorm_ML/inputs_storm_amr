@@ -39,6 +39,7 @@ amr.max_level      = 1       # maximum level number allowed
 amr.ref_ratio_vect = 5 5 5
 
 erf.regrid_int               = 1
+erf.coupling_type            = OneWay
 erf.refinement_indicators    = helicity max_reflectivity
 erf.helicity.value_greater         = 40.0
 erf.max_reflectivity.value_greater = 40.0
