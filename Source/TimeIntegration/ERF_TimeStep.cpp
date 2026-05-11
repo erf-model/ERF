@@ -93,20 +93,20 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, Arena_Used);
             bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, Arena_Used);
 
-            bdy_tend_xlo[ivar].copy(bdy_data_xlo[n_time_p1][ivar]);
-            bdy_tend_xhi[ivar].copy(bdy_data_xhi[n_time_p1][ivar]);
-            bdy_tend_ylo[ivar].copy(bdy_data_ylo[n_time_p1][ivar]);
-            bdy_tend_yhi[ivar].copy(bdy_data_yhi[n_time_p1][ivar]);
+            bdy_tend_xlo[ivar].template copy<RunOn::Device>(bdy_data_xlo[n_time_p1][ivar]);
+            bdy_tend_xhi[ivar].template copy<RunOn::Device>(bdy_data_xhi[n_time_p1][ivar]);
+            bdy_tend_ylo[ivar].template copy<RunOn::Device>(bdy_data_ylo[n_time_p1][ivar]);
+            bdy_tend_yhi[ivar].template copy<RunOn::Device>(bdy_data_yhi[n_time_p1][ivar]);
 
-            bdy_tend_xlo[ivar].minus(bdy_data_xlo[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_xhi[ivar].minus(bdy_data_xhi[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_ylo[ivar].minus(bdy_data_ylo[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_yhi[ivar].minus(bdy_data_yhi[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_xlo[ivar].template minus<RunOn::Device>(bdy_data_xlo[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_xhi[ivar].template minus<RunOn::Device>(bdy_data_xhi[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_ylo[ivar].template minus<RunOn::Device>(bdy_data_ylo[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_yhi[ivar].template minus<RunOn::Device>(bdy_data_yhi[n_time_old][ivar], 0, 0, 1);
 
-            bdy_tend_xlo[ivar].mult(inv_bdy_dt, 0, 1);
-            bdy_tend_xhi[ivar].mult(inv_bdy_dt, 0, 1);
-            bdy_tend_ylo[ivar].mult(inv_bdy_dt, 0, 1);
-            bdy_tend_yhi[ivar].mult(inv_bdy_dt, 0, 1);
+            bdy_tend_xlo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+            bdy_tend_xhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+            bdy_tend_ylo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+            bdy_tend_yhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
         }
     } // use_real_bcs && lev == 0
 
