@@ -232,7 +232,35 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
-        // This allows dynamic refinement based on the value of the density
+        // This allows dynamic refinement based on the value of updraft helicity
+        } else if (ref_tags[j].Field() == "helicity")
+        {
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.growntilebox();
+                auto& dfab = (*mf)[mfi];
+                auto& sfab = vars_new[levc][Vars::cons][mfi];
+                auto& zfab = (*z_phys_cc[levc])[mfi];
+
+                derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
+            }
+        } else if (ref_tags[j].Field() == "max_reflectivity")
+        {
+            if (solverChoice.moisture_type == MoistureType::Morrison ||
+                solverChoice.moisture_type == MoistureType::SAM) {
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.growntilebox();
+                    auto& dfab = (*mf)[mfi];
+                    auto& sfab = vars_new[levc][Vars::cons][mfi];
+                    auto& zfab = (*z_phys_cc[levc])[mfi];
+
+                    derived::erf_dermaxreflectivity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
+                }
+            } else {
+                Abort("Max reflectivity is only available with Morrison and SAM microphysics.");
+            }
+        // This allows dynamic refinement based on the terrain blanking
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
