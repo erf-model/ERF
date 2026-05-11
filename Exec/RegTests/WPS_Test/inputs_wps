@@ -70,7 +70,6 @@ prob.T_0   = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 1
-erf.real_set_width = 1
 erf.init_type      = "WRFInput"
 erf.nc_init_file_0 = "wrfinput_chisholmview_d01"
 erf.nc_bdy_file    = "wrfbdy_chisholmview_d01_width1"
