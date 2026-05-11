@@ -61,7 +61,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
-                    update_location_idata(p,ctx.plo,ctx.dxi,zheight);
                 }
             }
 
@@ -78,7 +77,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
-                    update_location_idata(p,ctx.plo,ctx.dxi,zheight);
                 }
             }
 
