@@ -2876,6 +2876,9 @@ ERF::ParameterSanityChecks ()
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 
+    if (cf_set_width != 0) {
+        Abort("You must set cf_set_width == 0");
+    }
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
     }
