@@ -167,11 +167,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         particle_tile.resize(np);
         auto aos = &particle_tile.GetArrayOfStructs()[0];
         auto& soa = particle_tile.GetStructOfArrays();
-        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
-        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
-        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
+        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdx::vx).data();
+        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdx::vy).data();
+        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdx::vz).data();
+        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdx::mass).data();
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdx::temperature).data();
 
         const auto num_particles_arr = num_particles[mfi].array();
 
@@ -184,102 +184,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE( static_cast<Long>(pid + np) < LastParticleID,
                                           "Error: overflow on particle id numbers!" );
 
-        if (a_height_ptr && place_randomly_in_cells) {
-
-            const auto height_arr        = (*a_height_ptr)[mfi].array();
-
-            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
-                                                           const RandomEngine& rnd_engine) noexcept
-            {
-                int start = offset_arr(i,j,k);
-                for (int n = start; n < start+num_particles_arr(i,j,k); n++) {
-                    Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
-                    Real v[3] = {zero, zero, zero};
-
-                    Real x = plo[0] + (i + r[0])*dx[0];
-                    Real y = plo[1] + (j + r[1])*dx[1];
-
-                    Real sx[] = { one - r[0], r[0]};
-                    Real sy[] = { one - r[1], r[1]};
-
-                    Real height_at_pxy_lo = zero;
-                    for (int ii = 0; ii < 2; ++ii) {
-                        for (int jj = 0; jj < 2; ++jj) {
-                            height_at_pxy_lo += sx[ii] * sy[jj] * height_arr(i+ii,j+jj,k);
-                        }
-                    }
-                    Real height_at_pxy_hi = zero;
-                    for (int ii = 0; ii < 2; ++ii) {
-                        for (int jj = 0; jj < 2; ++jj) {
-                            height_at_pxy_hi += sx[ii] * sy[jj] * height_arr(i+ii,j+jj,k+1);
-                        }
-                    }
-
-                    Real z = height_at_pxy_lo  + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
-
-                    auto& p = aos[n];
-                    p.id()  = pid + n;
-                    p.cpu() = my_proc;
-
-                    p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
-
-                    p.idata(ERFParticlesIntIdxAoS::k) = k;
-
-                    vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
-
-                    mass_ptr[n] = Real(1.0e-6);
-                    T_ptr[n] = zero;
-               }
-            });
-
-        } else if (a_height_ptr && !place_randomly_in_cells) {
-
-            const auto height_arr        = (*a_height_ptr)[mfi].array();
-
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int start = offset_arr(i,j,k);
-                for (int n = start; n < start+num_particles_arr(i,j,k); n++) {
-                    Real r[3] = {Real(0.3), Real(0.7), fourth};
-                    Real v[3] = {zero, zero, zero};
-
-                    Real x = plo[0] + (i + r[0])*dx[0];
-                    Real y = plo[1] + (j + r[1])*dx[1];
-
-                    Real sx[] = { one - r[0], r[0]};
-                    Real sy[] = { one - r[1], r[1]};
-
-                    Real height_at_pxy_lo = zero;
-                    for (int ii = 0; ii < 2; ++ii) {
-                        for (int jj = 0; jj < 2; ++jj) {
-                            height_at_pxy_lo += sx[ii] * sy[jj] * height_arr(i+ii,j+jj,k);
-                        }
-                    }
-                    Real height_at_pxy_hi = zero;
-                    for (int ii = 0; ii < 2; ++ii) {
-                        for (int jj = 0; jj < 2; ++jj) {
-                            height_at_pxy_hi += sx[ii] * sy[jj] * height_arr(i+ii,j+jj,k+1);
-                        }
-                    }
-
-                    Real z = height_at_pxy_lo  + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
-
-                    auto& p = aos[n];
-                    p.id()  = pid + n;
-                    p.cpu() = my_proc;
-
-                    p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
-
-                    p.idata(ERFParticlesIntIdxAoS::k) = k;
-
-                    vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
-
-                    mass_ptr[n] = Real(1.0e-6);
-                    T_ptr[n] = zero;
-               }
-            });
-
-        } else if (!a_height_ptr && place_randomly_in_cells) {
+        if (place_randomly_in_cells) {
 
             ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
                                                            const RandomEngine& rnd_engine) noexcept
@@ -299,8 +204,6 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
 
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
 
-                    p.idata(ERFParticlesIntIdxAoS::k) = k;
-
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = Real(1.0e-6);
@@ -308,7 +211,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                }
             });
 
-        } else { // if (!a_height_ptr && !place_randomly_in_cells) {
+        } else {
 
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -326,8 +229,6 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     p.cpu() = my_proc;
 
                     p.pos(0) = x; p.pos(1) = y; p.pos(2) = z;
-
-                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
