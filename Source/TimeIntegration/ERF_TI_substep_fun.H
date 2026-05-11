@@ -151,7 +151,9 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                           cc_src, xmom_src, ymom_src, zmom_src,
+#ifdef ERF_USE_NETCDF
                           bdy_tend_xlo, bdy_tend_xhi, bdy_tend_ylo, bdy_tend_yhi,
+#endif
                           fine_geom, solverChoice.gravity,
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],

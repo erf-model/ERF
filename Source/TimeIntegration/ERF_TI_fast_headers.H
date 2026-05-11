@@ -66,10 +66,12 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     const amrex::MultiFab& xmom_src,
                     const amrex::MultiFab& ymom_src,
                     const amrex::MultiFab& zmom_src,
+#ifdef ERF_USE_NETCDF
                     const amrex::Vector<amrex::FArrayBox>& bdy_tend_xlo,
                     const amrex::Vector<amrex::FArrayBox>& bdy_tend_xhi,
                     const amrex::Vector<amrex::FArrayBox>& bdy_tend_ylo,
                     const amrex::Vector<amrex::FArrayBox>& bdy_tend_yhi,
+#endif
                     const amrex::Geometry geom,
                     const amrex::Real gravity,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,

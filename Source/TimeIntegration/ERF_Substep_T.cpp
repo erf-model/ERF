@@ -58,10 +58,12 @@ void erf_substep_T (int step, int /*nrk*/,
                     const MultiFab& xmom_src,
                     const MultiFab& ymom_src,
                     const MultiFab& zmom_src,
+#ifdef ERF_USE_NETCDF
                     const Vector<FArrayBox>& bdy_tend_xlo,
                     const Vector<FArrayBox>& bdy_tend_xhi,
                     const Vector<FArrayBox>& bdy_tend_ylo,
                     const Vector<FArrayBox>& bdy_tend_yhi,
+#endif
                     const Geometry geom,
                     const Real gravity,
                     std::unique_ptr<MultiFab>& z_phys_nd,
@@ -284,11 +286,13 @@ void erf_substep_T (int step, int /*nrk*/,
         const auto& bx_lo = lbound(bx);
         const auto& bx_hi = ubound(bx);
 
+#ifdef ERF_USE_NETCDF
         // Note that we only impose tendencies for normal velocities on domain faces
         const Array4<const Real>& bdy_xlo_arr = bdy_tend_xlo[WRFBdyVars::U].const_array();
         const Array4<const Real>& bdy_xhi_arr = bdy_tend_xhi[WRFBdyVars::U].const_array();
         const Array4<const Real>& bdy_ylo_arr = bdy_tend_ylo[WRFBdyVars::V].const_array();
         const Array4<const Real>& bdy_yhi_arr = bdy_tend_yhi[WRFBdyVars::V].const_array();
+#endif
 
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -310,11 +314,14 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real pi_c =  myhalf * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (one + q);
 
+#ifdef ERF_USE_NETCDF
                 if (l_use_real_bcs && i == domlo.x) {
                     new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xlo_arr(i,j,k);
                 } else if (l_use_real_bcs && i == domhi.x+1) {
                     new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xhi_arr(i,j,k);
-                } else {
+                } else
+#endif
+                {
                     new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                             + dtau * slow_rhs_rho_u(i,j,k)
                                                             + dtau * xmom_src_arr(i,j,k);
@@ -348,11 +355,14 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real pi_c =  myhalf * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (one + q);
 
+#ifdef ERF_USE_NETCDF
                 if (l_use_real_bcs && j == domlo.y) {
                     new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_ylo_arr(i,j,k);
                 } else if (l_use_real_bcs && j == domhi.y+1) {
                     new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_yhi_arr(i,j,k);
-                } else {
+                } else
+#endif
+                {
                     new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                             + dtau * slow_rhs_rho_v(i,j,k)
                                                             + dtau * ymom_src_arr(i,j,k);
