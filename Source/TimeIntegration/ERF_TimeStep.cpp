@@ -25,6 +25,11 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    Arena* Arena_Used = The_Arena();
+#ifdef AMREX_USE_GPU
+    Arena_Used = The_Pinned_Arena();
+#endif
+
 #ifdef ERF_USE_NETCDF
     //
     // Since we now only read in a subset of the time slices in wrfbdy and
@@ -72,6 +77,37 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                                         geom[lev], use_moist);
            }
         } // itime
+
+        // Construct tendencies from the two boundary-data time slices that bracket the current time.
+        int n_time_p1 = std::min(n_time_old + 1, ntimes-1);
+        Real inv_bdy_dt = Real(1.0) / bdy_time_interval;
+
+        bdy_tend_xlo.resize(WRFBdyVars::NumTypes);
+        bdy_tend_xhi.resize(WRFBdyVars::NumTypes);
+        bdy_tend_ylo.resize(WRFBdyVars::NumTypes);
+        bdy_tend_yhi.resize(WRFBdyVars::NumTypes);
+
+        for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
+            bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, Arena_Used);
+            bdy_tend_xhi[ivar].resize(bdy_data_xhi[n_time_old][ivar].box(), 1, Arena_Used);
+            bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, Arena_Used);
+            bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, Arena_Used);
+
+            bdy_tend_xlo[ivar].copy(bdy_data_xlo[n_time_p1][ivar]);
+            bdy_tend_xhi[ivar].copy(bdy_data_xhi[n_time_p1][ivar]);
+            bdy_tend_ylo[ivar].copy(bdy_data_ylo[n_time_p1][ivar]);
+            bdy_tend_yhi[ivar].copy(bdy_data_yhi[n_time_p1][ivar]);
+
+            bdy_tend_xlo[ivar].minus(bdy_data_xlo[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_xhi[ivar].minus(bdy_data_xhi[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_ylo[ivar].minus(bdy_data_ylo[n_time_old][ivar], 0, 0, 1);
+            bdy_tend_yhi[ivar].minus(bdy_data_yhi[n_time_old][ivar], 0, 0, 1);
+
+            bdy_tend_xlo[ivar].mult(inv_bdy_dt, 0, 1);
+            bdy_tend_xhi[ivar].mult(inv_bdy_dt, 0, 1);
+            bdy_tend_ylo[ivar].mult(inv_bdy_dt, 0, 1);
+            bdy_tend_yhi[ivar].mult(inv_bdy_dt, 0, 1);
+        }
     } // use_real_bcs && lev == 0
 
     if (!nc_low_file.empty() && (lev==0))

@@ -754,11 +754,18 @@ private:
     // amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
     // amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
 
-    // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
+    // Vectors (over time) of Vectors (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xhi;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
+
+    // Vectors (over variables) of FArrayBoxs for holding the *tendencies*
+    //     computed from the data read from the wrfbdy NetCDF file
+    amrex::Vector<amrex::FArrayBox> bdy_tend_xlo;
+    amrex::Vector<amrex::FArrayBox> bdy_tend_xhi;
+    amrex::Vector<amrex::FArrayBox> bdy_tend_ylo;
+    amrex::Vector<amrex::FArrayBox> bdy_tend_yhi;
 
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
 

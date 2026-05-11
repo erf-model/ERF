@@ -225,14 +225,14 @@ enum mathematicalBndryTypes : int {
     reflect_even =  1,
     foextrap     =  2,
     ext_dir      =  3,
+    hoextrap     =  4,
     surface_layer    =  101,
     ext_dir_prim     =  102,
     ext_dir_ingested =  103,
     neumann          =  104,
     neumann_int      =  105,
     open             =  106,
-    hoextrap         =  107,
-    ext_dir_upwind   =  108
+    ext_dir_upwind   =  107
 };
 }
 
