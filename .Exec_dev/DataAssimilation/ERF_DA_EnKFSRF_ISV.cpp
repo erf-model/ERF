@@ -14,22 +14,33 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+// The observations are the x and y velocities
 void
-Apply_H(const MultiFab& x_mf, MultiFab& y_mf)
+Apply_H(const amrex::MultiFab& x_mf,
+        amrex::MultiFab& y_mf)
 {
-    // Define y_mf with same BoxArray and DistributionMapping,
-    // but only 2 components and same number of ghost cells
+    // Define y_mf with 2 velocity components
     y_mf.define(x_mf.boxArray(),
                 x_mf.DistributionMap(),
-                2,                  // number of components
-                x_mf.nGrow());      // match ghost cells
+                2,
+                x_mf.nGrowVect());
 
-    // Copy components 2 and 3 from x_mf into y_mf (as 0 and 1)
-    MultiFab::Copy(y_mf, x_mf,
-                   2,  // src component (3rd)
-                   0,  // dest component
-                   2,  // number of components
-                   x_mf.nGrow());
+    for (amrex::MFIter mfi(y_mf); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.validbox();
+
+        auto const& x = x_mf.const_array(mfi);
+        auto const& y = y_mf.array(mfi);
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            amrex::Real rho = x(i,j,k,0);
+
+            y(i,j,k,0) = x(i,j,k,1) / rho; // u velocity
+            y(i,j,k,1) = x(i,j,k,2) / rho; // v velocity
+        });
+    }
 }
 
 void

@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 
 // Simple matrix multiplication
-Matrix 
+Matrix
 matrix_multiply(const Matrix& A, const Matrix& B)
 {
     int n = A.size();
@@ -273,13 +273,13 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
                   const std::string& last_pf_name,
                   const Vector<std::string>& varnames)
 {
-    
+
     for (int n = 0; n < Nens; ++n)
     {
         MultiFab xf_i = read_member_multifab(n, last_pf_name, varnames);
         if (n==0) {
             mean_H_xf.define(xf_i.boxArray(),
-                             xf_i.DistributionMap(), 
+                             xf_i.DistributionMap(),
                              xf_i.nComp(),
                              xf_i.nGrow());
             mean_H_xf.setVal(0.0);
@@ -384,9 +384,9 @@ compute_S_matrix(Matrix& S,
     for (int i = 0; i < Nens; ++i) {
         MultiFab yf_prime_i;
         compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
-                
+
         for (int j = 0; j < Nens; ++j) {
-            MultiFab yf_prime_j;            
+            MultiFab yf_prime_j;
             compute_yf_prime(j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
             Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag);
             S(i,j) = val/(Nens-1);
@@ -495,8 +495,8 @@ compute_alpha_vec (const int& Nens,
     }
 }
 
-// Perform a matrix time a small vector multiply as a summation of 
-// column-vector element multiply 
+// Perform a matrix time a small vector multiply as a summation of
+// column-vector element multiply
 
 void
 compute_Xf_prime_times_vector (const int Nens,
@@ -572,7 +572,7 @@ add_multifabs (const MultiFab& xf_bar,
                   0, 0, Xf_prime_alpha.nComp(), 0);
 }
 
-void 
+void
 compute_T_matrix (const Matrix& S_mat,
                   Matrix& T_mat)
 {
@@ -583,7 +583,7 @@ compute_T_matrix (const Matrix& S_mat,
 }
 
 
-void 
+void
 update_ensemble (const int Nens,
                  const std::string& last_pf_name,
                  const Vector<std::string>& varnames,
