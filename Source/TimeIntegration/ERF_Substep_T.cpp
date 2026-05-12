@@ -288,6 +288,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
 #ifdef ERF_USE_NETCDF
         // Note that we only impose tendencies for normal velocities on domain faces
+        // Also note that we allocate bdy_tend* even if not use_real_bcs but
+        //      only use it below if use_real_bcs
         const Array4<const Real>& bdy_xlo_arr = bdy_tend_xlo[WRFBdyVars::U].const_array();
         const Array4<const Real>& bdy_xhi_arr = bdy_tend_xhi[WRFBdyVars::U].const_array();
         const Array4<const Real>& bdy_ylo_arr = bdy_tend_ylo[WRFBdyVars::V].const_array();

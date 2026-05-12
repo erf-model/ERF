@@ -36,6 +36,12 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     //     wrflowinp, we need to check whether it's time to read in more.
     //
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+
+    bdy_tend_xlo.resize(WRFBdyVars::NumTypes);
+    bdy_tend_xhi.resize(WRFBdyVars::NumTypes);
+    bdy_tend_ylo.resize(WRFBdyVars::NumTypes);
+    bdy_tend_yhi.resize(WRFBdyVars::NumTypes);
+
     if (solverChoice.use_real_bcs && (lev==0))
     {
         int ntimes = bdy_data_xlo.size();
@@ -81,11 +87,6 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         // Construct tendencies from the two boundary-data time slices that bracket the current time.
         int n_time_p1 = std::min(n_time_old + 1, ntimes-1);
         Real inv_bdy_dt = Real(1.0) / bdy_time_interval;
-
-        bdy_tend_xlo.resize(WRFBdyVars::NumTypes);
-        bdy_tend_xhi.resize(WRFBdyVars::NumTypes);
-        bdy_tend_ylo.resize(WRFBdyVars::NumTypes);
-        bdy_tend_yhi.resize(WRFBdyVars::NumTypes);
 
         for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
             bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, Arena_Used);
