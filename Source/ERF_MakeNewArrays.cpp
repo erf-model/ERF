@@ -468,7 +468,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Macrophysics heating source terms
     //*********************************************************
     if (solverChoice.moisture_type != MoistureType::None &&
-        solverChoice.macrophysics_tight_coupling)
+        solverChoice.macrophysics_acoustic_coupling)
     {
         macrophysics_src[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         macrophysics_src[lev]->setVal(0);

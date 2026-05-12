@@ -209,7 +209,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Macrophysics source term computed pre-step
     // **************************************************************************************
     if (solverChoice.moisture_type != MoistureType::None &&
-        solverChoice.macrophysics_tight_coupling)
+        solverChoice.macrophysics_acoustic_coupling)
     {
         GetMacroPhysicsSrc(real_width, dt_lev, Geom(lev), macrophysics_src[lev].get(), S_old);
     }

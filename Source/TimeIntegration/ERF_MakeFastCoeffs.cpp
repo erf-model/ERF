@@ -126,56 +126,11 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_p) );
-
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_q) );
-
-                 coeffP_a(i,j,k) = coeff_P;
-                 coeffQ_a(i,j,k) = coeff_Q;
-
-                if (l_use_moisture) {
-                    Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
-                                      + prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                    coeff_P /= (one + q);
-                    coeff_Q /= (one + q);
-                }
-
-                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
-
-                // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
-
-                coeffB_a(i,j,k) = one + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
-            });
-
-        } else {
-
-            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                rhobar_lo =  r0_ca(i,j,k-1);
-                rhobar_hi =  r0_ca(i,j,k  );
-                 pibar_lo = pi0_ca(i,j,k-1);
-                 pibar_hi = pi0_ca(i,j,k  );
-
-                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
-
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
-
-                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
+                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_p) );
 
-                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
+                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_q) );
 
@@ -195,10 +150,57 @@ void make_fast_coeffs (int /*level*/,
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * (one + RvOverRd*qv_q) * theta_t_lo );
+                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * (one + RvOverRd*qv_p) * theta_t_hi );
 
-                coeffB_a(i,j,k) = one + D * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = one + D * ( coeff_Q * (one + RvOverRd*qv_q) / detJ(i,j,k-1)
+                                            - coeff_P * (one + RvOverRd*qv_p) / detJ(i,j,k  ) ) * theta_t_mid;
+            });
+
+        } else {
+
+            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
+                rhobar_lo =  r0_ca(i,j,k-1);
+                rhobar_hi =  r0_ca(i,j,k  );
+                 pibar_lo = pi0_ca(i,j,k-1);
+                 pibar_hi = pi0_ca(i,j,k  );
+
+                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+
+                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+
+                 Real coeff_P = -Gamma * R_d * dzi * pi_c
+                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
+                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_p) );
+
+                 Real coeff_Q = Gamma * R_d * dzi * pi_c
+                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
+                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_q) );
+
+                 coeffP_a(i,j,k) = coeff_P;
+                 coeffQ_a(i,j,k) = coeff_Q;
+
+                if (l_use_moisture) {
+                    Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                                      + prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
+                    coeff_P /= (one + q);
+                    coeff_Q /= (one + q);
+                }
+
+                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+
+                // LHS for tri-diagonal system
+                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
+                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * (one + RvOverRd*qv_q) * theta_t_lo );
+                coeffC_a(i,j,k) = D * (-halfg + coeff_P * (one + RvOverRd*qv_p) * theta_t_hi );
+
+                coeffB_a(i,j,k) = one + D * ( coeff_Q * (one + RvOverRd*qv_q)
+                                            - coeff_P * (one + RvOverRd*qv_p) ) * theta_t_mid;
             });
         }
 
