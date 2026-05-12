@@ -74,7 +74,9 @@ void erf_substep_T (int step, int /*nrk*/,
                     YAFluxRegister* fr_as_crse,
                     YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
+#ifdef ERF_USE_NETCDF
                     bool l_use_real_bcs,
+#endif
                     bool l_reflux,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef)

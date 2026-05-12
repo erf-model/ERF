@@ -157,7 +157,11 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           fine_geom, solverChoice.gravity,
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
-                          fr_as_crse, fr_as_fine, l_use_moisture, l_use_real_bcs, l_reflux,
+                          fr_as_crse, fr_as_fine, l_use_moisture,
+#ifdef ERF_USE_NETCDF
+                          l_use_real_bcs,
+#endif
+                          l_reflux,
                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else {

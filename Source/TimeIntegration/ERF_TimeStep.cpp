@@ -25,12 +25,12 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+#ifdef ERF_USE_NETCDF
     Arena* Arena_Used = The_Arena();
 #ifdef AMREX_USE_GPU
     Arena_Used = The_Pinned_Arena();
 #endif
 
-#ifdef ERF_USE_NETCDF
     //
     // Since we now only read in a subset of the time slices in wrfbdy and
     //     wrflowinp, we need to check whether it's time to read in more.

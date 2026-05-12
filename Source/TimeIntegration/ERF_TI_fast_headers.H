@@ -81,7 +81,11 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                     amrex::YAFluxRegister* fr_as_crse,
                     amrex::YAFluxRegister* fr_as_fine,
-                    bool l_use_moisture, bool l_use_real_bcs, bool l_reflux,
+                    bool l_use_moisture,
+#ifdef ERF_USE_NETCDF
+                    bool l_use_real_bcs,
+#endif
+                    bool l_reflux,
                     const amrex::Real* sinesq_at_lev_d,
                     const amrex::Real l_damp_coef);
 
