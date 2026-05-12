@@ -290,12 +290,15 @@ void erf_substep_T (int step, int /*nrk*/,
 
 #ifdef ERF_USE_NETCDF
         // Note that we only impose tendencies for normal velocities on domain faces
-        // Also note that we allocate bdy_tend* even if not use_real_bcs but
-        //      only use it below if use_real_bcs
-        const Array4<const Real>& bdy_xlo_arr = bdy_tend_xlo[WRFBdyVars::U].const_array();
-        const Array4<const Real>& bdy_xhi_arr = bdy_tend_xhi[WRFBdyVars::U].const_array();
-        const Array4<const Real>& bdy_ylo_arr = bdy_tend_ylo[WRFBdyVars::V].const_array();
-        const Array4<const Real>& bdy_yhi_arr = bdy_tend_yhi[WRFBdyVars::V].const_array();
+        // Real WRF lateral tendencies are only defined on the coarse level.
+        bool use_real_bcs_here = l_use_real_bcs && (level == 0);
+        Array4<const Real> bdy_xlo_arr, bdy_xhi_arr, bdy_ylo_arr, bdy_yhi_arr;
+        if (use_real_bcs_here) {
+            bdy_xlo_arr = bdy_tend_xlo[WRFBdyVars::U].const_array();
+            bdy_xhi_arr = bdy_tend_xhi[WRFBdyVars::U].const_array();
+            bdy_ylo_arr = bdy_tend_ylo[WRFBdyVars::V].const_array();
+            bdy_yhi_arr = bdy_tend_yhi[WRFBdyVars::V].const_array();
+        }
 #endif
 
         ParallelFor(tbx, tby,
@@ -319,9 +322,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (one + q);
 
 #ifdef ERF_USE_NETCDF
-                if (l_use_real_bcs && i == domlo.x) {
+                if (use_real_bcs_here && i == domlo.x) {
                     new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xlo_arr(i,j,k);
-                } else if (l_use_real_bcs && i == domhi.x+1) {
+                } else if (use_real_bcs_here && i == domhi.x+1) {
                     new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xhi_arr(i,j,k);
                 } else
 #endif
@@ -360,9 +363,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (one + q);
 
 #ifdef ERF_USE_NETCDF
-                if (l_use_real_bcs && j == domlo.y) {
+                if (use_real_bcs_here && j == domlo.y) {
                     new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_ylo_arr(i,j,k);
-                } else if (l_use_real_bcs && j == domhi.y+1) {
+                } else if (use_real_bcs_here && j == domhi.y+1) {
                     new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_yhi_arr(i,j,k);
                 } else
 #endif

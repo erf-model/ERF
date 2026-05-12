@@ -26,11 +26,6 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
 #ifdef ERF_USE_NETCDF
-    Arena* Arena_Used = The_Arena();
-#ifdef AMREX_USE_GPU
-    Arena_Used = The_Pinned_Arena();
-#endif
-
     //
     // Since we now only read in a subset of the time slices in wrfbdy and
     //     wrflowinp, we need to check whether it's time to read in more.
@@ -89,10 +84,10 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         Real inv_bdy_dt = Real(1.0) / bdy_time_interval;
 
         for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
-            bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, Arena_Used);
-            bdy_tend_xhi[ivar].resize(bdy_data_xhi[n_time_old][ivar].box(), 1, Arena_Used);
-            bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, Arena_Used);
-            bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, Arena_Used);
+            bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, The_Async_Arena());
+            bdy_tend_xhi[ivar].resize(bdy_data_xhi[n_time_old][ivar].box(), 1, The_Async_Arena());
+            bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, The_Async_Arena());
+            bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, The_Async_Arena());
 
             bdy_tend_xlo[ivar].template copy<RunOn::Device>(bdy_data_xlo[n_time_p1][ivar]);
             bdy_tend_xhi[ivar].template copy<RunOn::Device>(bdy_data_xhi[n_time_p1][ivar]);

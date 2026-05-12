@@ -145,8 +145,6 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 
-            bool l_use_real_bcs = solverChoice.use_real_bcs;
-
             erf_substep_T(fast_step, nrk, level, finest_level,
                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
@@ -159,7 +157,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture,
 #ifdef ERF_USE_NETCDF
-                          l_use_real_bcs,
+                          solverChoice.use_real_bcs,
 #endif
                           l_reflux,
                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
