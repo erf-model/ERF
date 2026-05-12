@@ -94,7 +94,7 @@ void make_sources (int level,
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     // flag for tight macrophysics coupling
-    bool tight_macro = solverChoice.macrophysics_tight_coupling;
+    bool acoustic_macro = solverChoice.macrophysics_acoustic_coupling;
 
     // *****************************************************************************
     // Planar averages for subsidence terms
@@ -210,7 +210,7 @@ void make_sources (int level,
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
     //   11. Four stream radiation source for (rho theta)
-    //   12. Macrophysics source for (rho theta)
+    //   12. Macrophysics source for (rho theta & rho Q1)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -747,10 +747,11 @@ void make_sources (int level,
         // *************************************************************************************
         // 12. Add macrophysics source for RhoTheta
         // *************************************************************************************
-        if (is_slow_step && has_moisture && tight_macro) {
+        if (is_slow_step && has_moisture && acoustic_macro) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                cell_src(i,j,k,RhoTheta_comp) += mac_src(i,j,k);
+                cell_src(i,j,k,RhoTheta_comp) += mac_src(i,j,k,0);
+                cell_src(i,j,k,RhoQ1_comp   ) += mac_src(i,j,k,1);
             });
         }
     } // mfi

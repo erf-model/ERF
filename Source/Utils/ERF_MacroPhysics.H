@@ -126,8 +126,8 @@ GetMacroPhysicsSrc (int& real_width,
 
             // Populate tendency and data
             amrex::Real th_f = getThgivenTandP(tabs_f, pres, d_rdOcp);
-            mac_src(i,j,k) = rho_s * idt * ( th_f - th_s );
-            cell_data(i,j,k,RhoQ1_comp) = rho_s * qv_f;
+            mac_src(i,j,k,0) = rho_s * idt * ( th_f - th_s );
+            mac_src(i,j,k,1) = rho_s * idt * ( qv_f - qv_s );
             cell_data(i,j,k,RhoQ2_comp) = rho_s * std::max(amrex::Real(0.0),qt - qv_f);
         });
     } // mfi
