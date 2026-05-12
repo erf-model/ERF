@@ -198,20 +198,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
         } else if (ref_tags[j].Field() == "vorticity" ) {
-            Vector<MultiFab> mf_cc_vel(1);
-            mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
-            average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
-
-            // Impose bc's at domain boundaries at all levels
-            FillBdyCCVels(mf_cc_vel[0],geom[levc]);
-
-            mf->setVal(0.);
+            MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
 
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
-                auto& sfab = mf_cc_vel[0][mfi];
+                auto& sfab = mf_cc_vel[mfi];
                 auto& zfab = (*z_phys_cc[levc])[mfi];
                 derived::erf_dervortz(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
             }
@@ -222,7 +216,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.growntilebox();
+                const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
                 auto& zfab = (*z_phys_cc[levc])[mfi];
@@ -235,11 +229,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This allows dynamic refinement based on the value of updraft helicity
         } else if (ref_tags[j].Field() == "helicity")
         {
+            MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
+
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.growntilebox();
+                const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
-                auto& sfab = vars_new[levc][Vars::cons][mfi];
+                auto& sfab = mf_cc_vel[mfi];
                 auto& zfab = (*z_phys_cc[levc])[mfi];
 
                 derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
@@ -250,7 +247,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 solverChoice.moisture_type == MoistureType::SAM) {
                 for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& bx = mfi.growntilebox();
+                    const Box& bx = mfi.tilebox();
                     auto& dfab = (*mf)[mfi];
                     auto& sfab = vars_new[levc][Vars::cons][mfi];
                     auto& zfab = (*z_phys_cc[levc])[mfi];
