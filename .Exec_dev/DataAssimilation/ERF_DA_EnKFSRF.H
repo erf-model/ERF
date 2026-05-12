@@ -139,6 +139,7 @@ compute_ensemble_mean(int Nens,
                       const amrex::Vector<std::string>& varnames);
 
 void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
+
 void read_in_observations(const int& da_iter, amrex::MultiFab& y_obs);
 
 std::vector<std::string> get_plotfile_list();
@@ -172,6 +173,27 @@ void compute_alpha_vec (const int& Nens,
                         const amrex::Vector<amrex::Real>& r_vec,
                         amrex::Vector<amrex::Real>& alpha_vec);
 
+void compute_Xf_prime_times_vector (const int Nens,
+                            const std::string& last_pf_name,
+                            const amrex::Vector<std::string>& varnames,
+                            const amrex::MultiFab& xf_bar,
+                            const amrex::Vector<amrex::Real>& vec_in,
+                            amrex::MultiFab& result);
+
+void update_ensemble (const int Nens,
+                      const std::string& last_pf_name,
+                      const amrex::Vector<std::string>& varnames,
+                      const amrex::MultiFab& xf_bar,
+                      const Matrix& T,
+                      const int& n,
+                      amrex::MultiFab& result);
+
+void add_multifabs (const amrex::MultiFab& xf_bar,
+                    const amrex::MultiFab& Xf_prime_alpha,
+                    amrex::MultiFab& result);
+
+void compute_T_matrix (const Matrix& S_mat,
+                        Matrix& T_mat);
 
 // Simple matrix multiplication
 Matrix matrix_multiply(const Matrix& A, const Matrix& B);

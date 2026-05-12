@@ -105,10 +105,25 @@ ERF::PerformDataAssimilation(int da_iter)
     compute_r_vec(Nens, last_pf_name, varnames, mean_H_xf, d_prime_vec, r_vec);
     
     // Compute the S matrix
-    Matrix S(Nens);
-    compute_S_matrix(S, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
+    Matrix S_mat(Nens);
+    compute_S_matrix(S_mat, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
 
     Vector<Real> alpha_vec;
-    compute_alpha_vec(Nens, S, r_vec, alpha_vec);
+    compute_alpha_vec(Nens, S_mat, r_vec, alpha_vec);
 
+    MultiFab Xf_prime_alpha; 
+    compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, alpha_vec, Xf_prime_alpha);
+
+    MultiFab xf_bar_updated;
+    add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated);
+
+    Matrix T_mat(Nens);
+    compute_T_matrix(S_mat, T_mat);
+ 
+    for(int n=0; n< Nens; n++) { 
+        MultiFab mf_ens_pert;
+        update_ensemble(Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert); 
+        MultiFab mf_ens_updated;
+        add_multifabs(mf_ens_pert, xf_bar_updated, mf_ens_updated);   
+    } 
 }

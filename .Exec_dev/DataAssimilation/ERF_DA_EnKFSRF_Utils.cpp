@@ -482,15 +482,18 @@ compute_alpha_vec (const int& Nens,
     }
 }
 
+// Perform a matrix time a small vector multiply as a summation of 
+// column-vector element multiply 
+
 void
-compute_Xf_prime_alpha_vec (const int Nens,
+compute_Xf_prime_times_vector (const int Nens,
                             const std::string& last_pf_name,
                             const Vector<std::string>& varnames,
-                            const Vector<Real>& alpha_vec,
                             const MultiFab& xf_bar,
+                            const Vector<Real>& vec_in,
                             MultiFab& result)
 {
-    AMREX_ALWAYS_ASSERT(alpha_vec.size() == Nens);
+    AMREX_ALWAYS_ASSERT(vec_in.size() == Nens);
 
     // Read first member to define result
     MultiFab xf_0 =
@@ -508,9 +511,7 @@ compute_Xf_prime_alpha_vec (const int Nens,
     for (int n = 0; n < Nens; ++n)
     {
         MultiFab xf_n =
-            read_member_multifab(n,
-                                 last_pf_name,
-                                 varnames);
+            read_member_multifab(n, last_pf_name, varnames);
 
         // xf_n_prime = xf_n - xf_bar
         MultiFab xf_n_prime(xf_n.boxArray(),
@@ -530,12 +531,56 @@ compute_Xf_prime_alpha_vec (const int Nens,
                            xf_n.nComp(),
                            xf_n.nGrow());
 
-        // result += alpha_vec[n] * xf_n_prime
+        // result += vec_in[n] * xf_n_prime
         MultiFab::Saxpy(result,
-                        alpha_vec[n],
+                        vec_in[n],
                         xf_n_prime,
                         0, 0,
                         xf_n.nComp(),
                         xf_n.nGrow());
     }
 }
+
+void
+add_multifabs (const MultiFab& xf_bar,
+              const MultiFab& Xf_prime_alpha,
+              MultiFab& result)
+{
+    MultiFab::Copy(result, xf_bar, 0, 0, xf_bar.nComp(), 0);
+
+    MultiFab::Add(result, Xf_prime_alpha,
+                  0, 0, Xf_prime_alpha.nComp(), 0);
+}
+
+void 
+compute_T_matrix (const Matrix& S_mat,
+                  Matrix& T_mat)
+{
+    Matrix Sinv = S_mat.inverse();
+    // fill Sinv ...
+
+    T_mat = Sinv.cholesky_lower();
+}
+
+
+void 
+update_ensemble (const int Nens,
+                 const std::string& last_pf_name,
+                 const Vector<std::string>& varnames,
+                 const MultiFab& xf_bar,
+                 const Matrix& T,
+                 const int& n,
+                 MultiFab& result)
+{
+    Vector<Real> T_colvec(Nens);
+    for (int i = 0; i < Nens; ++i) {
+        T_colvec[i] = T(i,n);
+    }
+    compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
+}
+
+
+
+
+
+
