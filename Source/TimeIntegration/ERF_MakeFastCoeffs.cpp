@@ -153,9 +153,14 @@ void make_fast_coeffs (int /*level*/,
                 coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * (one + RvOverRd*qv_q) * theta_t_lo );
                 coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * (one + RvOverRd*qv_p) * theta_t_hi );
 
+<<<<<<< MoistSubStepping
                 coeffB_a(i,j,k) = one + D * ( ( coeff_Q * (one + RvOverRd*qv_q) / detJ(i,j,k-1)
                                               - coeff_P * (one + RvOverRd*qv_p) / detJ(i,j,k  ) ) * theta_t_mid
                                             + halfg * ( Real(1.0)/detJ(i,j,k-1) - Real(1.0)/detJ(i,j,k) ) );
+=======
+                coeffB_a(i,j,k) = one + D * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
+                                            + halfg * (Real(1.0)/detJ(i,j,k-1) - Real(1.0)/detJ(i,j,k)) );
+>>>>>>> development
             });
 
         } else {
