@@ -90,7 +90,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute y_obs - yf_bar
     MultiFab d_vec;
-    compute_d_vec(mean_H_xf, y_obs, d_vec);
+    compute_d_vec(y_obs, mean_H_xf, d_vec);
 
     // Assign values for the observation error covarinace matrix
     Vector<Real> R_diag;

@@ -273,17 +273,27 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
                   const std::string& last_pf_name,
                   const Vector<std::string>& varnames)
 {
+    
     for (int n = 0; n < Nens; ++n)
     {
         MultiFab xf_i = read_member_multifab(n, last_pf_name, varnames);
+        if (n==0) {
+            mean_H_xf.define(xf_i.boxArray(),
+                             xf_i.DistributionMap(), 
+                             xf_i.nComp(),
+                             xf_i.nGrow());
+            mean_H_xf.setVal(0.0);
+        }
+
         MultiFab H_xf_i;
+
         Apply_H(xf_i, H_xf_i);
 
         if(n==0){
             MultiFab sum_H_xf_i(H_xf_i.boxArray(), H_xf_i.DistributionMap(), H_xf_i.nComp(), H_xf_i.nGrow());
         }
 
-        MultiFab::Add(mean_H_xf, xf_i, 0, 0, H_xf_i.nComp(), H_xf_i.nGrow());
+        MultiFab::Add(mean_H_xf, H_xf_i, 0, 0, H_xf_i.nComp(), H_xf_i.nGrow());
     }
 
     mean_H_xf.mult(1.0 / Nens);
@@ -379,7 +389,10 @@ compute_S_matrix(Matrix& S,
             MultiFab yf_prime_j;            
             compute_yf_prime(j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
             Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag);
-            S(i,j) = val;
+            S(i,j) = val/(Nens-1);
+            if(i==j) {
+                S(i,j) = 1.0 + S(i,j);
+            }
         }
     }
 }
@@ -546,6 +559,13 @@ add_multifabs (const MultiFab& xf_bar,
               const MultiFab& Xf_prime_alpha,
               MultiFab& result)
 {
+    result.define(
+        xf_bar.boxArray(),
+        xf_bar.DistributionMap(),
+        xf_bar.nComp(),
+        xf_bar.nGrowVect()
+    );
+    result.setVal(0.0);
     MultiFab::Copy(result, xf_bar, 0, 0, xf_bar.nComp(), 0);
 
     MultiFab::Add(result, Xf_prime_alpha,
@@ -578,9 +598,3 @@ update_ensemble (const int Nens,
     }
     compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
 }
-
-
-
-
-
-
