@@ -2266,9 +2266,8 @@ ERF::init_only (int lev, Real elapsed_time)
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (!solverChoice.use_real_bcs) {
-            make_physbcs(lev);
-        }
+        make_physbcs(lev);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
