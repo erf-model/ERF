@@ -516,7 +516,7 @@ public:
 
     void ComputeAndWriteEnsemblePerturbations();
 
-    void PerformDataAssimilation();
+    void PerformDataAssimilation(int da_iter);
 
     void init_custom (int lev);
 
