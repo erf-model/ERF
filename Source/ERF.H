@@ -550,12 +550,16 @@ public:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
+    // Pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
+
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<amrex::Real> t_avg_cnt;
 #endif
 
     std::string pp_prefix {"erf"};
+    bool m_explicit_construction = false;
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               amrex::Real time);

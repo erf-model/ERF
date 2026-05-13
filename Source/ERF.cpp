@@ -505,7 +505,9 @@ ERF::ERF_shared ()
     //
     // Construct the EB data structures and store in a separate class
     //
-    // This is needed before initializing level MultiFabs
+    // This is needed before initializing level MultiFabs.
+    // Bypassed entirely in explicit-construction (coupled) mode — terrain-aware
+    // topology is deferred future work per the Stage-2 architecture.
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
@@ -2356,32 +2358,25 @@ ERF::ReadParameters ()
             << " \"" << prob_name << "\" " << std::endl;
 
     ParmParse pp(pp_prefix);
-    ParmParse pp_amr("amr");
     {
-        pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
-        pp.query("regrid_int", regrid_int);
-        pp.query("check_file", check_file);
+        ParmParse pp_amr("amr");
+        {
+            pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
+            pp.query("regrid_int", regrid_int);
+            pp.query("check_file", check_file);
 
-        // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
-        //    for those or "erf.restart" / "erf.m_check_int" with the former taking
-        //    precedence if both are specified
-        pp.query("check_int", m_check_int);
-        pp.query("check_per", m_check_per);
-        pp_amr.query("check_int", m_check_int);
-        pp_amr.query("check_per", m_check_per);
+            // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
+            //    for those or "erf.restart" / "erf.m_check_int" with the former taking
+            //    precedence if both are specified
+            pp.query("check_int", m_check_int);
+            pp.query("check_per", m_check_per);
+            pp_amr.query("check_int", m_check_int);
+            pp_amr.query("check_per", m_check_per);
 
-        pp.query("restart", restart_chkfile);
-        pp_amr.query("restart", restart_chkfile);
-
-        // Verbosity
-        pp.query("v", verbose);
-        pp.query("mg_v", mg_verbose);
-        pp.query("use_fft", use_fft);
-#ifndef ERF_USE_FFT
-        if (use_fft) {
-            Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
+            pp.query("restart", restart_chkfile);
+            pp_amr.query("restart", restart_chkfile);
         }
-#endif
+    }
 
         // Check for NaNs?
         pp.query("check_for_nans", check_for_nans);
@@ -2703,10 +2698,12 @@ ERF::ReadParameters ()
         pp.query("cf_set_width", cf_set_width);
 
         // AmrMesh iterate on grids?
-        bool iterate(true);
-        pp_amr.query("iterate_grids",iterate);
-        if (!iterate) SetIterateToFalse();
-    }
+        {
+            ParmParse pp_amr_iter("amr");
+            bool iterate(true);
+            pp_amr_iter.query("iterate_grids",iterate);
+            if (!iterate) SetIterateToFalse();
+        }
 
 #ifdef ERF_USE_PARTICLES
     readTracersParams();
@@ -3145,9 +3142,11 @@ ERF::ERF (const RealBox& rb, int max_level_in,
           const Vector<IntVect>& ref_ratio,
           const Array<int,AMREX_SPACEDIM>& is_per,
           std::string prefix)
-    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratio, is_per)
+      : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratio, is_per)
 {
+    m_explicit_construction = true;
     SetParmParsePrefix(prefix);
+
 
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;
