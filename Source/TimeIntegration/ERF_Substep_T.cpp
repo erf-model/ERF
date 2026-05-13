@@ -196,8 +196,10 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& thm_extrap = extrap.array(mfi);
         const Array4<const Real>& prim = S_stage_prim.const_array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real qv_cur_fact = (Real(1.0) + RvOverRd * cur_cons(i,j,k,RhoQ1_comp) / cur_cons(i,j,k,Rho_comp));
-            Real qv_stg_fact = (Real(1.0) + RvOverRd *     prim(i,j,k,PrimQ1_comp));
+            Real qv_cur_fact = (!l_use_moisture) ? 0.0 :
+                (Real(1.0) + RvOverRd * cur_cons(i,j,k,RhoQ1_comp) / cur_cons(i,j,k,Rho_comp));
+            Real qv_stg_fact = (!l_use_moisture) ? 0.0 :
+                (Real(1.0) + RvOverRd *     prim(i,j,k,PrimQ1_comp));
             old_drho(i,j,k)     =   cur_cons(i,j,k,Rho_comp) - stage_cons(i,j,k,Rho_comp);
             old_drho_thm(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * qv_cur_fact
                                 - stage_cons(i,j,k,RhoTheta_comp) * qv_stg_fact;
@@ -475,19 +477,22 @@ void erf_substep_T (int step, int /*nrk*/,
                                        xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                        yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * myhalf;
-            temp_rhs_arr(i,j,k,2) = (( xflux_hi * (prim(i,j,k,3) + prim(i+1,j,k,3)) -
-                                       xflux_lo * (prim(i,j,k,3) + prim(i-1,j,k,3)) ) * dxi * mfsq+
-                                     ( yflux_hi * (prim(i,j,k,3) + prim(i,j+1,k,3)) -
-                                       yflux_lo * (prim(i,j,k,3) + prim(i,j-1,k,3)) ) * dyi * mfsq) * myhalf;
+            if (l_use_moisture) {
+                temp_rhs_arr(i,j,k,2) = (( xflux_hi * (prim(i,j,k,3) + prim(i+1,j,k,3)) -
+                                           xflux_lo * (prim(i,j,k,3) + prim(i-1,j,k,3)) ) * dxi * mfsq+
+                                         ( yflux_hi * (prim(i,j,k,3) + prim(i,j+1,k,3)) -
+                                           yflux_lo * (prim(i,j,k,3) + prim(i,j-1,k,3)) ) * dyi * mfsq) * myhalf;
 
-            // Explicit update for star variables
-            Real fast_rhs_rho   = -( temp_rhs_arr(i,j,k,0) +
-                                   ( omega_arr(i,j,k+1) - omega_arr(i,j,k  ) ) * dzi ) / detJ(i,j,k);
-            Real new_rho        = cur_cons(i,j,k,0) + dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
-            Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
-                                   ( omega_arr(i,j,k+1) * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
-                                     omega_arr(i,j,k  ) * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
-            qv_str_arr(i,j,k)   = ( cur_cons(i,j,k,4) + dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv) ) / new_rho;
+                // Explicit update for star variables
+                Real fast_rhs_rho   = -( temp_rhs_arr(i,j,k,0) +
+                                       ( omega_arr(i,j,k+1) - omega_arr(i,j,k  ) ) * dzi ) / detJ(i,j,k);
+                Real new_rho        = cur_cons(i,j,k,0) + dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
+                Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
+                                       ( omega_arr(i,j,k+1) * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
+                                         omega_arr(i,j,k  ) * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
+                qv_str_arr(i,j,k)   = ( cur_cons(i,j,k,4) + dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv) ) / new_rho;
+            }
+
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
@@ -535,10 +540,10 @@ void erf_substep_T (int step, int /*nrk*/,
             Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
             // line 2 last two terms (order dtau)
-            Real qv_str_fact_P  = (Real(1.0) + RvOverRd * qv_str_arr(i,j,k  ));
-            Real qv_str_fact_Q  = (Real(1.0) + RvOverRd * qv_str_arr(i,j,k-1));
-            Real qv_stg_fact_P  = (Real(1.0) + RvOverRd * prim(i,j,k  ,PrimQ1_comp));
-            Real qv_stg_fact_Q  = (Real(1.0) + RvOverRd * prim(i,j,k-1,PrimQ1_comp));
+            Real qv_str_fact_P  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * qv_str_arr(i,j,k  ));
+            Real qv_str_fact_Q  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * qv_str_arr(i,j,k-1));
+            Real qv_stg_fact_P  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * prim(i,j,k  ,PrimQ1_comp));
+            Real qv_stg_fact_Q  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * prim(i,j,k-1,PrimQ1_comp));
             Real str_drho_thm_P = cur_cons(i,j,k  ,1) * qv_str_fact_P - stage_cons(i,j,k  ,RhoTheta_comp) * qv_stg_fact_P;
             Real str_drho_thm_Q = cur_cons(i,j,k-1,1) * qv_str_fact_Q - stage_cons(i,j,k-1,RhoTheta_comp) * qv_stg_fact_Q;
             Real thm_P  = beta_1 * old_drho_thm(i,j,k  ) + beta_2 * str_drho_thm_P;
@@ -710,10 +715,12 @@ void erf_substep_T (int step, int /*nrk*/,
                                           zflux_lo * (prim(i,j,k,0) + prim(i,j,k-1,0)) ) * dzi ) / detJ(i,j,k);
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
 
-              Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
-                                     ( zflux_hi * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
-                                       zflux_lo * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
-              cur_cons(i,j,k,4) += dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv);
+              if (l_use_moisture) {
+                  Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
+                                         ( zflux_hi * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
+                                           zflux_lo * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
+                  cur_cons(i,j,k,4) += dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv);
+              }
 
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * myhalf * (prim(i,j,k) + prim(i,j,k-1));
@@ -722,7 +729,7 @@ void erf_substep_T (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
+              if (l_use_moisture) { cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp); }
         });
         } // end profile
 

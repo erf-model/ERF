@@ -169,10 +169,13 @@
                          fr_as_crse, fr_as_fine);
 
         if ((solverChoice.vert_implicit_fac[nrk] > zero) && solverChoice.implicit_before_substep) {
-            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
+            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 3,
                              S_data[IntVars::cons].nGrowVect());
-            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect());          // scratch := S_old               (for rho, rhotheta)
+            MultiFab::Copy(scratch, S_old[IntVars::cons], RhoQ1_comp, 2, 1, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rhoQ1)
+            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                                // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], RhoQ1_comp, 2, 1, 0);                       // scratch := S_old + slow_dt*Src (for rhoQ1)
+
             scratch.FillBoundary(geom[level].periodicity());
 
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),

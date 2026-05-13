@@ -6,8 +6,10 @@
 
             if (l_vert_implicit_fac > zero) {
 
-                const bool l_do_implicit_theta = solverChoice.implicit_thermal_diffusion;
-                const bool l_do_implicit_mom = solverChoice.implicit_momentum_diffusion;
+                const bool l_has_moisture         = (solverChoice.moisture_type != MoistureType::None);
+                const bool l_do_implicit_theta    = solverChoice.implicit_thermal_diffusion;
+                const bool l_do_implicit_moisture = solverChoice.implicit_moisture_diffusion;
+                const bool l_do_implicit_mom      = solverChoice.implicit_momentum_diffusion;
 
                 // If we're doing an implicit solve for momenta (u and v only),
                 // then we use the explicit solution at this point to derive
@@ -61,13 +63,21 @@
                     const Array4<const Real> tau13  = Tau[level][TauType::tau13]->array(mfi);
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
                     [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
-                    const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
+                    const Array4<const Real>& hfx_z  = Hfx3->const_array(mfi);
+                    const Array4<const Real>& q1fx_z = Q1fx3->const_array(mfi);
 
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
-                            ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoTheta_comp,
+                            ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      stretched_dz_d[level], hfx_z,
+                                                     mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        }
+                        if (l_do_implicit_moisture && l_has_moisture) {
+                          ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     stretched_dz_d[level], q1fx_z,
                                                      mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
@@ -93,9 +103,16 @@
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
-                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
+                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
+                                                     mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        }
+                        if (l_do_implicit_moisture && l_has_moisture) {
+                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     z_nd_arr, detJ_arr, dxInv, q1fx_z,
                                                      mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
@@ -121,9 +138,15 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
-                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
+                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        }
+                        if (l_do_implicit_moisture && l_has_moisture) {
+                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     dxInv, q1fx_z, mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
                         if (l_do_implicit_mom) {

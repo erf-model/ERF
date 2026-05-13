@@ -175,11 +175,11 @@ void erf_slow_rhs_post (int level, int finest_level,
     }
 
     // Valid vars
-    Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
+    Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ2_comp+1,0);
     if (l_use_KE)    { is_valid_slow_var[    RhoKE_comp] = 1; }
     if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp] = 1; }
     if (solverChoice.moisture_type != MoistureType::None) {
-         is_valid_slow_var[RhoQ1_comp] = 1;
+         is_valid_slow_var[RhoQ2_comp] = 1;
     }
 
     // *************************************************************************
@@ -281,12 +281,12 @@ void erf_slow_rhs_post (int level, int finest_level,
         const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
 
         // **************************************************************************
-        // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
+        // Note that here we do copy only the "slow" variables, not (rho, rhoTheta, RhoQ1)
         // **************************************************************************
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
-            cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+            if (n != RhoQ1_comp) { cur_cons(i,j,k,n) = new_cons(i,j,k,n); }
         });
 
         // We have projected the velocities stored in S_data but we will use
@@ -372,14 +372,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         //
         // Note that we either advect and diffuse all or none of the moisture variables
         //
-        for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
+        for (int ivar(RhoKE_comp); ivar<= RhoQ2_comp; ++ivar)
         {
             if (is_valid_slow_var[ivar])
             {
                 start_comp = ivar;
                 num_comp = 1;
 
-                if (ivar == RhoQ1_comp) {
+                if (ivar == RhoQ2_comp) {
                     horiz_adv_type = ac.moistscal_horiz_adv_type;
                      vert_adv_type = ac.moistscal_vert_adv_type;
                     horiz_upw_frac = ac.moistscal_horiz_upw_frac;
@@ -390,7 +390,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    num_comp = n_qstate;
+                    num_comp = n_qstate - 1;
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
@@ -436,7 +436,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (l_use_diff)
                 {
                     // Allow for implicit moisture diffusion
-                    const Real l_vert_implicit_fac = (solverChoice.implicit_moisture_diffusion) ?
+                    const Real l_vert_implicit_fac = (false) ? //(solverChoice.implicit_moisture_diffusion) ?
                                                      solverChoice.vert_implicit_fac[nrk] : zero;
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
@@ -477,7 +477,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // loop ivar
 
 #if defined(ERF_USE_NETCDF)
-        if (moist_set_rhs_bool)
+        if (false) //moist_set_rhs_bool)
         {
             Real bdy_factor = solverChoice.bdy_nudge_factor;
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
@@ -507,14 +507,14 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         auto const& src_arr = source.const_array(mfi);
 
-        for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
+        for (int ivar(RhoKE_comp); ivar<= RhoQ2_comp; ++ivar)
         {
             if (is_valid_slow_var[ivar])
             {
                 start_comp = ivar;
                 num_comp = 1;
-                if (ivar == RhoQ1_comp) {
-                    num_comp = nvars - RhoQ1_comp;
+                if (ivar == RhoQ2_comp) {
+                    num_comp = nvars - RhoQ2_comp;
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;
                 }

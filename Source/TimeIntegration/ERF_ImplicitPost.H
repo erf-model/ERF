@@ -3,7 +3,8 @@
         // *****************************************************************************
         const bool l_do_implicit_moist = solverChoice.implicit_moisture_diffusion;
         const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
-        if ( (l_do_implicit_moist) &&
+        if ( false &&
+             (l_do_implicit_moist) &&
              (l_vert_implicit_fac > zero) &&
              (solverChoice.moisture_type != MoistureType::None) ) {
 
@@ -34,19 +35,19 @@
                 const Array4<const Real>& q1fx_z = Q1fx3->const_array(mfi);
 
                 if (l_use_stretched_dz) {
-                    ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoQ1_comp,
+                    ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoQ1_comp, RhoQ1_comp,
                                              slow_dt, l_bc_neumann_vals_d, cell_data,
                                              stretched_dz_d[level], q1fx_z,
                                              mu_turb, solverChoice,
                                              bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                 } else if (l_use_terrain_fitted_coords) {
-                    ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoQ1_comp,
+                    ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoQ1_comp, RhoQ1_comp,
                                              slow_dt, l_bc_neumann_vals_d, cell_data,
                                              z_nd_arr, detJ_arr, dxInv, q1fx_z,
                                              mu_turb, solverChoice,
                                              bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                 } else { // no terrain
-                    ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoQ1_comp,
+                    ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoQ1_comp, RhoQ1_comp,
                                              slow_dt, l_bc_neumann_vals_d, cell_data,
                                              dxInv, q1fx_z, mu_turb, solverChoice,
                                              bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);

@@ -28,9 +28,10 @@ using namespace amrex;
 void
 ImplicitDiffForStateLU_T (const Box& bx,
                           const Box& domain,
-                          const int level,
-                          const int n,
-                          const Real dt,
+                          const int& level,
+                          const int& n,
+                          const int& qty_index,
+                          const Real& dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const Array4<const Real>& z_nd,
@@ -40,14 +41,13 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const Array4<const Real>& mu_turb,
                           const SolverChoice &solverChoice,
                           const BCRec* bc_ptr,
-                          const bool use_SurfLayer,
-                          const Real implicit_fac)
+                          const bool& use_SurfLayer,
+                          const Real& implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
 
     // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
-    const int qty_index  = n;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
@@ -221,8 +221,8 @@ template <int stagdir>
 void
 ImplicitDiffForMomLU_T (const Box& bx,
                         const Box& /*domain*/,
-                        const int level,
-                        const Real dt,
+                        const int& level,
+                        const Real& dt,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -233,8 +233,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const BCRec* bc_ptr,
-                        const bool use_SurfLayer,
-                        const Real implicit_fac)
+                        const bool& use_SurfLayer,
+                        const Real& implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_T()",ImplicitDiffForMom_T);
 
@@ -473,8 +473,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
     template void ImplicitDiffForMomLU_T<STAGDIR> ( \
         const Box&, \
         const Box&, \
-        const int, \
-        const Real, \
+        const int&, \
+        const Real&, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
         const Array4<const Real>&, \
@@ -485,8 +485,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
         const Array4<const Real>&, \
         const SolverChoice&, \
         const BCRec*, \
-        const bool, \
-        const Real);
+        const bool&, \
+        const Real&);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
