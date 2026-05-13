@@ -587,7 +587,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 #endif
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          FArrayBox pii_fab(grown_box, 1);
+          FArrayBox pii_fab(grown_box, 1, The_Async_Arena());
           auto const& pii_arr = pii_fab.array();
 
           const Real p0 = Real(100000.0); // Reference pressure (Pa)
@@ -602,7 +602,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
           // Create arrays for height differences (dz)
-          FArrayBox dz_fab(grown_box, 1);
+          FArrayBox dz_fab(grown_box, 1, The_Async_Arena());
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
@@ -618,10 +618,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
 
           // Arrays to store precipitation rates
-          FArrayBox    rainncv_fab(grown_boxD, 1);
-          FArrayBox         sr_fab(grown_boxD, 1);     // Ratio of snow to total precipitation
-          FArrayBox    snowncv_fab(grown_boxD, 1);
-          FArrayBox graupelncv_fab(grown_boxD, 1);
+          FArrayBox    rainncv_fab(grown_boxD, 1, The_Async_Arena());
+          FArrayBox         sr_fab(grown_boxD, 1, The_Async_Arena());     // Ratio of snow to total precipitation
+          FArrayBox    snowncv_fab(grown_boxD, 1, The_Async_Arena());
+          FArrayBox graupelncv_fab(grown_boxD, 1, The_Async_Arena());
 
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr      = sr_fab.array();
@@ -637,7 +637,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
           // Create terrain height array (not actually used by Morrison scheme)
-          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1);
+          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, The_Async_Arena());
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
           ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
@@ -646,9 +646,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
 #ifdef ERF_USE_MORR_FORT
           // Create dummy arrays for cumulus tendencies (if needed)
-          FArrayBox qrcuten_fab(grown_box, 1);
-          FArrayBox qscuten_fab(grown_box, 1);
-          FArrayBox qicuten_fab(grown_box, 1);
+          FArrayBox qrcuten_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox qscuten_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox qicuten_fab(grown_box, 1, The_Async_Arena());
           auto const& qrcuten_arr = qrcuten_fab.array();
           auto const& qscuten_arr = qscuten_fab.array();
           auto const& qicuten_arr = qicuten_fab.array();
@@ -664,13 +664,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 
           // Now create arrays for other optional variables
-          FArrayBox rainprod_fab(grown_box, 1);
-          FArrayBox evapprod_fab(grown_box, 1);
-          FArrayBox qlsink_fab(grown_box, 1);
-          FArrayBox precr_fab(grown_box, 1);
-          FArrayBox preci_fab(grown_box, 1);
-          FArrayBox precs_fab(grown_box, 1);
-          FArrayBox precg_fab(grown_box, 1);
+          FArrayBox rainprod_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox evapprod_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox qlsink_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox precr_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox preci_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox precs_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox precg_fab(grown_box, 1, The_Async_Arena());
 
           auto const& rainprod_arr = rainprod_fab.array();
           auto const& evapprod_arr = evapprod_fab.array();
@@ -1056,7 +1056,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if(run_morr_cpp) {
 
             // One FAB to rule them all
-            FArrayBox morr_fab(grown_box, MORRInd::NumInds);
+            FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Async_Arena());
             morr_fab.template setVal<RunOn::Device>(0);
             auto const& morr_arr = morr_fab.array();
 
@@ -1090,9 +1090,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
             morr_arr(i,j,k,MORRInd::qscu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
             morr_arr(i,j,k,MORRInd::qicu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
-         });
+          });
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
-         {
+          {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            int nstep;                        // NSTEP: Timestep counter
            int iinum=m_inum;                      // iinum: Integer control variable
@@ -2893,17 +2893,19 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             ltrue = 1;
             }
             //            label_200:
+            } // k
 
-           }
             for(int k=klo; k<=khi; k++) {
-            // INITIALIZE PRECIP AND SNOW RATES
-            morr_arr(i,j,k,MORRInd::precrt) = Real(0);
-            morr_arr(i,j,k,MORRInd::snowrt) = Real(0);
-            // hm added 7/13/13
-            morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
-            morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
-            }
+                // INITIALIZE PRECIP AND SNOW RATES
+                morr_arr(i,j,k,MORRInd::precrt) = Real(0);
+                morr_arr(i,j,k,MORRInd::snowrt) = Real(0);
+                // hm added 7/13/13
+                morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
+                morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
+            } // k
+
             nstep = 1;
+
             if(ltrue != 0) {
             //goto 400
             // CALCULATE SEDIMENTATION
@@ -3119,7 +3121,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               morr_arr(i,j,k,MORRInd::dumfnc) = morr_arr(i,j,k,MORRInd::dumfnc) * morr_arr(i,j,k,MORRInd::rho);   // Cloud droplet number * density
               morr_arr(i,j,k,MORRInd::dumg) = morr_arr(i,j,k,MORRInd::dumg) * morr_arr(i,j,k,MORRInd::rho);       // Graupel content * density
               morr_arr(i,j,k,MORRInd::dumfng) = morr_arr(i,j,k,MORRInd::dumfng) * morr_arr(i,j,k,MORRInd::rho);   // Graupel number * density
-            }
+            } // k
+
             // Main time stepping loop for sedimentation
             for (int n = 1; n <= nstep; n++) {
               // Calculate initial fallout for each hydrometeor type for all levels
