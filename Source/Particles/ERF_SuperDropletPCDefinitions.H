@@ -16,17 +16,11 @@ namespace SDPCDefn {
     using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
     using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 
-    /*! \brief Real-type array-of-struct attributes of a super-droplet */
-    using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
-
-    /*! \brief Int-type array-of-struct attributes of a super-droplet */
-    using SuperDropletsIntIdxAoS = ERFParticlesIntIdxAoS;
-
     /*! \brief Real-type struct-of-array attributes of a super-droplet */
-    using SuperDropletsRealIdxSoA = ERFParticlesRealIdxSoA;
+    using SuperDropletsRealIdx = ERFParticlesRealIdx;
 
     /*! \brief Int-type struct-of-array attributes of a super-droplet */
-    using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
+    using SuperDropletsIntIdx = ERFParticlesIntIdx;
 
     /*! \brief Int-type struct-of-array attributes added during runtime */
     struct SuperDropletsIntIdxSoA_RT
@@ -81,7 +75,7 @@ static int idx_a(const int a_i, /*!< Species index */
                  const int a_num_a, /*!< Number of aerosols */
                  const int a_num_s  /*!< Number of species */)
 {
-    return SDPCDefn::SuperDropletsRealIdxSoA::ncomps + ridx_a(a_i,a_num_a,a_num_s);
+    return SDPCDefn::SuperDropletsRealIdx::ncomps + ridx_a(a_i,a_num_a,a_num_s);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -89,7 +83,7 @@ static int idx_s(const int a_i, /*!< Species index */
                  const int a_num_a, /*!< Number of aerosols */
                  const int a_num_s  /*!< Number of species */)
 {
-    return SDPCDefn::SuperDropletsRealIdxSoA::ncomps + ridx_s(a_i,a_num_a,a_num_s);
+    return SDPCDefn::SuperDropletsRealIdx::ncomps + ridx_s(a_i,a_num_a,a_num_s);
 }
 
 /*! \brief Compute total mass of a droplet from its components */

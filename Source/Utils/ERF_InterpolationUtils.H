@@ -6,6 +6,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Array4.H>
 #include "ERF_Constants.H"
+#include "ERF_TerrainConversion.H"
 
 /**
  * @file ERF_InterpolationUtils.H
@@ -44,13 +45,9 @@ void interpolateFields(
     int is_periodic_z = 1,
     const amrex::Array4<amrex::Real>* zheight = nullptr
 ) {
-    // Iterate over each field and interpolate its value at the particle position
+    amrex::ignore_unused(is_periodic_z, zheight);
     for (int i = 0; i < num_fields; ++i) {
-        if (is_periodic_z != 0) {
-            cic_interpolate(p, plo, dxi, field_arrays[i], &result_values[i], 1);
-        } else {
-            cic_interpolate_mapped_z(p, plo, dxi, field_arrays[i], *zheight, &result_values[i], 1);
-        }
+        cic_interpolate(p, plo, dxi, field_arrays[i], &result_values[i], 1);
     }
 }
 

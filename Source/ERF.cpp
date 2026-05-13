@@ -129,8 +129,6 @@ Real ERF::bndry_output_planes_start_time =  zero;
 // 2D BndryRegister input
 int  ERF::input_bndry_planes             = 0;
 
-Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
-
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 Real read_start_time_from_metgrid  (int lev, const std::string& fname);
@@ -227,7 +225,6 @@ ERF::ERF_shared ()
             Abort("Don't know this radiation model!");
         }
     }
-
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
     const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
@@ -299,6 +296,10 @@ ERF::ERF_shared ()
             << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
     }
 
+#ifdef ERF_REMORA_FORCE_PROBINIT_LINK
+    extern void erf_probinit_link_anchor_func () noexcept;
+    erf_probinit_link_anchor_func();
+#endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
@@ -2876,6 +2877,9 @@ ERF::ParameterSanityChecks ()
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 
+    if (cf_set_width != 0) {
+        Abort("You must set cf_set_width == 0");
+    }
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
     }
