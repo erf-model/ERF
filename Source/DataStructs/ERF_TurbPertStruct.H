@@ -60,32 +60,34 @@ struct TurbulentPerturbation {
                    const int max_level)
 
     {
-        // Initialization for some 0 dependent terms
-        tpi_Ti = zero;
-        tpi_Tinf = amrex::Real(300.);
-
         ref_ratio = refRatio;
 
         amrex::ParmParse pp(pp_prefix);
 
         // Reading inputs, and placing assertion for the perturbation inflow to work
-        pp.queryarr("perturbation_box_dims",tpi_boxDim);
-        pp.queryarr("perturbation_direction",tpi_direction);
-        pp.query("perturbation_layers",tpi_layers);
-        pp.query("perturbation_offset",tpi_offset);
+        pp.getarr("perturbation_box_dims",tpi_boxDim);
+        pp.getarr("perturbation_direction",tpi_direction);
+        pp.get("perturbation_layers",tpi_layers);
+        pp.get("perturbation_offset",tpi_offset);
 
-        pp.query("perturbation_nondimensional",tpi_nonDim);
+        pp.get("perturbation_nondimensional",tpi_nonDim);
+
+        tpi_Tinf = amrex::Real(300.);
         pp.query("perturbation_T_infinity",tpi_Tinf);
+
+        tpi_Ti = zero;
         pp.query("perturbation_T_intensity",tpi_Ti);
+
+        input_Ug = zero;
         pp.query("perturbation_Ug",input_Ug);
 
         // Check variables message
-        if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
+        if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
+        if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         for (int i = 0; i < tpi_boxDim.size(); i++) {
             if (tpi_boxDim[i] < 3) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
-        if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         if (input_Ug   < zero) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = amrex::Real(10.0) m/s)"); }
         if (tpi_Tinf   < zero) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
         if (tpi_Ti     < zero) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-one)"); }
