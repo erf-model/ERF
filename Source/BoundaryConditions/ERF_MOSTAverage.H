@@ -69,9 +69,6 @@ public:
     // Populate a 2D iMF k_indx (w/o terrain)
     void set_k_indices_N (const int& lev);
 
-    // Populate a 2D iMF k_indx (for EB)
-    void set_k_indices_EB (const int& lev);
-
     // Populate a 2D iMF k_indx (w/ terrain)
     void set_k_indices_T (const int& lev);
 
@@ -80,6 +77,9 @@ public:
 
     // Populate positions (w/ terrain & norm vector & interpolation)
     void set_z_positions_T (const int& lev);
+
+    // Populate positions (for EB)
+    void set_z_positions_EB (const int& lev);
 
     // Populate positions (w/ terrain & norm vector & interpolation)
     void set_norm_positions_T (const int& lev);

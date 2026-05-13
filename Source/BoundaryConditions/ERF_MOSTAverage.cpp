@@ -199,7 +199,9 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_j_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
             m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
         } else {
-            m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            if (!use_eb) {
+                m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            }
         }
     }
     // Nodal in z (only used with terrain stress rotations)
@@ -216,7 +218,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     } else if (use_terrain_fitted_coords) {                    // Terrain
         set_k_indices_T(lev);
     } else if (use_eb) {                                       // EB
-        set_k_indices_EB(lev);
+        set_z_positions_EB(lev);
     } else {                                                   // No Terrain
         set_k_indices_N(lev);
     }
@@ -573,53 +575,20 @@ MOSTAverage::set_k_indices_N (const int& lev)
  *
  */
 void
-MOSTAverage::set_k_indices_EB (const int& lev)
+MOSTAverage::set_z_positions_EB (const int& lev)
 {
-    ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
+    ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",zref_tmp);
-    auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
-
-    ParmParse pp_eb2("eb2");
-    std::string geometry;
-    pp_eb2.query("geometry", geometry);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geometry == "plane", "Only plane geometry supported for EB MOST");
-
-    RealArray plane_point{zero, zero, zero};
-    pp_eb2.query("plane_point", plane_point);
-    Real z_eb = plane_point[2];
-
-    // Default behavior is to use the first cell center
-    if (!read_z && !read_k) {
+    
+    if (!read_z) {
+        m_zref[lev]->setVal( zref_tmp );
+    // Default behavior is to use the first cell center    
+    } else {
         Real m_dz  = m_geom[0].CellSize(2);
         zref_tmp = myhalf * m_dz;
         m_zref[lev]->setVal( zref_tmp );
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
-        read_z = true;
-    }
-
-    // Specify z_ref & compute k_indx (z_ref takes precedence)
-    if (read_z) {
-        Real m_zlo = m_geom[lev].ProbLo(2);
-        Real m_zhi = m_geom[lev].ProbHi(2);
-        Real m_dz  = m_geom[lev].CellSize(2);
-
-        amrex::ignore_unused(m_zhi);
-
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
-                                         "Query point must be past first z-cell!");
-
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
-                                         "Query point must be below the last z-cell!");
-
-        int lk = static_cast<int>(floor((zref_tmp + z_eb - m_zlo) / m_dz - myhalf));
-        int lk_phys = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
-
-        m_zref[lev]->setVal( (lk_phys + 0.5) * m_dz + m_zlo );
-
-        AMREX_ALWAYS_ASSERT(lk >= m_radius);
-
-        m_k_indx[lev]->setVal(lk);
     }
 }
 
