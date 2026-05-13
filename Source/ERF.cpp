@@ -1306,7 +1306,7 @@ ERF::InitData_post ()
     }
 
     // Read in sponge data from input file
-    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    if(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
     {
         initSponge();
         bool restarting = (!restart_chkfile.empty());
@@ -2328,9 +2328,10 @@ ERF::init_only (int lev, Real elapsed_time)
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
+    {
         input_sponge(lev);
-   }
+    }
 
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {

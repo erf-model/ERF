@@ -1244,9 +1244,6 @@ private:
 
     static StateInterpType interpolation_type;
 
-    // sponge_type:  "input_sponge"
-    static std::string sponge_type;
-
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
     static amrex::Vector<amrex::Vector<int>> have_read_nc_init_file;
