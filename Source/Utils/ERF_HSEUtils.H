@@ -475,7 +475,14 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
                   const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
     Real delta_p_k;
+
+#ifdef AMREX_USE_FLOAT
+    Real eps = Real(1.e-6);
+    Real tol = Real(1.e-8);
+#else
     Real eps = Real(1.e-10);
+    Real tol = Real(1.e-8);
+#endif
 
     for(int iter=0; iter<20; iter++)
     {
@@ -490,8 +497,7 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
         p_k            = p_k + delta_p_k;
     }
 
-
-    if (std::fabs(delta_p_k) > 1e-8) {
+    if (std::fabs(delta_p_k) > tol) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 
