@@ -72,6 +72,7 @@ ERF::init_from_metgrid (int lev)
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
     }
+    if (use_erfbdy || write_erfbdy) nvars_erfbdy = MetGridBdyVars::NumTypes;
 
     // If erfbdy file exists, load boundary data and skip met_em processing.
     if (lev == 0 && use_erfbdy) {
@@ -111,6 +112,8 @@ ERF::init_from_metgrid (int lev)
         Print() << "Loaded boundaries from erfbdy, skipping met_em processing" << std::endl;
         return; // Skip the rest of met_em processing.
     }
+
+    use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
@@ -272,7 +275,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0);
-            }
+            } // nvar
         } // itime
     } // lev==0
 
@@ -293,7 +296,7 @@ ERF::init_from_metgrid (int lev)
 
         // Initialize erfbdy file header.
         InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
-                       geom[lev].Domain(), MetGridBdyVars::NumTypes, real_width);
+                       geom[lev].Domain(), nvars_erfbdy, real_width);
         Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
     }
 
@@ -624,7 +627,7 @@ ERF::init_from_metgrid (int lev)
                 WriteERFBdyTimeSlice(erfbdy_file, itime,
                                      bdy_data_xlo[itime], bdy_data_xhi[itime],
                                      bdy_data_ylo[itime], bdy_data_yhi[itime],
-                                     MetGridBdyVars::NumTypes);
+                                     nvars_erfbdy);
                 Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
 
                 // Clear this time from memory after writing unless it's one

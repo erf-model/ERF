@@ -70,6 +70,7 @@ read_from_erfbdy(int itime,
                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
                  int nvars, int real_width)
 {
+    Print() << "Reading ERF boundary data for time index " << itime << std::endl;
     std::string time_dir = bdy_file_name + "/Time_" + Concatenate("", itime, 6);
 
     if (bdy_data_xlo[itime].empty()) {

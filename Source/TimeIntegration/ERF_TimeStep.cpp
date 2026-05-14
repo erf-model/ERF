@@ -56,9 +56,9 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                     read_from_erfbdy(itime, erfbdy_file,
-                                    bdy_data_xlo, bdy_data_xhi,
-                                    bdy_data_ylo, bdy_data_yhi,
-                                    nvars_erfbdy, real_width);
+                                     bdy_data_xlo, bdy_data_xhi,
+                                     bdy_data_ylo, bdy_data_yhi,
+                                     nvars_erfbdy, real_width);
                 }
             } // itime
         }

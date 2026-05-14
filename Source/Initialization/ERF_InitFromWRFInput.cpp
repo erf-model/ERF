@@ -1044,6 +1044,7 @@ ERF::init_from_wrfinput (int lev,
         // Check for erfbdy file.
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
+        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
 
         // Path 1: Load from existing erfbdy file.
         if (use_erfbdy) {
@@ -1069,9 +1070,9 @@ ERF::init_from_wrfinput (int lev,
             // Load the first 2 times for simulation initialization.
             for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
                 read_from_erfbdy(itime, erfbdy_file,
-                                bdy_data_xlo, bdy_data_xhi,
-                                bdy_data_ylo, bdy_data_yhi,
-                                nvars_erfbdy, real_width);
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
                 Print() << "Loaded erfbdy time slice " << itime << std::endl;
             }
 
@@ -1098,7 +1099,7 @@ ERF::init_from_wrfinput (int lev,
                 }
 
                 InitERFBdyFile(erfbdy_file, ntimes_total, bdy_times,
-                               geom[lev].Domain(), WRFBdyVars::NumTypes, real_width);
+                               geom[lev].Domain(), nvars_erfbdy, real_width);
                 Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
             }
 
