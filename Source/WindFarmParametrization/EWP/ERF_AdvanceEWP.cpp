@@ -191,7 +191,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
 
             Real L_wake = std::pow(dx[0]*dx[1],myhalf)/two;
             Real sigma_e = Vabs/(three*K_turb*L_wake)*
-                           (amrex::Math::powi<2>(two*K_turb*L_wake/Vabs + std::pow(sigma_0),three/two) - amrex::Math::powi<3>(sigma_0));
+                           (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - amrex::Math::powi<3>(sigma_0));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
             Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
