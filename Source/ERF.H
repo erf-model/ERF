@@ -559,7 +559,6 @@ public:
 #endif
 
     std::string pp_prefix {"erf"};
-    bool m_explicit_construction = false;
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               amrex::Real time);
