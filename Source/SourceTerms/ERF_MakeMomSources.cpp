@@ -644,7 +644,7 @@ void make_mom_sources (Real time,
         // Real(7.) Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
-            if (solverChoice.spongeChoice.sponge_type == "input_sponge")
+            if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
             {
                 ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
                                                     z_cc_arr, xmom_src_arr, ymom_src_arr,
@@ -773,8 +773,8 @@ void make_mom_sources (Real time,
                     Real psi_m = zero;
                     Real psi_h = zero;
                     Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
+                    Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
+                    Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
                     Real zeta  = Real(1.5) * dx_z / Olen;
 
                     // similarity functions
@@ -825,8 +825,8 @@ void make_mom_sources (Real time,
                     Real psi_m = zero;
                     Real psi_h = zero;
                     Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
+                    Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
+                    Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
                     Real zeta  = Real(1.5) * dx_z / Olen;
 
                     // similarity functions
