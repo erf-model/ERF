@@ -5,6 +5,7 @@
 #include <AMReX_ParallelDescriptor.H>
 
 #include "ERF.H"
+#include "ERF_InputsName.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>

@@ -644,7 +644,7 @@ void make_mom_sources (Real time,
         // Real(7.) Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
-            if (solverChoice.spongeChoice.sponge_type == "input_sponge")
+            if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
             {
                 ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
                                                     z_cc_arr, xmom_src_arr, ymom_src_arr,

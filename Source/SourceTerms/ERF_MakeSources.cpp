@@ -429,12 +429,12 @@ void make_sources (int level,
         // *************************************************************************************
         // Real(7.) Add sponging
         // *************************************************************************************
-        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
+        if (!(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) && is_slow_step){
             const int n_qstate = S_data[IntVars::cons].nComp() - (NDRY + NSCALARS);
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, th0, qv0, z_cc_arr, n_qstate);
         }
 
-        if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
+        if (solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
             const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
             ApplySurfaceTreatment_BulkCoeff_CC(bx, cell_src, cell_data, z_cc_arr, surface_state_arr);
         }

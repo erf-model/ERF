@@ -26,12 +26,17 @@ While performing a ``cmake -LAH ..`` command will give descriptions of every opt
 
 **ERF_ENABLE_TESTS** -- enables the base level regression test suite that will check whether each test will run its executable to completion successfully
 
+**ERF_ENABLE_UNIT_TESTS** -- enables the ``gtest``-based unit-test executable and registers CTest tests with the ``unit`` label; this defaults to ``ON`` when ``ERF_ENABLE_TESTS=ON`` and ``ERF_ENABLE_REGRESSION_TESTS_ONLY=OFF``, and can also be enabled explicitly for unit-only builds
+
+**ERF_ENABLE_REGRESSION_TESTS_ONLY** -- when ``ERF_ENABLE_TESTS=ON``, suppresses unit-test build and registration so only the regression suite is configured
+
 
 Building the Tests
 ~~~~~~~~~~~~~~~~~~
 
 Once the user has performed the CMake configure step, the ``make`` command will build
-the ERF executable(s) required for each test (for example, the shared ``erf_exec`` binary).
+the ERF executable(s) required for each test (for example, the shared ``erf_exec`` binary
+for regression tests and ``erf_unit_tests`` for ``gtest``-based unit tests).
 In this step, it is highly beneficial for the user to use the ``-j`` option for ``make``
 to build source files in parallel.
 
@@ -41,14 +46,23 @@ Running the Tests
 Once the test executables are built, CTest also creates working directories for each test within the ``build`` directory
 where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
 
-**Where is the executable?** With the CMake workflow, the shared test executable is built under the build tree in ``Exec``
+**Where is the executable?** With the CMake workflow, the shared regression executable is built under the build tree in ``Exec``
 (for example, ``build/Exec/erf_exec``), and all regression/canonical test input decks are run using that binary.
+The ``gtest`` unit-test executable is built as ``build/Tests/Unit/erf_unit_tests``.
+When enabling unit tests locally, make sure the GoogleTest submodule is initialized first, for example with
+``git submodule update --init Submodules/googletest`` (or ``git submodule update --init --recursive`` after cloning).
+ERF unit tests use a custom GoogleTest ``main()`` that initializes and finalizes AMReX before and after
+``RUN_ALL_TESTS()`` so the same harness can be used for CPU and GPU-oriented tests.
 
 To run the test suite, run ``ctest`` in the ``build`` directory. CTest will run the tests and report their exit status.
 Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
 where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in
 parallel based on how many processes each test is specified to use and fit them into the amount of cores available
-on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``build`` directory in ``Tests/Temporary/LastTest.log``.
+on the machine. ``-L`` where the subset of tests containing a particular label will be run. ERF currently uses
+``ctest -L unit`` for ``gtest``-based unit tests and ``ctest -L regression`` for regression tests. Some GPU
+workflows currently build the unit-test executable without running it, but the unit-test scaffold is enabled across
+CPU, CUDA, HIP, and SYCL builds. Output for the
+last set of tests run is available in the ``build`` directory in ``Tests/Temporary/LastTest.log``.
 
 Adding Tests
 ~~~~~~~~~~~~
