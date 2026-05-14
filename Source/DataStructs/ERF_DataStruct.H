@@ -463,9 +463,9 @@ struct SolverChoice {
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
-        if ((if_init_surf_temp > zero && if_surf_temp_flux != 1e-8) ||
-            (if_init_surf_temp > zero && if_Olen_in != 1e-8) ||
-            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
+            (if_init_surf_temp > zero        && if_Olen_in != amrex::Real(1e-8)) ||
+            (if_Olen_in != amrex::Real(1e-8) && if_surf_temp_flux != amrex::Real(1e-8)))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
         }
@@ -475,12 +475,12 @@ struct SolverChoice {
             amrex::Error("MOST wall-model with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_surf_temp_flux != 1e-8 && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_surf_temp_flux != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying surf_temp_flux with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_Olen_in != 1e-8  && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_Olen_in != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying Olen with immersed forcing for buildings is not currently supported");
         }
@@ -1154,10 +1154,10 @@ struct SolverChoice {
     amrex::Real if_Cd_momentum        = amrex::Real(10.0);
     // immersed forcing MOST parameters.
     amrex::Real if_z0                 = amrex::Real(0.1);   // [m]
-    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
-    amrex::Real if_init_surf_temp     = zero;   // [K]
-    amrex::Real if_surf_heating_rate  = zero;   // [K/hr]
-    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    amrex::Real if_surf_temp_flux     = amrex::Real(1e-8);  // [K m/s]
+    amrex::Real if_init_surf_temp     = zero;               // [K]
+    amrex::Real if_surf_heating_rate  = zero;               // [K/hr]
+    amrex::Real if_Olen_in            = amrex::Real(1e-8);  // [m]
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only

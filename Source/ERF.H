@@ -137,6 +137,9 @@ public:
     // Advance solution to final time
     void Evolve ();
 
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, amrex::Real time);
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, amrex::Real time);
+
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
@@ -513,7 +516,7 @@ public:
 
     void ComputeAndWriteEnsemblePerturbations();
 
-    void PerformDataAssimilation();
+    void PerformDataAssimilation(int da_iter);
 
     void init_custom (int lev);
 
@@ -1248,9 +1251,6 @@ private:
     bool use_real_time_in_pltname = false;
 
     static StateInterpType interpolation_type;
-
-    // sponge_type:  "input_sponge"
-    static std::string sponge_type;
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
