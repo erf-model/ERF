@@ -324,7 +324,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 });
         amrex::ParallelDescriptor::ReduceRealMax(h_m);
 
-        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
+        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = Real(1e-16);
 
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
@@ -347,10 +347,10 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
             Real A;
-            Real foo = cos((PI/2)*(zz/z_H));
+            Real foo = std::cos((PI/2)*(zz/z_H));
             if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
             else         { A = 0; }
-            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+            Real foo_minus = std::cos((PI/2)*(zz_minus/z_H));
             Real A_minus;
             if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
             else               { A_minus = 0; }
