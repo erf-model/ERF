@@ -53,39 +53,27 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
 
-    // --- Uwind: average xvel XFace → cell center at k=0 ---
-    if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
-        MultiFab tmp(ba, dm, 1, 0);
-        for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            Box bx = makeSlab(mfi.validbox(), 2, k_atm);
-            auto const& u = xvel.const_array(mfi);
-            auto         w = tmp.array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                w(i,j,k) = 0.5_rt * (u(i,j,k) + u(i+1,j,k));
-            });
-        }
-        states[iUwind]->ParallelCopy(tmp, 0, 0, 1);
-    }
-
-    // --- Vwind: average yvel YFace → cell center at k=0 ---
-    if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
-        MultiFab tmp(ba, dm, 1, 0);
-        for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            Box bx = makeSlab(mfi.validbox(), 2, k_atm);
-            auto const& v = yvel.const_array(mfi);
-            auto         w = tmp.array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                w(i,j,k) = 0.5_rt * (v(i,j,k) + v(i,j+1,k));
-            });
-        }
-        states[iVwind]->ParallelCopy(tmp, 0, 0, 1);
+    // --- Uwind + Vwind: use AMReX's average_face_to_cellcenter which correctly
+    // handles tile boundaries via growntilebox(1) internally. ---
+    if ((iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) ||
+        (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)) {
+        auto& zvel = vars_new[lev][Vars::zvel];
+        MultiFab cc_vel(ba, dm, AMREX_SPACEDIM, 0);
+        amrex::average_face_to_cellcenter(cc_vel, 0,
+            Array<const MultiFab*, AMREX_SPACEDIM>{&xvel, &yvel, &zvel});
+        // cc_vel comp 0 = u_cc, comp 1 = v_cc over full 3D domain.
+        // ParallelCopy selects the k=0 intersection into the 2D driver slab.
+        if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr)
+            states[iUwind]->ParallelCopy(cc_vel, 0, 0, 1);
+        if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)
+            states[iVwind]->ParallelCopy(cc_vel, 1, 0, 1);
     }
 
     // --- Patm: getPgivenRTh(RhoTheta, qv) at k=0 ---
     if (iPatm < static_cast<int>(states.size()) && states[iPatm] != nullptr) {
         MultiFab tmp(ba, dm, 1, 0);
         for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            Box bx = makeSlab(mfi.validbox(), 2, k_atm);
+            Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
             auto const& c = cons.const_array(mfi);
             auto         t = tmp.array(mfi);
             if (has_moisture) {
@@ -106,7 +94,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     if (iTair < static_cast<int>(states.size()) && states[iTair] != nullptr) {
         MultiFab tmp(ba, dm, 1, 0);
         for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            Box bx = makeSlab(mfi.validbox(), 2, k_atm);
+            Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
             auto const& c = cons.const_array(mfi);
             auto         t = tmp.array(mfi);
             if (has_moisture) {
@@ -128,7 +116,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iRH < static_cast<int>(states.size()) && states[iRH] != nullptr) {
             MultiFab tmp(ba, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = makeSlab(mfi.validbox(), 2, k_atm);
+                Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
                 auto const& c = cons.const_array(mfi);
                 auto         t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -140,7 +128,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
             MultiFab tmp(ba, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = makeSlab(mfi.validbox(), 2, k_atm);
+                Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
                 auto const& c = cons.const_array(mfi);
                 auto         t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -152,7 +140,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
             MultiFab tmp(ba, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = makeSlab(mfi.validbox(), 2, k_atm);
+                Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
                 auto const& c = cons.const_array(mfi);
                 auto         t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -161,33 +149,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             }
             states[iRain]->ParallelCopy(tmp, 0, 0, 1);
         }
-    } else {
-        // No prognostic moisture in ERF: fill slabs with REMORA's inputs-file
-        // bulk-flux constants so the coupled path sees physically consistent values.
-        amrex::Real air_humidity_fallback = 0.0, cloud_fallback = 0.0, rain_fallback = 0.0;
-        amrex::ParmParse("remora").query("air_humidity", air_humidity_fallback);
-        amrex::ParmParse("remora").query("cloud",        cloud_fallback);
-        amrex::ParmParse("remora").query("rain",         rain_fallback);
-        if (iRH    < static_cast<int>(states.size()) && states[iRH]    != nullptr)
-            states[iRH]->setVal(air_humidity_fallback);
-        if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr)
-            states[iCloud]->setVal(cloud_fallback);
-        if (iRain  < static_cast<int>(states.size()) && states[iRain]  != nullptr)
-            states[iRain]->setVal(rain_fallback);
     }
+    // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
 
     // --- Radiation: sw_flux_dn (comp=1) and lw_flux_dn (comp=3) from rad_fluxes ---
-    // When radiation is absent, zero-fill so REMORA retains its own initialized defaults.
+    // When absent, leave slabs at their driver-pre-filled values.
     if (has_radiation) {
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr)
             states[iSWrad]->ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr)
             states[iLWrad]->ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-    } else {
-        if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr)
-            states[iSWrad]->setVal(0.0);
-        if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr)
-            states[iLWrad]->setVal(0.0);
     }
 }
 
