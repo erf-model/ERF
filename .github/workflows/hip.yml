@@ -40,7 +40,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -54,7 +54,7 @@ jobs:
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
     - name: Set Up Cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cache/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
@@ -110,7 +110,7 @@ jobs:
     - name: Report
       run: |
         grep -Ei "warning:|error:" ${{runner.workspace}}/build-${{matrix.os}}-output.txt \
-          | grep -Ev "Submodules/amrex" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
         cat ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
         export return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt | awk '{print $2}')
