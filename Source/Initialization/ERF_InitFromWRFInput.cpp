@@ -74,15 +74,12 @@ init_terrain_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               const Real& z_top,
                                MultiFab* z_phys,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
-                               MultiFab& r_hse,
-                               const MultiFab& mf_PB,
-                               const MultiFab& mf_P);
+                               MultiFab& r_hse);
 
 Real
 read_start_time_from_wrfinput(int lev, const std::string& fname)
@@ -904,10 +901,8 @@ ERF::init_from_wrfinput (int lev,
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
-                                  z_top, z_phys_nd[lev].get(),
-                                  p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  mf_PB, mf_P);
+    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, z_phys_nd[lev].get(),
+                                  p_hse, pi_hse, th_hse, qv_hse, r_hse);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
      r_hse.FillBoundary(geom[lev].periodicity());
@@ -1021,19 +1016,13 @@ ERF::init_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               const Real& z_top,
                                MultiFab* z_phys_nd,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
-                               MultiFab& r_hse,
-                               const MultiFab& mf_PB,
-                               const MultiFab& mf_P)
+                               MultiFab& r_hse)
 {
-    const auto& dom_lo = lbound(subdomain);
-    const auto& dom_hi = ubound(subdomain);
-
     const int klo = subdomain.smallEnd(2);
     const int khi = subdomain.bigEnd(2);
 
@@ -1063,126 +1052,64 @@ init_base_state_from_wrfinput (const Box& subdomain,
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
-        const Array4<Real const>&  nc_pb_arr = mf_PB.const_array(mfi);
-        const Array4<Real const>&   nc_p_arr = mf_P.const_array(mfi);
         const Array4<Real const>&      z_arr = z_phys_nd->const_array(mfi);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
-            // Surface and top values
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_hi.y);
-            Real z_s = Real(0.25)  * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
-            Real P_s = p_0 * std::exp( -T0/A + std::sqrt( (T0/A)*(T0/A) - 2 * grav * z_s / (A * R_d) ) );
-            Real P_t = nc_pb_arr(ii,jj,khi) + nc_p_arr(ii,jj,khi);
-
-            // integrate from surface to domain top
+            // Surface values and constants
             Real dz, F, C;
-            Real rho_tot_hi, rho_tot_lo;
-            Real z_lo, z_hi;
-            Real R_lo, R_hi;
-            Real qv_lo, qv_hi;
-            Real Th_lo, Th_hi;
-            Real Pd_lo, Pd_hi;
-            Real Td_lo, Td_hi;
-            Real eta_lo, eta_hi;
-
-            // First integrate from sea level to the height at klo
-            {
-                // Vertical grid spacing (w-face and first CC)
-                z_lo = z_s;
-                z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                     + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
-                dz = z_hi - z_lo;
-
-                // Establish known constant
-                eta_lo = (z_top - z_lo) / (z_top - z_s);
-                Pd_lo  = eta_lo * (P_s - P_t) + P_t; // NOTE: B(eta) = eta for sigma coords
-                Td_lo  = (Pd_lo > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_lo/p_0)) :
+            Real z_hi, Pd_hi, Td_hi, Rd_hi;
+            Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
+                                       + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
+            Real Pd_lo = p_0 * std::exp( -T0/A + std::sqrt( (T0/A)*(T0/A) - two * grav * z_lo / (A * R_d) ) );
+            Real Td_lo = (Pd_lo > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_lo/p_0)) :
                                              Tmin + g_strat * std::log(Pd_lo/P_strat);
-                qv_lo = Real(0.);
-                Th_lo = getThgivenTandP(Td_lo, Pd_lo, l_rdOcp);
-                R_lo  = getRhogivenThetaPress(Th_lo, Pd_lo, R_d/Cp_d, qv_lo);
-                rho_tot_lo = R_lo * (one + qv_lo);
-                C  = -Pd_lo + myhalf*rho_tot_lo*grav*dz;
-
-                // Initial guess and residual
-                eta_hi = (z_top - z_hi) / (z_top - z_s);
-                Pd_hi  = eta_hi * (P_s - P_t) + P_t; // NOTE: B(eta) = eta for sigma coords
-                Td_hi  = (Pd_hi > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_hi/p_0)) :
-                                             Tmin + g_strat * std::log(Pd_hi/P_strat);
-                qv_hi = Real(0.);
-                Th_hi = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
-                R_hi  = getRhogivenThetaPress(Th_hi, Pd_hi, R_d/Cp_d, qv_hi);
-                rho_tot_hi = R_hi * (one + qv_hi);
-                F = Pd_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                // Do iterations
-                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                             grav, C, Th_hi,
-                                             qv_hi, qv_hi,
-                                             Pd_hi, R_hi, F);
-
-                // Assign data
-                 r_hse_arr(i,j,klo) = R_hi;
-                th_hse_arr(i,j,klo) = Th_hi;
-                qv_hse_arr(i,j,klo) = qv_hi;
-                 p_hse_arr(i,j,klo) = getPgivenRTh(R_hi*Th_hi, qv_hi);
-                pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
-
-                // Transfer solution
-                Pd_lo = Pd_hi;
-                z_lo  = z_hi;
-            }
-
-            for (int k(klo+1); k<=khi; ++k) {
+            Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
+            for (int k(klo); k<=khi; ++k) {
                 // Vertical grid spacing
                 z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
                                      + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
                 dz   = z_hi - z_lo;
 
                 // Establish known constant
-                eta_lo = (z_top - z_lo) / (z_top - z_s);
-                Pd_lo  = eta_lo * (P_s - P_t) + P_t; // NOTE: B(eta) = eta for sigma coords
-                Td_lo  = (Pd_lo > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_lo/p_0)) :
-                                             Tmin + g_strat * std::log(Pd_lo/P_strat);
-                qv_lo = Real(0.);
-                Th_lo = getThgivenTandP(Td_lo, Pd_lo, l_rdOcp);
-                R_lo  = getRhogivenThetaPress(Th_lo, Pd_lo, R_d/Cp_d, qv_lo);
-                rho_tot_lo = R_lo * (one + qv_lo);
-                C  = -Pd_lo + myhalf*rho_tot_lo*grav*dz;
+                C  = -Pd_lo + myhalf*Rd_lo*grav*dz;
 
                 // Initial guess and residual
-                eta_hi = (z_top - z_hi) / (z_top - z_s);
-                Pd_hi  = eta_hi * (P_s - P_t) + P_t; // NOTE: B(eta) = eta for sigma coords
-                Td_hi  = (Pd_hi > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_hi/p_0)) :
+                Pd_hi = Pd_lo;
+                Td_hi = Td_lo;
+                Rd_hi = Rd_lo;
+                F = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+
+                // Iterate to solution
+                int niter = 0;
+                while (std::fabs(F)>tol && niter<20) {
+                    Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
+                    Real Pd_plus = Pd_hi + dP;
+                    Real Td_plus = (Pd_plus > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_plus/p_0)) :
+                                                         Tmin + g_strat * std::log(Pd_plus/P_strat);
+                    Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
+                    Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
+                    Real dFdP    = (F_plus - F) / dP;
+
+                    Pd_hi -= F / dFdP;
+                    Td_hi  = (Pd_hi > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_hi/p_0)) :
                                              Tmin + g_strat * std::log(Pd_hi/P_strat);
-                qv_hi = Real(0.);
-                Th_hi = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
-                R_hi  = getRhogivenThetaPress(Th_hi, Pd_hi, R_d/Cp_d, qv_hi);
-                rho_tot_hi = R_hi * (one + qv_hi);
-                F = Pd_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                Real holdr = R_hi;
-                Real holdp = Pd_hi;
-
-                // Do iterations
-                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                             grav, C, Th_hi,
-                                             qv_hi, qv_hi,
-                                             Pd_hi, R_hi, F);
+                    Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
+                    F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                    ++niter;
+                }
 
                 // Assign data
-                r_hse_arr(i,j,k)  = R_hi;
-                th_hse_arr(i,j,k) = Th_hi;
-                qv_hse_arr(i,j,k) = qv_hi;
-                p_hse_arr(i,j,k)  = getPgivenRTh(R_hi*Th_hi, qv_hi);
-                pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+                r_hse_arr(i,j,k)  = Rd_hi;
+                th_hse_arr(i,j,k) = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
+                qv_hse_arr(i,j,k) = Real(0.);
+                p_hse_arr(i,j,k)  = Pd_hi;
+                pi_hse_arr(i,j,k) = getExnergivenP(Pd_hi, l_rdOcp);
 
                 // Transfer solution
                 Pd_lo = Pd_hi;
+                Td_lo = Td_hi;
+                Rd_lo = Rd_hi;
                 z_lo  = z_hi;
             }
 

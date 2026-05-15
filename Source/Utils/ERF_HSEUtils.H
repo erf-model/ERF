@@ -41,7 +41,7 @@ namespace HSEutils
                         const Real& dz,
                         const Real& g,
                         const Real& C,
-                        const Real& T,
+                        const Real& Th,
                         const Real& qt,
                         const Real& qv,
                         Real& P,
@@ -49,26 +49,25 @@ namespace HSEutils
                         Real& F)
     {
         int iter=0;
-        int max_iter=30;
+        int max_iter=20;
         Real eps  = Real(1.e-6);
         Real ieps = Real(1.e6);
-        do {
+        while (std::abs(F)>m_tol && iter<max_iter) {
             // Compute change in pressure
-            Real hi = getRhogivenThetaPress(T, P + eps, RdOCp, qv);
-            Real lo = getRhogivenThetaPress(T, P - eps, RdOCp, qv);
+            Real hi   = getRhogivenThetaPress(Th, P + eps, RdOCp, qv);
+            Real lo   = getRhogivenThetaPress(Th, P - eps, RdOCp, qv);
             Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
             P -= F/dFdp;
             if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = getRhogivenThetaPress(T, P, RdOCp, qv);
+            rd = getRhogivenThetaPress(Th, P, RdOCp, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
             F = P + myhalf*r_tot*g*dz + C;
             ++iter;
         }
-        while (std::abs(F)>m_tol && iter<max_iter);
         if (iter>=max_iter) {
             AMREX_DEVICE_PRINTF("WARNING: HSE Newton iterations did not converge to tolerance!\n%s", "");
             AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
