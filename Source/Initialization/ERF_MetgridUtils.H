@@ -96,14 +96,20 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& NC_MSFM_fab);
 
 void
-init_base_state_from_metgrid (const amrex::Real l_rdOcp,
+init_base_state_from_metgrid (const bool use_moisture,
+                              const bool metgrid_debug_psfc,
+                              const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
+                              const int& flag_psfc,
+                              amrex::FArrayBox& state_fab,
                               amrex::FArrayBox& r_hse_fab,
                               amrex::FArrayBox& p_hse_fab,
                               amrex::FArrayBox& pi_hse_fab,
                               amrex::FArrayBox& th_hse_fab,
                               amrex::FArrayBox& qv_hse_fab,
-                              amrex::FArrayBox& z_phys_nd_fab);
+                              amrex::FArrayBox& z_phys_cc_fab,
+                              amrex::FArrayBox& z_phys_nd_fab,
+                              const amrex::FArrayBox& NC_psfc_fab);
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE

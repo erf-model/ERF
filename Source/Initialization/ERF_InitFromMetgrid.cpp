@@ -504,6 +504,8 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox&    th_hse_fab = th_hse[mfi];
                 FArrayBox&    qv_hse_fab = qv_hse[mfi];
                 FArrayBox&     r_hse_fab = r_hse[mfi];
+                FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
+                FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
                 FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
 
                 // Fill base state data using origin data
@@ -513,9 +515,10 @@ ERF::init_from_metgrid (int lev)
                 //     th_hse    calculate potential temperature
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
-                init_base_state_from_metgrid(l_rdOcp, valid_bx,
+                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
+                                             l_rdOcp, valid_bx, flag_psfc,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                             qv_hse_fab, z_phys_nd_fab);
+                                             qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab);
             } // mf
 
         } // itime==0
@@ -1138,18 +1141,21 @@ init_state_from_metgrid (const int  lev,
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
  */
 void
-init_base_state_from_metgrid (const Real l_rdOcp,
+init_base_state_from_metgrid (const bool use_moisture,
+                              const bool metgrid_debug_psfc,
+                              const Real l_rdOcp,
                               const Box& valid_bx,
+                              const int& flag_psfc,
+                              FArrayBox& state_fab,
                               FArrayBox& r_hse_fab,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
                               FArrayBox& qv_hse_fab,
-                              FArrayBox& z_phys_nd_fab)
+                              FArrayBox& z_phys_cc_fab,
+                              FArrayBox& z_phys_nd_fab,
+                              const int& flag_psfc,)
 {
-    int khi = ubound(valid_bx).z;
-    int klo  = lbound(valid_bx).z;
-
     // NOTE: FOEXTRAP is utilized on the validbox but
     //       the FillBoundary call will populate the
     //       internal ghost cells and we are left with
@@ -1166,29 +1172,34 @@ init_base_state_from_metgrid (const Real l_rdOcp,
     gvbx_ylo.makeSlab(1,gvbx_ylo.smallEnd(1)); gvbx_yhi.makeSlab(1,gvbx_yhi.bigEnd(1));
     gvbx_zlo.makeSlab(2,gvbx_zlo.smallEnd(2)); gvbx_zhi.makeSlab(2,gvbx_zhi.bigEnd(2));
 
-    // Expose for copy to GPU
+    // Expose for GPU
     Real grav = CONST_GRAV;
-    const Real tol = Real(1.0e-10);
+    const in maxiter = 20;
+    const Real tol   = Real(1.0e-10);
 
-    // ARW V4 Constants (5.2.2 Reference State)
-    const Real T0      = Real(300.0);
-    const Real A       = Real(50.0);
-    const Real Tmin    = Real(200.0);
-    const Real g_strat = Real(-11.0);
-    const Real P_strat = Real(10000.);
+    //***********************************************************************************
+    // Set the HSE base state only
+    //***********************************************************************************
+    {
+        Box valid_bx2d = valid_bx;
+        valid_bx2d.setRange(2,0);
 
-    { // set pressure and density at initialization.
+        // Expose for copy to GPU
+        int khi = ubound(valid_bx).z;
+        int klo = lbound(valid_bx).z;
+
+        // ARW V4 Constants (5.2.2 Reference State)
+        const Real T0      = Real(300.0);
+        const Real A       = Real(50.0);
+        const Real Tmin    = Real(200.0);
+        const Real g_strat = Real(-11.0);
+        const Real P_strat = Real(10000.);
+
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
         const Array4<Real>& th_hse_arr = th_hse_fab.array();
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
-
-        // ********************************************************
-        // calculate density and pressure for initial conditions.
-        // ********************************************************
-        Box valid_bx2d = valid_bx;
-        valid_bx2d.setRange(2,0);
         auto const z_arr = z_phys_nd_fab.const_array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1219,7 +1230,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
 
                 // Iterate to solution
                 int niter = 0;
-                while (std::fabs(F)>tol && niter<20) {
+                while (std::fabs(F)>tol && niter<maxiter) {
                     Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
                     Real Pd_plus = Pd_hi + dP;
                     Real Td_plus = (Pd_plus > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_plus/p_0)) :
@@ -1250,7 +1261,6 @@ init_base_state_from_metgrid (const Real l_rdOcp,
                 z_lo  = z_hi;
             }
         });
-
 
         // FOEXTRAP hse arrays to fill ghost cells. FillBoundary is
         // called later and will overwrite ghost cell values in the
@@ -1310,6 +1320,121 @@ init_base_state_from_metgrid (const Real l_rdOcp,
             pi_hse_arr(i,j,k) = pi_hse_arr(i,j,k-1);
             th_hse_arr(i,j,k) = th_hse_arr(i,j,k-1);
             qv_hse_arr(i,j,k) = qv_hse_arr(i,j,k-1);
+        });
+    }
+
+    //***********************************************************************************
+    // Set the state density only
+    //***********************************************************************************
+    {
+        Box valid_bx2d = valid_bx;
+        valid_bx2d.setRange(2,0);
+        auto const orig_psfc = NC_psfc_fab.const_array();
+        auto       new_data  = state_fab.array();
+        auto const new_z     = z_phys_cc_fab.const_array();
+
+        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            // Low and Hi column variables
+            Real psurf;
+            Real z_lo,   z_hi;
+            Real p_lo,   p_hi;
+            Real qv_lo, qv_hi;
+            Real rd_lo, rd_hi;
+            Real thetad_lo, thetad_hi;
+
+            // Calculate or use pressure at the surface.
+            if (metgrid_debug_psfc) {
+                psurf = amrex::Math::powi<5>(10);
+            } else if (flag_psfc == 1) {
+                psurf = orig_psfc(i,j,0);
+            } else {
+                z_lo     = new_z(i,j,0);
+                Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
+                Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
+                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
+            }
+            AMREX_ALWAYS_ASSERT(psurf > zero);
+            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
+
+            // Iterations for the first CC point that is 1/2 dz off the surface
+            {
+                z_lo      = new_z(i,j,0);
+                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo     = zero; // initial guess
+                thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
+                //       reference pressure (psurf) is at the ground.
+                Real myhalf_dz = z_lo;
+                Real qvf     = one+(R_v/R_d)*qv_lo;
+                Real thetam  = thetad_lo*qvf;
+                for (int it(0); it<maxiter; it++) {
+                    p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
+                    if (p_lo < zero) p_lo = zero;
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
+                } // it
+
+                // Copy solution to state
+                new_data(i,j,0,Rho_comp)       = rd_lo;
+                new_data(i,j,0,RhoTheta_comp) *= rd_lo;
+                if (use_moisture) {
+                    Qv = new_data(i,j,0,RhoQ_comp);
+                    new_data(i,j,0,RhoQ_comp) *= rd_lo;
+                }
+                for (int n(0); n < NSCALARS; n++) {
+                    new_data(i,j,0,RhoScalar_comp+n) = zero;
+                }
+            }
+
+            // Iterations for k \in [1 kmax]
+            for (int k(1); k<=kmax; k++) {
+                // Known hi data
+                z_hi  = new_z(i,j,k);
+                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
+                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+
+                // Initial guesses for hi data
+                 p_hi = p_lo;
+                rd_hi = getRhogivenThetaPress(thetad_hi,
+                                              p_hi,
+                                              R_d/Cp_d,
+                                              qv_hi);
+
+                // Vertical grid spacing
+                Real dz = z_hi - z_lo;
+
+                // Establish known constant
+                Real rho_tot_lo = rd_lo * (one + qv_lo);
+                Real C = -p_lo + myhalf*rho_tot_lo*grav*dz;
+
+                // Initial residual
+                Real rho_tot_hi = rd_hi * (one + qv_hi);
+                Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                                  grav, C, thetad_hi,
+                                                                  qv_hi, qv_hi, p_hi,
+                                                                  rd_hi, F);
+
+                // Copy solution to state
+                new_data(i,j,k,Rho_comp)       = rd_hi;
+                new_data(i,j,k,RhoTheta_comp) *= rd_hi;
+                if (use_moisture) {
+                    Qv = new_data(i,j,k,RhoQ_comp);
+                    new_data(i,j,k,RhoQ_comp) *= rd_hi;
+                }
+                for (int n(0); n < NSCALARS; n++) {
+                    new_data(i,j,k,RhoScalar_comp+n) = zero;
+                }
+
+                // Copy hi to lo
+                z_lo  = z_hi;
+                p_lo  = p_hi;
+                qv_lo = qv_hi;
+                rd_lo = rd_hi;
+                thetad_lo = thetad_hi;
+            }
         });
     }
 }
