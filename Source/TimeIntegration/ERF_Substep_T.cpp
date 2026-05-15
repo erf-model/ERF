@@ -162,7 +162,7 @@ void erf_substep_T (int step, int /*nrk*/,
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-                cur_cons(i,j,k,RhoQ1_comp)    = prev_cons(i,j,k,RhoQ1_comp);
+                if (l_use_moisture) { cur_cons(i,j,k,RhoQ1_comp) = prev_cons(i,j,k,RhoQ1_comp); }
             });
         }
 
