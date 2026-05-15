@@ -504,8 +504,7 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox&    th_hse_fab = th_hse[mfi];
                 FArrayBox&    qv_hse_fab = qv_hse[mfi];
                 FArrayBox&     r_hse_fab = r_hse[mfi];
-                FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
-                FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
+                FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
 
                 // Fill base state data using origin data
                 //     p_hse     calculate moist hydrostatic pressure
@@ -514,10 +513,9 @@ ERF::init_from_metgrid (int lev)
                 //     th_hse    calculate potential temperature
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
-                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
-                                             valid_bx, flag_psfc,
-                                             cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                             qv_hse_fab, z_phys_cc_fab, NC_psfc_fab);
+                init_base_state_from_metgrid(l_rdOcp, valid_bx,
+                                             r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
+                                             qv_hse_fab, z_phys_nd_fab);
             } // mf
 
         } // itime==0
@@ -1140,22 +1138,17 @@ init_state_from_metgrid (const int  lev,
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
  */
 void
-init_base_state_from_metgrid (const bool use_moisture,
-                              const bool metgrid_debug_psfc,
-                              const Real l_rdOcp,
+init_base_state_from_metgrid (const Real l_rdOcp,
                               const Box& valid_bx,
-                              const int& flag_psfc,
-                              FArrayBox& state_fab,
                               FArrayBox& r_hse_fab,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
                               FArrayBox& qv_hse_fab,
-                              FArrayBox& z_phys_cc_fab,
-                              const FArrayBox& NC_psfc_fab)
+                              FArrayBox& z_phys_nd_fab)
 {
-    int RhoQ_comp = RhoQ1_comp;
-    int kmax = ubound(valid_bx).z;
+    int khi = ubound(valid_bx).z;
+    int klo  = lbound(valid_bx).z;
 
     // NOTE: FOEXTRAP is utilized on the validbox but
     //       the FillBoundary call will populate the
@@ -1175,6 +1168,14 @@ init_base_state_from_metgrid (const bool use_moisture,
 
     // Expose for copy to GPU
     Real grav = CONST_GRAV;
+    const Real tol = Real(1.0e-10);
+
+    // ARW V4 Constants (5.2.2 Reference State)
+    const Real T0      = Real(300.0);
+    const Real A       = Real(50.0);
+    const Real Tmin    = Real(200.0);
+    const Real g_strat = Real(-11.0);
+    const Real P_strat = Real(10000.);
 
     { // set pressure and density at initialization.
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
@@ -1188,123 +1189,68 @@ init_base_state_from_metgrid (const bool use_moisture,
         // ********************************************************
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
-        auto const orig_psfc = NC_psfc_fab.const_array();
-        auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_cc_fab.const_array();
+        auto const z_arr = z_phys_nd_fab.const_array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            const int maxiter = 10;
-            const amrex::Real tol = Real(1.0e-10);
-
-            // Low and Hi column variables
-            Real psurf;
-            Real z_lo,   z_hi;
-            Real p_lo,   p_hi;
-            Real qv_lo, qv_hi;
-            Real rd_lo, rd_hi;
-            Real thetad_lo, thetad_hi;
-
-            // Calculate or use pressure at the surface.
-            if (metgrid_debug_psfc) {
-                psurf = amrex::Math::powi<5>(10);
-            } else if (flag_psfc == 1) {
-                psurf = orig_psfc(i,j,0);
-            } else {
-                z_lo     = new_z(i,j,0);
-                Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
-                Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
-            }
-            AMREX_ALWAYS_ASSERT(psurf > zero);
-            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
-
-            // Iterations for the first CC point that is 1/2 dz off the surface
-            {
-                z_lo      = new_z(i,j,0);
-                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
-                rd_lo     = zero; // initial guess
-                thetad_lo = new_data(i,j,0,RhoTheta_comp);
-                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
-                //       reference pressure (psurf) is at the ground.
-                Real myhalf_dz = z_lo;
-                Real qvf     = one+(R_v/R_d)*qv_lo;
-                Real thetam  = thetad_lo*qvf;
-                for (int it(0); it<maxiter; it++) {
-                    p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
-                    if (p_lo < zero) p_lo = zero;
-                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
-                } // it
-                 p_hse_arr(i,j,0) =  p_lo;
-                 r_hse_arr(i,j,0) = rd_lo;
-                qv_hse_arr(i,j,0) = qv_lo;
-            }
-
-            // Iterations for k \in [1 kmax]
-            for (int k(1); k<=kmax; k++) {
-                // Known hi data
-                z_hi  = new_z(i,j,k);
-                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
-                thetad_hi = new_data(i,j,k,RhoTheta_comp);
-
-                // Initial guesses for hi data
-                 p_hi = p_lo;
-                rd_hi = getRhogivenThetaPress(thetad_hi,
-                                              p_hi,
-                                              R_d/Cp_d,
-                                              qv_hi);
-
+            // Surface values and constants
+            Real dz, F, C;
+            Real z_hi, Pd_hi, Td_hi, Rd_hi;
+            Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
+                                       + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
+            Real Pd_lo = p_0 * std::exp( -T0/A + std::sqrt( (T0/A)*(T0/A) - two * grav * z_lo / (A * R_d) ) );
+            Real Td_lo = (Pd_lo > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_lo/p_0)) :
+                                             Tmin + g_strat * std::log(Pd_lo/P_strat);
+            Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
+            for (int k(klo); k<=khi; ++k) {
                 // Vertical grid spacing
-                Real dz = z_hi - z_lo;
+                z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                     + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+                dz   = z_hi - z_lo;
 
                 // Establish known constant
-                Real rho_tot_lo = rd_lo * (one + qv_lo);
-                Real C = -p_lo + myhalf*rho_tot_lo*grav*dz;
+                C  = -Pd_lo + myhalf*Rd_lo*grav*dz;
 
-                // Initial residual
-                Real rho_tot_hi = rd_hi * (one + qv_hi);
-                Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
+                // Initial guess and residual
+                Pd_hi = Pd_lo;
+                Td_hi = Td_lo;
+                Rd_hi = Rd_lo;
+                F = Pd_hi + myhalf*Rd_hi*grav*dz + C;
 
-                // Do iterations
-                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                                  grav, C, thetad_hi,
-                                                                  qv_hi, qv_hi, p_hi,
-                                                                  rd_hi, F);
+                // Iterate to solution
+                int niter = 0;
+                while (std::fabs(F)>tol && niter<20) {
+                    Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
+                    Real Pd_plus = Pd_hi + dP;
+                    Real Td_plus = (Pd_plus > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_plus/p_0)) :
+                                                         Tmin + g_strat * std::log(Pd_plus/P_strat);
+                    Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
+                    Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
+                    Real dFdP    = (F_plus - F) / dP;
 
-                // Copy solution to base state
-                p_hse_arr(i,j,k) =  p_hi;
-                r_hse_arr(i,j,k) = rd_hi;
+                    Pd_hi -= F / dFdP;
+                    Td_hi  = (Pd_hi > P_strat) ? std::max(Tmin, T0 + A * std::log(Pd_hi/p_0)) :
+                                             Tmin + g_strat * std::log(Pd_hi/P_strat);
+                    Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
+                    F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                    ++niter;
+                }
 
-                // Copy hi to lo
+                // Assign data
+                r_hse_arr(i,j,k)  = Rd_hi;
+                th_hse_arr(i,j,k) = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
+                qv_hse_arr(i,j,k) = Real(0.);
+                p_hse_arr(i,j,k)  = Pd_hi;
+                pi_hse_arr(i,j,k) = getExnergivenP(Pd_hi, l_rdOcp);
+
+                // Transfer solution
+                Pd_lo = Pd_hi;
+                Td_lo = Td_hi;
+                Rd_lo = Rd_hi;
                 z_lo  = z_hi;
-                p_lo  = p_hi;
-                qv_lo = qv_hi;
-                rd_lo = rd_hi;
-                thetad_lo = thetad_hi;
             }
         });
 
-        ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            // Multiply by Rho to get conserved vars
-            Real Qv = zero;
-            new_data(i,j,k,Rho_comp)       = r_hse_arr(i,j,k);
-            new_data(i,j,k,RhoTheta_comp) *= r_hse_arr(i,j,k);
-            if (use_moisture) {
-                Qv = new_data(i,j,k,RhoQ_comp);
-                new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
-            }
-            for (int n(0); n < NSCALARS; n++) {
-                new_data(i,j,k,RhoScalar_comp+n) = zero;
-            }
-
-            // r_hse needs to include the moisture (account for that here)
-            r_hse_arr(i,j,k) *= (one + Qv);
-
-            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / new_data(i,j,k,Rho_comp);
-            qv_hse_arr(i,j,k) = Qv;
-        });
 
         // FOEXTRAP hse arrays to fill ghost cells. FillBoundary is
         // called later and will overwrite ghost cell values in the

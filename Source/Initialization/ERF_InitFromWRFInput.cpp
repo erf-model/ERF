@@ -1114,14 +1114,14 @@ init_base_state_from_wrfinput (const Box& subdomain,
             }
 
             // Fill top and bottom ghost cells
-             r_hse_arr(i,j,klo-1) = Real(2.0) *  r_hse_arr(i,j,klo) -  r_hse_arr(i,j,klo+1);
-            th_hse_arr(i,j,klo-1) = Real(2.0) * th_hse_arr(i,j,klo) - th_hse_arr(i,j,klo+1);
+             r_hse_arr(i,j,klo-1) = r_hse_arr(i,j,klo);
+            th_hse_arr(i,j,klo-1) = th_hse_arr(i,j,klo);
             qv_hse_arr(i,j,klo-1) = Real(0.);
              p_hse_arr(i,j,klo-1) = getPgivenRTh(r_hse_arr(i,j,klo-1)*th_hse_arr(i,j,klo-1), qv_hse_arr(i,j,klo-1));
             pi_hse_arr(i,j,klo-1) = getExnergivenP(p_hse_arr(i,j,klo-1), l_rdOcp);
 
-             r_hse_arr(i,j,khi+1) = Real(2.0) *  r_hse_arr(i,j,khi) -  r_hse_arr(i,j,khi-1);
-            th_hse_arr(i,j,khi+1) = Real(2.0) * th_hse_arr(i,j,khi) - th_hse_arr(i,j,khi-1);
+             r_hse_arr(i,j,khi+1) = r_hse_arr(i,j,khi);
+            th_hse_arr(i,j,khi+1) = th_hse_arr(i,j,khi);
             qv_hse_arr(i,j,khi+1) = Real(0.);
              p_hse_arr(i,j,khi+1) = getPgivenRTh(r_hse_arr(i,j,khi+1)*th_hse_arr(i,j,khi+1), qv_hse_arr(i,j,khi+1));
             pi_hse_arr(i,j,khi+1) = getExnergivenP(p_hse_arr(i,j,khi+1), l_rdOcp);
