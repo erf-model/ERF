@@ -516,7 +516,7 @@ ERF::init_from_metgrid (int lev)
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
                 init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
-                                             l_rdOcp, valid_bx, flag_psfc,
+                                             l_rdOcp, valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
                                              qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab);
             } // mf
@@ -1152,9 +1152,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
                               FArrayBox& qv_hse_fab,
-                              FArrayBox& z_phys_cc_fab,
                               FArrayBox& z_phys_nd_fab,
-                              const int& flag_psfc,)
+                              FArrayBox& z_phys_cc_fab,
+                              const FArrayBox& NC_psfc_fab)
 {
     // NOTE: FOEXTRAP is utilized on the validbox but
     //       the FillBoundary call will populate the
@@ -1174,7 +1174,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 
     // Expose for GPU
     Real grav = CONST_GRAV;
-    const in maxiter = 20;
+    const int maxiter = 20;
     const Real tol   = Real(1.0e-10);
 
     //***********************************************************************************
@@ -1327,6 +1327,10 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Set the state density only
     //***********************************************************************************
     {
+        // Expose for GPU
+        int RhoQ_comp = RhoQ1_comp;
+        int kmax = ubound(valid_bx).z;
+
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab.const_array();
@@ -1378,7 +1382,6 @@ init_base_state_from_metgrid (const bool use_moisture,
                 new_data(i,j,0,Rho_comp)       = rd_lo;
                 new_data(i,j,0,RhoTheta_comp) *= rd_lo;
                 if (use_moisture) {
-                    Qv = new_data(i,j,0,RhoQ_comp);
                     new_data(i,j,0,RhoQ_comp) *= rd_lo;
                 }
                 for (int n(0); n < NSCALARS; n++) {
@@ -1421,7 +1424,6 @@ init_base_state_from_metgrid (const bool use_moisture,
                 new_data(i,j,k,Rho_comp)       = rd_hi;
                 new_data(i,j,k,RhoTheta_comp) *= rd_hi;
                 if (use_moisture) {
-                    Qv = new_data(i,j,k,RhoQ_comp);
                     new_data(i,j,k,RhoQ_comp) *= rd_hi;
                 }
                 for (int n(0); n < NSCALARS; n++) {
