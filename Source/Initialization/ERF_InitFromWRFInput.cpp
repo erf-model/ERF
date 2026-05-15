@@ -85,8 +85,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P,
                                const bool& use_P_eos);
-void
-balance_base_state(MultiFab& base_state, MultiFab* z_phys, Geometry& geom_lev, Real l_rdOcp);
 
 Real
 read_start_time_from_wrfinput(int lev, const std::string& fname)
@@ -900,6 +898,113 @@ ERF::init_from_wrfinput (int lev,
     }
 
     // **************************************************************************
+    // Rebalance the base state if needed
+    // **************************************************************************
+    if (solverChoice.rebalance_wrfinput) {
+        Print() << "Rebalancing the HSE state!\n";
+        int ncomp = lev_new[Vars::cons].nComp();
+        int k_dom_lo = geom[lev].Domain().smallEnd(2);
+        int k_dom_hi = geom[lev].Domain().bigEnd(2);
+        Real tol  = Real(1.0e-10);
+        Real grav = CONST_GRAV;
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
+            int klo = bx.smallEnd(2);
+            int khi = bx.bigEnd(2);
+            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+            bx.makeSlab(2,klo);
+
+            const Array4<      Real>& con_arr = lev_new[Vars::cons].array(mfi);
+            const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                // integrate from surface to domain top
+                Real Factor;
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real qv_lo, qv_hi;
+                Real Th_lo, Th_hi;
+                Real P_lo, P_hi;
+
+                // First integrate from sea level to the height at klo
+                {
+                    // Vertical grid spacing
+                    z_lo = zero; // corresponding to p_0
+                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    dz = z_hi - z_lo;
+
+                    // Establish known constant
+                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_lo  = p_0;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qv_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                    // Initial guess and residual
+                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_hi  = p_0;
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qv_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, Th_hi,
+                                                 qv_hi, qv_hi,
+                                                 P_hi, R_hi, F);
+
+                    // Assign data
+                    Factor = R_hi / con_arr(i,j,klo,Rho_comp);
+                    con_arr(i,j,klo,Rho_comp) = R_hi;
+                    for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+
+                for (int k(klo+1); k<=khi; ++k) {
+                    // Vertical grid spacing
+                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  dz   = z_hi - z_lo;
+
+                  // Establish known constant
+                  qv_lo = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  rho_tot_lo = R_lo * (one + qv_lo);
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                  // Initial guess and residual
+                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  rho_tot_hi = R_hi * (one + qv_hi);
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                  // Do iterations
+                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                               grav, C, Th_hi,
+                                               qv_hi, qv_hi,
+                                               P_hi, R_hi, F);
+
+                  // Assign data
+                  Factor = R_hi / con_arr(i,j,k,Rho_comp);
+                  con_arr(i,j,k,Rho_comp) = R_hi;
+                  for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
+                  P_lo = P_hi;
+                  z_lo = z_hi;
+                }
+            });
+        } // mfi
+    } // rebalance_wrfinput
+
+    // **************************************************************************
     // Initialize the base state
     // **************************************************************************
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
@@ -908,18 +1013,15 @@ ERF::init_from_wrfinput (int lev,
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    // int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-    // AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
-    // bool use_P_eos = (solverChoice.rebalance_wrfinput);
+    int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
-#if 1
-    balance_base_state(base_state[lev], z_phys_nd[lev].get(), geom[lev], l_rdOcp);
-#else
+    bool use_P_eos = (solverChoice.rebalance_wrfinput);
+
     init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
                                   lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   mf_PB, mf_P, use_P_eos);
-#endif
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
      r_hse.FillBoundary(geom[lev].periodicity());
@@ -1107,171 +1209,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
         });
     }
 }
-
-void
-balance_base_state(MultiFab& base_state, MultiFab* z_phys, Geometry& geom_lev, Real l_rdOcp)
-{
-    MultiFab r_hse (base_state, make_alias, BaseState::r0_comp, 1);
-    MultiFab p_hse (base_state, make_alias, BaseState::p0_comp, 1);
-    MultiFab pi_hse(base_state, make_alias, BaseState::pi0_comp, 1);
-    MultiFab th_hse(base_state, make_alias, BaseState::th0_comp, 1);
-
-    MultiFab qv_hse(base_state, make_alias, BaseState::qv0_comp, 1);
-    qv_hse.setVal(0.0);
-
-    const Box domain = geom_lev.Domain();
-
-    Print() << "Defining the base state\n";
-
-    Real grav = CONST_GRAV;
-
-    int k_dom_lo = domain.smallEnd(2);
-    int k_dom_hi = domain.bigEnd(2);
-
-    const Real T0 = 288.15;       // Surface temperature (K)
-    const Real g = 9.81;          // Gravity (m/s^2)
-    const Real cp = 1004.0;       // Specific heat of dry air (J/kg-K)
-    const Real lapse_rate = 0.0065;    // Tropospheric temperature lapse rate (K/m)
-
-    // Derived Tropopause Constants
-    const Real z1 = 11000.0;      // Tropopause height (m)
-    const Real T1 = 216.65;       // Isothermal stratosphere temperature (K)
-
-    // Pre-compute the exponent for the troposphere
-    const Real tropo_exponent = 1.0 - (grav / (lapse_rate * cp));
-
-    // Pre-compute theta at the tropopause (theta_1)
-    const Real theta_1 = T0 * std::pow(1.0 - (lapse_rate * z1) / T0, tropo_exponent);
-
-    for ( MFIter mfi(th_hse,TileNoZ()); mfi.isValid(); ++mfi )
-    {
-        const Array4<const Real>& z_arr = z_phys->const_array(mfi);
-        const Array4<Real>& th_hse_arr = th_hse.array(mfi);
-        Box bx  = mfi.tilebox();
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            Real z = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                   +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-            Real theta;
-            if (z <= z1) {
-                // Troposphere
-                theta = T0 * std::pow(1.0 - (lapse_rate * z) / T0, tropo_exponent);
-            } else {
-                // Lower Stratosphere
-                theta = theta_1 * std::exp((g / (cp * T1)) * (z - z1));
-            }
-            th_hse_arr(i,j,k) = theta;
-        });
-    } // mfi
-
-    Real tol  = Real(1.0e-10);
-
-    for ( MFIter mfi(base_state,TileNoZ()); mfi.isValid(); ++mfi ) {
-        Box bx  = mfi.tilebox();
-        int klo = bx.smallEnd(2);
-        int khi = bx.bigEnd(2);
-        AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
-        bx.makeSlab(2,klo);
-
-        const Array4<const Real>& z_arr = z_phys->const_array(mfi);
-
-        const Array4<      Real>&  r_hse_arr = r_hse.array(mfi);
-        const Array4<      Real>&  p_hse_arr = p_hse.array(mfi);
-        const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
-        const Array4<const Real>& th_hse_arr = th_hse.array(mfi);
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            // integrate from surface to domain top
-            Real dz, F, C;
-            Real rho_tot_hi, rho_tot_lo;
-            Real z_lo, z_hi;
-            Real R_lo, R_hi;
-            Real qv_lo, qv_hi;
-            Real Th_lo, Th_hi;
-            Real P_lo, P_hi;
-
-            // First integrate from sea level to the height at klo
-            {
-                // Vertical grid spacing
-                z_lo = zero; // corresponding to p_0
-                z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                     +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-                dz = z_hi - z_lo;
-
-                // Establish known constant
-                qv_lo = 0.0;
-                Th_lo = 300.0; // th_hse_arr(i,j,klo);
-                P_lo  = p_0;
-                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                rho_tot_lo = R_lo * (one + qv_lo);
-                C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                // Initial guess and residual
-                qv_hi = 0.0;
-                Th_hi = 300.0; // th_hse_arr(i,j,klo);
-                P_hi  = p_0;
-                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                rho_tot_hi = R_hi * (one + qv_hi);
-                F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                // Do iterations
-                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                             grav, C, Th_hi,
-                                             qv_hi, qv_hi,
-                                             P_hi, R_hi, F);
-
-                // Assign data
-                 r_hse_arr(i,j,klo) = R_hi;
-                 p_hse_arr(i,j,klo) = getPgivenRTh(R_hi*th_hse_arr(i,j,klo), 0.0);
-                pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
-                P_lo = P_hi;
-                z_lo = z_hi;
-            }
-
-            for (int k(klo+1); k<=khi; ++k) {
-                // Vertical grid spacing
-                z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                     +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-                  dz   = z_hi - z_lo;
-
-                  // Establish known constant
-                  qv_lo = 0.0;
-                  Th_lo = 300.0; // th_hse_arr(i,j,k);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                  rho_tot_lo = R_lo * (one + qv_lo);
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                  // Initial guess and residual
-                  qv_hi = 0.0;
-                  Th_hi = 300.0; // th_hse_arr(i,j,k);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                  rho_tot_hi = R_hi * (one + qv_hi);
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                  // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
-
-                  // Assign data
-                  r_hse_arr(i,j,k) = R_hi;
-                  p_hse_arr(i,j,k) = getPgivenRTh(R_hi*th_hse_arr(i,j,k), 0.0);
-                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-                  P_lo = P_hi;
-                  z_lo = z_hi;
-            }
-        });
-    } // mfi
-
-    // Fill boundary if periodic
-    r_hse.FillBoundary(geom_lev.periodicity());
-    p_hse.FillBoundary(geom_lev.periodicity());
-    th_hse.FillBoundary(geom_lev.periodicity());
-    pi_hse.FillBoundary(geom_lev.periodicity());
-    qv_hse.FillBoundary(geom_lev.periodicity());
-} // balance_wrfinput
 
 /**
  * Helper function for verifying the top boundary is valid and computing the bottom boundary.
