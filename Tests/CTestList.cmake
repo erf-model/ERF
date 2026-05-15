@@ -233,6 +233,8 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_Bubble3D_Adv                "" "erf_exec"  "plt00020" 1e-12 1e-12)
     add_test_sdm(SDM_Bubble3D_Adv_AMR1           "" "erf_exec"  "plt00020" 1e-12 1e-12)
     add_test_sdm(SDM_Bubble3D_Adv_AMR2           "" "erf_exec"  "plt00020" 1e-12 1e-12)
+    add_test_sdm(SDM_MoistBubble3D_AMR1          "" "erf_exec"  "plt00020" 1e-12 1e-12)
+    add_test_sdm(SDM_MoistBubble3D_AMR2          "" "erf_exec"  "plt00020" 1e-12 1e-12)
     # passive advection of particles with injection
     add_test_sdm(SDM_Bubble2D_Adv_wInjection     "" "erf_exec"  "plt00050" 5e-12 5e-12)
     # condensation/evaporation
