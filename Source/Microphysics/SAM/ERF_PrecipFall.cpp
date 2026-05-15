@@ -23,9 +23,9 @@ SAM::PrecipFall (const SolverChoice& sc)
     Real gams3 = erf_gammafff(Real(4.0)+b_snow);
     Real gamg3 = erf_gammafff(Real(4.0)+b_grau);
 
-    Real vrain = (a_rain*gamr3/Real(6.0))*pow((PI*rhor*nzeror),-crain);
-    Real vsnow = (a_snow*gams3/Real(6.0))*pow((PI*rhos*nzeros),-csnow);
-    Real vgrau = (a_grau*gamg3/Real(6.0))*pow((PI*rhog*nzerog),-cgrau);
+    Real vrain = (a_rain*gamr3/Real(6.0))*std::pow((PI*rhor*nzeror),-crain);
+    Real vsnow = (a_snow*gams3/Real(6.0))*std::pow((PI*rhos*nzeros),-csnow);
+    Real vgrau = (a_grau*gamg3/Real(6.0))*std::pow((PI*rhog*nzerog),-cgrau);
 
     Real dtn  = dt;
     Real coef = dtn/m_dzmin;

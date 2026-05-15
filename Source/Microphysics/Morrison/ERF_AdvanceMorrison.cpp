@@ -701,7 +701,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
 
           // Microphysics options/switches
-          int m_iact = 2;    // CCN activation option (1: power-law, 2: lognormal aerosol)
+          int m_iact = 2;    // CCN activation option (1:std::power-law, 2: lognormal aerosol)
           int m_inum = 1;    // Droplet number option (0: predict, 1: constant)
 
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
@@ -870,7 +870,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_bimm = Real(100.0);      // Parameter in Bigg immersion freezing
           m_ecr  = one;         // Collection efficiency between rain and snow/graupel
           m_dcs  = Real(125.0E-6);    // Threshold size for cloud ice autoconversion (m)
-          m_mi0  = Real(4.0)/three*m_pi*m_rhoi*std::pow(Real(10.0E-6), 3);  // Initial mass of nucleated ice crystal (kg)
+          m_mi0  = Real(4.0)/three*m_pi*m_rhoi*amrex::Math::powi<3>(Real(10.0E-6));  // Initial mass of nucleated ice crystal (kg)
           m_mg0  = Real(1.6E-10);     // Mass of embryo graupel (kg)
 
           // Ventilation parameters
@@ -901,7 +901,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_rin = Real(0.1E-6);
 
           // Mass of splintered ice particle (kg)
-          m_mmult = Real(4.0)/three*m_pi*m_rhoi*std::pow(Real(5.0E-6), 3);
+          m_mmult = Real(4.0)/three*m_pi*m_rhoi*amrex::Math::powi<3>(Real(5.0E-6));
 
           // Set lambda limits for size distributions
           // Maximum and minimum values for lambda parameter in size distributions
@@ -941,14 +941,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
             m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
+            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
             m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
             m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
             m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
+            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
             m_f22 = one + fourth * std::log(m_sig2);
           }
 
@@ -976,14 +976,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_cons19 = m_rhow * m_rhow;
           m_cons20 = Real(20.0) * m_pi * m_pi * m_rhow * m_bimm;
           m_cons21 = Real(4.0) / (m_dcs * m_rhoi);
-          m_cons22 = m_pi * m_rhoi * std::pow(m_dcs, 3) / Real(6.0);
+          m_cons22 = m_pi * m_rhoi * amrex::Math::powi<3>(m_dcs) / Real(6.0);
           m_cons23 = m_pi / Real(4.0) * m_eii * gamma_function(m_bs + three);
           m_cons24 = m_pi / Real(4.0) * m_ecr * gamma_function(m_br + three);
           m_cons25 = m_pi * m_pi / Real(24.0) * m_rhow * m_ecr * gamma_function(m_br + Real(6.0));
           m_cons26 = m_pi / Real(6.0) * m_rhow;
           m_cons27 = gamma_function(one + m_bi);
           m_cons28 = gamma_function(Real(4.0) + m_bi) / Real(6.0);
-          m_cons29 = Real(4.0)/three * m_pi * m_rhow * std::pow(Real(25.0E-6), 3);
+          m_cons29 = Real(4.0)/three * m_pi * m_rhow * amrex::Math::powi<3>(Real(25.0E-6));
           m_cons30 = Real(4.0)/three * m_pi * m_rhow;
           m_cons31 = m_pi * m_pi * m_ecr * m_rhosn;
           m_cons32 = m_pi / Real(2) * m_ecr;
@@ -1023,14 +1023,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
             m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig1), 2));
+            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
             m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
             m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
             m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * std::pow(std::log(m_sig2), 2));
+            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
             m_f22 = one + fourth * std::log(m_sig2);
           }
           // Set microphysics control parameters
@@ -1274,11 +1274,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM SNOW IS 2 X 10^7 M^-4
             // FOR DETRAINED CLOUD ICE, ASSUME MEAN VOLUME DIAM OF 80 MICRON
             if (morr_arr(i,j,k,MORRInd::qrcu1d) >= Real(1.0e-10)) {
-              dum = Real(1.8e5) * std::pow(morr_arr(i,j,k,MORRInd::qrcu1d) * dt / (m_pi * m_rhow * std::pow(morr_arr(i,j,k,MORRInd::rho), 3)), fourth); // rate equation: calculate rain number concentration from cumulus
+              dum = Real(1.8e5) * std::pow(morr_arr(i,j,k,MORRInd::qrcu1d) * dt / (m_pi * m_rhow * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::rho))), fourth); // rate equation: calculate rain number concentration from cumulus
               morr_arr(i,j,k,MORRInd::nr3d) += dum; // budget equation: update rain number concentration
             }
             if (morr_arr(i,j,k,MORRInd::qscu1d) >= Real(1.0e-10)) {
-              dum = Real(3.e5) * std::pow(morr_arr(i,j,k,MORRInd::qscu1d) * dt / (m_cons1 * std::pow(morr_arr(i,j,k,MORRInd::rho), 3)), one / (ds0 + one)); // rate equation: calculate snow number concentration from cumulus
+              dum = Real(3.e5) * std::pow(morr_arr(i,j,k,MORRInd::qscu1d) * dt / (m_cons1 * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::rho))), one / (ds0 + one)); // rate equation: calculate snow number concentration from cumulus
               morr_arr(i,j,k,MORRInd::ns3d) += dum; // budget equation: update snow number concentration
             }
             if (morr_arr(i,j,k,MORRInd::qicu1d) >= Real(1.0e-10)) {
@@ -1397,7 +1397,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             // Psychometric corrections
             // Rate of change sat. mix. ratio with temperature
-            dum = (m_Rv * std::pow(morr_arr(i,j,k,MORRInd::t3d),2)); // temporary update: calculate temperature factor
+            dum = (m_Rv * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::t3d))); // temporary update: calculate temperature factor
             dqsdt = morr_arr(i,j,k,MORRInd::xxlv) * qvs / dum; // budget equation: calculate DQSDT
             dqsidt = morr_arr(i,j,k,MORRInd::xxls) * qvi / dum; // budget equation: calculate DQSIDT
             abi = one + dqsidt * morr_arr(i,j,k,MORRInd::xxls) / morr_arr(i,j,k,MORRInd::cpm); // budget equation: calculate ABI
@@ -1449,17 +1449,17 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // Rain
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
                   // Calculate lambda parameter using cons26 (pi*rhow/6)
-                  morr_arr(i,j,k,MORRInd::lamr) = pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::nr3d) / morr_arr(i,j,k,MORRInd::qr3d), one/three);
+                  morr_arr(i,j,k,MORRInd::lamr) = std::pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::nr3d) / morr_arr(i,j,k,MORRInd::qr3d), one/three);
                   morr_arr(i,j,k,MORRInd::n0r) = morr_arr(i,j,k,MORRInd::nr3d)*morr_arr(i,j,k,MORRInd::lamr);
 
                   // Check for slope and adjust vars
                   if (morr_arr(i,j,k,MORRInd::lamr) < m_lamminr) {
                     morr_arr(i,j,k,MORRInd::lamr) = m_lamminr;
-                    morr_arr(i,j,k,MORRInd::n0r) = pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                    morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                     morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);  // Update number concentration
                   } else if (morr_arr(i,j,k,MORRInd::lamr) > m_lammaxr) {
                     morr_arr(i,j,k,MORRInd::lamr) = m_lammaxr;
-                    morr_arr(i,j,k,MORRInd::n0r) = pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                    morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                     morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);  // Update number concentration
                   }
                 }
@@ -1480,7 +1480,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.0));
 
                   // Calculate lambda parameter
-                  morr_arr(i,j,k,MORRInd::lamc) = pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), one/three);
+                  morr_arr(i,j,k,MORRInd::lamc) = std::pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), one/three);
 
                   // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
                   Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + one)/Real(60.0e-6);
@@ -1490,23 +1490,23 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   if (morr_arr(i,j,k,MORRInd::lamc) < lambda_min) {
                     morr_arr(i,j,k,MORRInd::lamc) = lambda_min;
                     // Update cloud droplet number using the same formula as in WRF
-                    morr_arr(i,j,k,MORRInd::nc3d) = exp(three*log(morr_arr(i,j,k,MORRInd::lamc)) + log(morr_arr(i,j,k,MORRInd::qc3d)) +
-                               log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                    morr_arr(i,j,k,MORRInd::nc3d) = std::exp(three*std::log(morr_arr(i,j,k,MORRInd::lamc)) + std::log(morr_arr(i,j,k,MORRInd::qc3d)) +
+                               std::log(gamma_pgam_plus_1) - std::log(gamma_pgam_plus_4))/ m_cons26;
                   } else if (morr_arr(i,j,k,MORRInd::lamc) > lambda_max) {
                     morr_arr(i,j,k,MORRInd::lamc) = lambda_max;
                     // Update cloud droplet number using the same formula as in WRF
-                    morr_arr(i,j,k,MORRInd::nc3d) = exp(three*log(morr_arr(i,j,k,MORRInd::lamc)) + log(morr_arr(i,j,k,MORRInd::qc3d)) +
-                               log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                    morr_arr(i,j,k,MORRInd::nc3d) = std::exp(three*std::log(morr_arr(i,j,k,MORRInd::lamc)) + std::log(morr_arr(i,j,k,MORRInd::qc3d)) +
+                               std::log(gamma_pgam_plus_1) - std::log(gamma_pgam_plus_4))/ m_cons26;
                   }
 
                   // Calculate intercept parameter
-                  morr_arr(i,j,k,MORRInd::cdist1) = morr_arr(i,j,k,MORRInd::nc3d) * pow(morr_arr(i,j,k,MORRInd::lamc), morr_arr(i,j,k,MORRInd::pgam)+1) / gamma_pgam_plus_1;
+                  morr_arr(i,j,k,MORRInd::cdist1) = morr_arr(i,j,k,MORRInd::nc3d) * std::pow(morr_arr(i,j,k,MORRInd::lamc), morr_arr(i,j,k,MORRInd::pgam)+1) / gamma_pgam_plus_1;
                 }
 
                 // Snow
                 if (morr_arr(i,j,k,MORRInd::qni3d) >= m_qsmall) {
                   // Calculate lambda parameter
-                  morr_arr(i,j,k,MORRInd::lams) = pow(m_cons1 * morr_arr(i,j,k,MORRInd::ns3d) / morr_arr(i,j,k,MORRInd::qni3d), one/ds0);
+                  morr_arr(i,j,k,MORRInd::lams) = std::pow(m_cons1 * morr_arr(i,j,k,MORRInd::ns3d) / morr_arr(i,j,k,MORRInd::qni3d), one/ds0);
 
                   // Calculate intercept parameter
                   morr_arr(i,j,k,MORRInd::n0s) = morr_arr(i,j,k,MORRInd::ns3d) * morr_arr(i,j,k,MORRInd::lams);
@@ -1514,11 +1514,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // Check for slope and adjust vars
                   if (morr_arr(i,j,k,MORRInd::lams) < m_lammins) {
                     morr_arr(i,j,k,MORRInd::lams) = m_lammins;
-                    morr_arr(i,j,k,MORRInd::n0s) = pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                    morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                     morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);  // Update number concentration
                   } else if (morr_arr(i,j,k,MORRInd::lams) > m_lammaxs) {
                     morr_arr(i,j,k,MORRInd::lams) = m_lammaxs;
-                    morr_arr(i,j,k,MORRInd::n0s) = pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                    morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                     morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);  // Update number concentration
                   }
                 }
@@ -1526,7 +1526,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // Graupel
                 if (morr_arr(i,j,k,MORRInd::qg3d) >= m_qsmall) {
                   // Calculate lambda parameter
-                  morr_arr(i,j,k,MORRInd::lamg) = pow(m_cons2 * morr_arr(i,j,k,MORRInd::ng3d) / morr_arr(i,j,k,MORRInd::qg3d), one/dg0);
+                  morr_arr(i,j,k,MORRInd::lamg) = std::pow(m_cons2 * morr_arr(i,j,k,MORRInd::ng3d) / morr_arr(i,j,k,MORRInd::qg3d), one/dg0);
 
                   // Calculate intercept parameter
                   morr_arr(i,j,k,MORRInd::n0g) = morr_arr(i,j,k,MORRInd::ng3d) * morr_arr(i,j,k,MORRInd::lamg);
@@ -1534,11 +1534,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // Check for slope and adjust vars
                   if (morr_arr(i,j,k,MORRInd::lamg) < m_lamming) {
                     morr_arr(i,j,k,MORRInd::lamg) = m_lamming;
-                    morr_arr(i,j,k,MORRInd::n0g) = pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                    morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                     morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);  // Update number concentration
                   } else if (morr_arr(i,j,k,MORRInd::lamg) > m_lammaxg) {
                     morr_arr(i,j,k,MORRInd::lamg) = m_lammaxg;
-                    morr_arr(i,j,k,MORRInd::n0g) = pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                    morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                     morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);  // Update number concentration
                   }
                 }
@@ -1614,13 +1614,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // hm fix, 2/12/13
                   // for above freezing conditions to get accelerated melting of snow,
                   // we need collection of rain by snow (following Lin et al. 1983)
-                  ////////////////////////Might need pow expanding
-                  pracs = m_cons41 * (std::sqrt(std::pow(Real(1.2)*umr_local-Real(0.95)*ums_local, 2) +
+                  ////////////////////////Might needstd::pow expanding
+                  pracs = m_cons41 * (std::sqrt(amrex::Math::powi<2>(Real(1.2)*umr_local-Real(0.95)*ums_local) +
                                                 Real(0.08)*ums_local*umr_local) * morr_arr(i,j,k,MORRInd::rho) *
-                                      morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
-                                      (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
-                                       Real(2)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
-                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
+                                      morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) / amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) *
+                                      (Real(5.0)/(amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lams)) +
+                                       Real(2)/(amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lams))) +
+                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lams)))));
                 }
                 // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
                 // ASSUME ALL RAIN COLLECTION BY GRAUPEL ABOVE FREEZING IS SHED
@@ -1642,21 +1642,21 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   unr_local = std::min(unr_local, Real(9.1)*dum);
 
                   // PRACG IS MIXING RATIO OF RAIN PER SEC COLLECTED BY GRAUPEL/HAIL
-                  pracg = m_cons41 * (std::sqrt(std::pow(Real(1.2)*umr_local-Real(0.95)*umg_local, 2) +
+                  pracg = m_cons41 * (std::sqrt(amrex::Math::powi<2>(Real(1.2)*umr_local-Real(0.95)*umg_local) +
                                                 Real(0.08)*umg_local*umr_local) * morr_arr(i,j,k,MORRInd::rho) *
-                                      morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) *
-                                      (Real(5.0)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                                       Real(2)/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
+                                      morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) / amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) *
+                                      (Real(5.0)/(amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lamg)) +
+                                       Real(2)/(amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamg))) +
+                                       myhalf/(morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamg)))));
 
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
                   dum = pracg/Real(5.2e-7);
 
-                  npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * (std::sqrt(Real(1.7)*std::pow(unr_local-ung_local, 2) +
+                  npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * (std::sqrt(Real(1.7)*amrex::Math::powi<2>(unr_local-ung_local) +
                                                               Real(0.3)*unr_local*ung_local) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) *
-                                                    (one/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                                                     one/(std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                                                     one/(morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
+                                                    (one/(amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lamg)) +
+                                                     one/(amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamg))) +
+                                                     one/(morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamg)))));
                   // hm 7/15/13, remove limit so that the number of collected drops can smaller than
                   // number of shed drops
                   npracg = npracg - dum;
@@ -1882,7 +1882,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // Saturation adjustment for liquid
               dums = dumqv - dumqss;
-              pcc = dums / (one + std::pow(morr_arr(i,j,k,MORRInd::xxlv), 2) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * std::pow(dumt, 2))) / dt;
+              pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
               if (pcc * dt + dumqc < Real(0)) {
                 pcc = -dumqc / dt;
               }
@@ -1917,20 +1917,20 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Rain
               if (morr_arr(i,j,k,MORRInd::qr3d) >= m_qsmall) {
                 // Calculate lambda parameter using cons26 (pi*rhow/6)
-                morr_arr(i,j,k,MORRInd::lamr) = pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::nr3d) / morr_arr(i,j,k,MORRInd::qr3d), one/three);
+                morr_arr(i,j,k,MORRInd::lamr) = std::pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::nr3d) / morr_arr(i,j,k,MORRInd::qr3d), one/three);
 
                 // Check for slope and adjust vars
                 if (morr_arr(i,j,k,MORRInd::lamr) < m_lamminr) {
                   morr_arr(i,j,k,MORRInd::lamr) = m_lamminr;
-                  morr_arr(i,j,k,MORRInd::n0r) = pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                  morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                   morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);  // Update number concentration
                 } else if (morr_arr(i,j,k,MORRInd::lamr) > m_lammaxr) {
                   morr_arr(i,j,k,MORRInd::lamr) = m_lammaxr;
-                  morr_arr(i,j,k,MORRInd::n0r) = pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                  morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                   morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);  // Update number concentration
                 } else {
                   // Calculate intercept parameter using WRF formula
-                  morr_arr(i,j,k,MORRInd::n0r) = pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                  morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), Real(4.0)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                 }
               }
 
@@ -1942,7 +1942,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                 morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714)*(morr_arr(i,j,k,MORRInd::nc3d)/Real(1.0e6)*dum) + Real(0.2714);
-                morr_arr(i,j,k,MORRInd::pgam) = one/(std::pow(morr_arr(i,j,k,MORRInd::pgam), 2)) - one;
+                morr_arr(i,j,k,MORRInd::pgam) = one/(amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::pgam))) - one;
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
@@ -1951,7 +1951,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + Real(4.0));
 
                 // Calculate lambda parameter
-                morr_arr(i,j,k,MORRInd::lamc) = pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), one/three);
+                morr_arr(i,j,k,MORRInd::lamc) = std::pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), one/three);
 
                 // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
                 Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + one)/Real(60.0e-6);
@@ -1961,13 +1961,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::lamc) < lambda_min) {
                   morr_arr(i,j,k,MORRInd::lamc) = lambda_min;
                   // Update cloud droplet number using the same formula as in WRF
-                  morr_arr(i,j,k,MORRInd::nc3d) = exp(three*log(morr_arr(i,j,k,MORRInd::lamc)) + log(morr_arr(i,j,k,MORRInd::qc3d)) +
-                                    log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                  morr_arr(i,j,k,MORRInd::nc3d) = std::exp(three*std::log(morr_arr(i,j,k,MORRInd::lamc)) + std::log(morr_arr(i,j,k,MORRInd::qc3d)) +
+                                    std::log(gamma_pgam_plus_1) - std::log(gamma_pgam_plus_4))/ m_cons26;
                 } else if (morr_arr(i,j,k,MORRInd::lamc) > lambda_max) {
                   morr_arr(i,j,k,MORRInd::lamc) = lambda_max;
                   // Update cloud droplet number using the same formula as in WRF
-                  morr_arr(i,j,k,MORRInd::nc3d) = exp(three*log(morr_arr(i,j,k,MORRInd::lamc)) + log(morr_arr(i,j,k,MORRInd::qc3d)) +
-                                    log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                  morr_arr(i,j,k,MORRInd::nc3d) = std::exp(three*std::log(morr_arr(i,j,k,MORRInd::lamc)) + std::log(morr_arr(i,j,k,MORRInd::qc3d)) +
+                                    std::log(gamma_pgam_plus_1) - std::log(gamma_pgam_plus_4))/ m_cons26;
                 }
 
                 // Calculate intercept parameter
@@ -1977,7 +1977,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Snow
               if (morr_arr(i,j,k,MORRInd::qni3d) >= m_qsmall) {
                 // Calculate lambda parameter
-                morr_arr(i,j,k,MORRInd::lams) = pow(m_cons1 * morr_arr(i,j,k,MORRInd::ns3d) / morr_arr(i,j,k,MORRInd::qni3d), one/ds0);
+                morr_arr(i,j,k,MORRInd::lams) = std::pow(m_cons1 * morr_arr(i,j,k,MORRInd::ns3d) / morr_arr(i,j,k,MORRInd::qni3d), one/ds0);
 
                 // Calculate intercept parameter
                 morr_arr(i,j,k,MORRInd::n0s) = morr_arr(i,j,k,MORRInd::ns3d) * morr_arr(i,j,k,MORRInd::lams);
@@ -1985,11 +1985,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // Check for slope and adjust vars
                 if (morr_arr(i,j,k,MORRInd::lams) < m_lammins) {
                   morr_arr(i,j,k,MORRInd::lams) = m_lammins;
-                  morr_arr(i,j,k,MORRInd::n0s) = pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                  morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                   morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);  // Update number concentration
                 } else if (morr_arr(i,j,k,MORRInd::lams) > m_lammaxs) {
                   morr_arr(i,j,k,MORRInd::lams) = m_lammaxs;
-                  morr_arr(i,j,k,MORRInd::n0s) = pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                  morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), Real(4.0)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                   morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);  // Update number concentration
                 }
               }
@@ -1997,7 +1997,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Cloud ice
               if (morr_arr(i,j,k,MORRInd::qi3d) >= m_qsmall) {
                 // Calculate lambda parameter
-                morr_arr(i,j,k,MORRInd::lami) = pow(m_cons12 * morr_arr(i,j,k,MORRInd::ni3d) / morr_arr(i,j,k,MORRInd::qi3d), one/three);
+                morr_arr(i,j,k,MORRInd::lami) = std::pow(m_cons12 * morr_arr(i,j,k,MORRInd::ni3d) / morr_arr(i,j,k,MORRInd::qi3d), one/three);
 
                 // Calculate intercept parameter (initial calculation)
                 morr_arr(i,j,k,MORRInd::n0i) = morr_arr(i,j,k,MORRInd::ni3d) * morr_arr(i,j,k,MORRInd::lami);
@@ -2006,13 +2006,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::lami) < m_lammini) {
                   morr_arr(i,j,k,MORRInd::lami) = m_lammini;
                   // Recalculate morr_arr(i,j,k,MORRInd::n0i) when lambda is adjusted
-                  morr_arr(i,j,k,MORRInd::n0i) = pow(morr_arr(i,j,k,MORRInd::lami), Real(4.0)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
+                  morr_arr(i,j,k,MORRInd::n0i) = std::pow(morr_arr(i,j,k,MORRInd::lami), Real(4.0)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
                   // Update ni3d when lambda is adjusted
                   morr_arr(i,j,k,MORRInd::ni3d) = morr_arr(i,j,k,MORRInd::n0i) / morr_arr(i,j,k,MORRInd::lami);
                 } else if (morr_arr(i,j,k,MORRInd::lami) > m_lammaxi) {
                   morr_arr(i,j,k,MORRInd::lami) = m_lammaxi;
                   // Recalculate morr_arr(i,j,k,MORRInd::n0i) when lambda is adjusted
-                  morr_arr(i,j,k,MORRInd::n0i) = pow(morr_arr(i,j,k,MORRInd::lami), Real(4.0)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
+                  morr_arr(i,j,k,MORRInd::n0i) = std::pow(morr_arr(i,j,k,MORRInd::lami), Real(4.0)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
                   // Update ni3d when lambda is adjusted
                   morr_arr(i,j,k,MORRInd::ni3d) = morr_arr(i,j,k,MORRInd::n0i) / morr_arr(i,j,k,MORRInd::lami);
                 }
@@ -2020,7 +2020,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Graupel
               if (morr_arr(i,j,k,MORRInd::qg3d) >= m_qsmall) {
                 // Calculate lambda parameter
-                morr_arr(i,j,k,MORRInd::lamg) = pow(m_cons2 * morr_arr(i,j,k,MORRInd::ng3d) / morr_arr(i,j,k,MORRInd::qg3d), one/dg0);
+                morr_arr(i,j,k,MORRInd::lamg) = std::pow(m_cons2 * morr_arr(i,j,k,MORRInd::ng3d) / morr_arr(i,j,k,MORRInd::qg3d), one/dg0);
 
                 // Calculate intercept parameter
                 morr_arr(i,j,k,MORRInd::n0g) = morr_arr(i,j,k,MORRInd::ng3d) * morr_arr(i,j,k,MORRInd::lamg);
@@ -2028,11 +2028,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // Check for slope and adjust vars
                 if (morr_arr(i,j,k,MORRInd::lamg) < m_lamming) {
                   morr_arr(i,j,k,MORRInd::lamg) = m_lamming;
-                  morr_arr(i,j,k,MORRInd::n0g) = pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                  morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                   morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);  // Update number concentration
                 } else if (morr_arr(i,j,k,MORRInd::lamg) > m_lammaxg) {
                   morr_arr(i,j,k,MORRInd::lamg) = m_lammaxg;
-                  morr_arr(i,j,k,MORRInd::n0g) = pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                  morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), Real(4.0)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                   morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);  // Update number concentration
                 }
               }
@@ -2220,17 +2220,17 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   umr_local = std::min(umr_local, Real(9.1) * dum);
                   unr_local = std::min(unr_local, Real(9.1) * dum);
 
-                  pracs = m_cons41 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * ums_local, 2) +
+                  pracs = m_cons41 * (std::sqrt(amrex::Math::powi<2>(Real(1.2) * umr_local - Real(0.95) * ums_local) +
                                                 Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
-                                      std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
-                                                           Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
-                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3))));
+                                      amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * (Real(5.0) / (amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lams)) +
+                                                           Real(2) / (amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lams))) +
+                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lams)))));
 
-                  npracs = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - uns_local, 2) +
+                  npracs = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * amrex::Math::powi<2>(unr_local - uns_local) +
                                                              Real(0.3) * unr_local * uns_local) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) *
-                    (one / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lams)) +
-                     one / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lams), 2)) +
-                     one / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lams), 3)));
+                    (one / (amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lams)) +
+                     one / (amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lams))) +
+                     one / (morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lams))));
 
                   // MAKE SURE PRACS DOESN'T EXCEED TOTAL RAIN MIXING RATIO
                   // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING
@@ -2241,11 +2241,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ONLY CALCULATE IF SNOW AND RAIN MIXING RATIOS EXCEED Real(0.1) G/KG
                   // hm modify for wrfv3.1
                   if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3) && morr_arr(i,j,k,MORRInd::qr3d) >= Real(0.1e-3)) {
-                    psacr = m_cons31 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * ums_local, 2) +
+                    psacr = m_cons31 * (std::sqrt(amrex::Math::powi<2>(Real(1.2) * umr_local - Real(0.95) * ums_local) +
                                                   Real(0.08) * ums_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0s) /
-                                        std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lams), 3) * morr_arr(i,j,k,MORRInd::lamr)) +
-                                                             Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lams), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 2)) +
-                                                             myhalf / (morr_arr(i,j,k,MORRInd::lams) * std::pow(morr_arr(i,j,k,MORRInd::lamr), 3))));
+                                        amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lams)) * (Real(5.0) / (amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lams)) * morr_arr(i,j,k,MORRInd::lamr)) +
+                                                             Real(2) / (amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lams)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr))) +
+                                                             myhalf / (morr_arr(i,j,k,MORRInd::lams) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)))));
                   }
                 }
 
@@ -2265,17 +2265,17 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   umr_local = std::min(umr_local, Real(9.1) * dum);
                   unr_local = std::min(unr_local, Real(9.1) * dum);
 
-                  pracg = m_cons41 * (std::sqrt(std::pow(Real(1.2) * umr_local - Real(0.95) * umg_local, 2) +
+                  pracg = m_cons41 * (std::sqrt(amrex::Math::powi<2>(Real(1.2) * umr_local - Real(0.95) * umg_local) +
                                                 Real(0.08) * umg_local * umr_local) * morr_arr(i,j,k,MORRInd::rho) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) /
-                                      std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * (Real(5.0) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                                                           Real(2) / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3))));
+                                      amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * (Real(5.0) / (amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lamg)) +
+                                                           Real(2) / (amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamg))) +
+                                                           myhalf / (morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamg)))));
 
-                  npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * std::pow(unr_local - ung_local, 2) +
+                  npracg = m_cons32 * morr_arr(i,j,k,MORRInd::rho) * std::sqrt(Real(1.7) * amrex::Math::powi<2>(unr_local - ung_local) +
                                                              Real(0.3) * unr_local * ung_local) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::n0g) *
-                    (one / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::lamg)) +
-                     one / (std::pow(morr_arr(i,j,k,MORRInd::lamr), 2) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 2)) +
-                     one / (morr_arr(i,j,k,MORRInd::lamr) * std::pow(morr_arr(i,j,k,MORRInd::lamg), 3)));
+                    (one / (amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::lamg)) +
+                     one / (amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::lamg))) +
+                     one / (morr_arr(i,j,k,MORRInd::lamr) * amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamg))));
 
                   // MAKE SURE PRACG DOESN'T EXCEED TOTAL RAIN MIXING RATIO
                   // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING
@@ -2409,9 +2409,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ONLY ALLOW CONVERSION IF QNI > Real(0.1) AND QR > Real(0.1) G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (morr_arr(i,j,k,MORRInd::qni3d) >= Real(0.1e-3) && morr_arr(i,j,k,MORRInd::qr3d) >= Real(0.1e-3)) {
                     // PORTION OF COLLECTED RAINWATER CONVERTED TO GRAUPEL (REISNER ET AL. 1998)
-                    dum = m_cons18 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) /
-                      (m_cons18 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lams), 3) +
-                       m_cons19 * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr), 3) * std::pow(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr), 3));
+                    dum = m_cons18 * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lams)) * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lams)) /
+                      (m_cons18 * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lams)) * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lams)) +
+                       m_cons19 * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr)) * amrex::Math::powi<3>(Real(4.0) / morr_arr(i,j,k,MORRInd::lamr)));
                     dum = std::min(dum, Real(1));
                     dum = std::max(dum, Real(0));
 
@@ -2437,10 +2437,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // IMMERSION FREEZING (BIGG 1953)
                   // hm fix 7/15/13 for consistency w/ original formula
                   mnuccr = m_cons20 * morr_arr(i,j,k,MORRInd::nr3d) * (std::exp(m_aimm * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d))) - one) /
-                    std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3);
+                    amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) / amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr));
 
                   nnuccr = m_pi * morr_arr(i,j,k,MORRInd::nr3d) * m_bimm * (std::exp(m_aimm * (Real(273.15) - morr_arr(i,j,k,MORRInd::t3d))) - one) /
-                    std::pow(morr_arr(i,j,k,MORRInd::lamr), 3);
+                    amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr));
 
                   // PREVENT DIVERGENCE BETWEEN MIXING RATIO AND NUMBER CONC
                   nnuccr = std::min(nnuccr, morr_arr(i,j,k,MORRInd::nr3d) / dt);
@@ -2505,7 +2505,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                     niacr = m_cons24 * morr_arr(i,j,k,MORRInd::ni3d) * morr_arr(i,j,k,MORRInd::n0r)* morr_arr(i,j,k,MORRInd::arn) /
                       std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) * morr_arr(i,j,k,MORRInd::rho);
                     piacr = m_cons25 * morr_arr(i,j,k,MORRInd::ni3d) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::arn) /
-                      std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::rho);
+                      std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) / amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::rho);
                     praci = m_cons24 * morr_arr(i,j,k,MORRInd::qi3d) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::arn) /
                       std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) * morr_arr(i,j,k,MORRInd::rho);
                     niacr = std::min(niacr, morr_arr(i,j,k,MORRInd::nr3d) / dt);
@@ -2514,7 +2514,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                     niacrs = m_cons24 * morr_arr(i,j,k,MORRInd::ni3d) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::arn) /
                       std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) * morr_arr(i,j,k,MORRInd::rho);
                     piacrs = m_cons25 * morr_arr(i,j,k,MORRInd::ni3d) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::arn) /
-                      std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) / std::pow(morr_arr(i,j,k,MORRInd::lamr), 3) * morr_arr(i,j,k,MORRInd::rho);
+                      std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) / amrex::Math::powi<3>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::rho);
                     pracis = m_cons24 * morr_arr(i,j,k,MORRInd::qi3d) * morr_arr(i,j,k,MORRInd::n0r) * morr_arr(i,j,k,MORRInd::arn) /
                       std::pow(morr_arr(i,j,k,MORRInd::lamr), (m_br + three)) * morr_arr(i,j,k,MORRInd::rho);
                     niacrs = std::min(niacrs, morr_arr(i,j,k,MORRInd::nr3d) / dt);
@@ -2848,7 +2848,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // SATURATION ADJUSTMENT FOR LIQUID
                 dums = dumqv - dumqss;
 
-                pcc = dums / (one + std::pow(morr_arr(i,j,k,MORRInd::xxlv), 2) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * std::pow(dumt, 2))) / dt;
+                pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
 
                 if (pcc * dt + dumqc < Real(0)) {
                   pcc = -dumqc / dt;
@@ -3416,11 +3416,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ADJUST VARS
                   if (morr_arr(i,j,k,MORRInd::lami) < m_lammini) {
                     morr_arr(i,j,k,MORRInd::lami) = m_lammini;
-                    morr_arr(i,j,k,MORRInd::n0i) = std::pow(morr_arr(i,j,k,MORRInd::lami), 4) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
+                    morr_arr(i,j,k,MORRInd::n0i) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lami)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
                     morr_arr(i,j,k,MORRInd::ni3d) = morr_arr(i,j,k,MORRInd::n0i) / morr_arr(i,j,k,MORRInd::lami);
                   } else if (morr_arr(i,j,k,MORRInd::lami) > m_lammaxi) {
                     morr_arr(i,j,k,MORRInd::lami) = m_lammaxi;
-                    morr_arr(i,j,k,MORRInd::n0i) = std::pow(morr_arr(i,j,k,MORRInd::lami), 4) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
+                    morr_arr(i,j,k,MORRInd::n0i) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lami)) * morr_arr(i,j,k,MORRInd::qi3d) / m_cons12;
                     morr_arr(i,j,k,MORRInd::ni3d) = morr_arr(i,j,k,MORRInd::n0i) / morr_arr(i,j,k,MORRInd::lami);
                   }
                 }
@@ -3433,11 +3433,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ADJUST VARS
                   if (morr_arr(i,j,k,MORRInd::lamr) < m_lamminr) {
                     morr_arr(i,j,k,MORRInd::lamr) = m_lamminr;
-                    morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), 4) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                    morr_arr(i,j,k,MORRInd::n0r) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                     morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);
                   } else if (morr_arr(i,j,k,MORRInd::lamr) > m_lammaxr) {
                     morr_arr(i,j,k,MORRInd::lamr) = m_lammaxr;
-                    morr_arr(i,j,k,MORRInd::n0r) = std::pow(morr_arr(i,j,k,MORRInd::lamr), 4) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
+                    morr_arr(i,j,k,MORRInd::n0r) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lamr)) * morr_arr(i,j,k,MORRInd::qr3d) / (m_pi * m_rhow);
                     morr_arr(i,j,k,MORRInd::nr3d) = morr_arr(i,j,k,MORRInd::n0r) / morr_arr(i,j,k,MORRInd::lamr);
                   }
                 }
@@ -3447,7 +3447,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 if (morr_arr(i,j,k,MORRInd::qc3d) >= m_qsmall) {
                   Real dum = morr_arr(i,j,k,MORRInd::pres) / (Real(287.15) * morr_arr(i,j,k,MORRInd::t3d));
                   morr_arr(i,j,k,MORRInd::pgam) = Real(0.0005714) * (morr_arr(i,j,k,MORRInd::nc3d) / Real(1.0e6) * dum) + Real(0.2714);
-                  morr_arr(i,j,k,MORRInd::pgam) = one/(std::pow(morr_arr(i,j,k,MORRInd::pgam), 2)) - one;
+                  morr_arr(i,j,k,MORRInd::pgam) = one/(amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::pgam))) - one;
                   morr_arr(i,j,k,MORRInd::pgam) = std::max(morr_arr(i,j,k,MORRInd::pgam), Real(2));
                   morr_arr(i,j,k,MORRInd::pgam) = std::min(morr_arr(i,j,k,MORRInd::pgam), Real(10.0));
 
@@ -3479,11 +3479,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ADJUST VARS
                   if (morr_arr(i,j,k,MORRInd::lams) < m_lammins) {
                     morr_arr(i,j,k,MORRInd::lams) = m_lammins;
-                    morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), 4) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                    morr_arr(i,j,k,MORRInd::n0s) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lams)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                     morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);
                   } else if (morr_arr(i,j,k,MORRInd::lams) > m_lammaxs) {
                     morr_arr(i,j,k,MORRInd::lams) = m_lammaxs;
-                    morr_arr(i,j,k,MORRInd::n0s) = std::pow(morr_arr(i,j,k,MORRInd::lams), 4) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
+                    morr_arr(i,j,k,MORRInd::n0s) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lams)) * morr_arr(i,j,k,MORRInd::qni3d) / m_cons1;
                     morr_arr(i,j,k,MORRInd::ns3d) = morr_arr(i,j,k,MORRInd::n0s) / morr_arr(i,j,k,MORRInd::lams);
                   }
                 }
@@ -3496,11 +3496,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ADJUST VARS
                   if (morr_arr(i,j,k,MORRInd::lamg) < m_lamming) {
                     morr_arr(i,j,k,MORRInd::lamg) = m_lamming;
-                    morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), 4) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                    morr_arr(i,j,k,MORRInd::n0g) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lamg)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                     morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);
                   } else if (morr_arr(i,j,k,MORRInd::lamg) > m_lammaxg) {
                     morr_arr(i,j,k,MORRInd::lamg) = m_lammaxg;
-                    morr_arr(i,j,k,MORRInd::n0g) = std::pow(morr_arr(i,j,k,MORRInd::lamg), 4) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
+                    morr_arr(i,j,k,MORRInd::n0g) = amrex::Math::powi<4>(morr_arr(i,j,k,MORRInd::lamg)) * morr_arr(i,j,k,MORRInd::qg3d) / m_cons2;
                     morr_arr(i,j,k,MORRInd::ng3d) = morr_arr(i,j,k,MORRInd::n0g) / morr_arr(i,j,k,MORRInd::lamg);
                   }
                 }

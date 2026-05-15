@@ -33,11 +33,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
-    tmp_base_state.setVal(0);
+    tmp_base_state.setVal(zero);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
-        base_state_new[lev].setVal(0);
+        base_state_new[lev].setVal(zero);
     }
 
     // ********************************************************************************************
@@ -100,7 +100,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
-        terrain_blanking[lev]->setVal(1);
+        terrain_blanking[lev]->setVal(one);
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -109,17 +109,17 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
          ay[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
          az[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-    detJ_cc[lev]->setVal(1);
-         ax[lev]->setVal(1);
-         ay[lev]->setVal(1);
-         az[lev]->setVal(1);
+    detJ_cc[lev]->setVal(one);
+         ax[lev]->setVal(one);
+         ay[lev]->setVal(one);
+         az[lev]->setVal(one);
 
     // ********************************************************************************************
     // Create wall distance array for RANS modeling
     // ********************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         walldist[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-        walldist[lev]->setVal(1e23);
+        walldist[lev]->setVal(Real(1.234e10));
     } else {
         walldist[lev] = nullptr;
     }
@@ -156,8 +156,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     // Initialize all components to zero so we don't need to explicitly set
     //     scalars / moisture variables to zero in the initialization
-    lev_new[Vars::cons].setVal(0);
-    lev_old[Vars::cons].setVal(0);
+    lev_new[Vars::cons].setVal(zero);
+    lev_old[Vars::cons].setVal(zero);
 
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
@@ -166,36 +166,36 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
     // Set these to avoid operations on uninitialized data
-    lev_new[Vars::xvel].setVal(1.234e10);
-    lev_old[Vars::xvel].setVal(1.234e10);
-    lev_new[Vars::yvel].setVal(1.234e10);
-    lev_old[Vars::yvel].setVal(1.234e10);
+    lev_new[Vars::xvel].setVal(Real(1.234e10));
+    lev_old[Vars::xvel].setVal(Real(1.234e10));
+    lev_new[Vars::yvel].setVal(Real(1.234e10));
+    lev_old[Vars::yvel].setVal(Real(1.234e10));
 
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0);
-    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0);
-    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0);
+    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(zero);
+    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(zero);
+    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(zero);
 
     if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
-        pp_inc[lev].setVal(0);
+        pp_inc[lev].setVal(zero);
     }
 
     // We use this in the fast substepping only
     if (solverChoice.anelastic[lev] == 0) {
         lagged_delta_rt[lev].define(ba, dm, 1, 1);
-        lagged_delta_rt[lev].setVal(0);
+        lagged_delta_rt[lev].setVal(zero);
     }
 
     // We use these for advecting the slow variables, whether anelastic or compressible
     avg_xmom[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
     avg_ymom[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
     avg_zmom[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
-    avg_xmom[lev].setVal(0); avg_ymom[lev].setVal(0); avg_zmom[lev].setVal(0);
+    avg_xmom[lev].setVal(0); avg_ymom[lev].setVal(0); avg_zmom[lev].setVal(zero);
 
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
@@ -228,12 +228,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // We do this here just so they won't be undefined in the initial FillPatch
-    rU_old[lev].setVal(1.2e21);
-    rV_old[lev].setVal(3.4e22);
-    rW_old[lev].setVal(5.6e23);
-    rU_new[lev].setVal(1.2e21);
-    rV_new[lev].setVal(3.4e22);
-    rW_new[lev].setVal(5.6e23);
+    rU_old[lev].setVal(Real(1.234e10));
+    rV_old[lev].setVal(Real(1.234e10));
+    rW_old[lev].setVal(Real(1.234e10));
+    rU_new[lev].setVal(Real(1.234e10));
+    rV_new[lev].setVal(Real(1.234e10));
+    rW_new[lev].setVal(Real(1.234e10));
 
     // ********************************************************************************************
     // These are just time averaged fields for diagnostics
@@ -246,7 +246,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
-        vel_t_avg[lev]->setVal(0);
+        vel_t_avg[lev]->setVal(zero);
         t_avg_cnt[lev] = zero;
     }
 
@@ -329,14 +329,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     if (solverChoice.test_mapfactor) {
         for (int i = 0; i < 3; i++) {
-            mapfac[lev][i]->setVal(0.5);
+            mapfac[lev][i]->setVal(myhalf);
         }
         for (int i = 3; i < mapfac[lev].size(); i++) {
-            mapfac[lev][i]->setVal(0.25);
+            mapfac[lev][i]->setVal(fourth);
         }
     } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
-            mapfac[lev][i]->setVal(1);
+            mapfac[lev][i]->setVal(one);
         }
     }
 
@@ -461,8 +461,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
-        qheating_rates[lev]->setVal(0);
-        rad_fluxes[lev]->setVal(0);
+        qheating_rates[lev]->setVal(zero);
+        rad_fluxes[lev]->setVal(zero);
     }
 
     //*********************************************************
@@ -498,7 +498,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     urb_frac_lev[lev].resize(1);
     urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-    urb_frac_lev[lev][0]->setVal(1.0);
+    urb_frac_lev[lev][0]->setVal(one);
     urb_frac_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
 
@@ -554,21 +554,21 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
         Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
         Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau12]->setVal(0.);
-        Tau[lev][TauType::tau13]->setVal(0.);
-        Tau[lev][TauType::tau23]->setVal(0.);
+        Tau[lev][TauType::tau12]->setVal(zero);
+        Tau[lev][TauType::tau13]->setVal(zero);
+        Tau[lev][TauType::tau23]->setVal(zero);
         if (l_use_terrain) {
             Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau21]->setVal(0.);
-            Tau[lev][TauType::tau31]->setVal(0.);
-            Tau[lev][TauType::tau32]->setVal(0.);
+            Tau[lev][TauType::tau21]->setVal(zero);
+            Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32]->setVal(zero);
         } else if (l_implicit_diff) {
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31]->setVal(0.);
-            Tau[lev][TauType::tau32]->setVal(0.);
+            Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32]->setVal(zero);
         } else {
             Tau[lev][TauType::tau21] = nullptr;
             Tau[lev][TauType::tau31] = nullptr;
@@ -579,8 +579,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         if (l_use_eb) {
             Tau_EB[lev][EBTauType::tau_eb13] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
             Tau_EB[lev][EBTauType::tau_eb23] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau_eb13]->setVal(0.);
-            Tau_EB[lev][EBTauType::tau_eb23]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb13]->setVal(zero);
+            Tau_EB[lev][EBTauType::tau_eb23]->setVal(zero);
         } else {
             Tau_EB[lev][EBTauType::tau_eb13] = nullptr;
             Tau_EB[lev][EBTauType::tau_eb23] = nullptr;
@@ -590,11 +590,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         {
             Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
             Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
-            Tau_corr[lev][0]->setVal(0.);
-            Tau_corr[lev][1]->setVal(0.);
+            Tau_corr[lev][0]->setVal(zero);
+            Tau_corr[lev][1]->setVal(zero);
 #ifdef ERF_IMPLICIT_W
             Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
-            Tau_corr[lev][2]->setVal(0.);
+            Tau_corr[lev][2]->setVal(zero);
 #else
             Tau_corr[lev][2] = nullptr;
 #endif
@@ -608,15 +608,15 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
         SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        SFS_hfx1_lev[lev]->setVal(0.);
-        SFS_hfx2_lev[lev]->setVal(0.);
-        SFS_hfx3_lev[lev]->setVal(0.);
-        SFS_diss_lev[lev]->setVal(0.);
+        SFS_hfx1_lev[lev]->setVal(zero);
+        SFS_hfx2_lev[lev]->setVal(zero);
+        SFS_hfx3_lev[lev]->setVal(zero);
+        SFS_diss_lev[lev]->setVal(zero);
 
         // EB heat fluxes
         if (l_use_eb) {
             hfx3_EB[lev] = std::make_unique<MultiFab>( ba, dm, 1, IntVect(1,1,1) );
-            hfx3_EB[lev]->setVal(0.);
+            hfx3_EB[lev]->setVal(zero);
         } else {
             hfx3_EB[lev] = nullptr;
         }
@@ -624,13 +624,13 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         if (l_use_moist) {
             SFS_q1fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
-            SFS_q1fx3_lev[lev]->setVal(0.0);
-            SFS_q2fx3_lev[lev]->setVal(0.0);
+            SFS_q1fx3_lev[lev]->setVal(zero);
+            SFS_q2fx3_lev[lev]->setVal(zero);
             if (l_rotate) {
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
-                SFS_q1fx1_lev[lev]->setVal(0.0);
-                SFS_q1fx2_lev[lev]->setVal(0.0);
+                SFS_q1fx1_lev[lev]->setVal(zero);
+                SFS_q1fx2_lev[lev]->setVal(zero);
             } else {
                 SFS_q1fx1_lev[lev] = nullptr;
                 SFS_q1fx2_lev[lev] = nullptr;
@@ -651,7 +651,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     if (l_use_kturb) {
         eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
-        eddyDiffs_lev[lev]->setVal(0.0);
+        eddyDiffs_lev[lev]->setVal(zero);
         if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
         } else {
@@ -704,7 +704,7 @@ ERF::init_zphys (int lev, Real elapsed_time)
         //
         if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
             solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-                terrain_fab.template setVal<RunOn::Device>(0);
+                terrain_fab.template setVal<RunOn::Device>(zero);
         } else {
             //
             // Fill the values of the terrain height at k=0 only
@@ -757,7 +757,7 @@ ERF::init_zphys (int lev, Real elapsed_time)
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-        terrain_blanking[lev]->setVal(1.0);
+        terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
@@ -819,7 +819,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         //
         // This assumes we have already remade the EBGeometry
         //
-        terrain_blanking[lev]->setVal(1.0);
+        terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());
     }
 

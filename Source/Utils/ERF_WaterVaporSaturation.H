@@ -321,7 +321,7 @@ public:
 
         // make a guess at the wet bulb temp using a UKMO algorithm (from J. Petch)
         c1 = hltalt*c3;
-        c2 = std::pow(t + amrex::Real(36.), 2);
+        c2 = amrex::Math::powi<2>(t + amrex::Real(36.));
         r1b = c2/(c2 + c1*qs);
         qvd = r1b * (q - qs);
         tsp = t + ((hltalt/Cp_d)*qvd);

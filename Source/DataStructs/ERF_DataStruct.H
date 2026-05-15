@@ -464,7 +464,7 @@ struct SolverChoice {
         pp.query("if_use_most",if_use_most);
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
-            (if_init_surf_temp > zero        && if_Olen_in != amrex::Real(1e-8)) ||
+            (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
             (if_Olen_in != amrex::Real(1e-8) && if_surf_temp_flux != amrex::Real(1e-8)))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
@@ -553,7 +553,7 @@ struct SolverChoice {
         if (use_num_diff) {
             amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
                 << num_diff_coeff << std::endl;
-            num_diff_coeff *= std::pow(two,-6);
+            num_diff_coeff *= amrex::Math::powi<-6>(two);
         }
 
             advChoice.init_params(pp_prefix);
@@ -1131,8 +1131,8 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-8;
-    amrex::Real poisson_reltol      = 1e-8;
+    amrex::Real poisson_abstol      = amrex::Real(1e-8);
+    amrex::Real poisson_reltol      = amrex::Real(1e-8);
 
     bool        test_mapfactor         = false;
 
@@ -1284,8 +1284,8 @@ struct SolverChoice {
     amrex::Real const_massflux_u = zero;
     amrex::Real const_massflux_v = zero;
     amrex::Real const_massflux_tau = one;
-    amrex::Real const_massflux_layer_lo = -1e34;
-    amrex::Real const_massflux_layer_hi =  1e34;
+    amrex::Real const_massflux_layer_lo = amrex::Real(-1e34);
+    amrex::Real const_massflux_layer_hi = amrex::Real( 1e34);
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
