@@ -988,7 +988,7 @@ void
 ERF::InitData_pre ()
 {
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = ParallelDescriptor::second();
+    startCPUTime = Real(ParallelDescriptor::second());
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
@@ -1306,7 +1306,7 @@ ERF::InitData_post ()
     }
 
     // Read in sponge data from input file
-    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    if(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
     {
         initSponge();
         bool restarting = (!restart_chkfile.empty());
@@ -2266,9 +2266,8 @@ ERF::init_only (int lev, Real elapsed_time)
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (!solverChoice.use_real_bcs) {
-            make_physbcs(lev);
-        }
+        make_physbcs(lev);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
@@ -2328,9 +2327,10 @@ ERF::init_only (int lev, Real elapsed_time)
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
+    {
         input_sponge(lev);
-   }
+    }
 
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {

@@ -13,7 +13,7 @@
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_gammafff (amrex::Real x){
-    return std::exp(lgamma(x));
+    return std::exp(std::lgamma(x));
 }
 
 // Saturation vapor pressure of ice [mbar]
@@ -69,7 +69,7 @@ amrex::Real erf_esatw (amrex::Real t, bool use_empirical=false)
 {
     amrex::Real esatw;
     if (use_empirical) {
-        esatw = exp(amrex::Real(34.494) - amrex::Real(4924.99)/(t - amrex::Real(273.15) + amrex::Real(237.1))) / std::pow(t - amrex::Real(273.15) + amrex::Real(105.0),amrex::Real(1.57));
+        esatw = std::exp(amrex::Real(34.494) - amrex::Real(4924.99)/(t - amrex::Real(273.15) + amrex::Real(237.1))) / std::pow(t - amrex::Real(273.15) + amrex::Real(105.0),amrex::Real(1.57));
     } else {
         amrex::Real const a0 = amrex::Real(6.11239921);
         amrex::Real const a1 = amrex::Real(0.443987641);
@@ -196,17 +196,17 @@ void z0_est (amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar
     amrex::Real eps  = amrex::Real(1.0e-10);
     amrex::Real am   = amrex::Real(4.8);
     amrex::Real bm   = amrex::Real(19.3);
-    amrex::Real c1   = amrex::Real(3.14159)/two - three*log(two);
+    amrex::Real c1   = amrex::Real(3.14159)/two - three*std::log(two);
     amrex::Real rlmo = -bflx*vonk/(ustar*ustar*ustar+eps);
-    amrex::Real zeta = std::min(amrex::Real(1),z*rlmo);
+    amrex::Real zeta = std::min(one,z*rlmo);
     amrex::Real x;
     amrex::Real psi1;
-    if(zeta >= amrex::Real(0)) {
+    if(zeta >= zero) {
         psi1 = -am*zeta;
     }
     else {
-        x = std::sqrt(sqrt(amrex::Real(1)-bm*zeta));
-        psi1 = two*std::log(amrex::Real(1)+x) + std::log(amrex::Real(1)+x*x) -two*std::atan(x) + c1;
+        x = std::sqrt(std::sqrt(one-bm*zeta));
+        psi1 = two*std::log(one+x) + std::log(one+x*x) - two*std::atan(x) + c1;
     }
     amrex::Real lnz = std::max(amrex::Real(0), vonk*wnd/(ustar+eps) +psi1);
     z0 = z*std::exp(-lnz);
@@ -222,13 +222,13 @@ amrex::Real term_vel_qp (amrex::Real qploc,
 {
     amrex::Real term_vel = amrex::Real(0);
     if(qploc > qp_threshold) {
-        amrex::Real omp = std::max(amrex::Real(0),std::min(amrex::Real(1),(tabs-tprmin)*a_pr));
-        amrex::Real omg = std::max(amrex::Real(0),std::min(amrex::Real(1),(tabs-tgrmin)*a_gr));
+        amrex::Real omp = std::max(amrex::Real(0),std::min(one,(tabs-tprmin)*a_pr));
+        amrex::Real omg = std::max(amrex::Real(0),std::min(one,(tabs-tgrmin)*a_gr));
         amrex::Real qrr = omp*qploc;
-        amrex::Real qss = (amrex::Real(1)-omp)*(amrex::Real(1)-omg)*qploc;
-        amrex::Real qgg = (amrex::Real(1)-omp)*(omg)*qploc;
+        amrex::Real qss = (one-omp)*(one-omg)*qploc;
+        amrex::Real qgg = (one-omp)*(omg)*qploc;
         term_vel = omp*vrain*std::pow(rho*qrr,crain)
-                 + (amrex::Real(1)-omp)*( (amrex::Real(1)-omg)*vsnow*std::pow(rho*qss,csnow)
+                 + (one-omp)*( (one-omg)*vsnow*std::pow(rho*qss,csnow)
                              +      omg *vgrau*std::pow(rho*qgg,cgrau) );
     }
     return term_vel;

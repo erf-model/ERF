@@ -22,8 +22,8 @@
     Real pert_delta_u = zero; pp_for_pert_vels.query("pert_delta_u", pert_delta_u);
     Real pert_delta_v = zero; pp_for_pert_vels.query("pert_delta_u", pert_delta_v);
 
-    Real pert_lo = -1e34; pp_for_pert_vels.query("pert_lo", pert_lo);
-    Real pert_hi =  1e34; pp_for_pert_vels.query("pert_hi", pert_hi);
+    Real pert_lo = Real(-1e34); pp_for_pert_vels.query("pert_lo", pert_lo);
+    Real pert_hi = Real( 1e34); pp_for_pert_vels.query("pert_hi", pert_hi);
 
     auto problo = geomdata.ProbLo();
     auto probhi = geomdata.ProbHi();
