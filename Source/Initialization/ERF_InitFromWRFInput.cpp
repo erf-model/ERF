@@ -1034,7 +1034,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
     const Real A       = Real(50.0);
     const Real Tmin    = Real(200.0);
     const Real g_strat = Real(-11.0);
-    const Real P_strat = Real(0.);
+    const Real P_strat = Real(10000.);
 
     for (MFIter mfi(p_hse, TileNoZ()); mfi.isValid(); ++mfi ) {
 
