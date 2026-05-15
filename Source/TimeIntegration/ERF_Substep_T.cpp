@@ -243,6 +243,7 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
 
+        const Array4<const Real>& stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & qt_arr     = qt.const_array(mfi);
@@ -323,9 +324,9 @@ void erf_substep_T (int step, int /*nrk*/,
 
 #ifdef ERF_USE_NETCDF
                 if (use_real_bcs_here && i == domlo.x) {
-                    new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xlo_arr(i,j,k);
+                    new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xlo_arr(i,j,k) * stage_cons(i,j,k,Rho_comp);
                 } else if (use_real_bcs_here && i == domhi.x+1) {
-                    new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xhi_arr(i,j,k);
+                    new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * bdy_xhi_arr(i,j,k) * stage_cons(i-1,j,k,Rho_comp);
                 } else
 #endif
                 {
@@ -364,9 +365,9 @@ void erf_substep_T (int step, int /*nrk*/,
 
 #ifdef ERF_USE_NETCDF
                 if (use_real_bcs_here && j == domlo.y) {
-                    new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_ylo_arr(i,j,k);
+                    new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_ylo_arr(i,j,k) * stage_cons(i,j,k,Rho_comp);
                 } else if (use_real_bcs_here && j == domhi.y+1) {
-                    new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_yhi_arr(i,j,k);
+                    new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * bdy_yhi_arr(i,j,k) * stage_cons(i,j-1,k,Rho_comp);
                 } else
 #endif
                 {
