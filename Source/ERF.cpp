@@ -988,7 +988,7 @@ void
 ERF::InitData_pre ()
 {
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = ParallelDescriptor::second();
+    startCPUTime = Real(ParallelDescriptor::second());
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before

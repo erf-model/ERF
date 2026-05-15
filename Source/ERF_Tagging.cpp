@@ -902,7 +902,8 @@ ERF::HurricaneTracker(int levc,
     }
 
     if (is_found) {
-        Real rad_tag = Real(4.e5) * std::pow(2, max_level-1-levc);
+        const int exponent = max_level-1-levc;
+        Real rad_tag = std::ldexp(Real(4.e5), exponent);
         tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }

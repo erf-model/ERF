@@ -216,7 +216,7 @@ struct TurbulentPerturbation {
         tpi_Lpb[lev] = tpi_boxDim[0]*dx[0];
         tpi_Wpb[lev] = tpi_boxDim[1]*dx[1];
         tpi_Hpb[lev] = tpi_boxDim[2]*dx[2];
-        tpi_lref[lev] = sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
+        tpi_lref[lev] = std::sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
 
         tpi_pert_adjust = zero;
         tpi_net_buoyant = zero;
@@ -301,7 +301,7 @@ struct TurbulentPerturbation {
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(0.9*interval,amrex::Real(1.1)*interval); // 10% variation
+                    pb_interval[lev][boxIdx] = RandomReal(amrex::Real(0.9)*interval,amrex::Real(1.1)*interval); // 10% variation
 
                     // Reset local elapsed time
                     pb_local_etime[lev][boxIdx] = zero;
@@ -625,13 +625,13 @@ struct TurbulentPerturbation {
 
         // Computing the average magnitude within PB
         #ifdef USE_VOLUME_AVERAGE
-        m_pb_mag[boxIdx] = sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
+        m_pb_mag[boxIdx] = std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
         m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
 
         #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = myhalf*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
-                               + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
+        m_pb_mag[boxIdx] = myhalf*( std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
+                                  + std::sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
         m_pb_dir[boxIdx] = std::atan(std::abs(myhalf*(avg_h[0]+avg_h[2])) / std::abs(myhalf*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
     }

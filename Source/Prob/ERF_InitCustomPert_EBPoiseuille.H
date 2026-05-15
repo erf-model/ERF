@@ -45,8 +45,8 @@
         {
             // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
             //            + B_0*sin(x)
-            // state_pert(i, j, k, RhoScalar_comp) = A_0 * exp(-amrex::Real(10.)*r3d*r3d) + B_0*sin(x);
-            state_pert(i, j, k, RhoScalar_comp) = A_0 * exp(-amrex::Real(0.1)*r2d_xz*r2d_xz) + B_0*sin(x);
+            // state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r3d*r3d) + B_0*std::sin(x);
+            state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(0.1)*r2d_xz*r2d_xz) + B_0*std::sin(x);
 
         } else if (prob_type == 11) {
             if (r2d_xz_nd < one)

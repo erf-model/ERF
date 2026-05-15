@@ -35,7 +35,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b)
 {
-    return erf_esatw(T_b)*100.0;
+    return erf_esatw(T_b)*Real(100.0);
 }
 
 AMREX_FORCE_INLINE
@@ -60,10 +60,10 @@ AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
     Real T_dp, gamma, T;
-    T = T_b - 273.15;
+    T = T_b - Real(273.15);
 
-    Real b = 18.678, c = 257.14, d = 234.5;
-    gamma = log(RH*exp((b - T/d)*T/(c + T)));
+    Real b = Real(18.678), c = Real(257.14), d = Real(234.5);
+    gamma = std::log(RH*std::exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
 
