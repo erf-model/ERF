@@ -544,8 +544,13 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT res_norm_a = DBL_MAX;
-                RT res_norm_r = DBL_MAX;
+#ifdef AMREX_USE_FLOAT
+                RT res_norm_a = std::numeric_limits<float>::max();
+                RT res_norm_r = std::numeric_limits<float>::max();
+#else
+                RT res_norm_a = std::numeric_limits<double>::max();
+                RT res_norm_r = std::numeric_limits<double>::max();
+#endif
                 bool converged = false;
 
                 RT u_new = zero;

@@ -204,15 +204,15 @@ void SAM::Compute_Coefficients ()
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real Prefactor;
-        Real pratio = sqrt(Real(1.29) / rho1d_t(k));
+        Real pratio = std::sqrt(Real(1.29) / rho1d_t(k));
         //Real rrr1   = Real(393.0)/(tabs1d_t(k)+Real(120.0))*std::pow((tabs1d_t(k)/Real(273.0)),Real(1.5));
         //Real rrr2   = std::pow((tabs1d_t(k)/Real(273.0)),Real(1.94))*(Real(1000.0)/pres1d_t(k));
         Real estw   = Real(100.0)*erf_esatw(tabs1d_t(k));
         Real esti   = Real(100.0)*erf_esati(tabs1d_t(k));
 
         // accretion by snow:
-        Real coef1   = fourth * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((three+b_snow)/Real(4.0)));
-        Real coef2   = exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
+        Real coef1   = fourth * PI * nzeros * a_snow * gams1 * pratio/std::pow((PI * rhos * nzeros/rho1d_t(k) ) , ((three+b_snow)/Real(4.0)));
+        Real coef2   = std::exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
         accrsi_t(k)  =  coef1 * coef2 * esicoef;
         accrsc_t(k)  =  coef1 * esccoef;
         coefice_t(k) =  coef2;
@@ -222,13 +222,13 @@ void SAM::Compute_Coefficients ()
         coef2 = R_v * R_d / (diffelq * esti);
         Prefactor = two * PI * nzeros / (rho1d_t(k) * (coef1 + coef2));
         Prefactor *= (two/PI); // Shape factor snow
-        evaps1_t(k) = Prefactor * Real(0.65) * sqrt(rho1d_t(k) / (PI * rhos * nzeros));
-        evaps2_t(k) = Prefactor * Real(0.44) * sqrt(a_snow * rho1d_t(k) / muelq) * gams2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhos * nzeros) , ((Real(5.0)+b_snow)/Real(8.0)));
+        evaps1_t(k) = Prefactor * Real(0.65) * std::sqrt(rho1d_t(k) / (PI * rhos * nzeros));
+        evaps2_t(k) = Prefactor * Real(0.44) * std::sqrt(a_snow * rho1d_t(k) / muelq) * gams2
+                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhos * nzeros) , ((Real(5.0)+b_snow)/Real(8.0)));
 
         // accretion by graupel:
-        coef1 = fourth*PI*nzerog*a_grau*gamg1*pratio/pow((PI*rhog*nzerog/rho1d_t(k)) , ((three+b_grau)/Real(4.0)));
-        coef2 = exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
+        coef1 = fourth*PI*nzerog*a_grau*gamg1*pratio/std::pow((PI*rhog*nzerog/rho1d_t(k)) , ((three+b_grau)/Real(4.0)));
+        coef2 = std::exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
         accrgi_t(k) = coef1 * coef2 * egicoef;
         accrgc_t(k) = coef1 * egccoef;
 
@@ -236,19 +236,19 @@ void SAM::Compute_Coefficients ()
         coef1 = (lsub/(tabs1d_t(k)*R_v)-one)*lsub/(therco*tabs1d_t(k));
         coef2 = R_v * R_d / (diffelq * esti);
         Prefactor = two * PI * nzerog / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for graupel is 1
-        evapg1_t(k) = Prefactor * Real(0.78) * sqrt(rho1d_t(k) / (PI * rhog * nzerog));
-        evapg2_t(k) = Prefactor * Real(0.31) * sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhog * nzerog) , ((Real(5.0)+b_grau)/Real(8.0)));
+        evapg1_t(k) = Prefactor * Real(0.78) * std::sqrt(rho1d_t(k) / (PI * rhog * nzerog));
+        evapg2_t(k) = Prefactor * Real(0.31) * std::sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
+                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhog * nzerog) , ((Real(5.0)+b_grau)/Real(8.0)));
 
         // accretion by rain:
-        accrrc_t(k) = fourth * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((three+b_rain)/Real(4.)))* erccoef;
+        accrrc_t(k) = fourth * PI * nzeror * a_rain * gamr1 * pratio/std::pow((PI * rhor * nzeror / rho1d_t(k)) , ((three+b_rain)/Real(4.)))* erccoef;
 
         // evaporation of rain:
         coef1 = (lcond/(tabs1d_t(k)*R_v)-one)*lcond/(therco*tabs1d_t(k));
         coef2 = R_v * R_d / (diffelq * estw);
         Prefactor = two * PI * nzeror / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for rain is 1
-        evapr1_t(k) = Prefactor * Real(0.78) * sqrt(rho1d_t(k) / (PI * rhor * nzeror));
-        evapr2_t(k) = Prefactor * Real(0.31) * sqrt(a_rain * rho1d_t(k) / muelq) * gamr2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhor * nzeror) , ((Real(5.0)+b_rain)/Real(8.0)));
+        evapr1_t(k) = Prefactor * Real(0.78) * std::sqrt(rho1d_t(k) / (PI * rhor * nzeror));
+        evapr2_t(k) = Prefactor * Real(0.31) * std::sqrt(a_rain * rho1d_t(k) / muelq) * gamr2
+                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhor * nzeror) , ((Real(5.0)+b_rain)/Real(8.0)));
     });
 }

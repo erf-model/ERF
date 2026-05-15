@@ -133,7 +133,7 @@ HurricaneTrackerCircle (const amrex::Vector<std::array<amrex::Real, 2>>& hurrica
 
     // Fill the circle points
     for (int i = 0; i < n_points; ++i) {
-        amrex::Real theta = two * M_PI * i / n_points;
+        amrex::Real theta = two * static_cast<amrex::Real>(M_PI) * static_cast<amrex::Real>(i) / static_cast<amrex::Real>(n_points);
         amrex::Real x = x_last + radius * std::cos(theta);
         amrex::Real y = y_last + radius * std::sin(theta);
         hurricane_tracker_circle.push_back({x, y});

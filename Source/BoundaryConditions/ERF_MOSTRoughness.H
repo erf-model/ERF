@@ -10,7 +10,7 @@ COARE3_roughness (amrex::Real zref,
                   amrex::Real umm,
                   amrex::Real ustar)
 {
-    amrex::Real ws10m = umm*std::log(amrex::Real(10.)/1e-4) / std::log(zref/1e-4);
+    amrex::Real ws10m = umm*std::log(amrex::Real(10.)/amrex::Real(1e-4)) / std::log(zref/amrex::Real(1e-4));
     amrex::Real Czc = amrex::Real(0.011) + amrex::Real(0.007)*std::min(std::max((ws10m-amrex::Real(10.))/amrex::Real(8.), amrex::Real(0.0)), amrex::Real(1.0));
     amrex::Real z0 = (Czc / CONST_GRAV) * ustar * ustar;
     // From Davis et al 2008 MWR, but their lower limit is amrex::Real(0.125e-6) -- WRF typo?

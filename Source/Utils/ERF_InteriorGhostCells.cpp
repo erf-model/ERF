@@ -746,7 +746,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                                }
                            }
                            if (mask_y_found) {
-                               Real mag = sqrt( Real(dj_min*dj_min + ii*ii) );
+                               Real mag = std::sqrt( Real(dj_min*dj_min + ii*ii) );
                                n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near x wall!");
@@ -763,7 +763,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                                }
                            }
                            if (mask_x_found) {
-                               Real mag = sqrt( Real(di_min*di_min + jj*jj) );
+                               Real mag = std::sqrt( Real(di_min*di_min + jj*jj) );
                                n_ind = std::min(mag,width-one) + one;
                            } else {
                                Abort("Mask not found near y wall!");
@@ -791,4 +791,3 @@ fine_compute_interior_ghost_rhs (const Real& time,
         } // mfi
     } // ivar_idx
 }
-

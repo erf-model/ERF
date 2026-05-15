@@ -494,8 +494,8 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
+            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
+            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;
