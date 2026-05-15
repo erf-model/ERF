@@ -1207,17 +1207,17 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
-                psurf = std::pow(10, 5);
+                psurf = amrex::Math::powi<5>(10);
             } else if (flag_psfc == 1) {
                 psurf = orig_psfc(i,j,0);
             } else {
                 z_lo     = new_z(i,j,0);
                 Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
                 Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)), myhalf));
+                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
             }
-            AMREX_ALWAYS_ASSERT(psurf > 0.0);
-            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > 0.0);
+            AMREX_ALWAYS_ASSERT(psurf > zero);
+            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {

@@ -586,7 +586,7 @@ erf_dermaxreflectivity ( const Box& bx,
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
 
-        Real max_dbz = -1.0e30;
+        Real max_dbz = Real(-1.0e30);
 
         // find max reflectivity over k
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
@@ -678,12 +678,12 @@ erf_derhelicity ( const Box& bx,
             // Helicity is defined as integral from 2km to 5km in vertical
             if (z > Real(2000.0) && z < Real(5000.0)) {
 
-                Real z_hi = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k+1));
-                Real z_lo = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k-1));
+                Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
+                Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
                 Real dz = z_hi - z_lo;
 
-                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
-                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
                 Real w     = dat(i,j,k,2); // vertical velocity
 
                 int_hel += vortz * w * dz;
@@ -728,8 +728,8 @@ erf_derprecipitable ( const Box& bx,
 
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
         {
-            Real z_hi = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k+1));
-            Real z_lo = Real(0.5) * (z_arr(i,j,k) + z_arr(i,j,k-1));
+            Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
+            Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
             Real dz = z_hi - z_lo;
 
             Real rhoQ1 = dat(i, j, k, RhoQ1_comp);

@@ -1059,14 +1059,14 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                 Real x = ProbLoArr[0]  + ii  * dx[0];
                 Real y = ProbLoArr[1]  + jj  * dx[1];
                 int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
-                if (std::sqrt(std::pow(x-xp[inode],2)+std::pow(y-yp[inode],2)) < tol) {
+                if (std::sqrt(amrex::Math::powi<2>(x-xp[inode])+amrex::Math::powi<2>(y-yp[inode])) < tol) {
                     z0_arr(i,j,klo) = z0p[inode];
                 } else {
                     // Unexpected list order, do brute force search
                     Real z0loc = zero;
                     bool found = false;
                     for (int n=0; n<nnode; ++n) {
-                        Real delta=std::sqrt(std::pow(x-xp[n],2)+std::pow(y-yp[n],2));
+                        Real delta=std::sqrt(amrex::Math::powi<2>(x-xp[n])+amrex::Math::powi<2>(y-yp[n]));
                         if (delta < tol) {
                             found = true;
                             z0loc = z0p[n];
