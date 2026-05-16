@@ -91,7 +91,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                      const bool use_real_bcs,
+                      const bool use_real_bcs, const bool apply_bdy_tend_to_normal_vels,
                       amrex::Real* u_bc_data)
         : m_lev(lev), m_geom(geom),
           m_domain_bcs_type(domain_bcs_type),
@@ -100,6 +100,7 @@ public:
           m_bc_neumann_vals(bc_neumann_vals),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
+          m_apply_bdy_tend_to_normal_vels(apply_bdy_tend_to_normal_vels),
           m_u_bc_data(u_bc_data)
     { }
 
@@ -114,13 +115,14 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
+                     amrex::IntVect const& nghost, const amrex::Real time, const int bccomp,
+                     const bool do_fb, const bool apply_bdy_tend_to_normal_vels);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp,
+                                  int bccomp, const bool apply_bdy_tend_to_normal_vels,
                                   const amrex::Real time);
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
@@ -138,6 +140,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
+    bool             m_apply_bdy_tend_to_normal_vels;
     amrex::Real*     m_u_bc_data;
 };
 
@@ -150,7 +153,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                      const bool use_real_bcs,
+                      const bool use_real_bcs, const bool apply_bdy_tend_to_normal_vels,
                       amrex::Real* v_bc_data)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
@@ -159,6 +162,7 @@ public:
           m_bc_neumann_vals(bc_neumann_vals),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
+          m_apply_bdy_tend_to_normal_vels(apply_bdy_tend_to_normal_vels),
           m_v_bc_data(v_bc_data)
     { }
 
@@ -175,13 +179,14 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
+                     amrex::IntVect const& nghost, const amrex::Real time, const int bccomp,
+                     const bool do_fb, const bool apply_bdy_tend_to_normal_vels);
 
     void impose_lateral_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp,
+                                  int bccomp, const bool apply_bdy_tend_to_normal_vels,
                                   const amrex::Real time);
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
@@ -199,6 +204,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
+    bool             m_apply_bdy_tend_to_normal_vels;
     amrex::Real*     m_v_bc_data;
 };
 

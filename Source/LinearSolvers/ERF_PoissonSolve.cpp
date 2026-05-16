@@ -142,13 +142,15 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
     // Inflow on an x-face -- note only the normal velocity is used in the projection
     if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow") {
         (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
-                        IntVect{1,0,0},t_new[lev],BCVars::xvel_bc,false);
+                          IntVect{1,0,0},t_new[lev],BCVars::xvel_bc,false,
+                          solverChoice.apply_bdy_tend_to_normal_vels);
     }
 
     // Inflow on a  y-face -- note only the normal velocity is used in the projection
     if (domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
         (*physbcs_v[lev])(vars_new[lev][Vars::yvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
-                          IntVect{0,1,0},t_new[lev],BCVars::yvel_bc,false);
+                          IntVect{0,1,0},t_new[lev],BCVars::yvel_bc,false,
+                          solverChoice.apply_bdy_tend_to_normal_vels);
     }
 
     if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||

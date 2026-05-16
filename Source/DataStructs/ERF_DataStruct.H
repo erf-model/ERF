@@ -151,6 +151,10 @@ struct SolverChoice {
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
+        // Should we use the values from wrfbdy directly to set the tendencies for normal
+        //     velocities on lateral faces?  (Default falase)
+        pp.query("apply_bdy_tend_to_normal_vels",apply_bdy_tend_to_normal_vels);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -1266,6 +1270,7 @@ struct SolverChoice {
     MoistureComponentIndices moisture_indices;
 
     bool moisture_tight_coupling {false};
+    bool apply_bdy_tend_to_normal_vels {false};
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;

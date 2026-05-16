@@ -1349,9 +1349,11 @@ ERF::InitData_post ()
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
         (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
-                             ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
+                             ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb,
+                             solverChoice.apply_bdy_tend_to_normal_vels);
         (   *physbcs_v[lev])(lev_new[Vars::yvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
-                             ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
+                             ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb,
+                             solverChoice.apply_bdy_tend_to_normal_vels);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
     }

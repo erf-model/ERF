@@ -879,10 +879,14 @@ ERF::make_physbcs (int lev)
                                                                z_phys_nd[lev], solverChoice.use_real_bcs, th_bc_data[lev].data());
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, xvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], solverChoice.use_real_bcs,
+                                                            solverChoice.apply_bdy_tend_to_normal_vels,
+                                                            xvel_bc_data[lev].data());
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], solverChoice.use_real_bcs,
+                                                            solverChoice.apply_bdy_tend_to_normal_vels,
+                                                            yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],

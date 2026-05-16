@@ -75,7 +75,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
 #ifdef ERF_USE_NETCDF
-                    bool l_use_real_bcs,
+                    bool l_apply_bdy_tend_to_normal_vels,
 #endif
                     bool l_reflux,
                     const Real* sinesq_stag_d,
@@ -243,7 +243,9 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
 
+#ifdef ERF_USE_NETCDF
         const Array4<const Real>& stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
+#endif
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & qt_arr     = qt.const_array(mfi);
@@ -292,7 +294,7 @@ void erf_substep_T (int step, int /*nrk*/,
 #ifdef ERF_USE_NETCDF
         // Note that we only impose tendencies for normal velocities on domain faces
         // Real WRF lateral tendencies are only defined on the coarse level.
-        bool use_real_bcs_here = l_use_real_bcs && (level == 0);
+        bool use_real_bcs_here = l_apply_bdy_tend_to_normal_vels && (level == 0);
         Array4<const Real> bdy_xlo_arr, bdy_xhi_arr, bdy_ylo_arr, bdy_yhi_arr;
         if (use_real_bcs_here) {
             bdy_xlo_arr = bdy_tend_xlo[WRFBdyVars::U].const_array();

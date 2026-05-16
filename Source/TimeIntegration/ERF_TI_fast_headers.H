@@ -83,7 +83,7 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     amrex::YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
 #ifdef ERF_USE_NETCDF
-                    bool l_use_real_bcs,
+                    bool l_apply_bdy_tend_to_normal_vels,
 #endif
                     bool l_reflux,
                     const amrex::Real* sinesq_at_lev_d,

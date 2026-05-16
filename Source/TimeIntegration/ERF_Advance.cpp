@@ -302,9 +302,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                               0,vars_new[lev][Vars::cons].nComp(),
                               vars_new[lev][Vars::cons].nGrowVect(),time,BCVars::cons_bc,true);
             (*physbcs_u[lev])(vars_new[lev][Vars::xvel], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
-                              ngvect_vels,time,BCVars::xvel_bc,true);
+                              ngvect_vels,time,BCVars::xvel_bc,true,
+                              solverChoice.apply_bdy_tend_to_normal_vels);
             (*physbcs_v[lev])(vars_new[lev][Vars::yvel], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
-                              ngvect_vels,time,BCVars::yvel_bc,true);
+                              ngvect_vels,time,BCVars::yvel_bc,true,
+                              solverChoice.apply_bdy_tend_to_normal_vels);
             (*physbcs_w[lev])(vars_new[lev][Vars::zvel], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
                               ngvect_vels,time,BCVars::zvel_bc,true);
     }

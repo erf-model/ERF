@@ -15,7 +15,9 @@ using namespace amrex;
 void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                                                 const Array4<Real const>& xvel_arr,
                                                 const Array4<Real const>& yvel_arr,
-                                                const Box& bx, const Box& domain, int bccomp,
+                                                const Box& bx, const Box& domain,
+                                                const int bccomp,
+                                                const bool l_apply_bdy_tend_to_normal_vels,
                                                 const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_xvel_bcs()",impose_lateral_xvel_bcs);
@@ -87,7 +89,7 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                       dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                 } else if (bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) {
                       dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
-                } else if (bc_ptr[0].lo(0) == ERFBCType::neumann_int) {
+                } else if (bc_ptr[0].lo(0) == ERFBCType::neumann_int && !l_apply_bdy_tend_to_normal_vels) {
                       dest_arr(i,j,k) = (Real(4.0)*dest_arr(dom_lo.x+1,j,k) - dest_arr(dom_lo.x+2,j,k))/three;
                 }
             }
@@ -122,7 +124,7 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                 } else if (bc_ptr[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) {
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
-                } else if (bc_ptr[0].hi(0) == ERFBCType::neumann_int) {
+                } else if (bc_ptr[0].hi(0) == ERFBCType::neumann_int && !l_apply_bdy_tend_to_normal_vels) {
                     dest_arr(i,j,k) = (Real(4.0)*dest_arr(dom_hi.x,j,k) - dest_arr(dom_hi.x-1,j,k))/three;
                 }
             }

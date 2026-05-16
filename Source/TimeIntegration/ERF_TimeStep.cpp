@@ -32,13 +32,16 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     //
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
 
-    bdy_tend_xlo.resize(WRFBdyVars::NumTypes);
-    bdy_tend_xhi.resize(WRFBdyVars::NumTypes);
-    bdy_tend_ylo.resize(WRFBdyVars::NumTypes);
-    bdy_tend_yhi.resize(WRFBdyVars::NumTypes);
-
     if (solverChoice.use_real_bcs && (lev==0))
     {
+        if (solverChoice.apply_bdy_tend_to_normal_vels)
+        {
+            bdy_tend_xlo.resize(WRFBdyVars::NumTypes);
+            bdy_tend_xhi.resize(WRFBdyVars::NumTypes);
+            bdy_tend_ylo.resize(WRFBdyVars::NumTypes);
+            bdy_tend_yhi.resize(WRFBdyVars::NumTypes);
+        }
+
         int ntimes = bdy_data_xlo.size();
         Real time_since_start_bdy = time + start_time - start_bdy_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
@@ -79,31 +82,34 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
            }
         } // itime
 
-        // Construct tendencies from the two boundary-data time slices that bracket the current time.
-        int n_time_p1 = std::min(n_time_old + 1, ntimes-1);
-        Real inv_bdy_dt = Real(1.0) / bdy_time_interval;
+        if (solverChoice.apply_bdy_tend_to_normal_vels)
+        {
+            // Construct tendencies from the two boundary-data time slices that bracket the current time.
+            int n_time_p1 = std::min(n_time_old + 1, ntimes-1);
+            Real inv_bdy_dt = Real(1.0) / bdy_time_interval;
 
-        for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
-            bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, The_Async_Arena());
-            bdy_tend_xhi[ivar].resize(bdy_data_xhi[n_time_old][ivar].box(), 1, The_Async_Arena());
-            bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, The_Async_Arena());
-            bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, The_Async_Arena());
+            for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
+                bdy_tend_xlo[ivar].resize(bdy_data_xlo[n_time_old][ivar].box(), 1, The_Async_Arena());
+                bdy_tend_xhi[ivar].resize(bdy_data_xhi[n_time_old][ivar].box(), 1, The_Async_Arena());
+                bdy_tend_ylo[ivar].resize(bdy_data_ylo[n_time_old][ivar].box(), 1, The_Async_Arena());
+                bdy_tend_yhi[ivar].resize(bdy_data_yhi[n_time_old][ivar].box(), 1, The_Async_Arena());
 
-            bdy_tend_xlo[ivar].template copy<RunOn::Device>(bdy_data_xlo[n_time_p1][ivar]);
-            bdy_tend_xhi[ivar].template copy<RunOn::Device>(bdy_data_xhi[n_time_p1][ivar]);
-            bdy_tend_ylo[ivar].template copy<RunOn::Device>(bdy_data_ylo[n_time_p1][ivar]);
-            bdy_tend_yhi[ivar].template copy<RunOn::Device>(bdy_data_yhi[n_time_p1][ivar]);
+                bdy_tend_xlo[ivar].template copy<RunOn::Device>(bdy_data_xlo[n_time_p1][ivar]);
+                bdy_tend_xhi[ivar].template copy<RunOn::Device>(bdy_data_xhi[n_time_p1][ivar]);
+                bdy_tend_ylo[ivar].template copy<RunOn::Device>(bdy_data_ylo[n_time_p1][ivar]);
+                bdy_tend_yhi[ivar].template copy<RunOn::Device>(bdy_data_yhi[n_time_p1][ivar]);
 
-            bdy_tend_xlo[ivar].template minus<RunOn::Device>(bdy_data_xlo[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_xhi[ivar].template minus<RunOn::Device>(bdy_data_xhi[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_ylo[ivar].template minus<RunOn::Device>(bdy_data_ylo[n_time_old][ivar], 0, 0, 1);
-            bdy_tend_yhi[ivar].template minus<RunOn::Device>(bdy_data_yhi[n_time_old][ivar], 0, 0, 1);
+                bdy_tend_xlo[ivar].template minus<RunOn::Device>(bdy_data_xlo[n_time_old][ivar], 0, 0, 1);
+                bdy_tend_xhi[ivar].template minus<RunOn::Device>(bdy_data_xhi[n_time_old][ivar], 0, 0, 1);
+                bdy_tend_ylo[ivar].template minus<RunOn::Device>(bdy_data_ylo[n_time_old][ivar], 0, 0, 1);
+                bdy_tend_yhi[ivar].template minus<RunOn::Device>(bdy_data_yhi[n_time_old][ivar], 0, 0, 1);
 
-            bdy_tend_xlo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
-            bdy_tend_xhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
-            bdy_tend_ylo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
-            bdy_tend_yhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
-        }
+                bdy_tend_xlo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+                bdy_tend_xhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+                bdy_tend_ylo[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+                bdy_tend_yhi[ivar].template mult<RunOn::Device>(inv_bdy_dt, 0, 1);
+            } // ivar
+        } // apply_bdy_tend_to_normal_vels
     } // use_real_bcs && lev == 0
 
     if (!nc_low_file.empty() && (lev==0))

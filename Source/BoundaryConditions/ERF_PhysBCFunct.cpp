@@ -85,8 +85,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
-                                   bool do_fb)
+                                   IntVect const& nghost, const Real time, const int bccomp,
+                                   const bool do_fb, const bool l_apply_bdy_tend_to_normal_vels)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
 
@@ -147,7 +147,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!gdomainx.contains(xbx1))
                 {
-                    impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,time);
+                    impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,l_apply_bdy_tend_to_normal_vels,time);
                 }
 
                 impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
@@ -157,8 +157,8 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
-                                   bool do_fb)
+                                   IntVect const& nghost, const Real time, const int bccomp,
+                                   const bool do_fb, const bool l_apply_bdy_tend_to_normal_vels)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
 
@@ -217,7 +217,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
+                impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,l_apply_bdy_tend_to_normal_vels,time);
 
                 impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
             }

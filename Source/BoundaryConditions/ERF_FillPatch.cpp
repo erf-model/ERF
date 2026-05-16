@@ -244,9 +244,11 @@ ERF::FillPatchFineLevel (int lev, Real time,
             // domain when fillpatching w
             bool do_fb = true;
             (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::xvel_bc, do_fb);
+                              ngvect_vels,time,BCVars::xvel_bc, do_fb,
+                              solverChoice.apply_bdy_tend_to_normal_vels);
             (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::yvel_bc, do_fb);
+                              ngvect_vels,time,BCVars::yvel_bc, do_fb,
+                              solverChoice.apply_bdy_tend_to_normal_vels);
 
             // **********************************************************************
 
@@ -360,9 +362,11 @@ ERF::FillPatchCrseLevel (int lev, Real time,
                           icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                          ngvect_vels,time,BCVars::xvel_bc, do_fb);
+                          ngvect_vels,time,BCVars::xvel_bc, do_fb,
+                          solverChoice.apply_bdy_tend_to_normal_vels);
         (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                          ngvect_vels,time,BCVars::yvel_bc, do_fb);
+                          ngvect_vels,time,BCVars::yvel_bc, do_fb,
+                          solverChoice.apply_bdy_tend_to_normal_vels);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }

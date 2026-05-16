@@ -157,7 +157,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture,
 #ifdef ERF_USE_NETCDF
-                          solverChoice.use_real_bcs,
+                          (solverChoice.use_real_bcs && solverChoice.apply_bdy_tend_to_normal_vels),
 #endif
                           l_reflux,
                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
