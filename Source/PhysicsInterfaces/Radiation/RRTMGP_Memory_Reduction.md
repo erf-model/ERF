@@ -16,7 +16,7 @@ Five changes were implemented, ordered by impact:
 
 **File:** `ERF_RRTMGP_Interface.cpp`
 
-The pool multiplier `nvar` was reduced from 300 to 20, and `nbnd` was replaced with `ngpt`
+The pool multiplier `nvar` was reduced from 300 to 12, and `nbnd` was replaced with `ngpt`
 since the pool stores per-g-point temporaries. The actual peak concurrent usage inside the
 RTE solvers is ~15-20 arrays of size `ncol * nlay * ngpt`.
 

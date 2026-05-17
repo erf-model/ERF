@@ -42,6 +42,10 @@ Radiation::Radiation (const int& lev,
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
     pp.query("rad_ncol_chunk", m_ncol_chunk);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk > 0,
+        "erf.rad_ncol_chunk must be a positive integer (default 5000). "
+        "It controls the number of columns processed per RRTMGP kernel launch; "
+        "a value of 0 or negative would produce an infinite loop.");
 
     // Flag to write fluxes to plt file
     pp.query("rad_write_fluxes", m_rad_write_fluxes);
@@ -1026,11 +1030,11 @@ Radiation::initialize_impl ()
 
     // Load k-distribution and cloud optics data only once.
     // These are static lookup tables that never change.
-    // Size the memory pool for ncol_chunk (not full ncol) to limit peak memory.
+    // Size the memory pool for m_ncol_chunk (not min with current m_ncol) so that
+    // the pool remains valid even if m_ncol grows after regridding/load balancing.
     if (!rrtmgp::initialized) {
-        int ncol_for_pool = std::min(m_ncol_chunk, m_ncol);
         gas_concs_t gas_concs_pool;
-        gas_concs_pool.init(gas_names_offset, ncol_for_pool, m_nlay);
+        gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                                   rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
@@ -1173,6 +1177,14 @@ Radiation::run_impl ()
     const int ncol_chunk = std::min(m_ncol_chunk, ncol);
     const int kbot = 0;
 
+    // Pre-fetch full-domain VMR arrays outside the chunk loop to avoid
+    // repeatedly allocating and filling full-size views for every chunk.
+    Vector<real2d_k> vmr_full_vec(m_ngas);
+    for (int igas = 0; igas < m_ngas; ++igas) {
+        vmr_full_vec[igas] = real2d_k("vmr_full_" + std::to_string(igas), ncol, nlay);
+        m_gas_concs.get_vmr(m_gas_names[igas], vmr_full_vec[igas]);
+    }
+
     for (int col_s = 0; col_s < ncol; col_s += ncol_chunk) {
         const int ncol_c = std::min(ncol_chunk, ncol - col_s);
         const int col_e  = col_s + ncol_c;
@@ -1269,13 +1281,12 @@ Radiation::run_impl ()
         real3d_k lw_bnd_flux_up_c (lw_bnd_flux_up.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
         real3d_k lw_bnd_flux_dn_c (lw_bnd_flux_dn.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
 
-        // --- Create chunk gas concentrations by subsetting from full gas_concs ---
+        // --- Create chunk gas concentrations by subsetting from pre-fetched VMR ---
         gas_concs_t gas_concs_c;
         gas_concs_c.init(gas_names_offset, ncol_c, nlay);
         for (int igas = 0; igas < m_ngas; ++igas) {
-            real2d_k vmr_full("vmr_full", ncol, nlay);
-            m_gas_concs.get_vmr(m_gas_names[igas], vmr_full);
             real2d_k vmr_c("vmr_c", ncol_c, nlay);
+            auto vmr_full = vmr_full_vec[igas];
             auto cs = col_s;
             Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol_c, nlay}),
                                  KOKKOS_LAMBDA (int i, int j) {
