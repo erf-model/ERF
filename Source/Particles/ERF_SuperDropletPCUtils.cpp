@@ -70,56 +70,54 @@ void SuperDropletPC::computeMeshVar( const std::string& a_var_name,
     BL_PROFILE("SuperDropletPC::computeMeshVar()");
     a_mf.setVal(0.0);
 
-    if (a_lev != 0) { return; }
-
     // Check basic variables
     if (a_var_name == "number_density") {
-        numberDensity(a_mf, a_z_phys_nd); return;
+        numberDensity(a_mf, a_z_phys_nd, a_lev); return;
     }
     if (a_var_name == "sd_number_density") {
-        SDNumberDensity(a_mf, a_z_phys_nd); return;
+        SDNumberDensity(a_mf, a_z_phys_nd, a_lev); return;
     }
     if (a_var_name == "mass_density") {
-        massDensity(a_mf, a_z_phys_nd); return;
+        massDensity(a_mf, a_z_phys_nd, a_lev); return;
     }
     if (a_var_name == "radius") {
-        effectiveRadius(a_mf, a_z_phys_nd); return;
+        effectiveRadius(a_mf, a_z_phys_nd, a_lev); return;
     }
 
     // Check water species shortcuts
     const std::string water_name = getEnumNameString(m_species_mat[m_idx_w]->m_name);
     if (a_var_name == "mass_density_" + water_name) {
-        speciesMassDensity(a_mf, a_z_phys_nd, m_idx_w); return;
+        speciesMassDensity(a_mf, a_z_phys_nd, a_lev, m_idx_w); return;
     }
     if (a_var_name == "mass_flux_x_" + water_name) {
-        speciesMassFlux(a_mf, a_z_phys_nd, m_idx_w, 0); return;
+        speciesMassFlux(a_mf, a_z_phys_nd, a_lev, m_idx_w, 0); return;
     }
     if (a_var_name == "mass_flux_y_" + water_name) {
-        speciesMassFlux(a_mf, a_z_phys_nd, m_idx_w, 1); return;
+        speciesMassFlux(a_mf, a_z_phys_nd, a_lev, m_idx_w, 1); return;
     }
     if (a_var_name == "mass_flux_z_" + water_name) {
-        speciesMassFlux(a_mf, a_z_phys_nd, m_idx_w, 2); return;
+        speciesMassFlux(a_mf, a_z_phys_nd, a_lev, m_idx_w, 2); return;
     }
 
     // Check total mass flux
-    if (a_var_name == "mass_flux_x") { massFlux(a_mf, a_z_phys_nd, 0); return; }
-    if (a_var_name == "mass_flux_y") { massFlux(a_mf, a_z_phys_nd, 1); return; }
-    if (a_var_name == "mass_flux_z") { massFlux(a_mf, a_z_phys_nd, 2); return; }
+    if (a_var_name == "mass_flux_x") { massFlux(a_mf, a_z_phys_nd, a_lev, 0); return; }
+    if (a_var_name == "mass_flux_y") { massFlux(a_mf, a_z_phys_nd, a_lev, 1); return; }
+    if (a_var_name == "mass_flux_z") { massFlux(a_mf, a_z_phys_nd, a_lev, 2); return; }
 
     // Check species variables
     for (int i = 0; i < m_num_species; i++) {
         const std::string name = getEnumNameString(m_species_mat[i]->m_name);
         if (a_var_name == "species_mass_density_" + name) {
-            speciesMassDensity(a_mf, a_z_phys_nd, i); return;
+            speciesMassDensity(a_mf, a_z_phys_nd, a_lev, i); return;
         }
         if (a_var_name == "species_mass_flux_x_" + name) {
-            speciesMassFlux(a_mf, a_z_phys_nd, i, 0); return;
+            speciesMassFlux(a_mf, a_z_phys_nd, a_lev, i, 0); return;
         }
         if (a_var_name == "species_mass_flux_y_" + name) {
-            speciesMassFlux(a_mf, a_z_phys_nd, i, 1); return;
+            speciesMassFlux(a_mf, a_z_phys_nd, a_lev, i, 1); return;
         }
         if (a_var_name == "species_mass_flux_z_" + name) {
-            speciesMassFlux(a_mf, a_z_phys_nd, i, 2); return;
+            speciesMassFlux(a_mf, a_z_phys_nd, a_lev, i, 2); return;
         }
     }
 
@@ -127,16 +125,16 @@ void SuperDropletPC::computeMeshVar( const std::string& a_var_name,
     for (int i = 0; i < m_num_aerosols; i++) {
         const std::string name = getEnumNameString(m_aerosol_mat[i]->m_name);
         if (a_var_name == "aerosol_mass_density_" + name) {
-            aerosolMassDensity(a_mf, a_z_phys_nd, i); return;
+            aerosolMassDensity(a_mf, a_z_phys_nd, a_lev, i); return;
         }
         if (a_var_name == "aerosol_mass_flux_x_" + name) {
-            aerosolMassFlux(a_mf, a_z_phys_nd, i, 0); return;
+            aerosolMassFlux(a_mf, a_z_phys_nd, a_lev, i, 0); return;
         }
         if (a_var_name == "aerosol_mass_flux_y_" + name) {
-            aerosolMassFlux(a_mf, a_z_phys_nd, i, 1); return;
+            aerosolMassFlux(a_mf, a_z_phys_nd, a_lev, i, 1); return;
         }
         if (a_var_name == "aerosol_mass_flux_z_" + name) {
-            aerosolMassFlux(a_mf, a_z_phys_nd, i, 2); return;
+            aerosolMassFlux(a_mf, a_z_phys_nd, a_lev, i, 2); return;
         }
     }
 }
@@ -174,10 +172,11 @@ Long SuperDropletPC::NumSDDeactivated ()
 /*! Computes the number density of the SDs over a mesh */
 void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,
                                        const MultiFab& a_z_phys_nd,
+                                       int a_lev,
                                        const int a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::SDNumberDensity()");
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             return ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
         });
@@ -186,10 +185,11 @@ void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,
 /*! Computes the number density of the particles over a mesh */
 void SuperDropletPC::numberDensity ( MultiFab& a_mf,
                                      const MultiFab& a_z_phys_nd,
+                                     int a_lev,
                                      const int a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::numberDensity()");
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -200,10 +200,11 @@ void SuperDropletPC::numberDensity ( MultiFab& a_mf,
 /*! Computes the mass density of the particles over a mesh */
 void SuperDropletPC::massDensity ( MultiFab& a_mf,
                                    const MultiFab& a_z_phys_nd,
-                                   const int a_comp ) const
+                                   const int& a_lev,
+                                   const int& a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::massDensity()");
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -215,11 +216,12 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,
 /*! Computes the particle velocity components over a mesh */
 void SuperDropletPC::massFlux ( MultiFab& a_mf,
                                 const MultiFab& a_z_phys_nd,
+                                int a_lev,
                                 const int a_dim,
                                 const int a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::massFlux()");
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -235,13 +237,14 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,
 /*! Computes the aerosol mass density of the particles over a mesh */
 void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,
                                           const MultiFab& a_z_phys_nd,
+                                          int a_lev,
                                           const int a_idx,
                                           const int a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::aerosolMassDensity()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -253,6 +256,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,
 /*! Computes the aerosol mass flux of the particles over a mesh */
 void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,
                                        const MultiFab& a_z_phys_nd,
+                                       int a_lev,
                                        const int a_idx,
                                        const int a_dim,
                                        const int a_comp ) const
@@ -260,7 +264,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::aerosolMassFlux()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -276,13 +280,14 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,
 /*! Computes the species mass density of the particles over a mesh */
 void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,
                                           const MultiFab& a_z_phys_nd,
+                                          int        a_lev,
                                           int        a_idx,
                                           const int  a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::speciesMassDensity()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -292,13 +297,13 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,
 }
 
 /*! Computes the cloud/rain mass density of the particles over a mesh */
-void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_nd, const Real a_rmin, const Real a_rmax, const int a_comp) const
+void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_nd, int a_lev, const Real a_rmin, const Real a_rmax, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::cloudRainDensity()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
     const auto idx = m_idx_w;
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
             if ((radius < a_rmin) || (radius >= a_rmax)) {
@@ -314,6 +319,7 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_n
 /*! Computes the species mass flux of the particles over a mesh */
 void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,
                                        const MultiFab& a_z_phys_nd,
+                                       int a_lev,
                                        const int a_idx,
                                        const int a_dim,
                                        const int a_comp ) const
@@ -321,7 +327,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::speciesMassFlux()");
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -337,14 +343,15 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,
 /*! Computes the effective radius of the particles over a mesh */
 void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
                                         const MultiFab& a_z_phys_nd,
+                                        int a_lev,
                                         const int a_comp ) const
 {
     BL_PROFILE("SuperDropletPC::effectiveRadius()");
 
     MultiFab number_density(a_mf.boxArray(), a_mf.DistributionMap(), 1, a_mf.nGrowVect());
-    numberDensity(number_density, a_z_phys_nd);
+    numberDensity(number_density, a_z_phys_nd, a_lev);
 
-    ERFPCParticleToMesh(a_mf, a_z_phys_nd, m_lev, a_comp,
+    ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];

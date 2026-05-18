@@ -38,6 +38,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
             const SDProcess::ProcessContext& ctx)
     {
         auto zheight = (*z_height)[grid].array();
+        const auto zheight_box = (*z_height)[grid].box();
 
         Gpu::Buffer<Long> deactivated_particles({0});
         auto* deactivated_particles_ptr = deactivated_particles.data();
@@ -53,7 +54,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 auto z_ground = ctx.plo[2];
                 {
                     auto iv = getParticleCell(p, ctx.plo, ctx.dxi, ctx.domain);
-                    z_ground = zheight(iv[0],iv[1],ctx.domain.smallEnd(2));
+                    auto k_ground = ctx.domain.smallEnd(2);
+                    if (zheight_box.contains(IntVect(iv[0],iv[1],k_ground))) {
+                        z_ground = zheight(iv[0],iv[1],k_ground);
+                    }
                 }
                 if (p.pos(2) < z_ground) {
                     p.pos(2) = z_ground + Real(0.01)*ctx.dx[2];
@@ -69,7 +73,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 auto z_roof = ctx.phi[2];
                 {
                     auto iv = getParticleCell(p, ctx.plo, ctx.dxi, ctx.domain);
-                    z_roof = zheight(iv[0],iv[1],ctx.domain.bigEnd(2)+1);
+                    auto k_roof = ctx.domain.bigEnd(2)+1;
+                    if (zheight_box.contains(IntVect(iv[0],iv[1],k_roof))) {
+                        z_roof = zheight(iv[0],iv[1],k_roof);
+                    }
                 }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - ctx.dx[2];

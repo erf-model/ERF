@@ -28,12 +28,8 @@ void SuperDropletPC::MassChange ( int                                         a_
     using namespace SDMassChangeUtils_LV;
 
     BL_PROFILE("SuperDropletPC::MassChange()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const auto ctx = buildProcessContext(a_lev);
-
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
@@ -110,6 +106,14 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
+            // Skip particles whose vertical stencil falls outside the local
+            // fab's z range.  cic_interpolate reads cell-centered data at
+            // k0+1 and k0+2 with k0 in {pk-1, pk}, so the maximum read
+            // offset is pk+2.  Bound on pk+2 (not pk+1).
+            int pk = int(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - ctx.plo[AMREX_SPACEDIM-1])
+                                            * ctx.dxi[AMREX_SPACEDIM-1]));
+            if (pk < zheight.begin[2] || pk + 2 >= zheight.end[2]) { return; }
+
             // Interpolate saturation pressure, saturation ratio, temperature, pressure
             constexpr int nf = static_cast<int>(InterpFieldsLV::NUM_FIELDS);
             ParticleReal fv[nf];
@@ -117,8 +121,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 sat_pressure_arr, sat_ratio_arr, temperature_arr, pressure_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto e_sat       = fv[static_cast<int>(InterpFieldsLV::e_sat)];
             const auto sat_ratio   = fv[static_cast<int>(InterpFieldsLV::sat_ratio)];

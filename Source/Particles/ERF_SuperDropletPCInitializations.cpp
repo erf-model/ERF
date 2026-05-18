@@ -70,7 +70,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     m_mass_change_log_fname = "unconverged_superdroplets.log";
 
     /* recycled particle position bounds */
-    const Geometry& geom = m_gdb->Geom(m_lev);
+    const Geometry& geom = m_gdb->Geom(0);
     const auto plo = geom.ProbLoArray();
     const auto phi = geom.ProbHiArray();
     m_recyc_xmin = plo[0];
@@ -167,7 +167,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         }
     }
 
-    const auto dx_h = Geom(m_lev).CellSize();
+    const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
     pp.query("num_initializations", m_num_initializations);
@@ -266,66 +266,78 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
 #endif
 }
 
-/*! Initialize the particles */
-void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
+/*! Initialize the particles at AMR level a_lev */
+void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const MFPtr& a_ptr)
 {
     amrex::ignore_unused(a_t);
     BL_PROFILE("SuperDropletPC::InitializeParticles()");
-    Print() << "SuperDropletPC(" << m_name << "):\n"
-            << "  Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
-            << "  Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
-            << "  Inactive particles threshold: " << m_deac_threshold << "\n"
-            << "  Recycling bounding box: " <<    "[" << m_recyc_xmin << ", " << m_recyc_xmax << "] "
-                                              << " x [" << m_recyc_ymin << ", " << m_recyc_ymax << "] "
-                                              << " x [" << m_recyc_zmin << ", " << m_recyc_zmax << "]\n"
-            << "  Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
-            << "  Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
-            << "  Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"
-            << "  Random initial placement: " << (m_place_randomly_in_cells ? "true" : "false") << "\n"
-            << "  Coalescence bin size: " << m_coalescence_bin_size << "\n"
-            << "  Include Brownian coaslescence: "
-            << (m_include_brownian_coalescence ? "true" : "false") << "\n";
-    Print() << "  Coalescence kernel: ";
-    if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {
-        Print() << "golovin" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::sedimentation) {
-        Print() << "sedimentation" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Longs) {
-        Print() << "Longs" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
-        Print() << "Halls" << "\n";
+
+    // The configuration banner only depends on container-global parameters,
+    // so print it once (at level 0) rather than duplicating per level.
+    if (a_lev == 0) {
+        Print() << "SuperDropletPC(" << m_name << "):\n"
+                << "  Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
+                << "  Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
+                << "  Inactive particles threshold: " << m_deac_threshold << "\n"
+                << "  Recycling bounding box: " <<    "[" << m_recyc_xmin << ", " << m_recyc_xmax << "] "
+                                                  << " x [" << m_recyc_ymin << ", " << m_recyc_ymax << "] "
+                                                  << " x [" << m_recyc_zmin << ", " << m_recyc_zmax << "]\n"
+                << "  Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
+                << "  Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
+                << "  Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"
+                << "  Random initial placement: " << (m_place_randomly_in_cells ? "true" : "false") << "\n"
+                << "  Coalescence bin size: " << m_coalescence_bin_size << "\n"
+                << "  Include Brownian coaslescence: "
+                << (m_include_brownian_coalescence ? "true" : "false") << "\n";
+        Print() << "  Coalescence kernel: ";
+        if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {
+            Print() << "golovin" << "\n";
+        } else if (m_coalescence_kernel == SDCoalescenceKernelType::sedimentation) {
+            Print() << "sedimentation" << "\n";
+        } else if (m_coalescence_kernel == SDCoalescenceKernelType::Longs) {
+            Print() << "Longs" << "\n";
+        } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
+            Print() << "Halls" << "\n";
+        }
+        Print() << "  Mass change time integrator: ";
+        if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
+            Print() << "rk3bs";
+        } else if (m_mass_change_ti == SDMassChangeTIMethod::RK4) {
+            Print() << "rk4";
+        } else if (m_mass_change_ti == SDMassChangeTIMethod::BE) {
+            Print() << "backward_euler";
+        } else if (m_mass_change_ti == SDMassChangeTIMethod::CN) {
+            Print() << "crank_nicolson";
+        } else if (m_mass_change_ti == SDMassChangeTIMethod::DIRK2) {
+            Print() << "dirk2";
+        }
+        Print() << " (cfl = " << m_mass_change_cfl << ")\n";
+        Print() << "    Terminal velocity model: "
+                << getEnumNameString(m_term_vel_type_w) << "\n";
     }
-    Print() << "  Mass change time integrator: ";
-    if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
-        Print() << "rk3bs";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::RK4) {
-        Print() << "rk4";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::BE) {
-        Print() << "backward_euler";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::CN) {
-        Print() << "crank_nicolson";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::DIRK2) {
-        Print() << "dirk2";
-    }
-    Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-    Print() << "    Terminal velocity model: "
-            << getEnumNameString(m_term_vel_type_w) << "\n";
+
+    Print() << "SuperDropletPC(" << m_name << ") InitializeParticles at level " << a_lev << ":\n";
 
     for (int i = 0; i < m_num_initializations; i++) {
         Print() << "  SuperDropletPC(" << m_name << ") Initialization";
         if (m_num_initializations > 1) { Print() << " " << i; }
         Print() << ":\n";
-        m_initializations[i]->printParameters(m_species_mat, m_aerosol_mat);
-        addParticles( a_ptr, *(m_initializations[i]) );
-        Print() << "  Particle container size: " << NumSuperDroplets() << "\n";
+        if (a_lev == 0) {
+            m_initializations[i]->printParameters(m_species_mat, m_aerosol_mat);
+        }
+        addParticles( a_lev, a_ptr, *(m_initializations[i]) );
+        Print() << "  Particle container size (level " << a_lev << "): "
+                << NumberOfParticlesAtLevel(a_lev) << "\n";
     }
-    Print() << "  Total number of superdroplets per cell: " << m_num_sd_per_cell << "\n";
+    if (a_lev == 0) {
+        Print() << "  Total number of superdroplets per cell: " << m_num_sd_per_cell << "\n";
 
-    for (int i = 0; i < m_num_injections; i++) {
-        Print() << "  SuperDropletPC(" << m_name << ") Injection";
-        if (m_num_injections > 1) { Print() << " " << i; }
-        Print() << ":\n";
-        m_injections[i]->printParameters(m_species_mat, m_aerosol_mat);
+        for (int i = 0; i < m_num_injections; i++) {
+            Print() << "  SuperDropletPC(" << m_name << ") Injection";
+            if (m_num_injections > 1) { Print() << " " << i; }
+            Print() << ":\n";
+            m_injections[i]->printParameters(m_species_mat, m_aerosol_mat);
+        }
     }
 }
 
@@ -341,7 +353,7 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
              && (a_t <= m_injections[i]->m_tstop) ) {
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
-            addParticles( a_ptr, *(m_injections[i]) );
+            addParticles( 0, a_ptr, *(m_injections[i]) );
             Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }
     }
@@ -357,11 +369,11 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
-    const auto plo = Geom(m_lev).ProbLoArray();
-    const auto dx_h = Geom(m_lev).CellSize();
+    const auto plo = Geom(0).ProbLoArray();
+    const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
-    const auto dxi = Geom(m_lev).InvCellSizeArray();
-    const auto domain = Geom(m_lev).Domain();
+    const auto dxi = Geom(0).InvCellSizeArray();
+    const auto domain = Geom(0).Domain();
 
     const int num_sd_per_cell = m_num_sd_per_cell;
     const int num_sp  = m_num_species;
@@ -371,7 +383,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
-    forEachParticleTile(m_lev,
+    forEachParticleTile(0,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {
@@ -417,11 +429,11 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
     BL_PROFILE("SuperDropletPC::DensityScaling");
     if (!m_density_scaling) { return; }
 
-    const auto plo = Geom(m_lev).ProbLoArray();
-    const auto dxi = Geom(m_lev).InvCellSizeArray();
-    const auto domain = Geom(m_lev).Domain();
+    const auto plo = Geom(0).ProbLoArray();
+    const auto dxi = Geom(0).InvCellSizeArray();
+    const auto domain = Geom(0).Domain();
 
-    forEachParticleTile(m_lev,
+    forEachParticleTile(0,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {
