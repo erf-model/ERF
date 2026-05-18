@@ -67,7 +67,9 @@ z_from_zeta (amrex::Real x, amrex::Real y, amrex::Real zeta,
 // Physical z -> computational zeta at column (x, y).
 //   Walks the terrain nodes at (x, y) to find the cell whose physical z range
 //   straddles the requested z, then linearly interpolates the sub-cell
-//   fraction.  k_max is the largest valid cell index in the level.
+//   fraction.  k_max is the largest valid cell index in the level; the walk
+//   is further clamped to the actual k extent of height_arr (which can be a
+//   smaller partial-z tile under AMR).
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 zeta_from_z (amrex::Real x, amrex::Real y, amrex::Real z,
@@ -79,9 +81,10 @@ zeta_from_z (amrex::Real x, amrex::Real y, amrex::Real z,
     if (!height_arr) {
         return z;  // no terrain: identity
     }
-    // Linear walk to find k where z_face[k] <= z < z_face[k+1]
-    int k = 0;
-    while (k < k_max) {
+    const int k_lo = amrex::max(0,     height_arr.begin[2]);
+    const int k_hi = amrex::min(k_max, height_arr.end[2] - 2);
+    int k = k_lo;
+    while (k < k_hi) {
         const amrex::Real z_hi = z_face_at_xy(x, y, k + 1, plo, dxi, height_arr);
         if (z < z_hi) { break; }
         ++k;

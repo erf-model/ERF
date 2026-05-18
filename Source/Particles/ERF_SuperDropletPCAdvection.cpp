@@ -38,21 +38,20 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::AdvectParticles()");
+    AMREX_ALWAYS_ASSERT((a_lev >= 0) && (a_lev <= finestLevel()));
+
     const MFPtr& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ASSERT(OK(a_lev, a_lev, a_flow_vel[0].nGrow()-1));
-    AMREX_ASSERT(a_lev >= 0 && a_lev < GetParticles().size());
     AMREX_D_TERM(AMREX_ASSERT(a_flow_vel[0].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[1].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[2].nGrow() >= 1););
-
     AMREX_D_TERM(AMREX_ASSERT(!a_flow_vel[0].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
     const auto ctx = buildProcessContext(a_lev);
     const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
     const Box& dom = geom.Domain();
     const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
@@ -94,7 +93,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             v[0] = v[1] = v[2] = zero;
 
             mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
-            amrex::ignore_unused(zheight, is_periodic_z);
+            if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                v[0] = zero; v[1] = zero; v[2] = zero;
+            }
 
             // Interpolate density, pressure, temperature at particle position
             constexpr int nf = static_cast<int>(InterpFieldsAdv::NUM_FIELDS);
@@ -103,8 +104,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 density_arr, pressure_arr, temperature_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto density     = fv[static_cast<int>(InterpFieldsAdv::density)];
             const auto pressure    = fv[static_cast<int>(InterpFieldsAdv::pressure)];
@@ -163,6 +163,13 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 if (advect_w_gravity) {
                     z_n -= a_dt * terminal_vel;
                 }
+                int qi = int(amrex::Math::floor((x_n - ctx.plo[0]) * ctx.dxi[0]));
+                int qj = int(amrex::Math::floor((y_n - ctx.plo[1]) * ctx.dxi[1]));
+                int qk = int(amrex::Math::floor((z_n - ctx.plo[AMREX_SPACEDIM-1])
+                                                * ctx.dxi[AMREX_SPACEDIM-1]));
+                if (qi     < zheight.begin[0] || qi + 1 >= zheight.end[0] ||
+                    qj     < zheight.begin[1] || qj + 1 >= zheight.end[1] ||
+                    qk     < zheight.begin[2] || qk + 1 >= zheight.end[2]) { return; }
                 p.pos(0) = static_cast<ParticleReal>(x_n);
                 p.pos(1) = static_cast<ParticleReal>(y_n);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(

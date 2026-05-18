@@ -95,7 +95,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
 #endif
 
     BL_PROFILE("SuperDropletPC::Coalescence()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
@@ -107,11 +106,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
+
+    // Scale bin size by refinement ratio so each level's bins span the same
+    // physical volume as level 0 (same MC pair-density per bin)
+    IntVect bin_size = m_coalescence_bin_size;
+    for (int k = 0; k < a_lev; k++) {
+        bin_size *= m_gdb->refRatio(k);
+    }
+
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[1])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
+        = one / (  static_cast<ParticleReal>(bin_size[0])
+                 * static_cast<ParticleReal>(bin_size[1])
+                 * static_cast<ParticleReal>(bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
     Real num_collisions = 0;
@@ -200,8 +207,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
-        int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
-        auto binner = GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box};
+        int ntiles = numTilesInBox(box, true, bin_size);
+        auto binner = GetParticleBin{plo, dxi, domain, bin_size, box};
         DenseBins<ParticleType> bins;
         bins.build( np, pstruct_ptr, ntiles, binner);
         AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));

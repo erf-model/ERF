@@ -68,6 +68,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
 void SuperDropletPC::Diagnostics( const int a_iter,
+                                  const int a_lev,
                                   const Real a_time,
                                   const bool a_flag )
 {
@@ -399,10 +400,10 @@ void SuperDropletPC::Diagnostics( const int a_iter,
             auto r_eff_min_aero = std::cbrt( min_mass_aerosols[ia] / (four_thirds_pi*rho) );
             if ((r_eff_min_aero < r_eff_min) && (r_eff_min_aero > Real(1.0e-10))) { r_eff_min = r_eff_min_aero; }
         }
-        ComputeDistributions( a_iter, r_eff_min, r_eff_max );
+        ComputeDistributions( a_iter, a_lev, r_eff_min, r_eff_max );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        ComputeBinnedDistributions( a_iter);
-        ComputeBinnedDistributionsCell( a_iter, a_time);
+        ComputeBinnedDistributions( a_iter, a_lev);
+        ComputeBinnedDistributionsCell( a_iter, a_lev, a_time);
 #else
         amrex::ignore_unused(a_time);
 #endif
@@ -413,13 +414,14 @@ void SuperDropletPC::Diagnostics( const int a_iter,
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeDistributions( const int a_iter,
+                                           const int a_lev,
                                            const ParticleReal a_r_min,
                                            const ParticleReal a_r_max )
 {
     BL_PROFILE("SuperDropletPC::ComputeDistributions()");
     int Nr = m_distribution_grid_size;
 
-    const Geometry& geom = m_gdb->Geom(m_lev);
+    const Geometry& geom = m_gdb->Geom(a_lev);
     const auto dxi = geom.InvCellSizeArray();
 
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
@@ -532,14 +534,14 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
+void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_lev)
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributions()");
     int Nbin = m_distribution_grid_size;
     auto r_min = m_bindist_rmin;
     auto r_max = m_bindist_rmax;
 
-    const Geometry& geom = m_gdb->Geom(m_lev);
+    const Geometry& geom = m_gdb->Geom(a_lev);
     const auto dxi = geom.InvCellSizeArray();
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2]; // divide by cell volume
 
@@ -619,6 +621,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
+                                                     const int a_lev,
                                                      const Real a_time )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributionsCell()");
@@ -629,7 +632,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
     auto r_min = m_bindist_rmin;
     auto r_max = m_bindist_rmax;
 
-    const auto& geom = Geom(m_lev);
+    const auto& geom = Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
@@ -659,7 +662,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
         char r_str[12]; snprintf(r_str, sizeof(r_str), "%1.4e", r_l);
         varnames[n] = std::string(r_str);
 
-        ParticleToMesh( *this, m_mass_ln_R_mf, m_lev,
+        ParticleToMesh( *this, m_mass_ln_R_mf, a_lev,
             [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
@@ -674,7 +677,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                 Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ai*ni*mi*inbin * inv_cell_volume / dln_R));
             }, false);
 
-        ParticleToMesh( *this, m_num_ln_R_mf, m_lev,
+        ParticleToMesh( *this, m_num_ln_R_mf, a_lev,
             [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
