@@ -31,7 +31,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     if (m_save_inactive) {
 #ifndef ERF_USE_NETCDF
-        const auto& geom = Geom(m_lev);
+        const auto& geom = Geom(a_lev);
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
@@ -101,7 +101,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
         const auto ctx = buildProcessContext(a_lev);
-        const auto dx_h = Geom(m_lev).CellSize();
+        const auto dx_h = Geom(a_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
         const Box& dom = Geom(a_lev).Domain();

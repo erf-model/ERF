@@ -440,6 +440,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     // so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // Populate dz_min for dynamically-created fine levels (non-terrain path).
+    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
+    dz_min[lev] = geom[lev].CellSize(2);
+    if ( SolverChoice::mesh_type != MeshType::ConstantDz && detJ_cc[lev] ) {
+        dz_min[lev] *= (*detJ_cc[lev]).min(0);
+    }
 #ifdef ERF_USE_NETCDF
     }
 #endif
@@ -840,8 +847,10 @@ ERF::ClearLevel (int lev)
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
 
-    // Clears the flux register array
-    advflux_reg[lev]->reset();
+    // Clears the flux register array (only allocated for TwoWay coupling)
+    if (advflux_reg[lev]) {
+        advflux_reg[lev]->reset();
+    }
 
     // Clears the 2D arrays
     if (sst_lev[lev][0]) {

@@ -1068,14 +1068,20 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_USE_PARTICLES
-    if (restart_chkfile.empty()) {
-        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+        // Promote the Lagrangian PC to the multi-level ParGDB before init so
+        // per-level addParticles() can use ParticleBoxArray(lev)/DistributionMap(lev).
+        auto* pc_ptr = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+        AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
+        pc_ptr->Define(static_cast<amrex::ParGDBBase*>(GetParGDB()));
+
+        if (restart_chkfile.empty()) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
             }
 
             for (int lev = 0; lev <= finest_level; lev++) {
-                dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
+                dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(lev, z_phys_nd[lev]);
             }
         }
     }
@@ -1187,6 +1193,7 @@ ERF::InitData_post ()
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
         const auto& pc_name( dynamic_cast<LagrangianMicrophysics&>(*micro).getName() );
         const auto& pc_ptr( dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer() );
+        AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
         particleData.pushBack(pc_name, pc_ptr);
         particleData.getNamesUnalloc().remove(pc_name);
     }
