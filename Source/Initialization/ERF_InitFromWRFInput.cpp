@@ -130,6 +130,7 @@ read_base_state_params_from_wrfinput (int lev,
         std::vector<size_t> start;
         int success = ncf.has_var("T00");
         if (success) {
+            Print() << "Reading T00 from wrfinput\n";
             shape = ncf.var("T00").shape();
             start.resize(shape.size(), 0);
             ncf.var("T00").get(&T00 ,start, shape);
@@ -137,6 +138,7 @@ read_base_state_params_from_wrfinput (int lev,
 
         success = ncf.has_var("P00");
         if (success) {
+            Print() << "Reading P00 from wrfinput\n";
             shape = ncf.var("P00").shape();
             start.resize(shape.size(), 0);
             ncf.var("P00").get(&P00 ,start, shape);
@@ -144,6 +146,7 @@ read_base_state_params_from_wrfinput (int lev,
 
         success = ncf.has_var("TLP");
         if (success) {
+            Print() << "Reading TLP from wrfinput\n";
             shape = ncf.var("TLP").shape();
             start.resize(shape.size(), 0);
             ncf.var("TLP").get(&TLP ,start, shape);
@@ -151,6 +154,7 @@ read_base_state_params_from_wrfinput (int lev,
 
         success = ncf.has_var("TISO");
         if (success) {
+            Print() << "Reading TISO from wrfinput\n";
             shape = ncf.var("TISO").shape();
             start.resize(shape.size(), 0);
             ncf.var("TISO").get(&TISO ,start, shape);
@@ -165,6 +169,7 @@ read_base_state_params_from_wrfinput (int lev,
 
         success = ncf.has_var("P_STRAT");
         if (success) {
+            Print() << "Reading P_STRAT from wrfinput\n";
             shape = ncf.var("P_STRAT").shape();
             start.resize(shape.size(), 0);
             ncf.var("P_STRAT").get(&P_STRAT ,start, shape);
@@ -173,7 +178,7 @@ read_base_state_params_from_wrfinput (int lev,
         ncf.close();
 
         Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
-                << T00 << ", " << P00 < ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
+                << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
                 << P_STRAT << ") \n";
     }
 
