@@ -1241,7 +1241,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 
                     Pd_hi -= F / dFdP;
                     Td_hi  = (P_STRAT > zero && Pd_hi > P_STRAT) ? std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0)) :
-                                                                   TISO + TLP_STRAT * std::log(Pd_hi/P_strat);
+                                                                   TISO + TLP_STRAT * std::log(Pd_hi/P_STRAT);
                     Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
                     F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
