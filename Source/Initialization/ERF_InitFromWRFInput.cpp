@@ -162,6 +162,7 @@ read_base_state_params_from_wrfinput (int lev,
 
         success = ncf.has_var("TLP_STRAT");
         if (success) {
+            Print() << "Reading TLP_STRAT from wrfinput\n";
             shape = ncf.var("TLP_STRAT").shape();
             start.resize(shape.size(), 0);
             ncf.var("TLP_STRAT").get(&TLP_STRAT ,start, shape);
