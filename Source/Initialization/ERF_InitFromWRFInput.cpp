@@ -171,6 +171,10 @@ read_base_state_params_from_wrfinput (int lev,
         }
 
         ncf.close();
+
+        Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
+                << T00 << ", " << P00 < ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
+                << P_STRAT << ") \n";
     }
 
     ParallelDescriptor::Bcast(&T00,1,ParallelDescriptor::IOProcessorNumber());
