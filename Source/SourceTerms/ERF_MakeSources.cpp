@@ -752,6 +752,7 @@ void make_sources (int level,
             {
                 cell_src(i,j,k,RhoTheta_comp) += mac_src(i,j,k,0);
                 cell_src(i,j,k,RhoQ1_comp   ) += mac_src(i,j,k,1);
+                cell_src(i,j,k,RhoQ2_comp   ) += mac_src(i,j,k,2);
             });
         }
     } // mfi
