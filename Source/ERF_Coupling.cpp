@@ -6,7 +6,64 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_Print.H>
 #include <AMReX_ParmParse.H>
+
+amrex::Real
+ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
+{
+    amrex::Real cur_time = t_new[0];
+    const int step = istep[0];
+
+    if (start_time + cur_time >= stop_time) {
+        return amrex::Real(0.0);
+    }
+
+    ComputeDt(step);
+
+    int iteration = 1;
+    timeStep(0, cur_time, iteration);
+    cur_time += dt[0];
+
+    post_timestep(step, cur_time, dt[0]);
+
+    if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
+        last_plot3d_file_step_1 = step+1;
+        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_1 > amrex::Real(0.0)) {last_plot3d_file_time_1 += m_plot3d_per_1;}
+    }
+    if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
+        last_plot3d_file_step_2 = step+1;
+        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_2 > amrex::Real(0.0)) {last_plot3d_file_time_2 += m_plot3d_per_2;}
+    }
+    if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
+        last_plot2d_file_step_1 = step+1;
+        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        if (m_plot2d_per_1 > amrex::Real(0.0)) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+    }
+    if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
+        last_plot2d_file_step_2 = step+1;
+        Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+        if (m_plot2d_per_2 > amrex::Real(0.0)) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+    }
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+            last_subvol_step[i] = step+1;
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > amrex::Real(0.0)) {last_subvol_time[i] += m_subvol_per[i];}
+        }
+    }
+    if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
+        last_check_file_step = step+1;
+        WriteCheckpointFile();
+        if (m_check_per > amrex::Real(0.0)) {last_check_file_time += m_check_per;}
+    }
+
+    return dt[0];
+}
 
 /*
   Coupling reference context (implementation-side):
@@ -34,6 +91,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             amrex::Real /*time*/)
 {
     using namespace amrex;
+    static bool s_cloud_source_msg_printed = false;
 
     // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
     // to avoid a driver→submodule header dependency).
@@ -126,16 +184,24 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             states[iRH]->ParallelCopy(tmp, 0, 0, 1);
         }
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
-            MultiFab tmp(ba, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
-                auto const& c = cons.const_array(mfi);
-                auto         t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = (c(i,j,k,RhoQ2_comp) + c(i,j,k,RhoQ3_comp)) / c(i,j,k,Rho_comp);
-                });
+            // V1: no 2D diagnosed cloud-fraction field is wired in this coupling path yet.
+            const bool has_diagnosed_cloud_fraction = false;
+            if (has_diagnosed_cloud_fraction) {
+                MultiFab tmp(ba, dm, 1, 0);
+                if (!s_cloud_source_msg_printed && amrex::ParallelDescriptor::IOProcessor()) {
+                    amrex::Print() << "cloud packed from diagnosed fraction\n";
+                    s_cloud_source_msg_printed = true;
+                }
+                // Placeholder branch for future diagnosed cloud-fraction plumbing.
+                states[iCloud]->ParallelCopy(tmp, 0, 0, 1);
+            } else {
+                const Real cf = amrex::max(Real(0.0), amrex::min(Real(1.0), cloud_fraction(0.0)));
+                if (!s_cloud_source_msg_printed && amrex::ParallelDescriptor::IOProcessor()) {
+                    amrex::Print() << "cloud packed from diagnosed fraction (domain-mean cloud_fraction)\n";
+                    s_cloud_source_msg_printed = true;
+                }
+                states[iCloud]->setVal(cf);
             }
-            states[iCloud]->ParallelCopy(tmp, 0, 0, 1);
         }
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
             int qr_idx = solverChoice.moisture_indices.qr;

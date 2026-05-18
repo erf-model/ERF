@@ -136,6 +136,7 @@ public:
 
     // Advance solution to final time
     void Evolve ();
+    amrex::Real EvolveOneStep (amrex::Real time, amrex::Real dt_request);
 
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, amrex::Real time);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, amrex::Real time);
