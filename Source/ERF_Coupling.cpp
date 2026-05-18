@@ -138,16 +138,24 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             states[iCloud]->ParallelCopy(tmp, 0, 0, 1);
         }
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
-            MultiFab tmp(ba, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
-                auto const& c = cons.const_array(mfi);
-                auto         t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = c(i,j,k,RhoQ4_comp) / c(i,j,k,Rho_comp);
-                });
+            int qr_idx = solverChoice.moisture_indices.qr;
+            if (qr_idx != -1) {
+                MultiFab tmp(ba, dm, 1, 0);
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
+                    auto const& c = cons.const_array(mfi);
+                    auto         t = tmp.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        t(i,j,k) = c(i,j,k,qr_idx) / c(i,j,k,Rho_comp);
+                    });
+                }
+                states[iRain]->ParallelCopy(tmp, 0, 0, 1);
+                if (amrex::ParallelDescriptor::IOProcessor()) {
+                    amrex::Print() << "packed rain from explicit source (index " << qr_idx << ")\n";
+                }
+            } else if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "rain source unavailable; preserving fallback\n";
             }
-            states[iRain]->ParallelCopy(tmp, 0, 0, 1);
         }
     }
     // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
