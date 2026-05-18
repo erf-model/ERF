@@ -1175,7 +1175,7 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Expose for GPU
     Real grav = CONST_GRAV;
     const int maxiter = 20;
-    const Real tol   = Real(1.0e-10);
+    const Real tol    = Real(1.0e-10);
 
     //***********************************************************************************
     // Set the HSE base state only
@@ -1210,8 +1210,13 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
                                        + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
             Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
-            Real Td_lo = (P_STRAT > zero && Pd_lo > P_STRAT) ? std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0)) :
-                                                               TISO + TLP_STRAT * std::log(Pd_lo/P_STRAT);
+            Real Td_lo;
+            if (P_STRAT > zero && Pd_lo < P_STRAT) {
+                Td_lo = TISO + TLP_STRAT * std::log(Pd_lo/P_STRAT);
+            } else {
+                Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
+            }
+
             Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
             for (int k(klo); k<=khi; ++k) {
                 // Vertical grid spacing
@@ -1233,15 +1238,22 @@ init_base_state_from_metgrid (const bool use_moisture,
                 while (std::fabs(F)>tol && niter<maxiter) {
                     Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
                     Real Pd_plus = Pd_hi + dP;
-                    Real Td_plus = (P_STRAT > zero && Pd_plus > P_STRAT) ? std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0)) :
-                                                                           TISO + TLP_STRAT * std::log(Pd_plus/P_STRAT);
+                    Real Td_plus;
+                    if (P_STRAT > zero && Pd_plus < P_STRAT) {
+                        Td_plus = TISO + TLP_STRAT * std::log(Pd_plus/P_STRAT);
+                    } else {
+                        Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
+                    }
                     Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
                     Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
                     Real dFdP    = (F_plus - F) / dP;
 
                     Pd_hi -= F / dFdP;
-                    Td_hi  = (P_STRAT > zero && Pd_hi > P_STRAT) ? std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0)) :
-                                                                   TISO + TLP_STRAT * std::log(Pd_hi/P_STRAT);
+                    if (P_STRAT > zero && Pd_hi < P_STRAT) {
+                        Td_hi = TISO + TLP_STRAT * std::log(Pd_hi/P_STRAT);
+                    } else {
+                        Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
+                    }
                     Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
                     F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
