@@ -131,42 +131,34 @@ public:
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static amrex::Real
-    NewtonIterSat (int& i, int& j, int& k,
-                   const amrex::Real& fac_cond,
-                   const amrex::Array4<amrex::Real>& tabs_array,
-                   const amrex::Array4<amrex::Real>& pres_array,
-                   const amrex::Array4<amrex::Real>& qv_array,
-                   const amrex::Array4<amrex::Real>& qc_array)
+    NewtonSolveSatTemperature (const amrex::Real fac_cond,
+                               const amrex::Real tabs_old,
+                               const amrex::Real pres_mbar,
+                               const amrex::Real qv_old,
+                               amrex::Real& qsat)
     {
-        // Solution tolerance
-        amrex::Real tol = amrex::Real(1.0e-8);
+        constexpr amrex::Real tol = amrex::Real(1.0e-8);
+        constexpr int max_niter = 20;
 
-        // Saturation moisture fractions
-        amrex::Real qsat, dqsat;
+        amrex::Real dqsat;
 
-        // Newton iteration vars
-        int  niter;
+        int  niter = 0;
         amrex::Real fff, dfff;
-        amrex::Real dtabs, delta_qv;
+        amrex::Real dtabs = one;
 
-        // Initial guess for temperature & pressure
-        amrex::Real tabs = tabs_array(i,j,k);
-        amrex::Real pres = pres_array(i,j,k);
-
-        niter = 0;
-        dtabs = 1;
+        amrex::Real tabs = tabs_old;
 
         //==================================================
         // Newton iteration to qv=qsat (cloud phase only)
         //==================================================
         do {
             // Saturation moisture fractions
-            erf_qsatw(tabs, pres, qsat);
-            erf_dtqsatw(tabs, pres, dqsat);
+            erf_qsatw(tabs, pres_mbar, qsat);
+            erf_dtqsatw(tabs, pres_mbar, dqsat);
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_array(i,j,k) + fac_cond*(qv_array(i,j,k) - qsat);
+            fff   = -tabs + tabs_old + fac_cond*(qv_old - qsat);
 
             // Derivative of function (T_new iterated on)
             dfff  = -one - fac_cond*dqsat;
@@ -177,20 +169,89 @@ public:
 
             // Update iteration
             niter = niter+1;
-        } while(std::abs(dtabs) > tol && niter < 20);
+        } while(std::abs(dtabs) > tol && niter < max_niter);
 
         // Update qsat from last iteration (dq = dq/dt * dt)
         qsat += dqsat*dtabs;
 
-        // Changes in each component
-        delta_qv = qv_array(i,j,k) - qsat;
-
-        // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = qsat;
-        qc_array(i,j,k) += delta_qv;
-
-        // Return to temperature
         return tabs;
+    }
+
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static void
+    AdjustSatAdjCell (const amrex::Real fac_cond,
+                      const amrex::Real rdOcp,
+                      amrex::Real& tabs,
+                      const amrex::Real pres_mbar,
+                      amrex::Real& theta,
+                      amrex::Real& qv,
+                      amrex::Real& qc)
+    {
+        amrex::Real qsat;
+        erf_qsatw(tabs, pres_mbar, qsat);
+
+        if ((qv + qc) > qsat) {
+#if defined(AMREX_DEBUG)
+            const amrex::Real qvprev = qv;
+            const amrex::Real qcprev = qc;
+#endif
+
+            if (qc < 0) {
+                qv += qc;
+                qc = zero;
+            }
+
+            tabs = NewtonSolveSatTemperature(fac_cond, tabs, pres_mbar, qv, qsat);
+
+            const amrex::Real delta_qv = qv - qsat;
+            qv = qsat;
+            qc += delta_qv;
+
+#if defined(AMREX_DEBUG)
+            amrex::Real qsatnew;
+            erf_qsatw(tabs, pres_mbar, qsatnew);
+            AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-12);
+            AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+#endif
+
+            theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
+        } else {
+            const amrex::Real delta_qc = qc;
+
+            qv += qc;
+            qc = zero;
+
+            tabs -= fac_cond * delta_qc;
+            theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
+
+            erf_qsatw(tabs, pres_mbar, qsat);
+            if (qv > qsat) {
+#if defined(AMREX_DEBUG)
+                const amrex::Real qvprev = qv;
+                const amrex::Real qcprev = qc;
+                const amrex::Real Tprev = tabs;
+#endif
+
+                tabs = NewtonSolveSatTemperature(fac_cond, tabs, pres_mbar, qv, qsat);
+
+                const amrex::Real delta_qv = qv - qsat;
+                qv = qsat;
+                qc += delta_qv;
+
+#if defined(AMREX_DEBUG)
+                amrex::Real qsatnew;
+                erf_qsatw(tabs, pres_mbar, qsatnew);
+                AMREX_ASSERT(qv < qvprev);
+                AMREX_ASSERT(qc > qcprev);
+                AMREX_ASSERT(tabs > Tprev);
+                AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-14);
+                AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+#endif
+
+                theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
+            }
+        }
     }
 
 private:

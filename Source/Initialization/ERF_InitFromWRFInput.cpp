@@ -73,21 +73,24 @@ init_terrain_from_wrfinput (int lev,
 
 void
 init_base_state_from_wrfinput (const Box& subdomain,
-                               Real l_rdOcp,
-                               MoistureType moisture_type,
-                               const int& n_qstate_moist,
-                               MultiFab& cons_fab,
+                               const Real& l_rdOcp,
+                               MultiFab* z_phys,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
                                MultiFab& r_hse,
-                               const MultiFab& mf_PB,
-                               const MultiFab& mf_P,
-                               const bool& use_P_eos);
+                               MultiFab& mf_PB,
+                               MultiFab* mf_ALB,
+                               const Real& T00,
+                               const Real& P00,
+                               const Real& TLP,
+                               const Real& TISO,
+                               const Real& TLP_STRAT,
+                               const Real& P_STRAT);
 
 Real
-read_start_time_from_wrfinput(int lev, const std::string& fname)
+read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
     std::string NC_dateTime;
     Real        NC_epochTime;
@@ -101,13 +104,91 @@ read_start_time_from_wrfinput(int lev, const std::string& fname)
 
         ncf.close();
 
-        amrex::Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
-        amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
+        Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
     }
 
-    amrex::ParallelDescriptor::Bcast(&NC_epochTime,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&NC_epochTime,1,ParallelDescriptor::IOProcessorNumber());
 
     return NC_epochTime;
+}
+
+void
+read_base_state_params_from_wrfinput (int lev,
+                                      const std::string& fname,
+                                      Real& T00,
+                                      Real& P00,
+                                      Real& TLP,
+                                      Real& TISO,
+                                      Real& TLP_STRAT,
+                                      Real& P_STRAT)
+{
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+
+        std::vector<size_t> shape;
+        std::vector<size_t> start;
+        int success = ncf.has_var("T00");
+        if (success) {
+            Print() << "Reading T00 from wrfinput\n";
+            shape = ncf.var("T00").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("T00").get(&T00 ,start, shape);
+        }
+
+        success = ncf.has_var("P00");
+        if (success) {
+            Print() << "Reading P00 from wrfinput\n";
+            shape = ncf.var("P00").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("P00").get(&P00 ,start, shape);
+        }
+
+        success = ncf.has_var("TLP");
+        if (success) {
+            Print() << "Reading TLP from wrfinput\n";
+            shape = ncf.var("TLP").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("TLP").get(&TLP ,start, shape);
+        }
+
+        success = ncf.has_var("TISO");
+        if (success) {
+            Print() << "Reading TISO from wrfinput\n";
+            shape = ncf.var("TISO").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("TISO").get(&TISO ,start, shape);
+        }
+
+        success = ncf.has_var("TLP_STRAT");
+        if (success) {
+            Print() << "Reading TLP_STRAT from wrfinput\n";
+            shape = ncf.var("TLP_STRAT").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("TLP_STRAT").get(&TLP_STRAT ,start, shape);
+        }
+
+        success = ncf.has_var("P_STRAT");
+        if (success) {
+            Print() << "Reading P_STRAT from wrfinput\n";
+            shape = ncf.var("P_STRAT").shape();
+            start.resize(shape.size(), 0);
+            ncf.var("P_STRAT").get(&P_STRAT ,start, shape);
+        }
+
+        ncf.close();
+
+        Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
+                << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
+                << P_STRAT << ") \n";
+    }
+
+    ParallelDescriptor::Bcast(&T00,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&P00,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&TLP,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&TISO,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&TLP_STRAT,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&P_STRAT,1,ParallelDescriptor::IOProcessorNumber());
 }
 
 /**
@@ -195,8 +276,20 @@ ERF::init_from_wrfinput (int lev,
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
-    MultiFab mf_PH , mf_PHB;         // For geopotential height
-    MultiFab mf_PB , mf_P  ; // For base state
+    MultiFab mf_PH , mf_PHB;          // For geopotential height
+    MultiFab mf_PB , mf_P  ;          // For base state
+    std::unique_ptr<MultiFab> mf_ALB; // For base state
+
+    // Read base state params (used if ALB is not read)
+    Real T00 = Real(290.0);
+    Real P00 = p_0;
+    Real TLP = Real(50.0);
+    Real TISO = Real(200.0);
+    Real TLP_STRAT = Real(-11.0);
+    Real P_STRAT   = zero;
+    read_base_state_params_from_wrfinput(lev, nc_init_file[lev][0],
+                                         T00, P00, TLP, TISO,
+                                         TLP_STRAT, P_STRAT);
 
     // Temporary MFs for derived quantities
     auto& ba    = lev_new[Vars::cons].boxArray();
@@ -328,6 +421,7 @@ ERF::init_from_wrfinput (int lev,
 
             // Initialize rho =  1/(ALB + AL)
             if ( (use_alt_density == 0) && (var_name == "ALB") ) {
+                mf_ALB = std::make_unique<MultiFab>(ba,dm,1,ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -335,6 +429,8 @@ ERF::init_from_wrfinput (int lev,
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
                     cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
+                    FArrayBox &ALB_fab = (*mf_ALB)[mfi];
+                    ALB_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
                 }
 
             } if ( (use_alt_density == 0) && (var_name == "AL") ) {
@@ -898,113 +994,6 @@ ERF::init_from_wrfinput (int lev,
     }
 
     // **************************************************************************
-    // Rebalance the base state if needed
-    // **************************************************************************
-    if (solverChoice.rebalance_wrfinput) {
-        Print() << "Rebalancing the HSE state!\n";
-        int ncomp = lev_new[Vars::cons].nComp();
-        int k_dom_lo = geom[lev].Domain().smallEnd(2);
-        int k_dom_hi = geom[lev].Domain().bigEnd(2);
-        Real tol  = Real(1.0e-10);
-        Real grav = CONST_GRAV;
-        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
-            Box bx  = mfi.tilebox();
-            int klo = bx.smallEnd(2);
-            int khi = bx.bigEnd(2);
-            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
-            bx.makeSlab(2,klo);
-
-            const Array4<      Real>& con_arr = lev_new[Vars::cons].array(mfi);
-            const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-            {
-                // integrate from surface to domain top
-                Real Factor;
-                Real dz, F, C;
-                Real rho_tot_hi, rho_tot_lo;
-                Real z_lo, z_hi;
-                Real R_lo, R_hi;
-                Real qv_lo, qv_hi;
-                Real Th_lo, Th_hi;
-                Real P_lo, P_hi;
-
-                // First integrate from sea level to the height at klo
-                {
-                    // Vertical grid spacing
-                    z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-                    dz = z_hi - z_lo;
-
-                    // Establish known constant
-                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                    Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_lo  = p_0;
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                    rho_tot_lo = R_lo * (one + qv_lo);
-                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                    // Initial guess and residual
-                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                    Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_hi  = p_0;
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                    rho_tot_hi = R_hi * (one + qv_hi);
-                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                    // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
-                                                 qv_hi, qv_hi,
-                                                 P_hi, R_hi, F);
-
-                    // Assign data
-                    Factor = R_hi / con_arr(i,j,klo,Rho_comp);
-                    con_arr(i,j,klo,Rho_comp) = R_hi;
-                    for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
-                    P_lo = P_hi;
-                    z_lo = z_hi;
-                }
-
-                for (int k(klo+1); k<=khi; ++k) {
-                    // Vertical grid spacing
-                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-                  dz   = z_hi - z_lo;
-
-                  // Establish known constant
-                  qv_lo = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
-                  Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                  rho_tot_lo = R_lo * (one + qv_lo);
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                  // Initial guess and residual
-                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
-                  Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                  rho_tot_hi = R_hi * (one + qv_hi);
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                  // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
-
-                  // Assign data
-                  Factor = R_hi / con_arr(i,j,k,Rho_comp);
-                  con_arr(i,j,k,Rho_comp) = R_hi;
-                  for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
-                  P_lo = P_hi;
-                  z_lo = z_hi;
-                }
-            });
-        } // mfi
-    } // rebalance_wrfinput
-
-    // **************************************************************************
     // Initialize the base state
     // **************************************************************************
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
@@ -1013,15 +1002,9 @@ ERF::init_from_wrfinput (int lev,
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-
-    int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-    AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
-
-    bool use_P_eos = (solverChoice.rebalance_wrfinput);
-
-    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
-                                  lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  mf_PB, mf_P, use_P_eos);
+    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, z_phys_nd[lev].get(),
+                                  p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(),
+                                  T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
      r_hse.FillBoundary(geom[lev].periodicity());
@@ -1134,35 +1117,42 @@ ERF::init_from_wrfinput (int lev,
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
-                               const Real l_rdOcp,
-                               MoistureType moisture_type,
-                               const int& n_qstate_moist,
-                               MultiFab& cons,
+                               const Real& l_rdOcp,
+                               MultiFab* z_phys_nd,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
                                MultiFab& r_hse,
-                               const MultiFab& mf_PB,
-                               const MultiFab& mf_P,
-                               const bool& use_P_eos)
+                               MultiFab& mf_PB,
+                               MultiFab* mf_ALB,
+                               const Real& T00,
+                               const Real& P00,
+                               const Real& TLP,
+                               const Real& TISO,
+                               const Real& TLP_STRAT,
+                               const Real& P_STRAT)
 {
     const auto& dom_lo = lbound(subdomain);
     const auto& dom_hi = ubound(subdomain);
 
-    for ( MFIter mfi(p_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
 
-        Box tbx  = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
 
-        const Array4<Real      >&   cons_arr = cons.array(mfi);
         const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
-        const Array4<Real const>&  nc_pb_arr = mf_PB.const_array(mfi);
-        const Array4<Real const>&   nc_p_arr = mf_P.const_array(mfi);
+        const Array4<Real const>&      z_arr = z_phys_nd->const_array(mfi);
+
+        const Array4<Real const>&      PB_arr = mf_PB.const_array(mfi);
+        const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
+                                                           Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -1174,38 +1164,27 @@ init_base_state_from_wrfinput (const Box& subdomain,
             int kk = std::max(k , dom_lo.z);
                 kk = std::min(kk, dom_hi.z);
 
-            // Base plus perturbational pressure
-            Real Ptot = nc_pb_arr(ii,jj,kk) + nc_p_arr(ii,jj,kk);
 
-            // Compute pressure from EOS
-            Real Qv    = (moisture_type != MoistureType::None) ?
-                         cons_arr(ii,jj,kk,RhoQ1_comp) / cons_arr(ii,jj,kk,Rho_comp) : zero;
-            Real RT    = cons_arr(ii,jj,kk,RhoTheta_comp);
-            Real P_eos = getPgivenRTh(RT, Qv);
-            if (use_P_eos) { Ptot = P_eos; }
-            Real DelP  = std::fabs(Ptot - P_eos);
-
-            // NOTE: Ghost cells don't contain valid data
-            //       We want domain GCs and FB picks up interior GCs
-            if (tbx.contains(i,j,k)) {
-                if ( (DelP > one) || (DelP/Ptot > 1e-6) ) {
-                    AMREX_DEVICE_PRINTF("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
-                           i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
-                    amrex::Abort("Initial state is inconsistent with EOS!?");
-                }
+            Real Rd, Td, Thd;
+            Real Pd = PB_arr(ii,jj,kk);
+            // Have inverse base density
+            if (ALB_arr) {
+                Rd  = 1.0 / ALB_arr(ii,jj,kk);
+                Td  = Pd / (R_d * Rd);
+                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
+            } else {
+                Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
+                if (P_STRAT > Real(0.) && Pd <= P_STRAT) { Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT); }
+                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
+                Rd  = getRhogivenThetaPress (Thd, Pd, l_rdOcp);
             }
 
-            // Compute rhse
-            Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
-            for (int q_offset(0); q_offset<n_qstate_moist; ++q_offset) {
-                Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
-            }
-
-            r_hse_arr(i,j,k)  = Rhse_Sum;
-            p_hse_arr(i,j,k)  = Ptot;
+            // Fill HSE arrays (FOEXTRAP ghost cells)
+             r_hse_arr(i,j,k) = Rd;
+            th_hse_arr(i,j,k) = Thd;
+            qv_hse_arr(i,j,k) = Real(0.);
+             p_hse_arr(i,j,k) = Pd;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / cons_arr(ii,jj,kk,Rho_comp);
-            qv_hse_arr(i,j,k) = Qv;
         });
     }
 }

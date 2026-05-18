@@ -276,6 +276,14 @@ public:
     GetPlotVar (const std::string& a_name,
                 amrex::MultiFab& a_mf) const override;
 
+    void
+    GetPlotVar (const std::string& a_name,
+                amrex::MultiFab& a_mf,
+                const int /*a_lev*/) const override
+    {
+        GetPlotVar(a_name, a_mf);
+    }
+
 private:
     // Number of qmoist variables (Ncloud, Nrain, Nice, Nsnow, Ngraup, rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 8;

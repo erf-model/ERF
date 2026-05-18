@@ -185,16 +185,53 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
 
-        // This allows dynamic refinement based on the value of qv
-        } else if ( ref_tags[j].Field() == "qv" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 1);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
+        // Refinement based on a moisture mixing ratio (qv, qc, qi, qr, qs, qg).
+        // The map from name to RhoQ component depends on the moisture model and
+        // is held in solverChoice.moisture_indices.
+        } else if ( (ref_tags[j].Field() == "qv") ||
+                    (ref_tags[j].Field() == "qc") ||
+                    (ref_tags[j].Field() == "qi") ||
+                    (ref_tags[j].Field() == "qr") ||
+                    (ref_tags[j].Field() == "qs") ||
+                    (ref_tags[j].Field() == "qg") )
+        {
+            const auto& mi = solverChoice.moisture_indices;
+            int qcomp = -1;
+            if      (ref_tags[j].Field() == "qv") { qcomp = mi.qv; }
+            else if (ref_tags[j].Field() == "qc") { qcomp = mi.qc; }
+            else if (ref_tags[j].Field() == "qi") { qcomp = mi.qi; }
+            else if (ref_tags[j].Field() == "qr") { qcomp = mi.qr; }
+            else if (ref_tags[j].Field() == "qs") { qcomp = mi.qs; }
+            else if (ref_tags[j].Field() == "qg") { qcomp = mi.qg; }
+            AMREX_ALWAYS_ASSERT(qcomp >= 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], qcomp,    0, 1, 1);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons], Rho_comp, 0, 1, 1);
 
-
-        // This allows dynamic refinement based on the value of qc
-        } else if (ref_tags[j].Field() == "qc" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 1);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
+        // qt = total condensed water mixing ratio (qc + qi + qr + qs + qg).
+        // Excludes qv by convention here.
+        } else if (ref_tags[j].Field() == "qt") {
+            const auto& mi = solverChoice.moisture_indices;
+            const int idx_qc = mi.qc, idx_qi = mi.qi, idx_qr = mi.qr,
+                      idx_qs = mi.qs, idx_qg = mi.qg;
+            AMREX_ALWAYS_ASSERT(idx_qc >= 0 || idx_qi >= 0 || idx_qr >= 0 ||
+                                idx_qs >= 0 || idx_qg >= 0);
+            mf->setVal(0.0);
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.growntilebox();
+                auto qt_arr   = mf->array(mfi);
+                auto cons_arr = vars_new[levc][Vars::cons].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real rho_inv = Real(1.0) / cons_arr(i,j,k,Rho_comp);
+                    Real q = Real(0.0);
+                    if (idx_qc >= 0) { q += cons_arr(i,j,k,idx_qc) * rho_inv; }
+                    if (idx_qi >= 0) { q += cons_arr(i,j,k,idx_qi) * rho_inv; }
+                    if (idx_qr >= 0) { q += cons_arr(i,j,k,idx_qr) * rho_inv; }
+                    if (idx_qs >= 0) { q += cons_arr(i,j,k,idx_qs) * rho_inv; }
+                    if (idx_qg >= 0) { q += cons_arr(i,j,k,idx_qg) * rho_inv; }
+                    qt_arr(i,j,k) = q;
+                });
+            }
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
         } else if (ref_tags[j].Field() == "vorticity" ) {
@@ -301,47 +338,74 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #ifdef ERF_USE_PARTICLES
         } else {
             //
-            // This allows dynamic refinement based on the number of particles per cell
+            // Particle-derived refinement.  Two forms of `field_name` are
+            // supported:
+            //   <species>_count          : particle count per cell
+            //   <species>_<mesh_var>     : Eulerian mesh variable provided
+            //                              by the species' `meshPlotVarNames()`
+            //                              (e.g. `super_droplets_moisture_mass_density`,
+            //                              `tracer_particles_mass_density`).
             //
-            // Note that we must count all the particles in levels both at and above the current,
-            //      since otherwise, e.g., if the particles are all at level 1, counting particles at
-            //      level 0 will not trigger refinement when regridding so level 1 will disappear,
-            //      then come back at the next regridding
+            // In both cases the field is deposited at every level in
+            // [levc, finest_level] and averaged down level-by-level so that
+            // a signal present only on a finer level still triggers
+            // refinement at the coarser level being tagged.  Without this,
+            // particles localised at level 1 would not register at level 0
+            // and the fine grid would disappear at the next regrid.
             //
             const auto& particles_namelist( particleData.getNames() );
             mf->setVal(0.0);
             for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++)
             {
-                std::string tmp_string(particles_namelist[i]+"_count");
-                if (ref_tags[j].Field() == tmp_string) {
-                    auto* pc = particleData[particles_namelist[i]];
-                    pc->resizeData();
-                    int pc_nlevs = static_cast<int>(pc->GetParticles().size());
+                auto* pc = particleData[particles_namelist[i]];
+                const std::string& sp_name = particles_namelist[i];
+                const std::string& field   = ref_tags[j].Field();
 
-                    // Deposit particle counts at each level into per-level MultiFabs
-                    Vector<MultiFab> count_per_lev(finest_level+1);
-                    for (int lev = levc; lev <= finest_level; lev++) {
-                        count_per_lev[lev].define(grids[lev], dmap[lev], 1, 0);
-                        count_per_lev[lev].setVal(0);
-                        if (lev < pc_nlevs) {
-                            pc->IncrementWithTotal(count_per_lev[lev], lev);
-                        }
+                const std::string count_str = sp_name + "_count";
+                const std::string prefix    = sp_name + "_";
+                std::string mesh_var;
+                if (field != count_str
+                    && field.size() > prefix.size()
+                    && field.compare(0, prefix.size(), prefix) == 0)
+                {
+                    const std::string suffix = field.substr(prefix.size());
+                    for (const auto& v : pc->meshPlotVarNames()) {
+                        if (v == suffix) { mesh_var = v; break; }
                     }
-
-                    // Average down level-by-level from finest to levc.
-                    // This avoids multi-level coarsening (e.g. L2->L0 with
-                    // ratio (4,1,4)) which can fail when fine-level boxes
-                    // are not aligned to the composite refinement ratio.
-                    for (int lev = finest_level; lev > levc; lev--) {
-                        MultiFab temp_crse(grids[lev-1], dmap[lev-1], 1, 0);
-                        temp_crse.setVal(0);
-                        average_down(count_per_lev[lev], temp_crse,
-                                     0, 1, ref_ratio[lev-1]);
-                        MultiFab::Add(count_per_lev[lev-1], temp_crse, 0, 0, 1, 0);
-                    }
-
-                    MultiFab::Copy(*mf, count_per_lev[levc], 0, 0, 1, 0);
                 }
+                if (field != count_str && mesh_var.empty()) { continue; }
+
+                pc->resizeData();
+                const int pc_nlevs = static_cast<int>(pc->GetParticles().size());
+
+                // Deposit at each level into per-level MultiFabs.
+                Vector<MultiFab> per_lev(finest_level+1);
+                for (int lev = levc; lev <= finest_level; lev++) {
+                    per_lev[lev].define(grids[lev], dmap[lev], 1, 0);
+                    per_lev[lev].setVal(0);
+                    if (field == count_str) {
+                        if (lev < pc_nlevs) {
+                            pc->IncrementWithTotal(per_lev[lev], lev);
+                        }
+                    } else {
+                        pc->computeMeshVar(mesh_var, per_lev[lev],
+                                           *z_phys_nd[lev], lev);
+                    }
+                }
+
+                // Average down level-by-level from finest to levc.  This
+                // avoids multi-level coarsening (e.g. L2->L0 with ratio
+                // (4,1,4)) which can fail when fine-level boxes are not
+                // aligned to the composite refinement ratio.
+                for (int lev = finest_level; lev > levc; lev--) {
+                    MultiFab temp_crse(grids[lev-1], dmap[lev-1], 1, 0);
+                    temp_crse.setVal(0);
+                    average_down(per_lev[lev], temp_crse,
+                                 0, 1, ref_ratio[lev-1]);
+                    MultiFab::Add(per_lev[lev-1], temp_crse, 0, 0, 1, 0);
+                }
+
+                MultiFab::Copy(*mf, per_lev[levc], 0, 0, 1, 0);
             }
 #endif
         }
@@ -746,11 +810,40 @@ ERF::refinement_criteria_setup ()
                 info.SetMaxLevel(ref_max_level);
             }
 
+            // Read field_name once and validate moisture-field requests against
+            // the active moisture model so an unsupported field aborts at setup
+            // rather than after the first regrid.
+            std::string field;
+            if (ppr.countval("field_name") > 0) {
+                ppr.get("field_name", field);
+                auto is_moist_field = [](const std::string& f) {
+                    return f == "qv" || f == "qc" || f == "qi" ||
+                           f == "qr" || f == "qs" || f == "qg" || f == "qt";
+                };
+                if (is_moist_field(field)) {
+                    const auto& mi = solverChoice.moisture_indices;
+                    int comp = -1;
+                    if      (field == "qv") { comp = mi.qv; }
+                    else if (field == "qc") { comp = mi.qc; }
+                    else if (field == "qi") { comp = mi.qi; }
+                    else if (field == "qr") { comp = mi.qr; }
+                    else if (field == "qs") { comp = mi.qs; }
+                    else if (field == "qg") { comp = mi.qg; }
+                    else if (field == "qt") {
+                        comp = (mi.qc >= 0 || mi.qi >= 0 || mi.qr >= 0 ||
+                                mi.qs >= 0 || mi.qg >= 0) ? 0 : -1;
+                    }
+                    if (comp < 0) {
+                        amrex::Abort("Refinement field_name '" + field +
+                                     "' is not available for the configured moisture model");
+                    }
+                }
+            }
+
             if (ppr.countval("value_greater")) {
                 int num_val = ppr.countval("value_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_greater",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
             }
             else if (ppr.countval("value_less"))
@@ -758,7 +851,6 @@ ERF::refinement_criteria_setup ()
                 int num_val = ppr.countval("value_less");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
             }
             else if (ppr.countval("adjacent_difference_greater"))
@@ -766,7 +858,6 @@ ERF::refinement_criteria_setup ()
                 int num_val = ppr.countval("adjacent_difference_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
-                std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
             }
             else if (realbox.ok())

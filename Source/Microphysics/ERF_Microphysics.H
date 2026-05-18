@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <AMReX_MultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 
@@ -53,6 +54,9 @@ public:
 
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
+
+    /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;

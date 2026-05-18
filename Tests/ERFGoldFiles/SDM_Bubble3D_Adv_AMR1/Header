@@ -1,0 +1,60 @@
+HyperCLaw-V1.1
+16
+density
+rhotheta
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+scalar
+pres_hse
+dens_hse
+pressure
+pert_pres
+pert_dens
+super_droplets_moisture_number_density
+super_droplets_moisture_sd_number_density
+super_droplets_moisture_mass_density
+3
+20
+1
+0 0 0 
+9600 9600 4800 
+2 
+((0,0,0) (47,47,23) (0,0,0)) ((0,0,0) (95,95,47) (0,0,0)) 
+20 38 
+200 200 200 
+100 100 100 
+0
+0
+0 4 20
+20
+0 4800
+0 4800
+0 4800
+4800 9600
+0 4800
+0 4800
+0 4800
+4800 9600
+0 4800
+4800 9600
+4800 9600
+0 4800
+Level_0/Cell
+1 4 20
+38
+3200 4800
+3200 4800
+0 2800
+4800 6400
+3200 4800
+0 2800
+3200 4800
+4800 6400
+0 2800
+4800 6400
+4800 6400
+0 2800
+Level_1/Cell

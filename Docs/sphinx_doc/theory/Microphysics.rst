@@ -217,8 +217,79 @@ The evaporation rate of rain is
 
 Saturation Adjustment (SatAdj) Microphysics Model
 -------------------------------------------------
-The saturation adjustment microphysics model is the simplest possible moisture model and only transports the
-water vapor mixing ratio, :math:`q_v`, and the cloud water mixing ration, :math:`q_c`. Evaporation, :math:`q_v \longrightarrow q_c`, and condensation, :math:`q_c \longrightarrow q_v`, are the only relevant mechanisms. The final saturation state, :math:`q_v = q_{vs}(T)` is obtained from Newton-Raphson iterations on the thermal temperature :math:`T`.
+The saturation adjustment microphysics model is a warm-cloud, cell-local adjustment scheme that only transports
+water vapor, :math:`q_v`, and cloud water, :math:`q_c`. It does not include rain, ice, sedimentation,
+autoconversion, accretion, or subgrid cloud fraction. Pressure is diagnosed from the local cell state and the
+saturation relation uses pressure in millibars.
+
+SatAdj uses the warm saturation relation
+
+.. math::
+  q_{sat}(T,p) = \epsilon \frac{e_s(T)}{p - e_s(T)},
+
+where :math:`\epsilon = R_d / R_v`, :math:`e_s(T)` is the saturation vapor pressure over liquid water, and
+:math:`p` is the cell pressure in mbar.
+
+During the adjustment, the conserved nonprecipitating water and local moist enthalpy proxy are
+
+.. math::
+  q_t = q_v + q_c,
+
+.. math::
+  T + \lambda q_v = \text{constant}, \qquad \lambda = L_v / c_p,
+
+or equivalently,
+
+.. math::
+  T - \lambda q_c = \text{constant}.
+
+The final state satisfies the complementarity conditions
+
+.. math::
+  q_c \ge 0,
+
+.. math::
+  q_v \le q_{sat}(T,p),
+
+.. math::
+  q_c \left(q_{sat}(T,p) - q_v\right) = 0.
+
+When the available moisture is sufficient to reach saturation, the adjusted temperature is obtained from a
+Newton solve of
+
+.. math::
+  F(T) = -T + T_i + \lambda \left(q_{v,i} - q_{sat}(T,p)\right) = 0,
+
+with derivative
+
+.. math::
+  F'(T) = -1 - \lambda \frac{d q_{sat}}{dT}.
+
+The implemented branch structure is
+
+.. code-block:: text
+
+  diagnose T, p, qv, qc from the cell state
+  if qv + qc > qsat(T, p):
+     if qc < 0: move negative qc into qv
+     solve F(T) = 0 with Newton iteration
+     set qv = qsat(T, p)
+     set qc = qt - qv
+  else:
+     evaporate all qc into qv
+     cool the cell by lambda * qc
+     if the cooled state is now supersaturated:
+        solve F(T) = 0 with Newton iteration
+        set qv = qsat(T, p)
+        set qc = qt - qv
+  update theta from the adjusted T and diagnosed pressure
+
+In the implementation, :math:`q_{sat}` and :math:`dq_{sat}/dT` are evaluated with ERF's internal thermodynamic
+utilities, pressure is passed in mbar for saturation calls, and pressure is converted back to Pa when
+recomputing :math:`\theta` from :math:`T`.
+
+When SHOC is enabled, SatAdj condensation is disabled so that SHOC owns the phase-change adjustment and ERF
+does not double-apply condensation tendencies.
 
 Predicted Particle Properties (P3) Microphysics Model
 ------------------------------------------------------

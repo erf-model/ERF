@@ -215,7 +215,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     } // not EB
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
-    estdt_comp = cfl / estdt_comp_inv;
+    // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
+    estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : Real(1.e20);
 
      Real estdt_lowM_inv = ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
