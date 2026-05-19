@@ -71,7 +71,7 @@ jobs:
         spack env activate erf_netcdf
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
         spack concretize -f
-        spack install
+        spack install --deprecated
 
     - name: Configure Project and Generate Build System
       run: |
