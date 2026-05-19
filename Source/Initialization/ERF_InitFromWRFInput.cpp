@@ -74,7 +74,6 @@ init_terrain_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               MultiFab* z_phys,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
@@ -114,8 +113,7 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
 }
 
 void
-read_base_state_params_from_wrfinput (int lev,
-                                      const std::string& fname,
+read_base_state_params_from_wrfinput (const std::string& fname,
                                       Real& T00,
                                       Real& P00,
                                       Real& TLP,
@@ -287,7 +285,7 @@ ERF::init_from_wrfinput (int lev,
     Real TISO = Real(200.0);
     Real TLP_STRAT = Real(-11.0);
     Real P_STRAT   = zero;
-    read_base_state_params_from_wrfinput(lev, nc_init_file[lev][0],
+    read_base_state_params_from_wrfinput(nc_init_file[lev][0],
                                          T00, P00, TLP, TISO,
                                          TLP_STRAT, P_STRAT);
 
@@ -1002,7 +1000,7 @@ ERF::init_from_wrfinput (int lev,
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, z_phys_nd[lev].get(),
+    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
@@ -1118,7 +1116,6 @@ ERF::init_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               MultiFab* z_phys_nd,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
@@ -1148,7 +1145,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
-        const Array4<Real const>&      z_arr = z_phys_nd->const_array(mfi);
 
         const Array4<Real const>&      PB_arr = mf_PB.const_array(mfi);
         const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
@@ -1163,7 +1159,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 jj = std::min(jj, dom_hi.y);
             int kk = std::max(k , dom_lo.z);
                 kk = std::min(kk, dom_hi.z);
-
 
             Real Rd, Td, Thd;
             Real Pd = PB_arr(ii,jj,kk);
