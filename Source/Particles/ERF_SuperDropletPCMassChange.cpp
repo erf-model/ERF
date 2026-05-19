@@ -53,22 +53,22 @@ void SuperDropletPC::MassChange ( int                                         a_
     auto ti_choice = m_mass_change_ti;
 
     // Solver setup (shared across tiles)
-    dRsqdt<ParticleReal> drsqdt{ vapour_mat.m_lat_vap,
-                                 therco,
-                                 vapour_mat.m_Rv,
-                                 mat_density };
+    dRsqdt<ParticleReal> drsqdt{ static_cast<ParticleReal>(vapour_mat.m_lat_vap),
+                                 static_cast<ParticleReal>(therco),
+                                 static_cast<ParticleReal>(vapour_mat.m_Rv),
+                                 static_cast<ParticleReal>(mat_density) };
 
     NewtonSolver< dRsqdt<ParticleReal>, ParticleReal > newton_solver{ drsqdt,
-                                                                      m_newton_rtol,
-                                                                      m_newton_atol,
-                                                                      m_newton_stol,
+                                                                      static_cast<ParticleReal>(m_newton_rtol),
+                                                                      static_cast<ParticleReal>(m_newton_atol),
+                                                                      static_cast<ParticleReal>(m_newton_stol),
                                                                       m_newton_maxits };
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    dRdt<ParticleReal> drdt{ vapour_mat.m_lat_vap,
-                             therco,
-                             vapour_mat.m_Rv,
-                             mat_density };
+    dRdt<ParticleReal> drdt{ static_cast<ParticleReal>(vapour_mat.m_lat_vap),
+                             static_cast<ParticleReal>(therco),
+                             static_cast<ParticleReal>(vapour_mat.m_Rv),
+                             static_cast<ParticleReal>(mat_density) };
     constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
@@ -159,11 +159,15 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
-                ParticleReal > ti { drsqdt, newton_solver, a_dt, 100,
+                ParticleReal > ti { drsqdt, newton_solver, static_cast<ParticleReal>(a_dt), 100,
                                     sat_ratio, temperature, e_sat,
-                                    coeff_moldiff, coeff_curv, coeff_sol,
+                                    static_cast<ParticleReal>(coeff_moldiff),
+                                    static_cast<ParticleReal>(coeff_curv),
+                                    static_cast<ParticleReal>(coeff_sol),
                                     solute_moles,
-                                    cfl, 1e-40, 1e-3, 1e-6, false, false };
+                                    static_cast<ParticleReal>(cfl),
+                                    ParticleReal(1e-40), ParticleReal(1e-3), ParticleReal(1e-6),
+                                    false, false };
 
             auto r_init = SD_effective_radius( i, ctx.idx_water,
                                                ctx.rho_water,
@@ -201,7 +205,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 auto d_mass = four_thirds_pi*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 ptrs.sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
-                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],amrex::Real(0));
+                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],ParticleReal(0));
 
                 // Update particle attributes (radius and mass)
                 SuperDropletPC::updateParticleAttributes(

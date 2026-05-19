@@ -296,11 +296,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        Gpu::Buffer<Real> particle_collisions({0});
+        Gpu::Buffer<ParticleReal> particle_collisions({0});
         auto particle_collisions_ptr = particle_collisions.data();
 
         Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
-        Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
+        Gpu::DeviceVector<ParticleReal> coal_rate, coal_rmndr;
         num_particles_bin.resize(np);
         coal_partner_idx.resize(np);
         flag_prey.resize(np);
@@ -478,7 +478,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         } );
         Gpu::synchronize();
-        num_collisions = *(particle_collisions.copyToHost());
+        num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
