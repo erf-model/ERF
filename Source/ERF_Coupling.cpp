@@ -91,7 +91,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             amrex::Real /*time*/)
 {
     using namespace amrex;
-    static bool s_cloud_source_msg_printed = false;
 
     // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
     // to avoid a driver→submodule header dependency).
@@ -184,23 +183,30 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             states[iRH]->ParallelCopy(tmp, 0, 0, 1);
         }
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
-            // V1: no 2D diagnosed cloud-fraction field is wired in this coupling path yet.
-            const bool has_diagnosed_cloud_fraction = false;
-            if (has_diagnosed_cloud_fraction) {
+            const int qc_idx = solverChoice.moisture_indices.qc;
+            const int qi_idx = solverChoice.moisture_indices.qi;
+            if (qc_idx != -1 || qi_idx != -1) {
                 MultiFab tmp(ba, dm, 1, 0);
-                if (!s_cloud_source_msg_printed && amrex::ParallelDescriptor::IOProcessor()) {
-                    amrex::Print() << "cloud packed from diagnosed fraction\n";
-                    s_cloud_source_msg_printed = true;
-                }
-                // Placeholder branch for future diagnosed cloud-fraction plumbing.
-                states[iCloud]->ParallelCopy(tmp, 0, 0, 1);
-            } else {
                 const Real cf = amrex::max(Real(0.0), amrex::min(Real(1.0), cloud_fraction(0.0)));
-                if (!s_cloud_source_msg_printed && amrex::ParallelDescriptor::IOProcessor()) {
-                    amrex::Print() << "cloud packed from diagnosed fraction (domain-mean cloud_fraction)\n";
-                    s_cloud_source_msg_printed = true;
+                amrex::ignore_unused(cf); // keep diagnostic computation active for consistency with ERF scalar stats
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = makeSlab(mfi.tilebox(), 2, k_atm);
+                    auto const& c = cons.const_array(mfi);
+                    auto t = tmp.array(mfi);
+                    const int klo = mfi.validbox().smallEnd(2);
+                    const int khi = mfi.validbox().bigEnd(2);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        int cloudy = 0;
+                        for (int kk = klo; kk <= khi; ++kk) {
+                            const Real rho = c(i,j,kk,Rho_comp);
+                            const Real qc = (qc_idx != -1) ? c(i,j,kk,qc_idx) / rho : Real(0.0);
+                            const Real qi = (qi_idx != -1) ? c(i,j,kk,qi_idx) / rho : Real(0.0);
+                            if (qc + qi > Real(0.0)) { cloudy = 1; break; }
+                        }
+                        t(i,j,k) = static_cast<Real>(cloudy);
+                    });
                 }
-                states[iCloud]->setVal(cf);
+                states[iCloud]->ParallelCopy(tmp, 0, 0, 1);
             }
         }
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
@@ -216,11 +222,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     });
                 }
                 states[iRain]->ParallelCopy(tmp, 0, 0, 1);
-                if (amrex::ParallelDescriptor::IOProcessor()) {
-                    amrex::Print() << "packed rain from explicit source (index " << qr_idx << ")\n";
-                }
-            } else if (amrex::ParallelDescriptor::IOProcessor()) {
-                amrex::Print() << "rain source unavailable; preserving fallback\n";
             }
         }
     }
