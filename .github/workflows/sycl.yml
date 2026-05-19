@@ -17,11 +17,20 @@ concurrency:
 
 jobs:
   Build-And-Test-SYCL:
-    name: oneAPI SYCL - Particles ${{matrix.particles}}
+    name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-24.04
     strategy:
       matrix:
         particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
+        mesh_precision: [DOUBLE, SINGLE]
+        exclude:
+          - particles: OFF
+            particles_precision: SINGLE
+          # SP-mesh entries are temporarily disabled because the upstream
+          # SP-mesh build currently fails on non-particle code. Remove the
+          # guard below to re-enable SP-mesh + DP/SP particles once fixed.
+          - mesh_precision: SINGLE
 
     steps:
 
@@ -72,6 +81,8 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+          -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
+          -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
           -DCMAKE_C_COMPILER=$(which icx) \
           -DCMAKE_CXX_COMPILER=$(which icpx) \
           -DCMAKE_CXX_STANDARD=17 \

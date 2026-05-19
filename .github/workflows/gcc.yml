@@ -8,12 +8,21 @@ concurrency:
 
 jobs:
   library:
-    name: GNU@9.3 C++17 Release - Particles ${{matrix.particles}}
+    name: GNU@9.3 C++17 Release - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
         particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
+        mesh_precision: [DOUBLE, SINGLE]
+        exclude:
+          - particles: OFF
+            particles_precision: SINGLE
+          # SP-mesh entries are temporarily disabled because the upstream
+          # SP-mesh build currently fails on non-particle code. Remove the
+          # guard below to re-enable SP-mesh + DP/SP particles once fixed.
+          - mesh_precision: SINGLE
 
     steps:
 
@@ -45,6 +54,8 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+          -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
+          -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
@@ -73,17 +84,20 @@ jobs:
         exit ${return}
 
     - name: Check Unit Test Registration
+      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{runner.workspace}}/unit-test-list.txt
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Unit Tests
+      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L unit -VV
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
+      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
