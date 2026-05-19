@@ -11,6 +11,7 @@
 #include <ERF_TerrainMetrics.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_ProbCommon.H>
+#include <ERF_MoistAcoustic.H>
 
 /**
  * Function for computing the fast RHS with no terrain but constant or stretched vertical resolution

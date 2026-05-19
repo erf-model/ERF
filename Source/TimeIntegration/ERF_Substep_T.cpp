@@ -84,8 +84,6 @@ void erf_substep_T (int step, int /*nrk*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = Real(0.1);
 
-    Real RvOverRd = R_v / R_d;
-
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
     const Real* dx = geom.CellSize();
@@ -102,6 +100,7 @@ void erf_substep_T (int step, int /*nrk*/,
     MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
+    MultiFab Delta_rho_qv   (        ba                , dm, 1, 1);
 
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
@@ -138,6 +137,7 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
         const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+        const Array4<Real>& old_drho_qv    = Delta_rho_qv.array(mfi);
 
         const Array4<const Real>&  prev_xmom = S_prev[IntVars::xmom].const_array(mfi);
         const Array4<const Real>&  prev_ymom = S_prev[IntVars::ymom].const_array(mfi);
@@ -154,6 +154,9 @@ void erf_substep_T (int step, int /*nrk*/,
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
+                if (l_use_moisture) {
+                    cur_cons(i,j,k,RhoQ1_comp) = prev_cons(i,j,k,RhoQ1_comp);
+                }
             });
         } // step = 0
 
@@ -191,16 +194,18 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            if (step == 0) {
-                theta_extrap(i,j,k) = old_drho_theta(i,j,k);
-            } else {
-                theta_extrap(i,j,k) = old_drho_theta(i,j,k) + beta_d *
-                  ( old_drho_theta(i,j,k) - lagged_arr(i,j,k) );
-            }
+            old_drho_qv(i,j,k)    = (l_use_moisture) ?
+                cur_cons(i,j,k,RhoQ1_comp) - stage_cons(i,j,k,RhoQ1_comp) : zero;
 
-            // NOTE: qv is not changing over the fast steps so we use the stage data
             Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : zero;
-            theta_extrap(i,j,k) *= (one + RvOverRd*qv);
+            Real delta_m = ERFMoistAcoustic::rho_theta_m_pert(
+                old_drho(i,j,k), old_drho_theta(i,j,k), old_drho_qv(i,j,k),
+                prim(i,j,k,PrimTheta_comp), qv, l_use_moisture);
+            if (step == 0) {
+                theta_extrap(i,j,k) = delta_m;
+            } else {
+                theta_extrap(i,j,k) = delta_m + beta_d * (delta_m - lagged_arr(i,j,k));
+            }
         });
     } // mfi
 
@@ -211,10 +216,16 @@ void erf_substep_T (int step, int /*nrk*/,
     {
         // We define lagged_delta_rt for our next step as the current delta_rt
         Box gbx = mfi.tilebox(); gbx.grow(1);
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+        const Array4<Real>& old_drho_qv    = Delta_rho_qv.array(mfi);
         const Array4<Real>& lagged_arr     = lagged_delta_rt.array(mfi);
+        const Array4<const Real>& prim     = S_stage_prim.const_array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            lagged_arr(i,j,k) = old_drho_theta(i,j,k);
+            Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : zero;
+            lagged_arr(i,j,k) = ERFMoistAcoustic::rho_theta_m_pert(
+                old_drho(i,j,k), old_drho_theta(i,j,k), old_drho_qv(i,j,k),
+                prim(i,j,k,PrimTheta_comp), qv, l_use_moisture);
         });
     } // mfi
 
@@ -374,6 +385,7 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+        const Array4<Real>& old_drho_qv    = Delta_rho_qv.array(mfi);
 
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVars::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVars::zmom].const_array(mfi);
@@ -412,7 +424,7 @@ void erf_substep_T (int step, int /*nrk*/,
 
         RHS_fab.resize     (tbz,1,The_Async_Arena());
         soln_fab.resize    (tbz,1,The_Async_Arena());
-        temp_rhs_fab.resize(tbz,2,The_Async_Arena());
+        temp_rhs_fab.resize(tbz, ERFMoistAcoustic::NumFastComps, The_Async_Arena());
 
         auto const& RHS_a        =      RHS_fab.array();
         auto const& soln_a       =     soln_fab.array();
@@ -464,10 +476,20 @@ void erf_substep_T (int step, int /*nrk*/,
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
             temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi * mfsq +
                                      ( yflux_hi - yflux_lo ) * dyi * mfsq;
-            temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
-                                     ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * myhalf;
+            temp_rhs_arr(i,j,k,RhoTheta_comp) = (( xflux_hi * (prim(i,j,k,PrimTheta_comp) + prim(i+1,j,k,PrimTheta_comp)) -
+                                                   xflux_lo * (prim(i,j,k,PrimTheta_comp) + prim(i-1,j,k,PrimTheta_comp)) ) * dxi * mfsq+
+                                                 ( yflux_hi * (prim(i,j,k,PrimTheta_comp) + prim(i,j+1,k,PrimTheta_comp)) -
+                                                   yflux_lo * (prim(i,j,k,PrimTheta_comp) + prim(i,j-1,k,PrimTheta_comp)) ) * dyi * mfsq) * myhalf;
+
+            if (l_use_moisture) {
+                temp_rhs_arr(i,j,k,ERFMoistAcoustic::FastRhoQv_comp) =
+                    (( xflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i+1,j,k,PrimQ1_comp)) -
+                       xflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)) ) * dxi * mfsq+
+                     ( yflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i,j+1,k,PrimQ1_comp)) -
+                       yflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)) ) * dyi * mfsq) * myhalf;
+            } else {
+                temp_rhs_arr(i,j,k,ERFMoistAcoustic::FastRhoQv_comp) = zero;
+            }
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
@@ -534,19 +556,41 @@ void erf_substep_T (int step, int /*nrk*/,
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
 
-            Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-            Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-            Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+            Real qv_km2 = (l_use_moisture) ? prim(i,j,k-2,PrimQ1_comp) : zero;
+            Real qv_km1 = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+            Real qv_k   = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+            Real qv_kp1 = (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero;
+
+            Real theta_t_lo  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-2,PrimTheta_comp), qv_km2, l_use_moisture)
+                                         + ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp), qv_km1, l_use_moisture) );
+            Real theta_t_mid = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp), qv_km1, l_use_moisture)
+                                         + ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp), qv_k  , l_use_moisture) );
+            Real theta_t_hi  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp), qv_k  , l_use_moisture)
+                                         + ERFMoistAcoustic::theta_m(prim(i,j,k+1,PrimTheta_comp), qv_kp1, l_use_moisture) );
 
             // line 2 last two terms (order dtau)
-            Real R0_tmp  =  -halfg * old_drho(i,j,k  ) + coeff_P * old_drho_theta(i,j,k  )
-                            -halfg * old_drho(i,j,k-1) + coeff_Q * old_drho_theta(i,j,k-1);
+            Real old_m_k = ERFMoistAcoustic::rho_theta_m_pert(
+                old_drho(i,j,k), old_drho_theta(i,j,k), old_drho_qv(i,j,k),
+                prim(i,j,k,PrimTheta_comp), qv_k, l_use_moisture);
+            Real old_m_km1 = ERFMoistAcoustic::rho_theta_m_pert(
+                old_drho(i,j,k-1), old_drho_theta(i,j,k-1), old_drho_qv(i,j,k-1),
+                prim(i,j,k-1,PrimTheta_comp), qv_km1, l_use_moisture);
+            Real R0_tmp  =  -halfg * old_drho(i,j,k  ) + coeff_P * old_m_k
+                            -halfg * old_drho(i,j,k-1) + coeff_Q * old_m_km1;
 
             // line 3 residuals (order dtau^2) one <-> beta_2
             Real R1_tmp =  -halfg * (  slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) );
 
-                 R1_tmp +=  coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
-                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
+                 R1_tmp +=  coeff_P * ERFMoistAcoustic::rho_theta_m_rhs(
+                                           slow_rhs_cons(i,j,k,Rho_comp),
+                                           slow_rhs_cons(i,j,k,RhoTheta_comp),
+                                           (l_use_moisture) ? slow_rhs_cons(i,j,k,RhoQ1_comp) : zero,
+                                           prim(i,j,k,PrimTheta_comp), qv_k, l_use_moisture)
+                          + coeff_Q * ERFMoistAcoustic::rho_theta_m_rhs(
+                                           slow_rhs_cons(i,j,k-1,Rho_comp),
+                                           slow_rhs_cons(i,j,k-1,RhoTheta_comp),
+                                           (l_use_moisture) ? slow_rhs_cons(i,j,k-1,RhoQ1_comp) : zero,
+                                           prim(i,j,k-1,PrimTheta_comp), qv_km1, l_use_moisture);
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -559,8 +603,20 @@ void erf_substep_T (int step, int /*nrk*/,
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) *
+                         ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid)
+                         + ERFMoistAcoustic::rho_theta_m_rhs(
+                               temp_rhs_arr(i,j,k,Rho_comp),
+                               temp_rhs_arr(i,j,k,RhoTheta_comp),
+                               temp_rhs_arr(i,j,k,ERFMoistAcoustic::FastRhoQv_comp),
+                               prim(i,j,k,PrimTheta_comp), qv_k, l_use_moisture) )
+                       + coeff_Q/detJ(i,j,k-1) *
+                         ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo)
+                         + ERFMoistAcoustic::rho_theta_m_rhs(
+                               temp_rhs_arr(i,j,k-1,Rho_comp),
+                               temp_rhs_arr(i,j,k-1,RhoTheta_comp),
+                               temp_rhs_arr(i,j,k-1,ERFMoistAcoustic::FastRhoQv_comp),
+                               prim(i,j,k-1,PrimTheta_comp), qv_km1, l_use_moisture) ) );
 
             // line 1
             RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
@@ -704,6 +760,18 @@ void erf_substep_T (int step, int /*nrk*/,
                   zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) / detJ(i,j,k);
 
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
+
+              if (l_use_moisture) {
+                  Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,ERFMoistAcoustic::FastRhoQv_comp) + myhalf *
+                    ( zflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp)) -
+                      zflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)) ) * dzi ) / detJ(i,j,k);
+
+                  cur_cons(i,j,k,RhoQ1_comp) = amrex::max(
+                      cur_cons(i,j,k,RhoQ1_comp) +
+                      dtau * (slow_rhs_cons(i,j,k,RhoQ1_comp) + fast_rhs_rhoqv +
+                              cc_src_arr(i,j,k,RhoQ1_comp)),
+                      zero);
+              }
 
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * myhalf * (prim(i,j,k) + prim(i,j,k-1));

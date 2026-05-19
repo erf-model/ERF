@@ -138,6 +138,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
     const bool do_upwind        = solverChoice.upwind_real_bcs;
     const bool l_do_scalar      = (solverChoice.transport_scalar);
+    const bool l_acoustic_qv    = (solverChoice.moisture_type != MoistureType::None) &&
+                                  (solverChoice.substepping_type[level] != SubsteppingType::None);
     amrex::ignore_unused(do_upwind);
     amrex::ignore_unused(m_r2d);
 
@@ -179,7 +181,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_use_KE)    { is_valid_slow_var[    RhoKE_comp] = 1; }
     if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp] = 1; }
     if (solverChoice.moisture_type != MoistureType::None) {
-         is_valid_slow_var[RhoQ1_comp] = 1;
+         is_valid_slow_var[RhoQ1_comp] = (!l_acoustic_qv || n_qstate > 1) ? 1 : 0;
     }
 
     // *************************************************************************
@@ -390,7 +392,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    num_comp = n_qstate;
+                    if (l_acoustic_qv) {
+                        start_comp = RhoQ1_comp + 1;
+                        num_comp = n_qstate - 1;
+                    } else {
+                        num_comp = n_qstate;
+                    }
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
@@ -514,7 +521,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                 start_comp = ivar;
                 num_comp = 1;
                 if (ivar == RhoQ1_comp) {
-                    num_comp = nvars - RhoQ1_comp;
+                    if (l_acoustic_qv) {
+                        start_comp = RhoQ1_comp + 1;
+                        num_comp = nvars - start_comp;
+                    } else {
+                        num_comp = nvars - RhoQ1_comp;
+                    }
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;
                 }

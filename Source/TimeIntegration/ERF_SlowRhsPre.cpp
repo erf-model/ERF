@@ -131,6 +131,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
+    const AdvType l_moist_horiz_adv_type = solverChoice.advChoice.moistscal_horiz_adv_type;
+    const AdvType l_moist_vert_adv_type  = solverChoice.advChoice.moistscal_vert_adv_type;
+    const Real    l_moist_horiz_upw_frac = solverChoice.advChoice.moistscal_horiz_upw_frac;
+    const Real    l_moist_vert_upw_frac  = solverChoice.advChoice.moistscal_vert_upw_frac;
     const bool    l_use_stretched_dz             = (solverChoice.mesh_type == MeshType::StretchedDz);
     const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type == MeshType::VariableDz);
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -147,6 +151,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      solverChoice.vert_implicit_fac[nrk] : zero;
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
+    const bool l_acoustic_qv   = l_use_moisture && (solverChoice.substepping_type[level] != SubsteppingType::None);
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
@@ -663,11 +668,108 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
+        if (l_acoustic_qv) {
+            const int qv_start = RhoQ1_comp;
+            const int qv_ncomp = 1;
+
+            if (!l_eb_terrain_cc) {
+                AdvectionSrcForScalars(bx, qv_start, qv_ncomp,
+                                    avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                    cell_prim, cell_rhs,
+                                    detJ_arr, dxInv, mf_mx, mf_my,
+                                    l_moist_horiz_adv_type, l_moist_vert_adv_type,
+                                    l_moist_horiz_upw_frac, l_moist_vert_upw_frac,
+                                    flx_arr, domain, bc_ptr_h);
+            } else {
+                EBAdvectionSrcForScalars(bx, qv_start, qv_ncomp,
+                                    avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                    cell_prim, cell_rhs,
+                                    mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                    fcx_arr, fcy_arr, fcz_arr,
+                                    detJ_arr, dxInv, mf_mx, mf_my,
+                                    l_moist_horiz_adv_type, l_moist_vert_adv_type,
+                                    l_moist_horiz_upw_frac, l_moist_vert_upw_frac,
+                                    flx_arr, domain, bc_ptr_h,
+                                    already_on_centroids);
+            }
+
+            if (l_use_diff) {
+                Array4<Real> diffflux_x = dflux_x->array(mfi);
+                Array4<Real> diffflux_y = dflux_y->array(mfi);
+                Array4<Real> diffflux_z = dflux_z->array(mfi);
+
+                Array4<Real> hfx_x = Hfx1->array(mfi);
+                Array4<Real> hfx_y = Hfx2->array(mfi);
+                Array4<Real> hfx_z = Hfx3->array(mfi);
+                Array4<Real> hfx_EB{};
+                if (l_use_eb) {
+                    hfx_EB = Hfx3_EB->array(mfi);
+                }
+
+                Array4<Real> q1fx_x = (Q1fx1) ? Q1fx1->array(mfi) : Array4<Real>{};
+                Array4<Real> q1fx_y = (Q1fx2) ? Q1fx2->array(mfi) : Array4<Real>{};
+                Array4<Real> q1fx_z = (Q1fx3) ? Q1fx3->array(mfi) : Array4<Real>{};
+
+                Array4<Real> q2fx_z = (Q2fx3) ? Q2fx3->array(mfi) : Array4<Real>{};
+                Array4<Real> diss  = Diss->array(mfi);
+
+                const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+                const Real qv_vert_implicit_fac = (solverChoice.implicit_moisture_diffusion) ?
+                                                   solverChoice.vert_implicit_fac[nrk] : zero;
+
+                if (l_use_stretched_dz) {
+                    DiffusionSrcForState_S(bx, domain, qv_start, qv_ncomp, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           stretched_dz_d, dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_z, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, qv_vert_implicit_fac);
+                } else if (l_use_terrain_fitted_coords) {
+                    DiffusionSrcForState_T(bx, domain, qv_start, qv_ncomp, l_rotate, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
+                                           dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, qv_vert_implicit_fac);
+                } else if (l_use_eb) {
+                    DiffusionSrcForState_EB(bx, domain, qv_start, qv_ncomp, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
+                                           barea_arr, bcent_arr,
+                                           dx, dxInv,
+                                           hfx_z, q1fx_z, q2fx_z, hfx_EB,
+                                           mu_turb, solverChoice, level,
+                                           bc_ptr_d, l_use_SurfLayer);
+                } else {
+                    DiffusionSrcForState_N(bx, domain, qv_start, qv_ncomp, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_z, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, qv_vert_implicit_fac);
+                }
+            }
+        }
+
         const Array4<Real const>& source_arr   = cc_src.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
+            if (l_acoustic_qv) {
+                cell_rhs(i,j,k,RhoQ1_comp) += source_arr(i,j,k,RhoQ1_comp);
+            }
         });
 
         // If anelastic and in second RK stage, take average of old-time and new-time source

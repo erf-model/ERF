@@ -42,8 +42,6 @@ void make_fast_coeffs (int /*level*/,
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
-    Real RvOverRd = R_v / R_d;
-
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dzi = dxInv[2];
 
@@ -126,13 +124,18 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 Real rho_theta_m_p = ERFMoistAcoustic::rho_theta_m(stage_cons(i,j,k  ,RhoTheta_comp),
+                                                                    qv_p, l_use_moisture);
+                 Real rho_theta_m_q = ERFMoistAcoustic::rho_theta_m(stage_cons(i,j,k-1,RhoTheta_comp),
+                                                                    qv_q, l_use_moisture);
 
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
+                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
+                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
+                               (  c_v * pibar_hi * rho_theta_m_p );
+
+                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                               ( c_v  * pibar_lo * rho_theta_m_q );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -144,9 +147,20 @@ void make_fast_coeffs (int /*level*/,
                     coeff_Q /= (one + q);
                 }
 
-                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+                Real theta_t_lo  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-2,PrimTheta_comp),
+                                                                         (l_use_moisture) ? prim(i,j,k-2,PrimQ1_comp) : zero,
+                                                                         l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp),
+                                                                         qv_q, l_use_moisture) );
+                Real theta_t_mid = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp),
+                                                                         qv_q, l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp),
+                                                                         qv_p, l_use_moisture) );
+                Real theta_t_hi  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp),
+                                                                         qv_p, l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k+1,PrimTheta_comp),
+                                                                         (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero,
+                                                                         l_use_moisture) );
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
@@ -172,13 +186,18 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 Real rho_theta_m_p = ERFMoistAcoustic::rho_theta_m(stage_cons(i,j,k  ,RhoTheta_comp),
+                                                                    qv_p, l_use_moisture);
+                 Real rho_theta_m_q = ERFMoistAcoustic::rho_theta_m(stage_cons(i,j,k-1,RhoTheta_comp),
+                                                                    qv_q, l_use_moisture);
 
-                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
+                 Real coeff_P = -Gamma * R_d * dzi * pi_c
+                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
+                              (  c_v * pibar_hi * rho_theta_m_p );
+
+                 Real coeff_Q = Gamma * R_d * dzi * pi_c
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                              ( c_v  * pibar_lo * rho_theta_m_q );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -190,9 +209,20 @@ void make_fast_coeffs (int /*level*/,
                     coeff_Q /= (one + q);
                 }
 
-                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+                Real theta_t_lo  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-2,PrimTheta_comp),
+                                                                         (l_use_moisture) ? prim(i,j,k-2,PrimQ1_comp) : zero,
+                                                                         l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp),
+                                                                         qv_q, l_use_moisture) );
+                Real theta_t_mid = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k-1,PrimTheta_comp),
+                                                                         qv_q, l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp),
+                                                                         qv_p, l_use_moisture) );
+                Real theta_t_hi  = myhalf * ( ERFMoistAcoustic::theta_m(prim(i,j,k  ,PrimTheta_comp),
+                                                                         qv_p, l_use_moisture)
+                                            + ERFMoistAcoustic::theta_m(prim(i,j,k+1,PrimTheta_comp),
+                                                                         (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero,
+                                                                         l_use_moisture) );
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;

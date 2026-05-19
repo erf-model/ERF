@@ -30,6 +30,8 @@
 #endif
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+        const bool l_acoustic_qv = (solverChoice.moisture_type != MoistureType::None) &&
+                                   (solverChoice.substepping_type[level] != SubsteppingType::None);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -80,7 +82,8 @@
             if (solverChoice.turbChoice[level].use_tke) {is_valid_slow_var[    RhoKE_comp] = 1;}
                                                          is_valid_slow_var[RhoScalar_comp] = 1;
             if (solverChoice.moisture_type != MoistureType::None) {
-                is_valid_slow_var[RhoQ1_comp] = 1;
+                is_valid_slow_var[RhoQ1_comp] =
+                    (!l_acoustic_qv || micro->Get_Qstate_Moist_Size() > 1) ? 1 : 0;
             }
             const int num_comp_total = S_rhs[IntVars::cons].nComp();
             const int num_grow       = S_rhs[IntVars::cons].nGrow();
@@ -99,7 +102,12 @@
                     start_comp = ivar;
                     num_comp   = 1;
                     if (ivar == RhoQ1_comp) {
-                        num_comp = nvars - RhoQ1_comp;
+                        if (l_acoustic_qv) {
+                            start_comp = RhoQ1_comp + 1;
+                            num_comp = nvars - start_comp;
+                        } else {
+                            num_comp = nvars - RhoQ1_comp;
+                        }
                     } else if (ivar == RhoScalar_comp) {
                         num_comp = NSCALARS;
                     }
@@ -133,7 +141,12 @@
                         start_comp = ivar;
                         num_comp   = 1;
                         if (ivar == RhoQ1_comp) {
-                            num_comp = nvars - RhoQ1_comp;
+                            if (l_acoustic_qv) {
+                                start_comp = RhoQ1_comp + 1;
+                                num_comp = nvars - start_comp;
+                            } else {
+                                num_comp = nvars - RhoQ1_comp;
+                            }
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
