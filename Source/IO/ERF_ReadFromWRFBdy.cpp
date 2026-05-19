@@ -129,7 +129,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC","PH"};
+    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","PH","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -183,12 +183,12 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             bdyVarType = WRFBdyVars::T;
         } else if (first2 == "QV") {
             bdyVarType = WRFBdyVars::QV;
+        } else if (first2 == "PH") {
+            bdyVarType = WRFBdyVars::PH;
         } else if (first2 == "MU") {
             bdyVarType = WRFBdyVars::MU;
         } else if (first2 == "PC") {
             bdyVarType = WRFBdyVars::PC;
-        } else if (first2 == "PH") {
-            bdyVarType = WRFBdyVars::PH;
         } else {
             Print() << "Trying to read " << first1 << " or " << first2 << std::endl;
             Abort("dont know this variable");
@@ -236,10 +236,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));          // MU/PC
             } else if (bdyVarType == WRFBdyVars::PH) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::x_hi) {
@@ -266,10 +266,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used));          // MU/PC
             } else if (bdyVarType == WRFBdyVars::PH) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_lo) {
@@ -296,10 +296,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used));          // MU/PC
             } else if (bdyVarType == WRFBdyVars::PH) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_hi) {
@@ -315,7 +315,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
             Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
             Box yhi_plane_z_stag = convert(pbx_yhi, {0, 0, 1});
-            
+
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
@@ -326,10 +326,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used));          // MU/PC
             } else if (bdyVarType == WRFBdyVars::PH) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used));          // MU/PC
             }
         }
 
@@ -355,6 +355,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 int ns2 = tslice[iv].get_vshape()[2]; // vertical size
                 int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
 
+                int lkhi = (bdyVarType == WRFBdyVars::PH) ? khi+1 : khi;
+
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
@@ -363,7 +365,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff+i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -375,7 +377,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff-i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -387,7 +389,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -399,7 +401,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -546,7 +548,7 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
         Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
 
-        
+
         Array4<Real> z_arr   = z_phys_nd->array(mfi);
         Array4<Real> PHB_arr = wrf_PHB->array(mfi);
 
@@ -556,10 +558,14 @@ convert_wrfbdy_data (const int itime,
             Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k) ) / CONST_GRAV;
             Real old_z = Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
                                       + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) );
-            AllPrint() << "Z check: " << IntVect(i,j,k) << ' '
-                       << old_z << ' ' << new_z << "\n";
+            if (i==0 && j==0) {
+                AllPrint() << "Z check: " << IntVect(i,j,k) << ' '
+                           << old_z << ' ' << new_z << ' '
+                           << PHB_arr(i,j,k) << ' '
+                           << bdy_ph_arr(i,j,k) << "\n";
+            }
         });
-        
+
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
