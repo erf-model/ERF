@@ -22,8 +22,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles: OFF
-          - mesh_precision: SINGLE
-            particles_precision: SINGLE
 
     steps:
       - name: Checkout (with submodules)
