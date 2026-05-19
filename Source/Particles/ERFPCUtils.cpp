@@ -202,8 +202,8 @@ void ERFPC::ConvertZetaToZ (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
-                    ERF::ParticlePos::z_from_zeta(p.pos(0), p.pos(1),
-                                                  p.pos(AMREX_SPACEDIM-1),
+                    ERF::ParticlePos::z_from_zeta(static_cast<Real>(p.pos(0)), static_cast<Real>(p.pos(1)),
+                                                  static_cast<Real>(p.pos(AMREX_SPACEDIM-1)),
                                                   plo, dxi, zheight));
             });
         }
@@ -233,8 +233,8 @@ void ERFPC::ConvertZToZeta (const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
-                    ERF::ParticlePos::zeta_from_z(p.pos(0), p.pos(1),
-                                                  p.pos(AMREX_SPACEDIM-1),
+                    ERF::ParticlePos::zeta_from_z(static_cast<Real>(p.pos(0)), static_cast<Real>(p.pos(1)),
+                                                  static_cast<Real>(p.pos(AMREX_SPACEDIM-1)),
                                                   plo, dxi, zheight, k_max));
             });
         }

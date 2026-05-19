@@ -251,7 +251,7 @@ void SuperDropletPC::addParticles ( int a_lev,
 
         int np = 0;
         {
-            int ncell = num_superdroplets[mfi].numPts();
+            int ncell = static_cast<int>(num_superdroplets[mfi].numPts());
             const int* in = num_superdroplets[mfi].dataPtr();
             int* out = offsets[mfi].dataPtr();
             np = Scan::PrefixSum<int>( ncell,
@@ -450,7 +450,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                 } else {
                     mult_ptr[n] = num_to_add;
                 }
-                num_to_add -= mult_ptr[n];
+                num_to_add -= static_cast<Real>(mult_ptr[n]);
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
                 // Species and aerosol masses already sampled directly into particle SoA
@@ -478,9 +478,9 @@ void SuperDropletPC::addParticles ( int a_lev,
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
                 auto& p = aos[n+size_old];
-                Real x = p.pos(0);
-                Real y = p.pos(1);
-                Real z = p.pos(2);
+                Real x = static_cast<Real>(p.pos(0));
+                Real y = static_cast<Real>(p.pos(1));
+                Real z = static_cast<Real>(p.pos(2));
                 Real r[3] = { (x-plo[0])/dx[0] - i,
                               (y-plo[1])/dx[1] - j,
                               (z-plo[2])/dx[2] - k };

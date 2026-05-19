@@ -12,8 +12,8 @@ void SuperDropletPC::initializeDeviceProperties()
 {
     if (m_device_props_initialized) return;
 
-    const int num_sp = m_species_mat.size();
-    const int num_ae = m_aerosol_mat.size();
+    const int num_sp = static_cast<int>(m_species_mat.size());
+    const int num_ae = static_cast<int>(m_aerosol_mat.size());
 
     m_sp_density.resize(num_sp);
     m_sp_solubility.resize(num_sp);
@@ -148,7 +148,7 @@ Real SuperDropletPC::TotalNumberOfParticles ()
                            {
                                 auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                return ai*ni;
+                                return static_cast<Real>(ai*ni);
                            });
     ParallelDescriptor::ReduceRealSum(&count, 1);
     return count;

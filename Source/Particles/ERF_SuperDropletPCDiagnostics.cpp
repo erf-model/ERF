@@ -121,15 +121,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
             reduce_ops.eval(np, r,
                 [=] AMREX_GPU_DEVICE (int i) -> ReduceTuple
                 {
-                    const Real n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                    const Real radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
-                    const Real mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
-                    const Real vx = ptd.m_rdata[SuperDropletsRealIdx::vx][i];
-                    const Real vy = ptd.m_rdata[SuperDropletsRealIdx::vy][i];
-                    const Real vz = ptd.m_rdata[SuperDropletsRealIdx::vz][i];
-                    const Real term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                    const Real n = static_cast<Real>(ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]);
+                    const Real radius = static_cast<Real>(ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]);
+                    const Real mass = static_cast<Real>(ptd.m_rdata[SuperDropletsRealIdx::mass][i]);
+                    const Real vx = static_cast<Real>(ptd.m_rdata[SuperDropletsRealIdx::vx][i]);
+                    const Real vy = static_cast<Real>(ptd.m_rdata[SuperDropletsRealIdx::vy][i]);
+                    const Real vz = static_cast<Real>(ptd.m_rdata[SuperDropletsRealIdx::vz][i]);
+                    const Real term_vel = static_cast<Real>(ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]);
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-                    const Real cond_t = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i];
+                    const Real cond_t = static_cast<Real>(ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]);
 #endif
 
                     return {
@@ -283,16 +283,16 @@ void SuperDropletPC::Diagnostics( const int a_iter,
     for (int is = 0; is < m_num_species; is++) {
         min_mass_species[is] = ReduceMin( *this,
                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                          { return ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]; } );
+                                          { return static_cast<Real>(ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]); } );
         max_mass_species[is] = ReduceMax( *this,
                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                          { return ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]; } );
+                                          { return static_cast<Real>(ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]); } );
         avg_mass_species[is] = ReduceSum( *this,
                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                           {
                                               auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                               auto m = ptd.m_runtime_rdata[ridx_s(is,na,ns)][i];
-                                              return n*m;
+                                              return static_cast<Real>(n*m);
                                           } );
     }
     ParallelDescriptor::ReduceRealMin(min_mass_species.data(),m_num_species);
@@ -315,16 +315,16 @@ void SuperDropletPC::Diagnostics( const int a_iter,
     for (int ia = 0; ia < m_num_aerosols; ia++) {
         min_mass_aerosols[ia] = ReduceMin( *this,
                                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                           { return ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]; } );
+                                           { return static_cast<Real>(ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]); } );
         max_mass_aerosols[ia] = ReduceMax( *this,
                                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                           { return ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]; } );
+                                           { return static_cast<Real>(ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]); } );
         avg_mass_aerosols[ia] = ReduceSum( *this,
                                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                            {
                                                auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                auto m = ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i];
-                                               return n*m;
+                                               return static_cast<Real>(n*m);
                                            } );
     }
     ParallelDescriptor::ReduceRealMin(min_mass_aerosols.data(),m_num_aerosols);
@@ -443,7 +443,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
 
     // Set ln R grid
     for (int n = 0; n < Nr; n++) {
-        ln_R[n] = std::log(a_r_min) + n*(std::log(a_r_max)-std::log(a_r_min))/(Nr-1);
+        ln_R[n] = static_cast<Real>(std::log(a_r_min) + n*(std::log(a_r_max)-std::log(a_r_min))/(Nr-1));
     }
 
     const auto np = NumSuperDroplets();
@@ -467,7 +467,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
                                          auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                                          auto ri = std::cbrt( mi / (four_thirds_pi*rho_w) );
                                          auto lnRi = std::log(ri);
-                                         return gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
+                                         return static_cast<Real>(gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi)));
                                      } );
         for (int ia = 0; ia < m_num_aerosols; ia++) {
             const auto rho = m_aerosol_mat[ia]->m_density;
@@ -479,7 +479,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
                                                 auto mi = ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i];
                                                 auto ri = std::cbrt( mi / (four_thirds_pi*rho) );
                                                 auto lnRi = std::log(ri);
-                                                return gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
+                                                return static_cast<Real>(gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi)));
                                             } );
         }
         for (int ia = m_num_aerosols; ia < m_num_aerosols+m_num_species; ia++) {
@@ -493,7 +493,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
                                                 auto mi = ptd.m_runtime_rdata[ridx_s(is,na,ns)][i];
                                                 auto ri = std::cbrt( mi / (four_thirds_pi*rho) );
                                                 auto lnRi = std::log(ri);
-                                                return gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
+                                                return static_cast<Real>(gamma*ai*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi)));
                                             } );
         }
     }
