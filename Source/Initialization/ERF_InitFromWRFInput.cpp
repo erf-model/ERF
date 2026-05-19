@@ -74,7 +74,6 @@ init_terrain_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               MultiFab* z_phys,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
