@@ -148,13 +148,34 @@ void make_fast_coeffs (int /*level*/,
                 Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
                 Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
+                Real qv_t_lo  = (l_use_moisture) ? myhalf * ( prim(i,j,k-2,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp) ) : zero;
+                Real qv_t_mid = (l_use_moisture) ? myhalf * ( prim(i,j,k-1,PrimQ1_comp) + prim(i,j,k  ,PrimQ1_comp) ) : zero;
+                Real qv_t_hi  = (l_use_moisture) ? myhalf * ( prim(i,j,k  ,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp) ) : zero;
+
+                Real r_t_lo  = myhalf * ( stage_cons(i,j,k-2,Rho_comp) + stage_cons(i,j,k-1,Rho_comp) );
+                Real r_t_mid = myhalf * ( stage_cons(i,j,k-1,Rho_comp) + stage_cons(i,j,k  ,Rho_comp) );
+                Real r_t_hi  = myhalf * ( stage_cons(i,j,k  ,Rho_comp) + stage_cons(i,j,k+1,Rho_comp) );
+
+                Real A_T_hi = (one + RvOverRd*qv_q);
+                Real A_T_lo = (one + RvOverRd*qv_p);
+                Real A_Q_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp);
+                Real A_Q_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp);
+                Real A_D_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_p;
+                Real A_D_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_q;
+
+                Real A_sum_hi = A_T_hi * theta_t_hi + A_Q_hi * qv_t_hi + A_D_hi * r_t_hi;
+                Real A_sum_lo = A_T_lo * theta_t_lo + A_Q_lo * qv_t_lo + A_D_lo * r_t_lo;
+
+                Real A_sum_mid_p = A_T_hi * theta_t_mid + A_Q_hi * qv_t_mid + A_D_hi * r_t_mid;
+                Real A_sum_mid_q = A_T_hi * theta_t_mid + A_Q_hi * qv_t_mid + A_D_hi * r_t_mid;
+
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * (one + RvOverRd*qv_q) * theta_t_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * (one + RvOverRd*qv_p) * theta_t_hi );
+                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * A_sum_lo );
+                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * A_sum_hi );
 
-                coeffB_a(i,j,k) = one + D * ( ( coeff_Q * (one + RvOverRd*qv_q) / detJ(i,j,k-1)
-                                              - coeff_P * (one + RvOverRd*qv_p) / detJ(i,j,k  ) ) * theta_t_mid
+                coeffB_a(i,j,k) = one + D * ( ( coeff_Q * A_sum_mid_q / detJ(i,j,k-1)
+                                              - coeff_P * A_sum_mid_p / detJ(i,j,k  ) )
                                             + halfg * ( Real(1.0)/detJ(i,j,k) - Real(1.0)/detJ(i,j,k-1) ) );
             });
 

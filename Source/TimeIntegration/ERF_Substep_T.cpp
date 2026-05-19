@@ -385,17 +385,14 @@ void erf_substep_T (int step, int /*nrk*/,
         FArrayBox temp_rhs_fab;
         FArrayBox RHS_fab;
         FArrayBox soln_fab;
-        FArrayBox qv_str_fab;
 
         RHS_fab.resize     (tbz,1,The_Async_Arena());
         soln_fab.resize    (tbz,1,The_Async_Arena());
         temp_rhs_fab.resize(tbz,3,The_Async_Arena());
-        qv_str_fab.resize(tbz,1,The_Async_Arena());
 
         auto const& RHS_a        =      RHS_fab.array();
         auto const& soln_a       =     soln_fab.array();
         auto const& temp_rhs_arr = temp_rhs_fab.array();
-        auto const& qv_str_arr   = qv_str_fab.array();
 
         auto const&     coeffA_a =     coeff_A_mf.array(mfi);
         auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
@@ -482,15 +479,8 @@ void erf_substep_T (int step, int /*nrk*/,
                                            xflux_lo * (prim(i,j,k,3) + prim(i-1,j,k,3)) ) * dxi * mfsq+
                                          ( yflux_hi * (prim(i,j,k,3) + prim(i,j+1,k,3)) -
                                            yflux_lo * (prim(i,j,k,3) + prim(i,j-1,k,3)) ) * dyi * mfsq) * myhalf;
-
-                // Explicit update for star variables
-                Real fast_rhs_rho   = -( temp_rhs_arr(i,j,k,0) +
-                                       ( omega_arr(i,j,k+1) - omega_arr(i,j,k  ) ) * dzi ) / detJ(i,j,k);
-                Real new_rho        = cur_cons(i,j,k,0) + dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
-                Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
-                                       ( omega_arr(i,j,k+1) * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
-                                         omega_arr(i,j,k  ) * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
-                qv_str_arr(i,j,k)   = ( cur_cons(i,j,k,4) + dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv) ) / new_rho;
+            } else {
+                temp_rhs_arr(i,j,k,2) = zero;
             }
 
 
@@ -539,23 +529,37 @@ void erf_substep_T (int step, int /*nrk*/,
             Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
             Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
+            Real qv_t_lo  = (l_use_moisture) ? myhalf * ( prim(i,j,k-2,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp) ) : zero;
+            Real qv_t_mid = (l_use_moisture) ? myhalf * ( prim(i,j,k-1,PrimQ1_comp) + prim(i,j,k  ,PrimQ1_comp) ) : zero;
+            Real qv_t_hi  = (l_use_moisture) ? myhalf * ( prim(i,j,k  ,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp) ) : zero;
+
+            Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+            Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+
+            Real A_T_hi = (one + RvOverRd*qv_q);
+            Real A_T_lo = (one + RvOverRd*qv_p);
+            Real A_Q_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp);
+            Real A_Q_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp);
+            Real A_D_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_p;
+            Real A_D_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_q;
+
+            Real T_rhs_hi = slow_rhs_cons(i,j,k  ,RhoTheta_comp);
+            Real Q_rhs_hi = (l_use_moisture) ? slow_rhs_cons(i,j,k  ,RhoQ1_comp) : zero;
+            Real D_rhs_hi  = slow_rhs_cons(i,j,k  ,Rho_comp);
+            Real A_sum_rhs_p = A_T_hi * T_rhs_hi + A_Q_hi * Q_rhs_hi + A_D_hi * D_rhs_hi;
+
+            Real T_rhs_lo = slow_rhs_cons(i,j,k-1,RhoTheta_comp);
+            Real Q_rhs_lo = (l_use_moisture) ? slow_rhs_cons(i,j,k-1,RhoQ1_comp) : zero;
+            Real D_rhs_lo = slow_rhs_cons(i,j,k-1,Rho_comp);
+            Real A_sum_rhs_q = A_T_lo * T_rhs_lo + A_Q_lo * Q_rhs_lo + A_D_lo * D_rhs_lo;
+
             // line 2 last two terms (order dtau)
-            Real qv_str_fact_P  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * qv_str_arr(i,j,k  ));
-            Real qv_str_fact_Q  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * qv_str_arr(i,j,k-1));
-            Real qv_stg_fact_P  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * prim(i,j,k  ,PrimQ1_comp));
-            Real qv_stg_fact_Q  = (!l_use_moisture) ? Real(1.0) : (Real(1.0) + RvOverRd * prim(i,j,k-1,PrimQ1_comp));
-            Real str_drho_thm_P = cur_cons(i,j,k  ,1) * qv_str_fact_P - stage_cons(i,j,k  ,RhoTheta_comp) * qv_stg_fact_P;
-            Real str_drho_thm_Q = cur_cons(i,j,k-1,1) * qv_str_fact_Q - stage_cons(i,j,k-1,RhoTheta_comp) * qv_stg_fact_Q;
-            Real thm_P  = beta_1 * old_drho_thm(i,j,k  ) + beta_2 * str_drho_thm_P;
-            Real thm_Q  = beta_1 * old_drho_thm(i,j,k-1) + beta_2 * str_drho_thm_Q;
-            Real R0_tmp = -halfg * old_drho(i,j,k  ) + coeff_P * thm_P
-                          -halfg * old_drho(i,j,k-1) + coeff_Q * thm_Q;
+            Real R0_tmp = -halfg * old_drho(i,j,k  ) + coeff_P * old_drho_thm(i,j,k  )
+                          -halfg * old_drho(i,j,k-1) + coeff_Q * old_drho_thm(i,j,k-1);
 
             // line 3 residuals (order dtau^2) one <-> beta_2
-            Real R1_tmp =  -halfg * (  slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) );
-
-                 R1_tmp +=  coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) * qv_str_fact_P
-                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) * qv_str_fact_Q;
+            Real R1_tmp  =  -halfg * (  slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) );
+                 R1_tmp +=  coeff_P * A_sum_rhs_p + coeff_Q * A_sum_rhs_q;
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -568,8 +572,14 @@ void erf_substep_T (int step, int /*nrk*/,
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * qv_str_fact_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * qv_str_fact_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_T_hi * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid ) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
+                       + coeff_Q/detJ(i,j,k-1) * A_T_lo * ( beta_1 * dzi * (Omega_k*theta_t_mid  - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_Q_hi * ( beta_1 * dzi * (Omega_kp1*qv_t_hi - Omega_k*qv_t_mid ) + temp_rhs_arr(i,j,k  ,RhoTheta_comp+1) )
+                       + coeff_Q/detJ(i,j,k-1) * A_Q_lo * ( beta_1 * dzi * (Omega_k*qv_t_mid  - Omega_km1*qv_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp+1) ) );
+
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_D_hi * ( beta_1 * dzi * (Omega_kp1 - Omega_k  ) + temp_rhs_arr(i,j,k  ,Rho_comp) )
+                       + coeff_Q/detJ(i,j,k-1) * A_D_lo * ( beta_1 * dzi * (Omega_k   - Omega_km1) + temp_rhs_arr(i,j,k-1,Rho_comp) ) );
 
             // line 1
             RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
@@ -581,7 +591,7 @@ void erf_substep_T (int step, int /*nrk*/,
         });
         } // end profile
 
-        Box b2d = tbz; // Copy constructor
+        Box b2d = tbz;
         b2d.setRange(2,0);
 
         auto const lo = lbound(bx);
@@ -596,7 +606,7 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // w_klo, w_khi given by specified Dirichlet values
-            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z) + zmom_src_arr(i,j,lo.z));
+            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
             RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
 
             // w = specified Dirichlet value at k = lo.z
@@ -689,7 +699,7 @@ void erf_substep_T (int step, int /*nrk*/,
         BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
+              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k  );
               Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
@@ -729,7 +739,7 @@ void erf_substep_T (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              if (l_use_moisture) { cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp); }
+              if (l_use_moisture) { cur_cons(i,j,k,RhoQ1_comp) += dtau * cc_src_arr(i,j,k,RhoQ1_comp); }
         });
         } // end profile
 
