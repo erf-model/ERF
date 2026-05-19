@@ -172,7 +172,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                            false, true);
     }
 
-    for (int j=0; j < ref_tags.size(); ++j)
+    for (int t=0; t < ref_tags.size(); ++t)
     {
         //
         // This mf must have ghost cells because we may take differences between adjacent values
@@ -181,35 +181,35 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         mf->setVal(0.0);
 
         // This allows dynamic refinement based on the value of the density
-        if (ref_tags[j].Field() == "density")
+        if (ref_tags[t].Field() == "density")
         {
             MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
 
         // Refinement based on a moisture mixing ratio (qv, qc, qi, qr, qs, qg).
         // The map from name to RhoQ component depends on the moisture model and
         // is held in solverChoice.moisture_indices.
-        } else if ( (ref_tags[j].Field() == "qv") ||
-                    (ref_tags[j].Field() == "qc") ||
-                    (ref_tags[j].Field() == "qi") ||
-                    (ref_tags[j].Field() == "qr") ||
-                    (ref_tags[j].Field() == "qs") ||
-                    (ref_tags[j].Field() == "qg") )
+        } else if ( (ref_tags[t].Field() == "qv") ||
+                    (ref_tags[t].Field() == "qc") ||
+                    (ref_tags[t].Field() == "qi") ||
+                    (ref_tags[t].Field() == "qr") ||
+                    (ref_tags[t].Field() == "qs") ||
+                    (ref_tags[t].Field() == "qg") )
         {
             const auto& mi = solverChoice.moisture_indices;
             int qcomp = -1;
-            if      (ref_tags[j].Field() == "qv") { qcomp = mi.qv; }
-            else if (ref_tags[j].Field() == "qc") { qcomp = mi.qc; }
-            else if (ref_tags[j].Field() == "qi") { qcomp = mi.qi; }
-            else if (ref_tags[j].Field() == "qr") { qcomp = mi.qr; }
-            else if (ref_tags[j].Field() == "qs") { qcomp = mi.qs; }
-            else if (ref_tags[j].Field() == "qg") { qcomp = mi.qg; }
+            if      (ref_tags[t].Field() == "qv") { qcomp = mi.qv; }
+            else if (ref_tags[t].Field() == "qc") { qcomp = mi.qc; }
+            else if (ref_tags[t].Field() == "qi") { qcomp = mi.qi; }
+            else if (ref_tags[t].Field() == "qr") { qcomp = mi.qr; }
+            else if (ref_tags[t].Field() == "qs") { qcomp = mi.qs; }
+            else if (ref_tags[t].Field() == "qg") { qcomp = mi.qg; }
             AMREX_ALWAYS_ASSERT(qcomp >= 0);
             MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], qcomp,    0, 1, 1);
             MultiFab::Divide(*mf, vars_new[levc][Vars::cons], Rho_comp, 0, 1, 1);
 
         // qt = total condensed water mixing ratio (qc + qi + qr + qs + qg).
         // Excludes qv by convention here.
-        } else if (ref_tags[j].Field() == "qt") {
+        } else if (ref_tags[t].Field() == "qt") {
             const auto& mi = solverChoice.moisture_indices;
             const int idx_qc = mi.qc, idx_qi = mi.qi, idx_qr = mi.qr,
                       idx_qs = mi.qs, idx_qg = mi.qg;
@@ -234,7 +234,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
-        } else if (ref_tags[j].Field() == "vorticity" ) {
+        } else if (ref_tags[t].Field() == "vorticity" ) {
             MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
 
@@ -248,8 +248,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
 
         // This allows dynamic refinement based on the value of the scalar/theta
-        } else if ( (ref_tags[j].Field() == "scalar"  ) ||
-                    (ref_tags[j].Field() == "theta"   ) )
+        } else if ( (ref_tags[t].Field() == "scalar"  ) ||
+                    (ref_tags[t].Field() == "theta"   ) )
         {
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -257,14 +257,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
                 auto& zfab = (*z_phys_cc[levc])[mfi];
-                if (ref_tags[j].Field() == "scalar") {
+                if (ref_tags[t].Field() == "scalar") {
                     derived::erf_derscalar(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
-                } else if (ref_tags[j].Field() == "theta") {
+                } else if (ref_tags[t].Field() == "theta") {
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
         // This allows dynamic refinement based on the value of updraft helicity
-        } else if (ref_tags[j].Field() == "helicity")
+        } else if (ref_tags[t].Field() == "helicity")
         {
             MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
@@ -278,7 +278,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
                 derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
             }
-        } else if (ref_tags[j].Field() == "max_reflectivity")
+        } else if (ref_tags[t].Field() == "max_reflectivity")
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::SAM) {
@@ -296,11 +296,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
         // This allows dynamic refinement based on the terrain blanking
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
-                    (ref_tags[j].Field() == "terrain_blanking") )
+                    (ref_tags[t].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
         }
-        else if (ref_tags[j].Field() == "velmag")
+        else if (ref_tags[t].Field() == "velmag")
         {
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
@@ -359,7 +359,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             {
                 auto* pc = particleData[particles_namelist[i]];
                 const std::string& sp_name = particles_namelist[i];
-                const std::string& field   = ref_tags[j].Field();
+                const std::string& field   = ref_tags[t].Field();
 
                 const std::string count_str = sp_name + "_count";
                 const std::string prefix    = sp_name + "_";
@@ -410,8 +410,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #endif
         }
 
-        ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
-    } // loop over j
+        ref_tags[t](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
+    } // loop over t
 
     // ********************************************************************************************
     // Refinement based on 2d distance from the "eye" which is defined here as the (x,y) location of
