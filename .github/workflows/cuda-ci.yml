@@ -18,11 +18,20 @@ concurrency:
 jobs:
   cuda-build:
     runs-on: ubuntu-22.04
-    name: CUDA v${{matrix.cuda_ver}} - Particles ${{matrix.particles}}
+    name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
       matrix:
         cuda_pkg: [12-2]
         particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
+        mesh_precision: [DOUBLE, SINGLE]
+        exclude:
+          - particles: OFF
+            particles_precision: SINGLE
+          # SP-mesh entries are temporarily disabled because the upstream
+          # SP-mesh build currently fails on non-particle code. Remove the
+          # guard below to re-enable SP-mesh + DP/SP particles once fixed.
+          - mesh_precision: SINGLE
         include:
           - cuda_ver: "12.2"
             cuda_pkg: 12-2
@@ -71,6 +80,8 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+            -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
+            -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
           cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \

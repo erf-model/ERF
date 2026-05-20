@@ -4,6 +4,10 @@
 
 #include "ERF_GTestSatAdjCommon.H"
 
+// These tests exercise the scalar cell adjustment used by the production
+// SatAdj kernel. They check physical properties of the adjustment rather than
+// fixed output values.
+
 using namespace satadj_test;
 
 namespace {
@@ -19,6 +23,8 @@ void expect_conservation (const CellState& initial, const CellState& final)
 {
     const amrex::Real qt_initial = initial.qv + initial.qc;
     const amrex::Real qt_final = final.qv + final.qc;
+    // SatAdj exchanges vapor and cloud water locally, so qt is conserved. At
+    // fixed pressure, latent heating/cooling conserves T + (L/cp) qv.
     const amrex::Real moist_initial = initial.tabs + kFacCond * initial.qv;
     const amrex::Real moist_final = final.tabs + kFacCond * final.qv;
 
@@ -46,6 +52,9 @@ void expect_complementarity (const CellState& state)
 
 } // namespace
 
+// Motivation: Supersaturated cells should condense to a saturated cloudy
+// state. This catches sign errors in latent heating and Newton residual
+// updates.
 TEST(SatAdjCell, SaturatedNewtonSolve)
 {
     const amrex::Real tabs = amrex::Real(290.0);
@@ -65,6 +74,8 @@ TEST(SatAdjCell, SaturatedNewtonSolve)
     expect_theta_consistent(state);
 }
 
+// Motivation: If total water cannot support saturation, SatAdj should
+// evaporate all cloud water and leave a clear subsaturated cell.
 TEST(SatAdjCell, UnsaturatedAllEvaporationBranch)
 {
     CellState state = make_cell_state(amrex::Real(290.0), amrex::Real(900.0),
@@ -83,6 +94,8 @@ TEST(SatAdjCell, UnsaturatedAllEvaporationBranch)
     expect_theta_consistent(state);
 }
 
+// Motivation: Evaporating cloud water cools the cell and can lower qsat
+// enough to require recondensation. This protects a subtle two-stage branch.
 TEST(SatAdjCell, EvaporationThenRecondensationBranch)
 {
     CellState state;
@@ -98,8 +111,13 @@ TEST(SatAdjCell, EvaporationThenRecondensationBranch)
     expect_theta_consistent(state);
 }
 
+// Motivation: For small supersaturation, the nonlinear adjustment should
+// reduce to the linearized analytic condensate response.
 TEST(SatAdjCell, SmallSupersaturationAsymptotic)
 {
+    // For small supersaturation s, linearizing the Newton residual gives
+    // delta_qc ~= s / (1 + (L/cp) * d(qsat)/dT). The error should shrink as s
+    // decreases.
     const amrex::Real tabs = amrex::Real(290.0);
     const amrex::Real pres_mbar = amrex::Real(900.0);
     const amrex::Real qsat_initial = qsat(tabs, pres_mbar);
@@ -125,6 +143,8 @@ TEST(SatAdjCell, SmallSupersaturationAsymptotic)
     EXPECT_LE(errors[1], errors[2] + scaled_tol(errors[2], amrex::Real(10.0) * kStateTolFactor));
 }
 
+// Motivation: SatAdj is a projection onto the final complementarity state. A
+// second adjustment should leave an already adjusted cell unchanged.
 TEST(SatAdjCell, Idempotence)
 {
     const amrex::Real tabs = amrex::Real(290.0);
@@ -145,8 +165,12 @@ TEST(SatAdjCell, Idempotence)
     expect_complementarity(second);
 }
 
+// Motivation: Negative qc can appear from transport overshoots. SatAdj should
+// repair it while preserving total nonprecipitating water.
 TEST(SatAdjCell, NegativeQcRepair)
 {
+    // Negative qc can arise from transport overshoots. SatAdj repairs it while
+    // preserving total nonprecipitating water.
     const amrex::Real tabs = amrex::Real(288.0);
     const amrex::Real pres_mbar = amrex::Real(850.0);
     const amrex::Real qsat_initial = qsat(tabs, pres_mbar);

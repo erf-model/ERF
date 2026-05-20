@@ -307,7 +307,7 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_n
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
             if ((radius < a_rmin) || (radius >= a_rmax)) {
-                return 0.0;
+                return ParticleReal(0);
             }
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];

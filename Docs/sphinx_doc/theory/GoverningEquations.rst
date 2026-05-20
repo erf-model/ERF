@@ -21,11 +21,17 @@ In anelastic mode, ERF solves partial differential equations expressing conserva
 potential temperature, and scalars (such as moisture variables), as well the anelastic constraint
 on the velocity.
 
-Below :math:`\rho, T, \theta_{d}`, and :math:`p` are the density, temperature, dry potential temperature and pressure, respectively;
-these variables are all defined at cell centers.
+Below :math:`\rho_d, T, \theta_{d}`, and :math:`p` are the dry-air density, temperature, dry potential temperature,
+and pressure, respectively; these variables are all defined at cell centers.
 :math:`\phi` is an advected scalar, also defined at cell centers.
-:math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively,
+:math:`\mathbf{u}` and :math:`(\rho_d \mathbf{u})` are the velocity and momentum, respectively,
 and are defined on faces.
+
+In the compressible moist formulation, the prognostic density is the dry-air
+density :math:`\rho_d`. When total moist density is needed, ERF forms it from
+the dry density and the water mixing ratios. In the EOS utility functions,
+``rho`` denotes :math:`\rho_d`, and ``rhotheta`` denotes
+:math:`\rho_d \theta_d`.
 
 Compressible Equations
 ------------------------
@@ -155,6 +161,77 @@ where :math:`\gamma = c_{p} / (c_{p} - R_{d})` and
 
 is the moist potential temperature. This is the only place :math:`\theta_m` is used; we evolve :math:`\theta_d` above. In the above, :math:`R_d`, :math:`c_p`, :math:`P_{00} = 1\times10^{5}` are the gas constant, specific heat capacity for dry air, and reference pressure, respectively.
 
+Define
+
+.. math::
+
+   M(q_v) = 1 + \frac{R_v}{R_d} q_v.
+
+Then the EOS can be written equivalently as
+
+.. math::
+
+   p = P_{00}
+       \left(
+       \frac{R_d \rho_d \theta_d M(q_v)}{P_{00}}
+       \right)^\gamma.
+
+Here :math:`q_v` is the vapor mixing ratio per unit dry-air mass. The quantity
+:math:`\rho_d \theta_d` is the ``rhotheta`` state variable used by the EOS
+utility functions, and EOS pressure arguments and return values are in Pa.
+
+The same EOS implies
+
+.. math::
+
+   p = \rho_d R_d T M(q_v),
+
+and therefore
+
+.. math::
+
+   \rho_d =
+   \frac{p}{R_d T M(q_v)}.
+
+This matches :cpp:`getRhogivenTandPress` in ``Source/Utils/ERF_EOS.H``.
+
+The EOS utilities rely on the constant relation
+
+.. math::
+
+   \kappa \equiv \frac{R_d}{c_p}
+   = \frac{\gamma - 1}{\gamma},
+   \qquad
+   \frac{1}{\gamma} = 1 - \kappa.
+
+This identity makes the pressure, temperature, Exner, and density inverse
+relations in ``Source/Utils/ERF_EOS.H`` algebraically consistent.
+
+The functions in ``Source/Utils/ERF_EOS.H`` implement these relations:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50
+
+   * - Function
+     - Relation
+   * - :cpp:`getThgivenTandP`
+     - :math:`\theta_d = T(P_{00}/p)^{R_d/c_p}`
+   * - :cpp:`getTgivenPandTh`
+     - :math:`T = \theta_d(p/P_{00})^{R_d/c_p}`
+   * - :cpp:`getPgivenRTh`
+     - :math:`p = P_{00}(R_d\rho_d\theta_d M/P_{00})^\gamma`
+   * - :cpp:`getRhoThetagivenP`
+     - inverse of :cpp:`getPgivenRTh`
+   * - :cpp:`getRhogivenTandPress`
+     - :math:`\rho_d = p/(R_d T M)`
+   * - :cpp:`getRhogivenThetaPress`
+     - density from :math:`\theta_d`, :math:`p`, and :math:`q_v`
+   * - :cpp:`getExnergivenP`
+     - :math:`\Pi = (p/P_{00})^{R_d/c_p}`
+   * - :cpp:`getdPdRgivenConstantTheta`
+     - :math:`(\partial p/\partial\rho_d)_{\theta_d,q_v} = \gamma p/\rho_d`
+
 Additional terms
 --------------------------------------
 
@@ -187,8 +264,18 @@ Assumptions
 The assumptions involved in deriving these equations from first principles are:
 
 - Continuum behavior
-- Ideal gas (:math:`p = \rho R_d T`) with constant specific heats (:math:`c_p,c_v`)
-- Constant mixture molecular weight (therefore constant :math:`R_d`)
+- Ideal gas behavior with constant specific heats (:math:`c_p,c_v`). In dry configurations,
+  :math:`p = \rho_d R_d T`. In moist configurations, ERF uses dry density and vapor
+  mixing ratio per dry-air mass:
+
+  .. math::
+
+     p = \rho_d R_d T
+         \left(1 + \frac{R_v}{R_d}q_v\right).
+
+  This is equivalent to the moist potential temperature factor in the
+  compressible EOS above. The dry shorthand :math:`p = \rho R_d T` is recovered
+  only when :math:`q_v = 0`.
 - Viscous heating is negligible
 - No chemical reactions, second order diffusive processes or radiative heat transfer
 - Newtonian viscous stress with no bulk viscosity contribution (i.e., :math:`\kappa S_{kk} \delta_{ij}`)
