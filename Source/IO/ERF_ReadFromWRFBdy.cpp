@@ -555,7 +555,8 @@ convert_wrfbdy_data (const int itime,
         // Examine z change
         ParallelFor(bx_ph, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k) ) / CONST_GRAV;
+            Real mu    = mu_arr(i,j,0) + mub_arr(i,j,0);
+            Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k)/mu ) / CONST_GRAV;
             Real old_z = Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
                                       + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) );
             if (i==0 && j==0) {
