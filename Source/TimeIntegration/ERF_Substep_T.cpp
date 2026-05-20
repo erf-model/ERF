@@ -748,7 +748,9 @@ void erf_substep_T (int step, int /*nrk*/,
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
               cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-              if (l_use_moisture) { cur_cons(i,j,k,RhoQ1_comp) += dtau * cc_src_arr(i,j,k,RhoQ1_comp); }
+              if (l_use_moisture) {
+                  cur_cons(i,j,k,RhoQ1_comp) = amrex::max(zero, cur_cons(i,j,k,RhoQ1_comp) + dtau * cc_src_arr(i,j,k,RhoQ1_comp));
+              }
         });
         } // end profile
 
