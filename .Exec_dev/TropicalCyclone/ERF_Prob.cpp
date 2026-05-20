@@ -93,8 +93,8 @@ Problem::init_custom_pert_vels (
         const Real* dx = geomdata.CellSize();
 
         const Real x = prob_lo[0] + i * dx[0]; // face center
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
+        const Real y = prob_lo[1] + (j + Real(0.5)) * dx[1]; // cell center
+        const Real z = prob_lo[2] + (k + Real(0.5)) * dx[2]; // cell center
 
         if (z > z_0) {
             x_vel_pert(i, j, k) = 0.0;
@@ -106,9 +106,9 @@ Problem::init_custom_pert_vels (
                 // Rotunno & Emanuel 1987, Eqn. 37
                 const Real II = (z_0-z)/z_0;
                 const Real term1 = (v_max*v_max)*(rr/R_max)*(rr/R_max);
-                const Real term2 = std::pow(2*R_max/(rr+R_max),3) - std::pow(2*R_max/(R_0+R_max),3);
-                const Real term3 = fcor*fcor*(rr*rr)/4;
-                const Real term4 = fcor*rr/2 ;
+                const Real term2 = std::pow(Real(2)*R_max/(rr+R_max),3) - std::pow(Real(2)*R_max/(R_0+R_max),3);
+                const Real term3 = fcor*fcor*(rr*rr)/Real(4);
+                const Real term4 = fcor*rr/Real(2) ;
                 const Real v_tang = II*(std::sqrt(term1*term2 + term3) - term4);
                 const Real thet_angl = std::atan2(y-Yc,x-Xc);
                 x_vel_pert(i, j, k) = -std::abs(v_tang)*std::sin(thet_angl);
@@ -122,9 +122,9 @@ Problem::init_custom_pert_vels (
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
+        const Real x = prob_lo[0] + (i + Real(0.5)) * dx[0]; // cell center
         const Real y = prob_lo[1] + j * dx[1]; // face center
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
+        const Real z = prob_lo[2] + (k + Real(0.5)) * dx[2]; // cell center
 
         if (z > z_0) {
             y_vel_pert(i, j, k) = 0.0;
@@ -136,9 +136,9 @@ Problem::init_custom_pert_vels (
                 // Rotunno & Emanuel 1987, Eqn. 37
                 const Real II = (z_0-z)/z_0;
                 const Real term1 = (v_max*v_max)*(rr/R_max)*(rr/R_max);
-                const Real term2 = std::pow(2*R_max/(rr+R_max),3) - std::pow(2*R_max/(R_0+R_max),3);
-                const Real term3 = fcor*fcor*(rr*rr)/4;
-                const Real term4 = fcor*rr/2 ;
+                const Real term2 = std::pow(Real(2)*R_max/(rr+R_max),3) - std::pow(Real(2)*R_max/(R_0+R_max),3);
+                const Real term3 = fcor*fcor*(rr*rr)/Real(4);
+                const Real term4 = fcor*rr/Real(2) ;
                 const Real v_tang = II*(std::sqrt(term1*term2 + term3) - term4);
                 const Real thet_angl = std::atan2(y-Yc,x-Xc);
                 y_vel_pert(i, j, k) = std::abs(v_tang)*std::cos(thet_angl);

@@ -110,7 +110,7 @@ Fitch::compute_power_output (const MultiFab& cons_in,
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-     const int n_spec_table = wind_speed.size();
+     const int n_spec_table = static_cast<int>(wind_speed.size());
 
      Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
      Gpu::DeviceVector<Real> d_power(wind_speed.size());
@@ -205,7 +205,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
-        const int n_spec_table = d_wind_speed.size();
+        const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
@@ -228,7 +228,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
             fitch_array(i,j,k,1) =  -myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
             fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
             fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*amrex::Math::powi<3>(Vabs)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
         });

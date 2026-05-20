@@ -127,9 +127,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
                     const auto& x_r = a_bubble.hi(); // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }
@@ -158,9 +158,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
                     const auto& x_r = a_bubble.hi();       // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }
@@ -251,7 +251,7 @@ void SuperDropletPC::addParticles ( int a_lev,
 
         int np = 0;
         {
-            int ncell = num_superdroplets[mfi].numPts();
+            int ncell = static_cast<int>(num_superdroplets[mfi].numPts());
             const int* in = num_superdroplets[mfi].dataPtr();
             int* out = offsets[mfi].dataPtr();
             np = Scan::PrefixSum<int>( ncell,
@@ -452,7 +452,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                 } else {
                     mult_ptr[n] = num_to_add;
                 }
-                num_to_add -= mult_ptr[n];
+                num_to_add -= static_cast<Real>(mult_ptr[n]);
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
                 // Species and aerosol masses already sampled directly into particle SoA
@@ -480,9 +480,9 @@ void SuperDropletPC::addParticles ( int a_lev,
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
                 auto& p = aos[n+size_old];
-                Real x = p.pos(0);
-                Real y = p.pos(1);
-                Real z = p.pos(2);
+                Real x = static_cast<Real>(p.pos(0));
+                Real y = static_cast<Real>(p.pos(1));
+                Real z = static_cast<Real>(p.pos(2));
                 Real r[3] = { (x-plo[0])/dx[0] - i,
                               (y-plo[1])/dx[1] - j,
                               (z-plo[2])/dx[2] - k };

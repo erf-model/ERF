@@ -137,6 +137,10 @@ public:
 
     // Advance solution to final time
     void Evolve ();
+    amrex::Real EvolveOneStep (amrex::Real time, amrex::Real dt_request);
+
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, amrex::Real time);
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, amrex::Real time);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -521,7 +525,7 @@ public:
 
     void ComputeAndWriteEnsemblePerturbations();
 
-    void PerformDataAssimilation();
+    void PerformDataAssimilation(int da_iter);
 
     void init_custom (int lev);
 
@@ -554,6 +558,9 @@ public:
     // Primary solution data data containers
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
@@ -1261,9 +1268,6 @@ private:
 
     static StateInterpType interpolation_type;
 
-    // sponge_type:  "input_sponge"
-    static std::string sponge_type;
-
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
     static amrex::Vector<amrex::Vector<int>> have_read_nc_init_file;
@@ -1468,14 +1472,14 @@ private:
     int
     NumDataLogs () noexcept
     {
-        return datalog.size();
+        return static_cast<int>(datalog.size());
     }
 
     AMREX_FORCE_INLINE
     int
     NumDerDataLogs () noexcept
     {
-        return der_datalog.size();
+        return static_cast<int>(der_datalog.size());
     }
 
 
@@ -1490,7 +1494,7 @@ private:
     int
     NumSamplePointLogs () noexcept
     {
-        return sampleptlog.size();
+        return static_cast<int>(sampleptlog.size());
     }
 
     AMREX_FORCE_INLINE
@@ -1504,7 +1508,7 @@ private:
     int
     NumSampleLineLogs () noexcept
     {
-        return samplelinelog.size();
+        return static_cast<int>(samplelinelog.size());
     }
 
     amrex::IntVect&
@@ -1517,7 +1521,7 @@ private:
     int
     NumSamplePoints () noexcept
     {
-        return samplepoint.size();
+        return static_cast<int>(samplepoint.size());
     }
 
     amrex::IntVect&
@@ -1530,7 +1534,7 @@ private:
     int
     NumSampleLines () noexcept
     {
-        return sampleline.size();
+        return static_cast<int>(sampleline.size());
     }
 
     static amrex::Real startCPUTime;
@@ -1545,7 +1549,7 @@ private:
 #endif
 
       amrex::Real T =
-        numCores * (amrex::ParallelDescriptor::second() - startCPUTime) +
+        numCores * amrex::Real(amrex::ParallelDescriptor::second() - startCPUTime) +
         previousCPUTimeUsed;
 
       return T;

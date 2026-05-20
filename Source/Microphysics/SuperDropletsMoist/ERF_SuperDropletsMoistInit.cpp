@@ -77,7 +77,7 @@ void SuperDropletsMoist::readInputs ()
     // get vapour/condensate species names
     m_species.clear();
     // add water
-    m_idx_w = m_species.size();
+    m_idx_w = static_cast<int>(m_species.size());
     m_species.push_back(Species::Name::H2O);
     // add ice
     if (m_with_ice) {
@@ -95,7 +95,7 @@ void SuperDropletsMoist::readInputs ()
             m_species.push_back(sp_name);
         }
     }
-    m_num_species = m_species.size();
+    m_num_species = static_cast<int>(m_species.size());
     m_num_nonmoist_sp = m_num_species - m_istart_sp;
     m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2; // qv, qc for each
 
@@ -114,7 +114,7 @@ void SuperDropletsMoist::readInputs ()
             m_aerosols.push_back(aero_name);
         }
     }
-    m_num_aerosols = m_aerosols.size();
+    m_num_aerosols = static_cast<int>(m_aerosols.size());
 
     // number of time steps between writing distribution  diagnostics to file
     m_diagnostics_iter = 1; //default

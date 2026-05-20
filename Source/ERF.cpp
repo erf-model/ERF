@@ -129,8 +129,6 @@ Real ERF::bndry_output_planes_start_time =  zero;
 // 2D BndryRegister input
 int  ERF::input_bndry_planes             = 0;
 
-Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
-
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 Real read_start_time_from_metgrid  (int lev, const std::string& fname);
@@ -233,7 +231,6 @@ ERF::ERF_shared ()
             Abort("Don't know this radiation model!");
         }
     }
-
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
     const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
@@ -275,15 +272,17 @@ ERF::ERF_shared ()
     // Get lo/hi indices for massflux calc
     if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-1e34));
+            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( 1e34));
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
             const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
             const Real dz = geom[0].CellSize(2);
-            if (massflux_zlo == -1e34) {
+            if (zlo_unset) {
                 solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
             } else {
                 solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - myhalf));
             }
-            if (massflux_zhi ==  1e34) {
+            if (zhi_unset) {
                 solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
             } else {
                 solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - myhalf));
@@ -305,6 +304,10 @@ ERF::ERF_shared ()
             << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
     }
 
+#ifdef ERF_REMORA_FORCE_PROBINIT_LINK
+    extern void erf_probinit_link_anchor_func () noexcept;
+    erf_probinit_link_anchor_func();
+#endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
@@ -993,7 +996,7 @@ void
 ERF::InitData_pre ()
 {
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = ParallelDescriptor::second();
+    startCPUTime = Real(ParallelDescriptor::second());
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
@@ -1325,7 +1328,7 @@ ERF::InitData_post ()
     }
 
     // Read in sponge data from input file
-    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    if(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
     {
         initSponge();
         bool restarting = (!restart_chkfile.empty());
@@ -2285,9 +2288,8 @@ ERF::init_only (int lev, Real elapsed_time)
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (!solverChoice.use_real_bcs) {
-            make_physbcs(lev);
-        }
+        make_physbcs(lev);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
@@ -2347,9 +2349,10 @@ ERF::init_only (int lev, Real elapsed_time)
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
+    {
         input_sponge(lev);
-   }
+    }
 
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {
@@ -2750,7 +2753,7 @@ ERF::ReadParameters ()
                     << "\", format should be " << datetime_format << std::endl;
                 exit(0);
             }
-            start_time = getEpochTime(start_datetime, datetime_format);
+            start_time = static_cast<amrex::Real>(getEpochTime(start_datetime, datetime_format));
 
 #ifdef ERF_USE_NETCDF
             if (solverChoice.init_type == InitType::WRFInput) {
@@ -2816,7 +2819,7 @@ ERF::ReadParameters ()
                 exit(0);
             }
 
-            stop_time = getEpochTime(stop_datetime, datetime_format);
+            stop_time = static_cast<amrex::Real>(getEpochTime(stop_datetime, datetime_format));
             Print() << "Stop  datetime : " << start_datetime << std::endl;
 
         } else {
@@ -2850,7 +2853,7 @@ ERF::ReadParameters ()
     if ((solverChoice.init_type == InitType::WRFInput) ||
         (solverChoice.init_type == InitType::Metgrid)  ||
         (solverChoice.init_type == InitType::NCFile) ) {
-        int num_files = nc_init_file[0].size();
+        int num_files = static_cast<int>(nc_init_file[0].size());
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
         for (int j = 0; j < num_files; j++) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
@@ -2896,6 +2899,9 @@ ERF::ParameterSanityChecks ()
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 
+    if (cf_set_width != 0) {
+        Abort("You must set cf_set_width == 0");
+    }
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
     }
@@ -3094,7 +3100,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     }
 
     // combine sums from different MPI ranks
-    ParallelDescriptor::ReduceRealSum(h_havg.dataPtr(), h_havg.size());
+    ParallelDescriptor::ReduceRealSum(h_havg.dataPtr(), static_cast<int>(h_havg.size()));
 
     // divide by the total number of cells we are averaging over
     for (int k = 0; k < size_z; ++k) {

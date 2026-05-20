@@ -8,18 +8,18 @@
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
-    amrex::Real KE_0   = 0.1;
+    amrex::Real KE_0   = amrex::Real(0.1);
 
-    amrex::Real Xc_0  = 0.0;
-    amrex::Real Yc_0  = 0.0;
-    amrex::Real VMAX  = 15.0;   // Maximum horizontal velocity in vortex
-    amrex::Real RMAX  = 100.0;  // Radius of maximum winds
-    amrex::Real RZERO = 800.0;  // Radius of zero wind speed
-    amrex::Real ZZERO = 2000.0; // Height of zero wind speed
+    amrex::Real Xc_0  = amrex::Real(0.0);
+    amrex::Real Yc_0  = amrex::Real(0.0);
+    amrex::Real VMAX  = amrex::Real(15.0);   // Maximum horizontal velocity in vortex
+    amrex::Real RMAX  = amrex::Real(100.0);  // Radius of maximum winds
+    amrex::Real RZERO = amrex::Real(800.0);  // Radius of zero wind speed
+    amrex::Real ZZERO = amrex::Real(2000.0); // Height of zero wind speed
 
-    amrex::Real U_0 = 0.0;
-    amrex::Real V_0 = 0.0;
-    amrex::Real W_0 = 0.0;
+    amrex::Real U_0 = amrex::Real(0.0);
+    amrex::Real V_0 = amrex::Real(0.0);
+    amrex::Real W_0 = amrex::Real(0.0);
 
 }; // namespace ProbParm
 

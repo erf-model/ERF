@@ -102,9 +102,9 @@ ERF::FillForecastStateMultiFabs(const int lev,
     }
 
 
-    int nx = xvec_h.size();
-    int ny = yvec_h.size();
-    int nz = zvec_h.size();
+    int nx = static_cast<int>(xvec_h.size());
+    int ny = static_cast<int>(yvec_h.size());
+    int nz = static_cast<int>(zvec_h.size());
 
     amrex::Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
     amrex::Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
@@ -353,7 +353,7 @@ ERF::WeatherDataInterpolation(const int lev,
     static amrex::Vector<Real> next_read_forecast_time;
     static amrex::Vector<Real> last_read_forecast_time;
 
-    const int nlevs = a_z_phys_nd.size();
+    const int nlevs = static_cast<int>(a_z_phys_nd.size());
 
     Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*Real(3600.0);
 
