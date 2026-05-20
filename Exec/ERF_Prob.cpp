@@ -131,6 +131,12 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_InitCustomPert_RICO.H"
     }
+    else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_InitCustomPert_RICO.H"
+    }
+    else if  (my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_InitCustomPert_RICO.H"
+    }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
 #include "Prob/ERF_InitCustomPert_SDMCongestus3D.H"
     }
@@ -229,6 +235,12 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
     else if  (my_prob_name_ci == "rico") {
+#include "Prob/ERF_InitCustomPertVels_RICO.H"
+    }
+    else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_InitCustomPertVels_RICO.H"
+    }
+    else if  (my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPertVels_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -383,6 +395,10 @@ Problem::update_w_subsidence (const Real& time,
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
+    } else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateWSubsidence_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
@@ -423,6 +439,10 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 #include "Prob/ERF_UpdateGeostrophicProfile_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateGeostrophicProfile_RICO.H"
+    } else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF02.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateGeostrophicProfile_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
