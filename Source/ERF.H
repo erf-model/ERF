@@ -136,6 +136,7 @@ public:
 
     // Advance solution to final time
     void Evolve ();
+    amrex::Real EvolveOneStep (amrex::Real time, amrex::Real dt_request);
 
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, amrex::Real time);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, amrex::Real time);
@@ -549,6 +550,9 @@ public:
     // Primary solution data data containers
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
