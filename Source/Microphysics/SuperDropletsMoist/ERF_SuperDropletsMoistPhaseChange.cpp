@@ -19,7 +19,7 @@ static void saturation_ratio (MultiFab& a_sr,
         const Array4<Real>& sr_arr = a_sr.array(mfi);
         const Array4<Real const>& qv_arr = a_qv.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        { sr_arr(i,j,k,0) = (sr_arr(i,j,k,0) > 0.0 ? qv_arr(i,j,k,0) / sr_arr(i,j,k,0) : 0.0); });
+        { sr_arr(i,j,k,0) = (sr_arr(i,j,k,0) > Real(0) ? qv_arr(i,j,k,0) / sr_arr(i,j,k,0) : Real(0)); });
     }
     a_sr.FillBoundary();
 }

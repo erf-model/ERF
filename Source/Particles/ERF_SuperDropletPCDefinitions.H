@@ -189,10 +189,10 @@ static auto ice_rho(const amrex::ParticleReal a_a, /*!< polar radius */
                     const amrex::ParticleReal a_c, /*!< equatorial radius */
                     const amrex::ParticleReal a_mass /*!< mass */ )
 {
-    auto vol = four_thirds_pi*a_a*a_a*a_c;
-    if (vol == 0.0) {
-        AMREX_ALWAYS_ASSERT(a_mass == 0.0);
-        return 0.0;
+    auto vol = static_cast<amrex::ParticleReal>(four_thirds_pi)*a_a*a_a*a_c;
+    if (vol == amrex::ParticleReal(0)) {
+        AMREX_ALWAYS_ASSERT(a_mass == amrex::ParticleReal(0));
+        return amrex::ParticleReal(0);
     } else {
         return a_mass/vol;
     }
@@ -394,7 +394,7 @@ struct INAS_Niemand2012 {
         auto P_max = P_freeze(Tfz_min, A);
         if (u > P_max) {
             // Particle has no active sites -> homogeneous freezing
-            return Tfz_homogeneous + 273.15;
+            return Tfz_homogeneous + amrex::Real(273.15);
         }
 
         // Inverse CDF: solve P(T) = u for T
@@ -402,14 +402,14 @@ struct INAS_Niemand2012 {
         // Let y = -ln(1-u) = A * a0 * exp(-a1*T + a2)
         // -a1*T + a2 = ln(y / (A*a0))
         // T = (a2 - ln(y/(A*a0))) / a1
-        auto y = -std::log(1.0 - u);
+        auto y = -std::log(amrex::Real(1) - u);
         auto T_degC = (a2 - std::log(y / (A * a0))) / a1;
 
         // Clamp to valid range
         T_degC = std::max(T_degC, Tfz_min);
         T_degC = std::min(T_degC, Tfz_max);
 
-        return T_degC + 273.15;  // Convert to Kelvin
+        return T_degC + amrex::Real(273.15);  // Convert to Kelvin
     }
 };
 

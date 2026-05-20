@@ -348,7 +348,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
             auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
             auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
             auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-            auto frac = (mass > 0.0 ? mrime / mass : 0.0);
+            auto frac = (mass > amrex::ParticleReal(0) ? mrime / mass : amrex::ParticleReal(0));
 
             bool include = false;
             switch (category) {
@@ -366,7 +366,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
                     break;
             }
 
-            if (!include) { return 0.0; }
+            if (!include) { return amrex::ParticleReal(0); }
 
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];

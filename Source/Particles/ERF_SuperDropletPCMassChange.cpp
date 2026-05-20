@@ -439,7 +439,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto mass_new = mass_old;
             ti.fe(mass_new, success);
             AMREX_ALWAYS_ASSERT(success);
-            mass_new = std::max(mass_new, amrex::Real(3.8403e-24)); // lower limit: 1nm spherical ice particle
+            mass_new = std::max(mass_new, amrex::ParticleReal(3.8403e-24)); // lower limit: 1nm spherical ice particle
             auto d_mass = mass_new - mass_old;
 
             // compute new volume

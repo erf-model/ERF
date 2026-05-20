@@ -64,7 +64,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto vterm_type_w = m_term_vel_type_w;
     const auto vterm_type_i = m_term_vel_type_i;
 
-    Real rho_i = DBL_MAX;
+    Real rho_i = std::numeric_limits<Real>::max();
     if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
     // Terminal velocity calculator (shared across tiles)

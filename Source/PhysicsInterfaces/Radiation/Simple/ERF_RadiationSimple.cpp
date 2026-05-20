@@ -82,11 +82,11 @@ void RadiationSimple::Run(int& level,
             for (int k = 0; k < nz; k++)
             {
                 Real rho = cons_arr(i, j, k, Rho_comp);
-                Real qv = (moist) ? cons_arr(i, j, k, RhoQ1_comp) / rho : 0.0;
-                Real qc = (moist) ? cons_arr(i, j, k, RhoQ2_comp) / rho : 0.0;
-                Real qi = (ice)   ? cons_arr(i, j, k, RhoQ3_comp) / rho : 0.0;
+                Real qv = (moist) ? cons_arr(i, j, k, RhoQ1_comp) / rho : Real(0);
+                Real qc = (moist) ? cons_arr(i, j, k, RhoQ2_comp) / rho : Real(0);
+                Real qi = (ice)   ? cons_arr(i, j, k, RhoQ3_comp) / rho : Real(0);
 
-                Real dz = (z_nd_arr) ? 0.25 * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
+                Real dz = (z_nd_arr) ? Real(0.25) * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
                                             + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
                                             + (z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k))
                                             + (z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k)) ) : fixed_dz;

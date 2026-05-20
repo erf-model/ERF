@@ -87,13 +87,13 @@ struct MaterialPropertiesCore { // For GPU
     amrex::Real m_Nav_by_molweight = std::numeric_limits<float>::max(); /*!< Avogadro number by vapour mol. weight */
 #endif
     /*! vector of molar heat capacity polynomial coeffs */
-    amrex::Real m_mol_Cp_coeffs[7] = {  amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX) };
+    amrex::Real m_mol_Cp_coeffs[7] = {  std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max() };
     bool m_is_soluble = false; /*!< is soluble in water? */
     bool m_is_water = false; /*!< is this water? */
     bool m_is_INP = false; /*!< can act as ice nucleating particle? */

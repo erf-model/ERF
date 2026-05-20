@@ -311,15 +311,16 @@ static auto impactVelocity_RasmussenHeymsfield1985( const ParticleReal a_Re, /*!
 
 /*! \brief Ice surface temperature */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto iceSurfaceTemperature( const ParticleReal a_T, /*!< temperature */
-                                   const ParticleReal a_P, /*!< pressure */
-                                   const ParticleReal a_qv, /*!< vapour fraction */
-                                   const ParticleReal a_D, /*!< diffusivity coeff */
-                                   const dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
+static ParticleReal iceSurfaceTemperature( const ParticleReal a_T, /*!< temperature */
+                                           const ParticleReal a_P, /*!< pressure */
+                                           const ParticleReal a_qv, /*!< vapour fraction */
+                                           const ParticleReal a_D, /*!< diffusivity coeff */
+                                           const dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
 {
-    Real qsat = Real(zero); erf_qsati(a_T, a_P, qsat);
-    auto sup_sat  = a_qv/qsat - Real(one);
-    auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, erf_esati(a_T), a_D));
+    Real qsat_r = Real(zero); erf_qsati(a_T, a_P, qsat_r);
+    ParticleReal qsat = ParticleReal(qsat_r);
+    auto sup_sat  = a_qv/qsat - ParticleReal(one);
+    auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, ParticleReal(erf_esati(a_T)), a_D));
     auto dT = (a_dmdt.L * a_D / a_dmdt.K) * drho;
     return a_T + dT;
 }
@@ -478,19 +479,19 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         if ((phi < ParticleReal(0.8)) || ((phi < ParticleReal(1.25)) && (phi >= ParticleReal(one)))) {
             // Oblate or quasi-spherical prolate: constrain equatorial radius
             if (a_prey[id_ice]) {
-                a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+                a_new = std::max(a_a[id_ice], a_radius[id_water]*ParticleReal(std::cbrt(a_rho_water/rho_rime)));
             } else {
                 // Water is prey - include gamma inside cube root (Fortran line 1445)
-                a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
+                a_new = std::max(a_a[id_ice], a_radius[id_water]*ParticleReal(std::cbrt((a_rho_water/rho_rime)*gamma)));
             }
             c_new = V_new / (ParticleReal(four_thirds_pi)*a_new*a_new);
         } else {
             // Prolate or quasi-spherical oblate: constrain polar radius
             if (a_prey[id_ice]) {
-                c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+                c_new = std::max(a_c[id_ice], a_radius[id_water]*ParticleReal(std::cbrt(a_rho_water/rho_rime)));
             } else {
                 // Water is prey - include gamma inside cube root (Fortran line 1460)
-                c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
+                c_new = std::max(a_c[id_ice], a_radius[id_water]*ParticleReal(std::cbrt((a_rho_water/rho_rime)*gamma)));
             }
             a_new = std::sqrt(V_new / (ParticleReal(four_thirds_pi)*c_new));
         }
@@ -563,7 +564,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     const auto rho_water = m_species_mat[m_idx_w]->m_density;
-    const auto rho_ice = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : 0.0);
+    const auto rho_ice = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : Real(0));
     const auto sp_idx_w = m_idx_w;
     const auto sp_idx_i = m_idx_i;
     const auto mat_prop(*(m_species_mat[(sp_idx_i>=0?sp_idx_i:sp_idx_w)]));
