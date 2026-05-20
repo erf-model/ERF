@@ -123,16 +123,32 @@ void make_fast_coeffs (int /*level*/,
                  Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
                  Real inv_detJ_on_kface = one / detJ_on_kface;
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+                 Real thd_km2 = prim(i,j,k-2,PrimTheta_comp);
+                 Real thd_km1 = prim(i,j,k-1,PrimTheta_comp);
+                 Real thd_k   = prim(i,j,k  ,PrimTheta_comp);
+                 Real thd_kp1 = prim(i,j,k+1,PrimTheta_comp);
+
+                 Real qv_km2 = (l_use_moisture) ? prim(i,j,k-2,PrimQ1_comp) : zero;
+                 Real qv_km1 = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+                 Real qv_k   = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                 Real qv_kp1 = (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero;
+
+                 Real thm_km2 = thd_km2 * (Real(1.0) + RvOverRd*qv_km2);
+                 Real thm_km1 = thd_km1 * (Real(1.0) + RvOverRd*qv_km1);
+                 Real thm_k   = thd_k   * (Real(1.0) + RvOverRd*qv_k  );
+                 Real thm_kp1 = thd_kp1 * (Real(1.0) + RvOverRd*qv_kp1);
+
+                 Real thm_t_lo  = myhalf * (thm_km2 + thm_km1);
+                 Real thm_t_mid = myhalf * (thm_km1 + thm_k  );
+                 Real thm_t_hi  = myhalf * (thm_k   + thm_kp1);
 
                  Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_p) );
+                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_k) );
 
                  Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_q) );
+                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_km1) );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -144,38 +160,13 @@ void make_fast_coeffs (int /*level*/,
                     coeff_Q /= (one + q);
                 }
 
-                Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
-
-                Real qv_t_lo  = (l_use_moisture) ? myhalf * ( prim(i,j,k-2,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp) ) : zero;
-                Real qv_t_mid = (l_use_moisture) ? myhalf * ( prim(i,j,k-1,PrimQ1_comp) + prim(i,j,k  ,PrimQ1_comp) ) : zero;
-                Real qv_t_hi  = (l_use_moisture) ? myhalf * ( prim(i,j,k  ,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp) ) : zero;
-
-                Real r_t_lo  = myhalf * ( stage_cons(i,j,k-2,Rho_comp) + stage_cons(i,j,k-1,Rho_comp) );
-                Real r_t_mid = myhalf * ( stage_cons(i,j,k-1,Rho_comp) + stage_cons(i,j,k  ,Rho_comp) );
-                Real r_t_hi  = myhalf * ( stage_cons(i,j,k  ,Rho_comp) + stage_cons(i,j,k+1,Rho_comp) );
-
-                Real A_T_hi = (one + RvOverRd*qv_q);
-                Real A_T_lo = (one + RvOverRd*qv_p);
-                Real A_Q_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp);
-                Real A_Q_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp);
-                Real A_D_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_p;
-                Real A_D_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_q;
-
-                Real A_sum_hi = A_T_hi * theta_t_hi + A_Q_hi * qv_t_hi + A_D_hi * r_t_hi;
-                Real A_sum_lo = A_T_lo * theta_t_lo + A_Q_lo * qv_t_lo + A_D_lo * r_t_lo;
-
-                Real A_sum_mid_p = A_T_hi * theta_t_mid + A_Q_hi * qv_t_mid + A_D_hi * r_t_mid;
-                Real A_sum_mid_q = A_T_hi * theta_t_mid + A_Q_hi * qv_t_mid + A_D_hi * r_t_mid;
-
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * A_sum_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * A_sum_hi );
+                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * thm_t_lo );
+                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * thm_t_hi );
 
-                coeffB_a(i,j,k) = one + D * ( ( coeff_Q * A_sum_mid_q / detJ(i,j,k-1)
-                                              - coeff_P * A_sum_mid_p / detJ(i,j,k  ) )
+                coeffB_a(i,j,k) = one + D * ( ( coeff_Q / detJ(i,j,k-1)
+                                              - coeff_P / detJ(i,j,k  ) ) * thm_t_mid
                                             + halfg * ( Real(1.0)/detJ(i,j,k) - Real(1.0)/detJ(i,j,k-1) ) );
             });
 

@@ -196,13 +196,11 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& thm_extrap = extrap.array(mfi);
         const Array4<const Real>& prim = S_stage_prim.const_array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real qv_cur_fact = (!l_use_moisture) ? 0.0 :
-                (Real(1.0) + RvOverRd * cur_cons(i,j,k,RhoQ1_comp) / cur_cons(i,j,k,Rho_comp));
-            Real qv_stg_fact = (!l_use_moisture) ? 0.0 :
-                (Real(1.0) + RvOverRd *     prim(i,j,k,PrimQ1_comp));
+            Real qv_stg = (l_use_moisture) ?     prim(i,j,k,PrimQ1_comp) : zero;
+            Real qv_cur = (l_use_moisture) ? cur_cons(i,j,k,RhoQ1_comp ) / cur_cons(i,j,k,Rho_comp) : zero;
             old_drho(i,j,k)     =   cur_cons(i,j,k,Rho_comp) - stage_cons(i,j,k,Rho_comp);
-            old_drho_thm(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * qv_cur_fact
-                                - stage_cons(i,j,k,RhoTheta_comp) * qv_stg_fact;
+            old_drho_thm(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * (Real(1.0) + RvOverRd*qv_cur)
+                                - stage_cons(i,j,k,RhoTheta_comp) * (Real(1.0) + RvOverRd*qv_stg);
             if (step == 0) {
                 thm_extrap(i,j,k) = old_drho_thm(i,j,k);
             } else {
@@ -345,8 +343,6 @@ void erf_substep_T (int step, int /*nrk*/,
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
 
-        const Array4<const Real>& stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
-
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
         const Array4<Real const>& cc_src_arr     = cc_src.const_array(mfi);
 
@@ -468,19 +464,19 @@ void erf_substep_T (int step, int /*nrk*/,
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
-            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi * mfsq +
-                                     ( yflux_hi - yflux_lo ) * dyi * mfsq;
-            temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
-                                     ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * myhalf;
+            temp_rhs_arr(i,j,k,Rho_comp)     =  ( xflux_hi - xflux_lo ) * dxi * mfsq +
+                                                ( yflux_hi - yflux_lo ) * dyi * mfsq;
+            temp_rhs_arr(i,j,k,RhoTheta_comp) = (( xflux_hi * (prim(i,j,k) + prim(i+1,j,k)) -
+                                                   xflux_lo * (prim(i,j,k) + prim(i-1,j,k)) ) * dxi * mfsq+
+                                                 ( yflux_hi * (prim(i,j,k) + prim(i,j+1,k)) -
+                                                   yflux_lo * (prim(i,j,k) + prim(i,j-1,k)) ) * dyi * mfsq) * myhalf;
             if (l_use_moisture) {
-                temp_rhs_arr(i,j,k,2) = (( xflux_hi * (prim(i,j,k,3) + prim(i+1,j,k,3)) -
-                                           xflux_lo * (prim(i,j,k,3) + prim(i-1,j,k,3)) ) * dxi * mfsq+
-                                         ( yflux_hi * (prim(i,j,k,3) + prim(i,j+1,k,3)) -
-                                           yflux_lo * (prim(i,j,k,3) + prim(i,j-1,k,3)) ) * dyi * mfsq) * myhalf;
+                temp_rhs_arr(i,j,k,RhoTheta_comp+1) = (( xflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i+1,j,k,PrimQ1_comp)) -
+                                                         xflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)) ) * dxi * mfsq+
+                                                       ( yflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i,j+1,k,PrimQ1_comp)) -
+                                                         yflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)) ) * dyi * mfsq) * myhalf;
             } else {
-                temp_rhs_arr(i,j,k,2) = zero;
+                temp_rhs_arr(i,j,k,RhoTheta_comp+1) = zero;
             }
 
 
@@ -525,33 +521,52 @@ void erf_substep_T (int step, int /*nrk*/,
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
 
-            Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-            Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-            Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+            // Cell center vars for constructing theta_m
+            Real thd_km2 = prim(i,j,k-2,PrimTheta_comp);
+            Real thd_km1 = prim(i,j,k-1,PrimTheta_comp);
+            Real thd_k   = prim(i,j,k  ,PrimTheta_comp);
+            Real thd_kp1 = prim(i,j,k+1,PrimTheta_comp);
 
-            Real qv_t_lo  = (l_use_moisture) ? myhalf * ( prim(i,j,k-2,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp) ) : zero;
-            Real qv_t_mid = (l_use_moisture) ? myhalf * ( prim(i,j,k-1,PrimQ1_comp) + prim(i,j,k  ,PrimQ1_comp) ) : zero;
-            Real qv_t_hi  = (l_use_moisture) ? myhalf * ( prim(i,j,k  ,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp) ) : zero;
+            Real qv_km2 = (l_use_moisture) ? prim(i,j,k-2,PrimQ1_comp) : zero;
+            Real qv_km1 = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+            Real qv_k   = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+            Real qv_kp1 = (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero;
 
-            Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-            Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+            Real thm_km2 = thd_km2 * (Real(1.0) + RvOverRd*qv_km2);
+            Real thm_km1 = thd_km1 * (Real(1.0) + RvOverRd*qv_km1);
+            Real thm_k   = thd_k   * (Real(1.0) + RvOverRd*qv_k  );
+            Real thm_kp1 = thd_kp1 * (Real(1.0) + RvOverRd*qv_kp1);
 
-            Real A_T_hi = (one + RvOverRd*qv_q);
-            Real A_T_lo = (one + RvOverRd*qv_p);
-            Real A_Q_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp);
-            Real A_Q_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp);
-            Real A_D_hi = RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_p;
-            Real A_D_lo = RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_q;
+            // Stage theta_m at w-faces
+            Real thm_t_lo  = myhalf * (thm_km2 + thm_km1);
+            Real thm_t_mid = myhalf * (thm_km1 + thm_k  );
+            Real thm_t_hi  = myhalf * (thm_k   + thm_kp1);
 
-            Real T_rhs_hi = slow_rhs_cons(i,j,k  ,RhoTheta_comp);
-            Real Q_rhs_hi = (l_use_moisture) ? slow_rhs_cons(i,j,k  ,RhoQ1_comp) : zero;
-            Real D_rhs_hi  = slow_rhs_cons(i,j,k  ,Rho_comp);
-            Real A_sum_rhs_p = A_T_hi * T_rhs_hi + A_Q_hi * Q_rhs_hi + A_D_hi * D_rhs_hi;
+            // Stage coefficients for linearization
+            Real A_T_k   =  (one + RvOverRd*qv_k  );
+            Real A_T_km1 =  (one + RvOverRd*qv_km1);
+            Real A_Q_k   =  RvOverRd*prim(i,j,k  ,PrimTheta_comp);
+            Real A_Q_km1 =  RvOverRd*prim(i,j,k-1,PrimTheta_comp);
+            Real A_D_k   = -RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_k;
+            Real A_D_km1 = -RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_km1;
 
-            Real T_rhs_lo = slow_rhs_cons(i,j,k-1,RhoTheta_comp);
-            Real Q_rhs_lo = (l_use_moisture) ? slow_rhs_cons(i,j,k-1,RhoQ1_comp) : zero;
-            Real D_rhs_lo = slow_rhs_cons(i,j,k-1,Rho_comp);
-            Real A_sum_rhs_q = A_T_lo * T_rhs_lo + A_Q_lo * Q_rhs_lo + A_D_lo * D_rhs_lo;
+            // Sums of slow RHS
+            Real Q_srhs_k     = (l_use_moisture) ? slow_rhs_cons(i,j,k  ,RhoQ1_comp) : zero;
+            Real Q_srhs_km1   = (l_use_moisture) ? slow_rhs_cons(i,j,k-1,RhoQ1_comp) : zero;
+            Real A_sum_srhs_k   = A_D_k   * slow_rhs_cons(i,j,k  ,Rho_comp)
+                                + A_T_k   * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
+                                + A_Q_k   * Q_srhs_k;
+            Real A_sum_srhs_km1 = A_D_km1 * slow_rhs_cons(i,j,k-1,Rho_comp)
+                                + A_T_km1 * slow_rhs_cons(i,j,k-1,RhoTheta_comp)
+                                + A_Q_km1 * Q_srhs_km1;
+
+            // Sums of the temp RHS
+            Real A_sum_trhs_k   = A_D_k   * temp_rhs_arr(i,j,k  ,Rho_comp)
+                                + A_T_k   * temp_rhs_arr(i,j,k  ,RhoTheta_comp)
+                                + A_Q_k   * temp_rhs_arr(i,j,k  ,RhoTheta_comp+1);
+            Real A_sum_trhs_km1 = A_D_km1 * temp_rhs_arr(i,j,k-1,Rho_comp)
+                                + A_T_km1 * temp_rhs_arr(i,j,k-1,RhoTheta_comp)
+                                + A_Q_km1 * temp_rhs_arr(i,j,k-1,RhoTheta_comp+1);
 
             // line 2 last two terms (order dtau)
             Real R0_tmp = -halfg * old_drho(i,j,k  ) + coeff_P * old_drho_thm(i,j,k  )
@@ -559,7 +574,7 @@ void erf_substep_T (int step, int /*nrk*/,
 
             // line 3 residuals (order dtau^2) one <-> beta_2
             Real R1_tmp  =  -halfg * (  slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) );
-                 R1_tmp +=  coeff_P * A_sum_rhs_p + coeff_Q * A_sum_rhs_q;
+                 R1_tmp +=  coeff_P * A_sum_srhs_k + coeff_Q * A_sum_srhs_km1;
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -572,14 +587,8 @@ void erf_substep_T (int step, int /*nrk*/,
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_T_hi * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid ) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * A_T_lo * ( beta_1 * dzi * (Omega_k*theta_t_mid  - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
-
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_Q_hi * ( beta_1 * dzi * (Omega_kp1*qv_t_hi - Omega_k*qv_t_mid ) + temp_rhs_arr(i,j,k  ,RhoTheta_comp+1) )
-                       + coeff_Q/detJ(i,j,k-1) * A_Q_lo * ( beta_1 * dzi * (Omega_k*qv_t_mid  - Omega_km1*qv_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp+1) ) );
-
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * A_D_hi * ( beta_1 * dzi * (Omega_kp1 - Omega_k  ) + temp_rhs_arr(i,j,k  ,Rho_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * A_D_lo * ( beta_1 * dzi * (Omega_k   - Omega_km1) + temp_rhs_arr(i,j,k-1,Rho_comp) ) );
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*thm_t_hi - Omega_k*thm_t_mid ) + A_sum_trhs_k  )
+                       + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*thm_t_mid  - Omega_km1*thm_t_lo) + A_sum_trhs_km1) );
 
             // line 1
             RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
@@ -620,7 +629,7 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
 
             for (int k = hi.z; k >= lo.z; k--) {
-                soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
+                soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
             }
         });
 #else
@@ -717,19 +726,19 @@ void erf_substep_T (int step, int /*nrk*/,
                   }
               }
 
-              Real fast_rhs_rho  = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
+              Real fast_rhs_rho  = -(temp_rhs_arr(i,j,k,Rho_comp) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
               cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
 
-              Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + myhalf *
-                                        ( zflux_hi * (prim(i,j,k,0) + prim(i,j,k+1,0)) -
-                                          zflux_lo * (prim(i,j,k,0) + prim(i,j,k-1,0)) ) * dzi ) / detJ(i,j,k);
+              Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,RhoTheta_comp) + myhalf *
+                                        ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) -
+                                          zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) / detJ(i,j,k);
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
 
               if (l_use_moisture) {
-                  Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,2) + myhalf *
-                                         ( zflux_hi * (prim(i,j,k,3) + prim(i,j,k+1,3)) -
-                                           zflux_lo * (prim(i,j,k,3) + prim(i,j,k-1,3)) ) * dzi ) / detJ(i,j,k);
-                  cur_cons(i,j,k,4) += dtau * (slow_rhs_cons(i,j,k,4) + fast_rhs_rhoqv);
+                  Real fast_rhs_rhoqv = -( temp_rhs_arr(i,j,k,RhoTheta_comp+1) + myhalf *
+                                         ( zflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp)) -
+                                           zflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)) ) * dzi ) / detJ(i,j,k);
+                  cur_cons(i,j,k,RhoQ1_comp) += dtau * (slow_rhs_cons(i,j,k,RhoQ1_comp) + fast_rhs_rhoqv);
               }
 
               if (l_reflux) {
