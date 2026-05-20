@@ -20,10 +20,8 @@ jobs:
         exclude:
           - particles: OFF
             particles_precision: SINGLE
-          # SP-mesh entries are temporarily disabled because the upstream
-          # SP-mesh build currently fails on non-particle code. Remove the
-          # guard below to re-enable SP-mesh + DP/SP particles once fixed.
           - mesh_precision: SINGLE
+            particles: OFF
 
     steps:
       - name: Checkout (with submodules)

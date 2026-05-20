@@ -320,7 +320,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     auto dPlotTime0 = amrex::second();
 
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
-    const int ncomp_mf = varnames.size();
+    const int ncomp_mf = static_cast<int>(varnames.size());
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
@@ -1954,7 +1954,7 @@ void
 ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
-    const int ncomp_mf = varnames.size();
+    const int ncomp_mf = static_cast<int>(varnames.size());
 
     if (ncomp_mf == 0) return;
 
@@ -2010,7 +2010,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<const int>& lmask_arr = lmask_lev[lev][0]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i, j, k, mf_comp) = lmask_arr(i, j, 0);
+                   derdat(i, j, k, mf_comp) = static_cast<Real>(lmask_arr(i, j, 0));
                 });
             }
             mf_comp++;
