@@ -140,9 +140,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
-            auto coeff_curv = vapour_mat_core.coeffCurv(temperature);
+            auto coeff_curv = vapour_mat_core.coeffCurv(static_cast<Real>(temperature));
             auto coeff_sol = vapour_mat_core.coeffVPSolute();
-            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(temperature, pressure);
+            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(static_cast<Real>(temperature), static_cast<Real>(pressure));
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             if (a_is_water) {
@@ -216,7 +216,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         });
         Gpu::synchronize();
-        m_num_unconverged_particles += *(unconverged_particles.copyToHost());
+        m_num_unconverged_particles += static_cast<long>(*(unconverged_particles.copyToHost()));
     }); // end forEachParticleTile
 
 }

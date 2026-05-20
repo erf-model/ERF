@@ -73,12 +73,12 @@ struct SDDistributionParams {
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real SD_erfinv_gpu(const amrex::Real x) {
-    amrex::Real a = 0.147;
+    amrex::Real a = amrex::Real(0.147);
     amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
-    amrex::Real term = std::log(1 - x * x + eps);
-    amrex::Real p1 = 2 / (PI * a) + term / 2.0;
+    amrex::Real term = std::log(amrex::Real(1) - x * x + eps);
+    amrex::Real p1 = amrex::Real(2) / (PI * a) + term / amrex::Real(2);
     amrex::Real p2 = term / a;
-    amrex::Real sign = (x >= 0) ? 1.0 : -1.0;
+    amrex::Real sign = (x >= 0) ? amrex::Real(1) : amrex::Real(-1);
     return sign * std::sqrt(std::sqrt(p1 * p1 - p2) - p1);
 }
 
@@ -127,14 +127,14 @@ amrex::Real SD_sample_mass_gpu(const SDDistributionParams& params,
                 dry_r = std::exp(lnval);
                 // Log-normal PDF contribution for multiplicity weighting
                 amrex::Real term = std::exp(-std::log(dry_r/params.radius_mean)*std::log(dry_r/params.radius_mean)
-                                            /(2.0*params.sigma*params.sigma));
-                mult_contribution = (params.numdens * params.cell_volume) / (params.sigma * std::sqrt(2.0*PI)) * term;
+                                            /(amrex::Real(2)*params.sigma*params.sigma));
+                mult_contribution = (params.numdens * params.cell_volume) / (params.sigma * std::sqrt(amrex::Real(2)*PI)) * term;
             } else {
                 // Constant multiplicity: true log-normal via inverse CDF
                 // Map u from [0,1] to [cdf_min, cdf_max] for truncated distribution
                 amrex::Real u_trunc = params.cdf_min + u * (params.cdf_max - params.cdf_min);
                 // Inverse CDF: r = mu * exp(sigma * sqrt(2) * erfinv(2*u - 1))
-                amrex::Real z = SD_erfinv_gpu(2.0 * u_trunc - 1.0) * std::sqrt(2.0);
+                amrex::Real z = SD_erfinv_gpu(amrex::Real(2) * u_trunc - amrex::Real(1)) * std::sqrt(amrex::Real(2));
                 dry_r = params.radius_mean * std::exp(params.sigma * z);
                 mult_contribution = 0.0;  // Not used for constant multiplicity
             }

@@ -168,7 +168,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
-                    Real delta_i = (dom_lo.x - i);
+                    Real delta_i = static_cast<Real>(dom_lo.x - i);
                     dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
                 }
             },
@@ -186,7 +186,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
-                    Real delta_i = (i - dom_hi.x);
+                    Real delta_i = static_cast<Real>(i - dom_hi.x);
                     dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
                 }
             }
@@ -217,7 +217,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
-                    Real delta_j = (dom_lo.y - j);
+                    Real delta_j = static_cast<Real>(dom_lo.y - j);
                     dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
                 }
 
@@ -236,7 +236,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
-                    Real delta_j = (j - dom_hi.y);
+                    Real delta_j = static_cast<Real>(j - dom_hi.y);
                     dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
             }

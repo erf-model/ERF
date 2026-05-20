@@ -728,7 +728,7 @@ void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                            const Real& elapsed_time_since_start_low)
 {
-    int n_times_in_sst = m_sst_lev[lev].size();
+    int n_times_in_sst = static_cast<int>(m_sst_lev[lev].size());
 
     Real dT = m_low_time_interval;
 
@@ -745,7 +745,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
         // Do not over run the last sst file
         if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
-            n_time_lo = m_sst_lev[lev].size()-1;
+            n_time_lo = static_cast<int>(m_sst_lev[lev].size())-1;
             n_time_hi = n_time_lo;
             alpha     = zero;
         }
@@ -953,8 +953,8 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
                                        + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
         });
     }
-    ParallelDescriptor::ReduceRealSum(ustar_ptr, bx_lo.numPts());
-    ParallelDescriptor::ReduceRealSum(zsurf_ptr, bx_lo.numPts());
+    ParallelDescriptor::ReduceRealSum(ustar_ptr, static_cast<int>(bx_lo.numPts()));
+    ParallelDescriptor::ReduceRealSum(zsurf_ptr, static_cast<int>(bx_lo.numPts()));
 
     // Now work on all boxes (ustar has been filled above)
     constexpr Real small = Real(0.01);
@@ -1010,7 +1010,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 
         // Broadcast the whole domain to every rank
         int ioproc = ParallelDescriptor::IOProcessorNumber();
-        int nnode = m_x.size();
+        int nnode = static_cast<int>(m_x.size());
         ParallelDescriptor::Bcast(&nnode, 1, ioproc);
 
         if (!ParallelDescriptor::IOProcessor()) {
