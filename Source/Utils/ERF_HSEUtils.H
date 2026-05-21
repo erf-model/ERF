@@ -307,8 +307,7 @@ AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b, const bool use_empirical)
 {
     Real p_s = erf_esatw(T_b,use_empirical);
-    if (!use_empirical) p_s *= Real(100.0);
-    return p_s;
+    return p_s * Real(100.0);
 }
 
 AMREX_FORCE_INLINE
