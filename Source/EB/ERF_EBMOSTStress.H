@@ -46,6 +46,9 @@ struct adiabatic_eb
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) / std::log(zref_arr(i,j,0) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
+        if (i==0 && j==0) {
+            amrex::Print()<<"SK: adiabatic_eb ("<<i<<","<<j<<","<<k<<") ustar = "<<u_star_arr(i,j,k)<<std::endl;
+        }
     }
 
 private:
@@ -319,9 +322,9 @@ struct moeng_flux_eb
         amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
 
         amrex::Real qv_mean  = qvm_arr(i,j,0);
-        amrex::Real ustar    = u_star_arr(i,j,0);
-        amrex::Real qstar    = q_star_arr(i,j,0);
-        amrex::Real qv_surf  = q_surf_arr(i,j,0);
+        amrex::Real ustar    = u_star_arr(i,j,k);
+        amrex::Real qstar    = q_star_arr(i,j,k);
+        amrex::Real qv_surf  = q_surf_arr(i,j,k);
         amrex::Real wsp_mean = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
@@ -357,9 +360,9 @@ struct moeng_flux_eb
         amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
 
         amrex::Real theta_mean  = tm_arr(i,j,0);
-        amrex::Real ustar       = u_star_arr(i,j,0);
-        amrex::Real tstar       = t_star_arr(i,j,0);
-        amrex::Real theta_surf  = t_surf_arr(i,j,0);
+        amrex::Real ustar       = u_star_arr(i,j,k);
+        amrex::Real tstar       = t_star_arr(i,j,k);
+        amrex::Real theta_surf  = t_surf_arr(i,j,k);
         amrex::Real wsp_mean    = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
@@ -393,7 +396,7 @@ struct moeng_flux_eb
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real umean    = um_arr(i,j,0);
-        amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
+        amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
         amrex::Real wsp_mean = myhalf * (    umm_arr(i-1,j,0) +    umm_arr(i,j,0) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
@@ -430,7 +433,7 @@ struct moeng_flux_eb
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real vmean     = vm_arr(i,j,0);
-        amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
+        amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
         amrex::Real wsp_mean  = myhalf * (    umm_arr(i,j-1,0) +    umm_arr(i,j,0) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
