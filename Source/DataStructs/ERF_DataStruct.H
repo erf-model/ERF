@@ -465,9 +465,9 @@ struct SolverChoice {
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
-        if ((if_init_surf_temp > zero && if_surf_temp_flux != 1e-8) ||
-            (if_init_surf_temp > zero && if_Olen_in != 1e-8) ||
-            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
+            (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
+            (if_Olen_in != amrex::Real(1e-8) && if_surf_temp_flux != amrex::Real(1e-8)))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
         }
@@ -477,12 +477,12 @@ struct SolverChoice {
             amrex::Error("MOST wall-model with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_surf_temp_flux != 1e-8 && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_surf_temp_flux != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying surf_temp_flux with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_Olen_in != 1e-8  && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_Olen_in != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying Olen with immersed forcing for buildings is not currently supported");
         }
@@ -562,7 +562,7 @@ struct SolverChoice {
         if (use_num_diff) {
             amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
                 << num_diff_coeff << std::endl;
-            num_diff_coeff *= std::pow(two,-6);
+            num_diff_coeff *= amrex::Math::powi<-6>(two);
         }
 
             advChoice.init_params(pp_prefix);
@@ -755,7 +755,7 @@ struct SolverChoice {
         if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
             pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
-            if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
+            if(hurricane_eye_latitude == amrex::Real(-1e10) or hurricane_eye_longitude == amrex::Real(-1e10)) {
                 amrex::Error("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
                               " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
@@ -1144,8 +1144,8 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-8;
-    amrex::Real poisson_reltol      = 1e-8;
+    amrex::Real poisson_abstol      = amrex::Real(1e-8);
+    amrex::Real poisson_reltol      = amrex::Real(1e-8);
 
     bool        test_mapfactor         = false;
 
@@ -1167,10 +1167,10 @@ struct SolverChoice {
     amrex::Real if_Cd_momentum        = amrex::Real(10.0);
     // immersed forcing MOST parameters.
     amrex::Real if_z0                 = amrex::Real(0.1);   // [m]
-    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
-    amrex::Real if_init_surf_temp     = zero;   // [K]
-    amrex::Real if_surf_heating_rate  = zero;   // [K/hr]
-    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    amrex::Real if_surf_temp_flux     = amrex::Real(1e-8);  // [K m/s]
+    amrex::Real if_init_surf_temp     = zero;               // [K]
+    amrex::Real if_surf_heating_rate  = zero;               // [K/hr]
+    amrex::Real if_Olen_in            = amrex::Real(1e-8);  // [m]
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
@@ -1306,8 +1306,8 @@ struct SolverChoice {
     amrex::Real const_massflux_u = zero;
     amrex::Real const_massflux_v = zero;
     amrex::Real const_massflux_tau = one;
-    amrex::Real const_massflux_layer_lo = -1e34;
-    amrex::Real const_massflux_layer_hi =  1e34;
+    amrex::Real const_massflux_layer_lo = amrex::Real(-1e34);
+    amrex::Real const_massflux_layer_hi = amrex::Real( 1e34);
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 

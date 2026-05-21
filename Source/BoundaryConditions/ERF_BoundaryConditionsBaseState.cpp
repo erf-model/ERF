@@ -69,8 +69,8 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-nghost[0]);
-        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+nghost[0]);
+        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
 
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -105,8 +105,8 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     if (!is_periodic_in_y)
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-nghost[1]);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+nghost[1]);
+        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         if (bx_ylo.smallEnd(2) != domain.smallEnd(2)) bx_ylo.growLo(2,nghost[2]);
         if (bx_ylo.bigEnd(2)   != domain.bigEnd(2))   bx_ylo.growHi(2,nghost[2]);
         if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,nghost[2]);
@@ -168,7 +168,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
-                    Real delta_i = (dom_lo.x - i);
+                    Real delta_i = static_cast<Real>(dom_lo.x - i);
                     dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
                 }
             },
@@ -186,7 +186,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
-                    Real delta_i = (i - dom_hi.x);
+                    Real delta_i = static_cast<Real>(i - dom_hi.x);
                     dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
                 }
             }
@@ -217,7 +217,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
-                    Real delta_j = (dom_lo.y - j);
+                    Real delta_j = static_cast<Real>(dom_lo.y - j);
                     dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
                 }
 
@@ -236,7 +236,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
-                    Real delta_j = (j - dom_hi.y);
+                    Real delta_j = static_cast<Real>(j - dom_hi.y);
                     dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
             }

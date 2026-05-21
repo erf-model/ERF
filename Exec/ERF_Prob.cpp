@@ -4,6 +4,12 @@
 
 using namespace amrex;
 
+#ifdef ERF_REMORA_FORCE_PROBINIT_LINK
+// Force archive extraction of this TU when ERF is linked as a static library
+// inside a parent coupled executable and amrex_probinit is weak.
+void erf_probinit_link_anchor_func () noexcept {}
+#endif
+
 std::unique_ptr<ProblemBase>
 amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
 {
@@ -29,7 +35,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b)
 {
-    return erf_esatw(T_b)*100.0;
+    return erf_esatw(T_b)*Real(100.0);
 }
 
 AMREX_FORCE_INLINE
@@ -54,10 +60,10 @@ AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
     Real T_dp, gamma, T;
-    T = T_b - 273.15;
+    T = T_b - Real(273.15);
 
-    Real b = 18.678, c = 257.14, d = 234.5;
-    gamma = log(RH*exp((b - T/d)*T/(c + T)));
+    Real b = Real(18.678), c = Real(257.14), d = Real(234.5);
+    gamma = std::log(RH*std::exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
 
@@ -128,13 +134,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
-#include "Prob/ERF_InitCustomPert_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_InitCustomPert_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf02") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPert_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -160,7 +162,7 @@ Problem::init_custom_pert (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << "is not known, no state perturbations added. \n";
+                << "does not add any state perturbations. \n";
     }
 
     amrex::Gpu::streamSynchronize();
@@ -234,13 +236,9 @@ Problem::init_custom_pert_vels (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
-#include "Prob/ERF_InitCustomPertVels_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_InitCustomPertVels_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf02") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPertVels_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -265,7 +263,7 @@ Problem::init_custom_pert_vels (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << "is not known, no velocity perturbations added. \n";
+                << "does not add any velocity perturbations. \n";
     }
 
     amrex::Gpu::streamSynchronize();
@@ -395,9 +393,8 @@ Problem::update_w_subsidence (const Real& time,
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
-    } else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
-    } else if  (my_prob_name_ci == "dycoms2rf02") {
+    } else if  (   my_prob_name_ci == "dycoms2rf01"
+                || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateWSubsidence_GATE.H"

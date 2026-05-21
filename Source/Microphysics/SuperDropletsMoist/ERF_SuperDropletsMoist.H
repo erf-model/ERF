@@ -324,8 +324,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
         void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
-        /*! \brief Compute phase changes */
-        virtual void phaseChange (  const amrex::Real&, const amrex::Vector<MFPtr>&, const int );
+        /*! \brief Compute phase changes
+         * \param[in] a_dt Timestep for phase change calculation
+         * \param[in] a_z Array of terrain heights
+         * \param[in] a_lev AMR level
+         */
+        virtual void phaseChange (  const amrex::Real& a_dt,
+                                    const amrex::Vector<MFPtr>& a_z,
+                                    const int a_lev);
 
         /*! \brief Evaporation/condensation for water */
         virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,

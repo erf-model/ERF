@@ -13,8 +13,8 @@ void SuperDropletPC::initializeDeviceProperties()
 {
     if (m_device_props_initialized) return;
 
-    const int num_sp = m_species_mat.size();
-    const int num_ae = m_aerosol_mat.size();
+    const int num_sp = static_cast<int>(m_species_mat.size());
+    const int num_ae = static_cast<int>(m_aerosol_mat.size());
 
     m_sp_density.resize(num_sp);
     m_sp_solubility.resize(num_sp);
@@ -155,7 +155,7 @@ Real SuperDropletPC::TotalNumberOfParticles ()
                            {
                                 auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                return ai*ni;
+                                return static_cast<Real>(ai*ni);
                            });
     ParallelDescriptor::ReduceRealSum(&count, 1);
     return count;
@@ -314,7 +314,7 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_n
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
             auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
             if ((radius < a_rmin) || (radius >= a_rmax)) {
-                return 0.0;
+                return ParticleReal(0);
             }
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
@@ -348,7 +348,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
             auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
             auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
             auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-            auto frac = (mass > 0.0 ? mrime / mass : 0.0);
+            auto frac = (mass > amrex::ParticleReal(0) ? mrime / mass : amrex::ParticleReal(0));
 
             bool include = false;
             switch (category) {
@@ -366,7 +366,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
                     break;
             }
 
-            if (!include) { return 0.0; }
+            if (!include) { return amrex::ParticleReal(0); }
 
             auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];

@@ -64,7 +64,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto vterm_type_w = m_term_vel_type_w;
     const auto vterm_type_i = m_term_vel_type_i;
 
-    Real rho_i = DBL_MAX;
+    Real rho_i = std::numeric_limits<Real>::max();
     if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
     // Terminal velocity calculator (shared across tiles)
@@ -176,20 +176,20 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             // Advance in physical (x, y, z); pos(2) is zeta on disk so go
             // through z_from_zeta / zeta_from_z around the update.
             if (advect_w_flow || advect_w_gravity) {
-                const Real x0 = p.pos(0);
-                const Real y0 = p.pos(1);
-                const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
-                    x0, y0, p.pos(AMREX_SPACEDIM-1), ctx.plo, ctx.dxi, zheight);
+                const Real x0 = static_cast<Real>(p.pos(0));
+                const Real y0 = static_cast<Real>(p.pos(1));
+                const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                    x0, y0, p.pos(AMREX_SPACEDIM-1), ctx.plo, ctx.dxi, zheight));
                 Real x_n = x0;
                 Real y_n = y0;
                 Real z_n = z_phys0;
                 if (advect_w_flow) {
-                    x_n += a_dt * v[0];
-                    y_n += a_dt * v[1];
-                    z_n += a_dt * v[AMREX_SPACEDIM-1];
+                    x_n += static_cast<Real>(a_dt * v[0]);
+                    y_n += static_cast<Real>(a_dt * v[1]);
+                    z_n += static_cast<Real>(a_dt * v[AMREX_SPACEDIM-1]);
                 }
                 if (advect_w_gravity) {
-                    z_n -= a_dt * terminal_vel;
+                    z_n -= static_cast<Real>(a_dt * terminal_vel);
                 }
                 int qi = int(amrex::Math::floor((x_n - ctx.plo[0]) * ctx.dxi[0]));
                 int qj = int(amrex::Math::floor((y_n - ctx.plo[1]) * ctx.dxi[1]));

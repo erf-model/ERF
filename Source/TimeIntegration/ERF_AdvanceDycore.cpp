@@ -84,7 +84,7 @@ void ERF::advance_dycore (int level,
     Real* d_sinesq_stag_at_lev = (use_rayleigh)  ? d_sinesq_stag_ptrs[level].data() : nullptr;
 
     Vector<Real*> d_sponge_ptrs_at_lev;
-    if(sc.sponge_type=="input_sponge")
+    if (sc.sponge_type == SpongeType::Input_Sponge)
     {
         d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
         d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
@@ -309,7 +309,7 @@ void ERF::advance_dycore (int level,
             {
                 // directly apply tendencies for theta and qv
                 cell_data(i, j, k, RhoTheta_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 0) * dt_advance;
-                cell_data(i, j, k, RhoQ1_comp) = max(0.0, cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * dt_advance);
+                cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * dt_advance);
                 cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
             });
 

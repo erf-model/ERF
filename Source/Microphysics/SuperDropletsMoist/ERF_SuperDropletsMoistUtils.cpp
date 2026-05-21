@@ -227,7 +227,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
             const Array4<Real const>& qv_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            { sr_arr(i,j,k,0) = (sr_arr(i,j,k,0) > 0.0 ? qv_arr(i,j,k,0) / sr_arr(i,j,k,0) : 0.0); });
+            { sr_arr(i,j,k,0) = (sr_arr(i,j,k,0) > Real(0) ? qv_arr(i,j,k,0) / sr_arr(i,j,k,0) : Real(0)); });
 
         }
     }
@@ -362,8 +362,8 @@ void SuperDropletsMoist::AverageDownMicroVars (const int finest_level)
                          ? m_super_droplets->GetParGDB()->refRatio(lev-1)
                          : IntVect(2);
 
-        const int n = std::min<int>(m_mic_fab_vars[lev].size(),
-                                    m_mic_fab_vars[lev-1].size());
+        const int n = std::min<int>(static_cast<int>(m_mic_fab_vars[lev].size()),
+                                    static_cast<int>(m_mic_fab_vars[lev-1].size()));
         for (int v = 0; v < n; ++v) {
             if (!m_mic_fab_vars[lev][v] || !m_mic_fab_vars[lev-1][v]) continue;
             average_down( *m_mic_fab_vars[lev][v],
@@ -621,8 +621,8 @@ void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
-                    auto snow_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
-                    snow_accum_arr(i,j,k) += (snow_accum * 1000.0 /* [m] -> [mm] */);
+                    auto snow_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
+                    snow_accum_arr(i,j,k) += (snow_accum * Real(1000) /* [m] -> [mm] */);
                 }
             });
         }

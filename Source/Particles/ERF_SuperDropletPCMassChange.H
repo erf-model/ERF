@@ -513,8 +513,13 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT res_norm_a = DBL_MAX;
-                RT res_norm_r = DBL_MAX;
+#ifdef AMREX_USE_FLOAT
+                RT res_norm_a = std::numeric_limits<float>::max();
+                RT res_norm_r = std::numeric_limits<float>::max();
+#else
+                RT res_norm_a = std::numeric_limits<double>::max();
+                RT res_norm_r = std::numeric_limits<double>::max();
+#endif
                 bool converged = false;
 
                 RT u_new = RT(0.0);
@@ -574,8 +579,8 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT res_norm_a = DBL_MAX;
-                RT res_norm_r = DBL_MAX;
+                RT res_norm_a = std::numeric_limits<RT>::max();
+                RT res_norm_r = std::numeric_limits<RT>::max();
                 bool converged = false;
 
                 RT u_new = RT(0.0);
@@ -643,8 +648,8 @@ namespace SDMassChangeUtils_LV
                 }
 
                 bool converged = false;
-                RT res_norm_a = DBL_MAX;
-                RT res_norm_r = DBL_MAX;
+                RT res_norm_a = std::numeric_limits<RT>::max();
+                RT res_norm_r = std::numeric_limits<RT>::max();
 
                 RT u_new = RT(0.0);
                 bool step_success = false;
@@ -662,8 +667,8 @@ namespace SDMassChangeUtils_LV
                     RT u1 = a_u;
                     {
                         RT rhs = mu * a_u;
-                        RT res_norm_a_i = DBL_MAX;
-                        RT res_norm_r_i = DBL_MAX;
+                        RT res_norm_a_i = std::numeric_limits<RT>::max();
+                        RT res_norm_r_i = std::numeric_limits<RT>::max();
                         bool converged_i = false;
                         m_newton( u1, rhs, mu,
                                   m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
@@ -681,8 +686,8 @@ namespace SDMassChangeUtils_LV
                     RT u2 = u1;
                     {
                         RT rhs = mu * (a_u - dt*f1);
-                        RT res_norm_a_i = DBL_MAX;
-                        RT res_norm_r_i = DBL_MAX;
+                        RT res_norm_a_i = std::numeric_limits<RT>::max();
+                        RT res_norm_r_i = std::numeric_limits<RT>::max();
                         bool converged_i = false;
                         m_newton( u2, rhs, mu,
                                   m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
