@@ -337,8 +337,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
             });
         // EB
         } else {
-            if (std::is_same<FluxIter, adiabatic>::value ||
-                std::is_same<FluxIter, surface_temp>::value) {
+            if (std::is_same<FluxIter, adiabatic_eb>::value ||
+                std::is_same<FluxIter, surface_temp_eb>::value ||
+                std::is_same<FluxIter, surface_flux_eb>::value) {
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (( is_land && lmask_arr(i,j,0) == 1) ||
