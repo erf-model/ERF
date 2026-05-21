@@ -988,10 +988,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         Gpu::synchronize();
         num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
 
-        dMdt<ParticleReal> dmdt{ mat_prop.m_lat_vap,
-                                 therco, /* ERF_Constants.H */
-                                 mat_prop.m_Rv,
-                                 mat_prop.m_density };
+        dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop.m_lat_vap),
+                                 static_cast<ParticleReal>(therco), /* ERF_Constants.H */
+                                 static_cast<ParticleReal>(mat_prop.m_Rv),
+                                 static_cast<ParticleReal>(mat_prop.m_density) };
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {

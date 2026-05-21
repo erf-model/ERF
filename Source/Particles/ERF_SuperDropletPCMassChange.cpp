@@ -371,10 +371,10 @@ void SuperDropletPC::MassChange_SV (  int                                      a
     const MaterialPropertiesCore& mat_prop_core = mat_prop;
 
     // dMdt functor (shared across tiles)
-    dMdt<ParticleReal> dmdt{ mat_prop_core.m_lat_vap,
-                             therco,
-                             mat_prop_core.m_Rv,
-                             mat_prop_core.m_density };
+    dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop_core.m_lat_vap),
+                             static_cast<ParticleReal>(therco),
+                             static_cast<ParticleReal>(mat_prop_core.m_Rv),
+                             static_cast<ParticleReal>(mat_prop_core.m_density) };
 
     forEachParticleTile(a_lev, ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
@@ -424,10 +424,10 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto coeff_moldiff = mat_prop_core.coeffMolecularDiffusion(temperature, pressure);
 
             TI< dMdt<ParticleReal>,
-                ParticleReal > ti { dmdt, a_dt, a_dt, 100,
+                ParticleReal > ti { dmdt, ParticleReal(a_dt), ParticleReal(a_dt), 100,
                                     ptrs.a_ptr[i], ptrs.c_ptr[i], ptrs.vterm_ptr[i],
                                     sat_ratio, moist_density, temperature, e_sat,
-                                    coeff_moldiff,
+                                    ParticleReal(coeff_moldiff),
                                     false };
 
             auto mass_old = ptrs.sp_mass_ptrs[ctx.idx_ice][i];

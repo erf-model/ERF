@@ -68,7 +68,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
     // Terminal velocity calculator (shared across tiles)
-    TerminalVelocity<ParticleReal> term_vel { ctx.rho_water, rho_i };
+    TerminalVelocity<ParticleReal> term_vel { ParticleReal(ctx.rho_water), ParticleReal(rho_i) };
 
     forEachParticleTile(a_lev, ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
