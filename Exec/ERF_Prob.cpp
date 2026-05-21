@@ -134,13 +134,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
-#include "Prob/ERF_InitCustomPert_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_InitCustomPert_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf02") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPert_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -240,13 +236,9 @@ Problem::init_custom_pert_vels (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
-#include "Prob/ERF_InitCustomPertVels_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_InitCustomPertVels_RICO.H"
-    }
-    else if  (my_prob_name_ci == "dycoms2rf02") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPertVels_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -401,9 +393,8 @@ Problem::update_w_subsidence (const Real& time,
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
-    } else if  (my_prob_name_ci == "dycoms2rf01") {
-#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
-    } else if  (my_prob_name_ci == "dycoms2rf02") {
+    } else if  (   my_prob_name_ci == "dycoms2rf01"
+                || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateWSubsidence_GATE.H"

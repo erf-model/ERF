@@ -1,6 +1,4 @@
 
-    ParmParse pp_prob("prob");
-
     wbar[0] = zero;
     for (int k = 1; k <= khi+1; k++) {
         const Real z = zlevels[k];
