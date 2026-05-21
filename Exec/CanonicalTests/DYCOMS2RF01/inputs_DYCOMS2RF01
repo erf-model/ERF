@@ -14,13 +14,10 @@ amr.n_cell           =  32    32    320    # dx=dy=dz=50 m
 
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
-#erf.anelastic = 1
-#erf.use_fft = 1
 
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type = "Most"
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "custom"
 erf.most.ustar  = 0.25  # ustar
@@ -28,11 +25,6 @@ erf.most.tstar  = 0.0122 # theta flux
 erf.most.qstar  = 3.796e-5 # qv    flux
 erf.most.z0     = 0.0002
 erf.most.zref   = 2.5
-#erf.use_explicit_most   = 1
-
-#  -- Surface forcing for MOST
-#erf.most.use_sfc_fluxes = 1
-#erf.most.sfc_file = "sfc_cass"
 
 # NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
@@ -61,33 +53,20 @@ erf.check_int       = 5000    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 1000    # number of timesteps between plotfiles
-#erf.plot_int_1      = 1    # number of timesteps between plotfiles
-#erf.plot_vars_1     = z_phys density rhoadv_0 rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat scalar qrain rain_accum rel_humidity super_droplets_moisture_number_density super_droplets_moisture_radius super_droplets_moisture_aerosol_mass_density_NH42SO4 super_droplets_moisture_mass_density
-#erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum qsrc_lw
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt \
                       qp qv qc qsat qrain rain_accum super_droplets_moisture_number_density \
                       rel_humidity super_droplets_moisture_mass_flux_z super_droplets_moisture_sd_number_density qsrc_lw 
 #erf.plot_vars_1     = ttend qtend wsub tnudge qnudge unudge wnudge
 
 erf.plotfile_type = "amrex"
-#erf.plot_lsm = true
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-#erf.use_coriolis    = false
 erf.use_coriolis    = false
-#erf.coriolis_3d     = false
-#erf.latitude        = 31.5  # f = 0.376e-4 1/s
 
-#erf.dycore_horiz_adv_type    = Upwind_3rd
-#erf.dycore_vert_adv_type     = Upwind_3rd
-#erf.dryscal_horiz_adv_type   = Upwind_3rd
-#erf.dryscal_vert_adv_type    = Upwind_3rd
-#erf.moistscal_horiz_adv_type = WENO5
-#erf.moistscal_vert_adv_type  = WENO5
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
@@ -99,37 +78,11 @@ erf.moistscal_vert_adv_type  = Upwind_3rd_SL
 erf.molec_diff_type = "None"
 
 erf.les_type        = "Smagorinsky"
-#erf.Cs              = 0.15
 erf.Cs              = 0.17
 
-#erf.Pr_t      = 1.0
-#erf.Sc_t      = 1.0
 
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true
-
-#erf.input_sounding_file = "input_sounding_DYCOMS2RF02"
-#erf.input_sounding_time = 0.0
-
-#erf.restart = "chk_DYCOMS2RF02_SDM_20000"
-#erf.restart = "chk30000"
-# nudging
-#erf.nudging_from_input_sounding = true
-#erf.tau_nudging = 3600.0 # tautqls
-
-#erf.nudging_t_z1 = 5500.0
-#erf.nudging_t_z2 = 15900.0
-#erf.nudging_q_z1 = 5500.0
-##erf.nudging_q_z2 = 15900.0
-#
-
-# large scale forcing
-#erf.large_scale_forcing = true
-#erf.forcing_timescale = 3600.0 #tauls
-#erf.large_scale_forcing_file = "lsf_DYCOMS2RF02"
-
-
-#erf.do_radiation = false 
 
 # RADIATION INPUTS
 erf.radiation_model = "Simple"
