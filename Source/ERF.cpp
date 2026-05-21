@@ -612,8 +612,8 @@ ERF::Evolve ()
     //
     // cur_time = t_new is elapsed time, not total time
     // stop_time is total time
-    //
-    Real cur_time = t_new[0];
+    // Tracked in double to avoid float32 drift over many timesteps in single-precision builds.
+    double cur_time = static_cast<double>(t_new[0]);
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
@@ -625,7 +625,7 @@ ERF::Evolve ()
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt(step);
+        ComputeDt(step, cur_time);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -660,7 +660,9 @@ ERF::Evolve ()
         int iteration = 1;
         timeStep(0, cur_time, iteration);
 
-        cur_time  += dt[0];
+        cur_time += static_cast<double>(dt[0]);
+        // Sync t_new[0] from accurate double to prevent float32 accumulation drift in SP builds.
+        t_new[0] = static_cast<Real>(cur_time);
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;

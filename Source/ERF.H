@@ -724,7 +724,7 @@ private:
     void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
-    void ComputeDt (int step = -1);
+    void ComputeDt (int step = -1, double cur_time_d = 0.0);
 
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
