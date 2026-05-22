@@ -80,12 +80,12 @@
         }
 
         // Introduce the warm bubble. Assume that the bubble is pressure matche with the background
-
-        rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), myhalf);
+        rad = std::sqrt( amrex::Math::powi<2>((x - x_c)/x_r) +
+                         amrex::Math::powi<2>((z - z_c)/z_r) );
 
     if(rad <= r_c){
-        delta_theta = theta_c*std::pow(cos(PI*rad/two),2);
-        scalar = std::pow(cos(PI*rad/two),2);
+        delta_theta = theta_c*amrex::Math::powi<2>(std::cos(PI*rad/two));
+        scalar = amrex::Math::powi<2>(std::cos(PI*rad/two));
     }
     else{
         delta_theta = zero;

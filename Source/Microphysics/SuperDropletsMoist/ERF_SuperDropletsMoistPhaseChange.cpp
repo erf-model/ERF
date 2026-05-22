@@ -7,28 +7,18 @@ using namespace amrex;
 
 /*! \brief Compute phase change for a timestep
  *
- * Shrink/grow the super-droplet particles for a timestep, depending on the ambient
- * flow conditions (saturation ratio, saturation pressure, and temperature).
- * This function handles all species defined in the model and updates the
- * Eulerian vapor and condensate mixing ratios accordingly.
- *
- * For each species, this function:
- * one Computes saturation pressure based on temperature
- * two Computes saturation ratio
- * three Computes phase change for all particles
- * Real(4.) Updates condensate mixing ratio
- * Real(5.) Updates vapor mixing ratio if requested
- * Real(6.) Updates temperature and pressure fields to account for latent heat
- *
  * \param[in] a_dt Timestep size
  * \param[in] a_z Array containing terrain height information
- * \param[in] a_update_qv Flag to enable updating vapor mixing ratio
+ * \param[in] a_lev AMR level
  */
 void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                        const Vector<std::unique_ptr<MultiFab>>& a_z,
-                                       const bool a_update_qv )
+                                       const int a_lev )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange()");
+
+    iMultiFab fine_mask = buildFineMask(a_lev);
+
     for (int is = 0; is < m_num_species; is++) {
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -40,24 +30,24 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
         MultiFab* qt_ptr = nullptr;
         MultiFab* sr_ptr = nullptr;
         if (is == m_idx_w) {
-            qv_ptr = m_mic_fab_vars[MicVar_SD::q_v].get();
-            qc_ptr = m_mic_fab_vars[MicVar_SD::q_c].get();
-            qt_ptr = m_mic_fab_vars[MicVar_SD::q_t].get();
-            sr_ptr = m_mic_fab_vars[MicVar_SD::rh].get();
+            qv_ptr = m_mic_fab_vars[a_lev][MicVar_SD::q_v].get();
+            qc_ptr = m_mic_fab_vars[a_lev][MicVar_SD::q_c].get();
+            qt_ptr = m_mic_fab_vars[a_lev][MicVar_SD::q_t].get();
+            sr_ptr = m_mic_fab_vars[a_lev][MicVar_SD::rh].get();
         } else {
-            qv_ptr = m_mic_fab_vars[s_qv_idx(is)].get();
-            qc_ptr = m_mic_fab_vars[s_qc_idx(is)].get();
-            qt_ptr = m_mic_fab_vars[s_qt_idx(is)].get();
-            sr_ptr = m_mic_fab_vars[s_sr_idx(is)].get();
+            qv_ptr = m_mic_fab_vars[a_lev][s_qv_idx(is)].get();
+            qc_ptr = m_mic_fab_vars[a_lev][s_qc_idx(is)].get();
+            qt_ptr = m_mic_fab_vars[a_lev][s_qt_idx(is)].get();
+            sr_ptr = m_mic_fab_vars[a_lev][s_sr_idx(is)].get();
         }
 
         // Compute saturation pressure
-        MultiFab mf_sat_pressure(   m_mic_fab_vars[MicVar_SD::pressure]->boxArray(),
-                                    m_mic_fab_vars[MicVar_SD::pressure]->DistributionMap(),
+        MultiFab mf_sat_pressure(   m_mic_fab_vars[a_lev][MicVar_SD::pressure]->boxArray(),
+                                    m_mic_fab_vars[a_lev][MicVar_SD::pressure]->DistributionMap(),
                                     1,
-                                    m_mic_fab_vars[MicVar_SD::pressure]->nGrowVect() );
+                                    m_mic_fab_vars[a_lev][MicVar_SD::pressure]->nGrowVect() );
         vapour_mat.computeSaturationPressure( mf_sat_pressure,
-                                              (*m_mic_fab_vars[MicVar_SD::temperature]) );
+                                              (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]) );
         mf_sat_pressure.FillBoundary();
 
         for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
@@ -66,8 +56,8 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
             // Compute saturation ratio
             vapour_mat.computeSaturationVapFrac(    (*sr_ptr),
-                                                    (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                                    (*m_mic_fab_vars[MicVar_SD::pressure]) );
+                                                    (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
+                                                    (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]) );
 
             for (   MFIter mfi((*sr_ptr),
                     TilingIfNotGPU()); mfi.isValid();
@@ -86,44 +76,50 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
             (*sr_ptr).FillBoundary();
 
-            // Compute total water content qt
+            // Recompute qc/qr from current particles, then compute qt = qv + qc + qr
+            // (using particle-derived qc/qr is consistent with what the qv update kernel
+            // sees after MassChange + computeQc, avoiding state-vs-particle mismatch).
+            computeQc(is, *a_z[a_lev]);
             computeQt(is);
 
             // Compute super-droplets mass change
-            m_super_droplets->MassChange (  0,
+            m_super_droplets->MassChange (  a_lev,
                                             dt_s,
                                             m_species[is],
-                                            (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                            (*m_mic_fab_vars[MicVar_SD::pressure]),
+                                            (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
+                                            (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]),
                                             mf_sat_pressure,
                                             (*sr_ptr),
                                             a_z,
                                             is_water );
 
             // Compute new condensate mixing ratio
-            computeQc(is, *a_z[0]);
+            computeQc(is, *a_z[a_lev]);
 
-            if (a_update_qv) {
+            {
 
                 // Update vapour mixing ratio
-                for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
+                for ( MFIter mfi(*m_mic_fab_vars[a_lev][MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
 
                     Box bx = mfi.tilebox();
-                    bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
+                    bx.grow(m_mic_fab_vars[a_lev][MicVar_SD::q_v]->nGrowVect());
 
                     auto qt_arr = qt_ptr->const_array(mfi);
                     auto qv_arr = qv_ptr->array(mfi);
                     auto qc_arr = qc_ptr->array(mfi);
 
-                    auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
-                    auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
-                    auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
-                    auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
+                    auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
+                    auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->array(mfi);
+                    auto dqc_arr = m_mic_fab_vars[a_lev][MicVar_SD::dqcdt]->array(mfi);
+                    auto qr_arr = m_mic_fab_vars[a_lev][MicVar_SD::q_r]->array(mfi);
+
+                    auto mask_arr = fine_mask.const_array(mfi);
 
                     auto fac_cond = vapour_mat.m_lat_vap / m_Cp;
 
                     ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        if (mask_arr(i,j,k) == 0) return;
                         auto old_qv = qv_arr(i,j,k);
                         if (is == idx_w) {
                             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
@@ -159,18 +155,18 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                 }
 
                 // Update pressure and temperature
-                const auto& gvec = (*m_mic_fab_vars[MicVar_SD::temperature]).nGrowVect();
-                auto* qvw_ptr = m_mic_fab_vars[MicVar_SD::q_v].get(); // qv for water
-                for (MFIter mfi(*m_mic_fab_vars[MicVar_SD::temperature], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const auto& gvec = (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]).nGrowVect();
+                auto* qvw_ptr = m_mic_fab_vars[a_lev][MicVar_SD::q_v].get(); // qv for water
+                for (MFIter mfi(*m_mic_fab_vars[a_lev][MicVar_SD::temperature], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
                     Box bx = mfi.tilebox();
                     bx.grow(gvec);
 
-                    const Array4<Real>& t_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
-                    const Array4<Real>& p_arr = m_mic_fab_vars[MicVar_SD::pressure]->array(mfi);
+                    const Array4<Real>& t_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->array(mfi);
+                    const Array4<Real>& p_arr = m_mic_fab_vars[a_lev][MicVar_SD::pressure]->array(mfi);
 
-                    const Array4<Real const>& rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
-                    const Array4<Real const>& theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
+                    const Array4<Real const>& rho_arr = m_mic_fab_vars[a_lev][MicVar_SD::rho]->const_array(mfi);
+                    const Array4<Real const>& theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->const_array(mfi);
                     const Array4<Real const>& qv_arr = qvw_ptr->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -185,15 +181,15 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
                 // Update saturation ratio
                 vapour_mat.computeSaturationVapFrac(    (*sr_ptr),
-                                                        (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                                        (*m_mic_fab_vars[MicVar_SD::pressure]) );
+                                                        (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
+                                                        (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]) );
 
-                for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
+                for (   MFIter mfi((*m_mic_fab_vars[a_lev][MicVar_SD::rh]),
                         TilingIfNotGPU()); mfi.isValid();
                         ++mfi ) {
 
                     Box bx = mfi.tilebox();
-                    bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
+                    bx.grow( m_mic_fab_vars[a_lev][MicVar_SD::rh]->nGrowVect() );
 
                     const Array4<Real>& sr_arr = sr_ptr->array(mfi);
                     const Array4<Real const>& qv_arr = qv_ptr->const_array(mfi);

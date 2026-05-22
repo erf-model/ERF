@@ -20,8 +20,8 @@
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(
-            std::pow((x - x_c)/x_r, 2) +
-            std::pow((z - z_c)/z_r, 2));
+            amrex::Math::powi<2>((x - x_c)/x_r) +
+            amrex::Math::powi<2>((z - z_c)/z_r));
 
         if (L <= one)
         {

@@ -129,8 +129,6 @@ Real ERF::bndry_output_planes_start_time =  zero;
 // 2D BndryRegister input
 int  ERF::input_bndry_planes             = 0;
 
-Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
-
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 Real read_start_time_from_metgrid  (int lev, const std::string& fname);
@@ -235,7 +233,6 @@ ERF::ERF_shared ()
             Abort("Don't know this radiation model!");
         }
     }
-
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
     const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
@@ -307,6 +304,10 @@ ERF::ERF_shared ()
             << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
     }
 
+#ifdef ERF_REMORA_FORCE_PROBINIT_LINK
+    extern void erf_probinit_link_anchor_func () noexcept;
+    erf_probinit_link_anchor_func();
+#endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
@@ -1044,7 +1045,7 @@ void
 ERF::InitData_pre ()
 {
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = ParallelDescriptor::second();
+    startCPUTime = Real(ParallelDescriptor::second());
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
@@ -1124,14 +1125,20 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_USE_PARTICLES
-    if (restart_chkfile.empty()) {
-        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+        // Promote the Lagrangian PC to the multi-level ParGDB before init so
+        // per-level addParticles() can use ParticleBoxArray(lev)/DistributionMap(lev).
+        auto* pc_ptr = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+        AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
+        pc_ptr->Define(static_cast<amrex::ParGDBBase*>(GetParGDB()));
+
+        if (restart_chkfile.empty()) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
             }
 
             for (int lev = 0; lev <= finest_level; lev++) {
-                dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
+                dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(lev, z_phys_nd[lev]);
             }
         }
     }
@@ -1243,6 +1250,7 @@ ERF::InitData_post ()
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
         const auto& pc_name( dynamic_cast<LagrangianMicrophysics&>(*micro).getName() );
         const auto& pc_ptr( dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer() );
+        AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
         particleData.pushBack(pc_name, pc_ptr);
         particleData.getNamesUnalloc().remove(pc_name);
     }
@@ -1369,7 +1377,7 @@ ERF::InitData_post ()
     }
 
     // Read in sponge data from input file
-    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    if(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
     {
         initSponge();
         bool restarting = (!restart_chkfile.empty());
@@ -2342,9 +2350,8 @@ ERF::init_only (int lev, Real elapsed_time)
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (!solverChoice.use_real_bcs) {
-            make_physbcs(lev);
-        }
+        make_physbcs(lev);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
@@ -2404,9 +2411,10 @@ ERF::init_only (int lev, Real elapsed_time)
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
+    {
         input_sponge(lev);
-   }
+    }
 
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {
@@ -2955,6 +2963,9 @@ ERF::ParameterSanityChecks ()
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 
+    if (cf_set_width != 0) {
+        Abort("You must set cf_set_width == 0");
+    }
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
     }

@@ -12,7 +12,7 @@
         const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the x-velocity
-        x_vel_pert(i, j, k) = V_0 * sin(x) * cos(y) * cos(z);
+        x_vel_pert(i, j, k) = V_0 * std::sin(x) * std::cos(y) * std::cos(z);
     });
 
     // Set the y-velocity
@@ -25,5 +25,5 @@
         const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         // Set the y-velocity
-        y_vel_pert(i, j, k) = - V_0 * cos(x) * sin(y) * cos(z);
+        y_vel_pert(i, j, k) = - V_0 * std::cos(x) * std::sin(y) * std::cos(z);
     });

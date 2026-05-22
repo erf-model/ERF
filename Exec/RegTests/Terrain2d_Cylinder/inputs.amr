@@ -60,7 +60,7 @@ erf.box1.in_box_lo =  13.15 0.0
 erf.box1.in_box_hi = 16.65 1.0
 erf.coupling_type  = "OneWay"
 erf.cf_width = 4
-erf.cf_set_width = 1
+erf.cf_set_width = 0
 
 
 # CHECKPOINT FILES

@@ -1,3 +1,14 @@
+#26.05
+    -- Progress towards data assimilation (#3142)
+
+    -- Noah-MP fixes (#3147, 2946)
+
+    -- RRTMGP memory reduction (#3132)
+
+    -- SDM refactor (#3114, 3082)
+
+    -- WSM6 start (#3101)
+
 #26.04
     -- Moving Terrain substep fixes (#3083)
     

@@ -26,7 +26,7 @@ jobs:
       ERF_DIR: ${{ github.workspace }}/erf_clone
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
         path: erf_clone
@@ -41,7 +41,7 @@ jobs:
       uses: ./erf_clone/.github/actions/free-space-ubuntu
 
     - name: Set Up Cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cache/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
@@ -115,13 +115,24 @@ jobs:
     - name: Report
       run: |
         grep -Ei "warning:|error:" ${ERF_DIR}/../build-output.txt \
-          | grep -Ev "Submodules/amrex" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/../build-output-warnings.txt
         cat ${ERF_DIR}/../build-output-warnings.txt
         export return=$(tail -n 1 ${ERF_DIR}/../build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
-    - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+    - name: Check Unit Test Registration
+      run: |
+        Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{ github.workspace }}/unit-test-list.txt
+        grep -Eq '^[A-Za-z0-9_].*\.$' ${{ github.workspace }}/unit-test-list.txt
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: CMake Unit Tests
+      run: |
+        ctest -L unit -VV
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       run: |
         ctest -L regression -VV
       working-directory: ${{ github.workspace }}/erf_clone/build

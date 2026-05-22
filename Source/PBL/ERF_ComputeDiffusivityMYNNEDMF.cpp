@@ -393,7 +393,7 @@ void boulac_length_cc(int kts, int kte,
                         bbb = (theta[izz + 1] - theta[izz]) / dzt;
 
                         if (bbb != 0.0_rt) {
-                            tl = (-beta * (theta[izz] - theta[iz]) + Real(sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zup_inf))))) / bbb / beta;
+                            tl = (-beta * (theta[izz] - theta[iz]) + Real(std::sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zup_inf))))) / bbb / beta;
                         } else {
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zup_inf) / (beta * (theta[izz] - theta[iz]));
@@ -433,7 +433,7 @@ void boulac_length_cc(int kts, int kte,
                         bbb = (theta[izz] - theta[izz - 1]) / dzt;
 
                         if (bbb != 0.0_rt) {
-                            tl = (beta * (theta[izz] - theta[iz]) + Real(sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zdo_sup))))) / bbb / beta;
+                            tl = (beta * (theta[izz] - theta[iz]) + Real(std::sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zdo_sup))))) / bbb / beta;
                         } else {
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zdo_sup) / (beta * (theta[izz] - theta[iz]));
@@ -1098,7 +1098,7 @@ void mym_predict_cc(
 
     // calculate df3q and dtz
     for (int k = kts; k <= kte; k++) {
-        qkw[k] = sqrt(std::max(qke[k], 0.0_rt));
+        qkw[k] = std::sqrt(std::max(qke[k], 0.0_rt));
         df3q[k] = sqfac * dfq[k];
         dtz[k] = delt / dz[k];
     }
@@ -2604,7 +2604,7 @@ void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Re
         k = std::max(kpbl - 1, kminrad - 1);
         templ = thl[k - kts] * ex1[k - kts];
         rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (templ - Real(273.16)) / (templ - Real(29.65))) * (ep_2 / p1[k + 1 - kts]);
-        temps = templ + (sqw[k - kts] - rvls) / (cp / xlv + ep_2 * xlv * rvls / (r_d * std::pow(templ, 2)));
+        temps = templ + (sqw[k - kts] - rvls) / (cp / xlv + ep_2 * xlv * rvls / (r_d * amrex::Math::powi<2>(templ)));
         rvls = 100._rt * 6.112_rt * std::exp(17.67_rt * (temps - Real(273.15)) / (temps - Real(29.65))) * (ep_2 / p1[k + 1 - kts]);
         rcldb = std::max(sqw[k - kts] - rvls, 0.0_rt);
         dthvx = (thl[k + 2 - kts] + th1[k + 2 - kts] * p608 * sqw[k + 2 - kts]) - (thl[k - kts] + th1[k - kts] * p608 * sqw[k - kts]);
@@ -3185,7 +3185,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
     } else {
         maxwidth = std::min(maxwidth, 0.9_rt*cloud_base);
     }
-    wspd_pbl = sqrt(std::max(u[kts]*u[kts] + v[kts]*v[kts], 0.01_rt));
+    wspd_pbl = std::sqrt(std::max(u[kts]*u[kts] + v[kts]*v[kts], 0.01_rt));
     if (landsea-1.5_rt < 0) {
         width_flx = std::max(std::min(1000._rt*(0.6_rt*Real(tanh((fltv - 0.040_rt)/0.04_rt)) + .5_rt),1000._rt), 0._rt);
     } else {
@@ -3369,7 +3369,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
                 if (wn <= 0.0_rt && overshoot == 0) {
                     overshoot = 1;
                     if (thvk-thvkm1 > 0.0_rt) {
-                        Real bvf = sqrt(gtr*(thvk-thvkm1)/dz[k]);
+                        Real bvf = std::sqrt(gtr*(thvk-thvkm1)/dz[k]);
                         Real frz = upw[k-1][i]/(bvf*dz[k]);
                         dzp = dz[k]*std::max(std::min(frz, 1.0_rt), 0.0_rt);
                     }
@@ -3789,7 +3789,7 @@ void mym_turbulence_cc(
 
         if (q3sq < q2sq) {
             // Apply Helfand & Labraga mod
-            qdiv = sqrt(q3sq / q2sq); // HL89: (1-alfa)
+            qdiv = std::sqrt(q3sq / q2sq); // HL89: (1-alfa)
 
             // Use level two functions as in original MYNN
             sh[k] = sh[k] * qdiv;
@@ -3857,7 +3857,7 @@ void mym_turbulence_cc(
             r3sq = std::max(qsq[k] * abk + qsq[k - 1] * afk, 0.0_rt);
             c3sq = cov[k] * abk + cov[k - 1] * afk;
 
-            c3sq = std::copysign(std::min(std::abs(c3sq), sqrt(t3sq * r3sq)), c3sq);
+            c3sq = std::copysign(std::min(std::abs(c3sq), std::sqrt(t3sq * r3sq)), c3sq);
 
             vtt = 1.0_rt + vt[k] * abk + vt[k - 1] * afk;
             vqq = tv0 + vq[k] * abk + vq[k - 1] * afk;
@@ -4153,7 +4153,7 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
             if (qke[k] <= 0.0_rt) {
                 b2l = zero;
             } else {
-                b2l = b2 * (b1l / b1) / sqrt(qke[k]);
+                b2l = b2 * (b1l / b1) / std::sqrt(qke[k]);
             }
             tsq[k] = b2l * (pdt[k + 1] + pdt[k]);
             qsq[k] = b2l * (pdq[k + 1] + pdq[k]);

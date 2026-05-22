@@ -25,7 +25,7 @@ ERF::init_immersed_forcing (int lev)
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
-        const Real epsilon = 1e-2;
+        const Real epsilon = Real(1e-2);
 
         const Array4<const Real>& t_blank_arr = terrain_blank->const_array(mfi);
 

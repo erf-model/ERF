@@ -78,7 +78,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 dq_vapor_to_clwater = Real(0);
                 dq_clwater_to_vapor = Real(0);
 
-                //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-Real(36.0),2));
+                //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*amrex::Math::powi<2>(tabs_array(i,j,k)-Real(36.0)));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
                 Real fac = (L_v/Cp_d)*dtqsat;
 
@@ -295,7 +295,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 dq_vapor_to_clwater = Real(0);
                 dq_clwater_to_vapor = Real(0);
 
-                //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-Real(36.0),2));
+                //Real fac = qsat*Real(4093.0)*L_v/(Cp_d*amrex::Math::powi<2>(tabs_array(i,j,k)-Real(36.0)));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
                 Real fac = (L_v/Cp_d)*dtqsat;
 

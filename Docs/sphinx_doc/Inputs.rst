@@ -1645,12 +1645,6 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.real_set_width**           | Lateral boundary    |  Integer           | 0                     |
-|                                  | specified zone      |                    |                       |
-|                                  | width if            |                    |                       |
-|                                  | use_real_bcs is     |                    |                       |
-|                                  | true                |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |
 |                                  | vertical velocities |                    |                       |
@@ -1763,9 +1757,7 @@ specified by ``erf.nc_bdy_file`` (e.g., "wrfbdy_d01").  (If **erf.use_real_bcs =
 boundary conditions so they must be specified in the inputs file.)
 
 If **erf.use_real_bcs = true**,
-the extent of the relaxation zone may be controlled with ``erf.real_width`` (corresponding to WRF's **spec_bdy_width**)
-and ``erf.real_set_width`` (corresponding to WRF's **spec_zone**, typically set to 1), which corresponds to a relaxation zone with a
-width of **real_width - real_set_width**.
+the extent of the relaxation zone may be controlled with ``erf.real_width`` (corresponding to WRF's **spec_bdy_width**).
 
 Note that the **erf.project_initial_velocity** option is available for all **init_type** options.  If using the anelastic
 formulation this will be true regardless of the input; if using the compressible formulation the default is false but
@@ -1961,6 +1953,10 @@ List of Parameters
 | **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
+|                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
+|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+

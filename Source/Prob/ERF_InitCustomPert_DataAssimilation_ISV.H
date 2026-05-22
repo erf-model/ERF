@@ -2,16 +2,16 @@
     // Parse params
     ParmParse pp("prob");
 
-    amrex::Real p_inf = p_0;   pp.query("p_inf", p_inf); //freestream pressure [Pa]
-    amrex::Real T_inf = 300.0; pp.query("T_inf", T_inf);//freestream temperature [K]
-    amrex::Real M_inf = 0.2;   pp.query("M_inf", M_inf);//freestream Mach number [-]
-    amrex::Real alpha = 0.0;   pp.query("alpha", alpha);//inflow angle, 0 --> x-aligned [rad]
-    amrex::Real gamma = Gamma; pp.query("gamma", gamma);//specific heat ratio [-]
-    amrex::Real beta = 0.01;   pp.query("beta", beta);//non-dimensional max perturbation strength [-]
-    amrex::Real sigma = 1.0;   pp.query("sigma", sigma);//Gaussian standard deviation, i.e., spreading parameter [-]
-    amrex::Real R = 2.0;       pp.query("R", R);//characteristic length scale for grid [m]
-    amrex::Real xc_frac = 0.5; pp.query("xc", xc_frac);//normalized x-location of vortex center [-]
-    amrex::Real yc_frac = 0.5; pp.query("yc", yc_frac);//normalized y-location of vortex center [-]
+    amrex::Real p_inf = p_0;                pp.query("p_inf", p_inf); //freestream pressure [Pa]
+    amrex::Real T_inf = amrex::Real(300.0); pp.query("T_inf", T_inf);//freestream temperature [K]
+    amrex::Real M_inf = amrex::Real(0.2);   pp.query("M_inf", M_inf);//freestream Mach number [-]
+    amrex::Real alpha = zero;               pp.query("alpha", alpha);//inflow angle, 0 --> x-aligned [rad]
+    amrex::Real gamma = Gamma;              pp.query("gamma", gamma);//specific heat ratio [-]
+    amrex::Real beta = amrex::Real(0.01);   pp.query("beta", beta);//non-dimensional max perturbation strength [-]
+    amrex::Real sigma = one;                pp.query("sigma", sigma);//Gaussian standard deviation, i.e., spreading parameter [-]
+    amrex::Real R = two;                    pp.query("R", R);//characteristic length scale for grid [m]
+    amrex::Real xc_frac = myhalf;           pp.query("xc", xc_frac);//normalized x-location of vortex center [-]
+    amrex::Real yc_frac = myhalf;           pp.query("yc", yc_frac);//normalized y-location of vortex center [-]
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -24,7 +24,7 @@
     //                << parms.yc << ")"
     //                << std::endl;
 
-    amrex::Real inv_gm1 = 1.0 / (gamma - 1.0);
+    amrex::Real inv_gm1 = one / (gamma - one);
 
     // amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
     // amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
@@ -54,24 +54,24 @@
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
-        const Real x = (i + 0.5) * dx[0]; // cell center
-        const Real y = (j + 0.5) * dx[1]; // cell center
+        const Real x = (i + myhalf) * dx[0]; // cell center
+        const Real y = (j + myhalf) * dx[1]; // cell center
 
         // Calculate perturbation temperature
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
-        const Real deltaT = -(gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
+        const Real deltaT = -(gamma - one)/(two*sigma*sigma) * Omg*Omg;
 
         // Set the perturbation density
-        const Real rho_norm = std::pow(1.0 + deltaT, inv_gm1);
+        const Real rho_norm = std::pow(one + deltaT, inv_gm1);
         //state_pert(i, j, k, Rho_comp) = rho_norm * rho_0 - r_hse(i,j,k);
 
         // Initial _potential_ temperature
-        const Real T = (1.0 + deltaT) * T_inf;
+        const Real T = (one + deltaT) * T_inf;
         const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                               * rho_0*a_inf*a_inf;
         const Real rho_theta = rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
         state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
         const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-        state_pert(i, j, k, RhoScalar_comp) = 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, R) / R));
+        state_pert(i, j, k, RhoScalar_comp) = fourth * (one + std::cos(PI * std::min(r2d_xy, R) / R));
     });

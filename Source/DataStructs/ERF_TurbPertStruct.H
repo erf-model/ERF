@@ -60,32 +60,34 @@ struct TurbulentPerturbation {
                    const int max_level)
 
     {
-        // Initialization for some 0 dependent terms
-        tpi_Ti = zero;
-        tpi_Tinf = amrex::Real(300.);
-
         ref_ratio = refRatio;
 
         amrex::ParmParse pp(pp_prefix);
 
         // Reading inputs, and placing assertion for the perturbation inflow to work
-        pp.queryarr("perturbation_box_dims",tpi_boxDim);
-        pp.queryarr("perturbation_direction",tpi_direction);
-        pp.query("perturbation_layers",tpi_layers);
-        pp.query("perturbation_offset",tpi_offset);
+        pp.getarr("perturbation_box_dims",tpi_boxDim);
+        pp.getarr("perturbation_direction",tpi_direction);
+        pp.get("perturbation_layers",tpi_layers);
+        pp.get("perturbation_offset",tpi_offset);
 
-        pp.query("perturbation_nondimensional",tpi_nonDim);
+        pp.get("perturbation_nondimensional",tpi_nonDim);
+
+        tpi_Tinf = amrex::Real(300.);
         pp.query("perturbation_T_infinity",tpi_Tinf);
+
+        tpi_Ti = zero;
         pp.query("perturbation_T_intensity",tpi_Ti);
+
+        input_Ug = zero;
         pp.query("perturbation_Ug",input_Ug);
 
         // Check variables message
-        if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
+        if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
+        if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         for (int i = 0; i < tpi_boxDim.size(); i++) {
             if (tpi_boxDim[i] < 3) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
-        if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         if (input_Ug   < zero) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = amrex::Real(10.0) m/s)"); }
         if (tpi_Tinf   < zero) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
         if (tpi_Ti     < zero) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-one)"); }
@@ -214,7 +216,7 @@ struct TurbulentPerturbation {
         tpi_Lpb[lev] = tpi_boxDim[0]*dx[0];
         tpi_Wpb[lev] = tpi_boxDim[1]*dx[1];
         tpi_Hpb[lev] = tpi_boxDim[2]*dx[2];
-        tpi_lref[lev] = sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
+        tpi_lref[lev] = std::sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
 
         tpi_pert_adjust = zero;
         tpi_net_buoyant = zero;
@@ -299,7 +301,7 @@ struct TurbulentPerturbation {
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(0.9*interval,amrex::Real(1.1)*interval); // 10% variation
+                    pb_interval[lev][boxIdx] = RandomReal(amrex::Real(0.9)*interval,amrex::Real(1.1)*interval); // 10% variation
 
                     // Reset local elapsed time
                     pb_local_etime[lev][boxIdx] = zero;
@@ -623,13 +625,13 @@ struct TurbulentPerturbation {
 
         // Computing the average magnitude within PB
         #ifdef USE_VOLUME_AVERAGE
-        m_pb_mag[boxIdx] = sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
+        m_pb_mag[boxIdx] = std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
         m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
 
         #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = myhalf*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
-                               + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
+        m_pb_mag[boxIdx] = myhalf*( std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
+                                  + std::sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
         m_pb_dir[boxIdx] = std::atan(std::abs(myhalf*(avg_h[0]+avg_h[2])) / std::abs(myhalf*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
     }

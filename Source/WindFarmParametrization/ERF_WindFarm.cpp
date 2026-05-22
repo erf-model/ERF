@@ -114,8 +114,8 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         Real delta_lat = (lat[it] - lat_ref);
         Real delta_lon = (lon[it] - lon_ref);
 
-        Real term1 = std::pow(sin(delta_lat/two),2);
-        Real term2 = cos(lat[it])*cos(lat_ref)*std::pow(sin(delta_lon/two),2);
+        Real term1 = amrex::Math::powi<2>(sin(delta_lat/two));
+        Real term2 = cos(lat[it])*cos(lat_ref)*amrex::Math::powi<2>(sin(delta_lon/two));
         Real dist =  two*rad_earth*std::asin(std::sqrt(term1 + term2));
         Real dy_turb = delta_lat * m_per_deg_lat * Real(180.0)/M_PI ;
 
@@ -127,7 +127,7 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
                 Abort("The value of dist is less than dy_turb "+ std::to_string(dist) + " " + std::to_string(dy_turb));
             }
         }
-        Real tmp = std::pow(dist,2) - std::pow(dy_turb,2);
+        Real tmp = amrex::Math::powi<2>(dist) - amrex::Math::powi<2>(dy_turb);
 
         if(std::fabs(tmp)<1e-8){
             tmp = zero;

@@ -62,8 +62,8 @@ erf.box1.max_level = 1
 erf.box1.in_box_lo =   3.   3.
 erf.box1.in_box_hi =   7.   7.
 erf.coupling_type  = "OneWay"
-erf.cf_width = 0 #5
-erf.cf_set_width = 0 #1
+erf.cf_width = 0
+erf.cf_set_width = 0
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file

@@ -70,4 +70,4 @@ erf.coupling_type  = "Mixed"
 erf.coupling_type  = "OneWay"
 
 erf.cf_width     = 3
-erf.cf_set_width = 1
+erf.cf_set_width = 0

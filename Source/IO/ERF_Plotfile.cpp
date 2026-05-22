@@ -6,7 +6,7 @@
 
 using namespace amrex;
 
-PhysBCFunctNoOp null_bc_for_fill;
+static PhysBCFunctNoOp null_bc_for_fill;
 
 #ifdef ERF_USE_NETCDF
 void
@@ -326,6 +326,17 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     if (ncomp_mf == 0) return;
 
+    // Lagrangian microphysics with AMR (TwoWay): bring fine-level moisture down
+    // to coarse cells so plotfiles at level 0 show the fine-deposit cloud.
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
+        && solverChoice.coupling_type == CouplingType::TwoWay
+        && finest_level >= 1) {
+        micro->AverageDownMicroVars(finest_level);
+        for (int flev = finest_level-1; flev >= 0; --flev) {
+            AverageDownMoistStateTo(flev);
+        }
+    }
+
     // We Fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
     //     because we don't need to set interior fine points.
@@ -400,11 +411,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
-            mf_cc_vel[lev].setVal(-1.e20);
+            mf_cc_vel[lev].setVal(Real(-1.e20));
             average_face_to_cellcenter(mf_cc_vel[lev],0,
                                        Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
                                                                 &vars_new[lev][Vars::yvel],
-                                                                &vars_new[lev][Vars::zvel]});
+                                                                &vars_new[lev][Vars::zvel]}, 1);
         } // lev
     } // if (vel or vort)
 
@@ -1601,7 +1612,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
 
 #ifdef ERF_USE_PARTICLES
-            particleData.writePlotFile(plotfilename);
+            particleData.writePlotFile(plotfilename, z_phys_nd);
 #endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
@@ -1741,7 +1752,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.writePlotFile(plotfilename);
+            particleData.writePlotFile(plotfilename, z_phys_nd);
 #endif
 
 #ifdef ERF_USE_NETCDF

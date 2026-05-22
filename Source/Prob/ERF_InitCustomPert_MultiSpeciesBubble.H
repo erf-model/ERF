@@ -106,13 +106,13 @@
             // Introduce the warm bubble.
             // Assume that the bubble is pressure matched with the background
             rad = zero;
-            if (x_r > 0) rad += std::pow((x - x_c)/x_r, 2);
-            if (y_r > 0) rad += std::pow((y - y_c)/y_r, 2);
-            if (z_r > 0) rad += std::pow((z - z_c)/z_r, 2);
+            if (x_r > 0) rad += amrex::Math::powi<2>((x - x_c)/x_r);
+            if (y_r > 0) rad += amrex::Math::powi<2>((y - y_c)/y_r);
+            if (z_r > 0) rad += amrex::Math::powi<2>((z - z_c)/z_r);
             rad = std::sqrt(rad);
 
             if (rad <= one){
-                delta_theta = theta_pert*std::pow(cos(PI*rad/two),2);
+                delta_theta = theta_pert*amrex::Math::powi<2>(std::cos(PI*rad/two));
             } else {
                 delta_theta = zero;
             }
@@ -154,16 +154,16 @@
             //   radial extents are specified) or an ellipsoid (if all three
             //   radial extents are specified).
             Real L = zero;
-            if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
-            if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
-            if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
+            if (x_r > 0) L += amrex::Math::powi<2>((x - x_c)/x_r);
+            if (y_r > 0) L += amrex::Math::powi<2>((y - y_c)/y_r);
+            if (z_r > 0) L += amrex::Math::powi<2>((z - z_c)/z_r);
             L = std::sqrt(L);
             Real dT;
             if (L > one) {
                 dT = zero;
             }
             else {
-                dT = T_pert * std::pow(cos(PI*L/two),2);
+                dT = T_pert * amrex::Math::powi<2>(std::cos(PI*L/two));
             }
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
@@ -220,9 +220,9 @@
         const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
         amrex::Real L = zero;
-        if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
-        if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
-        if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
+        if (x_r > 0) L += amrex::Math::powi<2>((x - x_c)/x_r);
+        if (y_r > 0) L += amrex::Math::powi<2>((y - y_c)/y_r);
+        if (z_r > 0) L += amrex::Math::powi<2>((z - z_c)/z_r);
         L = std::sqrt(L);
 
         if (L < one) {
