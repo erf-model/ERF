@@ -41,16 +41,14 @@ namespace SDMassChangeUtils_SV {
     };
 }
 
-namespace {
-    /*! \brief Field indices for liquid-vapour interpolation */
-    AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
+/*! \brief Field indices for liquid-vapour interpolation */
+AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
-    /*! \brief Field indices for solid-liquid interpolation */
-    AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, NUM_FIELDS);
+/*! \brief Field indices for solid-liquid interpolation */
+AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, NUM_FIELDS);
 
-    /*! \brief Field indices for solid-vapour interpolation */
-    AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density, NUM_FIELDS);
-}
+/*! \brief Field indices for solid-vapour interpolation */
+AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density, NUM_FIELDS);
 
 /*! Compute mass change of particles due to evaporation and condensation
  *  (liquid <--> vapour) */

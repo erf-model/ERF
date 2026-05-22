@@ -505,6 +505,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                            + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
            }
         });
+        Gpu::synchronize();
 
         /* Initialize ice attributes
          *

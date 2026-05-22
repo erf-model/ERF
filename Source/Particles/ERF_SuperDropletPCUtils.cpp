@@ -1,6 +1,5 @@
-#include "ERFPCParticleToMesh.H"
-#include "ERF_Constants.H"
 #include "ERF_SuperDropletPC.H"
+#include <ERFPCParticleToMesh.H>
 
 #ifdef ERF_USE_PARTICLES
 
