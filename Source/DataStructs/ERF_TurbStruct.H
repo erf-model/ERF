@@ -389,7 +389,7 @@ public:
   }
 
   // LES model
-  LESType les_type;
+  LESType les_type = LESType::None;
 
   // Turbulent Prandtl number
   amrex::Real Pr_t = one / three;
@@ -431,12 +431,12 @@ public:
   amrex::Real Ri_crit = fourth;
 
   // RANS type
-  RANSType rans_type;
+  RANSType rans_type = RANSType::None;
 
   bool dirichlet_k = false;
 
   // PBL model
-  PBLType pbl_type;
+  PBLType pbl_type = PBLType::None;
 
   MYNNLevel25 pbl_mynn;
   MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime

@@ -139,7 +139,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 // Location of nodes
                 Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
 
-                Real cosx = cos(PI * x / lambda);
+                Real cosx = std::cos(PI * x / lambda);
 
                 z_arr(i,j,k0) = Hm * std::exp(-x*x/asq) * cosx * cosx;
             });
@@ -159,7 +159,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = pow(asq - rsq, myhalf);
+                    z_arr(i,j,k0) = std::sqrt(asq - rsq);
                 } else {
                     z_arr(i,j,k0) = zero;
                 }
@@ -238,13 +238,14 @@ init_my_custom_terrain ( const Geometry& geom,
             });
         } else if (custom_terrain_type == "Cos4Hill") {
 
+            // Get prob parameters (must be outside GPU kernel)
+            Real hm = zero; pp_prob.query("hmax", hm);
+            Real L  = Real(100.0); pp_prob.query("L", L);
+            Real z_offset = zero; pp_prob.query("z_offset", z_offset);
+            Real fourL = four * L;
+
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                // Get prob parameters
-                Real hm = zero; pp_prob.query("hmax", hm);
-                Real L  = Real(100.0); pp_prob.query("L", L);
-                Real z_offset = zero; pp_prob.query("z_offset" , z_offset);
-                Real fourL = four * L;
                 
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);

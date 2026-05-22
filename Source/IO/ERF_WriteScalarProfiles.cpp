@@ -509,7 +509,7 @@ ERF::cloud_fraction (Real /*time*/)
     ParallelDescriptor::ReduceLongSum(num_cloudy);
 #endif
 
-    Real num_total = qc_2d.box().d_numPts();
+    Real num_total = Real(qc_2d.box().d_numPts());
 
     Real cloud_frac = num_cloudy / num_total;
 

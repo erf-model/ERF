@@ -18,3 +18,7 @@
 [submodule "Submodules/ekat"]
 	path = Submodules/ekat
 	url = https://github.com/E3SM-Project/EKAT
+[submodule "Submodules/googletest"]
+	path = Submodules/googletest
+	url = https://github.com/google/googletest.git
+	shallow = true

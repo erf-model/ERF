@@ -17,7 +17,7 @@
         // Initial potential temperature (actually rho*theta) perturbation
         const Real p = rho_0 * V_0*V_0*
                               ( one / (Gamma * M_0 * M_0)
-                              + (one / amrex::Real(16.0)) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2));
+                              + (one / amrex::Real(16.0)) * (std::cos(2 * x) + std::cos(2 * y)) * (std::cos(2 * z) + 2));
         state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p) - getRhoThetagivenP(p_hse(i,j,k));
 
         // Set scalar = 0 everywhere

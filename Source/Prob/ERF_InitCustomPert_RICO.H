@@ -76,7 +76,7 @@
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state_pert(i, j, k, RhoScalar_comp) = A_0 * exp(-amrex::Real(10.)*r*r);
+        state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r*r);
 
         // Set an initial value for KE
         if (custom_TKE) {

@@ -20,10 +20,10 @@
         rho_stag[k] = myhalf*(rho_h[k-1]+rho_h[k]);
     }
 
-    // Sinusoidal mass flux: w = 2*sin(pi*t/600)/rho for t < 600
+    // Sinusoidal mass flux: w = 2*sin(pi*t/amrex::Real(600))/rho for t < 600
     for (int k = 0; k <= khi+1; k++) {
-        if (time < 600) {
-            wbar[k] = 2*sin(PI*time/600)/rho_stag[k];
+        if (time < amrex::Real(600)) {
+            wbar[k] = two*std::sin(PI*time/amrex::Real(600))/rho_stag[k];
         } else {
             wbar[k] = zero;
         }

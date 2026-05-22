@@ -190,7 +190,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const Real dz_terrain = met_h_zeta/dz_inv;
                 if (k < pbli_arr(i,j,0)) {
                     // -- Compute diffusion coefficients within PBL
-                    constexpr Real zfacmin = 1e-8; // value from WRF
+                    constexpr Real zfacmin = Real(1e-8); // value from WRF
                     constexpr Real phifac = Real(8.0); // value from H10 and WRF
                     constexpr Real wstar3 = zero; // only nonzero for unstable
                     constexpr Real pfac = two; // profile exponent
