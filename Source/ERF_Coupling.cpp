@@ -6,6 +6,7 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParmParse.H>
 
@@ -274,26 +275,14 @@ void
 ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                              amrex::Real time)
 {
-    amrex::ignore_unused(time);
-
-    // Example (legacy state-passing): state[0] carries SST [K].
-    // We intentionally copy only one horizontal slab, derived from the
-    // interface face convention:
-    // - ocean/atmos interface face index on source: k_face = src.bigEnd(2) + 1
-    // - source cell below that face (ocean top cell): src_k = k_face - 1
-    // - destination LSM surface-facing slab uses its bottom-most k index
-    //   (for current level-0 matched-grid tests this is the interface slab).
-    // This encodes the physical alignment note from coupled discussions:
-    // ERF k=0 atmospheric cell lies above REMORA k=nz-1 ocean cell.
-    // For initial matched-grid tests, require identical horizontal BoxArray/DM.
-    if (solverChoice.lsm_type == LandSurfaceType::None) {
+    if (solverChoice.lsm_type != LandSurfaceType::OceanSurf) {
         return;
     }
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
         const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
-        const int src_k  = state[0]->boxArray().minimalBox().bigEnd(2);
+        const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
         for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
             auto dst_arr = dst->array(mfi);
@@ -301,6 +290,25 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
             });
+        }
+        amrex::Gpu::streamSynchronize();
+
+        const amrex::Real src_min = state[0]->min(0);
+        const amrex::Real src_max = state[0]->max(0);
+        const amrex::Real dst_min = dst->min(0);
+        const amrex::Real dst_max = dst->max(0);
+
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            amrex::Print() << "OceanSurf apply at t=" << time
+                           << " s from SST slab: source min/max = "
+                           << src_min << " / " << src_max
+                           << " K, cache min/max = "
+                           << dst_min << " / " << dst_max
+                           << " K" << std::endl;
+        }
+
+        if (dst_min < amrex::Real(260.0) || dst_max > amrex::Real(320.0)) {
+            amrex::Warning("OceanSurf t_surf is outside the expected [260, 320] K range");
         }
     }
 }

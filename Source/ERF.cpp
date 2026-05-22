@@ -2879,6 +2879,9 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
+    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
+        lsm.SetModel<OceanSurf>();
+        Print() << "OceanSurf land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
