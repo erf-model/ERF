@@ -147,6 +147,12 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
                       (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]),
                       species_mat );
 
+    // Recompute qc/qr from the current particles so qt below is built from the
+    // particle-carried condensate, not the dycore-advected condensate left in
+    // the micro fabs by Copy_State_to_Micro (which leaks the Eulerian-vs-
+    // particle advection mismatch into qv as spurious supersaturation).
+    computeQcQrWater(*a_z[a_lev]);
+
     // Compute total liquid and vapour water content qt
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
@@ -264,6 +270,9 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
                       (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]),
                       species_mat );
 
+    // Recompute the species condensate from the current particles before qt.
+    computeQcSpecies(a_idx, *a_z[a_lev]);
+
     // Compute total species content qt
     computeQtSpecies(a_idx);
 
@@ -350,6 +359,12 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
                       (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
                       (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]),
                       species_mat );
+
+    // Recompute the condensate from the current particles before forming qt,
+    // so it reflects the particle-carried water/ice and not the dycore-advected
+    // values left in the micro fabs by Copy_State_to_Micro.
+    computeQcQrWater(*a_z[a_lev]);
+    computeQiQgQsWater(*a_z[a_lev]);
 
     // Compute total liquid and ice/snow/graupel water content in qt
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
@@ -496,6 +511,11 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
                       (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
                       (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]),
                       species_mat );
+
+    // Recompute ice/snow/graupel from the current particles so qt below is
+    // built from the particle-carried condensate, not the dycore-advected
+    // values left in the micro fabs by Copy_State_to_Micro.
+    computeQiQgQsWater(*a_z[a_lev]);
 
     // Compute total liquid and vapour water content qt
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
