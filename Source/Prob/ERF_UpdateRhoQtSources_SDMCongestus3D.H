@@ -30,9 +30,9 @@
                 auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 auto rsqr = r*r;
                 if (time < 3600) {
-                   qsrc_arr(i, j, k) = (advection_moisture_rate_base)*exp(-z/100);
+                   qsrc_arr(i, j, k) = (advection_moisture_rate_base)*std::exp(-z/100);
                 } else {
-                   qsrc_arr(i, j, k) = (advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
+                   qsrc_arr(i, j, k) = (advection_moisture_rate*std::exp(-rsqr / c))*std::exp(-z/100);
                 }
             });
         } else {

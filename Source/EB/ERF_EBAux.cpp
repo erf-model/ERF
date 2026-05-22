@@ -326,7 +326,7 @@ define( [[maybe_unused]] int const& a_level,
             Real bnorm_y = bnorm(iv_lo,1) * dx[1];
             Real bnorm_z = bnorm(iv_lo,2) * dx[2];
 
-            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = std::sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
@@ -361,7 +361,7 @@ define( [[maybe_unused]] int const& a_level,
             Real bnorm_y = bnorm(iv_hi,1) * dx[1];
             Real bnorm_z = bnorm(iv_hi,2) * dx[2];
 
-            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = std::sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 

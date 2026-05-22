@@ -142,6 +142,16 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 // so we save the previous finest level index
                 int old_finest = finest_level;
 
+                if (solverChoice.coupling_type == CouplingType::TwoWay &&
+                    solverChoice.moisture_type != MoistureType::None &&
+                    Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian &&
+                    finest_level >= 1) {
+                    micro->AverageDownMicroVars(finest_level);
+                    for (int flev = finest_level-1; flev >= lev; --flev) {
+                        AverageDownMoistStateTo(flev);
+                    }
+                }
+
                 regrid(lev, time);
 
 #ifdef ERF_USE_PARTICLES

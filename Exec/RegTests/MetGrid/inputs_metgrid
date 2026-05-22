@@ -57,7 +57,6 @@ erf.moisture_model = "None"
 
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 7
-erf.real_set_width = 1
 erf.init_type      = "metgrid"
 erf.nc_init_file_0 = "met_em.d01.2022-06-18_00_00_00.nc" "met_em.d01.2022-06-18_06_00_00.nc"
 

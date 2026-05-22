@@ -1,0 +1,117 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SuperCell"
+
+erf.init_type = MoistBaseState
+
+max_step = 28800
+stop_time = 14400.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 2048 1024 2048
+
+    
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -75000. -50000.     0.
+geometry.prob_hi     =  75000.  50000. 24000.
+amr.n_cell           =    300    200      48    # dx=dy=dz=500 m
+
+geometry.is_periodic = 1 0 0
+ylo.type = "Open"
+yhi.type = "Open"
+zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "bulk_coeff"
+erf.most.Cd  = 0.0 # ustar
+erf.most.Ch  = 0.0 # theta flux
+erf.most.Cq  = 0.0 # qv    flux
+erf.most.surf_temp  = 300.0
+erf.most.surf_moist = 0.0 
+erf.most.z0   = 0.1
+erf.most.zref = 250.0
+
+    
+# TIME STEP CONTROL
+erf.fixed_dt           = 0.5      # fixed time step [s]
+erf.fixed_mri_dt_ratio = 6
+
+    
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+    
+# REFINEMENT / REGRIDDING
+amr.max_level      = 1       # maximum level number allowed
+amr.ref_ratio_vect = 5 5 5
+
+erf.regrid_int    = 1
+erf.coupling_type = OneWay
+erf.refinement_indicators         = hi_helicity hi_reflectivity
+erf.hi_helicity.field_name        = helicity
+erf.hi_helicity.value_greater     = 40.0
+erf.hi_reflectivity.field_name    = max_reflectivity
+erf.hi_reflectivity.value_greater = 40.0
+
+    
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 1000       # number of timesteps between checkpoints
+
+    
+# PLOTFILES
+erf.plot_file_1         = plt        # root name of plotfile
+erf.plot_int_1          = 120         # number of timesteps between plotfiles
+erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain rain_accum pert_dens helicity max_reflectivity
+
+    
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type    = Upwind_3rd
+erf.dycore_vert_adv_type     = Upwind_3rd
+erf.dryscal_horiz_adv_type   = Upwind_3rd_SL
+erf.dryscal_vert_adv_type    = Upwind_3rd_SL
+erf.moistscal_horiz_adv_type = Upwind_3rd_SL
+erf.moistscal_vert_adv_type  = Upwind_3rd_SL
+
+erf.use_gravity   = true
+erf.use_coriolis  = false
+erf.buoyancy_type = 1
+
+erf.implicit_before_substep     = true
+erf.implicit_thermal_diffusion  = true
+erf.implicit_moisture_diffusion = true
+erf.implicit_momentum_diffusion = true
+erf.vert_implicit_fac           = 1. 1. 0.
+    
+erf.les_type = "None"
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 33.33 # [kg/(m-s)]
+erf.alpha_T           = 33.33 # [m^2/s]
+erf.alpha_C           = 33.33
+
+erf.moisture_model = "Morrison"
+
+    
+# PROBLEM PARAMETERS (optional)
+prob.z_tr = 12000.0
+prob.height = 1200.0
+prob.theta_0 = 300.0
+prob.theta_tr = 343.0
+prob.T_tr = 213.0
+prob.x_c = 0.0
+prob.y_c = 0.0
+prob.z_c = 2000.0
+prob.x_r = 10000.0
+prob.y_r = 10000.0
+prob.z_r = 2000.0
+prob.theta_c = 3.0
+
+prob.rayleigh_U_0 = 2.0
+prob.rayleigh_V_0 = 1.0
+prob.rayleigh_W_0 = 0.0
+prob.rayleigh_T_0 = 300.0
+
+prob.use_empirical_psat         = true
+prob.T_from_theta_in_moist_init = true

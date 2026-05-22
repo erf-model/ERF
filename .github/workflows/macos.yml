@@ -17,7 +17,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -25,7 +25,7 @@ jobs:
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_mac.sh
 
     - name: Set Up Cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/Library/Caches/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
@@ -65,13 +65,24 @@ jobs:
     - name: Report
       run: |
         grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | grep -Ev "Submodules/amrex" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
-    - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+    - name: Check Unit Test Registration
+      run: |
+        Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{runner.workspace}}/unit-test-list.txt
+        grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Unit Tests
+      run: |
+        ctest -L unit -VV
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       run: |
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build

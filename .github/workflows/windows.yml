@@ -16,7 +16,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -35,9 +35,25 @@ jobs:
 
     - name: Compile and Link
       run: |
-        cmake --build build --parallel 2 --verbose
+        cmake --build build --config Debug --parallel 2 --verbose
 
-    - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+    - name: Check Unit Test Registration
+      shell: pwsh
       run: |
-        ctest -L regression -VV
+        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/Debug/erf_unit_tests.exe" --gtest_list_tests
+        $out
+        $outText = $out -join "`n"
+        if ($outText -notmatch '(?m)^[A-Za-z0-9_].*\.$') {
+          throw "No unit tests registered"
+        }
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Unit Tests
+      run: |
+        ctest -C Debug -L unit -VV
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
+      run: |
+        ctest -C Debug -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build

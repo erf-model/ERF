@@ -206,9 +206,9 @@ SAM::Precip (const SolverChoice& sc)
                 qsat = qsatw * omn + qsati * (one-omn);
                 if((qp_array(i,j,k) > zero) && (qv_array(i,j,k) < qsat)) {
 
-                    dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
-                    dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
-                    dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
+                    dqpr = evapr1_t(k)*std::sqrt(qpr) + evapr2_t(k)*std::pow(qpr,powr2);
+                    dqps = evaps1_t(k)*std::sqrt(qps) + evaps2_t(k)*std::pow(qps,pows2);
+                    dqpg = evapg1_t(k)*std::sqrt(qpg) + evapg2_t(k)*std::pow(qpg,powg2);
 
                     // NOTE: This is always a sink for precipitating comps
                     //       since qv<qsat and thus (1 - qv/qsat)>zero If we are

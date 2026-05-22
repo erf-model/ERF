@@ -29,9 +29,9 @@
                 auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 auto rsqr = r*r;
                 if (time < 3600) {
-                   src_arr(i, j, k) = (advection_heating_rate_base)*exp(-z/100);
+                   src_arr(i, j, k) = (advection_heating_rate_base)*std::exp(-z/100);
                 } else {
-                   src_arr(i, j, k) = (advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                   src_arr(i, j, k) = (advection_heating_rate*std::exp(-rsqr / c)) * std::exp(-z*amrex::Real(0.01));
                 }
             });
         } else {

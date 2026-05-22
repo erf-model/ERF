@@ -37,9 +37,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // We need to set these because otherwise in the first call to erf_advance we may
     //    read uninitialized data on ghost values in setting the bc's on the velocities
-    U_new.setVal(1.e34,U_new.nGrowVect());
-    V_new.setVal(1.e34,V_new.nGrowVect());
-    W_new.setVal(1.e34,W_new.nGrowVect());
+    U_new.setVal(Real(1.e34),U_new.nGrowVect());
+    V_new.setVal(Real(1.e34),V_new.nGrowVect());
+    W_new.setVal(Real(1.e34),W_new.nGrowVect());
 
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)

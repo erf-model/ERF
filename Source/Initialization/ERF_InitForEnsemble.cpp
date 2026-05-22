@@ -75,8 +75,8 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
         if (h_count > 0)
         {
             Real rms = std::sqrt(h_sumsq / static_cast<Real>(h_count));
-            if (rms > 0.0) {
-                mf_cc_pert.mult(1.0 / rms, n, 1);
+            if (rms > zero) {
+                mf_cc_pert.mult(one / rms, n, 1);
             }
         }
     }
@@ -102,11 +102,11 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
     const int wsize = 2*r + 1;
     Vector<Real> w_host(wsize * wsize);
 
-    Real Z = 0.0;
+    Real Z = zero;
     for (int m = -r; m <= r; ++m) {
         for (int n = -r; n <= r; ++n) {
             Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)
-                                 /(2.0*sigma*sigma));
+                                 /(two*sigma*sigma));
             w_host[(m+r)*wsize + (n+r)] = val;
             Z += val;
         }
@@ -144,7 +144,7 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
         ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real sum = 0.0;
+            Real sum = zero;
 
             for (int m = -r; m <= r; ++m) {
                 for (int nn = -r; nn <= r; ++nn) {
@@ -388,14 +388,14 @@ InterpolateToFineMF(
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // physical location (fine cell center)
-            Real x = problo_f[0] + (i + 0.5) * dx_f[0];
-            Real y = problo_f[1] + (j + 0.5) * dx_f[1];
-            Real z = problo_f[2] + (k + 0.5) * dx_f[2];
+            Real x = problo_f[0] + (i + myhalf) * dx_f[0];
+            Real y = problo_f[1] + (j + myhalf) * dx_f[1];
+            Real z = problo_f[2] + (k + myhalf) * dx_f[2];
 
             // map to coarse index space
-            Real rx = (x - problo[0]) / dx_c[0] - 0.5;
-            Real ry = (y - problo[1]) / dx_c[1] - 0.5;
-            Real rz = (z - problo[2]) / dx_c[2] - 0.5;
+            Real rx = (x - problo[0]) / dx_c[0] - myhalf;
+            Real ry = (y - problo[1]) / dx_c[1] - myhalf;
+            Real rz = (z - problo[2]) / dx_c[2] - myhalf;
 
             int ic = static_cast<int>(floor(rx));
             int jc = static_cast<int>(floor(ry));
@@ -455,7 +455,7 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            uface(i,j,k) = 0.5 * (cc(i-1,j,k,2) + cc(i,j,k,2));
+            uface(i,j,k) = myhalf * (cc(i-1,j,k,2) + cc(i,j,k,2));
         });
     }
 
@@ -468,7 +468,7 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            vface(i,j,k) = 0.5 * (cc(i,j-1,k,3) + cc(i,j,k,3));
+            vface(i,j,k) = myhalf * (cc(i,j-1,k,3) + cc(i,j,k,3));
         });
     }
 
@@ -481,7 +481,7 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            wface(i,j,k) = 0.0;//0.5 * (cc(i,j,k-1,4) + cc(i,j,k,4));
+            wface(i,j,k) = zero; //myhalf * (cc(i,j,k-1,4) + cc(i,j,k,4));
         });
     }
 }
@@ -505,7 +505,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = 0.02*std::abs(bg(i,j,k,n));
+            Real ens_amp = Real(0.02)*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }
@@ -555,7 +555,7 @@ ERF::create_background_state_for_ensemble (int lev,
     // (multiplied by the corresponding amplitude)
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-    //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, 0.0, 0);
+    //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, zero, 0);
 
     MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
 }

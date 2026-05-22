@@ -475,7 +475,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : Real(0.);
                 // Back out the drag coeff
-                Real wsp = sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
+                Real wsp = std::sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
                 surf_drag_coeff_tms_d(icol) = surf_mom_flux_d(icol,0) /
                                               (-r * wsp * horiz_wind_d(icol,0,ilay)[0]);

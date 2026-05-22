@@ -228,7 +228,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
             fitch_array(i,j,k,1) =  -myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
             fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
             fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*amrex::Math::powi<3>(Vabs)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
         });
