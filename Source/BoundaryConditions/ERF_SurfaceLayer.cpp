@@ -112,14 +112,15 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Iterate the fluxes if moeng type
     // Next iterate over sea -- the models for surface roughness
     // over sea are CHARNOCK, DONELAN, MODIFIED_CHARNOCK or WAVE_COUPLED
+    // NOTE: Sea surface fluxes are not supported for EB terrain
     // ***************************************************************
-    if (flux_type == FluxCalcType::MOENG ||
-        flux_type == FluxCalcType::ROTATE) {
+    if ((flux_type == FluxCalcType::MOENG ||
+         flux_type == FluxCalcType::ROTATE) &&
+        m_terrain_type != TerrainType::EB) {
         bool is_land = false;
         // NOTE: Do not allow default to adiabatic over sea (we have Qvs at surface)
         // Do we have a constant flux for moisture over sea?
         bool cons_qflux = (moist_type == MoistCalcType::MOISTURE_FLUX);
-        if (m_terrain_type != TerrainType::EB) {
             if (theta_type == ThetaCalcType::HEAT_FLUX) {
                 if (rough_type_sea == RoughCalcType::CHARNOCK) {
                     surface_flux_charnock most_flux(surf_temp_flux, surf_moist_flux,
@@ -184,11 +185,6 @@ SurfaceLayer::update_fluxes (const int& lev,
             } else {
                 amrex::Abort("Unknown value for theta_type");
             }
-        // EB
-        } else {
-            // No SEA surface fluxes for EB
-        }
-
     } // MOENG -- SEA
 
     if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {

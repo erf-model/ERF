@@ -46,9 +46,6 @@ struct adiabatic_eb
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) / std::log(zref_arr(i,j,0) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
-        if (i==0 && j==0) {
-            amrex::Print()<<"SK: adiabatic_eb ("<<i<<","<<j<<","<<k<<") ustar = "<<u_star_arr(i,j,k)<<std::endl;
-        }
     }
 
 private:
