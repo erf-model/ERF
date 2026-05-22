@@ -173,6 +173,60 @@ TEST(SatAdjMultiFab, PublicFlowPreservesSatAdjInvariantsPortable)
     EXPECT_LE(err.max(InvariantErrQ2Ref), normalized_tol);
 }
 
+// Motivation: This is the end-to-end public-flow SatAdj conservation test.
+// It exercises Init -> Copy_State_to_Micro -> Advance -> Copy_Micro_to_State
+// on physical qv/qc states and checks the quantities SatAdj should conserve:
+//   - rho
+//   - rho * (qv + qc)
+//   - rho * [T + (L/cp) qv] at the pre-adjustment fixed pressure.
+//
+// SatAdj has no precipitating species, so precipitation-reaching-surface
+// conservation is intentionally out of scope here. The reported rho/qt
+// residuals are expected to be roundoff-sized because the public path converts
+// rho*q to q and back around the cell adjustment.
+TEST(SatAdjMultiFab, PublicFlowConservesWaterAndLatentEnergyPortable)
+{
+    const amrex::Geometry geom = make_geometry(4, 3, 2);
+    amrex::BoxArray ba(geom.Domain());
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ2_comp + 1, 1);
+    amrex::MultiFab cons_initial(ba, dm, RhoQ2_comp + 1, 1);
+    amrex::MultiFab err(ba, dm, NumConservationErrComps, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    cons_initial.setVal(amrex::Real(0.0));
+    err.setVal(amrex::Real(0.0));
+
+    fill_conserved_state_conservation_portable(cons);
+    amrex::MultiFab::Copy(cons_initial, cons, 0, 0, cons.nComp(), cons.nGrowVect());
+
+    SatAdj satadj;
+    SolverChoice sc = make_solver_choice(false);
+    satadj.Define(sc);
+    satadj.Set_RealWidth(0);
+
+    run_public_flow(satadj, sc, geom, cons);
+    compute_satadj_conservation_errors(cons_initial, cons, err);
+
+    const amrex::Real rho_err = err.max(ConservationErrRho);
+    const amrex::Real qt_err = err.max(ConservationErrQt);
+    const amrex::Real latent_energy_err = err.max(ConservationErrLatentEnergy);
+    const amrex::Real initial_qc_coverage = err.max(ConservationErrInitialQcPositive);
+    const amrex::Real final_qc_coverage = err.max(ConservationErrFinalQcPositive);
+    const amrex::Real final_qc_zero_coverage = err.max(ConservationErrFinalQcZero);
+
+    EXPECT_LE(rho_err, kNormalizedWaterConservationTol)
+        << "Observed normalized max rho conservation error: " << rho_err;
+    EXPECT_LE(qt_err, kNormalizedWaterConservationTol)
+        << "Observed normalized max total-water conservation error: " << qt_err;
+    EXPECT_LE(latent_energy_err, kNormalizedLatentEnergyConservationTol)
+        << "Observed normalized max latent-energy conservation error: " << latent_energy_err;
+
+    EXPECT_GT(initial_qc_coverage, amrex::Real(0.5));
+    EXPECT_GT(final_qc_coverage, amrex::Real(0.5));
+    EXPECT_GT(final_qc_zero_coverage, amrex::Real(0.5));
+}
+
 // Motivation: Production SatAdj calls AdjustSatAdjCell from ParallelFor. This
 // test checks the kernel-compiled path without duplicating CPU/GPU test logic.
 TEST(SatAdjKernel, AdjustCellMatchesHostReferencePortable)
