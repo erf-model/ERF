@@ -125,9 +125,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     const auto& x_r = a_bubble.hi(); // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }
@@ -156,9 +156,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     const auto& x_r = a_bubble.hi();       // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }

@@ -5,6 +5,7 @@
 #include <AMReX_ParallelDescriptor.H>
 
 #include "ERF.H"
+#include "ERF_InputsName.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -145,7 +146,7 @@ return code;
     BL_PROFILE_VAR("main()", pmain);
 
     // wallclock time
-    const Real strt_total = amrex::second();
+    const Real strt_total = Real(amrex::second());
 
     {
         // constructor - reads in parameters from inputs file
@@ -159,7 +160,7 @@ return code;
         erf.Evolve();
 
         // wallclock time
-        Real end_total = amrex::second() - strt_total;
+        Real end_total = Real(amrex::second()) - strt_total;
 
         // print wallclock time
         ParallelDescriptor::ReduceRealMax(end_total ,ParallelDescriptor::IOProcessorNumber());

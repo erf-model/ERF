@@ -139,7 +139,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 // Location of nodes
                 Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
 
-                Real cosx = cos(PI * x / lambda);
+                Real cosx = std::cos(PI * x / lambda);
 
                 z_arr(i,j,k0) = Hm * std::exp(-x*x/asq) * cosx * cosx;
             });
@@ -159,7 +159,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = pow(asq - rsq, myhalf);
+                    z_arr(i,j,k0) = std::sqrt(asq - rsq);
                 } else {
                     z_arr(i,j,k0) = zero;
                 }
