@@ -11,6 +11,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
+#include "ERF_KesslerUtils.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
@@ -53,7 +54,7 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        m_fac_cond = lcond / sc.c_p;
+        m_fac_cond = L_v / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -143,7 +144,7 @@ private:
     int n_qstate_moist_size = 3;
 
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = myhalf;
+    static constexpr amrex::Real CFL_MAX = kessler_sedimentation_cfl_max;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
