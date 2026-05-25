@@ -216,7 +216,8 @@ public:
     void make_subdomains(const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
 #ifdef ERF_USE_FFT
-    void solve_with_fft (int lev, const amrex::Box& subdomain,
+    void build_fft_solvers (int lev);
+    void solve_with_fft (int lev, int isub, const amrex::Box& subdomain,
                          amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
@@ -1668,8 +1669,9 @@ private:
     { return 4; }
 
 #ifdef ERF_USE_FFT
-    amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>> m_3D_poisson;
-    amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>> m_2D_poisson;
+    // Vector over levels of Vector over subdomains of solvers
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>>> m_3D_poisson;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>>> m_2D_poisson;
 #endif
 
 public:
