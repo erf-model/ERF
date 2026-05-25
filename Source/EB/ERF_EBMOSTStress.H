@@ -311,12 +311,24 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& qvm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& q_star_arr,
-                    const amrex::Array4<const amrex::Real>& q_surf_arr) const
+                    const amrex::Array4<const amrex::Real>& q_surf_arr,
+                    const amrex::Array4<const amrex::Real>& u_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& v_vfrac_arr) const
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real qv    = cons_arr(i,j,k,RhoQ1_comp) / rho;
-        amrex::Real velx  = myhalf * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+
+        // Volume-weighted average of x-face velocities to cell center
+        amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k);
+        amrex::Real velx = (u_vfrac_sum > eps) ?
+            (velx_arr(i,j,k) * u_vfrac_arr(i,j,k) + velx_arr(i+1,j,k) * u_vfrac_arr(i+1,j,k))
+            / u_vfrac_sum : zero;
+
+        // Volume-weighted average of y-face velocities to cell center
+        amrex::Real v_vfrac_sum = v_vfrac_arr(i,j,k) + v_vfrac_arr(i,j+1,k);
+        amrex::Real vely = (v_vfrac_sum > eps) ?
+            (vely_arr(i,j,k) * v_vfrac_arr(i,j,k) + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k))
+            / v_vfrac_sum : zero;
 
         amrex::Real qv_mean  = qvm_arr(i,j,0);
         amrex::Real ustar    = u_star_arr(i,j,k);
@@ -349,12 +361,24 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
-                    const amrex::Array4<const amrex::Real>& t_surf_arr) const
+                    const amrex::Array4<const amrex::Real>& t_surf_arr,
+                    const amrex::Array4<const amrex::Real>& u_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& v_vfrac_arr) const
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real theta = cons_arr(i,j,k,RhoTheta_comp) / rho;
-        amrex::Real velx  = myhalf * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+
+        // Volume-weighted average of x-face velocities to cell center
+        amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k);
+        amrex::Real velx = (u_vfrac_sum > eps) ?
+            (velx_arr(i,j,k) * u_vfrac_arr(i,j,k) + velx_arr(i+1,j,k) * u_vfrac_arr(i+1,j,k))
+            / u_vfrac_sum : zero;
+
+        // Volume-weighted average of y-face velocities to cell center
+        amrex::Real v_vfrac_sum = v_vfrac_arr(i,j,k) + v_vfrac_arr(i,j+1,k);
+        amrex::Real vely = (v_vfrac_sum > eps) ?
+            (vely_arr(i,j,k) * v_vfrac_arr(i,j,k) + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k))
+            / v_vfrac_sum : zero;
 
         amrex::Real theta_mean  = tm_arr(i,j,0);
         amrex::Real ustar       = u_star_arr(i,j,k);
@@ -385,12 +409,25 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& vely_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
-                    const amrex::Array4<const amrex::Real>& u_star_arr) const
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& v_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr) const
     {
         amrex::Real velx  = velx_arr(i,j,k);
-        amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-        amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+
+        // Volume-weighted average of y-face velocities to x-face
+        amrex::Real v_vfrac_sum = v_vfrac_arr(i,j,k) + v_vfrac_arr(i,j+1,k) +
+                                  v_vfrac_arr(i-1,j,k) + v_vfrac_arr(i-1,j+1,k);
+        amrex::Real vely = (v_vfrac_sum > eps) ?
+            (vely_arr(i,j,k)   * v_vfrac_arr(i,j,k)   + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k) +
+             vely_arr(i-1,j,k) * v_vfrac_arr(i-1,j,k) + vely_arr(i-1,j+1,k) * v_vfrac_arr(i-1,j+1,k))
+             / v_vfrac_sum : zero;
+
+        // Volume-weighted average of cell-centered density to x-face
+        amrex::Real cc_vfrac_sum = cc_vfrac_arr(i-1,j,k) + cc_vfrac_arr(i,j,k);
+        amrex::Real rho = (cc_vfrac_sum > eps) ?
+            (cons_arr(i-1,j,k,Rho_comp) * cc_vfrac_arr(i-1,j,k) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
+            / cc_vfrac_sum : zero;
 
         amrex::Real umean    = um_arr(i,j,0);
         amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
@@ -422,12 +459,25 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& vely_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& vm_arr,
-                    const amrex::Array4<const amrex::Real>& u_star_arr) const
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& u_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr) const
     {
-        amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+        // Volume-weighted average of x-face velocities to y-face
+        amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k) +
+                                  u_vfrac_arr(i,j-1,k) + u_vfrac_arr(i+1,j-1,k);
+        amrex::Real velx = (u_vfrac_sum > eps) ?
+            (velx_arr(i,j,k)   * u_vfrac_arr(i,j,k)   + velx_arr(i+1,j,k)   * u_vfrac_arr(i+1,j,k) +
+             velx_arr(i,j-1,k) * u_vfrac_arr(i,j-1,k) + velx_arr(i+1,j-1,k) * u_vfrac_arr(i+1,j-1,k))
+             / u_vfrac_sum : zero;
+
         amrex::Real vely  = vely_arr(i,j,k);
-        amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+
+        // Volume-weighted average of cell-centered density to y-face
+        amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j-1,k) + cc_vfrac_arr(i,j,k);
+        amrex::Real rho = (cc_vfrac_sum > eps) ?
+            (cons_arr(i,j-1,k,Rho_comp) * cc_vfrac_arr(i,j-1,k) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
+            / cc_vfrac_sum : zero;
 
         amrex::Real vmean     = vm_arr(i,j,0);
         amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
