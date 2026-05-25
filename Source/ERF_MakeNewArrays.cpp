@@ -514,6 +514,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         fine_mask[lev] = std::make_unique<MultiFab>(grids[lev-1], dmap[lev-1], 1, 0);
         build_fine_mask(lev, *fine_mask[lev].get());
     }
+
+#ifdef ERF_USE_FFT
+    if ( ( (solverChoice.anelastic[lev] == 1)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
+         ( (solverChoice.mesh_type == MeshType::ConstantDz) || (solverChoice.mesh_type == MeshType::StretchedDz) ) ) {
+        build_fft_solvers(lev);
+    }
+#endif
 }
 
 void

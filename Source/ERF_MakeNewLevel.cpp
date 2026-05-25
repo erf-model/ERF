@@ -875,6 +875,20 @@ ERF::ClearLevel (int lev)
     if (cosPhi_m[lev]) {
         cosPhi_m[lev].reset();
     }
+
+#ifdef ERF_USE_FFT
+    // Clear any FFT solvers built at this level
+    if (m_3D_poisson.size() > lev) {
+        for (int n = 0; n < m_3D_poisson[lev].size(); n++) {
+            m_3D_poisson[lev][n].reset();
+        }
+    }
+    if (m_2D_poisson.size() > lev) {
+        for (int n = 0; n < m_2D_poisson[lev].size(); n++) {
+            m_2D_poisson[lev][n].reset();
+        }
+    }
+#endif
 }
 
 void
