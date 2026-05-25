@@ -411,7 +411,8 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& v_vfrac_arr,
-                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr) const
+                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr,
+                    const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr) const
     {
         amrex::Real velx  = velx_arr(i,j,k);
 
@@ -430,8 +431,25 @@ struct moeng_flux_eb
             / cc_vfrac_sum : zero;
 
         amrex::Real umean    = um_arr(i,j,0);
-        amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
-        amrex::Real wsp_mean = myhalf * (    umm_arr(i-1,j,0) +    umm_arr(i,j,0) );
+
+        // Average cell-centered u_star and wsp_mean to x-face, using only valid (SingleValued) cells
+        bool left_valid  = cc_flag_arr(i-1,j,k).isSingleValued();
+        bool right_valid = cc_flag_arr(i,j,k).isSingleValued();
+
+        amrex::Real ustar, wsp_mean;
+        if (left_valid && right_valid) {
+            ustar    = myhalf * (u_star_arr(i-1,j,k) + u_star_arr(i,j,k));
+            wsp_mean = myhalf * (umm_arr(i-1,j,0) + umm_arr(i,j,0));
+        } else if (left_valid) {
+            ustar    = u_star_arr(i-1,j,k);
+            wsp_mean = umm_arr(i-1,j,0);
+        } else if (right_valid) {
+            ustar    = u_star_arr(i,j,k);
+            wsp_mean = umm_arr(i,j,0);
+        } else {
+            ustar    = zero;
+            wsp_mean = WSMIN;
+        }
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_xz by
@@ -461,7 +479,8 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& vm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& u_vfrac_arr,
-                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr) const
+                    const amrex::Array4<const amrex::Real>& cc_vfrac_arr,
+                    const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr) const
     {
         // Volume-weighted average of x-face velocities to y-face
         amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k) +
@@ -480,8 +499,26 @@ struct moeng_flux_eb
             / cc_vfrac_sum : zero;
 
         amrex::Real vmean     = vm_arr(i,j,0);
-        amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
-        amrex::Real wsp_mean  = myhalf * (    umm_arr(i,j-1,0) +    umm_arr(i,j,0) );
+
+        // Average cell-centered u_star and wsp_mean to y-face, using only valid (SingleValued) cells
+        bool bottom_valid = cc_flag_arr(i,j-1,k).isSingleValued();
+        bool top_valid    = cc_flag_arr(i,j,k).isSingleValued();
+
+        amrex::Real ustar, wsp_mean;
+        if (bottom_valid && top_valid) {
+            ustar    = myhalf * (u_star_arr(i,j-1,k) + u_star_arr(i,j,k));
+            wsp_mean = myhalf * (umm_arr(i,j-1,0) + umm_arr(i,j,0));
+        } else if (bottom_valid) {
+            ustar    = u_star_arr(i,j-1,k);
+            wsp_mean = umm_arr(i,j-1,0);
+        } else if (top_valid) {
+            ustar    = u_star_arr(i,j,k);
+            wsp_mean = umm_arr(i,j,0);
+        } else {
+            // No valid cells - shouldn't happen if this function is called correctly
+            ustar    = zero;
+            wsp_mean = WSMIN;
+        }
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_yz by
