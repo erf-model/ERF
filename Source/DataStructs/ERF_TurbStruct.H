@@ -24,13 +24,21 @@ query_one_or_per_level (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query(query_string, query_var);
-  } else if (count == maxlev + 1) {
+  } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
-      ": if specified, specify once total or once for each level");
+      ": if specified, specify once total or at least once for each level");
     return 0; // avoid compiler warning
   }
 }
@@ -48,10 +56,18 @@ query_one_or_per_level_enum_case_insensitive (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query_enum_case_insensitive(query_string, query_var);
   } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query_enum_case_insensitive(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
       ": if specified, specify once total or at least once for each level");
