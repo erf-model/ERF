@@ -580,10 +580,10 @@ MOSTAverage::set_z_positions_EB (const int& lev)
     Real zref_tmp = zref_default;
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",zref_tmp);
-    
+
     if (!read_z) {
         m_zref[lev]->setVal( zref_tmp );
-    // Default behavior is to use the first cell center    
+    // Default behavior is to use the first cell center
     } else {
         Real m_dz  = m_geom[0].CellSize(2);
         zref_tmp = myhalf * m_dz;

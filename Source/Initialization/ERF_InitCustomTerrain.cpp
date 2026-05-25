@@ -246,7 +246,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                
+
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
                 int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);

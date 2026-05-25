@@ -269,7 +269,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
     const bool l_use_eb = (m_terrain_type == TerrainType::EB);
     const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
-    
+
     const int klo = m_geom[lev].Domain().smallEnd(2);
     IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
@@ -312,7 +312,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // Get EB flags if needed
         const auto flag_arr = (l_use_eb) ? cc_flags[mfi].const_array() : Array4<const EBCellFlag>{};
 
-        if (!l_use_eb) { 
+        if (!l_use_eb) {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
             {
                 if (( is_land && lmask_arr(i,j,0) == 1) ||
@@ -729,7 +729,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         if (cc_flag.getType() != FabType::singlevalued &&
             u_flag.getType() != FabType::singlevalued &&
             v_flag.getType() != FabType::singlevalued &&
-            w_flag.getType() != FabType::singlevalued 
+            w_flag.getType() != FabType::singlevalued
         ) continue;
 
         // Get EB flag and volfrac arrays
