@@ -9,7 +9,7 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 3200.0  3200.0  1600.0
+geometry.prob_extent = 3200.0  3200.0  400.0
 amr.n_cell           =   32      32      16
     
 geometry.is_periodic = 1 1 0
@@ -22,7 +22,7 @@ erf.most.Cq  = 0.001 # qv    flux
 erf.most.surf_temp  = 289.0
 erf.most.surf_moist = 0.0 
 erf.most.z0     = 0.1
-erf.most.zref   = 50.0
+erf.most.zref   = 12.5
      
 zhi.type = "SlipWall"
 zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
