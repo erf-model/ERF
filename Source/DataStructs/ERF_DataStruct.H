@@ -1131,8 +1131,13 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
+#ifdef AMREX_USE_FLOAT
+    amrex::Real poisson_abstol      = amrex::Real(1e-6);
+    amrex::Real poisson_reltol      = amrex::Real(1e-6);
+#else
     amrex::Real poisson_abstol      = amrex::Real(1e-8);
     amrex::Real poisson_reltol      = amrex::Real(1e-8);
+#endif
 
     bool        test_mapfactor         = false;
 
