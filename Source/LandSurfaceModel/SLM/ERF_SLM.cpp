@@ -171,6 +171,10 @@ SLM::Init (const int& /*lev*/,
     q_gr.define(ba_lsm_2d, dm, 1, ng_2d);
     sdew.define(ba_lsm_2d, dm, 1, ng_2d);
 
+    // NOAHMP radiation state variables
+    albold_noahmp.define(ba_lsm_2d, dm, 1, ng_2d);
+    tauss_noahmp.define(ba_lsm_2d, dm, 1, ng_2d);
+
     vegetype.define(ba_lsm_2d, dm, 1, ng_2d);
     vege_YES.define(ba_lsm_2d, dm, 1, ng_2d);
     cp_vege.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -300,6 +304,10 @@ SLM::Init (const int& /*lev*/,
     mws_mx.setVal(mws_mx0);
 
     net_rad.setVal(0.0);
+
+    // Initialize NOAHMP radiation state variables
+    albold_noahmp.setVal(0.65);  // initial snow albedo
+    tauss_noahmp.setVal(0.0);    // initial snow age
 
     // Set a default vegetation fraction of 1.0.
     // Cells without vegetation (baresoil, urban) are set to 0.0 later on
@@ -461,6 +469,137 @@ void SLM::init_from_file()
         }
 
         Gpu::streamSynchronize();
+
+        // Read radiation parameters from NoahmpTable.TBL
+        // Read noahmp_rad_parameters block
+        if (full_params.count("noahmp_rad_parameters") > 0) {
+            auto &h_rad_params = full_params.at("noahmp_rad_parameters");
+            for (int i = 0; i < h_rad_params.size(); i++) {
+                std::string pname = h_rad_params[i].first;
+                const int varsize = h_rad_params[i].second.size();
+
+                if (pname == "albsat_vis") {
+                    albsat_vis.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, albsat_vis.data());
+                } else if (pname == "albsat_nir") {
+                    albsat_nir.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, albsat_nir.data());
+                } else if (pname == "albdry_vis") {
+                    albdry_vis.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, albdry_vis.data());
+                } else if (pname == "albdry_nir") {
+                    albdry_nir.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, albdry_nir.data());
+                } else if (pname == "alblak") {
+                    alblak_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, alblak_rad.data());
+                } else if (pname == "omegas") {
+                    omegas_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
+                                   h_rad_params[i].second.data()+varsize, omegas_rad.data());
+                } else if (pname == "betads" && varsize == 1) {
+                    betads_rad = h_rad_params[i].second[0];
+                } else if (pname == "betais" && varsize == 1) {
+                    betais_rad = h_rad_params[i].second[0];
+                }
+            }
+        }
+
+        // Read noahmp_global_parameters block for snow albedo parameters
+        if (full_params.count("noahmp_global_parameters") > 0) {
+            auto &h_global_params = full_params.at("noahmp_global_parameters");
+            for (int i = 0; i < h_global_params.size(); i++) {
+                std::string pname = h_global_params[i].first;
+                const int varsize = h_global_params[i].second.size();
+
+                if (varsize == 1) {
+                    if (pname == "tau0") tau0_rad = h_global_params[i].second[0];
+                    else if (pname == "grain_growth") grain_growth_rad = h_global_params[i].second[0];
+                    else if (pname == "extra_growth") extra_growth_rad = h_global_params[i].second[0];
+                    else if (pname == "dirt_soot") dirt_soot_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_cosz") bats_cosz_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_vis_new") bats_vis_new_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_nir_new") bats_nir_new_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_vis_age") bats_vis_age_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_nir_age") bats_nir_age_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_vis_dir") bats_vis_dir_rad = h_global_params[i].second[0];
+                    else if (pname == "bats_nir_dir") bats_nir_dir_rad = h_global_params[i].second[0];
+                    else if (pname == "swemx") swemx_rad = h_global_params[i].second[0];
+                    else if (pname == "snow_emis") snow_emis_rad = h_global_params[i].second[0];
+                } else if (varsize == 2) {
+                    if (pname == "eg") {
+                        eg_soil_rad = h_global_params[i].second[0];  // IST=1 (soil)
+                        eg_lake_rad = h_global_params[i].second[1];  // IST=2 (lake)
+                    }
+                }
+            }
+        }
+
+        // Read vegetation parameters for radiation from modis/usgs parameters
+        if (full_params.count(veg_param_key) > 0) {
+            auto &h_veg_rad_params = full_params.at(veg_param_key);
+            for (int i = 0; i < h_veg_rad_params.size(); i++) {
+                std::string pname = h_veg_rad_params[i].first;
+                const int varsize = h_veg_rad_params[i].second.size();
+
+                if (pname == "rhol_vis") {
+                    rhol_vis_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, rhol_vis_rad.data());
+                } else if (pname == "rhol_nir") {
+                    rhol_nir_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, rhol_nir_rad.data());
+                } else if (pname == "rhos_vis") {
+                    rhos_vis_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, rhos_vis_rad.data());
+                } else if (pname == "rhos_nir") {
+                    rhos_nir_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, rhos_nir_rad.data());
+                } else if (pname == "taul_vis") {
+                    taul_vis_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, taul_vis_rad.data());
+                } else if (pname == "taul_nir") {
+                    taul_nir_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, taul_nir_rad.data());
+                } else if (pname == "taus_vis") {
+                    taus_vis_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, taus_vis_rad.data());
+                } else if (pname == "taus_nir") {
+                    taus_nir_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, taus_nir_rad.data());
+                // NOTE: Skip "xl" - using existing Khai_L from init_landtype()
+                } else if (pname == "rc") {
+                    rc_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, rc_rad.data());
+                // NOTE: Skip "hvt" - using existing ztop from init_landtype()
+                } else if (pname == "hvb") {
+                    hvb_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, hvb_rad.data());
+                } else if (pname == "den") {
+                    den_rad.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, den_rad.data());
+                }
+            }
+        }
+
+        Gpu::streamSynchronize();
+
+        amrex::Print() << " SLM: NOAHMP radiation parameters loaded from " << parameter_file << std::endl;
     }
 
     if (interpolate_lai) {
@@ -2124,10 +2263,14 @@ SLM::AdvanceSLM ()
 
         // Update LAI and SAI based on current month
         UpdateLAI(mfi);
-        
+
         // Calculate net radiation absorbed by canopy and soil surface
-        radiative_fluxes(mfi);
-        
+        // Old SLM radiation (commented out to use NOAHMP radiation instead)
+        // radiative_fluxes(mfi);
+
+        // NOAHMP radiation calculation
+        radiation_noahmp(mfi);
+
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) != 1) {
@@ -3135,7 +3278,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
                 // Update vegetation temeprature
                 cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
                 t_canop_inc = dt_iter / std::max(1.0e-3, cp_vege_tot)*(net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0)) * vege_YES_arr(i, j, 0);
-                t_canop_arr(i, j, 0) = std::min(t_canop_max, t_canop_arr(i, j, 0) + t_canop_inc);
+                t_canop_arr(i, j, 0) = std::min(343.0, t_canop_arr(i, j, 0) + t_canop_inc);  // 343 K = t_canop_max
             }
             shf_canop_arr(i, j, 0) = shf0 / static_cast<amrex::Real>(niter);
             lhf_canop_arr(i, j, 0) = lhf0 / static_cast<amrex::Real>(niter);
@@ -4315,4 +4458,957 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     } else {
         Abort("Dont know this plot_filetype");
     }
+}
+
+//==============================================================================
+// NOAHMP RADIATION SUBROUTINES
+//==============================================================================
+
+// ----------------------------------------------------------------------
+// SUBROUTINE SNOW_AGE
+// ----------------------------------------------------------------------
+// from BATS
+// ----------------------------------------------------------------------
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void SLM::snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
+                          amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                          amrex::Real dirt_soot, amrex::Real swemx,
+                          amrex::Real& tauss, amrex::Real& fage)
+{
+    //input
+    //  DT        !main time step (s)
+    //  TG        !ground temperature (k)
+    //  SNEQVO    !snow mass at last time step(mm)
+    //  SNEQV     !snow water per unit ground area (mm)
+
+    //output
+    //  FAGE     !snow age
+
+    //input/output
+    //  TAUSS      !non-dimensional snow age
+
+    //local
+    amrex::Real tage;       //total aging effects
+    amrex::Real age1;       //effects of grain growth due to vapor diffusion
+    amrex::Real age2;       //effects of grain growth at freezing of melt water
+    amrex::Real age3;       //effects of soot
+    amrex::Real dela;       //temporary variable
+    amrex::Real sge;        //temporary variable
+    amrex::Real dels;       //temporary variable
+    amrex::Real dela0;      //temporary variable
+    amrex::Real arg;        //temporary variable
+    // See Yang et al. (1997) J.of Climate for detail.
+
+    constexpr amrex::Real TFRZ = 273.16; // freezing/melting point (k)
+
+    if(sneqv <= 0.0) {
+        tauss = 0.0;
+    } else {
+        dela0 = dt/tau0;
+        arg   = grain_growth*(1.0/TFRZ-1.0/tg);
+        age1  = std::exp(arg);
+        age2  = std::exp(std::min(0.0, extra_growth*arg));
+        age3  = dirt_soot;
+        tage  = age1+age2+age3;
+        dela  = dela0*tage;
+        dels  = std::max(0.0, sneqv-sneqvo) / swemx;
+        sge   = (tauss+dela)*(1.0-dels);
+        tauss = std::max(0.0,sge);
+    }
+
+    fage= tauss/(tauss+1.0);
+}
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE SNOWALB_BATS
+// --------------------------------------------------------------------------------------------------
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void SLM::snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
+                              amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                              amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                              amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                              amrex::Real* albsnd, amrex::Real* albsni)
+{
+    // --------------------------------------------------------------------------------------------------
+    // input
+    //  NBAND  !number of waveband classes
+    //  COSZ    !cosine solar zenith angle
+    //  FSNO    !snow cover fraction (-)
+    //  FAGE    !snow age correction
+
+    // output
+    //  ALBSND !snow albedo for direct(1=vis, 2=nir)
+    //  ALBSNI !snow albedo for diffuse
+    // ---------------------------------------------------------------------------------------------
+
+    // ------------------------ local variables ----------------------------------------------------
+    amrex::Real fzen;                 //zenith angle correction
+    amrex::Real cf1;                  //temperary variable
+    amrex::Real sl2;                  //2.*SL
+    amrex::Real sl1;                  //1/SL
+    amrex::Real sl;                   //adjustable parameter
+    //  REAL, PARAMETER :: C1 = 0.2  !default in BATS
+    //  REAL, PARAMETER :: C2 = 0.5  !default in BATS
+    //  REAL, PARAMETER :: C1 = 0.2 * 2. ! double the default to match Sleepers River's
+    //  REAL, PARAMETER :: C2 = 0.5 * 2. ! snow surface albedo (double aging effects)
+    // ---------------------------------------------------------------------------------------------
+    // zero albedos for all points
+
+    albsnd[0] = 0.0;
+    albsnd[1] = 0.0;
+    albsni[0] = 0.0;
+    albsni[1] = 0.0;
+
+    // when cosz > 0
+
+    sl=bats_cosz;
+    sl1=1.0/sl;
+    sl2=2.0*sl;
+    cf1=((1.0+sl1)/(1.0+sl2*cosz)-sl1);
+    fzen=std::max(cf1,0.0);
+
+    albsni[0]=bats_vis_new*(1.0-bats_vis_age*fage);
+    albsni[1]=bats_nir_new*(1.0-bats_nir_age*fage);
+
+    albsnd[0]=albsni[0]+bats_vis_dir*fzen*(1.0-albsni[0]);    //  vis direct
+    albsnd[1]=albsni[1]+bats_nir_dir*fzen*(1.0-albsni[1]);    //  nir direct
+}
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE GROUNDALB
+// --------------------------------------------------------------------------------------------------
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void SLM::groundalb_noahmp(int nsoil, int nband, int ice, int ist, amrex::Real fsno,
+                           const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                           amrex::Real cosz, amrex::Real tg,
+                           const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                           amrex::Real* albgrd, amrex::Real* albgri)
+{
+    // --------------------------------------------------------------------------------------------------
+    //input
+    //  ILOC   !grid index
+    //  JLOC   !grid index
+    //  NSOIL  !number of soil layers
+    //  NBAND  !number of solar radiation waveband classes
+    //  ICE    !value of ist for land ice
+    //  IST    !surface type
+    //  FSNO   !fraction of surface covered with snow (-)
+    //  TG     !ground temperature (k)
+    //  COSZ   !cosine solar zenith angle (0-1)
+    //  SMC    !volumetric soil water content (m3/m3)
+    //  ALBSND !direct beam snow albedo (vis, nir)
+    //  ALBSNI !diffuse snow albedo (vis, nir)
+
+    //output
+    //  ALBGRD !ground albedo (direct beam: vis, nir)
+    //  ALBGRI !ground albedo (diffuse: vis, nir)
+
+    //local
+    amrex::Real inc;    //soil water correction factor for soil albedo
+    amrex::Real albsod; //soil albedo (direct)
+    amrex::Real albsoi; //soil albedo (diffuse)
+    // --------------------------------------------------------------------------------------------------
+    constexpr amrex::Real TFRZ = 273.16; // freezing/melting point (k)
+
+    for (int ib = 0; ib < nband; ib++) {
+        inc = std::max(0.11-0.40*smc[0], 0.0);
+        if (ist == 1) {                     //soil
+            albsod = std::min(albsat[ib]+inc, albdry[ib]);
+            albsoi = albsod;
+        } else if (tg > TFRZ) {               //unfrozen lake, wetland
+            albsod = 0.06/(std::max(0.01,cosz)*std::max(0.01,cosz)*std::max(0.01,cosz)*
+                           std::max(0.01,cosz)*std::max(0.01,cosz)*std::max(0.01,cosz)*
+                           std::max(0.01,cosz) + 0.15);
+            albsoi = 0.06;
+        } else {                                      //frozen lake, wetland
+            albsod = alblak[ib];
+            albsoi = albsod;
+        }
+
+        albgrd[ib] = albsod*(1.0-fsno) + albsnd[ib]*fsno;
+        albgri[ib] = albsoi*(1.0-fsno) + albsni[ib]*fsno;
+    }
+}
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE TWOSTREAM
+// --------------------------------------------------------------------------------------------------
+// use two-stream approximation of Dickinson (1983) Adv Geophysics
+// 25:305-353 and Sellers (1985) Int J Remote Sensing 6:1335-1372
+// to calculate fluxes absorbed by vegetation, reflected by vegetation,
+// and transmitted through vegetation for unit incoming direct or diffuse
+// flux given an underlying surface with known albedo.
+// --------------------------------------------------------------------------------------------------
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void SLM::twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
+                           amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                           const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
+                           amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                           int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
+                           amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                           amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                           amrex::Real& bgap, amrex::Real& wgap)
+{
+    // --------------------------------------------------------------------------------------------------
+    // input
+    //   IST     !surface type
+    //   IB      !waveband number
+    //   IC      !0=unit incoming direct; 1=unit incoming diffuse
+    //   VEGTYP  !vegetation type
+    //   COSZ    !cosine of direct zenith angle (0-1)
+    //   VAI     !one-sided leaf+stem area index (m2/m2)
+    //   FWET    !fraction of lai, sai that is wetted (-)
+    //   T       !surface temperature (k)
+    //   ALBGRD  !direct  albedo of underlying surface (-)
+    //   ALBGRI  !diffuse albedo of underlying surface (-)
+    //   RHO     !leaf+stem reflectance
+    //   TAU     !leaf+stem transmittance
+    //   FVEG    !green vegetation fraction [0.0-1.0]
+
+    // output
+    //   FAB     !flux abs by veg layer (per unit incoming flux)
+    //   FRE     !flux refl above veg layer (per unit incoming flux)
+    //   FTD     !down dir flux below veg layer (per unit in flux)
+    //   FTI     !down dif flux below veg layer (per unit in flux)
+    //   GDIR    !projected leaf+stem area in solar direction
+    //   FREV    !flux reflected by veg layer   (per unit incoming flux)
+    //   FREG    !flux reflected by ground (per unit incoming flux)
+    //   BGAP    !between canopy gap fraction for beam (-)
+    //   WGAP    !within canopy gap fraction for beam (-)
+
+    // local
+    amrex::Real omega;   //fraction of intercepted radiation that is scattered
+    amrex::Real omegal;  //omega for leaves
+    amrex::Real betai;   //upscatter parameter for diffuse radiation
+    amrex::Real betail;  //betai for leaves
+    amrex::Real betad;   //upscatter parameter for direct beam radiation
+    amrex::Real betadl;  //betad for leaves
+    amrex::Real ext;     //optical depth of direct beam per unit leaf area
+    amrex::Real avmu;    //average diffuse optical depth
+    amrex::Real coszi;   //0.001 <= cosz <= 1.000
+    amrex::Real asu;     //single scattering albedo
+    amrex::Real chil;    // -0.4 <= xl <= 0.6
+
+    amrex::Real tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9;
+    amrex::Real p1,p2,p3,p4,s1,s2,u1,u2,u3;
+    amrex::Real b,c,d,d1,d2,f,h,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10;
+    amrex::Real phi1,phi2,sigma;
+    amrex::Real ftds,ftis,fres;
+    amrex::Real denfveg;
+    amrex::Real vai_spread;
+    //jref:start
+    amrex::Real freveg,frebar,ftdveg,ftiveg,ftdbar,ftibar;
+    amrex::Real thetaz;
+    //jref:end
+
+    //  variables for the modified two-stream scheme
+    //  Niu and Yang (2004), JGR
+    constexpr amrex::Real PAI = 3.14159265;
+    constexpr amrex::Real TFRZ = 273.16; // freezing/melting point (k)
+    amrex::Real hd;       //crown depth (m)
+    amrex::Real bb;       //vertical crown radius (m)
+    amrex::Real thetap;   //angle conversion from SZA
+    amrex::Real fa;       //foliage volume density (m-1)
+    amrex::Real newvai;   //effective LSAI (-)
+    amrex::Real kopen;    //gap fraction for diffue light (-)
+    amrex::Real gap;      //total gap fraction for beam ( <=1-shafac )
+
+    // -----------------------------------------------------------------
+    // compute within and between gaps
+    vai_spread = vai;
+    if(vai == 0.0) {
+        gap     = 1.0;
+        kopen   = 1.0;
+    } else {
+        if(opt_rad == 1) {
+            denfveg = -std::log(std::max(1.0-fveg,0.01))/(PAI*rc*rc);
+            hd      = hvt - hvb;
+            bb      = 0.5 * hd;
+            thetap  = std::atan(bb/rc * std::tan(std::acos(std::max(0.01,cosz))) );
+            // BGAP    = EXP(-parameters%DEN * PAI * parameters%RC**2/COS(THETAP) )
+            bgap    = std::exp(-denfveg * PAI * rc*rc/std::cos(thetap) );
+            fa      = vai/(1.33 * PAI * rc*rc*rc *(bb/rc)*denfveg);
+            newvai  = hd*fa;
+            wgap    = (1.0-bgap) * std::exp(-0.5*newvai/cosz);
+            gap     = std::min(1.0-fveg, bgap+wgap);
+
+            kopen   = 0.05;
+        }
+
+        if(opt_rad == 2) {
+            gap     = 0.0;
+            kopen   = 0.0;
+        }
+
+        if(opt_rad == 3) {
+            gap     = 1.0-fveg;
+            kopen   = 1.0-fveg;
+        }
+    }
+
+    // calculate two-stream parameters OMEGA, BETAD, BETAI, AVMU, GDIR, EXT.
+    // OMEGA, BETAD, BETAI are adjusted for snow. values for OMEGA*BETAD
+    // and OMEGA*BETAI are calculated and then divided by the new OMEGA
+    // because the product OMEGA*BETAI, OMEGA*BETAD is used in solution.
+    // also, the transmittances and reflectances (TAU, RHO) are linear
+    // weights of leaf and stem values.
+
+    coszi  = std::max(0.001, cosz);
+    chil   = std::min( std::max(xl, -0.4), 0.6);
+    if (std::abs(chil) <= 0.01) chil = 0.01;
+    phi1   = 0.5 - 0.633*chil - 0.330*chil*chil;
+    phi2   = 0.877 * (1.0-2.0*phi1);
+    gdir   = phi1 + phi2*coszi;
+    ext    = gdir/coszi;
+    avmu   = ( 1.0 - phi1/phi2 * std::log((phi1+phi2)/phi1) ) / phi2;
+    omegal = rho[ib] + tau[ib];
+    tmp0   = gdir + phi2*coszi;
+    tmp1   = phi1*coszi;
+    asu    = 0.5*omegal*gdir/tmp0 * ( 1.0-tmp1/tmp0*std::log((tmp1+tmp0)/tmp1) );
+    betadl = (1.0+avmu*ext)/(omegal*avmu*ext)*asu;
+    betail = 0.5 * ( rho[ib]+tau[ib] + (rho[ib]-tau[ib])
+                    * ((1.0+chil)/2.0)*((1.0+chil)/2.0) ) / omegal;
+
+    // adjust omega, betad, and betai for intercepted snow
+
+    if (t > TFRZ) {                                //no snow
+        tmp0 = omegal;
+        tmp1 = betadl;
+        tmp2 = betail;
+    } else {
+        tmp0 =   (1.0-fwet)*omegal        + fwet*omegas_param;
+        tmp1 = ( (1.0-fwet)*omegal*betadl + fwet*omegas_param*betads ) / tmp0;
+        tmp2 = ( (1.0-fwet)*omegal*betail + fwet*omegas_param*betais ) / tmp0;
+    }
+
+    omega = tmp0;
+    betad = tmp1;
+    betai = tmp2;
+
+    // absorbed, reflected, transmitted fluxes per unit incoming radiation
+
+    b = 1.0 - omega + omega*betai;
+    c = omega*betai;
+    tmp0 = avmu*ext;
+    d = tmp0 * omega*betad;
+    f = tmp0 * omega*(1.0-betad);
+    tmp1 = b*b - c*c;
+    h = std::sqrt(tmp1) / avmu;
+    sigma = tmp0*tmp0 - tmp1;
+    if ( std::abs(sigma) < 1.0e-6 ) sigma = (sigma >= 0) ? 1.0e-6 : -1.0e-6;
+    p1 = b + avmu*h;
+    p2 = b - avmu*h;
+    p3 = b + tmp0;
+    p4 = b - tmp0;
+    s1 = std::exp(-h*vai);
+    s2 = std::exp(-ext*vai);
+    if (ic == 0) {
+        u1 = b - c/albgrd[ib];
+        u2 = b - c*albgrd[ib];
+        u3 = f + c*albgrd[ib];
+    } else {
+        u1 = b - c/albgri[ib];
+        u2 = b - c*albgri[ib];
+        u3 = f + c*albgri[ib];
+    }
+    tmp2 = u1 - avmu*h;
+    tmp3 = u1 + avmu*h;
+    d1 = p1*tmp2/s1 - p2*tmp3*s1;
+    tmp4 = u2 + avmu*h;
+    tmp5 = u2 - avmu*h;
+    d2 = tmp4/s1 - tmp5*s1;
+    h1 = -d*p4 - c*f;
+    tmp6 = d - h1*p3/sigma;
+    tmp7 = ( d - c - h1/sigma*(u1+tmp0) ) * s2;
+    h2 = ( tmp6*tmp2/s1 - p2*tmp7 ) / d1;
+    h3 = - ( tmp6*tmp3*s1 - p1*tmp7 ) / d1;
+    h4 = -f*p3 - c*d;
+    tmp8 = h4/sigma;
+    tmp9 = ( u3 - tmp8*(u2-tmp0) ) * s2;
+    h5 = - ( tmp8*tmp4/s1 + tmp9 ) / d2;
+    h6 = ( tmp8*tmp5*s1 + tmp9 ) / d2;
+    h7 = (c*tmp2) / (d1*s1);
+    h8 = (-c*tmp3*s1) / d1;
+    h9 = tmp4 / (d2*s1);
+    h10 = (-tmp5*s1) / d2;
+
+    // downward direct and diffuse fluxes below vegetation
+    // Niu and Yang (2004), JGR.
+
+    if (ic == 0) {
+        ftds = s2                           *(1.0-gap) + gap;
+        ftis = (h4*s2/sigma + h5*s1 + h6/s1)*(1.0-gap);
+    } else {
+        ftds = 0.0;
+        ftis = (h9*s1 + h10/s1)*(1.0-kopen) + kopen;
+    }
+    ftd[ib] = ftds;
+    fti[ib] = ftis;
+
+    // flux reflected by the surface (veg. and ground)
+
+    if (ic == 0) {
+        fres   = (h1/sigma + h2 + h3)*(1.0-gap  ) + albgrd[ib]*gap;
+        freveg = (h1/sigma + h2 + h3)*(1.0-gap  );
+        frebar = albgrd[ib]*gap;                   //jref - separate veg. and ground reflection
+    } else {
+        fres   = (h7 + h8) *(1.0-kopen) + albgri[ib]*kopen;
+        freveg = (h7 + h8) *(1.0-kopen) + albgri[ib]*kopen;
+        frebar = 0.0;                                //jref - separate veg. and ground reflection
+    }
+    fre[ib] = fres;
+
+    frev[ib] = freveg;
+    freg[ib] = frebar;
+
+    // flux absorbed by vegetation
+
+    fab[ib] = 1.0 - fre[ib] - (1.0-albgrd[ib])*ftd[ib]
+                            - (1.0-albgri[ib])*fti[ib];
+}
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE SURRAD
+// --------------------------------------------------------------------------------------------------
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void SLM::surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
+                        amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                        const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                        const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                        const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                        const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                        amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                        amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg)
+{
+    // --------------------------------------------------------------------------------------------------
+    // input
+    //  MPE     !prevents underflow errors if division by zero
+    //  FSUN    !sunlit fraction of canopy
+    //  FSHA    !shaded fraction of canopy
+    //  ELAI    !leaf area, one-sided
+    //  VAI     !leaf + stem area, one-sided
+    //  LAISUN  !sunlit leaf area index, one-sided
+    //  LAISHA  !shaded leaf area index, one-sided
+    //  SOLAD   !incoming direct solar radiation (w/m2)
+    //  SOLAI   !incoming diffuse solar radiation (w/m2)
+    //  FABD    !flux abs by veg (per unit incoming direct flux)
+    //  FABI    !flux abs by veg (per unit incoming diffuse flux)
+    //  FTDD    !down dir flux below veg (per incoming dir flux)
+    //  FTID    !down dif flux below veg (per incoming dir flux)
+    //  FTII    !down dif flux below veg (per incoming dif flux)
+    //  ALBGRD  !ground albedo (direct)
+    //  ALBGRI  !ground albedo (diffuse)
+    //  ALBD    !overall surface albedo (direct)
+    //  ALBI    !overall surface albedo (diffuse)
+    //  FREVD    !overall surface albedo veg (direct)
+    //  FREVI    !overall surface albedo veg (diffuse)
+    //  FREGD    !overall surface albedo grd (direct)
+    //  FREGI    !overall surface albedo grd (diffuse)
+
+    // output
+    //  PARSUN  !average absorbed par for sunlit leaves (w/m2)
+    //  PARSHA  !average absorbed par for shaded leaves (w/m2)
+    //  SAV     !solar radiation absorbed by vegetation (w/m2)
+    //  SAG     !solar radiation absorbed by ground (w/m2)
+    //  FSA     !total absorbed solar radiation (w/m2)
+    //  FSR     !total reflected solar radiation (w/m2)
+    //  FSRV    !reflected solar radiation by vegetation
+    //  FSRG    !reflected solar radiation by ground
+
+    // ------------------------ local variables ----------------------------------------------------
+    constexpr int NBAND = 2;   //number of solar radiation waveband classes
+
+    amrex::Real abs;     //absorbed solar radiation (w/m2)
+    amrex::Real rnir;    //reflected solar radiation [nir] (w/m2)
+    amrex::Real rvis;    //reflected solar radiation [vis] (w/m2)
+    amrex::Real laifra;  //leaf area fraction of canopy
+    amrex::Real trd;     //transmitted solar radiation: direct (w/m2)
+    amrex::Real tri;     //transmitted solar radiation: diffuse (w/m2)
+    amrex::Real cad[2];     //direct beam absorbed by canopy (w/m2)
+    amrex::Real cai[2];     //diffuse radiation absorbed by canopy (w/m2)
+    // ---------------------------------------------------------------------------------------------
+
+    // zero summed solar fluxes
+
+    sag = 0.0;
+    sav = 0.0;
+    fsa = 0.0;
+
+    // loop over nband wavebands
+
+    for (int ib = 0; ib < NBAND; ib++) {
+
+        // absorbed by canopy
+
+        cad[ib] = solad[ib]*fabd[ib];
+        cai[ib] = solai[ib]*fabi[ib];
+        sav     = sav + cad[ib] + cai[ib];
+        fsa     = fsa + cad[ib] + cai[ib];
+
+        // transmitted solar fluxes incident on ground
+
+        trd = solad[ib]*ftdd[ib];
+        tri = solad[ib]*ftid[ib] + solai[ib]*ftii[ib];
+
+        // solar radiation absorbed by ground surface
+
+        abs = trd*(1.0-albgrd[ib]) + tri*(1.0-albgri[ib]);
+        sag = sag + abs;
+        fsa = fsa + abs;
+    }
+
+    // partition visible canopy absorption to sunlit and shaded fractions
+    // to get average absorbed par for sunlit and shaded leaves
+
+    laifra = elai / std::max(vai,mpe);
+    if (fsun > 0.0) {
+        parsun = (cad[0]+fsun*cai[0]) * laifra / std::max(laisun,mpe);
+        parsha = (fsha*cai[0])*laifra / std::max(laisha,mpe);
+    } else {
+        parsun = 0.0;
+        parsha = (cad[0]+cai[0])*laifra / std::max(laisha,mpe);
+    }
+
+    // reflected solar radiation
+
+    rvis = albd[0]*solad[0] + albi[0]*solai[0];
+    rnir = albd[1]*solad[1] + albi[1]*solai[1];
+    fsr  = rvis + rnir;
+
+    // reflected solar radiation of veg. and ground (combined ground)
+    fsrv = frevd[0]*solad[0]+frevi[0]*solai[0]+frevd[1]*solad[1]+frevi[1]*solai[1];
+    fsrg = fregd[0]*solad[0]+fregi[0]*solai[0]+fregd[1]*solad[1]+fregi[1]*solai[1];
+}
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE ALBEDO
+// --------------------------------------------------------------------------------------------------
+// surface albedos. also fluxes (per unit incoming direct and diffuse
+// radiation) reflected, transmitted, and absorbed by vegetation.
+// also sunlit fraction of the canopy.
+// --------------------------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------------------------
+// SUBROUTINE RADIATION_NOAHMP - Main NOAHMP radiation routine
+// --------------------------------------------------------------------------------------------------
+void SLM::radiation_noahmp(const amrex::MFIter &mfi)
+{
+    const int d_khi_lsm = khi_lsm;
+    const int d_klo_lsm = klo_lsm;
+    const int d_nz_lsm = m_nz_lsm;
+    const int d_opt_rad = opt_rad;
+    const int d_opt_alb = opt_alb;
+
+    auto box = mfi.tilebox();
+
+    auto landmask_arr = landmask.const_array(mfi);
+    auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+
+    // Input arrays
+    auto swdsvisxyref_arr  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->const_array(mfi);
+    auto swdsnirxyref_arr  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->const_array(mfi);
+    auto swdsvisdxyref_arr = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->const_array(mfi);
+    auto swdsnirdxyref_arr = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->const_array(mfi);
+    auto coszrsxy_arr      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->const_array(mfi);
+    auto precipref_arr     = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
+
+    auto LAI_arr   = LAI.const_array(mfi);
+    auto SAI_arr   = SAI.const_array(mfi);
+    auto t_canop_arr = t_canop.const_array(mfi);
+    auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
+    auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
+    auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
+
+    // Existing SLM vegetation structure parameters (used instead of reading from NoahmpTable.TBL)
+    // NOTE: Khai_L is equivalent to NOAHMP's XL (leaf/stem orientation index)
+    // NOTE: ztop is equivalent to NOAHMP's HVT (top of canopy height in meters)
+    auto Khai_L_arr = Khai_L.const_array(mfi);  // leaf/stem orientation (NOAHMP name: XL)
+    auto ztop_arr = ztop.const_array(mfi);      // canopy height (NOAHMP name: HVT)
+
+    // State variables for NOAHMP radiation
+    auto albold_arr = albold_noahmp.array(mfi);
+    auto tauss_arr  = tauss_noahmp.array(mfi);
+
+    // Net radiation arrays for output
+    auto net_rad_arr = net_rad.array(mfi);
+
+    // Incoming longwave radiation
+    auto lwref_arr = lsm_fab_vars[LsmVar_SLM::lwref]->const_array(mfi);
+
+    // Outputs
+    auto emis_sfc_arr     = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
+    auto alb_nir_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
+    auto alb_vis_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
+    auto alb_nir_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
+    auto alb_vis_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
+
+    amrex::Real dt_loc = m_dt;
+
+    // Get radiation parameters on device
+    const amrex::Real* d_rhol_vis = rhol_vis_rad.data();
+    const amrex::Real* d_rhol_nir = rhol_nir_rad.data();
+    const amrex::Real* d_rhos_vis = rhos_vis_rad.data();
+    const amrex::Real* d_rhos_nir = rhos_nir_rad.data();
+    const amrex::Real* d_taul_vis = taul_vis_rad.data();
+    const amrex::Real* d_taul_nir = taul_nir_rad.data();
+    const amrex::Real* d_taus_vis = taus_vis_rad.data();
+    const amrex::Real* d_taus_nir = taus_nir_rad.data();
+    // NOTE: d_xl uses existing Khai_L_arr, d_hvt uses existing ztop_arr
+    const amrex::Real* d_rc = rc_rad.data();
+    const amrex::Real* d_hvb = hvb_rad.data();
+    const amrex::Real* d_den = den_rad.data();
+
+    const amrex::Real* d_albsat_vis = albsat_vis.data();
+    const amrex::Real* d_albsat_nir = albsat_nir.data();
+    const amrex::Real* d_albdry_vis = albdry_vis.data();
+    const amrex::Real* d_albdry_nir = albdry_nir.data();
+    const amrex::Real* d_alblak = alblak_rad.data();
+    const amrex::Real* d_omegas = omegas_rad.data();
+
+    const amrex::Real d_betads = betads_rad;
+    const amrex::Real d_betais = betais_rad;
+    const amrex::Real d_tau0 = tau0_rad;
+    const amrex::Real d_grain_growth = grain_growth_rad;
+    const amrex::Real d_extra_growth = extra_growth_rad;
+    const amrex::Real d_dirt_soot = dirt_soot_rad;
+    const amrex::Real d_swemx = swemx_rad;
+    const amrex::Real d_bats_cosz = bats_cosz_rad;
+    const amrex::Real d_bats_vis_new = bats_vis_new_rad;
+    const amrex::Real d_bats_nir_new = bats_nir_new_rad;
+    const amrex::Real d_bats_vis_age = bats_vis_age_rad;
+    const amrex::Real d_bats_nir_age = bats_nir_age_rad;
+    const amrex::Real d_bats_vis_dir = bats_vis_dir_rad;
+    const amrex::Real d_bats_nir_dir = bats_nir_dir_rad;
+
+    // Emissivity parameters for longwave radiation
+    const amrex::Real d_snow_emis = snow_emis_rad;
+    const amrex::Real d_eg_soil = eg_soil_rad;
+    const amrex::Real d_eg_lake = eg_lake_rad;
+
+    // Stefan-Boltzmann constant
+    constexpr amrex::Real SB = 5.67e-08;  // W/m²/K⁴
+
+    ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+        if (landmask_arr(i, j, 0) != 1) {
+            return;
+        }
+
+        // --------------------------------------------------------------------------------------------------
+        // Local variables for radiation calculation (all arrays from NOAHMP RADIATION subroutine)
+        // --------------------------------------------------------------------------------------------------
+        constexpr amrex::Real MPE = 1.0E-6;
+        constexpr int NBAND = 2;
+        constexpr amrex::Real TFRZ = 273.16;
+
+        amrex::Real fage;   //snow age function (0 - new snow)
+        amrex::Real albgrd[2]; //ground albedo (direct)
+        amrex::Real albgri[2]; //ground albedo (diffuse)
+        amrex::Real albd[2];   //surface albedo (direct)
+        amrex::Real albi[2];   //surface albedo (diffuse)
+        amrex::Real fabd[2];   //flux abs by veg (per unit direct flux)
+        amrex::Real fabi[2];   //flux abs by veg (per unit diffuse flux)
+        amrex::Real ftdd[2];   //down direct flux below veg (per unit dir flux)
+        amrex::Real ftid[2];   //down diffuse flux below veg (per unit dir flux)
+        amrex::Real ftii[2];   //down diffuse flux below veg (per unit dif flux)
+        amrex::Real frevd[2], frevi[2], fregd[2], fregi[2];
+        amrex::Real albsnd[2];   //snow albedo (direct)
+        amrex::Real albsni[2];   //snow albedo (diffuse)
+        amrex::Real ftdi[2];     //down direct flux below veg per unit dif flux = 0
+
+        amrex::Real fsha;   //shaded fraction of canopy
+        amrex::Real vai;    //total LAI + stem area index, one sided
+        amrex::Real fsun;   //sunlit fraction of canopy (-)
+        amrex::Real laisun; //sunlit leaf area (-)
+        amrex::Real laisha; //shaded leaf area (-)
+        amrex::Real parsun; //average absorbed par for sunlit leaves (w/m2)
+        amrex::Real parsha; //average absorbed par for shaded leaves (w/m2)
+        amrex::Real sav;    //solar radiation absorbed by vegetation (w/m2)
+        amrex::Real sag;    //solar radiation absorbed by ground (w/m2)
+        amrex::Real fsa;    //total absorbed solar radiation (w/m2)
+        amrex::Real fsr;    //total reflected solar radiation (w/m2)
+        amrex::Real fsrv;   //veg. reflected solar radiation (w/m2)
+        amrex::Real fsrg;   //ground reflected solar radiation (w/m2)
+        amrex::Real bgap, wgap;
+        amrex::Real gdir;   //average projected leaf/stem area in solar direction
+        amrex::Real ext;    //optical depth direct beam per unit leaf + stem area
+
+        amrex::Real rho[2];      //leaf/stem reflectance weighted by fraction LAI and SAI
+        amrex::Real tau[2];      //leaf/stem transmittance weighted by fraction LAI and SAI
+        amrex::Real wl, ws;      //fraction of LAI+SAI that is LAI/SAI
+
+        // Get input values
+        amrex::Real cosz = coszrsxy_arr(i, j, 0);
+        amrex::Real elai = LAI_arr(i, j, 0);
+        amrex::Real esai = SAI_arr(i, j, 0);
+        amrex::Real tv = t_canop_arr(i, j, 0);
+        amrex::Real tg = soilt_arr(i, j, d_khi_lsm);
+        amrex::Real fveg = veg_frac_arr(i, j, d_khi_lsm);
+        int vegtyp = static_cast<int>(vegtype_arr(i, j, d_khi_lsm));
+        int veg_idx = vegtyp - 1;  // convert to 0-based index
+        if (veg_idx < 0) veg_idx = 0;
+
+        // Incoming solar radiation
+        amrex::Real solad[2], solai[2];
+        solad[0] = swdsvisxyref_arr(i, j, 0);   // direct visible
+        solad[1] = swdsnirxyref_arr(i, j, 0);   // direct NIR
+        solai[0] = swdsvisdxyref_arr(i, j, 0);  // diffuse visible
+        solai[1] = swdsnirdxyref_arr(i, j, 0);  // diffuse NIR
+
+        // Snow variables (set to zero for now - can be added later)
+        amrex::Real fsno = 0.0;     // snow cover fraction
+        amrex::Real snowh = 0.0;    // snow height (mm)
+        amrex::Real sneqvo = 0.0;   // snow mass at last time step (mm)
+        amrex::Real sneqv = 0.0;    // snow mass (mm)
+        amrex::Real qsnow = 0.0;    // snowfall (mm/s)
+
+        // Wetness fraction (simplified - using precipitation as indicator)
+        amrex::Real fwet = (precipref_arr(i, j, 0) > 0.0) ? 0.1 : 0.0;
+
+        // Soil moisture for top layer
+        amrex::Real smc[1];
+        smc[0] = soilw_arr(i, j, d_khi_lsm);
+
+        int nsoil = 1;  // using top layer only for albedo calc
+        int ice = 0;    // not ice
+        int ist = 1;    // soil surface type
+
+        // Initialize outputs
+        bgap = 0.0;
+        wgap = 0.0;
+        for (int ib = 0; ib < NBAND; ib++) {
+            albgrd[ib] = 0.0;
+            albgri[ib] = 0.0;
+            albd[ib] = 0.0;
+            albi[ib] = 0.0;
+            fabd[ib] = 0.0;
+            fabi[ib] = 0.0;
+            ftdd[ib] = 0.0;
+            ftid[ib] = 0.0;
+            ftii[ib] = 0.0;
+            albsnd[ib] = 0.0;
+            albsni[ib] = 0.0;
+            frevd[ib] = 0.0;
+            frevi[ib] = 0.0;
+            fregd[ib] = 0.0;
+            fregi[ib] = 0.0;
+            ftdi[ib] = 0.0;
+        }
+        fsun = 0.0;
+
+        // --------------------------------------------------------------------------------------------------
+        // ALBEDO CALCULATION (inline to make it device-callable)
+        // --------------------------------------------------------------------------------------------------
+
+        // snow age (allow nighttime aging)
+        snow_age_noahmp(dt_loc, tg, sneqvo, sneqv, d_tau0, d_grain_growth, d_extra_growth,
+                        d_dirt_soot, d_swemx, tauss_arr(i,j,0), fage);
+
+        if (cosz > 0.0) {
+
+            // weight reflectance/transmittance by LAI and SAI
+            vai = elai + esai;
+            wl  = elai / std::max(vai,MPE);
+            ws  = esai / std::max(vai,MPE);
+
+            // Get parameters for this vegetation type
+            for (int ib = 0; ib < NBAND; ib++) {
+                amrex::Real rhol_val = (ib == 0) ? d_rhol_vis[veg_idx] : d_rhol_nir[veg_idx];
+                amrex::Real rhos_val = (ib == 0) ? d_rhos_vis[veg_idx] : d_rhos_nir[veg_idx];
+                amrex::Real taul_val = (ib == 0) ? d_taul_vis[veg_idx] : d_taul_nir[veg_idx];
+                amrex::Real taus_val = (ib == 0) ? d_taus_vis[veg_idx] : d_taus_nir[veg_idx];
+                rho[ib] = std::max(rhol_val*wl + rhos_val*ws, MPE);
+                tau[ib] = std::max(taul_val*wl + taus_val*ws, MPE);
+            }
+
+            // snow albedos: only if COSZ > 0 and FSNO > 0
+            if(d_opt_alb == 1) {
+                snowalb_bats_noahmp(NBAND, fsno, cosz, fage,
+                                   d_bats_cosz, d_bats_vis_new, d_bats_nir_new,
+                                   d_bats_vis_age, d_bats_nir_age,
+                                   d_bats_vis_dir, d_bats_nir_dir,
+                                   albsnd, albsni);
+            }
+
+            // ground surface albedo
+            // Get soil albedo parameters (using soil color index = 4 as default for now)
+            int soil_color_idx = 3;  // index into albedo arrays (0-based for index 4 soil color)
+            amrex::Real albsat[2], albdry[2], alblak[2];
+            albsat[0] = d_albsat_vis[soil_color_idx];
+            albsat[1] = d_albsat_nir[soil_color_idx];
+            albdry[0] = d_albdry_vis[soil_color_idx];
+            albdry[1] = d_albdry_nir[soil_color_idx];
+            alblak[0] = d_alblak[0];
+            alblak[1] = d_alblak[1];
+
+            groundalb_noahmp(nsoil, NBAND, ice, ist, fsno, smc, albsnd, albsni, cosz, tg,
+                            albsat, albdry, alblak, albgrd, albgri);
+
+            // loop over NBAND wavebands to calculate surface albedos and solar
+            // fluxes for unit incoming direct (IC=0) and diffuse flux (IC=1)
+
+            for (int ib = 0; ib < NBAND; ib++) {
+                // direct (IC=0)
+                twostream_noahmp(ib, 0, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
+                                rho, tau, fveg, ist,
+                                Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
+                                d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
+                                fabd, albd, ftdd, ftid, gdir, frevd, fregd, bgap, wgap);
+
+                // diffuse (IC=1)
+                twostream_noahmp(ib, 1, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
+                                rho, tau, fveg, ist,
+                                Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
+                                d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
+                                fabi, albi, ftdi, ftii, gdir, frevi, fregi, bgap, wgap);
+            }
+
+            // sunlit fraction of canopy. set FSUN = 0 if FSUN < 0.01.
+            ext = gdir/cosz * std::sqrt(1.0-rho[0]-tau[0]);
+            fsun = (1.0-std::exp(-ext*vai)) / std::max(ext*vai,MPE);
+            ext = fsun;
+
+            if (ext < 0.01) {
+                wl = 0.0;
+            } else {
+                wl = ext;
+            }
+            fsun = wl;
+
+        } // cosz>0
+
+        // --------------------------------------------------------------------------------------------------
+        // SURRAD CALCULATION
+        // --------------------------------------------------------------------------------------------------
+
+        fsha = 1.0-fsun;
+        laisun = elai*fsun;
+        laisha = elai*fsha;
+        vai = elai+ esai;
+
+        surrad_noahmp(MPE, fsun, fsha, elai, vai, laisun, laisha, solad, solai,
+                     fabd, fabi, ftdd, ftid, ftii, albgrd, albgri, albd, albi,
+                     frevd, frevi, fregd, fregi,
+                     parsun, parsha, sav, sag, fsa, fsr, fsrv, fsrg);
+
+        // --------------------------------------------------------------------------------------------------
+        // LONGWAVE RADIATION CALCULATION (NOAHMP formulation)
+        // --------------------------------------------------------------------------------------------------
+        // NOAHMP longwave scheme includes multiple reflections between canopy and ground
+        // References: NOAHMP module_sf_noahmplsm.F lines 2137-2144 (emissivity)
+        //                                               lines 3874-3875, 4041 (canopy LW)
+        //                                               lines 4086-4087, 4104 (ground LW)
+        // --------------------------------------------------------------------------------------------------
+
+        // Get incoming longwave radiation from atmosphere (W/m²)
+        // lwdn is positive downward (standard atmospheric convention)
+        amrex::Real lwdn = lwref_arr(i, j, 0);
+
+        // Calculate emissivities
+        // Vegetation emissivity (NOAHMP line 2139)
+        // EMV depends on total vegetation area index (LAI + SAI)
+        // EMV = 1 for dense canopy, EMV → 0 for sparse/no vegetation
+        amrex::Real emv = 1.0 - std::exp(-(elai + esai));
+
+        // Ground emissivity (NOAHMP lines 2140-2144)
+        // EMG is weighted by snow cover fraction (fsno)
+        // Note: ice = 1 if IST = 2 (lake/ice), for now assume ice = 0 (soil)
+        // Note: fsno and ist are already declared earlier (lines 5159, 5174)
+        amrex::Real emg;
+        if (ist == 1) {
+            emg = d_eg_soil * (1.0 - fsno) + d_snow_emis * fsno;
+        } else {
+            emg = d_eg_lake * (1.0 - fsno) + d_snow_emis * fsno;
+        }
+
+        // --------------------------------------------------------------------------------------------------
+        // Canopy net longwave radiation (IRC) - NOAHMP lines 3874-3875, 4041
+        // --------------------------------------------------------------------------------------------------
+        // NOAHMP SIGN CONVENTION: IRC is NET UPWARD longwave flux (positive = energy loss)
+        //   IRC = emitted_upward - absorbed_from_atmosphere - absorbed_from_ground
+        // NOAHMP energy balance: SAV - IRC - SHC - EVC = 0
+        //
+        // Physical interpretation of AIR_C term:
+        //   -EMV*LWDN: canopy absorbs atmospheric LW (gain, hence negative)
+        //   -EMV*(1-EMV)*(1-EMG)*LWDN: multiple reflection of atmospheric LW
+        //                               (transmitted through canopy, reflected by ground, absorbed by canopy)
+        //   -EMV*EMG*SB*TG^4: canopy absorbs ground emission (gain, hence negative)
+        //
+        // Physical interpretation of CIR_C*TV^4 term:
+        //   2*EMV*SB*TV^4: canopy emits in both directions (up and down)
+        //   -EMV^2*(1-EMG)*SB*TV^4: multiple reflection of canopy downward emission
+        //                            (reflected by ground and re-absorbed by canopy)
+        // --------------------------------------------------------------------------------------------------
+        amrex::Real air_c = -emv * (1.0 + (1.0 - emv) * (1.0 - emg)) * lwdn
+                          - emv * emg * SB * std::pow(tg, 4);
+        amrex::Real cir_c = (2.0 - emv * (1.0 - emg)) * emv * SB;
+        amrex::Real irc = air_c + cir_c * std::pow(tv, 4);
+
+        // --------------------------------------------------------------------------------------------------
+        // Ground net longwave radiation (IRG) - NOAHMP lines 4086-4087, 4104
+        // --------------------------------------------------------------------------------------------------
+        // NOAHMP SIGN CONVENTION: IRG is NET UPWARD longwave flux (positive = energy loss)
+        //   IRG = emitted_upward - absorbed_from_atmosphere - absorbed_from_canopy
+        // NOAHMP energy balance: SAG - IRG - SHG - EVG = 0
+        //
+        // Physical interpretation of AIR_G term:
+        //   -EMG*(1-EMV)*LWDN: ground absorbs transmitted atmospheric LW (gain, hence negative)
+        //   -EMG*EMV*SB*TV^4: ground absorbs canopy downward emission (gain, hence negative)
+        //
+        // Physical interpretation of CIR_G*TG^4 term:
+        //   EMG*SB*TG^4: ground emits upward
+        // --------------------------------------------------------------------------------------------------
+        amrex::Real air_g = -emg * (1.0 - emv) * lwdn - emg * emv * SB * std::pow(tv, 4);
+        amrex::Real cir_g = emg * SB;
+        amrex::Real irg = cir_g * std::pow(tg, 4) + air_g;
+
+        // --------------------------------------------------------------------------------------------------
+        // Store shortwave and longwave radiation to net_rad arrays
+        // --------------------------------------------------------------------------------------------------
+        // SLM SIGN CONVENTION: net_rad is NET ABSORBED radiation (positive = energy gain)
+        //   net_rad = absorbed_radiation (all sources) - emitted_radiation
+        // SLM energy balance: net_rad - SH - LH = heat storage change
+        //
+        // SIGN CONVERSION: IRC/IRG (net upward) → net_lw (net absorbed)
+        //   net_absorbed = -net_upward
+        //   When IRC > 0 (net upward flux, energy loss), net_lw1 < 0 (energy loss)
+        //   When IRC < 0 (net downward flux, energy gain), net_lw1 > 0 (energy gain)
+        // --------------------------------------------------------------------------------------------------
+
+        // Shortwave absorbed (W/m²)
+        net_rad_arr(i, j, 0, SLM_NetRad::net_sw1) = sav;  // canopy absorbed solar
+        net_rad_arr(i, j, 0, SLM_NetRad::net_sw2) = sag;  // ground absorbed solar
+
+        // Longwave absorbed (W/m²)
+        // Sign flip converts NOAHMP convention (net upward) to SLM convention (net absorbed)
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lw1) = -irc;  // canopy absorbed longwave
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lw2) = -irg;  // ground absorbed longwave
+
+        // Total net radiation (W/m²)
+        // net_rad = shortwave_absorbed + longwave_absorbed
+        //         = sav + (-irc) = sav - irc
+        net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) = sav - irc;  // canopy: SW + LW
+        net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) = sag - irg;  // ground: SW + LW
+
+        // --------------------------------------------------------------------------------------------------
+        // Store albedo outputs
+        // --------------------------------------------------------------------------------------------------
+
+        alb_vis_sfc_arr(i, j, 0) = albd[0];
+        alb_nir_sfc_arr(i, j, 0) = albd[1];
+        alb_vis_sfc_diff_arr(i, j, 0) = albi[0];
+        alb_nir_sfc_diff_arr(i, j, 0) = albi[1];
+
+        alb_vis_sfc_arr(i, j, d_khi_lsm) = albd[0];
+        alb_nir_sfc_arr(i, j, d_khi_lsm) = albd[1];
+        alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = albi[0];
+        alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = albi[1];
+
+        // Surface emissivity (weighted by vegetation fraction)
+        // In SLM, we always have vegetation layer (fveg implicitly 1), so use EMV
+        // For coupling to atmosphere, use effective emissivity of vegetated surface
+        emis_sfc_arr(i, j, 0) = emv + (1.0 - emv) * emg;  // effective surface emissivity
+        emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i, j, 0);
+
+    }); // End ParallelFor
 }

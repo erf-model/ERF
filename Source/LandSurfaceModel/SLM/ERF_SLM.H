@@ -536,6 +536,60 @@ public:
 
     void radiative_fluxes(const amrex::MFIter &mfi);
 
+    // NOAHMP radiation functions
+    void radiation_noahmp(const amrex::MFIter &mfi);
+
+    void albedo_noahmp(const amrex::MFIter &mfi, int i, int j,
+                       amrex::Real dt, amrex::Real cosz, amrex::Real snowh, amrex::Real fsno,
+                       amrex::Real fwet, amrex::Real sneqvo, amrex::Real sneqv, amrex::Real qsnow,
+                       amrex::Real tg, amrex::Real tv, amrex::Real elai, amrex::Real esai,
+                       const amrex::Real* smc, int nsoil, amrex::Real fveg,
+                       amrex::Real& albold, amrex::Real& tauss,
+                       amrex::Real* albgrd, amrex::Real* albgri, amrex::Real* albd, amrex::Real* albi,
+                       amrex::Real* fabd, amrex::Real* fabi, amrex::Real* ftdd, amrex::Real* ftid, amrex::Real* ftii,
+                       amrex::Real& fsun, amrex::Real* frevd, amrex::Real* frevi,
+                       amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
+                       amrex::Real* albsnd, amrex::Real* albsni);
+
+    static void surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
+                       amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                       const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                       const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                       const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                       const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                       amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                       amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    static void snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
+                                amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                                amrex::Real dirt_soot, amrex::Real swemx,
+                                amrex::Real& tauss, amrex::Real& fage);
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    static void snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
+                                    amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                                    amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                                    amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                                    amrex::Real* albsnd, amrex::Real* albsni);
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    static void groundalb_noahmp(int nsoil, int nband, int ice, int ist, amrex::Real fsno,
+                                 const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                                 amrex::Real cosz, amrex::Real tg,
+                                 const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                                 amrex::Real* albgrd, amrex::Real* albgri);
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    static void twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
+                                 amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                                 const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
+                                 amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                                 int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
+                                 amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                                 amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                                 amrex::Real& bgap, amrex::Real& wgap);
+
     void transfer_coeff(const amrex::MFIter &mfi);
 
     void resistances(const amrex::MFIter &mfi);
@@ -732,13 +786,13 @@ private:
     amrex::MultiFab vege_YES; // 0-baresoil, 1-vegetated
     amrex::MultiFab cp_vege; // heat capacity of vegetation
     amrex::MultiFab z0_sfc; // surface level roughness: for vegetated z0_sfc=z0_vege, for non-vegetated, z0_sfc=z0_soil
-    amrex::MultiFab Khai_L; // leaf distribution factor
+    amrex::MultiFab Khai_L; // leaf distribution factor (called XL in NOAHMP radiation)
     amrex::MultiFab phi_1;
     amrex::MultiFab phi_2;
     amrex::MultiFab IR_emis_vege; // vegetation emissivity for infrared radiation
     amrex::MultiFab IR_emis_soil; // soil emissivity for infrared radiation
     amrex::MultiFab IR_emis_grnd; // ground emissivity for infrared radiation
-    amrex::MultiFab ztop; // height of vegetation
+    amrex::MultiFab ztop; // height of vegetation (called HVT in NOAHMP radiation)
     amrex::MultiFab disp_hgt; // displacement height
     amrex::MultiFab Rgl; // parameter for stomatal resistance
     amrex::MultiFab Rc_min; // minimum stomatal resistance
@@ -844,6 +898,58 @@ private:
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
     bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
+
+    // NOAHMP radiation parameters
+    int opt_rad = 1;  // Radiation option: 1=modified two-stream (default), 2=two-stream, 3=gap=f(veg)
+    int opt_alb = 1;  // Snow albedo option: 1=BATS, 2=CLASS
+
+    // NOAHMP radiation parameters from NoahmpTable.TBL
+    amrex::Gpu::PinnedVector<amrex::Real> albsat_vis;  // saturated soil albedos VIS (20 soil color classes)
+    amrex::Gpu::PinnedVector<amrex::Real> albsat_nir;  // saturated soil albedos NIR (20 soil color classes)
+    amrex::Gpu::PinnedVector<amrex::Real> albdry_vis;  // dry soil albedos VIS (20 soil color classes)
+    amrex::Gpu::PinnedVector<amrex::Real> albdry_nir;  // dry soil albedos NIR (20 soil color classes)
+    amrex::Gpu::PinnedVector<amrex::Real> alblak_rad;  // albedo frozen lakes: 1=vis, 2=nir
+    amrex::Gpu::PinnedVector<amrex::Real> omegas_rad;  // two-stream parameter omega for snow: 1=vis, 2=nir
+    amrex::Real betads_rad = 0.5;  // two-stream parameter betad for snow
+    amrex::Real betais_rad = 0.5;  // two-stream parameter betai for snow
+
+    // Snow albedo parameters (from &noahmp_global_parameters)
+    amrex::Real tau0_rad = 1.0e6;         // tau0 from yang97 eqn. 10a
+    amrex::Real grain_growth_rad = 5000.; // growth from vapor diffusion yang97 eqn. 10b
+    amrex::Real extra_growth_rad = 10.;   // extra growth near freezing yang97 eqn. 10c
+    amrex::Real dirt_soot_rad = 0.3;      // dirt and soot term yang97 eqn. 10d
+    amrex::Real bats_cosz_rad = 2.0;      // zenith angle snow albedo adjustment; b in yang97 eqn. 15
+    amrex::Real bats_vis_new_rad = 0.95;  // new snow visible albedo
+    amrex::Real bats_nir_new_rad = 0.65;  // new snow nir albedo
+    amrex::Real bats_vis_age_rad = 0.2;   // age factor for diffuse visible snow albedo yang97 eqn. 17
+    amrex::Real bats_nir_age_rad = 0.5;   // age factor for diffuse nir snow albedo yang97 eqn. 18
+    amrex::Real bats_vis_dir_rad = 0.4;   // cosz factor for direct visible snow albedo yang97 eqn. 15
+    amrex::Real bats_nir_dir_rad = 0.4;   // cosz factor for direct nir snow albedo yang97 eqn. 16
+    amrex::Real swemx_rad = 1.0;          // new snow mass to fully cover old snow (mm)
+
+    // NOAHMP emissivity parameters for longwave radiation from NoahmpTable.TBL
+    amrex::Real snow_emis_rad = 0.95;     // snow emissivity
+    amrex::Real eg_soil_rad = 0.97;       // ground emissivity for soil (IST=1)
+    amrex::Real eg_lake_rad = 0.98;       // ground emissivity for lake (IST=2)
+
+    // NOAHMP vegetation parameters for radiation (MODIS, 20 types) from NoahmpTable.TBL
+    amrex::Gpu::PinnedVector<amrex::Real> rhol_vis_rad;  // leaf reflectance: visible
+    amrex::Gpu::PinnedVector<amrex::Real> rhol_nir_rad;  // leaf reflectance: NIR
+    amrex::Gpu::PinnedVector<amrex::Real> rhos_vis_rad;  // stem reflectance: visible
+    amrex::Gpu::PinnedVector<amrex::Real> rhos_nir_rad;  // stem reflectance: NIR
+    amrex::Gpu::PinnedVector<amrex::Real> taul_vis_rad;  // leaf transmittance: visible
+    amrex::Gpu::PinnedVector<amrex::Real> taul_nir_rad;  // leaf transmittance: NIR
+    amrex::Gpu::PinnedVector<amrex::Real> taus_vis_rad;  // stem transmittance: visible
+    amrex::Gpu::PinnedVector<amrex::Real> taus_nir_rad;  // stem transmittance: NIR
+    // NOTE: NOAHMP parameter "xl" (leaf/stem orientation index) uses existing Khai_L from init_landtype()
+    amrex::Gpu::PinnedVector<amrex::Real> rc_rad;        // crown radius (m)
+    // NOTE: NOAHMP parameter "hvt" (top of canopy height) uses existing ztop from init_landtype()
+    amrex::Gpu::PinnedVector<amrex::Real> hvb_rad;       // bottom of canopy (m) - NOAHMP name: HVB
+    amrex::Gpu::PinnedVector<amrex::Real> den_rad;       // tree density (no. of trunks per m2) - NOAHMP name: DEN
+
+    // MultiFabs to store NOAHMP radiation state variables
+    amrex::MultiFab albold_noahmp;  // snow albedo at last time step (for CLASS option)
+    amrex::MultiFab tauss_noahmp;   // non-dimensional snow age
 
     std::vector<std::vector<amrex::Real>> param_table;
     amrex::TableData<amrex::Real, 2> d_param_table;
