@@ -531,14 +531,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         {
           auto box = mfi.tilebox();
 
-#ifndef ERF_USE_MORR_FORT
-          // NOTE: Trimming the box with FORTRAN breaks the pointer dereferencing
-          if (box.smallEnd(0) == i_lo) { box.growLo(0,-m_real_width); }
-          if (box.bigEnd(0)   == i_hi) { box.growHi(0,-m_real_width); }
-          if (box.smallEnd(1) == j_lo) { box.growLo(1,-m_real_width); }
-          if (box.bigEnd(1)   == j_hi) { box.growHi(1,-m_real_width); }
-#endif
-
           if (!box.ok()) { // Avoid going farther if the box is inverted (i.e., ilo > ihi or jlo > jhi).
               continue;
           }

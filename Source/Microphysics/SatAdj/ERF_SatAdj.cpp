@@ -25,10 +25,6 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         auto tbx = mfi.tilebox();
-        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
         auto qv_array    = mic_fab_vars[MicVar_SatAdj::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_SatAdj::qc]->array(mfi);

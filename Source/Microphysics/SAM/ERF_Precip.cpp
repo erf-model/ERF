@@ -72,10 +72,6 @@ SAM::Precip (const SolverChoice& sc)
         auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
 
         auto tbx = mfi.tilebox();
-        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
