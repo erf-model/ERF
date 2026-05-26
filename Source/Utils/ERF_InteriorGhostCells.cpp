@@ -562,7 +562,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 Real rho_tend = rhs_cons(i,j,k);
                 Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
                 Real u_tend   = (bdatxlo_np1(i,j,k) - bdatxlo_n(i,j,k)) / bdy_time_interval;
-                Real u_val    = oma * bdatxlo_n  (i,j,k) + alpha * bdatxlo_np1(i,j,k);
+                Real u_val    = oma * bdatxlo_n(i,j,k) + alpha * bdatxlo_np1(i,j,k);
                 rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -570,7 +570,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 Real rho_tend = rhs_cons(i,j,k);
                 Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
                 Real u_tend   = (bdatxhi_np1(i,j,k) - bdatxhi_n(i,j,k)) / bdy_time_interval;
-                Real u_val    = oma * bdatxhi_n  (i,j,k) + alpha * bdatxhi_np1(i,j,k);
+                Real u_val    = oma * bdatxhi_n(i,j,k) + alpha * bdatxhi_np1(i,j,k);
                 rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
             });
 
@@ -580,7 +580,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 Real rho_tend = rhs_cons(i,j,k);
                 Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
                 Real v_tend   = (bdatylo_np1(i,j,k) - bdatylo_n(i,j,k)) / bdy_time_interval;
-                Real v_val    = oma * bdatxlo_n  (i,j,k) + alpha * bdatxlo_np1(i,j,k);
+                Real v_val    = oma * bdatylo_n(i,j,k) + alpha * bdatylo_np1(i,j,k);
                 rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
