@@ -70,6 +70,8 @@ int kessler_num_sedimentation_substeps (const amrex::Real current_reduced_value,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real kessler_rain_accumulation_increment (const amrex::Real precip_mass_per_area) noexcept
 {
+    // Convert precipitation mass per unit area [kg m^-2] to liquid-water depth
+    // [mm]: divide by water density [kg m^-3], then multiply by mm per meter.
     return precip_mass_per_area
         * kessler_water_depth_m_per_kg_m2
         * kessler_millimeters_per_meter;
@@ -117,17 +119,23 @@ KesslerFaceState kessler_face_state (const int k,
 {
     KesslerFaceState face_state{amrex::Real(0), amrex::Real(0)};
 
-    // Downward sedimentation uses the upper-cell donor state at interior faces.
-    // The top boundary face uses the top cell below the boundary.
+    // Sedimentation is one-way downward transport. Use a face-centered density
+    // for the z-face flux, but upwind the transported rain mixing ratio from the
+    // donor cell. A centered qp can create flux from downstream rain when the
+    // donor cell is dry. The top boundary face uses the top cell below the
+    // boundary.
     if (k == k_hi + 1) {
         face_state.rho = rho_km1;
         face_state.qp = qp_km1;
-    } else {
+    } else if (k == 0) {
         face_state.rho = rho_k;
+        face_state.qp = qp_k;
+    } else {
+        face_state.rho = amrex::Real(0.5) * (rho_km1 + rho_k);
         face_state.qp = qp_k;
     }
 
-    // MUST MATCH: current AdvanceKessler nonnegative face qp clipping.
+    // MUST MATCH: current AdvanceKessler nonnegative donor-qp clip before flux formation.
     face_state.qp = std::max(amrex::Real(0), face_state.qp);
     return face_state;
 }
@@ -157,7 +165,7 @@ KesslerSourceTerms kessler_warm_rain_sources (const amrex::Real qv,
 {
     // Units must match current AdvanceKessler: q* are mass fractions, rho is in
     // the production density units currently carried by Kessler, pressure is in
-    // the current production mbar units, and dt is in seconds.
+    // Kessler's mbar / hPa path for qsat helpers, and dt is in seconds.
     const KesslerSaturationAdjustment saturation_adjustment =
         kessler_saturation_adjustment(qv, qc, qsat, dtqsat, do_cond, latent_over_cp);
     KesslerSourceTerms source_terms{
@@ -170,10 +178,8 @@ KesslerSourceTerms kessler_warm_rain_sources (const amrex::Real qv,
         amrex::Real(0), (qsat - qv) / (amrex::Real(1) + latent_over_cp * dtqsat));
     const amrex::Real remaining_capacity = amrex::max(
         amrex::Real(0), capacity - saturation_adjustment.dq_cloud_to_vapor);
-    // Saturation adjustment returns at most one nonzero phase-change direction:
-    // condensation reduces vapor in supersaturation, while cloud evaporation
-    // increases vapor in subsaturation. Rain evaporation uses the vapor state
-    // after that cloud adjustment.
+    // Cloud evaporation gets first claim on the linearized subsaturation
+    // capacity. Rain evaporation can use only the remaining capacity.
     const amrex::Real qv_eff = qv
         - saturation_adjustment.dq_vapor_to_cloud
         + saturation_adjustment.dq_cloud_to_vapor;
@@ -195,6 +201,8 @@ KesslerSourceTerms kessler_warm_rain_sources (const amrex::Real qv,
 
     if (qc > amrex::Real(0)) {
         const amrex::Real qcc = qc;
+        // Cloud-to-rain conversion is capped by cloud water available after
+        // saturation adjustment, not by the original qc.
         const amrex::Real available_cloud = amrex::max(
             amrex::Real(0), qc + saturation_adjustment.dq_vapor_to_cloud - saturation_adjustment.dq_cloud_to_vapor);
         amrex::Real auto_r = amrex::Real(0);
