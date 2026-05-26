@@ -1615,15 +1615,13 @@ MOSTAverage::compute_eb_averages (const int& lev)
     auto& averages    = m_averages[lev];
     auto& plane_average = m_plane_average[lev];
 
-    // Get EB data - need both cell-centered and face-centered
+    // Get EB data
     const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
-    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
-
-    // Get area fractions for different centerings
-    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();  // Cell-centered area fractions
-    auto u_afrac = m_eb_vec[lev]->get_u_const_factory()->getAreaFrac();  // X-face area fractions
-    auto v_afrac = m_eb_vec[lev]->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
+    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();
+    const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
+    const auto& u_vfrac = m_eb_vec[lev]->get_u_const_factory()->getVolFrac();
+    const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
+    const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
 
     // Get geometry for cell sizes
     auto const& dx_arr = m_geom[lev].CellSizeArray();
@@ -1651,10 +1649,112 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
     //
     //----------------------------------------------------------
-    // Averages for U,V,T,Qv (not Qc or W)
+    // Averages for U, V, and tangential velocity (in local coordinate)
     //----------------------------------------------------------
     //
-    for (int imf(0); imf < 4; ++imf) {
+    {
+        denom[0]   = one / m_total_bndry_area[lev][0];
+        val_old[0] = plane_average[0]*d_fact_old;
+        denom[1]   = one / m_total_bndry_area[lev][1];
+        val_old[1] = plane_average[1]*d_fact_old;
+
+        int iavg = m_navg - 1;  // Tangential velocity magnitude
+        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+        const Real Vsg = m_Vsg[lev]; // Subgrid scale velocity
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
+
+            // Get EB arrays
+            auto const flag_arr = flag.const_array();
+            auto const afrac_x = cc_afrac[0]->const_array(mfi);
+            auto const afrac_y = cc_afrac[1]->const_array(mfi);
+            auto const afrac_z = cc_afrac[2]->const_array(mfi);
+            auto const bnorm_arr = cc_bnorm.const_array(mfi);
+            auto const u_vf_arr = u_vfrac.const_array(mfi);
+            auto const v_vf_arr = v_vfrac.const_array(mfi);
+            auto const w_vf_arr = w_vfrac.const_array(mfi);
+
+            // Get velocity arrays
+            auto const u_arr = fields[0]->const_array(mfi);
+            auto const v_arr = fields[1]->const_array(mfi);
+            auto const w_arr = fields[5]->const_array(mfi);
+
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+            {
+                // Area-weighted averaging over cut cells at any k
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    // Compute area from face-centered area fractions
+                    Real axm = afrac_x(i  ,j  ,k  );
+                    Real axp = afrac_x(i+1,j  ,k  );
+                    Real aym = afrac_y(i  ,j  ,k  );
+                    Real ayp = afrac_y(i  ,j+1,k  );
+                    Real azm = afrac_z(i  ,j  ,k  );
+                    Real azp = afrac_z(i  ,j  ,k+1);
+
+                    Real adx = (axm - axp) * dy * dz;
+                    Real ady = (aym - ayp) * dx * dz;
+                    Real adz = (azm - azp) * dx * dy;
+
+                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    // Volume-weighted interpolation of velocities to cell center
+                    Real vf_u_lo = u_vf_arr(i,j,k);
+                    Real vf_u_hi = u_vf_arr(i+1,j,k);
+                    Real sum_vf_u = vf_u_lo + vf_u_hi;
+                    Real u_cc = (sum_vf_u > zero) ? (u_arr(i,j,k)*vf_u_lo + u_arr(i+1,j,k)*vf_u_hi) / sum_vf_u : zero;
+
+                    Real vf_v_lo = v_vf_arr(i,j,k);
+                    Real vf_v_hi = v_vf_arr(i,j+1,k);
+                    Real sum_vf_v = vf_v_lo + vf_v_hi;
+                    Real v_cc = (sum_vf_v > zero) ? (v_arr(i,j,k)*vf_v_lo + v_arr(i,j+1,k)*vf_v_hi) / sum_vf_v : zero;
+
+                    Real vf_w_lo = w_vf_arr(i,j,k);
+                    Real vf_w_hi = w_vf_arr(i,j,k+1);
+                    Real sum_vf_w = vf_w_lo + vf_w_hi;
+                    Real w_cc = (sum_vf_w > zero) ? (w_arr(i,j,k)*vf_w_lo + w_arr(i,j,k+1)*vf_w_hi) / sum_vf_w : zero;
+
+                    // Get normal vector components
+                    Real nx = bnorm_arr(i,j,k,0);
+                    Real ny = bnorm_arr(i,j,k,1);
+                    Real nz = bnorm_arr(i,j,k,2);
+
+                    // Compute tangential velocity components
+                    Real v_dot_n = u_cc*nx + v_cc*ny + w_cc*nz;
+                    Real u_tangent = u_cc - v_dot_n * nx;
+                    Real v_tangent = v_cc - v_dot_n * ny;
+                    Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
+                    
+                    // Area-weighted sum
+                    Real val_u = u_tangent * area;
+                    Real val_v = v_tangent * area;
+                    Real val_mag = mag * area;
+
+                    Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
+                    Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
+                }
+            });
+        }
+    }
+
+    //
+    //----------------------------------------------------------
+    // Averages for T,Qv (cell-centered scalars)
+    //----------------------------------------------------------
+    //
+    for (int imf(2); imf < 4; ++imf) {
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
@@ -1662,63 +1762,45 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[imf]   = one / m_total_bndry_area[lev][imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
 
-        // Lambda that works with both MultiFab and MultiCutFab area fractions
-        auto compute_area_weighted_sum = [&](auto const& afrac_ref_x,
-                                             auto const& afrac_ref_y,
-                                             auto const& afrac_ref_z,
-                                             auto const& flags) {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = flags[mfi];
+        for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto& flag = cc_flags[mfi];
 
-                // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
-                if (flag.getType() != FabType::singlevalued) continue;
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
 
-                Box bx = mfi.tilebox();  // Full 3D box
-                auto const flag_arr = flag.const_array();
-                auto const afrac_x = afrac_ref_x.const_array(mfi);
-                auto const afrac_y = afrac_ref_y.const_array(mfi);
-                auto const afrac_z = afrac_ref_z.const_array(mfi);
-                auto const mf_arr = fields[imf]->const_array(mfi);
+            Box bx = mfi.tilebox();  // Full 3D box
+            auto const flag_arr = flag.const_array();
+            auto const afrac_x = cc_afrac[0]->const_array(mfi);
+            auto const afrac_y = cc_afrac[1]->const_array(mfi);
+            auto const afrac_z = cc_afrac[2]->const_array(mfi);
+            auto const mf_arr = fields[imf]->const_array(mfi);
 
-                ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
-                {
-                    // Area-weighted averaging over cut cells at any k
-                    if (flag_arr(i,j,k).isSingleValued()) {
-                        // Compute area from face-centered area fractions
-                        Real axm = afrac_x(i  ,j  ,k  );
-                        Real axp = afrac_x(i+1,j  ,k  );
-                        Real aym = afrac_y(i  ,j  ,k  );
-                        Real ayp = afrac_y(i  ,j+1,k  );
-                        Real azm = afrac_z(i  ,j  ,k  );
-                        Real azp = afrac_z(i  ,j  ,k+1);
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+            {
+                // Area-weighted averaging over cut cells at any k
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    // Compute area from face-centered area fractions
+                    Real axm = afrac_x(i  ,j  ,k  );
+                    Real axp = afrac_x(i+1,j  ,k  );
+                    Real aym = afrac_y(i  ,j  ,k  );
+                    Real ayp = afrac_y(i  ,j+1,k  );
+                    Real azm = afrac_z(i  ,j  ,k  );
+                    Real azp = afrac_z(i  ,j  ,k+1);
 
-                        Real adx = (axm - axp) * dy * dz;
-                        Real ady = (aym - ayp) * dx * dz;
-                        Real adz = (azm - azp) * dx * dy;
+                    Real adx = (axm - axp) * dy * dz;
+                    Real ady = (aym - ayp) * dx * dz;
+                    Real adz = (azm - azp) * dx * dy;
 
-                        Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                        Real val = mf_arr(i,j,k) * area;
-                        Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
-                    }
-                });
-            }
-        };
-
-        // Select appropriate data based on variable centering
-        if (imf == 0) {
-            // U velocity (x-face centered)
-            compute_area_weighted_sum(*u_afrac[0], *u_afrac[1], *u_afrac[2], u_flags);
-        } else if (imf == 1) {
-            // V velocity (y-face centered)
-            compute_area_weighted_sum(*v_afrac[0], *v_afrac[1], *v_afrac[2], v_flags);
-        } else {
-            // Cell-centered variables (T, Qv)
-            compute_area_weighted_sum(*cc_afrac[0], *cc_afrac[1], *cc_afrac[2], cc_flags);
+                    Real val = mf_arr(i,j,k) * area;
+                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                }
+            });
         }
     }
 
@@ -1792,66 +1874,6 @@ MOSTAverage::compute_eb_averages (const int& lev)
         // plane_avg[iavg] = plane_avg[2]
         Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
                   pavg.begin() + iavg);
-    }
-
-    //
-    //------------------------------------------------------------------------
-    // Averages for the tangential velocity magnitude
-    //------------------------------------------------------------------------
-    //
-    {
-        int iavg = m_navg - 1;
-        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
-        val_old[iavg] = plane_average[iavg]*d_fact_old;
-
-        const Real Vsg = m_Vsg[lev];
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi)
-        {
-            const auto& flag = cc_flags[mfi];
-
-            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
-            if (flag.getType() != FabType::singlevalued) continue;
-
-            Box bx = mfi.tilebox();  // Full 3D box
-            auto const flag_arr = flag.const_array();
-            auto const afrac_x = cc_afrac[0]->const_array(mfi);
-            auto const afrac_y = cc_afrac[1]->const_array(mfi);
-            auto const afrac_z = cc_afrac[2]->const_array(mfi);
-
-            auto const u_arr = fields[0]->const_array(mfi);
-            auto const v_arr = fields[1]->const_array(mfi);
-
-            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
-            {
-                if (flag_arr(i,j,k).isSingleValued()) {
-                    // Compute area from face-centered area fractions
-                    Real axm = afrac_x(i  ,j  ,k  );
-                    Real axp = afrac_x(i+1,j  ,k  );
-                    Real aym = afrac_y(i  ,j  ,k  );
-                    Real ayp = afrac_y(i  ,j+1,k  );
-                    Real azm = afrac_z(i  ,j  ,k  );
-                    Real azp = afrac_z(i  ,j  ,k+1);
-
-                    Real adx = (axm - axp) * dy * dz;
-                    Real ady = (aym - ayp) * dx * dz;
-                    Real adz = (azm - azp) * dx * dy;
-
-                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
-
-                    // Interpolate staggered velocities to cell center
-                    const Real u_val = myhalf * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
-                    const Real v_val = myhalf * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
-                    const Real mag = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
-                    const Real val = mag * area;
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
-                }
-            });
-        }
     }
 
     // Copy to host and sum across procs
