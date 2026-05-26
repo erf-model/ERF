@@ -15,12 +15,6 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
     Real d_fac_cond = m_fac_cond;
     Real rdOcp      = m_rdOcp;
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
     // get the temperature, density, theta, qt and qc from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
