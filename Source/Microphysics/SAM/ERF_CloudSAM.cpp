@@ -27,12 +27,6 @@ SAM::Cloud (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto  qt_array = mic_fab_vars[MicVar::qt]->array(mfi);
         auto  qn_array = mic_fab_vars[MicVar::qn]->array(mfi);

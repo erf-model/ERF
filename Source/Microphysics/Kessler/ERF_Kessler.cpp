@@ -16,10 +16,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
     bool do_cond = m_do_cond;
     auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
     auto domain  = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
     int k_lo = domain.smallEnd(2);
     int k_hi = domain.bigEnd(2);
     if (solverChoice.moisture_type == MoistureType::Kessler)

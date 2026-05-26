@@ -46,12 +46,6 @@ SAM::Precip (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
     // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);

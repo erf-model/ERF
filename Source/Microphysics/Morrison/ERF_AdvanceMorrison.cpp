@@ -506,13 +506,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         // Store timestep
         Real dt = dt_advance;
 
-        // Bounds
-        auto domain = m_geom.Domain();
-        int i_lo = domain.smallEnd(0);
-        int i_hi = domain.bigEnd(0);
-        int j_lo = domain.smallEnd(1);
-        int j_hi = domain.bigEnd(1);
-
         // Check if CPP or FORT answer is used
         ParmParse pp("erf");
         bool run_morr_cpp        = true;
