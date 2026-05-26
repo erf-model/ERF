@@ -65,13 +65,16 @@ ERF::initHSE (int lev)
          (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
     }
 
+    bool use_terrain_fitted_coords = ( (solverChoice.terrain_type == TerrainType::StaticFittedMesh) ||
+                                       (solverChoice.terrain_type == TerrainType::MovingFittedMesh) );
+
     if (all_boxes_touch_bottom || lev > 0) {
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
         if ( (solverChoice.init_type == InitType::MoistBaseState) ||
              (solverChoice.init_type == InitType::HindCast) )
         {
-            prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
+            prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev],use_terrain_fitted_coords);
 
         }
         else if (solverChoice.init_type == InitType::ConstantDensity)
@@ -97,7 +100,7 @@ ERF::initHSE (int lev)
         {
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+            prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev],use_terrain_fitted_coords);
         }
 
         if (solverChoice.init_type != InitType::Uniform && solverChoice.init_type !=InitType::ConstantDensityLinearTheta) {
@@ -141,7 +144,7 @@ ERF::initHSE (int lev)
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
         if (solverChoice.init_type == InitType::MoistBaseState) {
-            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
+            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev],use_terrain_fitted_coords);
 
         } else if (solverChoice.init_type == InitType::ConstantDensity) {
 
@@ -156,7 +159,7 @@ ERF::initHSE (int lev)
             prob->erf_init_const_dens_and_th_hse(new_r_hse,new_p_hse,new_pi_hse,new_th_hse,new_qv_hse,solverChoice.rdOcp);
 
         } else {
-            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
+            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev],use_terrain_fitted_coords);
         }
 
         erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);

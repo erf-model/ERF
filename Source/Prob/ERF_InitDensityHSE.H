@@ -14,7 +14,8 @@ void
 erf_init_dens_hse (amrex::MultiFab& rho_hse,
                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                   amrex::Geometry const& geom) override
+                   amrex::Geometry const& geom,
+                   bool use_terrain_fitted_coords) override
 {
     const amrex::Real dz        = geom.CellSize()[2];
 
@@ -22,9 +23,7 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
     const amrex::Real rho_sfc  = p_0 / (R_d*T_sfc);
     const amrex::Real Thetabar = T_sfc;
 
-    bool use_terrain = (z_phys_nd != nullptr);
-
-    if (use_terrain) {
+    if (use_terrain_fitted_coords) {
 
         const int domlo_z = geom.Domain().smallEnd(2);
         const int domhi_z = geom.Domain().bigEnd(2);
@@ -114,8 +113,11 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
 void
 erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                         amrex::Geometry const& geom) override
+                         amrex::Geometry const& geom,
+                         bool use_terrain_fitted_coords) override
 {
+    AMREX_ALWAYS_ASSERT(!use_terrain_fitted_coords);
+
     const amrex::Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
 
