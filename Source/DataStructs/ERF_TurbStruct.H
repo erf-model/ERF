@@ -195,6 +195,10 @@ public:
         query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
 
+    // There is a default value of 1e-6 but the user can override the value here,
+    //   and in addition can add perturbational values.  and in addition can add perturbational values.
+    pp.query("tke_min",tke_min);
+
     // LES constants...
     query_one_or_per_level(pp, "Cs", Cs, lev, max_level);
 
@@ -470,6 +474,9 @@ public:
   // function of the friction velocity calculated by the surface layer scheme
   // (e.g., as done in MYNN-EDMF)
   bool init_tke_from_ustar = false;
+
+  // This is the value of tke_min in WRF 4.5
+  amrex::Real tke_min = amrex::Real(1.e-6);
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above

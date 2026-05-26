@@ -122,13 +122,20 @@ file **Exec/ERF_Prob.cpp** must still be present for the build.
 
   - In this case the base state defaults to zero and the full state is read in from
     a much simplified NetCDF file.  Right now, only the density, horizontal and
-    vertical velocity components, potential temperature, and water vapor mixing ratio can
-    be read in.  This case is designed for idealized problems and does not allow
+    vertical velocity components, potential temperature, and water vapor mixing ratio can be read in.
+    This case is designed for idealized problems and does not allow
     for terrain-fitted coordinates or map factors.
     The variables in the NC file should have dimensions of (Time, bottom_top, south_north, west_east).
     Variable names include ``RHO``, ``U``, ``V``, ``W``, ``T``, and ``QV``.
     Optional HSE variables include ``RHO_HSE``, ``T_HSE``, and ``P_HSE``; the base state will be
     calculated if it is not specified.
+
+TKE Initialization
+--------------------
+
+    When a turbulence closure that uses prognostic TKE is active, ERF initializes
+    TKE at startup to ``erf.tke_min`` (default ``1.e-6 m^2/s^2`` but can be read from the inputs file).
+    This includes Deardorff LES, k-equation RANS, MYJ, MYNN2.5, MYNN-EDMF, and SHOC.
 
 Workflows
 --------------------
