@@ -93,6 +93,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     pp.query("advect_with_flow", m_advect_w_flow);
     pp.query("advect_with_gravity", m_advect_w_gravity);
     pp.query("prescribed_advection", m_prescribed_advection);
+    pp.query("split_merge_amr", m_split_merge_amr);
     pp.query("newton_solver_rtol", m_newton_rtol);
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);

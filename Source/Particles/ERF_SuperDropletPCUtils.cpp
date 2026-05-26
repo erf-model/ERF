@@ -374,4 +374,34 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
     }
 }
 
+/*! \brief Split coarse-level particles in newly-refined cells (stub).
+ *  Full implementation in a follow-on commit. */
+void SuperDropletPC::SplitParticlesForRefinement (
+    int /*a_lev*/,
+    const amrex::BoxArray& /*a_old_ba*/,
+    const amrex::IntVect& /*a_ref_ratio*/ )
+{
+    BL_PROFILE("SuperDropletPC::SplitParticlesForRefinement()");
+    if (!m_split_merge_amr) { return; }
+}
+
+/*! \brief Merge particles in cells that lost fine-level coverage (stub). */
+void SuperDropletPC::MergeParticlesAfterDerefining (
+    int /*a_lev*/,
+    const amrex::BoxArray& /*a_old_fine_ba*/,
+    const amrex::IntVect& /*a_ref_ratio*/ )
+{
+    BL_PROFILE("SuperDropletPC::MergeParticlesAfterDerefining()");
+    if (!m_split_merge_amr) { return; }
+}
+
+/*! \brief Continuously split new entrants on fine levels and merge departees
+ *  on coarse levels (stub).  See class comment for active-flag tri-state. */
+void SuperDropletPC::SplitMergeAtLevelBoundary ()
+{
+    BL_PROFILE("SuperDropletPC::SplitMergeAtLevelBoundary()");
+    if (!m_split_merge_amr) { return; }
+    if (finestLevel() < 1) { return; }
+}
+
 #endif
