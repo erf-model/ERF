@@ -69,21 +69,25 @@ erf.implicit_momentum_diffusion = true
 erf.vert_implicit_fac           = 1. 1. 0.
 
 erf.use_gravity     = true
-erf.use_coriolis    = false
-
+    
+erf.use_coriolis    = true
 erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind = 8.0 0.0 0.0      
+erf.abl_geo_wind    = 8.0 0.0 0.0      
 
 erf.moisture_model  = "SatAdj"
 
 erf.les_type          = "None"
 erf.molec_diff_type   = "Constant"
-erf.dynamic_viscosity = 5.0 # [kg/(m-s)]
-erf.alpha_T           = 5.0 # [m^2/s]
-erf.alpha_C           = 5.0
+erf.dynamic_viscosity = 0.1 # [kg/(m-s)]
+erf.alpha_T           = 0.1 # [m^2/s]
+erf.alpha_C           = 0.1
 
 
 # INITIAL CONDITIONS
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding_GABLS1"
 erf.sounding_type = Ideal
+
+prob.T_0_Pert_Mag    = 0.1 # [K]
+prob.U_0_Pert_Mag    = 0.1 # [m/s]
+prob.pert_ref_height = 150. # [m]
