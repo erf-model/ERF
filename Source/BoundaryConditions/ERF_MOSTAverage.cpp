@@ -444,74 +444,58 @@ MOSTAverage::set_eb_normalization (const int& lev)
     Gpu::DeviceVector<Real> area_vec(m_navg, zero);
     Real* area_device = area_vec.data();
 
-    for (int iavg = 0; iavg < m_navg; ++iavg) {
-        // Lambda that works with both MultiFab and MultiCutFab area fractions
-        auto compute_area_sum = [&](auto const& afrac_ref_x,
-                                    auto const& afrac_ref_y,
-                                    auto const& afrac_ref_z,
-                                    auto const& flags) {
+    // All fields are now averaged on cell-centered grid
+    // Compute total area once on cell-centered grid and use for all iavg
+    Real total_area = zero;
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(flags, TileNoZ()); mfi.isValid(); ++mfi) {
-                const auto& flag = flags[mfi];
+    for (MFIter mfi(cc_flags, TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto& flag = cc_flags[mfi];
 
-                // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
-                if (flag.getType() != FabType::singlevalued) continue;
+        // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+        if (flag.getType() != FabType::singlevalued) continue;
 
-                Box bx = mfi.tilebox();
-                auto const flag_arr = flag.const_array();
-                auto const afrac_x = afrac_ref_x.const_array(mfi);
-                auto const afrac_y = afrac_ref_y.const_array(mfi);
-                auto const afrac_z = afrac_ref_z.const_array(mfi);
+        Box bx = mfi.tilebox();
+        auto const flag_arr = flag.const_array();
+        auto const afrac_x = cc_afrac[0]->const_array(mfi);
+        auto const afrac_y = cc_afrac[1]->const_array(mfi);
+        auto const afrac_z = cc_afrac[2]->const_array(mfi);
 
-                // Sum area only for cut cells using atomic reduction
-                ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
-                {
-                    if (flag_arr(i,j,k).isSingleValued()) {
-                        // Compute area from face-centered area fractions
-                        Real axm = afrac_x(i  ,j  ,k  );
-                        Real axp = afrac_x(i+1,j  ,k  );
-                        Real aym = afrac_y(i  ,j  ,k  );
-                        Real ayp = afrac_y(i  ,j+1,k  );
-                        Real azm = afrac_z(i  ,j  ,k  );
-                        Real azp = afrac_z(i  ,j  ,k+1);
+        // Sum area only for cut cells using atomic reduction
+        ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+        AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+        {
+            if (flag_arr(i,j,k).isSingleValued()) {
+                // Compute area from face-centered area fractions
+                Real axm = afrac_x(i  ,j  ,k  );
+                Real axp = afrac_x(i+1,j  ,k  );
+                Real aym = afrac_y(i  ,j  ,k  );
+                Real ayp = afrac_y(i  ,j+1,k  );
+                Real azm = afrac_z(i  ,j  ,k  );
+                Real azp = afrac_z(i  ,j  ,k+1);
 
-                        Real adx = (axm - axp) * dy * dz;
-                        Real ady = (aym - ayp) * dx * dz;
-                        Real adz = (azm - azp) * dx * dy;
+                Real adx = (axm - axp) * dy * dz;
+                Real ady = (aym - ayp) * dx * dz;
+                Real adz = (azm - azp) * dx * dy;
 
-                        Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+                Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                        Gpu::deviceReduceSum(&area_device[iavg], area, handler);
-                    }
-                });
+                Gpu::deviceReduceSum(&area_device[0], area, handler);
             }
-        };
-
-        // Select appropriate data based on variable centering
-        if (iavg == 0) {
-            // U velocity (x-face centered)
-            compute_area_sum(*u_afrac[0], *u_afrac[1], *u_afrac[2], u_flags);
-        } else if (iavg == 1) {
-            // V velocity (y-face centered)
-            compute_area_sum(*v_afrac[0], *v_afrac[1], *v_afrac[2], v_flags);
-        } else {
-            // Cell-centered variables (T, Qv, Tv, Umag)
-            compute_area_sum(*cc_afrac[0], *cc_afrac[1], *cc_afrac[2], cc_flags);
-        }
+        });
     }
 
     // Copy to host and sum across MPI ranks
-    Gpu::copy(Gpu::deviceToHost, area_vec.begin(), area_vec.end(),
-              m_total_bndry_area[lev].begin());
-    ParallelDescriptor::ReduceRealSum(m_total_bndry_area[lev].data(), m_navg);
+    Gpu::copy(Gpu::deviceToHost, area_vec.begin(), area_vec.begin() + 1, &total_area);
+    ParallelDescriptor::ReduceRealSum(&total_area, 1);
 
+    // Set the same total area for all iavg
     for (int iavg = 0; iavg < m_navg; ++iavg) {
-        Print() << "EB surface area at level " << lev << " for field " << iavg
-                << ": " << m_total_bndry_area[lev][iavg] << std::endl;
+        m_total_bndry_area[lev][iavg] = total_area;
     }
+
+    Print() << "EB surface area on cell-centerd grid at level " << lev << ": " << total_area << std::endl;
 }
 
 /**
