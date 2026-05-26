@@ -1185,6 +1185,11 @@ List of Parameters
 |                                         |                    | "YSU", "MRF",       |             |
 |                                         |                    | "SHOC"              |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.tke_min**                         | Minimum initial    | Real                | 1.e-6       |
+|                                         | TKE used when a    |                     |             |
+|                                         | prognostic-TKE     |                     |             |
+|                                         | closure is active  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A2**                     | MYNN Constant A2   | Real                | 0.665       |
@@ -1270,10 +1275,11 @@ If the PBL scheme is activated, it determines the turbulent diffusivity in the v
 direction. If an LES model is also specified, it determines only the horizontal turbulent
 diffusivity.
 
-Right now, the QKE equation is solved if and only if the MYNN2.5 PBL model is selected. In that
-transport equation, it is optional to advect QKE, and to apply LES diffusive transport for QKE
-in the horizontal directions (the vertical component is always computed as part of the PBL
-scheme).
+ERF uses prognostic TKE for Deardorff LES, k-equation RANS, MYJ, MYNN2.5,
+MYNN-EDMF, and SHOC. When one of these closures is active, ERF initializes
+TKE at startup to ``erf.tke_min`` (default ``1.e-6 m^2/s^2``) before any
+optional problem-specific TKE perturbations or surface-layer-based TKE
+initialization are applied.
 
 Parameters for PBL schemes can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
@@ -1953,6 +1959,10 @@ List of Parameters
 | **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
+|                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
+|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+

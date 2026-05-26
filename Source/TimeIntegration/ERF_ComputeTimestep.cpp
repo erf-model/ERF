@@ -8,7 +8,7 @@ using namespace amrex;
  *
  */
 void
-ERF::ComputeDt (int step)
+ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<Real> dt_tmp(finest_level+1);
 
@@ -40,8 +40,8 @@ ERF::ComputeDt (int step)
     //     so we must add start_time to t_new
     //
     const Real eps = Real(1.e-3)*dt_0;
-    if (t_new[0] + dt_0 > (stop_time - start_time) - eps) {
-        dt_0 = (stop_time - start_time) - t_new[0];
+    if (cur_time_d + static_cast<double>(dt_0) > static_cast<double>(stop_time - start_time) - static_cast<double>(eps)) {
+        dt_0 = static_cast<Real>(static_cast<double>(stop_time - start_time) - cur_time_d);
     }
 
     dt[0] = dt_0;
@@ -215,7 +215,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     } // not EB
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
-    estdt_comp = cfl / estdt_comp_inv;
+    // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
+    estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : Real(1.e20);
 
      Real estdt_lowM_inv = ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,

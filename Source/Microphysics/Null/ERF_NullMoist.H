@@ -87,6 +87,27 @@ public:
 
     virtual
     void
+    GetPlotVar (const std::string& a_name,
+                amrex::MultiFab& a_mf,
+                const int /*a_lev*/) const
+    {
+        GetPlotVar(a_name, a_mf);
+    }
+
+    virtual
+    void
+    SetCurrentLevel (const int&) {}
+
+    virtual
+    void
+    InitLevel (const int, const amrex::MultiFab&) {}
+
+    virtual
+    int
+    getDiagnosticsInterval () const { return 0; }
+
+    virtual
+    void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
 
     virtual

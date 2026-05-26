@@ -615,7 +615,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
 #ifdef ERF_USE_FFT
-                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+                solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
         } // No terrain or grid stretching
@@ -633,7 +633,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
                 if (!use_fft) {
                     amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
                 }
-                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+                solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
             }
 #endif
         } // grid stretching

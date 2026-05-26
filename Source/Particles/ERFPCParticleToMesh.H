@@ -53,25 +53,24 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const auto& p = ptd.m_aos[i];
             if (p.id() <= 0) { return; }
 
-            const Real pval = value_func(ptd, i);
+            const Real pval = static_cast<Real>(value_func(ptd, i));
 
-            const Real lx = (p.pos(0) - plo[0]) * dxi[0] + Real(0.5);
+            const Real lx = static_cast<Real>((p.pos(0) - plo[0]) * dxi[0]) + Real(0.5);
             const int  ix = static_cast<int>(Math::floor(lx)) - 1;
             const Real wx1 = lx - static_cast<Real>(ix + 1);
             const Real wx0 = Real(1.0) - wx1;
 
-            const Real ly = (p.pos(1) - plo[1]) * dxi[1] + Real(0.5);
+            const Real ly = static_cast<Real>((p.pos(1) - plo[1]) * dxi[1]) + Real(0.5);
             const int  iy = static_cast<int>(Math::floor(ly)) - 1;
             const Real wy1 = ly - static_cast<Real>(iy + 1);
             const Real wy0 = Real(1.0) - wy1;
 
-            const int kz = static_cast<int>(amrex::Math::floor(
-                                (p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
-                                * dxi[AMREX_SPACEDIM-1]));
+            const int kz = static_cast<int>(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                                               * dxi[AMREX_SPACEDIM-1]));
             const int ix_p = static_cast<int>(Math::floor((p.pos(0) - plo[0]) * dxi[0]));
             const int iy_p = static_cast<int>(Math::floor((p.pos(1) - plo[1]) * dxi[1]));
-            const Real fx  = (p.pos(0) - plo[0]) * dxi[0] - static_cast<Real>(ix_p);
-            const Real fy  = (p.pos(1) - plo[1]) * dxi[1] - static_cast<Real>(iy_p);
+            const Real fx  = static_cast<Real>((p.pos(0) - plo[0]) * dxi[0]) - static_cast<Real>(ix_p);
+            const Real fy  = static_cast<Real>((p.pos(1) - plo[1]) * dxi[1]) - static_cast<Real>(iy_p);
 
             auto zface = [=] AMREX_GPU_DEVICE (int k_face) -> Real {
                 return zheight(ix_p  , iy_p  , k_face) * (Real(1.0)-fx) * (Real(1.0)-fy)
@@ -80,6 +79,15 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                      + zheight(ix_p+1, iy_p+1, k_face) *            fx  *            fy;
             };
 
+            // Effective k bounds for safe zface access: must respect both the
+            // geometry domain (k_max) and the local fab's z extent. With AMR
+            // partial-z fabs (especially with many small boxes from large rank
+            // counts), a particle at the top/bottom of its fab can have kz
+            // such that kz+2 / kz-1 read outside the fab. Use the fallback
+            // (one-sided) span formula in those cases.
+            const int kz_hi_safe = amrex::min(k_max, zheight.end[2] - 2);
+            const int kz_lo_safe = amrex::max(0,     zheight.begin[2] + 1);
+
             const Real z_lo_k = zface(kz);
             const Real z_hi_k = zface(kz + 1);
             const Real z_ctr_k = Real(0.5) * (z_lo_k + z_hi_k);
@@ -87,9 +95,9 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             // Particle pos(2) is computational zeta; convert to physical z so
             // the cell-center comparison and weight span are in the same units
             // as zface() (which is built from the height array).
-            const Real p_z = ERF::ParticlePos::z_from_zeta(
+            const Real p_z = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
                 p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
-                plo, dxi, zheight);
+                plo, dxi, zheight));
 
             int  kz_lo, kz_hi;
             Real wz_lo, wz_hi;
@@ -97,7 +105,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 kz_lo = kz;
                 kz_hi = kz + 1;
                 Real span;
-                if (kz < k_max) {
+                if (kz < kz_hi_safe) {
                     const Real z_hi2    = zface(kz + 2);
                     const Real z_ctr_hi = Real(0.5) * (z_hi_k + z_hi2);
                     span = z_ctr_hi - z_ctr_k;
@@ -110,7 +118,7 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                 kz_hi = kz;
                 kz_lo = kz - 1;
                 Real span;
-                if (kz > 0) {
+                if (kz > kz_lo_safe) {
                     const Real z_lo2    = zface(kz - 1);
                     const Real z_ctr_lo = Real(0.5) * (z_lo2 + z_lo_k);
                     span = z_ctr_k - z_ctr_lo;
