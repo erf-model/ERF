@@ -513,7 +513,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(S_cur_data[ivarT],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(S_cur_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             Box tbx = mfi.nodaltilebox(0);
             Box tby = mfi.nodaltilebox(1);
 
