@@ -401,9 +401,9 @@ struct moeng_flux_eb
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
-    compute_u_flux (const int& i,
-                    const int& j,
-                    const int& k,
+    compute_u_flux (int i,
+                    int j,
+                    int k,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -414,7 +414,7 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& v_vfrac_arr,
                     const amrex::Array4<const amrex::Real>& cc_vfrac_arr,
                     const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr,
-                    const int& idir = 0) const
+                    int idir = 0) const
     {
         amrex::Real velx, vely, rho, ustar, wsp_mean;
 
