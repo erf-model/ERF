@@ -553,9 +553,9 @@ struct moeng_flux_eb
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
-    compute_v_flux (const int& i,
-                    const int& j,
-                    const int& k,
+    compute_v_flux (int i,
+                    int j,
+                    int k,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -563,47 +563,130 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& vm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& u_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& v_vfrac_arr,
                     const amrex::Array4<const amrex::Real>& cc_vfrac_arr,
-                    const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr) const
+                    const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr,
+                    int idir = 0) const
     {
-        // Volume-weighted average of x-face velocities to y-face
-        amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k) +
-                                  u_vfrac_arr(i,j-1,k) + u_vfrac_arr(i+1,j-1,k);
-        amrex::Real velx = (u_vfrac_sum > eps) ?
-            (velx_arr(i,j,k)   * u_vfrac_arr(i,j,k)   + velx_arr(i+1,j,k)   * u_vfrac_arr(i+1,j,k) +
-             velx_arr(i,j-1,k) * u_vfrac_arr(i,j-1,k) + velx_arr(i+1,j-1,k) * u_vfrac_arr(i+1,j-1,k))
-             / u_vfrac_sum : zero;
+        amrex::Real velx, vely, rho, ustar, wsp_mean;
 
-        amrex::Real vely  = vely_arr(i,j,k);
+        if (idir == 0) {
+            // x-face: average from cells (i-1) and (i)
+            // Volume-weighted average of y-face velocities to x-face
+            amrex::Real v_vfrac_sum = v_vfrac_arr(i,j,k) + v_vfrac_arr(i,j+1,k) +
+                                      v_vfrac_arr(i-1,j,k) + v_vfrac_arr(i-1,j+1,k);
+            vely = (v_vfrac_sum > eps) ?
+                (vely_arr(i,j,k)   * v_vfrac_arr(i,j,k)   + vely_arr(i,j+1,k)   * v_vfrac_arr(i,j+1,k) +
+                 vely_arr(i-1,j,k) * v_vfrac_arr(i-1,j,k) + vely_arr(i-1,j+1,k) * v_vfrac_arr(i-1,j+1,k))
+                 / v_vfrac_sum : zero;
 
-        // Volume-weighted average of cell-centered density to y-face
-        amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j-1,k) + cc_vfrac_arr(i,j,k);
-        amrex::Real rho = (cc_vfrac_sum > eps) ?
-            (cons_arr(i,j-1,k,Rho_comp) * cc_vfrac_arr(i,j-1,k) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
-            / cc_vfrac_sum : zero;
+            velx = velx_arr(i,j,k);
 
-        amrex::Real vmean     = vm_arr(i,j,0);
+            // Volume-weighted average of cell-centered density to x-face
+            amrex::Real cc_vfrac_sum = cc_vfrac_arr(i-1,j,k) + cc_vfrac_arr(i,j,k);
+            rho = (cc_vfrac_sum > eps) ?
+                (cons_arr(i-1,j,k,Rho_comp) * cc_vfrac_arr(i-1,j,k) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
+                / cc_vfrac_sum : zero;
 
-        // Average cell-centered u_star and wsp_mean to y-face, using only valid (SingleValued) cells
-        bool bottom_valid = cc_flag_arr(i,j-1,k).isSingleValued();
-        bool top_valid    = cc_flag_arr(i,j,k).isSingleValued();
+            // Average cell-centered u_star and wsp_mean to x-face, using only valid (SingleValued) cells
+            bool low_valid  = cc_flag_arr(i-1,j,k).isSingleValued();
+            bool high_valid = cc_flag_arr(i,j,k).isSingleValued();
 
-        amrex::Real ustar, wsp_mean;
-        if (bottom_valid && top_valid) {
-            ustar    = myhalf * (u_star_arr(i,j-1,k) + u_star_arr(i,j,k));
-            wsp_mean = myhalf * (umm_arr(i,j-1,0) + umm_arr(i,j,0));
-        } else if (bottom_valid) {
-            ustar    = u_star_arr(i,j-1,k);
-            wsp_mean = umm_arr(i,j-1,0);
-        } else if (top_valid) {
-            ustar    = u_star_arr(i,j,k);
-            wsp_mean = umm_arr(i,j,0);
+            if (low_valid && high_valid) {
+                ustar    = myhalf * (u_star_arr(i-1,j,k) + u_star_arr(i,j,k));
+                wsp_mean = myhalf * (umm_arr(i-1,j,0) + umm_arr(i,j,0));
+            } else if (low_valid) {
+                ustar    = u_star_arr(i-1,j,k);
+                wsp_mean = umm_arr(i-1,j,0);
+            } else if (high_valid) {
+                ustar    = u_star_arr(i,j,k);
+                wsp_mean = umm_arr(i,j,0);
+            } else {
+                ustar    = zero;
+                wsp_mean = WSMIN;
+            }
+
+        } else if (idir == 1) {
+            // y-face: average from cells (j-1) and (j)
+            // Volume-weighted average of x-face velocities to y-face
+            amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k) +
+                                      u_vfrac_arr(i,j-1,k) + u_vfrac_arr(i+1,j-1,k);
+            velx = (u_vfrac_sum > eps) ?
+                (velx_arr(i,j,k)   * u_vfrac_arr(i,j,k)   + velx_arr(i+1,j,k)   * u_vfrac_arr(i+1,j,k) +
+                 velx_arr(i,j-1,k) * u_vfrac_arr(i,j-1,k) + velx_arr(i+1,j-1,k) * u_vfrac_arr(i+1,j-1,k))
+                 / u_vfrac_sum : zero;
+
+            vely = vely_arr(i,j,k);
+
+            // Volume-weighted average of cell-centered density to y-face
+            amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j-1,k) + cc_vfrac_arr(i,j,k);
+            rho = (cc_vfrac_sum > eps) ?
+                (cons_arr(i,j-1,k,Rho_comp) * cc_vfrac_arr(i,j-1,k) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
+                / cc_vfrac_sum : zero;
+
+            // Average cell-centered u_star and wsp_mean to y-face, using only valid (SingleValued) cells
+            bool low_valid  = cc_flag_arr(i,j-1,k).isSingleValued();
+            bool high_valid = cc_flag_arr(i,j,k).isSingleValued();
+
+            if (low_valid && high_valid) {
+                ustar    = myhalf * (u_star_arr(i,j-1,k) + u_star_arr(i,j,k));
+                wsp_mean = myhalf * (umm_arr(i,j-1,0) + umm_arr(i,j,0));
+            } else if (low_valid) {
+                ustar    = u_star_arr(i,j-1,k);
+                wsp_mean = umm_arr(i,j-1,0);
+            } else if (high_valid) {
+                ustar    = u_star_arr(i,j,k);
+                wsp_mean = umm_arr(i,j,0);
+            } else {
+                ustar    = zero;
+                wsp_mean = WSMIN;
+            }
+
         } else {
-            // No valid cells - shouldn't happen if this function is called correctly
-            ustar    = zero;
-            wsp_mean = WSMIN;
+            // z-face: average from cells (k-1) and (k)
+            // Volume-weighted average of x-face velocities to z-face
+            amrex::Real u_vfrac_sum = u_vfrac_arr(i,j,k-1) + u_vfrac_arr(i+1,j,k-1) +
+                                      u_vfrac_arr(i,j,k) + u_vfrac_arr(i+1,j,k);
+            velx = (u_vfrac_sum > eps) ?
+                (velx_arr(i,j,k-1)   * u_vfrac_arr(i,j,k-1)   + velx_arr(i+1,j,k-1)   * u_vfrac_arr(i+1,j,k-1) +
+                 velx_arr(i,j,k)     * u_vfrac_arr(i,j,k)     + velx_arr(i+1,j,k)     * u_vfrac_arr(i+1,j,k))
+                 / u_vfrac_sum : zero;
+
+            // Volume-weighted average of y-face velocities to z-face
+            amrex::Real v_vfrac_sum = v_vfrac_arr(i,j,k-1) + v_vfrac_arr(i,j+1,k-1) +
+                                      v_vfrac_arr(i,j,k) + v_vfrac_arr(i,j+1,k);
+            vely = (v_vfrac_sum > eps) ?
+                (vely_arr(i,j,k-1)   * v_vfrac_arr(i,j,k-1)   + vely_arr(i,j+1,k-1)   * v_vfrac_arr(i,j+1,k-1) +
+                 vely_arr(i,j,k)     * v_vfrac_arr(i,j,k)     + vely_arr(i,j+1,k)     * v_vfrac_arr(i,j+1,k))
+                 / v_vfrac_sum : zero;
+
+            // Volume-weighted average of cell-centered density to z-face
+            amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j,k-1) + cc_vfrac_arr(i,j,k);
+            rho = (cc_vfrac_sum > eps) ?
+                (cons_arr(i,j,k-1,Rho_comp) * cc_vfrac_arr(i,j,k-1) + cons_arr(i,j,k,Rho_comp) * cc_vfrac_arr(i,j,k))
+                / cc_vfrac_sum : zero;
+
+            // Average cell-centered u_star and wsp_mean to z-face, using only valid (SingleValued) cells
+            bool low_valid  = cc_flag_arr(i,j,k-1).isSingleValued();
+            bool high_valid = cc_flag_arr(i,j,k).isSingleValued();
+
+            if (low_valid && high_valid) {
+                ustar    = myhalf * (u_star_arr(i,j,k-1) + u_star_arr(i,j,k));
+                wsp_mean = myhalf * (umm_arr(i,j,0) + umm_arr(i,j,0));
+            } else if (low_valid) {
+                ustar    = u_star_arr(i,j,k-1);
+                wsp_mean = umm_arr(i,j,0);
+            } else if (high_valid) {
+                ustar    = u_star_arr(i,j,k);
+                wsp_mean = umm_arr(i,j,0);
+            } else {
+                ustar    = zero;
+                wsp_mean = WSMIN;
+            }
         }
+
         wsp_mean = std::max(wsp_mean, WSMIN);
+        amrex::Real vmean = vm_arr(i,j,0);
 
         // Note: The surface mean shear stress is decomposed into tau_yz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
