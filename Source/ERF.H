@@ -216,7 +216,8 @@ public:
     void make_subdomains(const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
 #ifdef ERF_USE_FFT
-    void solve_with_fft (int lev, const amrex::Box& subdomain,
+    void build_fft_solvers (int lev);
+    void solve_with_fft (int lev, int isub, const amrex::Box& subdomain,
                          amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
@@ -533,11 +534,6 @@ public:
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
 
-    // get the current time values and dt
-    amrex::Real get_t_old (int lev) { return t_old[lev]; }
-    amrex::Real get_t_new (int lev) { return t_new[lev]; }
-    amrex::Real get_dt    (int lev) { return dt[lev];    }
-
     // Set parmparse prefix for MultiBlock
     void SetParmParsePrefix (std::string name) { pp_prefix = name; }
 
@@ -724,7 +720,7 @@ private:
     void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
-    void ComputeDt (int step = -1);
+    void ComputeDt (int step = -1, double cur_time_d = 0.0);
 
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
@@ -1674,8 +1670,9 @@ private:
     { return 4; }
 
 #ifdef ERF_USE_FFT
-    amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>> m_3D_poisson;
-    amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>> m_2D_poisson;
+    // Vector over levels of Vector over subdomains of solvers
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>>> m_3D_poisson;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>>> m_2D_poisson;
 #endif
 
 public:

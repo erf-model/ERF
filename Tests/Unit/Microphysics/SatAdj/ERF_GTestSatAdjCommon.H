@@ -52,10 +52,14 @@ namespace satadj_test {
 constexpr amrex::Real kThermoTolFactor = amrex::Real(2.0e-5);
 constexpr amrex::Real kStateTolFactor = amrex::Real(5.0e-5);
 constexpr amrex::Real kAsymptoticRelTol = amrex::Real(2.0e-1);
+constexpr amrex::Real kNormalizedWaterConservationTol = amrex::Real(8.0);
+constexpr amrex::Real kNormalizedLatentEnergyConservationTol = amrex::Real(8.0);
 #else
 constexpr amrex::Real kThermoTolFactor = amrex::Real(1.0e-12);
 constexpr amrex::Real kStateTolFactor = amrex::Real(1.0e-12);
 constexpr amrex::Real kAsymptoticRelTol = amrex::Real(2.0e-2);
+constexpr amrex::Real kNormalizedWaterConservationTol = amrex::Real(1.0);
+constexpr amrex::Real kNormalizedLatentEnergyConservationTol = amrex::Real(1.0);
 #endif
 
 constexpr amrex::Real kFacCond = lcond / Cp_d;
@@ -94,12 +98,56 @@ enum InvariantErrComp {
     NumInvariantErrComps
 };
 
+enum ConservationErrComp {
+    ConservationErrRho = 0,
+    ConservationErrQt,
+    ConservationErrLatentEnergy,
+    ConservationErrInitialQcPositive,
+    ConservationErrFinalQcPositive,
+    ConservationErrFinalQcZero,
+    NumConservationErrComps
+};
+
+#ifdef AMREX_USE_FLOAT
+constexpr amrex::Real kQcCoveragePositiveMin = amrex::Real(1.0e-6);
+constexpr amrex::Real kQcCoverageNearZeroMax = amrex::Real(1.0e-6);
+#else
+constexpr amrex::Real kQcCoveragePositiveMin = amrex::Real(1.0e-12);
+constexpr amrex::Real kQcCoverageNearZeroMax = amrex::Real(1.0e-12);
+#endif
+
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real scaled_tol (const amrex::Real reference, const amrex::Real factor)
 {
     const amrex::Real magnitude = amrex::Math::abs(reference);
     return factor * (magnitude > amrex::Real(1.0) ? magnitude : amrex::Real(1.0));
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real water_budget_tol (const amrex::Real reference)
+{
+#ifdef AMREX_USE_FLOAT
+    return amrex::max(amrex::Real(1.0e-8),
+                      amrex::Real(1.0e-5) * amrex::Math::abs(reference));
+#else
+    return amrex::max(amrex::Real(1.0e-14),
+                      amrex::Real(1.0e-12) * amrex::Math::abs(reference));
+#endif
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real latent_energy_budget_tol (const amrex::Real reference)
+{
+#ifdef AMREX_USE_FLOAT
+    return amrex::max(amrex::Real(1.0e-4),
+                      amrex::Real(1.0e-4) * amrex::Math::abs(reference));
+#else
+    return amrex::max(amrex::Real(1.0e-10),
+                      amrex::Real(1.0e-10) * amrex::Math::abs(reference));
+#endif
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -284,6 +332,66 @@ inline void fill_conserved_state_portable (amrex::MultiFab& cons)
     fill_conserved_state_portable(cons, true);
 }
 
+// The public-flow conservation contract is defined for physical SatAdj states
+// with qv and qc only. Keep the dedicated negative-qc repair coverage in the
+// scalar/reference tests, and use valid cloud-water states here so the new
+// MultiFab conservation test measures only phase-change conservation.
+inline void fill_conserved_state_conservation_portable (amrex::MultiFab& cons)
+{
+    CellState evap_then_recond;
+    const bool found = find_evaporation_then_recondensation_state(evap_then_recond);
+    AMREX_ALWAYS_ASSERT(found);
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        auto arr = cons.array(mfi);
+
+        run_and_sync([=] {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const int selector = (i + 2 * j + 3 * k) % 4;
+
+                amrex::Real tabs;
+                amrex::Real pres_mbar;
+                amrex::Real qv;
+                amrex::Real qc;
+
+                if (selector == 0) {
+                    tabs = amrex::Real(290.0);
+                    pres_mbar = amrex::Real(900.0);
+                    qv = qsat(tabs, pres_mbar) + amrex::Real(6.0e-4);
+                    qc = amrex::Real(3.0e-4);
+                } else if (selector == 1) {
+                    tabs = amrex::Real(290.0);
+                    pres_mbar = amrex::Real(900.0);
+                    qv = amrex::Real(4.0e-3);
+                    qc = amrex::Real(1.0e-3);
+                } else if (selector == 2) {
+                    tabs = evap_then_recond.tabs;
+                    pres_mbar = evap_then_recond.pres_mbar;
+                    qv = evap_then_recond.qv;
+                    qc = evap_then_recond.qc;
+                } else {
+                    tabs = amrex::Real(285.0);
+                    pres_mbar = amrex::Real(880.0);
+                    qv = qsat(tabs, pres_mbar) + amrex::Real(2.0e-4);
+                    qc = amrex::Real(5.0e-5);
+                }
+
+                const amrex::Real pres_pa = amrex::Real(100.0) * pres_mbar;
+                const amrex::Real rho = getRhogivenTandPress(tabs, pres_pa, qv);
+                const amrex::Real theta = getThgivenTandP(tabs, pres_pa, kRdOcp);
+
+                arr(i,j,k,Rho_comp) = rho;
+                arr(i,j,k,RhoTheta_comp) = rho * theta;
+                arr(i,j,k,RhoKE_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoScalar_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoQ1_comp) = rho * qv;
+                arr(i,j,k,RhoQ2_comp) = rho * qc;
+            });
+        });
+    }
+}
+
 inline void compute_state_difference (const amrex::MultiFab& after,
                                       const amrex::MultiFab& before,
                                       amrex::MultiFab& err)
@@ -356,6 +464,98 @@ inline void compute_satadj_invariant_errors (const amrex::MultiFab& before,
                     / scaled_tol(rhoq1_ref, amrex::Real(20.0) * kStateTolFactor);
                 err_arr(i,j,k,InvariantErrQ2Ref) = amrex::Math::abs(after_arr(i,j,k,RhoQ2_comp) - rhoq2_ref)
                     / scaled_tol(rhoq2_ref, amrex::Real(20.0) * kStateTolFactor);
+            });
+        });
+    }
+}
+
+inline void compute_satadj_conservation_errors (const amrex::MultiFab& before,
+                                                const amrex::MultiFab& after,
+                                                amrex::MultiFab& err)
+{
+    // This helper checks the public SatAdj MultiFab flow as a conservation
+    // contract, not against a scalar gold implementation. SatAdj transports
+    // only non-precipitating water (qv and qc), so the conserved quantity here
+    // is rho * (qv + qc), not any precipitating-water budget.
+    //
+    // The cell solve itself updates qv and qc with algebraically conservative
+    // assignments. Any nonzero public-flow rho/qt residual observed here comes
+    // from floating-point roundoff in the conserved-to-primitive and
+    // primitive-to-conserved rho*q conversions around the SatAdj call, not
+    // from an intended source/sink in the scheme.
+
+    // SatAdj holds the diagnosed cell pressure fixed during each adjustment.
+    // Evaluate both the pre-state and post-state latent-energy invariant along
+    // that same fixed-pressure path:
+    //
+    // Condensation/recondensation:
+    //   T1 = T0 + A * (qv0 - qv1)
+    //   qc1 = qc0 + qv0 - qv1
+    //   A = L / cp
+    //
+    //   qv1 + qc1 - qv0 - qc0 = 0
+    //   T1 + A*qv1 - T0 - A*qv0 = 0
+    //
+    // All evaporation:
+    //   qv1 = qv0 + qc0
+    //   qc1 = 0
+    //   T1 = T0 - A*qc0
+    //
+    //   qv1 + qc1 - qv0 - qc0 = 0
+    //   T1 + A*qv1 - T0 - A*qv0 = 0
+    for (amrex::MFIter mfi(after, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        auto before_arr = before.const_array(mfi);
+        auto after_arr = after.const_array(mfi);
+        auto err_arr = err.array(mfi);
+
+        run_and_sync([=] {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const amrex::Real rho_before = before_arr(i,j,k,Rho_comp);
+                const amrex::Real rho_after = after_arr(i,j,k,Rho_comp);
+                const amrex::Real rhotheta_before = before_arr(i,j,k,RhoTheta_comp);
+                const amrex::Real rhotheta_after = after_arr(i,j,k,RhoTheta_comp);
+                const amrex::Real rhoqv_before = before_arr(i,j,k,RhoQ1_comp);
+                const amrex::Real rhoqv_after = after_arr(i,j,k,RhoQ1_comp);
+                const amrex::Real rhoqc_before = before_arr(i,j,k,RhoQ2_comp);
+                const amrex::Real rhoqc_after = after_arr(i,j,k,RhoQ2_comp);
+
+                const amrex::Real theta_before = rhotheta_before / rho_before;
+                const amrex::Real theta_after = rhotheta_after / rho_after;
+                const amrex::Real qv_before = rhoqv_before / rho_before;
+                const amrex::Real qv_after = rhoqv_after / rho_after;
+                const amrex::Real qc_before = rhoqc_before / rho_before;
+                const amrex::Real qc_after = rhoqc_after / rho_after;
+
+                const amrex::Real qt_before = rhoqv_before + rhoqc_before;
+                const amrex::Real qt_after = rhoqv_after + rhoqc_after;
+
+                const amrex::Real p_before = getPgivenRTh(rhotheta_before, qv_before);
+                const amrex::Real t_before = getTgivenPandTh(p_before, theta_before, kRdOcp);
+                const amrex::Real t_after_fixed_p = getTgivenPandTh(p_before, theta_after, kRdOcp);
+
+                const amrex::Real latent_before = rho_before * (t_before + kFacCond * qv_before);
+                const amrex::Real latent_after = rho_after * (t_after_fixed_p + kFacCond * qv_after);
+
+                err_arr(i,j,k,ConservationErrRho) = amrex::Math::abs(rho_after - rho_before)
+                    / scaled_tol(rho_before, kStateTolFactor);
+                err_arr(i,j,k,ConservationErrQt) = amrex::Math::abs(qt_after - qt_before)
+                    / water_budget_tol(qt_before);
+                // Reconstruct temperature at the pre-adjustment fixed pressure
+                // and normalize against a physically meaningful latent-energy
+                // budget tolerance, not a generic scaled_tol floor of 1.
+                err_arr(i,j,k,ConservationErrLatentEnergy) = amrex::Math::abs(latent_after - latent_before)
+                    / latent_energy_budget_tol(latent_before);
+
+                err_arr(i,j,k,ConservationErrInitialQcPositive) =
+                    qc_before > kQcCoveragePositiveMin ? amrex::Real(1.0) : amrex::Real(0.0);
+                err_arr(i,j,k,ConservationErrFinalQcPositive) =
+                    qc_after > kQcCoveragePositiveMin ? amrex::Real(1.0) : amrex::Real(0.0);
+                err_arr(i,j,k,ConservationErrFinalQcZero) =
+                    (qc_before > kQcCoveragePositiveMin &&
+                     amrex::Math::abs(qc_after) <= kQcCoverageNearZeroMax)
+                    ? amrex::Real(1.0)
+                    : amrex::Real(0.0);
             });
         });
     }

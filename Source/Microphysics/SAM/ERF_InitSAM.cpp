@@ -105,24 +105,28 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
-            theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-
-            qv_array(i,j,k)    = std::max(Real(0),states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp));
-            qc_array(i,j,k)    = std::max(Real(0),states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp));
-            qi_array(i,j,k)    = std::max(Real(0),states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp));
-            qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
-            qt_array(i,j,k)    = qv_array(i,j,k) + qn_array(i,j,k);
-
-            qpr_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp));
-            qps_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp));
-            qpg_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp));
-             qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp),
-                                                  qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
+            const SAMPrimitiveCell primitive =
+                sam_cons_to_primitive(states_array(i,j,k,Rho_comp),
+                                      states_array(i,j,k,RhoTheta_comp),
+                                      states_array(i,j,k,RhoQ1_comp),
+                                      states_array(i,j,k,RhoQ2_comp),
+                                      states_array(i,j,k,RhoQ3_comp),
+                                      states_array(i,j,k,RhoQ4_comp),
+                                      states_array(i,j,k,RhoQ5_comp),
+                                      states_array(i,j,k,RhoQ6_comp));
+            rho_array(i,j,k) = primitive.rho;
+            theta_array(i,j,k) = primitive.theta;
+            qv_array(i,j,k) = primitive.qv;
+            qc_array(i,j,k) = primitive.qcl;
+            qi_array(i,j,k) = primitive.qci;
+            qn_array(i,j,k) = primitive.qn;
+            qt_array(i,j,k) = primitive.qt;
+            qpr_array(i,j,k) = primitive.qpr;
+            qps_array(i,j,k) = primitive.qps;
+            qpg_array(i,j,k) = primitive.qpg;
+            qp_array(i,j,k) = primitive.qp;
+            tabs_array(i,j,k) = primitive.tabs;
+            pres_array(i,j,k) = primitive.pres_mbar;
         });
     }
 }
@@ -187,7 +191,7 @@ void SAM::Compute_Coefficients ()
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];
         Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
         rho1d_t(k)    = rho_dptr[k];
-        pres1d_t(k)   = pressure*Real(0.01);
+        pres1d_t(k)   = sam_pa_to_mbar(pressure);
         // NOTE: Limit the temperature to the melting point of ice to avoid a divide by
         //       0 condition when computing the cold evaporation coefficients. This should
         //       not affect results since evaporation requires snow/graupel to be present
@@ -203,52 +207,20 @@ void SAM::Compute_Coefficients ()
     // Populate all the coefficients
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
-        Real Prefactor;
-        Real pratio = std::sqrt(Real(1.29) / rho1d_t(k));
-        //Real rrr1   = Real(393.0)/(tabs1d_t(k)+Real(120.0))*std::pow((tabs1d_t(k)/Real(273.0)),Real(1.5));
-        //Real rrr2   = std::pow((tabs1d_t(k)/Real(273.0)),Real(1.94))*(Real(1000.0)/pres1d_t(k));
-        Real estw   = Real(100.0)*erf_esatw(tabs1d_t(k));
-        Real esti   = Real(100.0)*erf_esati(tabs1d_t(k));
-
-        // accretion by snow:
-        Real coef1   = fourth * PI * nzeros * a_snow * gams1 * pratio/std::pow((PI * rhos * nzeros/rho1d_t(k) ) , ((three+b_snow)/Real(4.0)));
-        Real coef2   = std::exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
-        accrsi_t(k)  =  coef1 * coef2 * esicoef;
-        accrsc_t(k)  =  coef1 * esccoef;
-        coefice_t(k) =  coef2;
-
-        // evaporation of snow:
-        coef1 = (lsub/(tabs1d_t(k)*R_v)-one)*lsub/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * esti);
-        Prefactor = two * PI * nzeros / (rho1d_t(k) * (coef1 + coef2));
-        Prefactor *= (two/PI); // Shape factor snow
-        evaps1_t(k) = Prefactor * Real(0.65) * std::sqrt(rho1d_t(k) / (PI * rhos * nzeros));
-        evaps2_t(k) = Prefactor * Real(0.44) * std::sqrt(a_snow * rho1d_t(k) / muelq) * gams2
-                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhos * nzeros) , ((Real(5.0)+b_snow)/Real(8.0)));
-
-        // accretion by graupel:
-        coef1 = fourth*PI*nzerog*a_grau*gamg1*pratio/std::pow((PI*rhog*nzerog/rho1d_t(k)) , ((three+b_grau)/Real(4.0)));
-        coef2 = std::exp(Real(0.025)*(tabs1d_t(k) - Real(273.15)));
-        accrgi_t(k) = coef1 * coef2 * egicoef;
-        accrgc_t(k) = coef1 * egccoef;
-
-        // evaporation of graupel:
-        coef1 = (lsub/(tabs1d_t(k)*R_v)-one)*lsub/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * esti);
-        Prefactor = two * PI * nzerog / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for graupel is 1
-        evapg1_t(k) = Prefactor * Real(0.78) * std::sqrt(rho1d_t(k) / (PI * rhog * nzerog));
-        evapg2_t(k) = Prefactor * Real(0.31) * std::sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
-                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhog * nzerog) , ((Real(5.0)+b_grau)/Real(8.0)));
-
-        // accretion by rain:
-        accrrc_t(k) = fourth * PI * nzeror * a_rain * gamr1 * pratio/std::pow((PI * rhor * nzeror / rho1d_t(k)) , ((three+b_rain)/Real(4.)))* erccoef;
-
-        // evaporation of rain:
-        coef1 = (lcond/(tabs1d_t(k)*R_v)-one)*lcond/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * estw);
-        Prefactor = two * PI * nzeror / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for rain is 1
-        evapr1_t(k) = Prefactor * Real(0.78) * std::sqrt(rho1d_t(k) / (PI * rhor * nzeror));
-        evapr2_t(k) = Prefactor * Real(0.31) * std::sqrt(a_rain * rho1d_t(k) / muelq) * gamr2
-                    * std::sqrt(pratio) * std::pow(rho1d_t(k) / (PI * rhor * nzeror) , ((Real(5.0)+b_rain)/Real(8.0)));
+        const SAMCoefficientRow row =
+            sam_compute_coefficient_row(rho1d_t(k), tabs1d_t(k),
+                                        gamr1, gamr2, gams1, gams2, gamg1, gamg2);
+        accrrc_t(k) = row.accrrc;
+        accrsi_t(k) = row.accrsi;
+        accrsc_t(k) = row.accrsc;
+        coefice_t(k) = row.coefice;
+        evaps1_t(k) = row.evaps1;
+        evaps2_t(k) = row.evaps2;
+        accrgi_t(k) = row.accrgi;
+        accrgc_t(k) = row.accrgc;
+        evapg1_t(k) = row.evapg1;
+        evapg2_t(k) = row.evapg2;
+        evapr1_t(k) = row.evapr1;
+        evapr2_t(k) = row.evapr2;
     });
 }

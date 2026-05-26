@@ -2,3 +2,4 @@ CEXE_sources += ERF_InitKessler.cpp
 CEXE_sources += ERF_UpdateKessler.cpp
 CEXE_sources += ERF_Kessler.cpp
 CEXE_headers += ERF_Kessler.H
+CEXE_headers += ERF_KesslerUtils.H
