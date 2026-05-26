@@ -550,11 +550,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     Tau[lev].resize(9);
     Tau_corr[lev].resize(3);
-    if (l_eb_surface_layer) {
-        Tau_EB[lev].resize(2);  // tau_eb13 and tau_eb23
-        for (int comp = 0; comp < 2; ++comp) {
-            Tau_EB[lev][comp].resize(3);  // xface, yface, zface
-        }
+
+    // Always resize Tau_EB structure, even if not used, because other code checks nullptr
+    Tau_EB[lev].resize(2);  // tau_eb13 and tau_eb23
+    for (int comp = 0; comp < 2; ++comp) {
+        Tau_EB[lev][comp].resize(3);  // xface, yface, zface
     }
 
     if (l_use_diff) {
