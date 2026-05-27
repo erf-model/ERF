@@ -717,6 +717,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
     const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
     const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
     const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
+    const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNorm();
+    const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNorm();
+    const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNorm();
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -744,6 +747,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         auto const v_vfrac_arr = v_vfrac.const_array(mfi);
         auto const w_vfrac_arr = w_vfrac.const_array(mfi);
         auto const bnorm_arr = cc_bnorm.const_array(mfi);
+        auto const u_bnorm_arr = u_bnorm.const_array(mfi);
+        auto const v_bnorm_arr = v_bnorm.const_array(mfi);
+        auto const w_bnorm_arr = w_bnorm.const_array(mfi);
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
@@ -805,9 +811,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (u_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, um_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 0);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        u_bnorm_arr, 0);
                 u_t13_arr(i,j,k) = stressx;
             }
         });
@@ -815,9 +823,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (v_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, um_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 1);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        v_bnorm_arr, 1);
                 v_t13_arr(i,j,k) = stressx;
             }
         });
@@ -825,9 +835,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (u_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, um_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 2);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        w_bnorm_arr, 2);
                 w_t13_arr(i,j,k) = stressx;
             }
         });

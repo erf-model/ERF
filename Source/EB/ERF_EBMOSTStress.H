@@ -427,13 +427,16 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& u_vfrac_arr,
                     const amrex::Array4<const amrex::Real>& v_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& w_vfrac_arr,
                     const amrex::Array4<const amrex::Real>& cc_vfrac_arr,
                     const amrex::Array4<const amrex::EBCellFlag>& cc_flag_arr,
+                    const amrex::Array4<const amrex::Real>& bnorm_arr,
                     int idir = 0) const
     {
         amrex::Real velx, vely, rho, ustar, wsp_mean;
@@ -449,6 +452,24 @@ struct moeng_flux_eb
                 (vely_arr(i,j,k)   * v_vfrac_arr(i,j,k)   + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k) +
                  vely_arr(i-1,j,k) * v_vfrac_arr(i-1,j,k) + vely_arr(i-1,j+1,k) * v_vfrac_arr(i-1,j+1,k))
                  / v_vfrac_sum : zero;
+
+            // Volume-weighted average of z-face velocities to x-face
+            amrex::Real w_vfrac_sum = w_vfrac_arr(i,j,k) + w_vfrac_arr(i,j,k+1) +
+                                      w_vfrac_arr(i-1,j,k) + w_vfrac_arr(i-1,j,k+1);
+            amrex::Real velz = (w_vfrac_sum > eps) ?
+                (velz_arr(i,j,k)   * w_vfrac_arr(i,j,k)   + velz_arr(i,j,k+1)   * w_vfrac_arr(i,j,k+1) +
+                 velz_arr(i-1,j,k) * w_vfrac_arr(i-1,j,k) + velz_arr(i-1,j,k+1) * w_vfrac_arr(i-1,j,k+1))
+                 / w_vfrac_sum : zero;
+
+            // Get boundary normal at x-face (already at correct staggered location)
+            amrex::Real nx = bnorm_arr(i,j,k,0);
+            amrex::Real ny = bnorm_arr(i,j,k,1);
+            amrex::Real nz = bnorm_arr(i,j,k,2);
+
+            // Project velocity onto tangent plane
+            amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
+            velx = velx - v_dot_n * nx;
+            vely = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to x-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i-1,j,k) + cc_vfrac_arr(i,j,k);
@@ -485,6 +506,24 @@ struct moeng_flux_eb
                 (velx_arr(i,j,k)   * u_vfrac_arr(i,j,k)   + velx_arr(i+1,j,k)   * u_vfrac_arr(i+1,j,k) +
                  velx_arr(i,j-1,k) * u_vfrac_arr(i,j-1,k) + velx_arr(i+1,j-1,k) * u_vfrac_arr(i+1,j-1,k))
                  / u_vfrac_sum : zero;
+
+            // Volume-weighted average of z-face velocities to y-face
+            amrex::Real w_vfrac_sum = w_vfrac_arr(i,j,k) + w_vfrac_arr(i,j,k+1) +
+                                      w_vfrac_arr(i,j-1,k) + w_vfrac_arr(i,j-1,k+1);
+            amrex::Real velz = (w_vfrac_sum > eps) ?
+                (velz_arr(i,j,k)   * w_vfrac_arr(i,j,k)   + velz_arr(i,j,k+1)   * w_vfrac_arr(i,j,k+1) +
+                 velz_arr(i,j-1,k) * w_vfrac_arr(i,j-1,k) + velz_arr(i,j-1,k+1) * w_vfrac_arr(i,j-1,k+1))
+                 / w_vfrac_sum : zero;
+
+            // Get boundary normal at y-face (already at correct staggered location)
+            amrex::Real nx = bnorm_arr(i,j,k,0);
+            amrex::Real ny = bnorm_arr(i,j,k,1);
+            amrex::Real nz = bnorm_arr(i,j,k,2);
+
+            // Project velocity onto tangent plane
+            amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
+            velx = velx - v_dot_n * nx;
+            vely = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to y-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j-1,k) + cc_vfrac_arr(i,j,k);
@@ -527,6 +566,19 @@ struct moeng_flux_eb
                 (vely_arr(i,j,k-1)   * v_vfrac_arr(i,j,k-1)   + vely_arr(i,j+1,k-1)   * v_vfrac_arr(i,j+1,k-1) +
                  vely_arr(i,j,k) * v_vfrac_arr(i,j,k) + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k))
                  / v_vfrac_sum : zero;
+
+            // z-velocity is already at z-face
+            amrex::Real velz = velz_arr(i,j,k);
+
+            // Get boundary normal at z-face (already at correct staggered location)
+            amrex::Real nx = bnorm_arr(i,j,k,0);
+            amrex::Real ny = bnorm_arr(i,j,k,1);
+            amrex::Real nz = bnorm_arr(i,j,k,2);
+
+            // Project velocity onto tangent plane
+            amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
+            velx = velx - v_dot_n * nx;
+            vely = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to z-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j,k-1) + cc_vfrac_arr(i,j,k);
