@@ -69,6 +69,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
                     bool l_reflux,
+                    bool l_real_bc,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef)
 {
@@ -77,6 +78,11 @@ void erf_substep_T (int step, int /*nrk*/,
     const Box& domain = geom.Domain();
     auto const domlo = lbound(domain);
     auto const domhi = ubound(domain);
+
+    int ilo = domlo.x;
+    int ihi = domhi.x + 1;
+    int jlo = domlo.y;
+    int jhi = domhi.y + 1;
 
     Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
@@ -291,7 +297,9 @@ void erf_substep_T (int step, int /*nrk*/,
                                    - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
                    fourth * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
                                   - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
-                Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+                Real gpx = (l_real_bc && (level==0) && (i==ilo || i==ihi)) ? Real(0.) :
+                  gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+
                 gpx *= mf_ux(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
@@ -323,7 +331,9 @@ void erf_substep_T (int step, int /*nrk*/,
                                     - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
                     fourth * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                    - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
-                Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+                Real gpy = (l_real_bc && (level==0) && (j==jlo || j==jhi)) ? Real(0.) :
+                  gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+
                 gpy *= mf_vy(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
