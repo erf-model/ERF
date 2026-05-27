@@ -67,7 +67,7 @@ public:
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
                        amrex::Geometry const& /*geom*/,
-                       bool use_terrain_fitted_coords)
+                       bool /*use_terrain_fitted_coords*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
@@ -103,7 +103,7 @@ public:
     erf_init_dens_hse_moist (amrex::MultiFab& /*rho_hse*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                              amrex::Geometry const& /*geom*/,
-                             bool use_terrain_fitted_coords)
+                             bool /*use_terrain_fitted_coords*/)
     {
 
     }
