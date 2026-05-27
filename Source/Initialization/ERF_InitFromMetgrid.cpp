@@ -67,14 +67,14 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    // Check for erfbdy file.
+    // Check for an erfbdy file.
     if (lev == 0) {
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
     }
     if (use_erfbdy || write_erfbdy) nvars_erfbdy = MetGridBdyVars::NumTypes;
 
-    // If erfbdy file exists, load boundary data and skip met_em processing.
+    // If the erfbdy file exists, load boundary data and skip met_em processing.
     if (lev == 0 && use_erfbdy) {
         Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 

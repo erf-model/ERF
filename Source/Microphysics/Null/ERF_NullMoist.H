@@ -91,7 +91,7 @@ public:
 
     virtual
     void
-    Set_RealWidth (const int /*real_width*/) { }
+    Set_RealWidth (const int /*a_lev*/, const int /*real_width*/) { }
 
 
 private:

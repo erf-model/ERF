@@ -124,7 +124,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // ******************************************************************
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
-    // WRFBdyVars:  U, V, R, T, QV, MU, PC
+    // WRFBdyVars:  U, V, T, QV, MU, PC
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
@@ -143,15 +143,18 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     Vector<RARRAY> tslice(nc_var_names.size());
 
     int width; // size of bdy_width from wrfbdy
+    Vector<int> success(nc_var_names.size());
 
     if (ParallelDescriptor::IOProcessor())
     {
-        Vector<int> success(nc_var_names.size());
 
         ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime, nc_var_names, tslice, success);
 
-        for (auto &istat:success) {
-            AMREX_ALWAYS_ASSERT(istat==1);
+        // Check that all required variables were read successfully
+        for (int i = 0; i < success.size(); ++i) {
+            if (success[i] != 1) {
+                Abort("Missing required wrfbdy variable " + nc_var_names[i]);
+            }
         }
 
         // Width of the boundary region
@@ -328,6 +331,9 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
         // Now fill the data
         if (ParallelDescriptor::IOProcessor())
         {
+            // Skip filling data for variables that weren't successfully read from the file
+            if (success[iv] != 1) continue;
+
             // Print() << "SHAPE0 " << tslice[iv].get_vshape()[0] << std::endl;
             // Print() << "SHAPE1 " << tslice[iv].get_vshape()[1] << std::endl;
             // Print() << "SHAPE2 " << tslice[iv].get_vshape()[2] << std::endl;

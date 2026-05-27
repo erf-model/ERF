@@ -121,7 +121,9 @@ public:
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+    Set_RealWidth (const int a_lev, const int real_width) override {
+        m_real_width = real_width;
+    }
 
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,

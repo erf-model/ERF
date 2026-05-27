@@ -489,7 +489,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                           old_stage_time_total, dt, start_bdy_time, final_bdy_time, bdy_time_interval,
                           bdy_factor, width, do_upwind, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                          m_r2d);
+                          m_r2d, n_qstate);
         }
 #endif
 

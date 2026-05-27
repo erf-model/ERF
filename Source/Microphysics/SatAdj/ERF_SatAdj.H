@@ -126,7 +126,7 @@ public:
     }
 
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+    Set_RealWidth (const int /*a_lev*/, const int real_width) override { m_real_width = real_width; }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE

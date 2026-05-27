@@ -1,5 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF_TileNoZ.H>
+#include <ERF_Constants.H>
 #include "ERF_Kessler.H"
 #include "ERF_DataStruct.H"
 
@@ -25,6 +26,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         auto ba    = tabs->boxArray();
         auto dm    = tabs->DistributionMap();
         fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
+        fz.setVal(zero); // Initialize to zero for boundary cells.
 
         Real dtn  = dt;
         Real coef = dtn/m_dzmin;
@@ -135,6 +137,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
             });
         }
+
+        // Initialize fz to zero (including ghost cells) before computing terminal velocity
+        fz.setVal(Real(0.0));
 
         // Precompute terminal velocity for substepping
         for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){

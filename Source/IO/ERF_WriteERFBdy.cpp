@@ -81,7 +81,7 @@ void WriteERFBdyTimeSlice(const std::string& bdy_file_name,
     // Barrier to ensure directory exists.
     ParallelDescriptor::Barrier();
 
-    // Write each variable for each boundary direction using FArrayBox::writeOn.
+    // Write each variable for each boundary direction.
     if (ParallelDescriptor::IOProcessor())
     {
         for (int ivar = 0; ivar < nvars; ++ivar)

@@ -82,7 +82,7 @@ public:
     int Qmoist_Size() override { return m_qmoist_size; }
     int Qstate_Moist_Size() override { return n_qstate_moist_size; }
 
-    void Set_RealWidth(const int real_width) override { m_real_width = real_width; }
+    void Set_RealWidth(const int /*a_lev*/, const int real_width) override { m_real_width = real_width; }
 
     void Qmoist_Restart_Vars(const SolverChoice&,
                              std::vector<int>& a_idx,

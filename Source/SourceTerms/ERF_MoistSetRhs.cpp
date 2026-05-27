@@ -2,6 +2,7 @@
 
 #include <ERF_SrcHeaders.H>
 #include <ERF_Utils.H>
+#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -28,7 +29,8 @@ moist_set_rhs (const Geometry& geom,
                Vector<Vector<FArrayBox>>& bdy_data_xhi,
                Vector<Vector<FArrayBox>>& bdy_data_ylo,
                Vector<Vector<FArrayBox>>& bdy_data_yhi,
-               std::unique_ptr<ReadBndryPlanes>& m_r2d)
+               std::unique_ptr<ReadBndryPlanes>& m_r2d,
+               int n_qstate)
 {
     // HACK HACK HACK
     // Get bndry data
@@ -254,5 +256,40 @@ moist_set_rhs (const Geometry& geom,
     });
     exit(0);
     */
+
+    // Zero out hydrometeors in boundary regions based on active microphysics scheme
+    ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (n_qstate >= 2) cell_rhs(i,j,k,RhoQ2_comp) = zero;
+        if (n_qstate >= 3) cell_rhs(i,j,k,RhoQ3_comp) = zero;
+        if (n_qstate >= 4) cell_rhs(i,j,k,RhoQ4_comp) = zero;
+        if (n_qstate >= 5) cell_rhs(i,j,k,RhoQ5_comp) = zero;
+        if (n_qstate >= 6) cell_rhs(i,j,k,RhoQ6_comp) = zero;
+    });
+    ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (n_qstate >= 2) cell_rhs(i,j,k,RhoQ2_comp) = zero;
+        if (n_qstate >= 3) cell_rhs(i,j,k,RhoQ3_comp) = zero;
+        if (n_qstate >= 4) cell_rhs(i,j,k,RhoQ4_comp) = zero;
+        if (n_qstate >= 5) cell_rhs(i,j,k,RhoQ5_comp) = zero;
+        if (n_qstate >= 6) cell_rhs(i,j,k,RhoQ6_comp) = zero;
+    });
+    ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (n_qstate >= 2) cell_rhs(i,j,k,RhoQ2_comp) = zero;
+        if (n_qstate >= 3) cell_rhs(i,j,k,RhoQ3_comp) = zero;
+        if (n_qstate >= 4) cell_rhs(i,j,k,RhoQ4_comp) = zero;
+        if (n_qstate >= 5) cell_rhs(i,j,k,RhoQ5_comp) = zero;
+        if (n_qstate >= 6) cell_rhs(i,j,k,RhoQ6_comp) = zero;
+    });
+    ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (n_qstate >= 2) cell_rhs(i,j,k,RhoQ2_comp) = zero;
+        if (n_qstate >= 3) cell_rhs(i,j,k,RhoQ3_comp) = zero;
+        if (n_qstate >= 4) cell_rhs(i,j,k,RhoQ4_comp) = zero;
+        if (n_qstate >= 5) cell_rhs(i,j,k,RhoQ5_comp) = zero;
+        if (n_qstate >= 6) cell_rhs(i,j,k,RhoQ6_comp) = zero;
+    });
+
 } // moist_set_rhs
 #endif

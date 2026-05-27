@@ -158,22 +158,20 @@ ERF::init_from_wrfinput (int lev,
     NC_names.push_back("XLONG_U");   // 22
     if (use_moist) {
         NC_names.push_back("QVAPOR"); // 23
-        NC_names.push_back("QCLOUD"); // 24
-        NC_names.push_back("QRAIN");  // 25
     }
-    NC_names.push_back("IVGTYP");     // 26
-    NC_names.push_back("ISLTYP");     // 27
+    NC_names.push_back("IVGTYP");     // 24
+    NC_names.push_back("ISLTYP");     // 25
     if (use_lsm) {
-        NC_names.push_back("TSLB");   // 28
-        NC_names.push_back("SMOIS");  // 29
-        NC_names.push_back("SH2O");   // 30
-        NC_names.push_back("LAI");    // 31
-        NC_names.push_back("ZS");     // 32
-        NC_names.push_back("DZS");    // 33
-        NC_names.push_back("VEGFRA"); // 34
-        NC_names.push_back("TMN");    // 35
-        NC_names.push_back("SHDMIN"); // 36
-        NC_names.push_back("SHDMAX"); // 37
+        NC_names.push_back("TSLB");   // 26
+        NC_names.push_back("SMOIS");  // 27
+        NC_names.push_back("SH2O");   // 28
+        NC_names.push_back("LAI");    // 29
+        NC_names.push_back("ZS");     // 30
+        NC_names.push_back("DZS");    // 31
+        NC_names.push_back("VEGFRA"); // 32
+        NC_names.push_back("TMN");    // 33
+        NC_names.push_back("SHDMIN"); // 34
+        NC_names.push_back("SHDMAX"); // 35
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -246,8 +244,8 @@ ERF::init_from_wrfinput (int lev,
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
                 (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
-                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
-                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+                (var_name == "THM")    || (var_name == "QVAPOR") ||
+                (var_name == "PH")     || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
