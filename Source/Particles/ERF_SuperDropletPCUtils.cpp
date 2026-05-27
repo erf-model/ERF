@@ -417,8 +417,8 @@ void SuperDropletPC::SplitParticlesForRefinement (
     const auto dx     = geom.CellSizeArray();
     const auto domain = geom.Domain();
 
-    constexpr int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
-    constexpr int rt_off_i = SuperDropletsIntIdxSoA::ncomps;
+    constexpr int rt_off_r = SuperDropletsRealIdx::ncomps;
+    constexpr int rt_off_i = SuperDropletsIntIdx::ncomps;
     const int mult_idx   = rt_off_r + SuperDropletsRealIdxSoA_RT::multiplicity;
     const int active_idx = rt_off_i + SuperDropletsIntIdxSoA_RT::active;
     const ParticleReal inv_split = ParticleReal(1.0) / static_cast<ParticleReal>(split_factor);
@@ -899,8 +899,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
     int finest = finestLevel();
     if (finest < 1) { return; }
 
-    constexpr int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
-    constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+    constexpr int rtoff_i = SuperDropletsIntIdx::ncomps;
+    constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
     const int mult_idx   = rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity;
     const int active_idx = rtoff_i + SuperDropletsIntIdxSoA_RT::active;
     const int my_proc = ParallelDescriptor::MyProc();
