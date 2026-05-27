@@ -1500,7 +1500,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   }
 
                   // Calculate intercept parameter
-                  morr_arr(i,j,k,MORRInd::cdist1) = morr_arr(i,j,k,MORRInd::nc3d) * std::pow(morr_arr(i,j,k,MORRInd::lamc), morr_arr(i,j,k,MORRInd::pgam)+1) / gamma_pgam_plus_1;
+                  morr_arr(i,j,k,MORRInd::cdist1) = morr_arr(i,j,k,MORRInd::nc3d) / gamma_pgam_plus_1;
                 }
 
                 // Snow
@@ -3563,6 +3563,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             }
          label_400:*/
             //End of _micro
+
             if(use_morr_cpp_answer) {
               for(int k=klo; k<=khi; k++) {
 
