@@ -380,15 +380,251 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
     }
 }
 
-/*! \brief Split coarse-level particles in newly-refined cells (stub).
- *  Full implementation in a follow-on commit. */
+/*! \brief Split coarse-level particles in newly-refined cells.  Driven by a
+ *  covered-cell mask on the coarse level; only particles whose multiplicity
+ *  is at least `split_factor` participate (low-mult particles are skipped
+ *  since they cannot be evenly split).
+ *
+ *  After splitting, the next Redistribute moves the daughters to the fine
+ *  level.  All family members (the original + the new copies) are tagged
+ *  active=2 so SplitMergeAtLevelBoundary's per-step Part-2 will catch any
+ *  daughter that crosses back to the coarse level via advection. */
 void SuperDropletPC::SplitParticlesForRefinement (
-    int /*a_lev*/,
+    int a_lev,
     const amrex::BoxArray& /*a_old_ba*/,
-    const amrex::IntVect& /*a_ref_ratio*/ )
+    const amrex::IntVect& a_ref_ratio)
 {
     BL_PROFILE("SuperDropletPC::SplitParticlesForRefinement()");
+
     if (!m_split_merge_amr) { return; }
+
+    const int split_factor = AMREX_D_TERM(a_ref_ratio[0], *a_ref_ratio[1], *a_ref_ratio[2]);
+    if (split_factor <= 1) { return; }
+
+    const int clev = a_lev - 1;
+    AMREX_ALWAYS_ASSERT(clev >= 0);
+
+    // Coarse-level mask of cells covered by the new fine BoxArray
+    const BoxArray&        fine_ba = ParticleBoxArray(a_lev);
+    const auto&            cba     = ParticleBoxArray(clev);
+    const auto&            cdm     = ParticleDistributionMap(clev);
+    iMultiFab covered_mask = makeFineMask(cba, cdm, fine_ba, a_ref_ratio,
+                                          /*crse_value=*/0, /*fine_value=*/1);
+
+    const auto& geom = m_gdb->Geom(clev);
+    const auto plo    = geom.ProbLoArray();
+    const auto dxi    = geom.InvCellSizeArray();
+    const auto dx     = geom.CellSizeArray();
+    const auto domain = geom.Domain();
+
+    constexpr int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+    constexpr int rt_off_i = SuperDropletsIntIdxSoA::ncomps;
+    const int mult_idx   = rt_off_r + SuperDropletsRealIdxSoA_RT::multiplicity;
+    const int active_idx = rt_off_i + SuperDropletsIntIdxSoA_RT::active;
+    const ParticleReal inv_split = ParticleReal(1.0) / static_cast<ParticleReal>(split_factor);
+
+    Long n_to_split        = 0;
+    Long n_skipped_low_mult = 0;
+    const int sf_count = split_factor;
+
+    for (ParConstIterType pti(*this, clev); pti.isValid(); ++pti) {
+        const auto& ptile = ParticlesAt(clev, pti);
+        const auto& aos   = ptile.GetArrayOfStructs();
+        int np = aos.numParticles();
+        if (np == 0) { continue; }
+
+        auto mask_arr     = covered_mask[pti].const_array();
+        const auto* p_pbox   = aos().data();
+        const auto& soa   = ptile.GetStructOfArrays();
+        const auto* mult_ptr = soa.GetRealData(mult_idx).data();
+
+        n_to_split += static_cast<Long>(amrex::Reduce::Sum<int>(np,
+            [=] AMREX_GPU_DEVICE (int i) -> int {
+                const auto& p = p_pbox[i];
+                if (p.id() <= 0) { return 0; }
+                IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
+                return (mask_arr(iv) && mult_ptr[i] >= static_cast<ParticleReal>(sf_count)) ? 1 : 0;
+            }));
+        n_skipped_low_mult += static_cast<Long>(amrex::Reduce::Sum<int>(np,
+            [=] AMREX_GPU_DEVICE (int i) -> int {
+                const auto& p = p_pbox[i];
+                if (p.id() <= 0) { return 0; }
+                IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
+                return (mask_arr(iv) && mult_ptr[i] < static_cast<ParticleReal>(sf_count)) ? 1 : 0;
+            }));
+    }
+    ParallelDescriptor::ReduceLongSum(n_to_split);
+    ParallelDescriptor::ReduceLongSum(n_skipped_low_mult);
+
+    Long n_new_particles = n_to_split * (static_cast<Long>(split_factor) - 1);
+    if (n_new_particles == 0) {
+        Print() << "SplitParticlesForRefinement: level " << a_lev
+                << " -- no L" << clev << " particles to split\n";
+        if (n_skipped_low_mult > 0) {
+            Print() << "  (skipped " << n_skipped_low_mult
+                    << " particles with multiplicity < " << split_factor << ")\n";
+        }
+        return;
+    }
+
+    // GPU memory check: bail out instead of crashing if the new tile would
+    // not fit (the split is an optimization, not a correctness requirement).
+    {
+        size_t bytes_per_p = sizeof(ParticleType)
+                           + static_cast<size_t>(NumRealComps() + NumRuntimeRealComps())
+                                 * sizeof(ParticleReal)
+                           + static_cast<size_t>(NumIntComps()  + NumRuntimeIntComps())
+                                 * sizeof(int);
+        size_t bytes_needed = static_cast<size_t>(n_new_particles) * bytes_per_p;
+#ifdef AMREX_USE_GPU
+        size_t free_mem = Gpu::Device::freeMemAvailable();
+        if (bytes_needed > static_cast<size_t>(static_cast<double>(free_mem) * 0.8)) {
+            Print() << "WARNING: SplitParticlesForRefinement: not enough GPU memory for L"
+                    << a_lev << ".  Need " << bytes_needed/(1024*1024) << " MB, available "
+                    << free_mem/(1024*1024) << " MB.  Skipping.\n";
+            return;
+        }
+#endif
+        amrex::ignore_unused(bytes_needed);
+    }
+
+    const int my_proc = ParallelDescriptor::MyProc();
+    const int sf      = split_factor;
+
+    for (ParIterType pti(*this, clev); pti.isValid(); ++pti) {
+        auto& ptile = ParticlesAt(clev, pti);
+        auto& aos   = ptile.GetArrayOfStructs();
+        int np = aos.numParticles();
+        if (np == 0) { continue; }
+
+        auto mask_arr = covered_mask[pti].const_array();
+
+        Gpu::DeviceVector<int> split_mask_d(np);
+        auto* mask_d_ptr = split_mask_d.data();
+        auto* p_pbox = aos().data();
+        auto& soa = ptile.GetStructOfArrays();
+        const auto* mult_data = soa.GetRealData(mult_idx).data();
+
+        amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+            const auto& p = p_pbox[i];
+            if (p.id() <= 0) { mask_d_ptr[i] = 0; return; }
+            IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
+            mask_d_ptr[i] = (mask_arr(iv) && mult_data[i] >= static_cast<ParticleReal>(sf)) ? 1 : 0;
+        });
+
+        int n_split_tile = amrex::Reduce::Sum<int>(np,
+            [=] AMREX_GPU_DEVICE (int i) -> int { return mask_d_ptr[i]; });
+        if (n_split_tile == 0) { continue; }
+
+        ParticleTileType src_tile;
+        src_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+        src_tile.resize(n_split_tile);
+        amrex::filterParticles(src_tile, ptile, mask_d_ptr, 0, 0, np);
+
+        int n_copies = n_split_tile * (sf - 1);
+        ParticleTileType copy_tile;
+        copy_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+        copy_tile.resize(n_copies);
+        for (int c = 0; c < sf - 1; c++) {
+            amrex::copyParticles(copy_tile, src_tile, 0, c * n_split_tile, n_split_tile);
+        }
+
+        Long pid = ParticleType::NextID();
+        ParticleType::NextID(pid + static_cast<Long>(n_copies));
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            static_cast<Long>(pid + n_copies) < LastParticleID,
+            "particle id overflow in SplitParticlesForRefinement");
+
+        auto& copy_aos = copy_tile.GetArrayOfStructs();
+        auto* copy_p = copy_aos().data();
+        const Long pid_start = pid;
+        const int proc = my_proc;
+        amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+            copy_p[i].id()  = static_cast<int>(pid_start + i);
+            copy_p[i].cpu() = proc;
+        });
+
+        auto& copy_soa = copy_tile.GetStructOfArrays();
+        auto* copy_mult = copy_soa.GetRealData(mult_idx).data();
+
+        Gpu::DeviceVector<ParticleReal> copy_weight_d(n_copies, ParticleReal(0.0));
+        auto* copy_weight = copy_weight_d.data();
+        Gpu::DeviceVector<ParticleReal> weight_sum_d(n_split_tile, ParticleReal(0.0));
+        auto* weight_sum = weight_sum_d.data();
+
+        const ParticleReal alpha = ParticleReal(0.4);
+        const int nst = n_split_tile;
+        const int n_copies_per = split_factor - 1;
+        const auto local_dx  = dx;
+        const auto local_plo = plo;
+        const auto local_dxi = dxi;
+
+        // Randomize multiplicity weights and lightly perturb daughter positions
+        // (clamped to the parent's coarse cell so they remain in the right cell)
+        amrex::ParallelForRNG(n_copies,
+            [=] AMREX_GPU_DEVICE (int i, const amrex::RandomEngine& rng) {
+            ParticleReal w = ParticleReal(1.0)
+                           + alpha * (amrex::Random(rng) - ParticleReal(0.5));
+            copy_weight[i] = w;
+            int j = i % nst;
+            Gpu::Atomic::AddNoRet(&weight_sum[j], w);
+
+            for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                ParticleReal pert = local_dx[d] * ParticleReal(0.01)
+                    * (ParticleReal(2.0) * amrex::Random(rng) - ParticleReal(1.0));
+                ParticleReal pos_new = copy_p[i].pos(d) + pert;
+                int cell_idx = static_cast<int>(amrex::Math::floor(
+                    (copy_p[i].pos(d) - local_plo[d]) * local_dxi[d]));
+                ParticleReal cell_lo = local_plo[d] + cell_idx * local_dx[d];
+                ParticleReal cell_hi = cell_lo + local_dx[d];
+                constexpr ParticleReal eps = ParticleReal(1.0e-10);
+                pos_new = amrex::max(pos_new, cell_lo + eps);
+                pos_new = amrex::min(pos_new, cell_hi - eps);
+                copy_p[i].pos(d) = pos_new;
+            }
+        });
+
+        const ParticleReal copy_share
+            = ParticleReal(n_copies_per) / ParticleReal(split_factor);
+        amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+            int j = i % nst;
+            ParticleReal orig = copy_mult[i];
+            copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
+        });
+
+        // Reduce original multiplicity in-place and tag active=2
+        Gpu::DeviceVector<int> prefix_d(np);
+        amrex::Gpu::exclusive_scan(mask_d_ptr, mask_d_ptr + np, prefix_d.data());
+
+        auto* orig_mult   = soa.GetRealData(mult_idx).data();
+        auto* orig_active = soa.GetIntData(active_idx).data();
+        amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+            if (mask_d_ptr[i]) {
+                orig_mult[i]   *= inv_split;
+                orig_active[i]  = 2;
+            }
+        });
+        Gpu::synchronize();
+
+        auto old_np = ptile.numParticles();
+        ptile.resize(old_np + n_copies);
+        amrex::copyParticles(ptile, copy_tile, 0, old_np, n_copies);
+
+        auto* copy_active_data = ptile.GetStructOfArrays()
+            .GetIntData(active_idx).data();
+        amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+            copy_active_data[old_np + i] = 2;
+        });
+    }
+
+    Print() << "SplitParticlesForRefinement: split " << n_to_split
+            << " L" << clev << " particles by factor " << split_factor
+            << " for level " << a_lev
+            << " (created " << n_new_particles << " new SDs)\n";
+    if (n_skipped_low_mult > 0) {
+        Print() << "  (skipped " << n_skipped_low_mult
+                << " particles with multiplicity < " << split_factor << ")\n";
+    }
 }
 
 /*! \brief Merge particles in cells that lost fine-level coverage (stub). */
