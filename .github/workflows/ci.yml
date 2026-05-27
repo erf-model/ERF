@@ -70,6 +70,8 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
+          '-DERF_PARALLEL_TEST_NRANKS:STRING=1;2;4' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
@@ -108,9 +110,14 @@ jobs:
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
-    - name: Unit Tests
+    - name: Run Serial Unit Tests
       run: |
-        ctest -L unit -VV
+        ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
+    - name: Run Parallel Tests
+      run: |
+        ctest -L parallel --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Regression Tests

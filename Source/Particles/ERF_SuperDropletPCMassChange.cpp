@@ -28,12 +28,8 @@ void SuperDropletPC::MassChange ( int                                         a_
     using namespace SDMassChangeUtils_LV;
 
     BL_PROFILE("SuperDropletPC::MassChange()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const auto ctx = buildProcessContext(a_lev);
-
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
@@ -57,22 +53,22 @@ void SuperDropletPC::MassChange ( int                                         a_
     auto ti_choice = m_mass_change_ti;
 
     // Solver setup (shared across tiles)
-    dRsqdt<ParticleReal> drsqdt{ vapour_mat.m_lat_vap,
-                                 therco,
-                                 vapour_mat.m_Rv,
-                                 mat_density };
+    dRsqdt<ParticleReal> drsqdt{ static_cast<ParticleReal>(vapour_mat.m_lat_vap),
+                                 static_cast<ParticleReal>(therco),
+                                 static_cast<ParticleReal>(vapour_mat.m_Rv),
+                                 static_cast<ParticleReal>(mat_density) };
 
     NewtonSolver< dRsqdt<ParticleReal>, ParticleReal > newton_solver{ drsqdt,
-                                                                      m_newton_rtol,
-                                                                      m_newton_atol,
-                                                                      m_newton_stol,
+                                                                      static_cast<ParticleReal>(m_newton_rtol),
+                                                                      static_cast<ParticleReal>(m_newton_atol),
+                                                                      static_cast<ParticleReal>(m_newton_stol),
                                                                       m_newton_maxits };
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    dRdt<ParticleReal> drdt{ vapour_mat.m_lat_vap,
-                             therco,
-                             vapour_mat.m_Rv,
-                             mat_density };
+    dRdt<ParticleReal> drdt{ static_cast<ParticleReal>(vapour_mat.m_lat_vap),
+                             static_cast<ParticleReal>(therco),
+                             static_cast<ParticleReal>(vapour_mat.m_Rv),
+                             static_cast<ParticleReal>(mat_density) };
     constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
@@ -110,6 +106,14 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
+            // Skip particles whose vertical stencil falls outside the local
+            // fab's z range.  cic_interpolate reads cell-centered data at
+            // k0+1 and k0+2 with k0 in {pk-1, pk}, so the maximum read
+            // offset is pk+2.  Bound on pk+2 (not pk+1).
+            int pk = int(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - ctx.plo[AMREX_SPACEDIM-1])
+                                            * ctx.dxi[AMREX_SPACEDIM-1]));
+            if (pk < zheight.begin[2] || pk + 2 >= zheight.end[2]) { return; }
+
             // Interpolate saturation pressure, saturation ratio, temperature, pressure
             constexpr int nf = static_cast<int>(InterpFieldsLV::NUM_FIELDS);
             ParticleReal fv[nf];
@@ -117,8 +121,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 sat_pressure_arr, sat_ratio_arr, temperature_arr, pressure_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto e_sat       = fv[static_cast<int>(InterpFieldsLV::e_sat)];
             const auto sat_ratio   = fv[static_cast<int>(InterpFieldsLV::sat_ratio)];
@@ -137,9 +140,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
-            auto coeff_curv = vapour_mat_core.coeffCurv(temperature);
+            auto coeff_curv = vapour_mat_core.coeffCurv(static_cast<Real>(temperature));
             auto coeff_sol = vapour_mat_core.coeffVPSolute();
-            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(temperature, pressure);
+            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(static_cast<Real>(temperature), static_cast<Real>(pressure));
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             if (a_is_water) {
@@ -156,11 +159,15 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
-                ParticleReal > ti { drsqdt, newton_solver, a_dt, 100,
+                ParticleReal > ti { drsqdt, newton_solver, static_cast<ParticleReal>(a_dt), 100,
                                     sat_ratio, temperature, e_sat,
-                                    coeff_moldiff, coeff_curv, coeff_sol,
+                                    static_cast<ParticleReal>(coeff_moldiff),
+                                    static_cast<ParticleReal>(coeff_curv),
+                                    static_cast<ParticleReal>(coeff_sol),
                                     solute_moles,
-                                    cfl, 1e-40, 1e-3, 1e-6, false, false };
+                                    static_cast<ParticleReal>(cfl),
+                                    ParticleReal(1e-40), ParticleReal(1e-3), ParticleReal(1e-6),
+                                    false, false };
 
             auto r_init = SD_effective_radius( i, ctx.idx_water,
                                                ctx.rho_water,
@@ -198,7 +205,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 auto d_mass = four_thirds_pi*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 ptrs.sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
-                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],amrex::Real(0));
+                ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],ParticleReal(0));
 
                 // Update particle attributes (radius and mass)
                 SuperDropletPC::updateParticleAttributes(
@@ -209,7 +216,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         });
         Gpu::synchronize();
-        m_num_unconverged_particles += *(unconverged_particles.copyToHost());
+        m_num_unconverged_particles += static_cast<long>(*(unconverged_particles.copyToHost()));
     }); // end forEachParticleTile
 
 }

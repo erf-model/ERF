@@ -186,7 +186,7 @@ ERF::WriteCheckpointFile () const
         std::vector<int> qmoist_indices;
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
-        int qmoist_nvar = qmoist_indices.size();
+        int qmoist_nvar = static_cast<int>(qmoist_indices.size());
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
@@ -527,7 +527,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            dt[i++] = std::stod(word);
+            dt[i++] = static_cast<Real>(std::stod(word));
         }
     }
 
@@ -537,7 +537,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            t_new[i++] = std::stod(word);
+            t_new[i++] = static_cast<Real>(std::stod(word));
         }
     }
 
@@ -729,7 +729,7 @@ ERF::ReadCheckpointFile ()
         std::vector<int> qmoist_indices;
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
-        int qmoist_nvar = qmoist_indices.size();
+        int qmoist_nvar = static_cast<int>(qmoist_indices.size());
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();

@@ -17,7 +17,7 @@ int closest_index (const Vector<Real>& vec, const Real value)
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
 
-    const int idx = std::distance(vec.begin(), it);
+    const int idx = static_cast<int>(std::distance(vec.begin(), it));
     return std::max(idx - 1, 0);
 }
 
@@ -101,7 +101,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datn   = (*m_data_n[ori])[lev];
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
@@ -115,7 +115,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         const auto& datnp2 = (*m_data_np2[ori])[lev];
@@ -286,7 +286,7 @@ void ReadBndryPlanes::read_input_files (Real time,
     BoxArray ba(domain);
     DistributionMapping dm{ba};
     BndryRegister bndryn(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-    bndryn.setVal(1.0e13);
+    bndryn.setVal(Real(1.e13));
 
     // The first time we enter this routine we read the first three files
     if (last_file_read == -1)
@@ -392,7 +392,7 @@ void ReadBndryPlanes::read_file (const int idx,
     // Read density for primitive to conserved conversions
     std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
     BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
-    bndry_r.setVal(1.0e13);
+    bndry_r.setVal(Real(1.e13));
     for (OrientationIter oit; oit != nullptr; ++oit) {
           auto ori = oit();
           if (ori.coordDir() < 2) {
@@ -430,7 +430,7 @@ void ReadBndryPlanes::read_file (const int idx,
         // Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
 
         BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-        bndry.setVal(1.0e13);
+        bndry.setVal(Real(1.e13));
 
         // *********************************************************
         // Read in the BndryReg for all non-z faces

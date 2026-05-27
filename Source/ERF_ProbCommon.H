@@ -66,7 +66,8 @@ public:
     erf_init_dens_hse (amrex::MultiFab& /*rho_hse*/,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
-                       amrex::Geometry const& /*geom*/)
+                       amrex::Geometry const& /*geom*/,
+                       bool /*use_terrain_fitted_coords*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
@@ -101,7 +102,8 @@ public:
     virtual void
     erf_init_dens_hse_moist (amrex::MultiFab& /*rho_hse*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                             amrex::Geometry const& /*geom*/)
+                             amrex::Geometry const& /*geom*/,
+                             bool /*use_terrain_fitted_coords*/)
     {
 
     }
@@ -494,8 +496,8 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
+            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
+            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;

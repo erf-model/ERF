@@ -186,7 +186,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
     int imax = domhi_x; // if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
     int jmax = domhi_y; // if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
 
-    int nz = z_levels_h.size();
+    int nz = static_cast<int>(z_levels_h.size());
     Real z_top = z_levels_h[nz-1];
 
     Gpu::DeviceVector<Real> z_levels_d;
@@ -324,7 +324,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 });
         amrex::ParallelDescriptor::ReduceRealMax(h_m);
 
-        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
+        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = Real(1e-16);
 
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
@@ -347,10 +347,10 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
             Real A;
-            Real foo = cos((PI/2)*(zz/z_H));
+            Real foo = std::cos((PI/2)*(zz/z_H));
             if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
             else         { A = 0; }
-            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+            Real foo_minus = std::cos((PI/2)*(zz_minus/z_H));
             Real A_minus;
             if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
             else               { A_minus = 0; }
@@ -460,7 +460,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
 
                     // Fill lateral boundaries and below the bottom surface
                     if (k == k0) {
@@ -501,7 +501,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     } else {
                         // Fill levels using model from Sullivan et. al. 2014
                         int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                        z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
                     }
                 });
                 gbx.setBig(2,0);

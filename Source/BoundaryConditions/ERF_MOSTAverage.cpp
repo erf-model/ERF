@@ -62,7 +62,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
-    m_maxlev = m_geom.size();
+    m_maxlev = static_cast<int>(m_geom.size());
 
     m_fields.resize(m_maxlev);
     m_rot_fields.resize(m_maxlev);
@@ -112,7 +112,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         m_fields[lev][0] = vars_old[Vars::xvel];
         m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][0]->setVal(1.E34);
+        m_averages[lev][0]->setVal(Real(1e34));
         if (m_rotate) {
             m_rot_fields[lev][0] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             MultiFab::Copy(*m_rot_fields[lev][0],mf,0,0,1,ng);
@@ -133,7 +133,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         m_fields[lev][1] = vars_old[Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][1]->setVal(1.E34);
+        m_averages[lev][1]->setVal(Real(1e34));
         if (m_rotate) {
             m_rot_fields[lev][1] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             MultiFab::Copy(*m_rot_fields[lev][1],mf,0,0,1,ng);
@@ -161,7 +161,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
             m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-            m_averages[lev][iavg]->setVal(1.E34);
+            m_averages[lev][iavg]->setVal(Real(1e34));
         }
 
         // Default to dry
@@ -435,7 +435,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
         int lk = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
 
-        m_zref[lev]->setVal( (lk + 0.5) * m_dz + m_zlo );
+        m_zref[lev]->setVal( (lk + myhalf) * m_dz + m_zlo );
 
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
@@ -449,7 +449,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
         // TODO: check that z_ref is constant across levels
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
-        m_zref[lev]->setVal( ((Real)m_k_in[0] + 0.5) * m_dz + m_zlo );
+        m_zref[lev]->setVal( ((Real)m_k_in[0] + myhalf) * m_dz + m_zlo );
     }
 }
 
@@ -500,7 +500,7 @@ MOSTAverage::set_k_indices_EB (const int& lev)
         int lk = static_cast<int>(floor((zref_tmp + z_eb - m_zlo) / m_dz - myhalf));
         int lk_phys = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
 
-        m_zref[lev]->setVal( (lk_phys + 0.5) * m_dz + m_zlo );
+        m_zref[lev]->setVal( (lk_phys + myhalf) * m_dz + m_zlo );
 
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
@@ -540,7 +540,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
     // Capture for device
     Real d_zref   = zref_tmp;
-    Real d_radius = m_radius;
+    Real d_radius = static_cast<Real>(m_radius);
     amrex::ignore_unused(d_radius);
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
@@ -611,7 +611,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
     // Capture for device
     Real d_zref   = zref_tmp;
-    Real d_radius = m_radius;
+    Real d_radius = static_cast<Real>(m_radius);
 
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
@@ -1141,7 +1141,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
     // Copy to host and sum across procs
     Gpu::copy(Gpu::deviceToHost, pavg.begin(), pavg.end(), plane_average.begin());
-    ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
+    ParallelDescriptor::ReduceRealSum(plane_average.data(), static_cast<int>(plane_average.size()));
 
     // No spatial variation with plane averages
     for (int iavg(0); iavg < m_navg; ++iavg){

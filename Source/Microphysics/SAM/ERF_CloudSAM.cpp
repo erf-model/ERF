@@ -1,5 +1,6 @@
 #include "ERF_SAM.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EOS.H"
 
@@ -22,8 +23,7 @@ SAM::Cloud (const SolverChoice& sc)
     Real rdOcp    = m_rdOcp;
 
     int SAM_moisture_type = 1;
-    if (sc.moisture_type == MoistureType::SAM_NoIce ||
-        sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+    if (sam_is_no_ice(sc.moisture_type)) {
         SAM_moisture_type = 2;
     }
 
@@ -66,52 +66,27 @@ SAM::Cloud (const SolverChoice& sc)
             //       This ensures the omn splitting is enforced
             //       before the Newton iteration, which assumes it is.
 
-            omn = one;
-            if (SAM_moisture_type == 1){
-                // Cloud ice not permitted (melt to form water)
-                if (tabs_array(i,j,k) >= tbgmax) {
-                    omn = one;
-                    delta_qi = qci_array(i,j,k);
-                    qci_array(i,j,k)   = zero;
-                    qcl_array(i,j,k)  += delta_qi;
-                    tabs_array(i,j,k) -= fac_fus * delta_qi;
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                }
-                // Cloud water not permitted (freeze to form ice)
-                else if (tabs_array(i,j,k) <= tbgmin) {
-                    omn = zero;
-                    delta_qc = qcl_array(i,j,k);
-                    qcl_array(i,j,k)   = zero;
-                    qci_array(i,j,k)  += delta_qc;
-                    tabs_array(i,j,k) += fac_fus * delta_qc;
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                }
-                // Mixed cloud phase (split according to omn)
-                else {
-                    omn = an*tabs_array(i,j,k)-bn;
-                    delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
-                    delta_qi = qci_array(i,j,k) - qn_array(i,j,k) * (one - omn);
-                    qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
-                    qci_array(i,j,k)   = qn_array(i,j,k) * (one - omn);
-                    tabs_array(i,j,k) += fac_fus * delta_qc;
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                }
-            }
-            else if (SAM_moisture_type == 2)
-            {
-                // No ice. ie omn = one
-                delta_qc = qcl_array(i,j,k) - qn_array(i,j,k);
-                delta_qi = zero;
-                qcl_array(i,j,k)   = qn_array(i,j,k);
-                qci_array(i,j,k)   = zero;
-                tabs_array(i,j,k) += fac_cond * delta_qc;
-                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-            }
+            const SAMCloudPhaseChange phase_change =
+                sam_partition_cloud_phase(SAM_moisture_type,
+                                          tabs_array(i,j,k),
+                                          qn_array(i,j,k),
+                                          qcl_array(i,j,k),
+                                          qci_array(i,j,k),
+                                          fac_cond, fac_fus,
+                                          an, bn);
+            omn = phase_change.omn;
+            delta_qc = phase_change.delta_qc;
+            delta_qi = phase_change.delta_qi;
+            qcl_array(i,j,k) = phase_change.qcl;
+            qci_array(i,j,k) = phase_change.qci;
+            tabs_array(i,j,k) = phase_change.tabs;
+            theta_array(i,j,k) = sam_theta_from_stored_pressure_as_pa(tabs_array(i,j,k),
+                                                                      pres_array(i,j,k), rdOcp);
 
             // Saturation moisture fractions
             erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);
             erf_qsati(tabs_array(i,j,k), pres_array(i,j,k), qsati);
-            qsat = omn * qsatw  + (one-omn) * qsati;
+            qsat = sam_mixed_qsat(omn, qsatw, qsati);
 
             // We have enough total moisture to relax to equilibrium
             if (qt_array(i,j,k) > qsat) {
@@ -125,7 +100,8 @@ SAM::Cloud (const SolverChoice& sc)
                                                   qn_array  , qt_array);
 
                 // Update theta
-                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
+                                                                                 pres_array(i,j,k), rdOcp);
 
             //
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv.
@@ -151,12 +127,13 @@ SAM::Cloud (const SolverChoice& sc)
                 tabs_array(i,j,k) -= fac_cond * delta_qc + fac_sub * delta_qi;
 
                 // Update theta
-                theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
+                                                                                 pres_array(i,j,k), rdOcp);
 
                 // Verify assumption that qv > qsat does not occur
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);
                 erf_qsati(tabs_array(i,j,k), pres_array(i,j,k), qsati);
-                qsat = omn * qsatw  + (one-omn) * qsati;
+                qsat = sam_mixed_qsat(omn, qsatw, qsati);
                 if (qt_array(i,j,k) > qsat) {
 
                     // Update temperature
@@ -168,7 +145,8 @@ SAM::Cloud (const SolverChoice& sc)
                                                       qn_array  , qt_array);
 
                     // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
+                    theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
+                                                                                     pres_array(i,j,k), rdOcp);
 
                 }
             }

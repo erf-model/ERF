@@ -41,7 +41,7 @@ namespace HSEutils
                         const Real& dz,
                         const Real& g,
                         const Real& C,
-                        const Real& T,
+                        const Real& Th,
                         const Real& qt,
                         const Real& qv,
                         Real& P,
@@ -49,26 +49,25 @@ namespace HSEutils
                         Real& F)
     {
         int iter=0;
-        int max_iter=30;
-        Real eps  = Real(1.0e-6);
-        Real ieps = Real(1.0e6);
-        do {
+        int max_iter=20;
+        Real eps  = Real(1.e-6);
+        Real ieps = Real(1.e6);
+        while (std::abs(F)>m_tol && iter<max_iter) {
             // Compute change in pressure
-            Real hi = getRhogivenThetaPress(T, P + eps, RdOCp, qv);
-            Real lo = getRhogivenThetaPress(T, P - eps, RdOCp, qv);
+            Real hi   = getRhogivenThetaPress(Th, P + eps, RdOCp, qv);
+            Real lo   = getRhogivenThetaPress(Th, P - eps, RdOCp, qv);
             Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
             P -= F/dFdp;
-            if (P < Real(1.0e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
+            if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = getRhogivenThetaPress(T, P, RdOCp, qv);
+            rd = getRhogivenThetaPress(Th, P, RdOCp, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
             F = P + myhalf*r_tot*g*dz + C;
             ++iter;
         }
-        while (std::abs(F)>m_tol && iter<max_iter);
         if (iter>=max_iter) {
             AMREX_DEVICE_PRINTF("WARNING: HSE Newton iterations did not converge to tolerance!\n%s", "");
             AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
@@ -308,8 +307,7 @@ AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b, const bool use_empirical)
 {
     Real p_s = erf_esatw(T_b,use_empirical);
-    if (!use_empirical) p_s *= Real(100.0);
-    return p_s;
+    return p_s * Real(100.0);
 }
 
 AMREX_FORCE_INLINE
@@ -370,8 +368,8 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     for (int iter=0; iter<20; iter++)
     {
         Real F         = compute_F_for_temp(T_b      , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_plus_dF = compute_F_for_temp(T_b+1e-10, p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_prime   = (F_plus_dF - F)/1e-10;
+        Real F_plus_dF = compute_F_for_temp(T_b+Real(1e-10), p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F_prime   = (F_plus_dF - F)/Real(1e-10);
         delta_T = -F/F_prime;
         T_b = T_b + delta_T;
     }
@@ -391,7 +389,7 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
     T = T_b - Real(273.15);
 
     Real b = Real(18.678), c = Real(257.14), d = Real(234.5);
-    gamma = log(RH*exp((b - T/d)*T/(c + T)));
+    gamma = std::log(RH*std::exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
 
@@ -406,7 +404,7 @@ Real compute_theta (const Real scaled_height, const Real theta_0,
     if(scaled_height <= one) {
         return theta_0 + (theta_tr - theta_0)*std::pow(scaled_height,Real(1.25));
     } else {
-        return theta_tr*exp(CONST_GRAV/(Cp_d*T_tr)*z_tr*(scaled_height - one));
+        return theta_tr*std::exp(CONST_GRAV/(Cp_d*T_tr)*z_tr*(scaled_height - one));
     }
 }
 
@@ -477,11 +475,11 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
     Real delta_p_k;
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1.e-6);
-    Real tol = Real(1.e-8);
+    Real eps = Real(1e-6);
+    Real tol = Real(1e-8);
 #else
-    Real eps = Real(1.e-10);
-    Real tol = Real(1.e-8);
+    Real eps = Real(1e-10);
+    Real tol = Real(1e-8);
 #endif
 
     for(int iter=0; iter<20; iter++)
