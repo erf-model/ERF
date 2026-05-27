@@ -627,14 +627,254 @@ void SuperDropletPC::SplitParticlesForRefinement (
     }
 }
 
-/*! \brief Merge particles in cells that lost fine-level coverage (stub). */
+/*! \brief Merge particles in cells that lost fine-level coverage.  Driven by
+ *  a coarse-level mask of cells that were in the old fine BoxArray but are
+ *  no longer in the current fine BoxArray.
+ *
+ *  Two cases per bin (one cell per bin):
+ *    masked  (cell just got de-refined) -> reduce particle count from np_bin
+ *            to target = np_bin / merge_factor.  Excess particles are merged
+ *            into the surviving heads (multiplicity-weighted average).
+ *    not masked -> escapee merge: any active==2 particle in this bin came
+ *            from the fine level via Redistribute; merge it into a cycled
+ *            non-tagged host.
+ *  After both branches, all active==2 tags in the bin are cleared (-> 1). */
 void SuperDropletPC::MergeParticlesAfterDerefining (
-    int /*a_lev*/,
-    const amrex::BoxArray& /*a_old_fine_ba*/,
-    const amrex::IntVect& /*a_ref_ratio*/ )
+    int a_lev,
+    const amrex::BoxArray& a_old_fine_ba,
+    const amrex::IntVect& a_ref_ratio)
 {
     BL_PROFILE("SuperDropletPC::MergeParticlesAfterDerefining()");
+
     if (!m_split_merge_amr) { return; }
+
+    const int merge_factor = AMREX_D_TERM(a_ref_ratio[0], *a_ref_ratio[1], *a_ref_ratio[2]);
+    if (merge_factor <= 1) { return; }
+
+    const int clev = a_lev - 1;
+    AMREX_ALWAYS_ASSERT(clev >= 0);
+
+    if (a_old_fine_ba.empty()) {
+        Print() << "MergeParticlesAfterDerefining: level " << a_lev
+                << " -- old fine BA empty, nothing to merge\n";
+        return;
+    }
+
+    const auto& cba = ParticleBoxArray(clev);
+    const auto& cdm = ParticleDistributionMap(clev);
+    iMultiFab covered_mask = makeFineMask(cba, cdm, a_old_fine_ba, a_ref_ratio,
+                                          /*crse_value=*/0, /*fine_value=*/1);
+
+    // Subtract cells still covered by the current fine level so we only mask
+    // cells that genuinely lost coverage.
+    if (a_lev <= finestLevel()) {
+        const BoxArray& cur_fine_ba = ParticleBoxArray(a_lev);
+        iMultiFab cur_mask = makeFineMask(cba, cdm, cur_fine_ba, a_ref_ratio,
+                                          /*crse_value=*/0, /*fine_value=*/1);
+        for (MFIter mfi(covered_mask); mfi.isValid(); ++mfi) {
+            auto old_arr = covered_mask[mfi].array();
+            auto cur_arr = cur_mask[mfi].const_array();
+            const Box& bx = mfi.validbox();
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (cur_arr(i,j,k)) { old_arr(i,j,k) = 0; }
+            });
+        }
+        Gpu::synchronize();
+    }
+
+    const auto& geom = m_gdb->Geom(clev);
+    const auto plo    = geom.ProbLoArray();
+    const auto dxi    = geom.InvCellSizeArray();
+    const auto domain = geom.Domain();
+
+    const int num_sp = m_num_species;
+    const int num_ae = m_num_aerosols;
+    const int mf     = merge_factor;
+    const auto ctx   = buildProcessContext(clev);
+    const IntVect bin_size = {AMREX_D_DECL(1,1,1)};
+    Long n_merged = 0;
+
+    forEachParticleTileSerial(clev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* pstruct_ptr,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& /*ctx_unused*/)
+    {
+        const size_t np = static_cast<size_t>(ptrs.num_particles);
+        if (np == 0) { return; }
+
+        Box box = covered_mask[grid].box();
+        int ntiles = numTilesInBox(box, true, bin_size);
+        auto binner = GetParticleBinERF{plo, dxi, domain, bin_size, box};
+        DenseBins<ParticleType> bins;
+        bins.build(np, pstruct_ptr, ntiles, binner);
+        auto inds    = bins.permutationPtr();
+        auto offsets = bins.offsetsPtr();
+
+        auto mask_arr = covered_mask[grid].const_array();
+
+        auto* mult_p   = ptrs.mult_ptr;
+        auto* v_p0     = ptrs.v_ptr[0];
+        auto* v_p1     = ptrs.v_ptr[1];
+        auto* v_p2     = ptrs.v_ptr[2];
+        auto* radius_p = ptrs.radius_ptr;
+        auto* mass_p   = ptrs.mass_ptr;
+        auto sp_mass_p = ptrs.sp_mass_ptrs;
+        auto ae_mass_p = ptrs.ae_mass_ptrs;
+        auto* sp_rho_p = ptrs.sp_rho_arr;
+        auto* sp_sol_p = ptrs.sp_sol_arr;
+        auto* ae_rho_p = ptrs.ae_rho_arr;
+        auto* ae_sol_p = ptrs.ae_sol_arr;
+        auto idx_w     = ctx.idx_water;
+        auto rho_w     = ctx.rho_water;
+        auto* active_int_p = ptrs.active_ptr;
+
+        int num_bins = bins.numBins();
+
+        auto tile_merged = amrex::Reduce::Sum<Long>(num_bins,
+            [=] AMREX_GPU_DEVICE (int i_bin) -> Long
+        {
+            auto bin_start = offsets[i_bin];
+            auto bin_stop  = offsets[i_bin+1];
+            int np_bin = static_cast<int>(bin_stop - bin_start);
+            if (np_bin < 2) { return 0; }
+
+            unsigned int first_idx = inds[bin_start];
+            IntVect iv = amrex::getParticleCell(pstruct_ptr[first_idx], plo, dxi, domain);
+            Long bin_merged = 0;
+
+            if (mask_arr(iv)) {
+                // Masked merge: reduce to target = np_bin / mf
+                int target = np_bin / mf;
+                if (target >= 2) {
+                    int n_excess = np_bin - target;
+                    for (int k = 0; k < n_excess; k++) {
+                        unsigned int i_excess   = inds[bin_start + target + k];
+                        unsigned int i_survivor = inds[bin_start + (k % target)];
+
+                        ParticleReal xi_e = mult_p[i_excess];
+                        ParticleReal xi_s = mult_p[i_survivor];
+                        ParticleReal xi_new = xi_e + xi_s;
+                        if (xi_new <= ParticleReal(0)) { continue; }
+                        ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
+
+                        mult_p[i_survivor] = xi_new;
+                        v_p0[i_survivor] = (xi_e * v_p0[i_excess] + xi_s * v_p0[i_survivor]) * inv_xi;
+                        v_p1[i_survivor] = (xi_e * v_p1[i_excess] + xi_s * v_p1[i_survivor]) * inv_xi;
+                        v_p2[i_survivor] = (xi_e * v_p2[i_excess] + xi_s * v_p2[i_survivor]) * inv_xi;
+
+                        for (int s = 0; s < num_sp; s++) {
+                            sp_mass_p[s][i_survivor] = (xi_e * sp_mass_p[s][i_excess]
+                                                      + xi_s * sp_mass_p[s][i_survivor]) * inv_xi;
+                        }
+                        for (int a = 0; a < num_ae; a++) {
+                            ae_mass_p[a][i_survivor] = (xi_e * ae_mass_p[a][i_excess]
+                                                      + xi_s * ae_mass_p[a][i_survivor]) * inv_xi;
+                        }
+
+                        pstruct_ptr[i_excess].id() = -1;
+                        bin_merged++;
+                    }
+
+                    for (int k = 0; k < target; k++) {
+                        unsigned int idx = inds[bin_start + k];
+                        if (pstruct_ptr[idx].id() > 0) {
+                            updateParticleAttributes(
+                                idx, radius_p, mass_p,
+                                idx_w, rho_w, num_sp, num_ae,
+                                sp_sol_p, ae_sol_p,
+                                sp_mass_p, ae_mass_p,
+                                sp_rho_p, ae_rho_p);
+                        }
+                    }
+                }
+            } else {
+                // Escapee merge: combine active==2 departees into active!=2 hosts
+                int n_hosts = 0;
+                for (int k = 0; k < np_bin; k++) {
+                    unsigned int idx = inds[bin_start + k];
+                    if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                        n_hosts++;
+                    }
+                }
+                if (n_hosts > 0) {
+                    int host_cycle = 0;
+                    for (int k = 0; k < np_bin; k++) {
+                        unsigned int idx = inds[bin_start + k];
+                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] != 2) { continue; }
+
+                        int target_h = host_cycle % n_hosts;
+                        unsigned int h_idx = 0;
+                        int h_count = 0;
+                        for (int h = 0; h < np_bin; h++) {
+                            unsigned int candidate = inds[bin_start + h];
+                            if (pstruct_ptr[candidate].id() > 0
+                                && active_int_p[candidate] != 2) {
+                                if (h_count == target_h) { h_idx = candidate; break; }
+                                h_count++;
+                            }
+                        }
+                        host_cycle++;
+
+                        ParticleReal xi_e = mult_p[idx];
+                        ParticleReal xi_s = mult_p[h_idx];
+                        ParticleReal xi_new = xi_e + xi_s;
+                        if (xi_new <= ParticleReal(0)) { continue; }
+                        ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
+
+                        mult_p[h_idx] = xi_new;
+                        v_p0[h_idx] = (xi_e * v_p0[idx] + xi_s * v_p0[h_idx]) * inv_xi;
+                        v_p1[h_idx] = (xi_e * v_p1[idx] + xi_s * v_p1[h_idx]) * inv_xi;
+                        v_p2[h_idx] = (xi_e * v_p2[idx] + xi_s * v_p2[h_idx]) * inv_xi;
+
+                        for (int s = 0; s < num_sp; s++) {
+                            sp_mass_p[s][h_idx] = (xi_e * sp_mass_p[s][idx]
+                                                 + xi_s * sp_mass_p[s][h_idx]) * inv_xi;
+                        }
+                        for (int a = 0; a < num_ae; a++) {
+                            ae_mass_p[a][h_idx] = (xi_e * ae_mass_p[a][idx]
+                                                 + xi_s * ae_mass_p[a][h_idx]) * inv_xi;
+                        }
+
+                        pstruct_ptr[idx].id() = -1;
+                        bin_merged++;
+                    }
+
+                    for (int k = 0; k < np_bin; k++) {
+                        unsigned int idx = inds[bin_start + k];
+                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                            updateParticleAttributes(
+                                idx, radius_p, mass_p,
+                                idx_w, rho_w, num_sp, num_ae,
+                                sp_sol_p, ae_sol_p,
+                                sp_mass_p, ae_mass_p,
+                                sp_rho_p, ae_rho_p);
+                        }
+                    }
+                }
+            }
+
+            // Clear split tags on all surviving particles in this bin
+            for (int k = 0; k < np_bin; k++) {
+                unsigned int idx = inds[bin_start + k];
+                if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
+                    active_int_p[idx] = 1;
+                }
+            }
+
+            return bin_merged;
+        });
+        Gpu::synchronize();
+        n_merged += tile_merged;
+    });
+
+    ParallelDescriptor::ReduceLongSum(n_merged);
+    if (n_merged > 0) {
+        Redistribute(clev, clev);
+    }
+
+    Print() << "MergeParticlesAfterDerefining: merged " << n_merged
+            << " excess particles on L" << clev
+            << " (de-refined from level " << a_lev << ")\n";
 }
 
 /*! \brief Continuously split new entrants on fine levels and merge departees
