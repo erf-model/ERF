@@ -173,11 +173,10 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
                     auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
                     AMREX_ALWAYS_ASSERT(pc != nullptr);
-                    // Split coarse particles in newly-refined cells before
-                    // Redistribute moves the daughters to the fine level.
-                    for (int k = 1; k <= finest_level; k++) {
-                        pc->SplitParticlesForRefinement(k, BoxArray(), refRatio(k-1));
-                    }
+                    // Split coarse particles based on the finest level
+                    // covering each cell.  Cascades across multiple new
+                    // levels (e.g. fresh L1+L2 from L0) in a single call.
+                    pc->SplitParticlesForRefinement(finest_level);
                 }
                 particleData.Redistribute(z_phys_nd);
                 if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {

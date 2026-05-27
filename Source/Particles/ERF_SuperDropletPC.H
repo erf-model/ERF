@@ -300,11 +300,11 @@ class SuperDropletPC : public ERFPC
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
         /*! \brief Split coarse-level particles in newly-refined cells after AMR
-         *  regrid to restore per-cell SD count.  Skips coarse particles whose
-         *  multiplicity is below `split_factor`. */
-        void SplitParticlesForRefinement ( int a_lev,
-                                           const amrex::BoxArray& a_old_ba,
-                                           const amrex::IntVect& a_ref_ratio ) override;
+         *  regrid to restore per-cell SD count.  Cascades correctly across
+         *  multiple new levels: a coarse particle under L2 is split by the
+         *  cumulative refRatio(0)*refRatio(1) and tagged for L2.  Skips
+         *  particles whose multiplicity is below the relevant split factor. */
+        void SplitParticlesForRefinement ( int a_finest_level ) override;
 
         /*! \brief Merge particles in cells that lost fine-level coverage after
          *  de-refinement.  Multiplicity-weighted average of attributes; excess

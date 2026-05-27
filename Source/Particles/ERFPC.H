@@ -203,11 +203,10 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         void CountParticlesPerLevelAndHalo ( int a_finest_level );
 
         /*! Split coarse-level particles in newly-refined cells after AMR regrid
-         *  to restore the per-cell super-droplet count.  Default no-op; override
-         *  in derived classes (e.g. SuperDropletPC). */
-        virtual void SplitParticlesForRefinement ( int /*a_lev*/,
-                                                   const amrex::BoxArray& /*a_old_ba*/,
-                                                   const amrex::IntVect& /*a_ref_ratio*/ ) {}
+         *  to restore the per-cell super-droplet count.  Handles cascading
+         *  refinement across multiple new levels in a single call (see the
+         *  SuperDropletPC override for details).  Default no-op. */
+        virtual void SplitParticlesForRefinement ( int /*a_finest_level*/ ) {}
 
         /*! Merge particles after de-refinement (inverse of splitting).  Default
          *  no-op; override in derived classes. */
