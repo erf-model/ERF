@@ -29,20 +29,19 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // Note this is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
-
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
-
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time-start_time) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
         n_time_p1 = n_time;
+        alpha     = zero;
     }
+
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
@@ -248,20 +247,19 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // Note this is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
-
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    Real oma   = 1.0 - alpha;
-
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time-start_time) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
         n_time_p1 = n_time;
+        alpha     = zero;
     }
+
+    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    Real oma   = one - alpha;
 
     // Map loop index to variable index
     // NOTE: Loop backwards and do v/u first for WfromOmega

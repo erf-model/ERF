@@ -206,18 +206,13 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {
-      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
-      n_time_p1 = n_time;
-      alpha     = zero;
+        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+        n_time_p1 = n_time;
+        alpha     = zero;
     }
 
     AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
     Real oma   = one - alpha;
-
-    /*
-    // UNIT TEST DEBUG
-    oma = one; alpha = zero;
-    */
 
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
