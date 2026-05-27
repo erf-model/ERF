@@ -29,12 +29,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    Real time_tot = time + start_time;
+    Real time_since_start_bdy = time_tot - start_bdy_time;
+    int n_time    = static_cast<int>( time_since_start_bdy /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+    Real alpha    = (time_since_start_bdy - n_time * dT) / dT;
 
     // Do not over run the last bdy file
-    if (time >= final_bdy_time) {
+    if (time_tot >= final_bdy_time) {
         n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
         n_time_p1 = n_time;
         alpha     = zero;
@@ -247,12 +249,14 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    Real time_tot = time + start_time;
+    Real time_since_start_bdy = time_tot - start_bdy_time;
+    int n_time    = static_cast<int>( time_since_start_bdy /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+    Real alpha    = (time_since_start_bdy - n_time * dT) / dT;
 
     // Do not over run the last bdy file
-    if (time >= final_bdy_time) {
+    if (time_tot >= final_bdy_time) {
         n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
         n_time_p1 = n_time;
         alpha     = zero;
