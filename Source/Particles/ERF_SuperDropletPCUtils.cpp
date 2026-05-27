@@ -592,16 +592,19 @@ void SuperDropletPC::SplitParticlesForRefinement (
             copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
         });
 
-        // Reduce original multiplicity in-place and tag active=2
+        // Reduce original multiplicity in-place and tag with the destination
+        // level's native value (a_lev + 1) -- daughters land on level a_lev
+        // after Redistribute.
         Gpu::DeviceVector<int> prefix_d(np);
         amrex::Gpu::exclusive_scan(mask_d_ptr, mask_d_ptr + np, prefix_d.data());
 
         auto* orig_mult   = soa.GetRealData(mult_idx).data();
         auto* orig_active = soa.GetIntData(active_idx).data();
+        const int daughter_tag = a_lev + 1;
         amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
             if (mask_d_ptr[i]) {
                 orig_mult[i]   *= inv_split;
-                orig_active[i]  = 2;
+                orig_active[i]  = daughter_tag;
             }
         });
         Gpu::synchronize();
@@ -613,7 +616,7 @@ void SuperDropletPC::SplitParticlesForRefinement (
         auto* copy_active_data = ptile.GetStructOfArrays()
             .GetIntData(active_idx).data();
         amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
-            copy_active_data[old_np + i] = 2;
+            copy_active_data[old_np + i] = daughter_tag;
         });
     }
 
@@ -729,6 +732,7 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
         auto* active_int_p = ptrs.active_ptr;
 
         int num_bins = bins.numBins();
+        const int native_tag = clev + 1;
 
         auto tile_merged = amrex::Reduce::Sum<Long>(num_bins,
             [=] AMREX_GPU_DEVICE (int i_bin) -> Long
@@ -788,11 +792,13 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
                     }
                 }
             } else {
-                // Escapee merge: combine active==2 departees into active!=2 hosts
+                // Escapee merge: combine departees (tag > clev+1) into native
+                // hosts (tag == clev+1).  With tag = level+1 generalisation,
+                // a particle with tag > clev+1 originated on a finer level.
                 int n_hosts = 0;
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                    if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == native_tag) {
                         n_hosts++;
                     }
                 }
@@ -800,7 +806,7 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
                     int host_cycle = 0;
                     for (int k = 0; k < np_bin; k++) {
                         unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] != 2) { continue; }
+                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= native_tag) { continue; }
 
                         int target_h = host_cycle % n_hosts;
                         unsigned int h_idx = 0;
@@ -808,7 +814,7 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
                         for (int h = 0; h < np_bin; h++) {
                             unsigned int candidate = inds[bin_start + h];
                             if (pstruct_ptr[candidate].id() > 0
-                                && active_int_p[candidate] != 2) {
+                                && active_int_p[candidate] == native_tag) {
                                 if (h_count == target_h) { h_idx = candidate; break; }
                                 h_count++;
                             }
@@ -841,7 +847,7 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
 
                     for (int k = 0; k < np_bin; k++) {
                         unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == native_tag) {
                             updateParticleAttributes(
                                 idx, radius_p, mass_p,
                                 idx_w, rho_w, num_sp, num_ae,
@@ -853,11 +859,13 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
                 }
             }
 
-            // Clear split tags on all surviving particles in this bin
+            // Normalize tags on surviving particles to native (clev + 1).
+            // Anything left with tag > clev+1 (no-host branch) is demoted
+            // to this level's native value.
             for (int k = 0; k < np_bin; k++) {
                 unsigned int idx = inds[bin_start + k];
-                if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
-                    active_int_p[idx] = 1;
+                if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] > native_tag) {
+                    active_int_p[idx] = native_tag;
                 }
             }
 
@@ -907,12 +915,19 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
     for (int flev = 1; flev <= finest; flev++) {
         const int clev = flev - 1;
+        const int flev_native = flev + 1;
+        const int clev_native = clev + 1;
         const IntVect ref_ratio = m_gdb->refRatio(clev);
         const int split_factor = AMREX_D_TERM(ref_ratio[0], *ref_ratio[1], *ref_ratio[2]);
         if (split_factor <= 1) { continue; }
         const ParticleReal inv_split = ParticleReal(1.0) / static_cast<ParticleReal>(split_factor);
 
         // ---- Part 1: split new entrants on the fine level ----
+        //
+        // A new entrant on `flev` is any active particle whose tag is below
+        // this level's native value `flev + 1` -- it has not yet been split
+        // to match flev's density.  Common case (per-step drift L_{flev-1} ->
+        // L_flev): tag == clev + 1 == flev.
         {
             Long n_new_entrants = 0;
 
@@ -928,14 +943,18 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                 int n_ent_tile = amrex::Reduce::Sum<int>(np,
                     [=] AMREX_GPU_DEVICE (int i) -> int {
-                        return (p_pbox[i].id() > 0 && active_data[i] == 1) ? 1 : 0;
+                        return (p_pbox[i].id() > 0
+                                && active_data[i] > 0
+                                && active_data[i] < flev_native) ? 1 : 0;
                     });
                 if (n_ent_tile == 0) { continue; }
 
                 Gpu::DeviceVector<int> ent_mask_d(np);
                 auto* ent_mask = ent_mask_d.data();
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
-                    ent_mask[i] = (p_pbox[i].id() > 0 && active_data[i] == 1) ? 1 : 0;
+                    ent_mask[i] = (p_pbox[i].id() > 0
+                                   && active_data[i] > 0
+                                   && active_data[i] < flev_native) ? 1 : 0;
                 });
 
                 ParticleTileType src_tile;
@@ -997,13 +1016,14 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
                 });
 
-                // Reduce original new-entrant multiplicity and tag active=2
+                // Reduce original new-entrant multiplicity and tag with this
+                // level's native value (flev + 1).
                 auto* orig_mult   = soa.GetRealData(mult_idx).data();
                 auto* orig_active = soa.GetIntData(active_idx).data();
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
                     if (ent_mask[i]) {
                         orig_mult[i]   *= inv_split;
-                        orig_active[i]  = 2;
+                        orig_active[i]  = flev_native;
                     }
                 });
                 Gpu::synchronize();
@@ -1015,7 +1035,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 auto* new_active = ptile.GetStructOfArrays()
                     .GetIntData(active_idx).data();
                 amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
-                    new_active[old_np + i] = 2;
+                    new_active[old_np + i] = flev_native;
                 });
 
                 n_new_entrants += n_ent_tile;
@@ -1030,6 +1050,10 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
         }
 
         // ---- Part 2: merge departees on the coarse level ----
+        //
+        // Particles whose tag is > clev+1 originated on a finer level
+        // (currently or previously) and have drifted down via Redistribute.
+        // Merge them into native hosts on clev (tag == clev+1).
         {
             const auto& geom = m_gdb->Geom(clev);
             const auto plo = geom.ProbLoArray();
@@ -1052,7 +1076,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                 int n_departees = amrex::Reduce::Sum<int>(static_cast<int>(np),
                     [=] AMREX_GPU_DEVICE (int i) -> int {
-                        return (pstruct_ptr[i].id() > 0 && ptrs.active_ptr[i] == 2) ? 1 : 0;
+                        return (pstruct_ptr[i].id() > 0
+                                && ptrs.active_ptr[i] > clev_native) ? 1 : 0;
                     });
                 if (n_departees == 0) { return; }
 
@@ -1079,6 +1104,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 auto idx_w     = ctx.idx_water;
                 auto rho_w     = ctx.rho_water;
                 auto* active_int_p = ptrs.active_ptr;
+                const int nat_tag = clev_native;
 
                 int num_bins = bins.numBins();
 
@@ -1091,8 +1117,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     if (np_bin < 2) {
                         if (np_bin == 1) {
                             unsigned int idx = inds[bin_start];
-                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
-                                active_int_p[idx] = 1;
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] > nat_tag) {
+                                active_int_p[idx] = nat_tag;
                             }
                         }
                         return 0;
@@ -1101,7 +1127,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     int n_hosts = 0;
                     for (int k = 0; k < np_bin; k++) {
                         unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == nat_tag) {
                             n_hosts++;
                         }
                     }
@@ -1111,7 +1137,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                         int host_cycle = 0;
                         for (int k = 0; k < np_bin; k++) {
                             unsigned int idx = inds[bin_start + k];
-                            if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] != 2) { continue; }
+                            if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= nat_tag) { continue; }
 
                             int target_h = host_cycle % n_hosts;
                             unsigned int h_idx = 0;
@@ -1119,7 +1145,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                             for (int h = 0; h < np_bin; h++) {
                                 unsigned int candidate = inds[bin_start + h];
                                 if (pstruct_ptr[candidate].id() > 0
-                                    && active_int_p[candidate] != 2) {
+                                    && active_int_p[candidate] == nat_tag) {
                                     if (h_count == target_h) { h_idx = candidate; break; }
                                     h_count++;
                                 }
@@ -1152,7 +1178,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                         for (int k = 0; k < np_bin; k++) {
                             unsigned int idx = inds[bin_start + k];
-                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == nat_tag) {
                                 updateParticleAttributes(
                                     idx, radius_p, mass_p,
                                     idx_w, rho_w, num_sp, num_ae,
@@ -1164,8 +1190,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     } else {
                         for (int k = 0; k < np_bin; k++) {
                             unsigned int idx = inds[bin_start + k];
-                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
-                                active_int_p[idx] = 1;
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] > nat_tag) {
+                                active_int_p[idx] = nat_tag;
                             }
                         }
                     }
@@ -1353,7 +1379,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     inject_p[i].pos(1) = local_plo[1] + (cell_j + Real(0.5)) * local_dx[1];
                     inject_p[i].pos(2) = local_plo[2] + (cell_k + Real(0.5)) * local_dx[2];
 
-                    inject_active[i] = 2;
+                    inject_active[i] = flev_native;
                 });
                 Gpu::synchronize();
 
