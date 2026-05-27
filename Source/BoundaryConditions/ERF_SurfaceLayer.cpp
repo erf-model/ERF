@@ -716,6 +716,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
     const auto& u_vfrac = m_eb_vec[lev]->get_u_const_factory()->getVolFrac();
     const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
     const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
+    const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -742,6 +743,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         auto const u_vfrac_arr = u_vfrac.const_array(mfi);
         auto const v_vfrac_arr = v_vfrac.const_array(mfi);
         auto const w_vfrac_arr = w_vfrac.const_array(mfi);
+        auto const bnorm_arr = cc_bnorm.const_array(mfi);
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
@@ -785,10 +787,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (cc_flag_arr(i,j,k).isSingleValued()) {
                 Real Tflux = flux_comp.compute_t_flux(i, j, k,
-                                                    cons_arr, velx_arr, vely_arr,
+                                                    cons_arr, velx_arr, vely_arr, velz_arr,
                                                     umm_arr, tm_arr, u_star_arr,
                                                     t_star_arr, t_surf_arr,
-                                                    u_vfrac_arr, v_vfrac_arr);
+                                                    u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                    bnorm_arr);
                 hfx3_arr(i,j,k) = Tflux;
             }
         });

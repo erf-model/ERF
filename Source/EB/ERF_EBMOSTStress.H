@@ -357,13 +357,16 @@ struct moeng_flux_eb
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& t_surf_arr,
                     const amrex::Array4<const amrex::Real>& u_vfrac_arr,
-                    const amrex::Array4<const amrex::Real>& v_vfrac_arr) const
+                    const amrex::Array4<const amrex::Real>& v_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& w_vfrac_arr,
+                    const amrex::Array4<const amrex::Real>& bnorm_arr) const
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real theta = cons_arr(i,j,k,RhoTheta_comp) / rho;
@@ -380,6 +383,22 @@ struct moeng_flux_eb
             (vely_arr(i,j,k) * v_vfrac_arr(i,j,k) + vely_arr(i,j+1,k) * v_vfrac_arr(i,j+1,k))
             / v_vfrac_sum : zero;
 
+        // Volume-weighted average of z-face velocities to cell center
+        amrex::Real w_vfrac_sum = w_vfrac_arr(i,j,k) + w_vfrac_arr(i,j,k+1);
+        amrex::Real velz = (w_vfrac_sum > eps) ?
+            (velz_arr(i,j,k) * w_vfrac_arr(i,j,k) + velz_arr(i,j,k+1) * w_vfrac_arr(i,j,k+1))
+            / w_vfrac_sum : zero;
+
+        // Get boundary normal components
+        amrex::Real nx = bnorm_arr(i,j,k,0);
+        amrex::Real ny = bnorm_arr(i,j,k,1);
+        amrex::Real nz = bnorm_arr(i,j,k,2);
+
+        // Project velocity onto tangent plane (remove normal component)
+        amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
+        amrex::Real velx_tangent = velx - v_dot_n * nx;
+        amrex::Real vely_tangent = vely - v_dot_n * ny;
+
         amrex::Real theta_mean  = tm_arr(i,j,0);
         amrex::Real ustar       = u_star_arr(i,j,k);
         amrex::Real tstar       = t_star_arr(i,j,k);
@@ -387,7 +406,8 @@ struct moeng_flux_eb
         amrex::Real wsp_mean    = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
-        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        // Use tangential velocity magnitude instead of Cartesian
+        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
 
