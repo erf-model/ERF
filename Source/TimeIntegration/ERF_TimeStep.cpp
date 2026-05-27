@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_LagrangianMicrophysics.H>
 
 using namespace amrex;
 
@@ -152,10 +153,43 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                     }
                 }
 
+#ifdef ERF_USE_PARTICLES
+                // Save per-level particle BoxArrays before regrid so we can
+                // detect which cells lost fine coverage and merge accordingly.
+                Vector<BoxArray> old_pc_ba;
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    old_pc_ba.resize(old_finest + 1);
+                    for (int k = 0; k <= old_finest; k++) {
+                        old_pc_ba[k] = pc->ParticleBoxArray(k);
+                    }
+                }
+#endif
+
                 regrid(lev, time);
 
 #ifdef ERF_USE_PARTICLES
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Split coarse particles in newly-refined cells before
+                    // Redistribute moves the daughters to the fine level.
+                    for (int k = 1; k <= finest_level; k++) {
+                        pc->SplitParticlesForRefinement(k, BoxArray(), refRatio(k-1));
+                    }
+                }
                 particleData.Redistribute(z_phys_nd);
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Merge particles in cells that lost fine-level coverage.
+                    // Walk old finest down to 1 so each level's old_pc_ba is
+                    // applied while clev = k-1 still has the just-moved fines.
+                    for (int k = old_finest; k >= 1; k--) {
+                        pc->MergeParticlesAfterDerefining(k, old_pc_ba[k], refRatio(k-1));
+                    }
+                }
 #endif
 
                 // mark that we have regridded this level already
