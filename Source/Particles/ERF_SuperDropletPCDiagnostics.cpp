@@ -646,7 +646,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
         g_mass_ln_R[n] = ReduceSum(  *this,
                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      {
-                                         auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                         int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                          auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                          auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                                          auto ri = std::cbrt( mi / (four_thirds_pi*rho_w) );
@@ -658,7 +658,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
             g_amass_ln_R[ia][n] = ReduceSum(*this,
                                             [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                             {
-                                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                 auto mi = ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i];
                                                 auto ri = std::cbrt( mi / (four_thirds_pi*rho) );
@@ -672,7 +672,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
             g_amass_ln_R[ia][n] = ReduceSum(*this,
                                             [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                             {
-                                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                 auto mi = ptd.m_runtime_rdata[ridx_s(is,na,ns)][i];
                                                 auto ri = std::cbrt( mi / (four_thirds_pi*rho) );
@@ -753,7 +753,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_l
         g_mass_ln_R[n] = ReduceSum(  *this,
                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                     {
-                                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                        int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                         auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                         auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                                         auto ri = std::cbrt( mi / (four_thirds_pi*density) );
@@ -763,7 +763,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_l
         g_num_ln_R[n] = ReduceSum(  *this,
                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                     {
-                                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                        int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                         auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                         auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                                         auto ri = std::cbrt( mi / (four_thirds_pi*density) );
@@ -852,7 +852,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
 
-                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                 auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                 auto ri = std::cbrt( mi / (four_thirds_pi*density) );
@@ -867,7 +867,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
 
-                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                 auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
                 auto ri = std::cbrt( mi / (four_thirds_pi*density) );

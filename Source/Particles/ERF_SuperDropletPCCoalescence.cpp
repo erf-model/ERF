@@ -573,10 +573,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const int num_sp  = m_num_species;
 
     // Scale bin size by refinement ratio so each level's bins span the same
-    // physical volume as level 0 (same MC pair-density per bin)
+    // physical volume as level 0 (same MC pair-density per bin).  Skip this
+    // when split/merge AMR is on, because particle splitting maintains a
+    // uniform per-cell SD density across levels and the unscaled bins already
+    // hold a sound MC sample.
     IntVect bin_size = m_coalescence_bin_size;
-    for (int k = 0; k < a_lev; k++) {
-        bin_size *= m_gdb->refRatio(k);
+    if (!m_split_merge_amr) {
+        for (int k = 0; k < a_lev; k++) {
+            bin_size *= m_gdb->refRatio(k);
+        }
     }
 
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];

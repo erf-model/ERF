@@ -5,7 +5,28 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <AMReX_ParticleUtil.H>
 #include <ERF_Constants.H>
+
+/** Particle cell-binning functor for DenseBins.  Maps a particle to its
+ *  cell-tile index via amrex::getParticleCell + amrex::getTileIndex. */
+struct GetParticleBinERF
+{
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> plo;
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxi;
+    amrex::Box                                   domain;
+    amrex::IntVect                               bin_size;
+    amrex::Box                                   box;
+    template <typename P>
+    AMREX_GPU_HOST_DEVICE
+    unsigned int operator() (const P& p) const noexcept
+    {
+        amrex::Box tbx;
+        auto iv  = amrex::getParticleCell(p, plo, dxi, domain);
+        auto tid = amrex::getTileIndex(iv, box, true, bin_size, tbx);
+        return static_cast<unsigned int>(tid);
+    }
+};
 
 struct ERFParticlesIntIdx
 {
@@ -180,6 +201,24 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
 
         /*! Diagnostic: count particles per level and halo (for AMR) */
         void CountParticlesPerLevelAndHalo ( int a_finest_level );
+
+        /*! Split coarse-level particles in newly-refined cells after AMR regrid
+         *  to restore the per-cell super-droplet count.  Default no-op; override
+         *  in derived classes (e.g. SuperDropletPC). */
+        virtual void SplitParticlesForRefinement ( int /*a_lev*/,
+                                                   const amrex::BoxArray& /*a_old_ba*/,
+                                                   const amrex::IntVect& /*a_ref_ratio*/ ) {}
+
+        /*! Merge particles after de-refinement (inverse of splitting).  Default
+         *  no-op; override in derived classes. */
+        virtual void MergeParticlesAfterDerefining ( int /*a_lev*/,
+                                                     const amrex::BoxArray& /*a_old_fine_ba*/,
+                                                     const amrex::IntVect& /*a_ref_ratio*/ ) {}
+
+        /*! Split new entrants and merge departees at AMR level boundaries.
+         *  Called every Redistribute(z_phys_nd) to maintain uniform per-cell
+         *  super-droplet density across levels.  Default no-op. */
+        virtual void SplitMergeAtLevelBoundary () {}
 
     protected:
 

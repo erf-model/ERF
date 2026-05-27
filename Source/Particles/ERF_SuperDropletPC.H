@@ -364,6 +364,31 @@ class SuperDropletPC : public ERFPC
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
+        /*! \brief Split coarse-level particles in newly-refined cells after AMR
+         *  regrid to restore per-cell SD count.  Skips coarse particles whose
+         *  multiplicity is below `split_factor`. */
+        void SplitParticlesForRefinement ( int a_lev,
+                                           const amrex::BoxArray& a_old_ba,
+                                           const amrex::IntVect& a_ref_ratio ) override;
+
+        /*! \brief Merge particles in cells that lost fine-level coverage after
+         *  de-refinement.  Multiplicity-weighted average of attributes; excess
+         *  particles deactivated (id = -1). */
+        void MergeParticlesAfterDerefining ( int a_lev,
+                                             const amrex::BoxArray& a_old_fine_ba,
+                                             const amrex::IntVect& a_ref_ratio ) override;
+
+        /*! \brief Continuously split new entrants on fine levels and merge
+         *  departees on coarse levels.  Active-flag tri-state convention:
+         *    0  deactivated
+         *    1  regular / un-split
+         *    2  member of a current split-group; identifies a departee on the
+         *       coarse side after Redistribute crosses a level boundary. */
+        void SplitMergeAtLevelBoundary () override;
+
+        /*! \brief Whether split/merge across AMR levels is enabled. */
+        bool splitMergeAMR () const { return m_split_merge_amr; }
+
     protected:
 
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
@@ -376,6 +401,7 @@ class SuperDropletPC : public ERFPC
         bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
         bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
+        bool m_split_merge_amr = false; /*!< split/merge particles across AMR level boundaries */
 
         int m_num_species; /*!< Number of vapour/condensate species */
         std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */
