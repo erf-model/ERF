@@ -152,7 +152,7 @@ Real SuperDropletPC::TotalNumberOfParticles ()
     Real count = ReduceSum(*this,
                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                            {
-                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                 return static_cast<Real>(ai*ni);
                            });
@@ -167,7 +167,7 @@ Long SuperDropletPC::NumSDDeactivated ()
     auto count = ReduceSum( *this,
                             [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Long
                             {
-                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
                                 if (ai == 0) { return Long(1); }
                                 else         { return Long(0); }
                             } );
@@ -184,7 +184,7 @@ void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::SDNumberDensity()");
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            return ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            return (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
         });
 }
 
@@ -197,7 +197,7 @@ void SuperDropletPC::numberDensity ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::numberDensity()");
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             return ai * num_par;
         });
@@ -212,7 +212,7 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::massDensity()");
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto par_mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
             return ai * num_par * par_mass;
@@ -229,7 +229,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,
     BL_PROFILE("SuperDropletPC::massFlux()");
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto par_mass = ptd.m_rdata[SuperDropletsRealIdx::mass][i];
             auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
@@ -252,7 +252,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,
     const auto ns = m_num_species;
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
             return ai * num_par * aero_mass;
@@ -272,7 +272,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,
     const auto ns = m_num_species;
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
             auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
@@ -295,7 +295,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,
     const auto ns = m_num_species;
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
             return ai * num_par * species_mass;
@@ -315,7 +315,7 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const MultiFab& a_z_phys_n
             if ((radius < a_rmin) || (radius >= a_rmax)) {
                 return ParticleReal(0);
             }
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
             return ai * num_par * species_mass;
@@ -335,7 +335,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,
     const auto ns = m_num_species;
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
             auto par_velocity = ptd.m_rdata[SuperDropletsRealIdx::vx+a_dim][i];
@@ -359,7 +359,7 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
 
     ERFPCParticleToMesh(a_mf, a_z_phys_nd, a_lev, a_comp,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i) {
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
             return ai * num_par * radius;
