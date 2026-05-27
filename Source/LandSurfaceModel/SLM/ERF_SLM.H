@@ -551,6 +551,7 @@ public:
                        amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
                        amrex::Real* albsnd, amrex::Real* albsni);
 
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
                        amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
                        const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
