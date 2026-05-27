@@ -555,12 +555,30 @@ convert_wrfbdy_data (const int itime,
         // Examine z change
         ParallelFor(bx_ph, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real mu    = mu_arr(i,j,0) + mub_arr(i,j,0);
-            Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k)/mu ) / CONST_GRAV;
+            /*
+            // Prevent averaging outside domain and match init from WRF input
+            int ii = std::max(std::min(i,ihi),ilo+1);
+            int jj = std::max(std::min(j,jhi),jlo+1);
+
+            // Node height
+            Real mu     = mu_arr(ii  ,jj  ,0) + mub_arr(ii  ,jj  ,0);
+            Real mu_im  = mu_arr(ii-1,jj  ,0) + mub_arr(ii-1,jj  ,0);
+            Real mu_jm  = mu_arr(ii  ,jj-1,0) + mub_arr(ii  ,jj-1,0);
+            Real mu_ijm = mu_arr(ii-1,jj-1,0) + mub_arr(ii-1,jj-1,0);
+            Real new_z  = Real(0.25) * ( PHB_arr(ii  ,jj  ,k) + PHB_arr(ii-1,jj  ,k)
+                                       + PHB_arr(ii  ,jj-1,k) + PHB_arr(ii-1,jj-1,k)
+                                       + bdy_ph_arr(ii  ,jj  ,k)/mu    + bdy_ph_arr(ii-1,jj  ,k)/mu_im
+                                       + bdy_ph_arr(ii  ,jj-1,k)/mu_jm + bdy_ph_arr(ii-1,jj-1,k)/mu_ijm ) / CONST_GRAV;
+            Real old_z = z_arr(i,j,k);
+            */
+
+            // W-face height
+            Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k)/(mu_arr(i,j,0) + mub_arr(i,j,0)) ) / CONST_GRAV;
             Real old_z = Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
                                       + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) );
+
             if (i==0 && j==0) {
-                AllPrint() << "Z check: " << IntVect(i,j,k) << ' '
+              AllPrint() << "Z check: " << itime << ' ' << IntVect(i,j,k) << ' '
                            << old_z << ' ' << new_z << ' '
                            << PHB_arr(i,j,k) << ' '
                            << bdy_ph_arr(i,j,k) << "\n";
