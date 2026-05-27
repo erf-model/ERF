@@ -440,6 +440,7 @@ struct moeng_flux_eb
                     int idir = 0) const
     {
         amrex::Real velx, vely, rho, ustar, wsp_mean;
+        amrex::Real velx_tangent, vely_tangent;
 
         if (idir == 0) {
             // x-face: average to x-face
@@ -468,8 +469,8 @@ struct moeng_flux_eb
 
             // Project velocity onto tangent plane
             amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
-            velx = velx - v_dot_n * nx;
-            vely = vely - v_dot_n * ny;
+            velx_tangent = velx - v_dot_n * nx;
+            vely_tangent = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to x-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i-1,j,k) + cc_vfrac_arr(i,j,k);
@@ -522,8 +523,8 @@ struct moeng_flux_eb
 
             // Project velocity onto tangent plane
             amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
-            velx = velx - v_dot_n * nx;
-            vely = vely - v_dot_n * ny;
+            velx_tangent = velx - v_dot_n * nx;
+            vely_tangent = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to y-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j-1,k) + cc_vfrac_arr(i,j,k);
@@ -577,8 +578,8 @@ struct moeng_flux_eb
 
             // Project velocity onto tangent plane
             amrex::Real v_dot_n = velx*nx + vely*ny + velz*nz;
-            velx = velx - v_dot_n * nx;
-            vely = vely - v_dot_n * ny;
+            velx_tangent = velx - v_dot_n * nx;
+            vely_tangent = vely - v_dot_n * ny;
 
             // Volume-weighted average of cell-centered density to z-face
             amrex::Real cc_vfrac_sum = cc_vfrac_arr(i,j,k-1) + cc_vfrac_arr(i,j,k);
@@ -612,9 +613,9 @@ struct moeng_flux_eb
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
         //       modifies the denominator from what is in Moeng amrex::Real(1984.)
-        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * umean;
-        amrex::Real num2    = wsp_mean * (velx-umean);
+        amrex::Real num2    = wsp_mean * (velx_tangent-umean);
 
         // NOTE: this is rho*<u'w'> = -K dudz
         amrex::Real stressx = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
