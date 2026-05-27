@@ -1,5 +1,11 @@
 #include "ERF_SuperDropletPC.H"
 #include <ERFPCParticleToMesh.H>
+#include <AMReX_DenseBins.H>
+#include <AMReX_Scan.H>
+#include <AMReX_Reduce.H>
+#include <AMReX_GpuAtomic.H>
+#include <AMReX_Particles.H>
+#include <AMReX_ParticleUtil.H>
 
 #ifdef ERF_USE_PARTICLES
 
@@ -396,12 +402,500 @@ void SuperDropletPC::MergeParticlesAfterDerefining (
 }
 
 /*! \brief Continuously split new entrants on fine levels and merge departees
- *  on coarse levels (stub).  See class comment for active-flag tri-state. */
+ *  on coarse levels.  See class comment for the active-flag tri-state.
+ *
+ *  Three passes per fine level (flev = 1..finest):
+ *    Part 1: split active==1 particles on flev into split_factor copies and
+ *            tag all family members active=2 (no position perturbation so
+ *            copies stay inside the fine BoxArray).
+ *    Part 2: on clev = flev-1, merge active==2 particles (departees that
+ *            crossed back to coarse via Redistribute) into a cycled host
+ *            (active != 2) in the same cell.  No host in a bin -> departees
+ *            are downgraded to active=1 (become L0 natives).
+ *    Part 3: repopulate empty fine-level cells by cloning a particle from a
+ *            face-adjacent neighbor (prefer cells with >=2 active particles).
+ */
 void SuperDropletPC::SplitMergeAtLevelBoundary ()
 {
     BL_PROFILE("SuperDropletPC::SplitMergeAtLevelBoundary()");
+
     if (!m_split_merge_amr) { return; }
-    if (finestLevel() < 1) { return; }
+    int finest = finestLevel();
+    if (finest < 1) { return; }
+
+    constexpr int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+    constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+    const int mult_idx   = rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity;
+    const int active_idx = rtoff_i + SuperDropletsIntIdxSoA_RT::active;
+    const int my_proc = ParallelDescriptor::MyProc();
+
+    for (int flev = 1; flev <= finest; flev++) {
+        const int clev = flev - 1;
+        const IntVect ref_ratio = m_gdb->refRatio(clev);
+        const int split_factor = AMREX_D_TERM(ref_ratio[0], *ref_ratio[1], *ref_ratio[2]);
+        if (split_factor <= 1) { continue; }
+        const ParticleReal inv_split = ParticleReal(1.0) / static_cast<ParticleReal>(split_factor);
+
+        // ---- Part 1: split new entrants on the fine level ----
+        {
+            Long n_new_entrants = 0;
+
+            for (ParIterType pti(*this, flev); pti.isValid(); ++pti) {
+                auto& ptile = ParticlesAt(flev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                int np = aos.numParticles();
+                if (np == 0) { continue; }
+
+                auto& soa = ptile.GetStructOfArrays();
+                auto* p_pbox = aos().data();
+                const auto* active_data = soa.GetIntData(active_idx).data();
+
+                int n_ent_tile = amrex::Reduce::Sum<int>(np,
+                    [=] AMREX_GPU_DEVICE (int i) -> int {
+                        return (p_pbox[i].id() > 0 && active_data[i] == 1) ? 1 : 0;
+                    });
+                if (n_ent_tile == 0) { continue; }
+
+                Gpu::DeviceVector<int> ent_mask_d(np);
+                auto* ent_mask = ent_mask_d.data();
+                amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    ent_mask[i] = (p_pbox[i].id() > 0 && active_data[i] == 1) ? 1 : 0;
+                });
+
+                ParticleTileType src_tile;
+                src_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+                src_tile.resize(n_ent_tile);
+                amrex::filterParticles(src_tile, ptile, ent_mask, 0, 0, np);
+
+                int n_copies = n_ent_tile * (split_factor - 1);
+                ParticleTileType copy_tile;
+                copy_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+                copy_tile.resize(n_copies);
+                for (int c = 0; c < split_factor - 1; c++) {
+                    amrex::copyParticles(copy_tile, src_tile, 0, c * n_ent_tile, n_ent_tile);
+                }
+
+                Long pid = ParticleType::NextID();
+                ParticleType::NextID(pid + static_cast<Long>(n_copies));
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    static_cast<Long>(pid + n_copies) < LastParticleID,
+                    "particle id overflow in SplitMergeAtLevelBoundary split");
+
+                auto& copy_aos = copy_tile.GetArrayOfStructs();
+                auto* copy_p = copy_aos().data();
+                const Long pid_start = pid;
+                const int proc = my_proc;
+                amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+                    copy_p[i].id()  = static_cast<int>(pid_start + i);
+                    copy_p[i].cpu() = proc;
+                });
+
+                // Multiplicity: original keeps 1/split_factor; copies share
+                // the remaining (split_factor-1)/split_factor, distributed by
+                // randomized weights (alpha = 0.4) normalized per source.
+                auto& copy_soa = copy_tile.GetStructOfArrays();
+                auto* copy_mult = copy_soa.GetRealData(mult_idx).data();
+
+                Gpu::DeviceVector<ParticleReal> copy_weight_d(n_copies, ParticleReal(0.0));
+                auto* copy_weight = copy_weight_d.data();
+                Gpu::DeviceVector<ParticleReal> weight_sum_d(n_ent_tile, ParticleReal(0.0));
+                auto* weight_sum = weight_sum_d.data();
+
+                const ParticleReal alpha = ParticleReal(0.4);
+                const int nst = n_ent_tile;
+                amrex::ParallelForRNG(n_copies,
+                    [=] AMREX_GPU_DEVICE (int i, const amrex::RandomEngine& rng) {
+                    ParticleReal w = ParticleReal(1.0)
+                                   + alpha * (amrex::Random(rng) - ParticleReal(0.5));
+                    copy_weight[i] = w;
+                    int j = i % nst;
+                    Gpu::Atomic::AddNoRet(&weight_sum[j], w);
+                });
+
+                const int n_copies_per = split_factor - 1;
+                const ParticleReal copy_share
+                    = ParticleReal(n_copies_per) / ParticleReal(split_factor);
+                amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+                    int j = i % nst;
+                    ParticleReal orig = copy_mult[i];
+                    copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
+                });
+
+                // Reduce original new-entrant multiplicity and tag active=2
+                auto* orig_mult   = soa.GetRealData(mult_idx).data();
+                auto* orig_active = soa.GetIntData(active_idx).data();
+                amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    if (ent_mask[i]) {
+                        orig_mult[i]   *= inv_split;
+                        orig_active[i]  = 2;
+                    }
+                });
+                Gpu::synchronize();
+
+                auto old_np = ptile.numParticles();
+                ptile.resize(old_np + n_copies);
+                amrex::copyParticles(ptile, copy_tile, 0, old_np, n_copies);
+
+                auto* new_active = ptile.GetStructOfArrays()
+                    .GetIntData(active_idx).data();
+                amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
+                    new_active[old_np + i] = 2;
+                });
+
+                n_new_entrants += n_ent_tile;
+            }
+
+            ParallelDescriptor::ReduceLongSum(n_new_entrants);
+            if (n_new_entrants > 0) {
+                Redistribute(flev, flev);
+                Print() << "SplitMergeAtLevelBoundary: split " << n_new_entrants
+                        << " new entrants on L" << flev << "\n";
+            }
+        }
+
+        // ---- Part 2: merge departees on the coarse level ----
+        {
+            const auto& geom = m_gdb->Geom(clev);
+            const auto plo = geom.ProbLoArray();
+            const auto dxi = geom.InvCellSizeArray();
+            const auto domain = geom.Domain();
+
+            const int num_sp = m_num_species;
+            const int num_ae = m_num_aerosols;
+            const auto ctx = buildProcessContext(clev);
+            const IntVect bin_size = {AMREX_D_DECL(1,1,1)};
+            Long n_merged = 0;
+
+            forEachParticleTileSerial(clev, ctx,
+                [&](ParIterType& /*pti*/, int grid, ParticleType* pstruct_ptr,
+                    const SDProcess::ParticlePointers& ptrs,
+                    const SDProcess::ProcessContext& /*ctx_unused*/)
+            {
+                const size_t np = static_cast<size_t>(ptrs.num_particles);
+                if (np == 0) { return; }
+
+                int n_departees = amrex::Reduce::Sum<int>(static_cast<int>(np),
+                    [=] AMREX_GPU_DEVICE (int i) -> int {
+                        return (pstruct_ptr[i].id() > 0 && ptrs.active_ptr[i] == 2) ? 1 : 0;
+                    });
+                if (n_departees == 0) { return; }
+
+                Box box = ParticleBoxArray(clev)[grid];
+                int ntiles = numTilesInBox(box, true, bin_size);
+                auto binner = GetParticleBinERF{plo, dxi, domain, bin_size, box};
+                DenseBins<ParticleType> bins;
+                bins.build(np, pstruct_ptr, ntiles, binner);
+                auto inds    = bins.permutationPtr();
+                auto offsets = bins.offsetsPtr();
+
+                auto* mult_p  = ptrs.mult_ptr;
+                auto* v_p0    = ptrs.v_ptr[0];
+                auto* v_p1    = ptrs.v_ptr[1];
+                auto* v_p2    = ptrs.v_ptr[2];
+                auto* radius_p = ptrs.radius_ptr;
+                auto* mass_p   = ptrs.mass_ptr;
+                auto sp_mass_p = ptrs.sp_mass_ptrs;
+                auto ae_mass_p = ptrs.ae_mass_ptrs;
+                auto* sp_rho_p = ptrs.sp_rho_arr;
+                auto* sp_sol_p = ptrs.sp_sol_arr;
+                auto* ae_rho_p = ptrs.ae_rho_arr;
+                auto* ae_sol_p = ptrs.ae_sol_arr;
+                auto idx_w     = ctx.idx_water;
+                auto rho_w     = ctx.rho_water;
+                auto* active_int_p = ptrs.active_ptr;
+
+                int num_bins = bins.numBins();
+
+                auto tile_merged = amrex::Reduce::Sum<Long>(num_bins,
+                    [=] AMREX_GPU_DEVICE (int i_bin) -> Long
+                {
+                    auto bin_start = offsets[i_bin];
+                    auto bin_stop  = offsets[i_bin+1];
+                    int np_bin = static_cast<int>(bin_stop - bin_start);
+                    if (np_bin < 2) {
+                        if (np_bin == 1) {
+                            unsigned int idx = inds[bin_start];
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
+                                active_int_p[idx] = 1;
+                            }
+                        }
+                        return 0;
+                    }
+
+                    int n_hosts = 0;
+                    for (int k = 0; k < np_bin; k++) {
+                        unsigned int idx = inds[bin_start + k];
+                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                            n_hosts++;
+                        }
+                    }
+
+                    Long bin_merged = 0;
+                    if (n_hosts > 0) {
+                        int host_cycle = 0;
+                        for (int k = 0; k < np_bin; k++) {
+                            unsigned int idx = inds[bin_start + k];
+                            if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] != 2) { continue; }
+
+                            int target_h = host_cycle % n_hosts;
+                            unsigned int h_idx = 0;
+                            int h_count = 0;
+                            for (int h = 0; h < np_bin; h++) {
+                                unsigned int candidate = inds[bin_start + h];
+                                if (pstruct_ptr[candidate].id() > 0
+                                    && active_int_p[candidate] != 2) {
+                                    if (h_count == target_h) { h_idx = candidate; break; }
+                                    h_count++;
+                                }
+                            }
+                            host_cycle++;
+
+                            ParticleReal xi_e = mult_p[idx];
+                            ParticleReal xi_s = mult_p[h_idx];
+                            ParticleReal xi_new = xi_e + xi_s;
+                            if (xi_new <= ParticleReal(0)) { continue; }
+                            ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
+
+                            mult_p[h_idx] = xi_new;
+                            v_p0[h_idx] = (xi_e * v_p0[idx] + xi_s * v_p0[h_idx]) * inv_xi;
+                            v_p1[h_idx] = (xi_e * v_p1[idx] + xi_s * v_p1[h_idx]) * inv_xi;
+                            v_p2[h_idx] = (xi_e * v_p2[idx] + xi_s * v_p2[h_idx]) * inv_xi;
+
+                            for (int s = 0; s < num_sp; s++) {
+                                sp_mass_p[s][h_idx] = (xi_e * sp_mass_p[s][idx]
+                                                     + xi_s * sp_mass_p[s][h_idx]) * inv_xi;
+                            }
+                            for (int a = 0; a < num_ae; a++) {
+                                ae_mass_p[a][h_idx] = (xi_e * ae_mass_p[a][idx]
+                                                     + xi_s * ae_mass_p[a][h_idx]) * inv_xi;
+                            }
+
+                            pstruct_ptr[idx].id() = -1;
+                            bin_merged++;
+                        }
+
+                        for (int k = 0; k < np_bin; k++) {
+                            unsigned int idx = inds[bin_start + k];
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] != 2) {
+                                updateParticleAttributes(
+                                    idx, radius_p, mass_p,
+                                    idx_w, rho_w, num_sp, num_ae,
+                                    sp_sol_p, ae_sol_p,
+                                    sp_mass_p, ae_mass_p,
+                                    sp_rho_p, ae_rho_p);
+                            }
+                        }
+                    } else {
+                        for (int k = 0; k < np_bin; k++) {
+                            unsigned int idx = inds[bin_start + k];
+                            if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == 2) {
+                                active_int_p[idx] = 1;
+                            }
+                        }
+                    }
+                    return bin_merged;
+                });
+                Gpu::synchronize();
+                n_merged += tile_merged;
+            });
+
+            ParallelDescriptor::ReduceLongSum(n_merged);
+            if (n_merged > 0) {
+                Redistribute(clev, clev);
+                Print() << "SplitMergeAtLevelBoundary: merged " << n_merged
+                        << " departees on L" << clev << "\n";
+            }
+        }
+
+        // ---- Part 3: repopulate empty fine cells by cloning a neighbor ----
+        {
+            const auto& geom_f = m_gdb->Geom(flev);
+            const auto plo_f = geom_f.ProbLoArray();
+            const auto dxi_f = geom_f.InvCellSizeArray();
+            const auto dx_f  = geom_f.CellSizeArray();
+            const auto domain_f = geom_f.Domain();
+            Long n_injected = 0;
+
+            for (ParIterType pti(*this, flev); pti.isValid(); ++pti) {
+                auto& ptile = ParticlesAt(flev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                auto& soa = ptile.GetStructOfArrays();
+                int np = aos.numParticles();
+                if (np == 0) { continue; }
+
+                Box box = ParticleBoxArray(flev)[pti.index()];
+                auto* pstruct = aos().data();
+
+                const IntVect bin_sz{AMREX_D_DECL(1,1,1)};
+                auto binner = GetParticleBinERF{plo_f, dxi_f, domain_f, bin_sz, box};
+                DenseBins<ParticleType> bins;
+                bins.build(np, pstruct, numTilesInBox(box, true, bin_sz), binner);
+                int num_bins = bins.numBins();
+                auto* d_offsets = bins.offsetsPtr();
+                auto* d_inds    = bins.permutationPtr();
+
+                Gpu::DeviceVector<int> active_count_d(num_bins, 0);
+                Gpu::DeviceVector<int> first_active_d(num_bins, -1);
+                auto* active_count = active_count_d.data();
+                auto* first_active = first_active_d.data();
+
+                amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
+                    auto bstart = d_offsets[b];
+                    auto bstop  = d_offsets[b+1];
+                    int count = 0;
+                    int first = -1;
+                    for (auto k = bstart; k < bstop; k++) {
+                        unsigned int idx = d_inds[k];
+                        if (pstruct[idx].id() > 0) {
+                            count++;
+                            if (first < 0) { first = static_cast<int>(idx); }
+                        }
+                    }
+                    active_count[b] = count;
+                    first_active[b] = first;
+                });
+
+                Gpu::DeviceVector<int> donor_pidx_d(num_bins, -1);
+                auto* donor_pidx = donor_pidx_d.data();
+                const auto blen = box.length();
+
+                amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
+                    if (active_count[b] > 0) { return; }
+                    int bx = b % blen[0];
+                    int by = (b / blen[0]) % blen[1];
+                    int bz = b / (blen[0] * blen[1]);
+
+                    const int fo[6][3] = {
+                        {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
+                    };
+                    // Prefer neighbors with >=2 active particles (steal one)
+                    for (int n = 0; n < 6; n++) {
+                        int nx = bx + fo[n][0];
+                        int ny = by + fo[n][1];
+                        int nz = bz + fo[n][2];
+                        if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
+                            nz < 0 || nz >= blen[2]) { continue; }
+                        int nb = nx + blen[0] * (ny + blen[1] * nz);
+                        if (active_count[nb] >= 2 && first_active[nb] >= 0) {
+                            donor_pidx[b] = first_active[nb];
+                            return;
+                        }
+                    }
+                    // Fall back: clone from any neighbor with >=1 active
+                    for (int n = 0; n < 6; n++) {
+                        int nx = bx + fo[n][0];
+                        int ny = by + fo[n][1];
+                        int nz = bz + fo[n][2];
+                        if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
+                            nz < 0 || nz >= blen[2]) { continue; }
+                        int nb = nx + blen[0] * (ny + blen[1] * nz);
+                        if (first_active[nb] >= 0) {
+                            donor_pidx[b] = first_active[nb];
+                            return;
+                        }
+                    }
+                });
+
+                int n_inject = amrex::Reduce::Sum<int>(num_bins,
+                    [=] AMREX_GPU_DEVICE (int b) -> int {
+                        return (donor_pidx[b] >= 0) ? 1 : 0;
+                    });
+                if (n_inject == 0) { continue; }
+
+                Gpu::DeviceVector<int> inject_flag_d(num_bins);
+                auto* inject_flag = inject_flag_d.data();
+                amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
+                    inject_flag[b] = (donor_pidx[b] >= 0) ? 1 : 0;
+                });
+
+                Gpu::DeviceVector<int> inject_scan_d(num_bins);
+                auto* inject_scan = inject_scan_d.data();
+                Gpu::exclusive_scan(inject_flag, inject_flag + num_bins, inject_scan);
+
+                Gpu::DeviceVector<int> compact_donor_d(n_inject);
+                Gpu::DeviceVector<int> compact_bin_d(n_inject);
+                auto* compact_donor = compact_donor_d.data();
+                auto* compact_bin   = compact_bin_d.data();
+                amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
+                    if (donor_pidx[b] >= 0) {
+                        int pos = inject_scan[b];
+                        compact_donor[pos] = donor_pidx[b];
+                        compact_bin[pos]   = b;
+                    }
+                });
+
+                ParticleTileType inject_tile;
+                inject_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+                inject_tile.resize(n_inject);
+
+                auto& inject_aos = inject_tile.GetArrayOfStructs();
+                auto* inject_p = inject_aos().data();
+                amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                    inject_p[i] = pstruct[compact_donor[i]];
+                });
+
+                auto& inject_soa = inject_tile.GetStructOfArrays();
+                for (int c = 0; c < soa.NumRealComps(); c++) {
+                    auto* src = soa.GetRealData(c).data();
+                    auto* dst = inject_soa.GetRealData(c).data();
+                    amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                        dst[i] = src[compact_donor[i]];
+                    });
+                }
+                for (int c = 0; c < soa.NumIntComps(); c++) {
+                    auto* src = soa.GetIntData(c).data();
+                    auto* dst = inject_soa.GetIntData(c).data();
+                    amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                        dst[i] = src[compact_donor[i]];
+                    });
+                }
+
+                Long pid = ParticleType::NextID();
+                ParticleType::NextID(pid + static_cast<Long>(n_inject));
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    static_cast<Long>(pid + n_inject) < LastParticleID,
+                    "particle id overflow during empty-cell repopulation");
+
+                const Long pid_start = pid;
+                const int proc = my_proc;
+                const auto local_plo  = plo_f;
+                const auto local_dx   = dx_f;
+                const auto local_blen = blen;
+                const auto local_blo  = box.smallEnd();
+                auto* inject_active = inject_soa.GetIntData(active_idx).data();
+
+                amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                    inject_p[i].id()  = static_cast<int>(pid_start + i);
+                    inject_p[i].cpu() = proc;
+
+                    int b = compact_bin[i];
+                    int cell_i = (b % local_blen[0]) + local_blo[0];
+                    int cell_j = ((b / local_blen[0]) % local_blen[1]) + local_blo[1];
+                    int cell_k = (b / (local_blen[0] * local_blen[1])) + local_blo[2];
+
+                    inject_p[i].pos(0) = local_plo[0] + (cell_i + Real(0.5)) * local_dx[0];
+                    inject_p[i].pos(1) = local_plo[1] + (cell_j + Real(0.5)) * local_dx[1];
+                    inject_p[i].pos(2) = local_plo[2] + (cell_k + Real(0.5)) * local_dx[2];
+
+                    inject_active[i] = 2;
+                });
+                Gpu::synchronize();
+
+                auto old_np = ptile.numParticles();
+                ptile.resize(old_np + n_inject);
+                amrex::copyParticles(ptile, inject_tile, 0, old_np, n_inject);
+
+                n_injected += n_inject;
+            }
+
+            ParallelDescriptor::ReduceLongSum(n_injected);
+            if (n_injected > 0) {
+                Redistribute(flev, flev);
+                Print() << "SplitMergeAtLevelBoundary: repopulated " << n_injected
+                        << " empty cells on L" << flev << "\n";
+            }
+        }
+    }
 }
 
 #endif
