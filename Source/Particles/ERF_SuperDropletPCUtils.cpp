@@ -401,6 +401,15 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
     if (!m_split_merge_amr) { return; }
     if (finest_level < 1) { return; }
 
+    // Resync the particle container's internal dummy MultiFabs with the
+    // current mesh BoxArrays/DistributionMaps.  Required when this function
+    // is called immediately after AMR regrid: the ParConstIter and the
+    // iMultiFab `finest_cov` below must agree on level layout, otherwise the
+    // FabArray::operator[](MFIter) assert fires (LocalIndex mismatch).
+    for (int lev = 0; lev <= finest_level; lev++) {
+        RedefineDummyMF(lev);
+    }
+
     constexpr int rt_off_r = SuperDropletsRealIdx::ncomps;
     constexpr int rt_off_i = SuperDropletsIntIdx::ncomps;
     const int mult_idx   = rt_off_r + SuperDropletsRealIdxSoA_RT::multiplicity;
