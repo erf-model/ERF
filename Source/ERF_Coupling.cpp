@@ -193,6 +193,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
     // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
     if (has_moisture) {
+#if 0
         if (iRH < static_cast<int>(states.size()) && states[iRH] != nullptr) {
             MultiFab tmp(ba2d, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -212,6 +213,11 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             IntVect ratio = ba2d.minimalBox().length() / states[iRH]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iRH], 0, 1, ratio);
         }
+#else
+        amrex::ignore_unused(iRH);
+        // Avoiding unexercised moist assumptions: retain the driver-prefilled
+        // humidity lane until live ERF->REMORA Qair semantics are made explicit.
+#endif
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
             const int qc_idx = solverChoice.moisture_indices.qc;
             const int qi_idx = solverChoice.moisture_indices.qi;
@@ -240,6 +246,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
             }
         }
+#if 0
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
             int qr_idx = solverChoice.moisture_indices.qr;
             if (qr_idx != -1) {
@@ -256,6 +263,11 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 amrex::average_down(tmp, *states[iRain], 0, 1, ratio);
             }
         }
+#else
+        amrex::ignore_unused(iRain);
+        // Avoiding unexercised moist assumptions: retain the driver-prefilled
+        // rain lane until live ERF->REMORA rain semantics are made explicit.
+#endif
     }
     // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
 
