@@ -493,10 +493,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
 
-        Array4<Real> tau_eb13{}, tau_eb23{};
-        if (l_use_eb && Tau_EB[EBTauType::tau_eb13][EBGridType::xface] && Tau_EB[EBTauType::tau_eb23][EBGridType::yface]) {
-            tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
-            tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+        // EB surface layer fluxes
+        Array4<Real> u_tau_eb13, u_tau_eb23;
+        Array4<Real> v_tau_eb13, v_tau_eb23;
+        Array4<Real> w_tau_eb13, w_tau_eb23;
+        if (l_use_eb) {
+            EBChoice ebChoice = solverChoice.ebChoice;
+            if (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer) {
+                u_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+                u_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::xface]->array(mfi);
+                v_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::yface]->array(mfi);
+                v_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+                w_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::zface]->array(mfi);
+                w_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::zface]->array(mfi);
+            }
         }
 
         // Strain magnitude
@@ -724,7 +734,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     u, v, w,
                     tau11, tau22, tau33,
                     tau12, tau13, tau23,
-                    tau_eb13, tau_eb23,
+                    u_tau_eb13, u_tau_eb23, v_tau_eb13, v_tau_eb23, w_tau_eb13, w_tau_eb23,
                     dx, dxInv,
                     mf_mx, mf_ux, mf_vx,
                     mf_my, mf_uy, mf_vy,

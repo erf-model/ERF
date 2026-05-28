@@ -46,8 +46,12 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     const Array4<const Real>& tau12,
                     const Array4<const Real>& tau13,
                     const Array4<const Real>& tau23,
-                    const Array4<const Real>& tau_eb13,
-                    const Array4<const Real>& tau_eb23,
+                    const Array4<const Real>& u_tau_eb13,
+                    const Array4<const Real>& u_tau_eb23,
+                    const Array4<const Real>& v_tau_eb13,
+                    const Array4<const Real>& v_tau_eb23,
+                    const Array4<const Real>& w_tau_eb13,
+                    const Array4<const Real>& w_tau_eb23,
                     const Real* dx_arr,
                     const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                     const Array4<const Real>& mf_mx,
@@ -146,12 +150,36 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 Real dudn = zero;
 
-                if (l_no_slip) {
+                if (l_no_slip || l_surface_layer) {
 
-                    const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
-                    const Real Dirichlet_u {zero};
-                    const Real Dirichlet_v {zero};
-                    const Real Dirichlet_w {zero};
+                    RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
+
+                    Real Dirichlet_u {zero};
+                    Real Dirichlet_v {zero};
+                    Real Dirichlet_w {zero};
+
+                    Real nx = u_bnorm(i,j,k,0);
+                    Real ny = u_bnorm(i,j,k,1);
+                    Real nz = u_bnorm(i,j,k,2);
+
+                    if (l_surface_layer) {
+                        
+                        // Average v and w onto the x-face
+                        Real velx = u_arr(i,j,k);
+                        Real vely = (v_volfrac(i-1,j  ,k) * v_arr(i-1,j  ,k) + v_volfrac(i,j  ,k) * v_arr(i,j  ,k)
+                                    + v_volfrac(i-1,j+1,k) * v_arr(i-1,j+1,k) + v_volfrac(i,j+1,k) * v_arr(i,j+1,k))
+                                    / (v_volfrac(i-1,j,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i,j+1,k));
+
+                        Real velz = (w_volfrac(i-1,j,k  ) * w_arr(i-1,j,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
+                                    + w_volfrac(i-1,j,k+1) * w_arr(i-1,j,k+1) + w_volfrac(i,j,k+1) * w_arr(i,j,k+1))
+                                    / (w_volfrac(i-1,j,k) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i,j,k+1));
+
+                        // Impose tangential velocity as Dirichlet condition
+                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                        Dirichlet_u = velx - v_dot_n * nx;
+                        Dirichlet_v = vely - v_dot_n * ny;
+                        Dirichlet_w = velz - v_dot_n * nz;
+                    }
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -166,18 +194,50 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dudz = slopes_u[2];
                     Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
+                    Real dvdz = slopes_v[2];
                     Real dwdx = slopes_w[0];
+                    Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
                     Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
                     Real tau12_eb = myhalf * (dudy + dvdx);
                     Real tau13_eb = myhalf * (dudz + dwdx);
 
-                    dudn = - mu_eff * (u_bnorm(i,j,k,0) * tau11_eb + u_bnorm(i,j,k,1) * tau12_eb + u_bnorm(i,j,k,2) * tau13_eb);
+                    if (l_no_slip) {
 
-                } else if (l_surface_layer) {
+                        dudn = - mu_eff * (nx * tau11_eb + ny * tau12_eb + nz * tau13_eb);    
 
-                    dudn = - tau_eb13(i,j,k);
+                    } else if (l_surface_layer) {
+
+                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
+                        // e_x = (1,0,0), so e_x · n = nx
+                        Real tbx_x = one - nx * nx;
+                        Real tbx_y = - nx * ny;
+                        Real tbx_z = - nx * nz;
+                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
+                        tbx_x /= tbx_norm;
+                        tbx_y /= tbx_norm;
+                        tbx_z /= tbx_norm;
+
+                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
+                        // e_y = (0,1,0), so e_y · n = ny
+                        Real tby_x = - ny * nx;
+                        Real tby_y = one - ny * ny;
+                        Real tby_z = - ny * nz;
+                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
+                        tby_x /= tby_norm;
+                        tby_y /= tby_norm;
+                        tby_z /= tby_norm;
+
+                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                        Real tau23_eb = myhalf * (dvdz + dwdy);
+
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                        dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
+                    }                    
                 }
 
                 rho_u_rhs(i,j,k) -= barea * dudn / (vol * u_volfrac(i,j,k));
@@ -222,12 +282,35 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 Real dvdn = 0.0;
 
-                if (l_no_slip) {
+                if (l_no_slip || l_surface_layer) {
 
-                    const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
-                    const Real Dirichlet_u {zero};
-                    const Real Dirichlet_v {zero};
-                    const Real Dirichlet_w {zero};
+                    RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
+
+                    Real Dirichlet_u {zero};
+                    Real Dirichlet_v {zero};
+                    Real Dirichlet_w {zero};
+
+                    Real nx = v_bnorm(i,j,k,0);
+                    Real ny = v_bnorm(i,j,k,1);
+                    Real nz = v_bnorm(i,j,k,2);
+
+                    if (l_surface_layer) {
+
+                        // Average u and w onto the y-face
+                        Real velx = (u_volfrac(i  ,j-1,k) * u_arr(i  ,j-1,k) + u_volfrac(i+1,j-1,k) * u_arr(i+1,j-1,k)
+                                    + u_volfrac(i+1,j  ,k) * u_arr(i+1,j  ,k) + u_volfrac(i  ,j  ,k) * u_arr(i  ,j  ,k))
+                                    / (u_volfrac(i,j-1,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
+                        Real vely = v_arr(i,j,k);
+                        Real velz = (w_volfrac(i,j-1,k  ) * w_arr(i,j-1,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
+                                    + w_volfrac(i,j  ,k+1) * w_arr(i,j  ,k+1) + w_volfrac(i,j-1,k+1) * w_arr(i,j-1,k+1))
+                                    / (w_volfrac(i,j-1,k) + w_volfrac(i,j,k) + w_volfrac(i,j,k+1) + w_volfrac(i,j-1,k+1));
+
+                        // Impose tangential velocity as Dirichlet condition
+                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                        Dirichlet_u = velx - v_dot_n * nx;
+                        Dirichlet_v = vely - v_dot_n * ny;
+                        Dirichlet_w = velz - v_dot_n * nz;
+                    }
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
@@ -239,9 +322,11 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
+                    Real dudz = slopes_u[2];
                     Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
                     Real dvdz = slopes_v[2];
+                    Real dwdx = slopes_w[0];
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
@@ -249,11 +334,41 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau12_eb = myhalf * (dudy + dvdx);
                     Real tau23_eb = myhalf * (dvdz + dwdy);
 
-                    dvdn = - mu_eff * (v_bnorm(i,j,k,0) * tau12_eb + v_bnorm(i,j,k,1) * tau22_eb + v_bnorm(i,j,k,2) * tau23_eb);
+                    if (l_no_slip) {
 
-                } else if (l_surface_layer) {
+                        dvdn = - mu_eff * (nx * tau12_eb + ny * tau22_eb + nz * tau23_eb);    
 
-                    dvdn = - tau_eb23(i,j,k);
+                    } else if (l_surface_layer) {
+
+                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
+                        // e_x = (1,0,0), so e_x · n = nx
+                        Real tbx_x = one - nx * nx;
+                        Real tbx_y = - nx * ny;
+                        Real tbx_z = - nx * nz;
+                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
+                        tbx_x /= tbx_norm;
+                        tbx_y /= tbx_norm;
+                        tbx_z /= tbx_norm;
+
+                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
+                        // e_y = (0,1,0), so e_y · n = ny
+                        Real tby_x = - ny * nx;
+                        Real tby_y = one - ny * ny;
+                        Real tby_z = - ny * nz;
+                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
+                        tby_x /= tby_norm;
+                        tby_y /= tby_norm;
+                        tby_z /= tby_norm;
+
+                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                        Real tau13_eb = myhalf * (dudz + dwdx);
+
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                        dvdn = - tbx_y * v_tau_eb13(i,j,k) - tby_y * v_tau_eb23(i,j,k) - ny * tauzz;
+                    }
                 }
 
                 rho_v_rhs(i,j,k) -= barea * dvdn / (vol * v_volfrac(i,j,k));
@@ -302,15 +417,28 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     Real Dirichlet_u {zero};
                     Real Dirichlet_v {zero};
-                    const Real Dirichlet_w {zero};
-                    if (l_surface_layer) {
-                        Dirichlet_u = (u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ) + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  )
-                                        + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1) + u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1))
-                                        / (u_volfrac(i,j,k) + u_volfrac(i+1,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1));
-                        Dirichlet_v = (v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ) + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  )
-                                        + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1) + v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1))
-                                        / (v_volfrac(i,j,k) + v_volfrac(i,j+1,k) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j,k-1));
+                    Real Dirichlet_w {zero};
 
+                    Real nx = w_bnorm(i,j,k,0);
+                    Real ny = w_bnorm(i,j,k,1);
+                    Real nz = w_bnorm(i,j,k,2);
+
+                    if (l_surface_layer) {
+
+                        // Average u and v onto the z-face
+                        Real velx = (u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1) + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1)
+                                    + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  ) + u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ))
+                                    / (u_volfrac(i,j,k-1) + u_volfrac(i+1,j,k-1) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
+                        Real vely = (v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1) + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1)
+                                    + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  ) + v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ))
+                                    / (v_volfrac(i,j,k-1) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j+1,k) + v_volfrac(i,j,k));
+                        Real velz = w_arr(i,j,k);
+
+                        // Impose tangential velocity as Dirichlet condition
+                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                        Dirichlet_u = velx - v_dot_n * nx;
+                        Dirichlet_v = vely - v_dot_n * ny;
+                        Dirichlet_w = velz - v_dot_n * nz;
                     }
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
@@ -322,7 +450,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     slopes_w = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
+                    Real dudy = slopes_u[1];
                     Real dudz = slopes_u[2];
+                    Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
                     Real dvdz = slopes_v[2];
                     Real dwdx = slopes_w[0];
@@ -335,14 +465,42 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     if (l_no_slip) {
 
-                        dwdn = - mu_eff * (w_bnorm(i,j,k,0) * tau13_eb + w_bnorm(i,j,k,1) * tau23_eb + w_bnorm(i,j,k,2) * tau33_eb);
+                        dwdn = - mu_eff * (nx * tau13_eb + ny * tau23_eb + nz * tau33_eb);
 
                     } else if (l_surface_layer) {
 
-                        dwdn = - mu_eff * tau33_eb;
+                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
+                        // e_x = (1,0,0), so e_x · n = nx
+                        Real tbx_x = one - nx * nx;
+                        Real tbx_y = - nx * ny;
+                        Real tbx_z = - nx * nz;
+                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
+                        tbx_x /= tbx_norm;
+                        tbx_y /= tbx_norm;
+                        tbx_z /= tbx_norm;
+
+                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
+                        // e_y = (0,1,0), so e_y · n = ny
+                        Real tby_x = - ny * nx;
+                        Real tby_y = one - ny * ny;
+                        Real tby_z = - ny * nz;
+                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
+                        tby_x /= tby_norm;
+                        tby_y /= tby_norm;
+                        tby_z /= tby_norm;
+
+                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                        Real tau12_eb = myhalf * (dudy + dvdx);
+
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                        dwdn = - tbx_z * w_tau_eb13(i,j,k) - tby_z * w_tau_eb23(i,j,k) - nz * tauzz;
 
                     }
                 }
+
                 rho_w_rhs(i,j,k) -= barea * dwdn / (vol * w_volfrac(i,j,k));
             }
         }
