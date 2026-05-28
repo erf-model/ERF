@@ -159,13 +159,20 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
                     auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
                     AMREX_ALWAYS_ASSERT(pc != nullptr);
-                    // Split coarse particles based on the finest level
-                    // covering each cell.  Cascades across multiple new
-                    // levels (e.g. fresh L1+L2 from L0) in a single call.
+                    // Sync the particle container's per-level storage with
+                    // the post-regrid BoxArrays/DistributionMaps before any
+                    // iMultiFab-based work touches it.  Note: this is the
+                    // bare ParticleContainer::Redistribute (no SplitMerge);
+                    // tag-based splitting and merging still run below.
+                    pc->Redistribute();
+                    // Split super-droplets that ended up on a level deeper
+                    // than their tag indicates (cumulative cascading split
+                    // for L0-natives that landed directly on L1 or L2 after
+                    // the regrid created multiple new levels in one shot).
                     pc->SplitParticlesForRefinement(finest_level);
                 }
                 // Redistribute moves split daughters to their destination
-                // levels and runs each species' SplitMergeAtLevelBoundary,
+                // sub-cells and runs each species' SplitMergeAtLevelBoundary,
                 // whose per-level tag-normalizing merge sweep cleans up any
                 // leftover super-droplets from levels that have just vanished.
                 particleData.Redistribute(z_phys_nd);

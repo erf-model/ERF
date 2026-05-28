@@ -380,20 +380,24 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
     }
 }
 
-/*! \brief Split coarse-level particles in newly-refined cells.  Driven by
- *  per-source-level "finest covering level" masks: for source level `clev`,
- *  every cell maps to the highest level k in [clev, finest_level] whose
- *  ParticleBoxArray covers it.  Particles on `clev` in cells with k > clev
- *  are split by the cumulative refinement factor product_{j=clev}^{k-1}
- *  refRatio(j) and tagged with `k + 1` (the destination level's native tag).
+/*! \brief Split super-droplets that ended up on a level deeper than their
+ *  tag indicates (called once after the post-regrid Redistribute moves SDs
+ *  to their leaf level).  For every (target_lev, source_tag) pair where
+ *  source_tag < target_lev + 1, the SDs with `tag == source_tag` on
+ *  `target_lev` are split by the cumulative refinement factor
+ *  prod_{j=source_tag-1}^{target_lev-1} refRatio(j) and tagged with
+ *  `target_lev + 1` (the destination level's native tag).  Daughter
+ *  positions are jittered across the source-level parent cell so the
+ *  following Redistribute can spread them into the appropriate finer
+ *  sub-cells.
  *
  *  This single call handles cascading multi-level refinement (e.g. a fresh
- *  regrid creating both L1 and L2 from L0): coarse particles under L2 are
- *  split by R(0->2) = refRatio(0) * refRatio(1) in one shot, so the next
- *  Redistribute lands the right SD density on every level.
+ *  regrid creating both L1 and L2 from L0): an L0-native SD that
+ *  Redistribute placed on L2 is split by refRatio(0)*refRatio(1), so the
+ *  next Redistribute lands the right SD density on every level.
  *
  *  Only particles whose multiplicity is >= the relevant split factor are
- *  split; lower-multiplicity particles are skipped (the count is reported). */
+ *  split; lower-multiplicity particles are skipped. */
 void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
 {
     BL_PROFILE("SuperDropletPC::SplitParticlesForRefinement()");
@@ -401,101 +405,68 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
     if (!m_split_merge_amr) { return; }
     if (finest_level < 1) { return; }
 
-    // Resync the particle container's internal dummy MultiFabs with the
-    // current mesh BoxArrays/DistributionMaps.  Required when this function
-    // is called immediately after AMR regrid: the ParConstIter and the
-    // iMultiFab `finest_cov` below must agree on level layout, otherwise the
-    // FabArray::operator[](MFIter) assert fires (LocalIndex mismatch).
-    for (int lev = 0; lev <= finest_level; lev++) {
-        RedefineDummyMF(lev);
-    }
-
     constexpr int rt_off_r = SuperDropletsRealIdx::ncomps;
     constexpr int rt_off_i = SuperDropletsIntIdx::ncomps;
     const int mult_idx   = rt_off_r + SuperDropletsRealIdxSoA_RT::multiplicity;
     const int active_idx = rt_off_i + SuperDropletsIntIdxSoA_RT::active;
     const int my_proc = ParallelDescriptor::MyProc();
 
-    for (int clev = 0; clev < finest_level; clev++) {
+    for (int lev = 1; lev <= finest_level; lev++) {
 
-        const auto& cba = ParticleBoxArray(clev);
-        const auto& cdm = ParticleDistributionMap(clev);
-        const auto& geom = m_gdb->Geom(clev);
-        const auto plo    = geom.ProbLoArray();
-        const auto dxi    = geom.InvCellSizeArray();
-        const auto dx     = geom.CellSizeArray();
-        const auto domain = geom.Domain();
+        const int lev_native = lev + 1;
+        const auto& lev_geom = m_gdb->Geom(lev);
+        const auto lev_plo    = lev_geom.ProbLoArray();
+        const auto lev_dxi    = lev_geom.InvCellSizeArray();
+        const auto lev_domain = lev_geom.Domain();
 
-        // Per-cell finest covering level on the clev grid: for cell (i,j,k),
-        // the highest level m in [clev, finest_level] whose ParticleBoxArray
-        // covers it.  Iterates m = clev+1 .. finest_level, OR-ing the per-m
-        // mask into finest_cov via a max kernel.  Proper nesting (L_m always
-        // covered by L_{m-1}) ensures the deepest covering level wins.
-        iMultiFab finest_cov(cba, cdm, 1, 0);
-        finest_cov.setVal(clev);
-        {
+        for (int source_tag = 1; source_tag < lev_native; source_tag++) {
+            const int source_lev = source_tag - 1;
+
             IntVect cum_ref = IntVect::TheUnitVector();
-            for (int m = clev+1; m <= finest_level; m++) {
-                cum_ref *= m_gdb->refRatio(m-1);
-                iMultiFab cov_m = makeFineMask(cba, cdm,
-                                               ParticleBoxArray(m), cum_ref,
-                                               /*crse_value=*/clev,
-                                               /*fine_value=*/m);
-                for (MFIter mfi(finest_cov); mfi.isValid(); ++mfi) {
-                    auto dst_arr = finest_cov.array(mfi);
-                    auto src_arr = cov_m.const_array(mfi);
-                    const Box& bx = mfi.validbox();
-                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int kk) {
-                        dst_arr(i,j,kk) = amrex::max(dst_arr(i,j,kk), src_arr(i,j,kk));
-                    });
-                }
+            for (int j = source_lev; j < lev; j++) {
+                cum_ref *= m_gdb->refRatio(j);
             }
-        }
-
-        // One split pass per destination level k > clev.  Each pass uses the
-        // cumulative refinement factor from clev down to k and selects only
-        // those clev cells whose finest covering level is exactly k.
-        IntVect cum_ref_to_k = IntVect::TheUnitVector();
-        for (int k = clev+1; k <= finest_level; k++) {
-            cum_ref_to_k *= m_gdb->refRatio(k-1);
-            const int split_factor = AMREX_D_TERM(cum_ref_to_k[0],
-                                                  *cum_ref_to_k[1],
-                                                  *cum_ref_to_k[2]);
+            const int split_factor = AMREX_D_TERM(cum_ref[0],
+                                                  *cum_ref[1],
+                                                  *cum_ref[2]);
             if (split_factor <= 1) { continue; }
             const ParticleReal inv_split = ParticleReal(1.0)
                 / static_cast<ParticleReal>(split_factor);
-            const int daughter_tag = k + 1;
+            const int daughter_tag = lev_native;
             const int sf_count = split_factor;
-            const int target_lev = k;
+            const int src_tag = source_tag;
+
+            // Parent-cell size at the source level; daughter positions get
+            // jittered across this range so the next Redistribute spreads
+            // them into the appropriate finer sub-cells.
+            const auto src_dx = m_gdb->Geom(source_lev).CellSizeArray();
+            const auto src_plo = m_gdb->Geom(source_lev).ProbLoArray();
+            const auto src_dxi = m_gdb->Geom(source_lev).InvCellSizeArray();
 
             Long n_to_split         = 0;
             Long n_skipped_low_mult = 0;
 
-            for (ParConstIterType pti(*this, clev); pti.isValid(); ++pti) {
-                const auto& ptile = ParticlesAt(clev, pti);
+            for (ParConstIterType pti(*this, lev); pti.isValid(); ++pti) {
+                const auto& ptile = ParticlesAt(lev, pti);
                 const auto& aos   = ptile.GetArrayOfStructs();
                 int np = aos.numParticles();
                 if (np == 0) { continue; }
 
-                auto fc_arr        = finest_cov[pti].const_array();
                 const auto* p_pbox = aos().data();
                 const auto& soa    = ptile.GetStructOfArrays();
-                const auto* mult_ptr = soa.GetRealData(mult_idx).data();
+                const auto* mult_ptr   = soa.GetRealData(mult_idx).data();
+                const auto* active_ptr = soa.GetIntData(active_idx).data();
 
                 n_to_split += static_cast<Long>(amrex::Reduce::Sum<int>(np,
                     [=] AMREX_GPU_DEVICE (int i) -> int {
-                        const auto& p = p_pbox[i];
-                        if (p.id() <= 0) { return 0; }
-                        IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
-                        return (fc_arr(iv) == target_lev
+                        return (p_pbox[i].id() > 0
+                                && active_ptr[i] == src_tag
                                 && mult_ptr[i] >= static_cast<ParticleReal>(sf_count)) ? 1 : 0;
                     }));
                 n_skipped_low_mult += static_cast<Long>(amrex::Reduce::Sum<int>(np,
                     [=] AMREX_GPU_DEVICE (int i) -> int {
-                        const auto& p = p_pbox[i];
-                        if (p.id() <= 0) { return 0; }
-                        IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
-                        return (fc_arr(iv) == target_lev
+                        return (p_pbox[i].id() > 0
+                                && active_ptr[i] == src_tag
                                 && mult_ptr[i] < static_cast<ParticleReal>(sf_count)) ? 1 : 0;
                     }));
             }
@@ -504,13 +475,12 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
 
             Long n_new_particles = n_to_split * (static_cast<Long>(split_factor) - 1);
             if (n_new_particles == 0) {
-                Print() << "SplitParticlesForRefinement: L" << clev
-                        << " -> L" << k << " -- no particles to split (factor "
-                        << split_factor << ")\n";
                 if (n_skipped_low_mult > 0) {
-                    Print() << "  (skipped " << n_skipped_low_mult
+                    Print() << "SplitParticlesForRefinement: L" << source_lev
+                            << " -> L" << lev << " -- skipped "
+                            << n_skipped_low_mult
                             << " particles with multiplicity < "
-                            << split_factor << ")\n";
+                            << split_factor << "\n";
                 }
                 continue;
             }
@@ -526,7 +496,7 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                 size_t free_mem = Gpu::Device::freeMemAvailable();
                 if (bytes_needed > static_cast<size_t>(static_cast<double>(free_mem) * 0.8)) {
                     Print() << "WARNING: SplitParticlesForRefinement: not enough GPU memory for L"
-                            << clev << " -> L" << k << ".  Need "
+                            << source_lev << " -> L" << lev << ".  Need "
                             << bytes_needed/(1024*1024) << " MB, available "
                             << free_mem/(1024*1024) << " MB.  Skipping.\n";
                     continue;
@@ -537,25 +507,22 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
 
             const int sf = split_factor;
 
-            for (ParIterType pti(*this, clev); pti.isValid(); ++pti) {
-                auto& ptile = ParticlesAt(clev, pti);
+            for (ParIterType pti(*this, lev); pti.isValid(); ++pti) {
+                auto& ptile = ParticlesAt(lev, pti);
                 auto& aos   = ptile.GetArrayOfStructs();
                 int np = aos.numParticles();
                 if (np == 0) { continue; }
-
-                auto fc_arr = finest_cov[pti].const_array();
 
                 Gpu::DeviceVector<int> split_mask_d(np);
                 auto* mask_d_ptr = split_mask_d.data();
                 auto* p_pbox = aos().data();
                 auto& soa = ptile.GetStructOfArrays();
-                const auto* mult_data = soa.GetRealData(mult_idx).data();
+                const auto* mult_data   = soa.GetRealData(mult_idx).data();
+                const auto* active_data = soa.GetIntData(active_idx).data();
 
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
-                    const auto& p = p_pbox[i];
-                    if (p.id() <= 0) { mask_d_ptr[i] = 0; return; }
-                    IntVect iv = amrex::getParticleCell(p, plo, dxi, domain);
-                    mask_d_ptr[i] = (fc_arr(iv) == target_lev
+                    mask_d_ptr[i] = (p_pbox[i].id() > 0
+                                     && active_data[i] == src_tag
                                      && mult_data[i] >= static_cast<ParticleReal>(sf)) ? 1 : 0;
                 });
 
@@ -602,9 +569,9 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                 const ParticleReal alpha = ParticleReal(0.4);
                 const int nst = n_split_tile;
                 const int n_copies_per = split_factor - 1;
-                const auto local_dx  = dx;
-                const auto local_plo = plo;
-                const auto local_dxi = dxi;
+                const auto local_src_dx  = src_dx;
+                const auto local_src_plo = src_plo;
+                const auto local_src_dxi = src_dxi;
 
                 amrex::ParallelForRNG(n_copies,
                     [=] AMREX_GPU_DEVICE (int i, const amrex::RandomEngine& rng) {
@@ -614,14 +581,17 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                     int j = i % nst;
                     Gpu::Atomic::AddNoRet(&weight_sum[j], w);
 
+                    // Jitter daughter positions uniformly across the
+                    // source-level parent cell that contains the parent SD.
+                    // The next Redistribute spreads them into the appropriate
+                    // finer sub-cells of that parent.
                     for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                        ParticleReal pert = local_dx[d] * ParticleReal(0.01)
-                            * (ParticleReal(2.0) * amrex::Random(rng) - ParticleReal(1.0));
-                        ParticleReal pos_new = copy_p[i].pos(d) + pert;
-                        int cell_idx = static_cast<int>(amrex::Math::floor(
-                            (copy_p[i].pos(d) - local_plo[d]) * local_dxi[d]));
-                        ParticleReal cell_lo = local_plo[d] + cell_idx * local_dx[d];
-                        ParticleReal cell_hi = cell_lo + local_dx[d];
+                        int src_cell = static_cast<int>(amrex::Math::floor(
+                            (copy_p[i].pos(d) - local_src_plo[d]) * local_src_dxi[d]));
+                        ParticleReal cell_lo = local_src_plo[d] + src_cell * local_src_dx[d];
+                        ParticleReal cell_hi = cell_lo + local_src_dx[d];
+                        ParticleReal u = amrex::Random(rng);
+                        ParticleReal pos_new = cell_lo + u * local_src_dx[d];
                         constexpr ParticleReal eps = ParticleReal(1.0e-10);
                         pos_new = amrex::max(pos_new, cell_lo + eps);
                         pos_new = amrex::min(pos_new, cell_hi - eps);
@@ -636,9 +606,6 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                     ParticleReal orig = copy_mult[i];
                     copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
                 });
-
-                Gpu::DeviceVector<int> prefix_d(np);
-                amrex::Gpu::exclusive_scan(mask_d_ptr, mask_d_ptr + np, prefix_d.data());
 
                 auto* orig_mult   = soa.GetRealData(mult_idx).data();
                 auto* orig_active = soa.GetIntData(active_idx).data();
@@ -662,9 +629,10 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                 });
             }
 
-            Print() << "SplitParticlesForRefinement: L" << clev
-                    << " -> L" << k << " split " << n_to_split
-                    << " particles by factor " << split_factor
+            Print() << "SplitParticlesForRefinement: L" << source_lev
+                    << " -> L" << lev << " split " << n_to_split
+                    << " tag=" << source_tag << " particles by factor "
+                    << split_factor
                     << " (created " << n_new_particles << " new SDs)\n";
             if (n_skipped_low_mult > 0) {
                 Print() << "  (skipped " << n_skipped_low_mult
