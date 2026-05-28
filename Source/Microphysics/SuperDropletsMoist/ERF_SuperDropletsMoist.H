@@ -440,8 +440,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         int m_qmoist_size;
         /*! number of water-related state variables for this moisture model */
         int m_qstate_moist_size;
+
         /*! number of water-related state variables that are number concentrations */
-        int n_qstate_moist_numconc_size = 0;
+        int m_qstate_moist_numconc_size = 0;
 
         /*! number of non-water-related state variables for this moisture model */
         int m_qstate_nonmoist_size;

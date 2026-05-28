@@ -69,13 +69,17 @@ Morrison::Init (const MultiFab& cons_in,
     tabs1d.resize({zlo}, {zhi});
 
 #ifdef ERF_USE_MORR_FORT
-    int morr_rimed_ice = 0; // This is used to set something called "ihail"
+    bool use_cpp;
     amrex::ParmParse pp("erf");
-    MoistureType moisture_type;
-    pp.query_enum_case_insensitive("moisture_model",moisture_type);
-    int morr_noice = (moisture_type == MoistureType::Morrison_NoIce);
-    Print()<<"Setting No Ice flag in fortran to "<<morr_noice<<std::endl;
-    morr_two_moment_init_c(morr_rimed_ice, morr_noice);
+    pp.query("use_morr_cpp_answer", use_cpp);
+
+    if (!use_cpp) {
+        MoistureType moisture_type;
+        pp.query_enum_case_insensitive("moisture_model",moisture_type);
+        int morr_noice     = (moisture_type == MoistureType::Morrison_NoIce);
+        int morr_rimed_ice = 0; // This is used to set something called "ihail"
+        morr_two_moment_init_c(morr_rimed_ice, morr_noice);
+    }
 #endif
 }
 

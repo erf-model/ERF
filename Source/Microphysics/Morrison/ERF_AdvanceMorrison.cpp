@@ -23,6 +23,9 @@
 
 using namespace amrex;
 
+#include "ERF_MorrisonGammaFunction.H"
+#include "ERF_MorrisonVaporPressure.H"
+
 namespace MORRInd {
     enum  {
       /*
@@ -156,345 +159,6 @@ namespace MORRInd {
     };
 }
 
-constexpr Real xxx = Real(0.9189385332046727417803297);
-/*
-!------------------------------------------------------------------------------
-
-      REAL(C_DOUBLE) FUNCTION GAMMA(X)
-!----------------------------------------------------------------------
-!
-! THIS ROUTINE CALCULATES THE GAMMA FUNCTION FOR A REAL(C_DOUBLE) ARGUMENT X.
-!   COMPUTATION IS BASED ON AN ALGORITHM OUTLINED IN REFERENCE one
-!   THE PROGRAM USES RATIONAL FUNCTIONS THAT APPROXIMATE THE GAMMA
-!   FUNCTION TO AT LEAST 20 SIGNIFICANT DECIMAL DIGITS.  COEFFICIENTS
-!   FOR THE APPROXIMATION OVER THE INTERVAL (1,2) ARE UNPUBLISHED.
-!   THOSE FOR THE APPROXIMATION FOR X .GE. 12 ARE FROM REFERENCE two
-!   THE ACCURACY ACHIEVED DEPENDS ON THE ARITHMETIC SYSTEM, THE
-!   COMPILER, THE INTRINSIC FUNCTIONS, AND PROPER SELECTION OF THE
-!   MACHINE-DEPENDENT CONSTANTS.
-!
-!
-!*******************************************************************
-!*******************************************************************
-!
-! EXPLANATION OF MACHINE-DEPENDENT CONSTANTS
-!
-! BETA   - RADIX FOR THE FLOATING-POINT REPRESENTATION
-! MAXEXP - THE SMALLEST POSITIVE POWER OF BETA THAT OVERFLOWS
-! XBIG   - THE LARGEST ARGUMENT FOR WHICH GAMMA(X) IS REPRESENTABLE
-!          IN THE MACHINE, I.E., THE SOLUTION TO THE EQUATION
-!                  GAMMA(XBIG) = BETA**MAXEXP
-! XINF   - THE LARGEST MACHINE REPRESENTABLE FLOATING-POINT NUMBER;
-!          APPROXIMATELY BETA**MAXEXP
-! EPS    - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          one+EPS .GT. one
-! XMININ - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          1/XMININ IS MACHINE REPRESENTABLE
-!
-!     APPROXIMATE VALUES FOR SOME IMPORTANT MACHINES ARE:
-!
-!                            BETA       MAXEXP        XBIG
-!
-! CRAY-1         (S.P.)        2         8191        Real(966.961)
-! CYBER 180/855
-!   UNDER NOS    (S.P.)        2         1070        Real(177.803)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)        2          128        Real(35.040)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)        2         1024        Real(171.624)
-! IBM 3033       (D.P.)       16           63        Real(57.574)
-! VAX D-FORMAT   (D.P.)        2          127        Real(34.844)
-! VAX G-FORMAT   (D.P.)        2         1023        Real(171.489)
-!
-!                            XINF         EPS        XMININ
-!
-! CRAY-1         (S.P.)   Real(5.45E+2465)   Real(7.11E-15)    Real(1.84E-2466)
-! CYBER 180/855
-!   UNDER NOS    (S.P.)   Real(1.26E+322)    Real(3.55E-15)    Real(3.14E-294)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)   Real(3.40E+38)     Real(1.19E-7)     Real(1.18E-38)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)   1.79D+308    2.22D-16    2.23D-308
-! IBM 3033       (D.P.)   7.23D+75     2.22D-16    1.39D-76
-! VAX D-FORMAT   (D.P.)   1.70D+38     1.39D-17    5.88D-39
-! VAX G-FORMAT   (D.P.)   8.98D+307    1.11D-16    1.12D-308
-!
-!*******************************************************************
-!*******************************************************************
-!
-! ERROR RETURNS
-!
-!  THE PROGRAM RETURNS THE VALUE XINF FOR SINGULARITIES OR
-!     WHEN OVERFLOW WOULD OCCUR.  THE COMPUTATION IS BELIEVED
-!     TO BE FREE OF UNDERFLOW AND OVERFLOW.
-!
-!
-!  INTRINSIC FUNCTIONS REQUIRED ARE:
-!
-!     INT, DBLE, EXP, LOG, REAL(C_DOUBLE), SIN
-!
-!
-! REFERENCES:  AN OVERVIEW OF SOFTWARE DEVELOPMENT FOR SPECIAL
-!              FUNCTIONS   W. J. CODY, LECTURE NOTES IN MATHEMATICS,
-!              506, NUMERICAL ANALYSIS DUNDEE, 1975, G. A. WATSON
-!              (ED.), SPRINGER VERLAG, BERLIN, Real(1976.)
-!
-!              COMPUTER APPROXIMATIONS, HART, ET. AL., WILEY AND
-!              SONS, NEW YORK, Real(1968.)
-!
-!  LATEST MODIFICATION: OCTOBER 12, 1989
-!
-!  AUTHORS: W. J. CODY AND L. STOLTZ
-!           APPLIED MATHEMATICS DIVISION
-!           ARGONNE NATIONAL LABORATORY
-!           ARGONNE, IL 60439
-!
-!----------------------------------------------------------------------
-*/
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real wrf_gamma (amrex::Real x)
-{
-    // Debug: using printf since it's GPU compatible
-//    printf("wrf_gamma: Input value x = %g\n", x);
-
-    // Local variables
-    int i, n;
-    bool parity = false;
-    amrex::Real fact, res, sum, twelve, xbig, xden, xinf, xminin;
-    amrex::Real xnum, y, y1, ysq, z;
-    amrex::Real c[7];
-    amrex::Real p[8];
-    amrex::Real q[8];
-
-    // Mathematical constants
-    twelve = Real(12.0);
-
-    // Machine dependent parameters
-    xbig = Real(35.040);
-    xminin = Real(1.18e-38);
-    amrex::Real eps = Real(1.19e-7);
-    xinf = Real(3.4e38);
-
-    // Numerator and denominator coefficients for rational minimax approximation over (1,2)
-    p[0] = -Real(1.71618513886549492533811e+0);
-    p[1] =  Real(2.47656508055759199108314e+1);
-    p[2] = -Real(3.79804256470945635097577e+2);
-    p[3] =  Real(6.29331155312818442661052e+2);
-    p[4] =  Real(8.66966202790413211295064e+2);
-    p[5] = -Real(3.14512729688483675254357e+4);
-    p[6] = -Real(3.61444134186911729807069e+4);
-    p[7] =  Real(6.64561438202405440627855e+4);
-
-    q[0] = -Real(3.08402300119738975254353e+1);
-    q[1] =  Real(3.15350626979604161529144e+2);
-    q[2] = -Real(1.01515636749021914166146e+3);
-    q[3] = -Real(3.10777167157231109440444e+3);
-    q[4] =  Real(2.25381184209801510330112e+4);
-    q[5] =  Real(4.75584627752788110767815e+3);
-    q[6] = -Real(1.34659959864969306392456e+5);
-    q[7] = -Real(1.15132259675553483497211e+5);
-
-    // Coefficients for minimax approximation over (12, inf)
-    c[0] = -Real(1.910444077728e-03);
-    c[1] = Real(8.4171387781295e-04);
-    c[2] = -Real(5.952379913043012e-04);
-    c[3] = Real(7.93650793500350248e-04);
-    c[4] = -Real(2.777777777777681622553e-03);
-    c[5] = Real(8.333333333333333331554247e-02);
-    c[6] = Real(5.7083835261e-03);
-
-    // Initialize variables
-    parity = false;
-    fact = one;
-    n = 0;
-    y = x;
-
-//    printf("wrf_gamma: Initial y = %g\n", y);
-
-    if (y <= Real(0)) {
-        // Argument is negative
-//        printf("wrf_gamma: Handling negative argument\n");
-        y = -x;
-        y1 = std::floor(y);
-        res = y - y1;
-        if (res != Real(0)) {
-            if (y1 != std::floor(y1 * myhalf) * Real(2))
-                parity = true;
-            Real pi=amrex::Math::pi<Real>();
-            fact = -pi / std::sin(pi * res);
-            y = y + one;
-//            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n",
-//                   y, fact, parity);
-        }
-        else {
-//            printf("wrf_gamma: Singularity detected, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-
-    // Argument is positive
-    if (y < eps) {
-        // Argument < eps
-//        printf("wrf_gamma: Small argument branch (y < eps)\n");
-        if (y >= xminin) {
-            res = one / y;
-//            printf("wrf_gamma: Small argument result: res = %g\n", res);
-        }
-        else {
-//            printf("wrf_gamma: Argument too small, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-    else if (y < twelve) {
-        // Medium range argument
-//        printf("wrf_gamma: Medium range branch (eps <= y < 12)\n");
-        y1 = y;
-        if (y < one) {
-            // Real(0) < argument < one
-//            printf("wrf_gamma: Sub-branch: 0 < y < 1\n");
-            z = y;
-            y = y + one;
-        }
-        else {
-            // one < argument < Real(12.0), reduce argument if necessary
-            n = static_cast<int>(y) - 1;
-//            printf("wrf_gamma: Sub-branch: 1 <= y < 12, n = %d\n", n);
-            y = y - static_cast<amrex::Real>(n);
-            z = y - one;
-        }
-
-        // Evaluate approximation
-//        printf("wrf_gamma: Before approximation: z = %g, y = %g\n", z, y);
-        xnum = Real(0);
-        xden = one;
-        for (i = 0; i < 8; i++) {
-            xnum = (xnum + p[i]) * z;
-            xden = xden * z + q[i];
-        }
-        res = xnum / xden + one;
-//        printf("wrf_gamma: After approximation: res = %g\n", res);
-
-        if (y1 < y) {
-            // Adjust result for case Real(0) < argument < one
-            res = res / y1;
-//            printf("wrf_gamma: Adjusted for y < 1: res = %g\n", res);
-        }
-        else if (y1 > y) {
-            // Adjust for two < argument < Real(12.0)
-//            printf("wrf_gamma: Adjusting for y > 2 with %d multiplications\n", n);
-            for (i = 0; i < n; i++) {
-                res = res * y;
-                y = y + one;
-//                printf("wrf_gamma: Multiplication %d: res = %g, y = %g\n", i+1, res, y);
-            }
-        }
-    }
-    else {
-        // Large argument
-//        printf("wrf_gamma: Large argument branch (y >= 12)\n");
-        if (y <= xbig) {
-            ysq = y * y;
-            sum = c[6];
-            for (i = 0; i < 6; i++) {
-                sum = sum / ysq + c[i];
-//                printf("wrf_gamma: Sum step %d: sum = %g\n", i+1, sum);
-            }
-            sum = sum / y - y + xxx;
-            sum = sum + (y - myhalf) * std::log(y);
-//            printf("wrf_gamma: Before exp: sum = %g\n", sum);
-            res = std::exp(sum);
-//            printf("wrf_gamma: After exp: res = %g\n", res);
-        }
-        else {
-//            printf("wrf_gamma: Argument too large, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-
-    // Final adjustments
-    if (parity) {
-        res = -res;
-//        printf("wrf_gamma: Applied parity adjustment: res = %g\n", res);
-    }
-    if (fact != one) {
-        res = fact / res;
-//        printf("wrf_gamma: Applied reflection adjustment: res = %g\n", res);
-    }
-
-//    printf("wrf_gamma: Final result = %g\n", res);
-    return res;
-}
-
-// Gamma function using the custom wrf implementation of the gamma function
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real gamma_function(Real x) {
-  return wrf_gamma(x);
-}
-  /**
-   * Helper function to calculate saturation vapor pressure for water or ice.
-   * This corresponds to the POLYSVP function in the Fortran code (line ~5580).
-   *
-   * @param[in] T Temperature in Kelvin
-   * @param[in] type 0 for liquid water, 1 for ice
-   * @return Saturation vapor pressure in Pascals
-   */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-  amrex::Real
-  calc_saturation_vapor_pressure (const amrex::Real T, const int type)
-  {
-    amrex::Real polysvp = Real(0);
-    amrex::Real del_T = T - Real(273.15);  // Convert to Celsius
-
-    if (type == 1) {  // Ice (lines ~5631-5644)
-        if (T >= Real(195.8)) {
-            // Flatau et al. formula for ice
-            const amrex::Real a0i = Real(6.11147274);
-            const amrex::Real a1i = Real(0.503160820);
-            const amrex::Real a2i = Real(0.188439774e-1);
-            const amrex::Real a3i = Real(0.420895665e-3);
-            const amrex::Real a4i = Real(0.615021634e-5);
-            const amrex::Real a5i = Real(0.602588177e-7);
-            const amrex::Real a6i = Real(0.385852041e-9);
-            const amrex::Real a7i = Real(0.146898966e-11);
-            const amrex::Real a8i = Real(0.252751365e-14);
-
-            polysvp = a0i + del_T*(a1i + del_T*(a2i + del_T*(a3i + del_T*(a4i + del_T*(a5i + del_T*(a6i + del_T*(a7i + a8i*del_T)))))));
-            polysvp *= Real(100.0);  // Convert from hPa to Pa
-        } else {
-            // Goff-Gratch formula for ice at cold temperatures
-            polysvp = std::pow(Real(10.0), (-Real(9.09718)*(Real(273.16)/T-one) - Real(3.56654)*std::log10(Real(273.16)/T) +
-                                             Real(0.876793)*(one-T/Real(273.16)) + std::log10(Real(6.1071)))) * Real(100.0);
-        } // T
-    } else {  // Water (lines ~5648-5665)
-      if (T >= Real(202.0)) {
-        // Flatau et al. formula for liquid water
-        const amrex::Real a0 = Real(6.11239921);
-        const amrex::Real a1 = Real(0.443987641);
-        const amrex::Real a2 = Real(0.142986287e-1);
-        const amrex::Real a3 = Real(0.264847430e-3);
-        const amrex::Real a4 = Real(0.302950461e-5);
-        const amrex::Real a5 = Real(0.206739458e-7);
-        const amrex::Real a6 = Real(0.640689451e-10);
-        const amrex::Real a7 = -Real(0.952447341e-13);
-        const amrex::Real a8 = -Real(0.976195544e-15);
-
-        polysvp = a0 + del_T*(a1 + del_T*(a2 + del_T*(a3 + del_T*(a4 + del_T*(a5 + del_T*(a6 + del_T*(a7 + a8*del_T)))))));
-        polysvp *= Real(100.0);  // Convert from hPa to Pa
-      } else {
-        // Goff-Gratch formula for water at cold temperatures
-        polysvp = std::pow(Real(10.0), (-Real(7.90298)*(Real(373.16)/T-one) + Real(5.02808)*std::log10(Real(373.16)/T) -
-                                  Real(1.3816e-7)*(std::pow(Real(10.0), (Real(11.344)*(one-T/Real(373.16))))-one) +
-                                  Real(8.1328e-3)*(std::pow(Real(10.0), (-Real(3.49149)*(Real(373.16)/T-one)))-one) +
-                                  std::log10(Real(1013.246)))) * Real(100.0);
-      }
-    }
-
-    return polysvp;
-  }
-
     // wrapper to do all the updating
     void
     Morrison::Advance (const Real& dt_advance,
@@ -508,10 +172,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
         // Check if CPP or FORT answer is used
         ParmParse pp("erf");
-        bool run_morr_cpp        = true;
         bool use_morr_cpp_answer = true;
         pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
-        bool run_morr_fort = !use_morr_cpp_answer;
+
+        // Ensure that only one of these is true
+        bool run_morr_cpp  =  use_morr_cpp_answer;
+        bool run_morr_fort = !run_morr_cpp;
+
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
         // Allow user to override constant droplet concentration from inputs file
@@ -567,14 +234,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           const int khi = box.hiVect()[2];
 
           Box grown_box(box); grown_box.grow(3);
-#ifdef ERF_USE_MORR_FORT
-          const int ilom = grown_box.loVect()[0];
-          const int ihim = grown_box.hiVect()[0];
-          const int jlom = grown_box.loVect()[1];
-          const int jhim = grown_box.hiVect()[1];
-          const int klom = grown_box.loVect()[2];
-          const int khim = grown_box.hiVect()[2];
-#endif
+
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
           FArrayBox pii_fab(grown_box, 1, The_Async_Arena());
@@ -633,62 +293,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
                                                    + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
           });
-
-#ifdef ERF_USE_MORR_FORT
-          // Create dummy arrays for cumulus tendencies (if needed)
-          FArrayBox qrcuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qscuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qicuten_fab(grown_box, 1, The_Async_Arena());
-          auto const& qrcuten_arr = qrcuten_fab.array();
-          auto const& qscuten_arr = qscuten_fab.array();
-          auto const& qicuten_arr = qicuten_fab.array();
-
-          // Initialize tendencies to Real(0) (no cumulus parameterization in this example)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            qrcuten_arr(i,j,k) = Real(0);
-            qscuten_arr(i,j,k) = Real(0);
-            qicuten_arr(i,j,k) = Real(0);
-          });
-
-          // WRF-Chem related variables (optional)
-          bool flag_qndrop = false;  // Flag to indicate droplet number prediction
-
-          // Now create arrays for other optional variables
-          FArrayBox rainprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox evapprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qlsink_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precr_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox preci_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precs_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precg_fab(grown_box, 1, The_Async_Arena());
-
-          auto const& rainprod_arr = rainprod_fab.array();
-          auto const& evapprod_arr = evapprod_fab.array();
-          auto const& qlsink_arr = qlsink_fab.array();
-          auto const& precr_arr = precr_fab.array();
-          auto const& preci_arr = preci_fab.array();
-          auto const& precs_arr = precs_fab.array();
-          auto const& precg_arr = precg_fab.array();
-
-          // Initialize WRF-Chem arrays to Real(0)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainprod_arr(i,j,k) = Real(0);
-            evapprod_arr(i,j,k) = Real(0);
-            qlsink_arr(i,j,k)   = Real(0);
-            precr_arr(i,j,k)    = Real(0);
-            preci_arr(i,j,k)    = Real(0);
-            precs_arr(i,j,k)    = Real(0);
-            precg_arr(i,j,k)    = Real(0);
-          });
-#endif
-
-#ifdef ERF_USE_MORR_FORT
-          // Prepare data pointers for Fortran call
-          // These would be passed directly to the Fortran interface
-          double dummy_reflectivity = Real(0);
-          double* dummy_reflectivity_ptr = &dummy_reflectivity;
-#endif
-          // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
 
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1:std::power-law, 2: lognormal aerosol)
@@ -1038,11 +642,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_do_radar_ref = false; // Disable radar reflectivity by default
           Box boxD(box); boxD.makeSlab(2,0);
 
-#ifdef ERF_USE_MORR_FORT
-          // If using Fortran version, update the Fortran module variable as well
-          set_morrison_ndcnst_c(m_ndcnst);
-#endif
-
           if(run_morr_cpp) {
 
             // One FAB to rule them all
@@ -1076,23 +675,20 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             morr_arr(i,j,k,MORRInd::dzq)  = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
             morr_arr(i,j,k,MORRInd::w3d)  = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
 
-            // NOTE: There are no cumulus tendecies passed to Morrison
+            // NOTE: There are no cumulus tendencies passed to Morrison
             //       and the FORTRAN version zeros these out.
             morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
             morr_arr(i,j,k,MORRInd::qscu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
             morr_arr(i,j,k,MORRInd::qicu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
           });
+
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
           {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            int nstep;                        // NSTEP: Timestep counter
            int iinum=m_inum;                      // iinum: Integer control variable
 
-           for(int k=klo; k<=khi; k++) {
-            // Model input parameters
-            //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
-            //amrex::Real morr_arr(i,j,k,MORRInd::lami);               // LAMI: Slope parameter for cloud ice (m^-1)
-
+           for (int k=klo; k<=khi; k++) {
             // Microphysical processes
             [[maybe_unused]] Real nsubc;              // NSUBC: Loss of NC during evaporation
             Real nsubi;              // NSUBI: Loss of NI during sublimation
@@ -2897,7 +2493,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             nstep = 1;
 
-            if(ltrue != 0) {
+            if (ltrue != 0) {
             //goto 400
             // CALCULATE SEDIMENTATION
             // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
@@ -3128,7 +2724,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::faloutnc) = morr_arr(i,j,k,MORRInd::fnc) * morr_arr(i,j,k,MORRInd::dumfnc);
                 morr_arr(i,j,k,MORRInd::faloutg) = morr_arr(i,j,k,MORRInd::fg) * morr_arr(i,j,k,MORRInd::dumg);
                 morr_arr(i,j,k,MORRInd::faloutng) = morr_arr(i,j,k,MORRInd::fng) * morr_arr(i,j,k,MORRInd::dumfng);
-              }
+              } //k
 
               // Process top of model level
               int k = khi;
@@ -3218,6 +2814,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               morr_arr(i,j,klo,MORRInd::snowprt) += (morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::falouts)) * dt / nstep;
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
             }
+
             for(int k=klo; k<=khi; k++) {
               Real evs;                // EVS: Saturation vapor pressure
               Real eis;                // EIS: Ice saturation vapor pressure
@@ -3555,119 +3152,53 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
          label_400:*/
             //End of _micro
 
-            if(use_morr_cpp_answer) {
-              for(int k=klo; k<=khi; k++) {
+          if(use_morr_cpp_answer) {
+              for (int k=klo; k<=khi; k++) {
+                  // Transfer 1D variables back to 3D arrays
+                  qcl_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qc3d);
+                  qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
+                  qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
+                  qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
+                  ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
+                  ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
+                  nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
+                  qpg_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qg3d);
+                  ng_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ng3d);
 
-            // Transfer 1D variables back to 3D arrays
-            qcl_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qc3d);
-            qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
-            qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
-            qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
-            ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
-            ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
-            nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
-            qpg_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qg3d);
-            ng_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ng3d);
+                  // Temperature and potential temperature conversion
+                  theta_arr(i,j,k) = morr_arr(i,j,k,MORRInd::t3d) / pii_arr(i,j,k); // Convert temp back to potential temp
+                  qv_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qv3d);
 
-            // Temperature and potential temperature conversion
-            theta_arr(i,j,k) = morr_arr(i,j,k,MORRInd::t3d) / pii_arr(i,j,k); // Convert temp back to potential temp
-            qv_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qv3d);
+                  //Deleted wrf-check, effc, and precr type data as not used by ERF
+                  /*
+                  // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
+                  rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
+                  snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
+                  graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
+                  */
 
-            //Deleted wrf-check, effc, and precr type data as not used by ERF
-            /*
-            // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
-            rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
-            snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
-            graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);*/
-            rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
-            snowncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowprt);
-            graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
-            sr_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + Real(1.e-12));
-              }
-            // Update precipitation accumulation variables
-            // These are outside the k-loop in the original code
-            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
-            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
-            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
-            }
+                  rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
+                  snowncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowprt);
+                  graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
+                  sr_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + Real(1.e-12));
+              } // k
+
+              // Update precipitation accumulation variables
+              // These are outside the k-loop in the original code
+              rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
+              snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
+              graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+
+            } // cpp
          });
-          //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
-          }
 
-          // amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
+          }
 
           if (run_morr_fort) {
 #ifdef ERF_USE_MORR_FORT
-          mp_morr_two_moment_c
-          (
-              1,  // ITIMESTEP - Use 1 for simplicity
-
-              // 3D arrays in Fortran expected order (assume column-major for Fortran)
-              theta_arr.dataPtr(),      // TH
-              qv_arr.dataPtr(),         // QV
-              qcl_arr.dataPtr(),        // QC
-              qpr_arr.dataPtr(),        // QR
-              qci_arr.dataPtr(),        // QI
-              qps_arr.dataPtr(),        // QS
-              qpg_arr.dataPtr(),        // QG
-              ni_arr.dataPtr(),         // NI
-              ns_arr.dataPtr(),         // NS
-              nr_arr.dataPtr(),         // NR
-              ng_arr.dataPtr(),         // NG
-
-              rho_arr.dataPtr(),        // RHO
-              pii_arr.dataPtr(),        // PII (Exner function)
-              pres_arr.dataPtr(),       // P (in hPa, convert if needed)
-              dt,                       // DT_IN
-              dz_arr.dataPtr(),         // DZ
-              w_arr.dataPtr(),          // W (vertical velocity)
-
-              // 2D arrays for precipitation accounting
-              rain_accum_arr.dataPtr(), // RAINNC
-              rainncv_arr.dataPtr(),    // RAINNCV
-              sr_arr.dataPtr(),         // SR
-              snow_accum_arr.dataPtr(), // SNOWNC
-              snowncv_arr.dataPtr(),    // SNOWNCV
-              graup_accum_arr.dataPtr(),// GRAUPELNC
-              graupelncv_arr.dataPtr(), // GRAUPELNCV
-
-              // Radar reflectivity
-              dummy_reflectivity_ptr,  // refl_10cm
-              true,                     // diagflag
-              0,   // do_radar_ref
-
-              // Cumulus tendencies
-              qrcuten_arr.dataPtr(),    // qrcuten
-              qscuten_arr.dataPtr(),    // qscuten
-              qicuten_arr.dataPtr(),    // qicuten
-
-              // WRF-Chem flags
-              flag_qndrop,              // F_QNDROP
-              nullptr,                  // qndrop (not used here)
-              ht_arr.dataPtr(),         // HT (terrain height - not used)
-
-              // Domain dimensions
-              ilo, ihi, jlo, jhi, klo, khi,  // IDS,IDE,JDS,JDE,KDS,KDE
-              ilom, ihim, jlom, jhim, klom, khim,  // IMS,IME,JMS,JME,KMS,KME
-              ilo, ihi, jlo, jhi, klo, khi,  // ITS,ITE,JTS,JTE,KTS,KTE
-
-              // Optional WRF-Chem outputs
-              false,                    // wetscav_on
-              rainprod_arr.dataPtr(),   // rainprod
-              evapprod_arr.dataPtr(),   // evapprod
-              qlsink_arr.dataPtr(),     // QLSINK
-              precr_arr.dataPtr(),      // PRECR
-              preci_arr.dataPtr(),      // PRECI
-              precs_arr.dataPtr(),      // PRECS
-              precg_arr.dataPtr()       // PRECG
-          );
-#else
-          amrex::Abort("Trying to run fortran without compiling with USE_MORR_FORT=TRUE");
+#include  "ERF_Morrison_Advance_F.H"
 #endif
-        }
-          //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
-          // After the call, all fields are updated
-          // We don't need to copy results back since we passed direct pointers
-          // to our class member arrays
+          } // run_morr_fort
+
         }
     }
