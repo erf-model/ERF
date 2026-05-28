@@ -1187,7 +1187,8 @@ private:
                                                     // dissipation
                                                     "diss",
                                                     // moisture vars
-                                                    "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
+                                                    "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
+                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
