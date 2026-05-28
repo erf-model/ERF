@@ -306,19 +306,10 @@ class SuperDropletPC : public ERFPC
          *  particles whose multiplicity is below the relevant split factor. */
         void SplitParticlesForRefinement ( int a_finest_level ) override;
 
-        /*! \brief Merge particles in cells that lost fine-level coverage after
-         *  de-refinement.  Multiplicity-weighted average of attributes; excess
-         *  particles deactivated (id = -1). */
-        void MergeParticlesAfterDerefining ( int a_lev,
-                                             const amrex::BoxArray& a_old_fine_ba,
-                                             const amrex::IntVect& a_ref_ratio ) override;
-
         /*! \brief Continuously split new entrants on fine levels and merge
-         *  departees on coarse levels.  Active-flag tri-state convention:
-         *    0  deactivated
-         *    1  regular / un-split
-         *    2  member of a current split-group; identifies a departee on the
-         *       coarse side after Redistribute crosses a level boundary. */
+         *  excess-tag super-droplets back into native hosts (tag = level + 1).
+         *  Per-step departees and regrid-time leftovers from disappeared finer
+         *  levels are folded into the same per-level tag-normalizing sweep. */
         void SplitMergeAtLevelBoundary () override;
 
         /*! \brief Whether split/merge across AMR levels is enabled. */

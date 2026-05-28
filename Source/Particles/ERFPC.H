@@ -208,12 +208,6 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
          *  SuperDropletPC override for details).  Default no-op. */
         virtual void SplitParticlesForRefinement ( int /*a_finest_level*/ ) {}
 
-        /*! Merge particles after de-refinement (inverse of splitting).  Default
-         *  no-op; override in derived classes. */
-        virtual void MergeParticlesAfterDerefining ( int /*a_lev*/,
-                                                     const amrex::BoxArray& /*a_old_fine_ba*/,
-                                                     const amrex::IntVect& /*a_ref_ratio*/ ) {}
-
         /*! Split new entrants and merge departees at AMR level boundaries.
          *  Called every Redistribute(z_phys_nd) to maintain uniform per-cell
          *  super-droplet density across levels.  Default no-op. */
