@@ -320,7 +320,18 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
+#ifdef ERF_USE_NETCDF
+    if (solverChoice.use_real_bcs && (lev==0)) {
+        if (solverChoice.upwind_real_bcs) {
+            fill_from_realbdy_upwind(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        } else {
+            fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        }
+        do_fb = false;
+    }
+#endif
+
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],

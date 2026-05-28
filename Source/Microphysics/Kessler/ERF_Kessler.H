@@ -124,9 +124,6 @@ public:
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
-
-    void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
@@ -153,9 +150,6 @@ private:
 
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;
