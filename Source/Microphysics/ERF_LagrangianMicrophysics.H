@@ -141,7 +141,7 @@ public:
     /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
     int Get_Qstate_Moist_NumConc_Size () override
     {
-        return m_moist_model[0]->Qstate_Moist_NumConc_Size();
+        return m_moist_model->Qstate_Moist_NumConc_Size();
     }
 
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
