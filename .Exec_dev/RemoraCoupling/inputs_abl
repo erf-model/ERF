@@ -16,9 +16,10 @@ geometry.is_periodic = 1 1 0
 
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "bulk_coeff"
-erf.most.Cd  = 0.001 # ustar
-erf.most.Ch  = 0.001 # theta flux
-erf.most.Cq  = 0.001 # qv    flux
+# Ocean-like bulk transfer coefficients for two-way SST feedback runs.
+erf.most.Cd  = 0.0015 # ustar
+erf.most.Ch  = 0.0010 # theta flux
+erf.most.Cq  = 0.0010 # qv    flux
 erf.most.surf_temp  = 289.0
 erf.most.surf_moist = 0.0 
 erf.most.z0     = 0.1
