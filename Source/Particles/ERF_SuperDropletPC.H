@@ -365,25 +365,16 @@ class SuperDropletPC : public ERFPC
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
         /*! \brief Split coarse-level particles in newly-refined cells after AMR
-         *  regrid to restore per-cell SD count.  Skips coarse particles whose
-         *  multiplicity is below `split_factor`. */
-        void SplitParticlesForRefinement ( int a_lev,
-                                           const amrex::BoxArray& a_old_ba,
-                                           const amrex::IntVect& a_ref_ratio ) override;
-
-        /*! \brief Merge particles in cells that lost fine-level coverage after
-         *  de-refinement.  Multiplicity-weighted average of attributes; excess
-         *  particles deactivated (id = -1). */
-        void MergeParticlesAfterDerefining ( int a_lev,
-                                             const amrex::BoxArray& a_old_fine_ba,
-                                             const amrex::IntVect& a_ref_ratio ) override;
+         *  regrid to restore per-cell SD count.  Cascades correctly across
+         *  multiple new levels: a coarse particle under L2 is split by the
+         *  cumulative refRatio(0)*refRatio(1) and tagged for L2.  Skips
+         *  particles whose multiplicity is below the relevant split factor. */
+        void SplitParticlesForRefinement ( int a_finest_level ) override;
 
         /*! \brief Continuously split new entrants on fine levels and merge
-         *  departees on coarse levels.  Active-flag tri-state convention:
-         *    0  deactivated
-         *    1  regular / un-split
-         *    2  member of a current split-group; identifies a departee on the
-         *       coarse side after Redistribute crosses a level boundary. */
+         *  excess-tag super-droplets back into native hosts (tag = level + 1).
+         *  Per-step departees and regrid-time leftovers from disappeared finer
+         *  levels are folded into the same per-level tag-normalizing sweep. */
         void SplitMergeAtLevelBoundary () override;
 
         /*! \brief Whether split/merge across AMR levels is enabled. */
