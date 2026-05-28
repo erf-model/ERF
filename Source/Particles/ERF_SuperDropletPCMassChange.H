@@ -10,6 +10,22 @@
  *  (liquid <--> vapour) */
 namespace SDMassChangeUtils_LV
 {
+    /*! \brief Ventilation factor as a function of droplet radius (Bayley et al., 2025, Eq. 3) */
+    template <typename RT /*!< real-type */ >
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT ventilationFactor ( const RT a_R,       /*!< radius */
+                           const RT a_alpha1,  /*!< fit coefficient alpha_1 */
+                           const RT a_beta1,   /*!< fit exponent beta_1 */
+                           const RT a_alpha2,  /*!< fit coefficient alpha_2 */
+                           const RT a_beta2,   /*!< fit exponent beta_2 */
+                           const RT a_fcap     /*!< maximum ventilation factor */ ) noexcept
+    {
+        RT x1 = a_alpha1 * std::pow(a_R, a_beta1);
+        RT x2 = a_alpha2 * std::pow(a_R, a_beta2);
+        RT fv = RT(1.0) + (x1*x2) / (x1 + x2);
+        return std::min(fv, a_fcap);
+    }
+
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     /*! \brief Phase change equation (in terms of R) */
     template <typename RT /*!< real-type */ >
@@ -29,7 +45,8 @@ namespace SDMassChangeUtils_LV
                          const RT a_D,   /*!< mol. diffusion coeff */
                          const RT a_a,   /*!< curvature coeff */
                          const RT a_b,   /*!< solute coeff */
-                         const RT a_N_s  /*!< total solute moles */ ) const noexcept
+                         const RT a_N_s, /*!< total solute moles */
+                         const RT a_f_v  /*!< ventilation factor */ ) const noexcept
         {
             RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
             RT Kn = lambda_v/a_R;
@@ -50,7 +67,7 @@ namespace SDMassChangeUtils_LV
             RT gamma = a_b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed*R_inv;
 
-            return retval;
+            return a_f_v * retval;
         }
 
     };
@@ -74,7 +91,8 @@ namespace SDMassChangeUtils_LV
                       const RT a_D,    /*!< mol. diffusion coeff */
                       const RT a_a,    /*!< curvature coeff */
                       const RT a_b,    /*!< solute coeff */
-                      const RT a_N_s   /*!< total solute moles */ ) const noexcept
+                      const RT a_N_s,  /*!< total solute moles */
+                      const RT a_f_v   /*!< ventilation factor */ ) const noexcept
         {
             RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
             RT Kn = lambda_v/std::sqrt(a_R_sq);
@@ -95,7 +113,7 @@ namespace SDMassChangeUtils_LV
             RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed;
 
-            return retval;
+            return a_f_v * retval;
         }
 
         /*! \brief Jacobian of right-hand-side of the phase change ODE */
@@ -106,7 +124,8 @@ namespace SDMassChangeUtils_LV
                      const RT a_D,    /*!< mol. diffusion coeff */
                      const RT a_a,    /*!< curvature coeff */
                      const RT a_b,    /*!< solute coeff */
-                     const RT a_N_s   /*!< total solute moles */ ) const noexcept
+                     const RT a_N_s,  /*!< total solute moles */
+                     const RT a_f_v   /*!< ventilation factor */ ) const noexcept
         {
             RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
             RT Kn = lambda_v/std::sqrt(a_R_sq);
@@ -127,7 +146,7 @@ namespace SDMassChangeUtils_LV
             RT gamma = RT(2.0) * a_b * a_N_s / (F_k + F_d);
             retval -= myhalf * three*gamma*R_inv_5;
 
-            return retval;
+            return a_f_v * retval;
         }
 
     };
@@ -164,6 +183,7 @@ namespace SDMassChangeUtils_LV
                             const RT&       a_a,            /*!< curvature coeff */
                             const RT&       a_b,            /*!< solute coeff */
                             const RT&       a_N_s,          /*!< total solute moles */
+                            const RT&       a_f_v,          /*!< ventilation factor */
                             RT&             a_res_norm_a,   /*!< absolute norm at exit */
                             RT&             a_res_norm_r    /*!< relative norm at exit */,
                             bool&           a_converged     /*!< convergence status at exit */
@@ -175,7 +195,7 @@ namespace SDMassChangeUtils_LV
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u
                               - (   a_r
-                                  + m_ne.rhs_func( a_u, a_S, a_T, a_e_s, a_D, a_a, a_b, a_N_s ) );
+                                  + m_ne.rhs_func( a_u, a_S, a_T, a_e_s, a_D, a_a, a_b, a_N_s, a_f_v ) );
                 a_res_norm_a = std::sqrt(residual*residual);
 
                 if (k == 0) {
@@ -200,7 +220,7 @@ namespace SDMassChangeUtils_LV
                     break;
                 }
 
-                RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_D, a_a, a_b, a_N_s );
+                RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_D, a_a, a_b, a_N_s, a_f_v );
                 RT du = RT(0.0);
                 du = - residual / slope;
 
@@ -247,11 +267,30 @@ namespace SDMassChangeUtils_LV
         bool m_adapt_dt;  /*!< use error-based adaptive dt? */
         bool m_verbose;   /*!< verbosity */
 
+        bool m_ventilation;   /*!< include ventilation factor? */
+        RT m_vent_alpha1;     /*!< ventilation factor fit coefficient alpha_1 */
+        RT m_vent_beta1;      /*!< ventilation factor fit exponent beta_1 */
+        RT m_vent_alpha2;     /*!< ventilation factor fit coefficient alpha_2 */
+        RT m_vent_beta2;      /*!< ventilation factor fit exponent beta_2 */
+        RT m_vent_fcap;       /*!< maximum ventilation factor */
+
+        /*! \brief Ventilation factor at the given radius-squared, frozen over a
+         *  step to keep the implicit Jacobian exact (unity if disabled) */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT ventFactor (const RT& a_u) const
+        {
+            if (!m_ventilation) { return RT(1.0); }
+            return ventilationFactor( std::sqrt(a_u),
+                                      m_vent_alpha1, m_vent_beta1,
+                                      m_vent_alpha2, m_vent_beta2,
+                                      m_vent_fcap );
+        }
+
         /*! \brief Compute timestep from stiffness estimate */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT computeTimestep (const RT& a_u) const
         {
-            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
             return m_cfl / std::sqrt(tau*tau);
         }
 
@@ -259,7 +298,7 @@ namespace SDMassChangeUtils_LV
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT computeTau (const RT& a_u) const
         {
-            return m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            return m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
         }
 
         /*! \brief Limit timestep to not exceed final time */
@@ -284,7 +323,7 @@ namespace SDMassChangeUtils_LV
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT evalRHS (const RT& a_u) const
         {
-            return m_ode.rhs_func(a_u, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            return m_ode.rhs_func(a_u, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
         }
 
         /*! \brief Print verbose step information */
@@ -319,7 +358,7 @@ namespace SDMassChangeUtils_LV
             RT cur_time = RT(0.0);
             a_success = true;
 
-            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
             RT dt = m_cfl / std::sqrt(tau*tau);
 
             RT dt_new = dt;
@@ -329,7 +368,7 @@ namespace SDMassChangeUtils_LV
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 if (!m_adapt_dt) {
-                    tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
                     dt = m_cfl / std::sqrt(tau*tau);
                 } else {
                     dt = dt_new;
@@ -357,28 +396,28 @@ namespace SDMassChangeUtils_LV
                         dt *= myhalf;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u3 = a_u + amrex::Real(0.75)*dt*f2;
                     if (u3 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u4 = a_u + (one/amrex::Real(9.0))*dt * (two*f1 + three*f2 + amrex::Real(4.0)*f3);
                     if (u4 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     u_new = u4;
 
@@ -438,7 +477,7 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -462,28 +501,28 @@ namespace SDMassChangeUtils_LV
                         dt *= myhalf;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u2 = a_u + myhalf*dt*f1;
                     if (u2 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u3 = a_u + myhalf*dt*f2;
                     if (u3 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u4 = a_u + one*dt*f3;
                     if (u4 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     u_new = a_u + dt*(f1+two*f2+two*f3+f4)/amrex::Real(6.0);
 
@@ -534,7 +573,7 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -566,7 +605,7 @@ namespace SDMassChangeUtils_LV
                     RT rhs = mu * a_u;
                     u_new = a_u;
                     m_newton( u_new, rhs, mu,
-                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u),
                               res_norm_a, res_norm_r, converged );
 
                     if (converged) {
@@ -621,7 +660,7 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -646,18 +685,18 @@ namespace SDMassChangeUtils_LV
                     RT mu = one / (myhalf*dt);
 
                     RT u1 = a_u;
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u2 = u1;
                     RT rhs = mu * (a_u + myhalf*dt*f1);
                     m_newton( u2, rhs, mu,
-                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u),
                               res_norm_a, res_norm_r, converged );
                     if (u2 <= 0) {
                         dt *= myhalf;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     u_new = a_u + myhalf * dt * (f1 + f2);
 
@@ -713,7 +752,7 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -748,7 +787,7 @@ namespace SDMassChangeUtils_LV
                         RT res_norm_r_i = DBL_MAX;
                         bool converged_i = false;
                         m_newton( u1, rhs, mu,
-                                  m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                                  m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u),
                                   res_norm_a_i, res_norm_r_i, converged_i );
                         converged = converged && converged_i;
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
@@ -758,7 +797,7 @@ namespace SDMassChangeUtils_LV
                         dt *= myhalf;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     RT u2 = u1;
                     {
@@ -767,7 +806,7 @@ namespace SDMassChangeUtils_LV
                         RT res_norm_r_i = DBL_MAX;
                         bool converged_i = false;
                         m_newton( u2, rhs, mu,
-                                  m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                                  m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u),
                                   res_norm_a_i, res_norm_r_i, converged_i );
                         converged = converged && converged_i;
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
@@ -777,7 +816,7 @@ namespace SDMassChangeUtils_LV
                         dt *= myhalf;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u));
 
                     u_new = a_u + myhalf * dt * (f1 + f2);
 

@@ -52,6 +52,14 @@ void SuperDropletPC::MassChange ( int                                         a_
     auto cfl = m_mass_change_cfl;
     auto ti_choice = m_mass_change_ti;
 
+    // Ventilation enhancement applies to the water species only
+    const bool use_ventilation = m_mass_change_ventilation && a_is_water;
+    const auto vent_alpha1 = static_cast<ParticleReal>(m_vent_alpha1);
+    const auto vent_beta1  = static_cast<ParticleReal>(m_vent_beta1);
+    const auto vent_alpha2 = static_cast<ParticleReal>(m_vent_alpha2);
+    const auto vent_beta2  = static_cast<ParticleReal>(m_vent_beta2);
+    const auto vent_fcap   = static_cast<ParticleReal>(m_vent_fcap);
+
     // Solver setup (shared across tiles)
     dRsqdt<ParticleReal> drsqdt{ static_cast<ParticleReal>(vapour_mat.m_lat_vap),
                                  static_cast<ParticleReal>(therco),
@@ -146,6 +154,12 @@ void SuperDropletPC::MassChange ( int                                         a_
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             if (a_is_water) {
+                ParticleReal f_v_diag = use_ventilation
+                    ? ventilationFactor<ParticleReal>( ptrs.radius_ptr[i],
+                                                       vent_alpha1, vent_beta1,
+                                                       vent_alpha2, vent_beta2,
+                                                       vent_fcap )
+                    : ParticleReal(1);
                 condt_ptr[i] = drdt( ptrs.radius_ptr[i],
                                      sat_ratio,
                                      temperature,
@@ -153,7 +167,8 @@ void SuperDropletPC::MassChange ( int                                         a_
                                      coeff_moldiff,
                                      coeff_curv,
                                      coeff_sol,
-                                     solute_moles);
+                                     solute_moles,
+                                     f_v_diag);
             }
 #endif
 
@@ -167,7 +182,11 @@ void SuperDropletPC::MassChange ( int                                         a_
                                     solute_moles,
                                     static_cast<ParticleReal>(cfl),
                                     ParticleReal(1e-40), ParticleReal(1e-3), ParticleReal(1e-6),
-                                    false, false };
+                                    false, false,
+                                    use_ventilation,
+                                    vent_alpha1, vent_beta1,
+                                    vent_alpha2, vent_beta2,
+                                    vent_fcap };
 
             auto r_init = SD_effective_radius( i, ctx.idx_water,
                                                ctx.rho_water,
