@@ -850,9 +850,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (u_flag_arr(i,j,k).isSingleValued()) {
                 Real stressy = flux_comp.compute_v_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, vm_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 0);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, u_bnorm_arr, 0);
                 u_t23_arr(i,j,k) = stressy;
             }
         });
@@ -860,9 +861,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (v_flag_arr(i,j,k).isSingleValued()) {
                 Real stressy = flux_comp.compute_v_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, vm_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 1);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, v_bnorm_arr, 1);
                 v_t23_arr(i,j,k) = stressy;
             }
         });
@@ -870,9 +872,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         {
             if (w_flag_arr(i,j,k).isSingleValued()) {
                 Real stressy = flux_comp.compute_v_flux(i, j, k,
-                                                        cons_arr, velx_arr, vely_arr,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, vm_arr, u_star_arr,
-                                                        u_vfrac_arr, v_vfrac_arr, cc_vfrac_arr, cc_flag_arr, 2);
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, w_bnorm_arr, 2);
                 w_t23_arr(i,j,k) = stressy;
             }
         });
