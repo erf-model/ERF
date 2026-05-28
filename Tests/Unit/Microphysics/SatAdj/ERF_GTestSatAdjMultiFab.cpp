@@ -154,7 +154,6 @@ TEST(SatAdjMultiFab, PublicFlowPreservesSatAdjInvariantsPortable)
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
     satadj.Define(sc);
-    satadj.Set_RealWidth(0);
     run_public_flow(satadj, sc, geom, cons);
     compute_satadj_invariant_errors(cons_initial, cons, err);
 
@@ -203,7 +202,6 @@ TEST(SatAdjMultiFab, PublicFlowConservesWaterAndLatentEnergyPortable)
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
     satadj.Define(sc);
-    satadj.Set_RealWidth(0);
 
     run_public_flow(satadj, sc, geom, cons);
     compute_satadj_conservation_errors(cons_initial, cons, err);
