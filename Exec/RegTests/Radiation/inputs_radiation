@@ -4,8 +4,6 @@ erf.prob_name = "Radiation Test"
 max_step  = 100
 stop_time = 100.0
 
-amrex.fpe_trap_invalid = 1
-
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
