@@ -81,6 +81,7 @@ public:
 
     int Qmoist_Size() override { return m_qmoist_size; }
     int Qstate_Moist_Size() override { return n_qstate_moist_size; }
+    int Qstate_Moist_NumConc_Size () override { return n_qstate_moist_numconc_size; }
 
     void Set_RealWidth(const int real_width) override { m_real_width = real_width; }
 
@@ -95,6 +96,7 @@ public:
 private:
     int m_qmoist_size = 3;
     int n_qstate_moist_size = 6;
+    int n_qstate_moist_numconc_size = 0;
 
     amrex::Vector<int> MicVarMap;
 

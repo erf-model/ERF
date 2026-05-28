@@ -123,6 +123,9 @@ public:
     int
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
+    int
+    Qstate_Moist_NumConc_Size () override { return Kessler::n_qstate_moist_numconc_size; }
+
     void
     Set_RealWidth (const int real_width) override { m_real_width = real_width; }
 
@@ -144,6 +147,9 @@ private:
 
     // Number of qstate variables
     int n_qstate_moist_size = 3;
+
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = kessler_sedimentation_cfl_max;

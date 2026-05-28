@@ -33,8 +33,7 @@ Morrison::Init (const MultiFab& cons_in,
     m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Morr::nc, MicVar_Morr::nr, MicVar_Morr::ni, MicVar_Morr::ns, MicVar_Morr::ng,
-                 MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Morr::NumVars; ++ivar) {
@@ -108,6 +107,12 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
         auto qpg_array   = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
         auto qp_array    = mic_fab_vars[MicVar_Morr::qp]->array(mfi);
 
+        auto nc_array    = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
+        auto ni_array    = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
+        auto nr_array    = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
+        auto ns_array    = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
+        auto ng_array    = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
+
         auto rho_array   = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
@@ -128,7 +133,14 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
             qpr_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp));
             qps_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp));
             qpg_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp));
+
              qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+            nc_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ7_comp) /states_array(i,j,k,Rho_comp));
+            ni_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ8_comp) /states_array(i,j,k,Rho_comp));
+            nr_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ9_comp) /states_array(i,j,k,Rho_comp));
+            ns_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ10_comp)/states_array(i,j,k,Rho_comp));
+            ng_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ11_comp)/states_array(i,j,k,Rho_comp));
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),

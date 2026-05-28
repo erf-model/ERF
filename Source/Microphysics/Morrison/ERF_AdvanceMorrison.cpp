@@ -545,24 +545,29 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
-          auto const& qv_arr    = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
-          auto const& qcl_arr   = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
-          auto const& qpr_arr   = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
-          auto const& qci_arr   = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
-          auto const& qps_arr   = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
-          auto const& qpg_arr   = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
-          auto const& ni_arr    = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
-          [[maybe_unused]] auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
-          auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
+
+          auto const& qv_arr  = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
+
+          auto const& qcl_arr = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
+          auto const& qpr_arr = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
+          auto const& qci_arr = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
+          auto const& qps_arr = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
+          auto const& qpg_arr = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
+
+          auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
+          auto const& ni_arr = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
+          auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
-          [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
-          auto const& pres_arr = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
-          [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
+
+          auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
-          auto const& w_arr = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+          auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+
+          [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
+          [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -1069,27 +1074,28 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           {
             // Tendencies and mixing ratios
             morr_arr(i,j,k,MORRInd::qc3d)  = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qi3d)  = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qni3d) = qps_arr(i,j,k);  // SNOW MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qr3d)  = qpr_arr(i,j,k);   // RAIN MIXING RATIO
-            morr_arr(i,j,k,MORRInd::ni3d)  = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::ns3d)  = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nr3d)  = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nc3d)  = nc_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::qi3d)  = qci_arr(i,j,k);   // CLOUD ICE   MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qni3d) = qps_arr(i,j,k);   // SNOW        MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qr3d)  = qpr_arr(i,j,k);   // RAIN        MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qg3d)  = qpg_arr(i,j,k);    // GRAUPEL     MIXING RATIO
+
+            morr_arr(i,j,k,MORRInd::nc3d)  = nc_arr(i,j,k);    // CLOUD WATER NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ni3d)  = ni_arr(i,j,k);    // CLOUD ICE   NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ns3d)  = ns_arr(i,j,k);    // SNOW        NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::nr3d)  = nr_arr(i,j,k);    // RAIN        NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ng3d)  = ng_arr(i,j,k);    // GRAUPEL      NUMBER CONCENTRATION
 
             morr_arr(i,j,k,MORRInd::t3d)  = theta_arr(i,j,k) * pii_arr(i,j,k);  // TEMPERATURE
             morr_arr(i,j,k,MORRInd::qv3d) = qv_arr(i,j,k);                     // WATER VAPOR MIXING RATIO
             morr_arr(i,j,k,MORRInd::pres) = pres_arr(i,j,k);                   // ATMOSPHERIC PRESSURE
             morr_arr(i,j,k,MORRInd::dzq)  = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
             morr_arr(i,j,k,MORRInd::w3d)  = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
-            morr_arr(i,j,k,MORRInd::qg3d) = qpg_arr(i,j,k);                    // GRAUPEL MIX RATIO
-            morr_arr(i,j,k,MORRInd::ng3d) = ng_arr(i,j,k);                     // GRAUPEL NUMBER CONC
 
             // NOTE: There are no cumulus tendecies passed to Morrison
             //       and the FORTRAN version zeros these out.
-            morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qscu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qicu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qscu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qicu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
           });
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
           {
