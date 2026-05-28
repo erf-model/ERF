@@ -83,6 +83,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
                      bool l_reflux,
+                     bool /*l_real_bc*/,
                      const Real* sinesq_stag_d,
                      const Real l_damp_coef)
 {

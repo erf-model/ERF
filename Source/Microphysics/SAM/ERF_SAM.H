@@ -159,13 +159,27 @@ public:
     void
     Set_RealWidth (const int real_width) override { m_real_width = real_width; }
 
+    void
+    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
+    {
+        a_idx.clear();
+        a_names.clear();
+
+        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
+    }
+
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static amrex::Real
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& fac_fus,
+                   const amrex::Real& /*fac_fus*/,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -178,7 +192,7 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = amrex::Real(1.0e-4);
+        amrex::Real tol = 1.0e-4;
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
@@ -191,7 +205,7 @@ public:
         amrex::Real fff, dfff, dtabs;
         amrex::Real lstar, dlstar;
         amrex::Real lstarw, lstari;
-        amrex::Real delta_qc, delta_qi;
+        amrex::Real delta_qv, delta_qc, delta_qi;
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
@@ -206,7 +220,7 @@ public:
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
             lstari  = fac_sub;
-            domn    = zero;
+            domn    = 0.0;
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
@@ -214,36 +228,38 @@ public:
             erf_dtqsatw(tabs, pres, dqsatw);
             erf_dtqsati(tabs, pres, dqsati);
 
-            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
-
             if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation)
+                // Cloud ice not permitted (condensation & fusion)
                 if(tabs >= tbgmax) {
+                    omn   = 1.0;
                 }
-                // Cloud water not permitted (sublimation)
+                // Cloud water not permitted (sublimation & fusion)
                 else if(tabs <= tbgmin) {
+                    omn    = 0.0;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
-                    lstari = fac_fus;
-                    domn   = an;
+                    omn   = an*tabs-bn;
+                    domn  = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                domn = zero;
+                omn  = 1.0;
+                domn = 0.0;
             }
 
             // Linear combination of each component
-            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
-            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
-            lstar  =  omn * lstarw + (one-omn) * lstari;
+            qsat   =  omn * qsatw  + (1.0-omn) * qsati;
+            dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
+                   + domn *  qsatw -     domn  *  qsati;
+            lstar  =  omn * lstarw + (1.0-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
+            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
+            dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -257,14 +273,12 @@ public:
         qsat += dqsat*dtabs;
 
         // Changes in each component
-        const SAMCloudPhaseChange phase_change =
-            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
-                                         qc_array(i,j,k), qi_array(i,j,k), omn);
-        delta_qc = phase_change.delta_qc;
-        delta_qi = phase_change.delta_qi;
+        delta_qv = qv_array(i,j,k) - qsat;
+        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
+        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (1.0-omn));
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = phase_change.qv;
+        qv_array(i,j,k)  = qsat;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
@@ -272,20 +286,6 @@ public:
 
         // Return to temperature
         return tabs;
-    }
-
-    void
-    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
-                         std::vector<int>& a_idx,
-                         std::vector<std::string>& a_names) const override
-    {
-        a_idx.clear();
-        a_names.clear();
-
-        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
-        a_idx.push_back(0); a_names.push_back("RainAccum");
-        a_idx.push_back(1); a_names.push_back("SnowAccum");
-        a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
 private:
@@ -306,9 +306,6 @@ private:
 
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

@@ -1357,6 +1357,23 @@ ERF::InitData_post ()
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
 
+#ifdef ERF_USE_NETCDF
+        if (solverChoice.use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            if (solverChoice.upwind_real_bcs) {
+                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                         ncomp_cons,ngvect_cons,ngvect_vels);
+            } else {
+                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                  ncomp_cons,ngvect_cons,ngvect_vels);
+            }
+            do_fb = false;
+    }
+#endif
+
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
         (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],

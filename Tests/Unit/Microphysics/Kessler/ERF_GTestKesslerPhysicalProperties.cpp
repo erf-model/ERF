@@ -23,7 +23,6 @@ void initialize_kessler (Kessler& kessler,
                          std::unique_ptr<amrex::MultiFab>& detJ_cc)
 {
     kessler.Define(sc);
-    kessler.Set_RealWidth(0);
     kessler.Set_dzmin(geom.CellSize(2));
     kessler.Init(cons, cons.boxArray(), geom, kDefaultDt, z_phys_nd, detJ_cc);
 }

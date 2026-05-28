@@ -687,7 +687,6 @@ inline void run_kessler_public_flow (Kessler& kessler,
 {
     run_and_sync([&] {
         kessler.Define(sc);
-        kessler.Set_RealWidth(0);
         kessler.Set_dzmin(geom.CellSize(2));
         kessler.Init(cons, cons.boxArray(), geom, dt, z_phys_nd, detJ_cc);
         kessler.Copy_State_to_Micro(cons);
