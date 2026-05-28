@@ -863,12 +863,28 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 Gpu::DeviceVector<int> donor_pidx_d(num_bins, -1);
                 auto* donor_pidx = donor_pidx_d.data();
                 const auto blen = box.length();
+                const auto blo  = box.smallEnd();
+                const auto rr   = ref_ratio;
 
                 amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
                     if (active_count[b] > 0) { return; }
                     int bx = b % blen[0];
                     int by = (b / blen[0]) % blen[1];
                     int bz = b / (blen[0] * blen[1]);
+
+                    // Global fine-level cell index and the corresponding
+                    // coarse parent index.  Cloning is restricted to face-
+                    // adjacent neighbours inside the same coarse parent so
+                    // SDs cannot leak out of their parent's footprint --
+                    // unrestricted cloning + count-based refinement creates
+                    // a positive feedback loop that grows the fine BoxArray
+                    // to cover the whole domain.
+                    const int gi = blo[0] + bx;
+                    const int gj = blo[1] + by;
+                    const int gk = blo[2] + bz;
+                    const int pi = gi / rr[0];
+                    const int pj = gj / rr[1];
+                    const int pk = gk / rr[2];
 
                     const int fo[6][3] = {
                         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
@@ -880,19 +896,27 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                         int nz = bz + fo[n][2];
                         if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
                             nz < 0 || nz >= blen[2]) { continue; }
+                        const int ngi = blo[0] + nx;
+                        const int ngj = blo[1] + ny;
+                        const int ngk = blo[2] + nz;
+                        if (ngi/rr[0] != pi || ngj/rr[1] != pj || ngk/rr[2] != pk) { continue; }
                         int nb = nx + blen[0] * (ny + blen[1] * nz);
                         if (active_count[nb] >= 2 && first_active[nb] >= 0) {
                             donor_pidx[b] = first_active[nb];
                             return;
                         }
                     }
-                    // Fall back: clone from any neighbor with >=1 active
+                    // Fall back: clone from any same-parent neighbor with >=1 active
                     for (int n = 0; n < 6; n++) {
                         int nx = bx + fo[n][0];
                         int ny = by + fo[n][1];
                         int nz = bz + fo[n][2];
                         if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
                             nz < 0 || nz >= blen[2]) { continue; }
+                        const int ngi = blo[0] + nx;
+                        const int ngj = blo[1] + ny;
+                        const int ngk = blo[2] + nz;
+                        if (ngi/rr[0] != pi || ngj/rr[1] != pj || ngk/rr[2] != pk) { continue; }
                         int nb = nx + blen[0] * (ny + blen[1] * nz);
                         if (first_active[nb] >= 0) {
                             donor_pidx[b] = first_active[nb];
