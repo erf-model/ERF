@@ -87,8 +87,6 @@ public:
             m_col_offsets[mfi.index()] = m_ncol;
             m_ncol += nx * ny;
         }
-
-        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk);
     };
 
     virtual
@@ -373,7 +371,7 @@ private:
     int m_rad_freq_in_steps = 1;
 
     // Number of columns to process per RRTMGP chunk (controls peak memory)
-    int m_ncol_chunk = 1024;
+    int m_ncol_chunk = 5000;
 
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;
