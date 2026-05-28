@@ -107,6 +107,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const bool has_moisture  = (solverChoice.moisture_type != MoistureType::None);
     const bool has_radiation = (!rad_fluxes.empty() && rad_fluxes[lev] != nullptr);
 
+    amrex::ignore_unused(has_moisture, has_radiation);
+
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
 
@@ -119,20 +121,28 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // handles tile boundaries via growntilebox(1) internally. ---
     if ((iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) ||
         (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)) {
+
         auto& zvel = vars_new[lev][Vars::zvel];
         MultiFab cc_vel(ba, dm, AMREX_SPACEDIM, 0);
         amrex::average_face_to_cellcenter(cc_vel, 0,
             Array<const MultiFab*, AMREX_SPACEDIM>{&xvel, &yvel, &zvel});
-        // Collapse to 2D slab at k=k_atm, then average_down to destination resolution.
-        MultiFab tmp(ba2d, dm, AMREX_SPACEDIM, 0);
-        tmp.ParallelCopy(cc_vel, 0, 0, AMREX_SPACEDIM);
+
+        // Collapse to 2D slab at k=k_atm.
+        MultiFab uv_slab(ba2d, dm, 2, 0);  // comp0=u, comp1=v
+        uv_slab.ParallelCopy(cc_vel, 0, 0, 2);
+
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
-            IntVect ratio = ba2d.minimalBox().length() / states[iUwind]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iUwind], 0, 0, 1, ratio);
+            MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
+            IntVect ratio = ba2d.minimalBox().length()
+                          / states[iUwind]->boxArray().minimalBox().length();
+            amrex::average_down(u_alias, *states[iUwind], 0, 1, ratio);
         }
+
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
-            IntVect ratio = ba2d.minimalBox().length() / states[iVwind]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iVwind], 1, 0, 1, ratio);
+            MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
+            IntVect ratio = ba2d.minimalBox().length()
+                          / states[iVwind]->boxArray().minimalBox().length();
+            amrex::average_down(v_alias, *states[iVwind], 0, 1, ratio);
         }
     }
 
@@ -155,7 +165,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             }
         }
         IntVect ratio = ba2d.minimalBox().length() / states[iPatm]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iPatm], 0, 0, 1, ratio);
+        amrex::average_down(tmp, *states[iPatm], 0, 1, ratio);
     }
 
     // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
@@ -177,7 +187,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             }
         }
         IntVect ratio = ba2d.minimalBox().length() / states[iTair]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iTair], 0, 0, 1, ratio);
+        amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
     }
 
     // --- Moisture fields: from cons when available, else REMORA inputs-file constants ---
@@ -193,7 +203,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
             IntVect ratio = ba2d.minimalBox().length() / states[iRH]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iRH], 0, 0, 1, ratio);
+            amrex::average_down(tmp, *states[iRH], 0, 1, ratio);
         }
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
             const int qc_idx = solverChoice.moisture_indices.qc;
@@ -206,8 +216,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     Box bx = mfi.tilebox();
                     auto const& c = cons.const_array(mfi);
                     auto t = tmp.array(mfi);
-                    const int klo = cons[mfi].box().smallEnd(2);
-                    const int khi = cons[mfi].box().bigEnd(2);
+                    const int klo = ba.minimalBox().smallEnd(2);
+                    const int khi = ba.minimalBox().bigEnd(2);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                         int cloudy = 0;
                         for (int kk = klo; kk <= khi; ++kk) {
@@ -220,7 +230,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     });
                 }
                 IntVect ratio = ba2d.minimalBox().length() / states[iCloud]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iCloud], 0, 0, 1, ratio);
+                amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
             }
         }
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
@@ -236,7 +246,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     });
                 }
                 IntVect ratio = ba2d.minimalBox().length() / states[iRain]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iRain], 0, 0, 1, ratio);
+                amrex::average_down(tmp, *states[iRain], 0, 1, ratio);
             }
         }
     }
@@ -249,13 +259,13 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             MultiFab tmp(ba2d, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
             IntVect ratio = ba2d.minimalBox().length() / states[iSWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iSWrad], 0, 0, 1, ratio);
+            amrex::average_down(tmp, *states[iSWrad], 0, 1, ratio);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
             IntVect ratio = ba2d.minimalBox().length() / states[iLWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iLWrad], 0, 0, 1, ratio);
+            amrex::average_down(tmp, *states[iLWrad], 0, 1, ratio);
         }
     }
 }
