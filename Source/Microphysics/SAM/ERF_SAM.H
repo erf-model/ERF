@@ -157,9 +157,6 @@ public:
     Qstate_Moist_NumConc_Size () override { return SAM::n_qstate_moist_numconc_size; }
 
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
-
-    void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
@@ -179,7 +176,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
+                   const amrex::Real& fac_fus,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -192,7 +189,7 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = 1.0e-4;
+        amrex::Real tol = amrex::Real(1.0e-4);
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
@@ -205,7 +202,7 @@ public:
         amrex::Real fff, dfff, dtabs;
         amrex::Real lstar, dlstar;
         amrex::Real lstarw, lstari;
-        amrex::Real delta_qv, delta_qc, delta_qi;
+        amrex::Real delta_qc, delta_qi;
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
@@ -220,7 +217,7 @@ public:
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
             lstari  = fac_sub;
-            domn    = 0.0;
+            domn    = zero;
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
@@ -228,38 +225,36 @@ public:
             erf_dtqsatw(tabs, pres, dqsatw);
             erf_dtqsati(tabs, pres, dqsati);
 
+            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+
             if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation & fusion)
+                // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
-                    omn   = 1.0;
                 }
-                // Cloud water not permitted (sublimation & fusion)
+                // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
-                    omn    = 0.0;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
-                    omn   = an*tabs-bn;
-                    domn  = an;
+                    lstari = fac_fus;
+                    domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                omn  = 1.0;
-                domn = 0.0;
+                domn = zero;
             }
 
             // Linear combination of each component
-            qsat   =  omn * qsatw  + (1.0-omn) * qsati;
-            dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
-                   + domn *  qsatw -     domn  *  qsati;
-            lstar  =  omn * lstarw + (1.0-omn) * lstari;
+            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
+            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
+            lstar  =  omn * lstarw + (one-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
+            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -273,12 +268,14 @@ public:
         qsat += dqsat*dtabs;
 
         // Changes in each component
-        delta_qv = qv_array(i,j,k) - qsat;
-        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
-        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (1.0-omn));
+        const SAMCloudPhaseChange phase_change =
+            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
+                                         qc_array(i,j,k), qi_array(i,j,k), omn);
+        delta_qc = phase_change.delta_qc;
+        delta_qi = phase_change.delta_qi;
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = qsat;
+        qv_array(i,j,k)  = phase_change.qv;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
