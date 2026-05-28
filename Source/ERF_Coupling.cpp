@@ -299,6 +299,12 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
+        const auto lsm_geom = lsm.Get_Lsm_Geom(0);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
+            lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
+            lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
+            "OceanSurf t_surf geometry lost ERF periodic flags.");
         const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
         const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
         for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -309,6 +315,7 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                 dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
             });
         }
+        dst->FillBoundary(lsm_geom.periodicity());
         amrex::Gpu::streamSynchronize();
 
         const amrex::Real src_min = state[0]->min(0);
