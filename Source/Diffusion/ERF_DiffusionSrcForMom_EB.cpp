@@ -233,7 +233,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
                         Real tau23_eb = myhalf * (dvdz + dwdy);
 
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
                                             + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
@@ -364,7 +364,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
                         Real tau13_eb = myhalf * (dudz + dwdx);
 
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
                                             + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dvdn = - tbx_y * v_tau_eb13(i,j,k) - tby_y * v_tau_eb23(i,j,k) - ny * tauzz;
@@ -493,7 +493,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
                         Real tau12_eb = myhalf * (dudy + dvdx);
 
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + nx*ny*tau22_eb + nx*nz*tau33_eb
+                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
                                             + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dwdn = - tbx_z * w_tau_eb13(i,j,k) - tby_z * w_tau_eb23(i,j,k) - nz * tauzz;
