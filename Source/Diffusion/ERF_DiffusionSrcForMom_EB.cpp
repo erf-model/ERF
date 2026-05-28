@@ -10,6 +10,40 @@
 using namespace amrex;
 
 /**
+ * Compute orthonormal tangent vectors at an EB boundary given the normal vector.
+ * Uses Gram-Schmidt orthogonalization against standard basis vectors.
+ *
+ * @param[in]  nx, ny, nz  Components of the normal vector
+ * @param[out] tbx_x, tbx_y, tbx_z  Components of first tangent vector (from e_x)
+ * @param[out] tby_x, tby_y, tby_z  Components of second tangent vector (from e_y)
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void compute_tangent_vectors (Real nx, Real ny, Real nz,
+                               Real& tbx_x, Real& tbx_y, Real& tbx_z,
+                               Real& tby_x, Real& tby_y, Real& tby_z)
+{
+    // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
+    // e_x = (1,0,0), so e_x · n = nx
+    tbx_x = one - nx * nx;
+    tbx_y = - nx * ny;
+    tbx_z = - nx * nz;
+    Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
+    tbx_x /= tbx_norm;
+    tbx_y /= tbx_norm;
+    tbx_z /= tbx_norm;
+
+    // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
+    // e_y = (0,1,0), so e_y · n = ny
+    tby_x = - ny * nx;
+    tby_y = one - ny * ny;
+    tby_z = - ny * nz;
+    Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
+    tby_x /= tby_norm;
+    tby_y /= tby_norm;
+    tby_z /= tby_norm;
+}
+
+/**
  * Function for computing the momentum RHS for diffusion operator without terrain.
  *
  * @param[in] mfi MultiFab Iterator
@@ -209,25 +243,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     } else if (l_surface_layer) {
 
-                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
-                        // e_x = (1,0,0), so e_x · n = nx
-                        Real tbx_x = one - nx * nx;
-                        Real tbx_y = - nx * ny;
-                        Real tbx_z = - nx * nz;
-                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
-                        tbx_x /= tbx_norm;
-                        tbx_y /= tbx_norm;
-                        tbx_z /= tbx_norm;
-
-                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
-                        // e_y = (0,1,0), so e_y · n = ny
-                        Real tby_x = - ny * nx;
-                        Real tby_y = one - ny * ny;
-                        Real tby_z = - ny * nz;
-                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
-                        tby_x /= tby_norm;
-                        tby_y /= tby_norm;
-                        tby_z /= tby_norm;
+                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
                         Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
                         Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
@@ -336,29 +353,12 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     if (l_no_slip) {
 
-                        dvdn = - mu_eff * (nx * tau12_eb + ny * tau22_eb + nz * tau23_eb);    
+                        dvdn = - mu_eff * (nx * tau12_eb + ny * tau22_eb + nz * tau23_eb);
 
                     } else if (l_surface_layer) {
 
-                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
-                        // e_x = (1,0,0), so e_x · n = nx
-                        Real tbx_x = one - nx * nx;
-                        Real tbx_y = - nx * ny;
-                        Real tbx_z = - nx * nz;
-                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
-                        tbx_x /= tbx_norm;
-                        tbx_y /= tbx_norm;
-                        tbx_z /= tbx_norm;
-
-                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
-                        // e_y = (0,1,0), so e_y · n = ny
-                        Real tby_x = - ny * nx;
-                        Real tby_y = one - ny * ny;
-                        Real tby_z = - ny * nz;
-                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
-                        tby_x /= tby_norm;
-                        tby_y /= tby_norm;
-                        tby_z /= tby_norm;
+                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
                         Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
                         Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
@@ -469,25 +469,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     } else if (l_surface_layer) {
 
-                        // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
-                        // e_x = (1,0,0), so e_x · n = nx
-                        Real tbx_x = one - nx * nx;
-                        Real tbx_y = - nx * ny;
-                        Real tbx_z = - nx * nz;
-                        Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
-                        tbx_x /= tbx_norm;
-                        tbx_y /= tbx_norm;
-                        tbx_z /= tbx_norm;
-
-                        // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
-                        // e_y = (0,1,0), so e_y · n = ny
-                        Real tby_x = - ny * nx;
-                        Real tby_y = one - ny * ny;
-                        Real tby_z = - ny * nz;
-                        Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
-                        tby_x /= tby_norm;
-                        tby_y /= tby_norm;
-                        tby_z /= tby_norm;
+                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
                         Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
                         Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
