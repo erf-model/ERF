@@ -119,34 +119,37 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     // int n = 0;
 
     // EB u-factory
-    Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > u_volcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
-    Array4<const Real      > u_afrac_x = (ebfact.get_u_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > u_afrac_y = (ebfact.get_u_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > u_afrac_z = (ebfact.get_u_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > u_bcent = (ebfact.get_u_const_factory())->getBndryCent().const_array(mfi);
-    Array4<const Real      > u_bnorm = (ebfact.get_u_const_factory())->getBndryNorm().const_array(mfi);
+    const auto* u_factory = ebfact.get_u_const_factory();
+    Array4<const EBCellFlag> u_cellflg = u_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real      > u_volfrac = u_factory->getVolFrac().const_array(mfi);
+    Array4<const Real      > u_volcent = u_factory->getCentroid().const_array(mfi);
+    Array4<const Real      > u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
+    Array4<const Real      > u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
+    Array4<const Real      > u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
+    Array4<const Real      > u_bcent = u_factory->getBndryCent().const_array(mfi);
+    Array4<const Real      > u_bnorm = u_factory->getBndryNorm().const_array(mfi);
 
     // EB v-factory
-    Array4<const EBCellFlag> v_cellflg = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
-    Array4<const Real      > v_afrac_x = (ebfact.get_v_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > v_afrac_y = (ebfact.get_v_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > v_afrac_z = (ebfact.get_v_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > v_bcent = (ebfact.get_v_const_factory())->getBndryCent().const_array(mfi);
-    Array4<const Real      > v_bnorm = (ebfact.get_v_const_factory())->getBndryNorm().const_array(mfi);
+    const auto* v_factory = ebfact.get_v_const_factory();
+    Array4<const EBCellFlag> v_cellflg = v_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real      > v_volfrac = v_factory->getVolFrac().const_array(mfi);
+    Array4<const Real      > v_volcent = v_factory->getCentroid().const_array(mfi);
+    Array4<const Real      > v_afrac_x = v_factory->getAreaFrac()[0]->const_array(mfi);
+    Array4<const Real      > v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
+    Array4<const Real      > v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
+    Array4<const Real      > v_bcent = v_factory->getBndryCent().const_array(mfi);
+    Array4<const Real      > v_bnorm = v_factory->getBndryNorm().const_array(mfi);
 
     // EB w-factory
-    Array4<const EBCellFlag> w_cellflg = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > w_volcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
-    Array4<const Real      > w_afrac_x = (ebfact.get_w_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > w_afrac_y = (ebfact.get_w_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > w_afrac_z = (ebfact.get_w_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > w_bcent = (ebfact.get_w_const_factory())->getBndryCent().const_array(mfi);
-    Array4<const Real      > w_bnorm = (ebfact.get_w_const_factory())->getBndryNorm().const_array(mfi);
+    const auto* w_factory = ebfact.get_w_const_factory();
+    Array4<const EBCellFlag> w_cellflg = w_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real      > w_volfrac = w_factory->getVolFrac().const_array(mfi);
+    Array4<const Real      > w_volcent = w_factory->getCentroid().const_array(mfi);
+    Array4<const Real      > w_afrac_x = w_factory->getAreaFrac()[0]->const_array(mfi);
+    Array4<const Real      > w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
+    Array4<const Real      > w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
+    Array4<const Real      > w_bcent = w_factory->getBndryCent().const_array(mfi);
+    Array4<const Real      > w_bnorm = w_factory->getBndryNorm().const_array(mfi);
 
     // x-momentum
     ParallelFor(bxx,
