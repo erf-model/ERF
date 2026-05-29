@@ -57,7 +57,6 @@ public:
         // Use one latent-over-cp factor for both the saturation solve and theta
         // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
         m_fac_cond = L_v / sc.c_p;
-        m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
 
@@ -165,9 +164,6 @@ private:
 
     // number of vertical levels
     int nlev, zlo, zhi;
-
-    // plane average axis
-    int m_axis;
 
     // constants
     amrex::Real m_fac_cond;
