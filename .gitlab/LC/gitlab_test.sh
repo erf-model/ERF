@@ -29,8 +29,6 @@ build_type=${BUILD_TYPE:-"Debug"}
 ERF_ENABLE_CUDA=${ERF_ENABLE_CUDA:-"OFF"}
 ERF_ENABLE_HIP=${ERF_ENABLE_HIP:-"OFF"}
 
-basehost=${host//[[:digit:]]/}
-
 echo "HOST: ${host}"
 src_dir="${PWD}"
 echo "Source directory: ${src_dir}"

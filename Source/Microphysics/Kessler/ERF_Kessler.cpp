@@ -16,10 +16,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
     bool do_cond = m_do_cond;
     auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
     auto domain  = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
     int k_lo = domain.smallEnd(2);
     int k_hi = domain.bigEnd(2);
     if (solverChoice.moisture_type == MoistureType::Kessler)
@@ -43,10 +39,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
             auto tbx = mfi.tilebox();
-            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             Real d_fac_cond = m_fac_cond;
 
@@ -58,6 +50,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 Real qsat_local, dtqsat_local;
                 Real pressure = pres_array(i,j,k);
+                // Kessler stores pressure in mbar / hPa for the qsat helpers.
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat_local);
                 erf_dtqsatw(tabs_array(i,j,k), pressure, dtqsat_local);
 
@@ -116,8 +109,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
         auto const& ma_rho_arr = mic_fab_vars[MicVar_Kess::rho]->const_arrays();
         auto const& ma_qp_arr = mic_fab_vars[MicVar_Kess::qp]->const_arrays();
-        // The sedimentation CFL is based on terminal velocity, not precipitating
-        // mass flux. fz stores rho * Vt * qp for the flux update below.
+        // The sedimentation CFL uses fall speed, not precipitating mass flux.
+        // fz stores rho * Vt * qp for the flux divergence below, so the reduction
+        // recomputes Vt from the same face state used for the flux.
         GpuTuple<Real> max_terminal_velocity = ParReduce(TypeList<ReduceOpMax>{},
                                                          TypeList<Real>{},
                                                          fz, IntVect(0),
@@ -164,17 +158,22 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                         kessler_face_state(k, k_hi, rho_km1, rho_k, qp_km1, qp_k);
 
                     const Real terminal_velocity = kessler_terminal_velocity(face_state.rho, face_state.qp);
+                    const Real donor_rho = rho_array(i,j,donor_k);
+                    const Real donor_qp = std::max(Real(0), qp_array(i,j,donor_k));
                     const Real donor_detJ = (dJ_array) ? dJ_array(i,j,donor_k) : Real(1);
-                    // Limit the outgoing donor-face flux by the donor cell's available
-                    // detJ-weighted precipitating water. This prevents over-removal for detJ < 1
-                    // before the nonnegative qp clip.
-                    const Real max_flux = face_state.rho * face_state.qp * donor_detJ / coef;
+                    // The face flux uses face rho and donor qp. The limiter uses donor rho,
+                    // donor qp, and donor detJ because it caps how much rain can leave the donor
+                    // cell in this substep.
+                    // Cap outgoing flux by the donor cell's detJ-weighted available rain water:
+                    // F * dt / dz <= rho_donor * qp_donor * detJ_donor.
+                    // This keeps compressed cells from losing more rain than they contain.
+                    const Real max_flux = donor_rho * donor_qp * donor_detJ / coef;
                     fz_array(i,j,k) = amrex::min(
                         kessler_precip_flux(face_state.rho, terminal_velocity, face_state.qp), max_flux);
 
                     if(k==k_lo){
-                        // Convert precipitation mass per unit area [kg m^-2] to water depth [mm]:
-                        // divide by liquid-water density [kg m^-3], then multiply by mm per m.
+                        // Surface accumulation stores the bottom-face precipitation mass per area
+                        // increment converted to liquid-water depth.
                         rain_accum_array(i,j,k) = rain_accum_array(i,j,k)
                                                 + kessler_rain_accumulation_increment(fz_array(i,j,k) * dtn);
                     }
@@ -220,10 +219,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
             auto tbx = mfi.tilebox();
-            if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-            if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-            if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-            if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
             Real d_fac_cond = m_fac_cond;
 
@@ -234,6 +229,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real qsat, dtqsat;
 
                 Real pressure = pres_array(i,j,k);
+                // Kessler stores pressure in mbar / hPa for the qsat helpers.
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat);
                 erf_dtqsatw(tabs_array(i,j,k), pressure, dtqsat);
 

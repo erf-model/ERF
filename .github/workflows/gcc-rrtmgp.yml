@@ -86,6 +86,8 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
+          '-DERF_PARALLEL_TEST_NRANKS:STRING=1;2;4' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_NETCDF:BOOL=${{matrix.netcdf}} \
           -DERF_ENABLE_HDF5:BOOL=${{matrix.netcdf}} \
@@ -127,9 +129,14 @@ jobs:
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{ github.workspace }}/unit-test-list.txt
       working-directory: ${{ github.workspace }}/erf_clone/build
 
-    - name: CMake Unit Tests
+    - name: Run Serial Unit Tests
       run: |
-        ctest -L unit -VV
+        ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: Run Parallel Tests
+      run: |
+        ctest -L parallel --output-on-failure --no-tests=error
       working-directory: ${{ github.workspace }}/erf_clone/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake

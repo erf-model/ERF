@@ -44,7 +44,7 @@ stages:
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
-    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv -o pmi=off ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
