@@ -70,7 +70,6 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -103,7 +102,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Compute_Coefficients();
     }
 
     void
@@ -124,9 +122,6 @@ public:
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
-
-    void
-    Compute_Coefficients ();
 
     int
     Qmoist_Size () override { return Morrison::m_qmoist_size; }
@@ -178,20 +173,11 @@ private:
     // Number of qstate variables that are number concentrations
     int n_qstate_moist_numconc_size = 5;
 
-    // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = myhalf;
-
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;
-
-    // number of vertical levels
-    int nlev, zlo, zhi;
-
-    // plane average axis
-    int m_axis;
 
     // constants
     amrex::Real m_rdOcp;
@@ -206,27 +192,5 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Morr::NumVars> mic_fab_vars;
-
-    // microphysics parameters/coefficients
-    amrex::TableData<amrex::Real, 1> accrrc;
-    amrex::TableData<amrex::Real, 1> accrsi;
-    amrex::TableData<amrex::Real, 1> accrsc;
-    amrex::TableData<amrex::Real, 1> coefice;
-    amrex::TableData<amrex::Real, 1> evaps1;
-    amrex::TableData<amrex::Real, 1> evaps2;
-    amrex::TableData<amrex::Real, 1> accrgi;
-    amrex::TableData<amrex::Real, 1> accrgc;
-    amrex::TableData<amrex::Real, 1> evapg1;
-    amrex::TableData<amrex::Real, 1> evapg2;
-    amrex::TableData<amrex::Real, 1> evapr1;
-    amrex::TableData<amrex::Real, 1> evapr2;
-
-    // vertical plane average data
-    amrex::TableData<amrex::Real, 1> rho1d;
-    amrex::TableData<amrex::Real, 1> pres1d;
-    amrex::TableData<amrex::Real, 1> tabs1d;
-    amrex::TableData<amrex::Real, 1> qt1d;
-    amrex::TableData<amrex::Real, 1> qv1d;
-    amrex::TableData<amrex::Real, 1> qn1d;
 };
 #endif

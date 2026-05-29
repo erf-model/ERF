@@ -212,14 +212,12 @@ namespace MORRInd {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
 
+          auto const& rho_arr         = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
           auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
-
-          [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
-          [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -256,7 +254,7 @@ namespace MORRInd {
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
-          const Real dz_val = m_geom.CellSize(m_axis);
+          const Real dz_val = m_geom.CellSize(2);
           const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
@@ -289,10 +287,10 @@ namespace MORRInd {
           // Create terrain height array (not actually used by Morrison scheme)
           FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, The_Async_Arena());
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
-          ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
-                                                   + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
-          });
+          // ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          //  ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
+          //                                         + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
+          //});
 
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1:std::power-law, 2: lognormal aerosol)
@@ -300,27 +298,27 @@ namespace MORRInd {
 
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-          [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
-          [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
+          // int m_ibase = 2;   // Cloud base activation option
+          // int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 
           if(sc.moisture_type == MoistureType::Morrison_NoIce) {
             m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
             m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-            m_ibase = 2;   // Cloud base activation option
-            m_isub = 0;    // Sub-grid vertical velocity option
+            // m_ibase = 2;   // Cloud base activation option
+            // m_isub = 0;    // Sub-grid vertical velocity option
             m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
             m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
           }
-          [[maybe_unused]] bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
+          // bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
 
           // Physical constants
           Real m_pi;          // Pi constant
           Real m_R;           // Gas constant for dry air (J/kg/K)
           Real m_Rd;           // Gas constant for dry air (J/kg/K)
           Real m_Rv;          // Gas constant for water vapor (J/kg/K)
-          [[maybe_unused]] Real m_cp;          // Specific heat at constant pressure (J/kg/K)
+          // Real m_cp;          // Specific heat at constant pressure (J/kg/K)
           Real m_g;           // Gravitational acceleration (m/s^2)
           Real m_ep_2;        // Molecular weight ratio (Rd/Rv)
 
@@ -333,7 +331,8 @@ namespace MORRInd {
 
           // Fall speed parameters (V=AD^B)
           Real m_ai, m_bi;    // Cloud ice fall speed parameters
-          [[maybe_unused]] Real m_ac, m_bc;    // Cloud droplet fall speed parameters
+          // Real m_ac;    // Cloud droplet fall speed parameters
+          Real m_bc;    // Cloud droplet fall speed parameters
           Real m_as, m_bs;    // Snow fall speed parameters
           Real m_ar, m_br;    // Rain fall speed parameters
           Real m_ag, m_bg;    // Graupel/hail fall speed parameters
@@ -368,29 +367,29 @@ namespace MORRInd {
           Real m_lammaxg, m_lamming;    // Graupel lambda limits
 
           // CCN spectra parameters (for IACT = 1)
-          [[maybe_unused]] Real m_k1;          // Exponent in CCN activation formula
-          [[maybe_unused]] Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
+          // Real m_k1;          // Exponent in CCN activation formula
+          // Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
 
           // Aerosol activation parameters (for IACT = 2)
-          [[maybe_unused]] Real m_mw;          // Molecular weight water (kg/mol)
-          [[maybe_unused]] Real m_osm;         // Osmotic coefficient
-          [[maybe_unused]] Real m_vi;          // Number of ions dissociated in solution
-          [[maybe_unused]] Real m_epsm;        // Aerosol soluble fraction
-          [[maybe_unused]] Real m_rhoa;        // Aerosol bulk density (kg/m^3)
-          [[maybe_unused]] Real m_map;         // Molecular weight aerosol (kg/mol)
-          [[maybe_unused]] Real m_ma;          // Molecular weight of air (kg/mol)
-          [[maybe_unused]] Real m_rr;          // Universal gas constant (J/mol/K)
-          [[maybe_unused]] Real m_bact;        // Activation parameter
-          [[maybe_unused]] Real m_rm1;         // Geometric mean radius, mode 1 (m)
-          [[maybe_unused]] Real m_rm2;         // Geometric mean radius, mode 2 (m)
+          // Real m_mw;          // Molecular weight water (kg/mol)
+          // Real m_osm;         // Osmotic coefficient
+          // Real m_vi;          // Number of ions dissociated in solution
+          // Real m_epsm;        // Aerosol soluble fraction
+          // Real m_rhoa;        // Aerosol bulk density (kg/m^3)
+          // Real m_map;         // Molecular weight aerosol (kg/mol)
+          // Real m_ma;          // Molecular weight of air (kg/mol)
+          // Real m_rr;          // Universal gas constant (J/mol/K)
+          // Real m_bact;        // Activation parameter
+          // Real m_rm1;         // Geometric mean radius, mode 1 (m)
+          // Real m_rm2;         // Geometric mean radius, mode 2 (m)
           Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
           Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
-          [[maybe_unused]] Real m_sig1;        // Standard deviation of aerosol dist, mode 1
-          [[maybe_unused]] Real m_sig2;        // Standard deviation of aerosol dist, mode 2
-          [[maybe_unused]] Real m_f11;         // Correction factor for activation, mode 1
-          [[maybe_unused]] Real m_f12;         // Correction factor for activation, mode 1
-          [[maybe_unused]] Real m_f21;         // Correction factor for activation, mode 2
-          [[maybe_unused]] Real m_f22;         // Correction factor for activation, mode 2
+          // Real m_sig1;        // Standard deviation of aerosol dist, mode 1
+          // Real m_sig2;        // Standard deviation of aerosol dist, mode 2
+          // Real m_f11;         // Correction factor for activation, mode 1
+          // Real m_f12;         // Correction factor for activation, mode 1
+          // Real m_f21;         // Correction factor for activation, mode 2
+          // Real m_f22;         // Correction factor for activation, mode 2
 
           // Precomputed constants for efficiency
           Real m_cons1, m_cons2, m_cons3, m_cons4, m_cons5;
@@ -398,8 +397,8 @@ namespace MORRInd {
           Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
           Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
           Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
-          Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] Real m_cons30;
-          Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] Real m_cons33;
+          Real m_cons26, m_cons27, m_cons28, m_cons29;
+          Real m_cons31, m_cons32, m_cons34, m_cons35;
           Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
           Real m_cons41;
 
@@ -412,7 +411,7 @@ namespace MORRInd {
           m_R    = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rd   = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rv   = Real(461.6);        // Gas constant for water vapor (J/kg/K)
-          m_cp   = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
+          // m_cp   = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
           m_g    = Real(9.81);           // Gravitational acceleration (m/s^2)
           m_ep_2 = m_Rd / m_Rv;     // Molecular weight ratio (Rd/Rv)
 
@@ -437,7 +436,7 @@ namespace MORRInd {
           m_bi = one;
 
           // Cloud droplets
-          m_ac = Real(3.0E7);
+          // m_ac = Real(3.0E7);
           m_bc = Real(2);
 
           // Snow
@@ -512,38 +511,38 @@ namespace MORRInd {
           if (m_iact == 1) {
             // Maritime CCN spectrum parameters (modified from Rasmussen et al. 2002)
             // NCCN = C*S^K, where S is supersaturation in %
-            m_k1 = Real(0.4);        // Exponent in CCN activation formula
-            m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
+            // m_k1 = Real(0.4);        // Exponent in CCN activation formula
+            // m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
           }
 
           // Initialize aerosol activation parameters for lognormal distribution
           if (m_iact == 2) {
             // Parameters for ammonium sulfate
-            m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
-            m_osm = one;       // Osmotic coefficient
-            m_vi = three;        // Number of ions dissociated in solution
-            m_epsm = Real(0.7);      // Aerosol soluble fraction
-            m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
-            m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
-            m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
-            m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
-            m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
-            //            m_a_w = two * m_mw * Real(0.0761) / (m_rhow * m_r_v * Real(293.15));  // "A" parameter
+            // m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
+            // m_osm = one;       // Osmotic coefficient
+            // m_vi = three;        // Number of ions dissociated in solution
+            // m_epsm = Real(0.7);      // Aerosol soluble fraction
+            // m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
+            // m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
+            // m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
+            // m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
+            // m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
+            //  m_a_w = two * m_mw * Real(0.0761) / (m_rhow * m_r_v * Real(293.15));  // "A" parameter
 
             // Aerosol size distribution parameters for MPACE (Morrison et al. 2007, JGR)
             // Mode 1
-            m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
-            m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
+            // m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
+            // m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
-            m_f21 = one + fourth * std::log(m_sig1);
+            // m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
+            // m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
-            m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
-            m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
+            // m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
+            // m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
-            m_f22 = one + fourth * std::log(m_sig2);
+            // m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
+            // m_f22 = one + fourth * std::log(m_sig2);
           }
 
           // Precompute constants for efficiency
@@ -578,10 +577,8 @@ namespace MORRInd {
           m_cons27 = gamma_function(one + m_bi);
           m_cons28 = gamma_function(Real(4.0) + m_bi) / Real(6.0);
           m_cons29 = Real(4.0)/three * m_pi * m_rhow * amrex::Math::powi<3>(Real(25.0E-6));
-          m_cons30 = Real(4.0)/three * m_pi * m_rhow;
           m_cons31 = m_pi * m_pi * m_ecr * m_rhosn;
           m_cons32 = m_pi / Real(2) * m_ecr;
-          m_cons33 = m_pi * m_pi * m_ecr * m_rhog;
           m_cons34 = Real(5.0)/Real(2) + m_br/Real(2);
           m_cons35 = Real(5.0)/Real(2) + m_bs/Real(2);
           m_cons36 = Real(5.0)/Real(2) + m_bg/Real(2);
@@ -595,37 +592,37 @@ namespace MORRInd {
           if (m_iact == 1) {
             // Maritime CCN spectrum parameters (modified from Rasmussen et al. 2002)
             // NCCN = C*S^K, where S is supersaturation in %
-            m_k1 = Real(0.4);        // Exponent in CCN activation formula
-            m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
+            // m_k1 = Real(0.4);        // Exponent in CCN activation formula
+            // m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
           }
 
           // Initialize aerosol activation parameters for IACT=2
           if (m_iact == 2) {
             // Parameters for ammonium sulfate
-            m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
-            m_osm = one;       // Osmotic coefficient
-            m_vi = three;        // Number of ions dissociated in solution
-            m_epsm = Real(0.7);      // Aerosol soluble fraction
-            m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
-            m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
-            m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
-            m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
-            m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
+            // m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
+            // m_osm = one;       // Osmotic coefficient
+            // m_vi = three;        // Number of ions dissociated in solution
+            // m_epsm = Real(0.7);      // Aerosol soluble fraction
+            // m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
+            // m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
+            // m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
+            // m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
+            // m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
 
             // Aerosol size distribution parameters for MPACE (Morrison et al. 2007, JGR)
             // Mode 1
-            m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
-            m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
+            // m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
+            // m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
-            m_f21 = one + fourth * std::log(m_sig1);
+            // m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
+            // m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
-            m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
-            m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
+            // m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
+            // m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
-            m_f22 = one + fourth * std::log(m_sig2);
+            // m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
+            // m_f22 = one + fourth * std::log(m_sig2);
           }
           // Set microphysics control parameters
           m_iact = 2;  // Lognormal aerosol activation
@@ -638,8 +635,8 @@ namespace MORRInd {
               m_igraup = 0;         // Include graupel processes
           }
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
-          m_isub = 0;           // Sub-grid vertical velocity option
-          m_do_radar_ref = false; // Disable radar reflectivity by default
+          // m_isub = 0;             // Sub-grid vertical velocity option
+          // m_do_radar_ref = false; // Disable radar reflectivity by default
           Box boxD(box); boxD.makeSlab(2,0);
 
           if(run_morr_cpp) {
@@ -690,7 +687,7 @@ namespace MORRInd {
 
            for (int k=klo; k<=khi; k++) {
             // Microphysical processes
-            [[maybe_unused]] Real nsubc;              // NSUBC: Loss of NC during evaporation
+            // Real nsubc;              // NSUBC: Loss of NC during evaporation
             Real nsubi;              // NSUBI: Loss of NI during sublimation
             Real nsubs;              // NSUBS: Loss of NS during sublimation
             Real nsubr;              // NSUBR: Loss of NR during evaporation
@@ -725,7 +722,7 @@ namespace MORRInd {
             Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
             Real pracs;              // PRACS: Change Q rain-snow collection
             Real npracs;             // NPRACS: Change N rain-snow collection
-            [[maybe_unused]] Real pccn;               // PCCN: Change Q droplet activation
+            // Real pccn;               // PCCN: Change Q droplet activation
             Real psmlt;              // PSMLT: Change Q melting snow to rain
             Real evpms;              // EVPMS: Change Q melting snow evaporating
             Real nsmlts;             // NSMLTS: Change N melting snow
@@ -777,11 +774,9 @@ namespace MORRInd {
             // Dummy variables
             Real dum;                // DUM: General dummy variable
             Real dum1;               // DUM1: General dummy variable
-            [[maybe_unused]] Real dum2;               // DUM2: General dummy variable
             Real dumt;               // DUMT: Dummy variable for temperature
             Real dumqv;              // DUMQV: Dummy variable for water vapor
             Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
-            [[maybe_unused]] Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
             Real dums;               // DUMS: General dummy variable
 
             // Prognostic supersaturation
@@ -794,33 +789,37 @@ namespace MORRInd {
             Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
             Real kc2;                // KC2: Total ice nucleation rate
             Real di0;                // DC0: Characteristic diameter for ice
-            [[maybe_unused]] Real dc0;                // DC0: Characteristic diameter for cloud droplets
             Real ds0;                // DS0: Characteristic diameter for snow
             Real dg0;                // DG0: Characteristic diameter for graupel
             Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
-            [[maybe_unused]] Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
             Real ratio;              // RATIO: General ratio variable
             Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
             Real fudgef;             // FUDGEF: Adjustment factor
+
+            // Real dum2;               // DUM2: General dummy variable
+            // Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
+            // Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            // Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+
             // For WRF-CHEM
-            [[maybe_unused]] Real c2prec;             // C2PREC: Cloud to precipitation conversion
-            [[maybe_unused]] Real csed;               // CSED: Cloud sedimentation
-            [[maybe_unused]] Real ised;               // ISED: Ice sedimentation
-            [[maybe_unused]] Real ssed;               // SSED: Snow sedimentation
-            [[maybe_unused]] Real gsed;               // GSED: Graupel sedimentation
-            [[maybe_unused]] Real rsed;               // RSED: Rain sedimentation
-            [[maybe_unused]] Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+            // Real c2prec;             // C2PREC: Cloud to precipitation conversion
+            // Real csed;               // CSED: Cloud sedimentation
+            // Real ised;               // ISED: Ice sedimentation
+            // Real ssed;               // SSED: Snow sedimentation
+            // Real gsed;               // GSED: Graupel sedimentation
+            // Real rsed;               // RSED: Rain sedimentation
+            // Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
 
             // NC3DTEN LOCAL ARRAY INITIALIZED
             morr_arr(i,j,k,MORRInd::nc3dten) = Real(0);
 
             // INITIALIZE VARIABLES FOR WRF-CHEM OUTPUT TO ZERO
-            c2prec = Real(0);
-            csed = Real(0);
-            ised = Real(0);
-            ssed = Real(0);
-            gsed = Real(0);
-            rsed = Real(0);
+            // c2prec = Real(0);
+            // csed = Real(0);
+            // ised = Real(0);
+            // ssed = Real(0);
+            // gsed = Real(0);
+            // rsed = Real(0);
 
             // LATENT HEAT OF VAPORIZATION
             morr_arr(i,j,k,MORRInd::xxlv) = Real(3.1484E6) - Real(2370.0) * morr_arr(i,j,k,MORRInd::t3d);
@@ -1142,7 +1141,7 @@ namespace MORRInd {
                 evpms = Real(0);       // Melting snow evaporation rate (EVPMS)
                 pcc = Real(0);         // Condensation/evaporation of cloud water (PCC)
                 pre = Real(0);         // Evaporation of rain (PRE)
-                nsubc = Real(0);       // Loss of cloud droplet number during evaporation (NSUBC)
+                // nsubc = Real(0);       // Loss of cloud droplet number during evaporation (NSUBC)
                 nsubr = Real(0);       // Loss of rain number during evaporation (NSUBR)
                 pracg = Real(0);       // Collection of rain by graupel (PRACG)
                 npracg = Real(0);      // Change in number due to collection of rain by graupel (NPRACG)
@@ -1418,7 +1417,7 @@ namespace MORRInd {
                 morr_arr(i,j,k,MORRInd::nr3dten) = morr_arr(i,j,k,MORRInd::nr3dten) + (nprc1 + nragg - npracg);
 
                 // HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
-                c2prec = pra + prc;
+                // c2prec = pra + prc;
 
                 if (pre < Real(0)) {
                   dum = pre * dt / morr_arr(i,j,k,MORRInd::qr3d);
@@ -1662,7 +1661,7 @@ namespace MORRInd {
                 prds = Real(0);        // Deposition snow (PRDS)
                 eprd = Real(0);        // Sublimation cloud ice (EPRD)
                 eprds = Real(0);       // Sublimation snow (EPRDS)
-                nsubc = Real(0);       // Loss of NC during evaporation (NSUBC)
+                // nsubc = Real(0);       // Loss of NC during evaporation (NSUBC)
                 nsubi = Real(0);       // Loss of NI during sublimation (NSUBI)
                 nsubs = Real(0);       // Loss of NS during sublimation (NSUBS)
                 nsubr = Real(0);       // Loss of NR during evaporation (NSUBR)
@@ -2417,8 +2416,7 @@ namespace MORRInd {
                                                    nragg - niacr - niacrs - npracg - ngracs);
 
                 // hm add, wrf-chem, add tendencies for c2prec
-                c2prec = pra + prc + psacws + qmults + qmultg + psacwg +
-                  pgsacw + mnuccc + psacwi;
+                // c2prec = pra + prc + psacws + qmults + qmultg + psacwg + pgsacw + mnuccc + psacwi;
 
                 // CALCULATE SATURATION ADJUSTMENT TO CONDENSE EXTRA VAPOR ABOVE
                 // WATER SATURATION

@@ -103,7 +103,7 @@
               // WRF-Chem flags
               flag_qndrop,              // F_QNDROP
               nullptr,                  // qndrop (not used here)
-              ht_arr.dataPtr(),         // HT (terrain height - not used)
+              // ht_arr.dataPtr(),         // HT (terrain height - not used)
 
               // Domain dimensions
               ilo, ihi, jlo, jhi, klo, khi,  // IDS,IDE,JDS,JDE,KDS,KDE
