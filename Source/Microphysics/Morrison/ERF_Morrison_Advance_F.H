@@ -12,9 +12,9 @@
           const int khim = grown_box.hiVect()[2];
 
           // Create dummy arrays for cumulus tendencies (if needed)
-          FArrayBox qrcuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qscuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qicuten_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox qrcuten_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox qscuten_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox qicuten_fab(grown_box, 1, The_Pinned_Arena());
           auto const& qrcuten_arr = qrcuten_fab.array();
           auto const& qscuten_arr = qscuten_fab.array();
           auto const& qicuten_arr = qicuten_fab.array();
@@ -30,13 +30,13 @@
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 
           // Now create arrays for other optional variables
-          FArrayBox rainprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox evapprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qlsink_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precr_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox preci_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precs_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precg_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox rainprod_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox evapprod_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox qlsink_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox precr_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox preci_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox precs_fab(grown_box, 1, The_Pinned_Arena());
+          FArrayBox precg_fab(grown_box, 1, The_Pinned_Arena());
 
           auto const& rainprod_arr = rainprod_fab.array();
           auto const& evapprod_arr = evapprod_fab.array();

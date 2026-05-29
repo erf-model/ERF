@@ -38,7 +38,8 @@ Morrison::Init (const MultiFab& cons_in,
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Morr::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
-                                                        1, cons_in.nGrowVect());
+                                                        1, cons_in.nGrowVect(),
+                                                        MFInfo().SetArena(The_Managed_Arena()));
         mic_fab_vars[ivar]->setVal(0.);
     }
 

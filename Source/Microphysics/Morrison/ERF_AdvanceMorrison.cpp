@@ -212,7 +212,6 @@ namespace MORRInd {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
 
-          auto const& rho_arr         = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
@@ -235,7 +234,7 @@ namespace MORRInd {
 
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          FArrayBox pii_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox pii_fab(grown_box, 1, The_Pinned_Arena());
           auto const& pii_arr = pii_fab.array();
 
           const Real p0 = Real(100000.0); // Reference pressure (Pa)
@@ -250,7 +249,7 @@ namespace MORRInd {
           });
 
           // Create arrays for height differences (dz)
-          FArrayBox dz_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox dz_fab(grown_box, 1, The_Pinned_Arena());
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
@@ -266,10 +265,10 @@ namespace MORRInd {
           Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
 
           // Arrays to store precipitation rates
-          FArrayBox    rainncv_fab(grown_boxD, 1, The_Async_Arena());
-          FArrayBox         sr_fab(grown_boxD, 1, The_Async_Arena());     // Ratio of snow to total precipitation
-          FArrayBox    snowncv_fab(grown_boxD, 1, The_Async_Arena());
-          FArrayBox graupelncv_fab(grown_boxD, 1, The_Async_Arena());
+          FArrayBox    rainncv_fab(grown_boxD, 1, The_Pinned_Arena());
+          FArrayBox         sr_fab(grown_boxD, 1, The_Pinned_Arena());     // Ratio of snow to total precipitation
+          FArrayBox    snowncv_fab(grown_boxD, 1, The_Pinned_Arena());
+          FArrayBox graupelncv_fab(grown_boxD, 1, The_Pinned_Arena());
 
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr      = sr_fab.array();
@@ -285,7 +284,7 @@ namespace MORRInd {
           });
 
           // Create terrain height array (not actually used by Morrison scheme)
-          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, The_Async_Arena());
+          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, The_Pinned_Arena());
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
           // ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
           //  ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
@@ -642,7 +641,7 @@ namespace MORRInd {
           if(run_morr_cpp) {
 
             // One FAB to rule them all
-            FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Async_Arena());
+            FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Pinned_Arena());
             morr_fab.template setVal<RunOn::Device>(0);
             auto const& morr_arr = morr_fab.array();
 
