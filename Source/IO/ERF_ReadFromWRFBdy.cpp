@@ -549,7 +549,6 @@ convert_wrfbdy_data (const int itime,
         Box tbx = mfi.tilebox();
         Box xbx = mfi.nodaltilebox(0);
         Box ybx = mfi.nodaltilebox(1);
-        Box zbx = mfi.nodaltilebox(2);
 
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
