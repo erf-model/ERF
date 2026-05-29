@@ -98,7 +98,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
 
     const int lev   = 0;
-    const int k_atm = 0; // lowest ERF cell = atmospheric surface layer
 
     auto& cons = vars_new[lev][Vars::cons];
     auto& xvel = vars_new[lev][Vars::xvel]; // XFace
@@ -123,7 +122,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         amrex::average_face_to_cellcenter(cc_vel, 0,
             Array<const MultiFab*, AMREX_SPACEDIM>{&xvel, &yvel, &zvel});
 
-        // Collapse to 2D slab at k=k_atm.
+        // Collapse to 2D slab
         MultiFab uv_slab(ba2d_lev, dm, 2, 0);  // comp0=u, comp1=v
         uv_slab.ParallelCopy(cc_vel, 0, 0, 2);
 
