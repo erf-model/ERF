@@ -1113,7 +1113,7 @@ ERF::InitData_post ()
         // This follows init_from_wrfinput()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
 
             if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
                  amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
