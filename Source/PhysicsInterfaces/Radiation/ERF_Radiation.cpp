@@ -40,13 +40,6 @@ Radiation::Radiation (const int& lev,
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
 
-    // Number of columns per RRTMGP chunk (controls peak GPU memory)
-    pp.query("rad_ncol_chunk", m_ncol_chunk);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk > 0,
-        "erf.rad_ncol_chunk must be a positive integer (default 5000). "
-        "It controls the number of columns processed per RRTMGP kernel launch; "
-        "a value of 0 or negative would produce an infinite loop.");
-
     // Flag to write fluxes to plt file
     pp.query("rad_write_fluxes", m_rad_write_fluxes);
 
@@ -83,18 +76,8 @@ Radiation::Radiation (const int& lev,
     pp.query("o2vmr" , m_o2vmr );
     pp.query("n2vmr" , m_n2vmr );
 
-    // Aerosol forcing hook (not implemented). The aerosol arrays that used to be
-    // passed through rrtmgp_main were never populated with real data, so enabling
-    // this flag only ever multiplied radiation by zero aerosol optics. The hook is
-    // kept so a future SPA/prescribed-aerosol scheme can wire in without touching
-    // the ParmParse surface.
+    // Required aerosol optical properties from SPA
     pp.query("rad_do_aerosol", m_do_aerosol_rad);
-    if (m_do_aerosol_rad) {
-        amrex::Abort("erf.rad_do_aerosol = true is not supported: aerosol forcing is "
-                     "currently not implemented in the ERF RRTMGP interface. The hook "
-                     "is retained for a future aerosol coupling; set rad_do_aerosol = "
-                     "false (or remove it) to continue.");
-    }
 
     // Whether we do extra clean/clear sky calculations
     pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
@@ -292,42 +275,22 @@ Radiation::alloc_buffers ()
     lw_flux_up               = real2d_k("lw_flux_up"              , m_ncol, m_nlay+1);
     lw_flux_dn               = real2d_k("lw_flux_dn"              , m_ncol, m_nlay+1);
 
-    // Clear-sky flux arrays are always needed
+    sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
     sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"       , m_ncol, m_nlay+1);
     sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
     sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+    sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+
+    lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
     lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
     lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
-
-    // Clean-clear-sky diagnostic fluxes (only when enabled)
-    if (m_extra_clnclrsky_diag) {
-        sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
-        sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
-        sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
-        lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
-        lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
-    } else {
-        sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , 1, 1);
-        sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , 1, 1);
-        sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", 1, 1);
-        lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , 1, 1);
-        lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , 1, 1);
-    }
-
-    // Clean-sky diagnostic fluxes (only when enabled)
-    if (m_extra_clnsky_diag) {
-        sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
-        sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
-        sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
-        lw_clnsky_flux_up        = real2d_k("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
-        lw_clnsky_flux_dn        = real2d_k("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
-    } else {
-        sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , 1, 1);
-        sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , 1, 1);
-        sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , 1, 1);
-        lw_clnsky_flux_up        = real2d_k("lw_clnsky_flux_up"       , 1, 1);
-        lw_clnsky_flux_dn        = real2d_k("lw_clnsky_flux_dn"       , 1, 1);
-    }
+    lw_clnsky_flux_up        = real2d_k("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    lw_clnsky_flux_dn        = real2d_k("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
 
     // 3d size (ncol, nlay+1, nswbands)
     sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
@@ -343,17 +306,24 @@ Radiation::alloc_buffers ()
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
     sfc_alb_dif = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
 
-    // Aerosol optical properties — allocated only when aerosol coupling is on.
-    // The flag gates allocation so today (coupling not implemented, abort fires
-    // in the constructor) these stay as empty Views and cost nothing. When a
-    // future aerosol scheme populates them, hook up the plumbing into
-    // rrtmgp_main as well.
-    if (m_do_aerosol_rad) {
-        aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
-        aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
-        aero_g_sw   = real3d_k("aero_g_sw",   m_ncol, m_nlay, m_nswbands);
-        aero_tau_lw = real3d_k("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
-    }
+    // 2d size (ncol, nlwbands)
+    //emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
+
+    /*
+    // 3d size (ncol, nlay, n[sw,lw]bands)
+    aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
+    aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
+    aero_g_sw   = real3d_k("aero_g_sw"  , m_ncol, m_nlay, m_nswbands);
+    aero_tau_lw = real3d_k("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
+
+    // 3d size (ncol, nlay, n[sw,lw]bnds)
+    cld_tau_sw_bnd = real3d_k("cld_tau_sw_bnd", m_ncol, m_nlay, m_nswbands);
+    cld_tau_lw_bnd = real3d_k("cld_tau_lw_bnd", m_ncol, m_nlay, m_nlwbands);
+
+    // 3d size (ncol, nlay, n[sw,lw]gpts)
+    cld_tau_sw_gpt = real3d_k("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
+    cld_tau_lw_gpt = real3d_k("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
+    */
 }
 
 void
@@ -442,11 +412,24 @@ Radiation::dealloc_buffers ()
     sfc_alb_dir = real2d_k();
     sfc_alb_dif = real2d_k();
 
-    // Aerosol scaffolding (no-op unless m_do_aerosol_rad enabled allocation above)
+    // 2d size (ncol, nlwbands)
+    //emis_sfc = real2d_k();
+
+    /*
+    // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d_k();
     aero_ssa_sw = real3d_k();
     aero_g_sw   = real3d_k();
     aero_tau_lw = real3d_k();
+
+    // 3d size (ncol, nlay, n[sw,lw]bnds)
+    cld_tau_sw_bnd = real3d_k();
+    cld_tau_lw_bnd = real3d_k();
+
+    // 3d size (ncol, nlay, n[sw,lw]gpts)
+    cld_tau_sw_gpt = real3d_k();
+    cld_tau_lw_gpt = real3d_k();
+    */
 }
 
 
@@ -1025,21 +1008,11 @@ void Radiation::WriteDataLog (const Real &time)
 void
 Radiation::initialize_impl ()
 {
-    // Initialize gas concentrations for this step
+    // Call API to initialize
     m_gas_concs.init(gas_names_offset, m_ncol, m_nlay);
-
-    // Load k-distribution and cloud optics data only once.
-    // These are static lookup tables that never change.
-    // Size the memory pool for m_ncol_chunk (not min with current m_ncol) so that
-    // the pool remains valid even if m_ncol grows after regridding/load balancing.
-    if (!rrtmgp::initialized) {
-        gas_concs_t gas_concs_pool;
-        gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
-        rrtmgp::rrtmgp_initialize(gas_concs_pool,
-                                  rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
-                                  rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
-        gas_concs_pool.reset();
-    }
+    rrtmgp::rrtmgp_initialize(m_gas_concs,
+                              rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
+                              rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
 }
 
 
@@ -1169,183 +1142,65 @@ Radiation::run_impl ()
         iwp_tab(icol,ilay) *= Real(1.e3);
     });
 
-    // -----------------------------------------------------------------------
-    // Process radiation in column chunks to limit peak GPU memory.
-    // Radiation columns are independent (no horizontal coupling), so
-    // chunking produces bit-identical results.
-    // -----------------------------------------------------------------------
-    const int ncol_chunk = std::min(m_ncol_chunk, ncol);
+    // Expand surface_albedos along nswbands.
+    // This is needed since rrtmgp require band-by-band.
+    rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
+                                                 sfc_alb_dir_vis, sfc_alb_dir_nir,
+                                                 sfc_alb_dif_vis, sfc_alb_dif_nir,
+                                                 sfc_alb_dir    , sfc_alb_dif);
+    // Run RRTMGP driver
+    rrtmgp::rrtmgp_main(ncol, m_nlay,
+                        p_lay, t_lay,
+                        p_lev, t_lev,
+                        m_gas_concs,
+                        sfc_alb_dir, sfc_alb_dif, mu0,
+                        t_sfc, sfc_emis, lw_src,
+                        lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
+                        aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
+                        cld_tau_sw_bnd, cld_tau_lw_bnd,
+                        cld_tau_sw_gpt, cld_tau_lw_gpt,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
+                        lw_flux_up, lw_flux_dn,
+                        sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
+                        sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
+                        sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
+                        lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
+                        lw_clrsky_flux_up, lw_clrsky_flux_dn,
+                        lw_clnsky_flux_up, lw_clnsky_flux_dn,
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
+                        lw_bnd_flux_up, lw_bnd_flux_dn,
+                        eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
+
+    // Update heating tendency
+    rrtmgp::compute_heating_rate(sw_flux_up, sw_flux_dn, r_lay, z_del, sw_heating);
+    rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
+
+    // Compute surface fluxes
     const int kbot = 0;
-
-    // Pre-fetch full-domain VMR arrays outside the chunk loop to avoid
-    // repeatedly allocating and filling full-size views for every chunk.
-    Vector<real2d_k> vmr_full_vec(m_ngas);
-    for (int igas = 0; igas < m_ngas; ++igas) {
-        vmr_full_vec[igas] = real2d_k("vmr_full_" + std::to_string(igas), ncol, nlay);
-        m_gas_concs.get_vmr(m_gas_names[igas], vmr_full_vec[igas]);
-    }
-
-    for (int col_s = 0; col_s < ncol; col_s += ncol_chunk) {
-        const int ncol_c = std::min(ncol_chunk, ncol - col_s);
-        const int col_e  = col_s + ncol_c;
-        auto cr = std::make_pair(col_s, col_e);
-
-        // --- Chunk subviews: 1D (ncol) ---
-        real1d_k mu0_c              (mu0.data()              + col_s, ncol_c);
-        real1d_k sfc_alb_dir_vis_c  (sfc_alb_dir_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_alb_dir_nir_c  (sfc_alb_dir_nir.data()  + col_s, ncol_c);
-        real1d_k sfc_alb_dif_vis_c  (sfc_alb_dif_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_alb_dif_nir_c  (sfc_alb_dif_nir.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dir_vis_c (sfc_flux_dir_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dir_nir_c (sfc_flux_dir_nir.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dif_vis_c (sfc_flux_dif_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dif_nir_c (sfc_flux_dif_nir.data()  + col_s, ncol_c);
-        real1d_k t_sfc_c            (t_sfc.data()             + col_s, ncol_c);
-        real1d_k sfc_emis_c         (sfc_emis.data()          + col_s, ncol_c);
-        real1d_k lw_src_c           (lw_src.data()            + col_s, ncol_c);
-
-        // --- Chunk subviews: 2D (ncol, nlay) via LayoutRight pointer offset ---
-        const int stride2_nlay   = nlay;
-        const int stride2_nlayp1 = nlay + 1;
-        real2d_k p_lay_c        (p_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k t_lay_c        (t_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k r_lay_c        (r_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k z_del_c        (z_del.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k lwp_c          (lwp.data()          + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k iwp_c          (iwp.data()          + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k eff_radius_qc_c(eff_radius_qc.data()+ col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k eff_radius_qi_c(eff_radius_qi.data()+ col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k cldfrac_tot_c  (cldfrac_tot.data()  + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k sw_heating_c   (sw_heating.data()   + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k lw_heating_c   (lw_heating.data()   + col_s*stride2_nlay, ncol_c, nlay);
-
-        // --- Chunk subviews: 2D (ncol, nlay+1) ---
-        real2d_k p_lev_c                   (p_lev.data()                    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k t_lev_c                   (t_lev.data()                    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_up_c              (sw_flux_up.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_dn_c              (sw_flux_dn.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_dn_dir_c          (sw_flux_dn_dir.data()           + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_flux_up_c              (lw_flux_up.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_flux_dn_c              (lw_flux_dn.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        // Clear-sky flux subviews (always active)
-        real2d_k sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data()    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-
-        // Diagnostic flux subviews (placeholder when disabled)
-        real2d_k sw_clnclrsky_flux_up_c, sw_clnclrsky_flux_dn_c, sw_clnclrsky_flux_dn_dir_c;
-        real2d_k lw_clnclrsky_flux_up_c, lw_clnclrsky_flux_dn_c;
-        if (m_extra_clnclrsky_diag) {
-            sw_clnclrsky_flux_up_c     = real2d_k(sw_clnclrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            sw_clnclrsky_flux_dn_c     = real2d_k(sw_clnclrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            sw_clnclrsky_flux_dn_dir_c = real2d_k(sw_clnclrsky_flux_dn_dir.data() + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            lw_clnclrsky_flux_up_c     = real2d_k(lw_clnclrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            lw_clnclrsky_flux_dn_c     = real2d_k(lw_clnclrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        } else {
-            sw_clnclrsky_flux_up_c     = real2d_k("sw_clnclrsky_flux_up_c"    , 1, 1);
-            sw_clnclrsky_flux_dn_c     = real2d_k("sw_clnclrsky_flux_dn_c"    , 1, 1);
-            sw_clnclrsky_flux_dn_dir_c = real2d_k("sw_clnclrsky_flux_dn_dir_c", 1, 1);
-            lw_clnclrsky_flux_up_c     = real2d_k("lw_clnclrsky_flux_up_c"    , 1, 1);
-            lw_clnclrsky_flux_dn_c     = real2d_k("lw_clnclrsky_flux_dn_c"    , 1, 1);
-        }
-
-        real2d_k sw_clnsky_flux_up_c, sw_clnsky_flux_dn_c, sw_clnsky_flux_dn_dir_c;
-        real2d_k lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c;
-        if (m_extra_clnsky_diag) {
-            sw_clnsky_flux_up_c     = real2d_k(sw_clnsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            sw_clnsky_flux_dn_c     = real2d_k(sw_clnsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            sw_clnsky_flux_dn_dir_c = real2d_k(sw_clnsky_flux_dn_dir.data() + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            lw_clnsky_flux_up_c     = real2d_k(lw_clnsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-            lw_clnsky_flux_dn_c     = real2d_k(lw_clnsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        } else {
-            sw_clnsky_flux_up_c     = real2d_k("sw_clnsky_flux_up_c"    , 1, 1);
-            sw_clnsky_flux_dn_c     = real2d_k("sw_clnsky_flux_dn_c"    , 1, 1);
-            sw_clnsky_flux_dn_dir_c = real2d_k("sw_clnsky_flux_dn_dir_c", 1, 1);
-            lw_clnsky_flux_up_c     = real2d_k("lw_clnsky_flux_up_c"    , 1, 1);
-            lw_clnsky_flux_dn_c     = real2d_k("lw_clnsky_flux_dn_c"    , 1, 1);
-        }
-
-        // --- Chunk subviews: 2D (ncol, nswbands) ---
-        real2d_k sfc_alb_dir_c(sfc_alb_dir.data() + col_s*nswbands, ncol_c, nswbands);
-        real2d_k sfc_alb_dif_c(sfc_alb_dif.data() + col_s*nswbands, ncol_c, nswbands);
-
-        // --- Chunk subviews: 3D (ncol, nlay+1, nbands) ---
-        const int stride3_sw = stride2_nlayp1 * nswbands;
-        const int stride3_lw = stride2_nlayp1 * m_nlwbands;
-        real3d_k sw_bnd_flux_up_c (sw_bnd_flux_up.data()  + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dn_c (sw_bnd_flux_dn.data()  + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dir_c(sw_bnd_flux_dir.data() + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dif_c(sw_bnd_flux_dif.data() + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k lw_bnd_flux_up_c (lw_bnd_flux_up.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
-        real3d_k lw_bnd_flux_dn_c (lw_bnd_flux_dn.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
-
-        // --- Create chunk gas concentrations by subsetting from pre-fetched VMR ---
-        gas_concs_t gas_concs_c;
-        gas_concs_c.init(gas_names_offset, ncol_c, nlay);
-        for (int igas = 0; igas < m_ngas; ++igas) {
-            real2d_k vmr_c("vmr_c", ncol_c, nlay);
-            auto vmr_full = vmr_full_vec[igas];
-            auto cs = col_s;
-            Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol_c, nlay}),
-                                 KOKKOS_LAMBDA (int i, int j) {
-                vmr_c(i, j) = vmr_full(cs + i, j);
-            });
-            gas_concs_c.set_vmr(m_gas_names[igas], vmr_c);
-        }
-
-        // Expand surface albedos along nswbands for this chunk
-        rrtmgp::compute_band_by_band_surface_albedos(ncol_c, nswbands,
-                                                     sfc_alb_dir_vis_c, sfc_alb_dir_nir_c,
-                                                     sfc_alb_dif_vis_c, sfc_alb_dif_nir_c,
-                                                     sfc_alb_dir_c    , sfc_alb_dif_c);
-
-        // Run RRTMGP driver for this column chunk
-        rrtmgp::rrtmgp_main(ncol_c, m_nlay,
-                            p_lay_c, t_lay_c,
-                            p_lev_c, t_lev_c,
-                            gas_concs_c,
-                            sfc_alb_dir_c, sfc_alb_dif_c, mu0_c,
-                            t_sfc_c, sfc_emis_c, lw_src_c,
-                            lwp_c, iwp_c, eff_radius_qc_c, eff_radius_qi_c, cldfrac_tot_c,
-                            sw_flux_up_c, sw_flux_dn_c, sw_flux_dn_dir_c,
-                            lw_flux_up_c, lw_flux_dn_c,
-                            sw_clnclrsky_flux_up_c, sw_clnclrsky_flux_dn_c, sw_clnclrsky_flux_dn_dir_c,
-                            sw_clrsky_flux_up_c, sw_clrsky_flux_dn_c, sw_clrsky_flux_dn_dir_c,
-                            sw_clnsky_flux_up_c, sw_clnsky_flux_dn_c, sw_clnsky_flux_dn_dir_c,
-                            lw_clnclrsky_flux_up_c, lw_clnclrsky_flux_dn_c,
-                            lw_clrsky_flux_up_c, lw_clrsky_flux_dn_c,
-                            lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c,
-                            sw_bnd_flux_up_c, sw_bnd_flux_dn_c, sw_bnd_flux_dir_c,
-                            lw_bnd_flux_up_c, lw_bnd_flux_dn_c,
-                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
-
-        // Compute heating rates for this chunk
-        rrtmgp::compute_heating_rate(sw_flux_up_c, sw_flux_dn_c, r_lay_c, z_del_c, sw_heating_c);
-        rrtmgp::compute_heating_rate(lw_flux_up_c, lw_flux_dn_c, r_lay_c, z_del_c, lw_heating_c);
-
-        // Compute diffuse band fluxes and broadband surface fluxes for this chunk
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol_c, nlay+1, nswbands}),
-                             KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
-        {
-            sw_bnd_flux_dif_c(icol,ilay,ibnd) = sw_bnd_flux_dn_c(icol,ilay,ibnd) - sw_bnd_flux_dir_c(icol,ilay,ibnd);
-        });
-        rrtmgp::compute_broadband_surface_fluxes(ncol_c, kbot, nswbands,
-                                                 sw_bnd_flux_dir_c , sw_bnd_flux_dif_c ,
-                                                 sfc_flux_dir_vis_c, sfc_flux_dir_nir_c,
-                                                 sfc_flux_dif_vis_c, sfc_flux_dif_nir_c);
-
-        gas_concs_c.reset();
-    } // end column chunk loop
+    Table3D<Real,Order::C> sw_bnd_flux_dif_tab(sw_bnd_flux_dif.data(), {0,0,0},
+                           {static_cast<int>(sw_bnd_flux_dif.extent(0)),static_cast<int>(sw_bnd_flux_dif.extent(1)),static_cast<int>(sw_bnd_flux_dif.extent(2))});
+    Table3D<Real,Order::C> sw_bnd_flux_dn_tab(sw_bnd_flux_dn.data(), {0,0,0},
+                           {static_cast<int>(sw_bnd_flux_dn.extent(0)),static_cast<int>(sw_bnd_flux_dn.extent(1)),static_cast<int>(sw_bnd_flux_dn.extent(2))});
+    Table3D<Real,Order::C> sw_bnd_flux_dir_tab(sw_bnd_flux_dir.data(), {0,0,0},
+                           {static_cast<int>(sw_bnd_flux_dir.extent(0)),static_cast<int>(sw_bnd_flux_dir.extent(1)),static_cast<int>(sw_bnd_flux_dir.extent(2))});
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nswbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
+    {
+        sw_bnd_flux_dif_tab(icol,ilay,ibnd) = sw_bnd_flux_dn_tab(icol,ilay,ibnd) - sw_bnd_flux_dir_tab(icol,ilay,ibnd);
+    });
+    rrtmgp::compute_broadband_surface_fluxes(ncol, kbot, nswbands,
+                                             sw_bnd_flux_dir , sw_bnd_flux_dif ,
+                                             sfc_flux_dir_vis, sfc_flux_dir_nir,
+                                             sfc_flux_dif_vis, sfc_flux_dif_nir);
 }
 
 
 void
 Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
 {
-    // Reset gas concentrations (k-dist data persists across steps)
+    // Finish rrtmgp
     m_gas_concs.reset();
+    rrtmgp::rrtmgp_finalize();
 
     // Fill the AMReX MFs from Kokkos Views
     kokkos_buffers_to_mf(lsm_output_ptrs);
