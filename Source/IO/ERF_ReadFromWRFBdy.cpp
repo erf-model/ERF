@@ -505,19 +505,45 @@ convert_wrfbdy_data (const int itime,
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
     }
 
+    // Temporary bdy data structures for interpolation
+    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
+    amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
+        bdy_data_int[ivar].template setVal<RunOn::Device>(0);
+    }
+
+    // Temporary heights
+    amrex::FArrayBox bdy_c_z_org, bdy_u_z_org, bdy_v_z_org;
+    amrex::FArrayBox bdy_c_z_tmp, bdy_u_z_tmp, bdy_v_z_tmp;
+    bdy_c_z_org.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_org.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_org.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    bdy_c_z_tmp.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_tmp.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_tmp.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_src = bdy_c_z_org.array();
+    Array4<Real> bdy_u_z_src = bdy_u_z_org.array();
+    Array4<Real> bdy_v_z_src = bdy_v_z_org.array();
+    Array4<Real> bdy_c_z_dst = bdy_c_z_tmp.array();
+    Array4<Real> bdy_u_z_dst = bdy_u_z_tmp.array();
+    Array4<Real> bdy_v_z_dst = bdy_v_z_tmp.array();
+
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
     Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
     Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
-    Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array();    // This is z-face-centered
+    Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
 
     // Bounds limiting
     int ilo  = domain.smallEnd()[0];
     int ihi  = domain.bigEnd()[0];
     int jlo  = domain.smallEnd()[1];
     int jhi  = domain.bigEnd()[1];
+    int klo  = domain.smallEnd()[2];
+    int khi  = domain.bigEnd()[2];
 
     for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
     {
@@ -530,13 +556,18 @@ convert_wrfbdy_data (const int itime,
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
         const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
         const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
-        const Box& bx_ph = (zbx & bdy_data[itime][WRFBdyVars::PH].box());
 
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
         Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
+
+        // TMP INTERP BDY data
+        Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
+        Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
 
         // Mask data
         const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
@@ -548,40 +579,48 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
         Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
 
-
         Array4<Real> z_arr   = z_phys_nd->array(mfi);
         Array4<Real> PHB_arr = wrf_PHB->array(mfi);
 
         // Examine z change
-        ParallelFor(bx_ph, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            /*
             // Prevent averaging outside domain and match init from WRF input
             int ii = std::max(std::min(i,ihi),ilo+1);
             int jj = std::max(std::min(j,jhi),jlo+1);
 
-            // Node height
+            // Mass coupling
             Real mu     = mu_arr(ii  ,jj  ,0) + mub_arr(ii  ,jj  ,0);
             Real mu_im  = mu_arr(ii-1,jj  ,0) + mub_arr(ii-1,jj  ,0);
             Real mu_jm  = mu_arr(ii  ,jj-1,0) + mub_arr(ii  ,jj-1,0);
-            Real mu_ijm = mu_arr(ii-1,jj-1,0) + mub_arr(ii-1,jj-1,0);
-            Real new_z  = Real(0.25) * ( PHB_arr(ii  ,jj  ,k) + PHB_arr(ii-1,jj  ,k)
-                                       + PHB_arr(ii  ,jj-1,k) + PHB_arr(ii-1,jj-1,k)
-                                       + bdy_ph_arr(ii  ,jj  ,k)/mu    + bdy_ph_arr(ii-1,jj  ,k)/mu_im
-                                       + bdy_ph_arr(ii  ,jj-1,k)/mu_jm + bdy_ph_arr(ii-1,jj-1,k)/mu_ijm ) / CONST_GRAV;
-            Real old_z = z_arr(i,j,k);
-            */
 
-            // W-face height
-            Real new_z = ( PHB_arr(i,j,k) + bdy_ph_arr(i,j,k)/(mu_arr(i,j,0) + mub_arr(i,j,0)) ) / CONST_GRAV;
-            Real old_z = Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
-                                      + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) );
+            // Pert and base geopotential
+            Real P       = PHB_arr(ii  ,jj  ,k  ) + bdy_ph_arr(ii  ,jj  ,k  )/mu   ;
+            Real P_im    = PHB_arr(ii-1,jj  ,k  ) + bdy_ph_arr(ii-1,jj  ,k  )/mu_im;
+            Real P_jm    = PHB_arr(ii  ,jj-1,k  ) + bdy_ph_arr(ii  ,jj-1,k  )/mu_jm;
+            Real P_kp    = PHB_arr(ii  ,jj  ,k+1) + bdy_ph_arr(ii  ,jj  ,k+1)/mu   ;
+            Real P_im_kp = PHB_arr(ii-1,jj  ,k+1) + bdy_ph_arr(ii-1,jj  ,k+1)/mu_im;
+            Real P_jm_kp = PHB_arr(ii  ,jj-1,k+1) + bdy_ph_arr(ii  ,jj-1,k+1)/mu_jm;
 
-            if (i==0 && j==0) {
-              AllPrint() << "Z check: " << itime << ' ' << IntVect(i,j,k) << ' '
-                           << old_z << ' ' << new_z << ' '
-                           << PHB_arr(i,j,k) << ' '
-                           << bdy_ph_arr(i,j,k) << "\n";
+            // New heights
+            bdy_c_z_dst(i,j,k) = Real(0.5 ) ( P + P_kp );
+            bdy_u_z_dst(i,j,k) = Real(0.25) ( P + P_kp + P_im + P_im_kp );
+            bdy_v_z_dst(i,j,k) = Real(0.25) ( P + P_kp + P_jm + P_jm_kp );
+
+            // Original heights
+            bdy_c_z_src(i,j,k) = Real(0.125) ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                             + z_arr(i,j,k+1) + z_arr(i+1,j  ,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+            bdy_u_z_src(i,j,k) = Real(0.25 ) ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j  ,k+1) + z_arr(i+1,j  ,k+1) );
+            bdy_v_z_src(i,j,k) = Real(0.25 ) ( z_arr(i,j,k  ) + z_arr(i  ,j+1,k  ) + z_arr(i,j  ,k+1) + z_arr(i  ,j+1,k+1) );
+
+            // Fill for nodal data
+            if (i==ihi) {
+                bdy_u_z_dst(i+1,j,k) = bdy_u_z_dst(i,j,k);
+                bdy_u_z_src(i+1,j,k) = bdy_u_z_src(i,j,k);
+            }
+            if (j==jhi) {
+                bdy_v_z_dst(i,j+1,k) = bdy_v_z_dst(i,j,k);
+                bdy_v_z_src(i,j+1,k) = bdy_v_z_src(i,j,k);
             }
         });
 
@@ -649,11 +688,118 @@ convert_wrfbdy_data (const int itime,
         });
     } // mfi
 
+    // Interpolate in height
+    if (itime > 0) {
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                if (k>klo && k<khi) {
+                    int kstart, kend;
+                    Real z_dst, z_hi_src, z_lo_src;
+
+                    kstart   = k - 1;
+                    z_dst    = bdy_c_z_dst(i,j,k);
+                    z_lo_src = bdy_c_z_src(i,j,kstart);
+
+                    bool found = false;
+                    for (int lk(kstart+1); lk<khi; ++lk) {
+                        z_hi_src = bdy_c_z_src(i,j,lk);
+                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                            found = true;
+                            kend  = lk;
+                            break;
+                        }
+                        z_lo_src = z_hi_src;
+                        kstart   = lk;
+                    }
+
+                    amrex::ignore_unused(found);
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY CC interpolation could not find bounding heights!");
+
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                     bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                } else {
+                     bdy_t_int(i,j,k) =  bdy_t_tmp(i,j,k);
+                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                if (k>klo && k<khi) {
+                    int kstart, kend;
+                    Real z_dst, z_hi_src, z_lo_src;
+
+                    kstart   = k - 1;
+                    z_dst    = bdy_u_z_dst(i,j,k);
+                    z_lo_src = bdy_u_z_src(i,j,kstart);
+
+                    bool found = false;
+                    for (int lk(kstart+1); lk<khi; ++lk) {
+                        z_hi_src = bdy_u_z_src(i,j,lk);
+                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                            found = true;
+                            kend  = lk;
+                            break;
+                        }
+                        z_lo_src = z_hi_src;
+                        kstart   = lk;
+                    }
+
+                    amrex::ignore_unused(found);
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY U interpolation could not find bounding heights!");
+
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
+                } else {
+                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                if (k>klo && k<khi) {
+                    int kstart, kend;
+                    Real z_dst, z_hi_src, z_lo_src;
+
+                    kstart   = k - 1;
+                    z_dst    = bdy_v_z_dst(i,j,k);
+                    z_lo_src = bdy_v_z_src(i,j,kstart);
+
+                    bool found = false;
+                    for (int lk(kstart+1); lk<khi; ++lk) {
+                        z_hi_src = bdy_v_z_src(i,j,lk);
+                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                            found = true;
+                            kend  = lk;
+                            break;
+                        }
+                        z_lo_src = z_hi_src;
+                        kstart   = lk;
+                    }
+
+                    amrex::ignore_unused(found);
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY V interpolation could not find bounding heights!");
+
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
+                } else {
+                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                }
+            }
+        });
+    }
+
     for (int ivar(0); ivar < vsize; ++ivar) {
-        amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
-                                      bdy_data_tmp[ivar].size(),
+        amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
+                                      bdy_data_int[ivar].size(),
                                       ParallelContext::CommunicatorAll());
-        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
+        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_int[ivar],0,0,1);
     }
 }
 
