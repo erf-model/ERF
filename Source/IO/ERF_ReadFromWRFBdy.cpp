@@ -603,15 +603,15 @@ convert_wrfbdy_data (const int itime,
             Real P_jm_kp = PHB_arr(ii  ,jj-1,k+1) + bdy_ph_arr(ii  ,jj-1,k+1)/mu_jm;
 
             // New heights
-            bdy_c_z_dst(i,j,k) = Real(0.5 ) ( P + P_kp );
-            bdy_u_z_dst(i,j,k) = Real(0.25) ( P + P_kp + P_im + P_im_kp );
-            bdy_v_z_dst(i,j,k) = Real(0.25) ( P + P_kp + P_jm + P_jm_kp );
+            bdy_c_z_dst(i,j,k) = Real(0.5 ) * ( P + P_kp );
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp );
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp );
 
             // Original heights
-            bdy_c_z_src(i,j,k) = Real(0.125) ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                             + z_arr(i,j,k+1) + z_arr(i+1,j  ,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
-            bdy_u_z_src(i,j,k) = Real(0.25 ) ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j  ,k+1) + z_arr(i+1,j  ,k+1) );
-            bdy_v_z_src(i,j,k) = Real(0.25 ) ( z_arr(i,j,k  ) + z_arr(i  ,j+1,k  ) + z_arr(i,j  ,k+1) + z_arr(i  ,j+1,k+1) );
+            bdy_c_z_src(i,j,k) = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                               + z_arr(i,j,k+1) + z_arr(i+1,j  ,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+            bdy_u_z_src(i,j,k) = Real(0.25 ) * ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j  ,k+1) + z_arr(i+1,j  ,k+1) );
+            bdy_v_z_src(i,j,k) = Real(0.25 ) * ( z_arr(i,j,k  ) + z_arr(i  ,j+1,k  ) + z_arr(i,j  ,k+1) + z_arr(i  ,j+1,k+1) );
 
             // Fill for nodal data
             if (i==ihi) {
@@ -686,114 +686,116 @@ convert_wrfbdy_data (const int itime,
                 bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
             }
         });
+
+        // Interpolate in height
+        if (itime > 0) {
+            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_c_arr(i,j,k)) {
+                    if (k>klo && k<khi) {
+                        int kstart, kend;
+                        Real z_dst, z_hi_src, z_lo_src;
+
+                        kstart   = k - 1;
+                        z_dst    = bdy_c_z_dst(i,j,k);
+                        z_lo_src = bdy_c_z_src(i,j,kstart);
+
+                        bool found = false;
+                        for (int lk(kstart+1); lk<khi; ++lk) {
+                            z_hi_src = bdy_c_z_src(i,j,lk);
+                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                                found = true;
+                                kend  = lk;
+                                break;
+                            }
+                            z_lo_src = z_hi_src;
+                            kstart   = lk;
+                        }
+
+                        amrex::ignore_unused(found);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY CC interpolation could not find bounding heights!");
+
+                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                        bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                        bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                    } else {
+                        bdy_t_int(i,j,k) =  bdy_t_tmp(i,j,k);
+                        bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                    }
+                }
+            });
+
+            ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_u_arr(i,j,k)) {
+                    if (k>klo && k<khi) {
+                        int kstart, kend;
+                        Real z_dst, z_hi_src, z_lo_src;
+
+                        kstart   = k - 1;
+                        z_dst    = bdy_u_z_dst(i,j,k);
+                        z_lo_src = bdy_u_z_src(i,j,kstart);
+
+                        bool found = false;
+                        for (int lk(kstart+1); lk<khi; ++lk) {
+                            z_hi_src = bdy_u_z_src(i,j,lk);
+                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                                found = true;
+                                kend  = lk;
+                                break;
+                            }
+                            z_lo_src = z_hi_src;
+                            kstart   = lk;
+                        }
+
+                        amrex::ignore_unused(found);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY U interpolation could not find bounding heights!");
+
+                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                        bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
+                    } else {
+                        bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                    }
+                }
+            });
+
+            ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_v_arr(i,j,k)) {
+                    if (k>klo && k<khi) {
+                        int kstart, kend;
+                        Real z_dst, z_hi_src, z_lo_src;
+
+                        kstart   = k - 1;
+                        z_dst    = bdy_v_z_dst(i,j,k);
+                        z_lo_src = bdy_v_z_src(i,j,kstart);
+
+                        bool found = false;
+                        for (int lk(kstart+1); lk<khi; ++lk) {
+                            z_hi_src = bdy_v_z_src(i,j,lk);
+                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
+                                found = true;
+                                kend  = lk;
+                                break;
+                            }
+                            z_lo_src = z_hi_src;
+                            kstart   = lk;
+                        }
+
+                        amrex::ignore_unused(found);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY V interpolation could not find bounding heights!");
+
+                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                        bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
+                    } else {
+                        bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                    }
+                }
+            });
+        } // itime==0
     } // mfi
 
-    // Interpolate in height
-    if (itime > 0) {
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                if (k>klo && k<khi) {
-                    int kstart, kend;
-                    Real z_dst, z_hi_src, z_lo_src;
 
-                    kstart   = k - 1;
-                    z_dst    = bdy_c_z_dst(i,j,k);
-                    z_lo_src = bdy_c_z_src(i,j,kstart);
-
-                    bool found = false;
-                    for (int lk(kstart+1); lk<khi; ++lk) {
-                        z_hi_src = bdy_c_z_src(i,j,lk);
-                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                            found = true;
-                            kend  = lk;
-                            break;
-                        }
-                        z_lo_src = z_hi_src;
-                        kstart   = lk;
-                    }
-
-                    amrex::ignore_unused(found);
-                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY CC interpolation could not find bounding heights!");
-
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                     bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
-                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
-                } else {
-                     bdy_t_int(i,j,k) =  bdy_t_tmp(i,j,k);
-                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
-                }
-            }
-        });
-
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_u_arr(i,j,k)) {
-                if (k>klo && k<khi) {
-                    int kstart, kend;
-                    Real z_dst, z_hi_src, z_lo_src;
-
-                    kstart   = k - 1;
-                    z_dst    = bdy_u_z_dst(i,j,k);
-                    z_lo_src = bdy_u_z_src(i,j,kstart);
-
-                    bool found = false;
-                    for (int lk(kstart+1); lk<khi; ++lk) {
-                        z_hi_src = bdy_u_z_src(i,j,lk);
-                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                            found = true;
-                            kend  = lk;
-                            break;
-                        }
-                        z_lo_src = z_hi_src;
-                        kstart   = lk;
-                    }
-
-                    amrex::ignore_unused(found);
-                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY U interpolation could not find bounding heights!");
-
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
-                } else {
-                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
-                }
-            }
-        });
-
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_v_arr(i,j,k)) {
-                if (k>klo && k<khi) {
-                    int kstart, kend;
-                    Real z_dst, z_hi_src, z_lo_src;
-
-                    kstart   = k - 1;
-                    z_dst    = bdy_v_z_dst(i,j,k);
-                    z_lo_src = bdy_v_z_src(i,j,kstart);
-
-                    bool found = false;
-                    for (int lk(kstart+1); lk<khi; ++lk) {
-                        z_hi_src = bdy_v_z_src(i,j,lk);
-                        if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                            found = true;
-                            kend  = lk;
-                            break;
-                        }
-                        z_lo_src = z_hi_src;
-                        kstart   = lk;
-                    }
-
-                    amrex::ignore_unused(found);
-                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY V interpolation could not find bounding heights!");
-
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
-                } else {
-                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
-                }
-            }
-        });
-    }
 
     for (int ivar(0); ivar < vsize; ++ivar) {
         amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
