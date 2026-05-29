@@ -76,25 +76,25 @@ namespace HSEutils
 
 
     /**
-     * Function to calculate the hydrostatic density and pressure
+     * Function to calculate the hydrostatic density and pressure with constant dz
      *
      * @param[in]  r_sfc     surface density
      * @param[in]  theta     surface potential temperature
      * @param[out] r         hydrostatically balanced density profile
      * @param[out] p         hydrostatically balanced pressure profile
      * @param[in]  dz        vertical grid spacing (constant)
-     * @param[in]  prob_lo_z surface height
-     * @param[in]  khi       z-index corresponding to the big end of the domain
+     * @param[in]  klo       z-index corresponding to the small end of the domain
+     * @param[in]  khi       z-index corresponding to the big   end of the domain
     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     void
-    init_isentropic_hse (const amrex::Real& r_sfc,
-                         const amrex::Real& theta,
-                         amrex::Real* r,
-                         amrex::Real* p,
-                         const amrex::Real& dz,
-                         const int klo, const int khi)
+    init_isentropic_hse_constant_dz (const amrex::Real& r_sfc,
+                                     const amrex::Real& theta,
+                                     amrex::Real* r,
+                                     amrex::Real* p,
+                                     const amrex::Real& dz,
+                                     const int klo, const int khi)
     {
       int kstart;
 
@@ -185,6 +185,116 @@ namespace HSEutils
       r[khi+1] = r[khi];
     }
 
+    /**
+     * Function to calculate the hydrostatic density and pressure with stretched dz
+     *
+     * @param[in]  r_sfc     surface density
+     * @param[in]  theta     surface potential temperature
+     * @param[out] r         hydrostatically balanced density profile
+     * @param[out] p         hydrostatically balanced pressure profile
+     * @param[in]  stretched_dz vertical grid spacing (stretched)
+     * @param[in]  klo       z-index corresponding to the small end of the domain
+     * @param[in]  khi       z-index corresponding to the big   end of the domain
+    */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    init_isentropic_hse_stretched_dz (const amrex::Real& r_sfc,
+                                      const amrex::Real& theta,
+                                      amrex::Real* r,
+                                      amrex::Real* p,
+                                      const Gpu::DeviceVector<Real>& stretched_dz_d,
+                                      const int klo, const int khi)
+    {
+      int kstart;
+
+      // r_sfc / p_0 are the density / pressure at klo
+
+      // Initial guess
+      r[klo] = r_sfc;
+      p[klo] = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+
+      if (klo == 0)
+      {
+          kstart = 1;
+
+          // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
+          bool converged_hse = false;
+          Real p_hse;
+          Real p_eos;
+
+          for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+          {
+              p_hse = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+              p_eos = getPgivenRTh(r[klo]*theta);
+
+              Real A = p_hse - p_eos;
+
+              Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
+
+              Real drho = A / (dpdr + myhalf*stretched_dz_d[klo] * CONST_GRAV);
+
+              r[klo] = r[klo] + drho;
+              p[klo] = getPgivenRTh(r[klo]*theta);
+
+              if (std::abs(drho) < TOL)
+              {
+                  converged_hse = true;
+                  break;
+              }
+          }
+
+          // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << klo << std::endl;
+          // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+      } else {
+          kstart = klo; // because we need to solve for r[klo] here; r[klo-1] is what was passed in r_sfc
+          r[klo-1] = r_sfc; // r_sfc is really the interpolated density in the ghost cell in this case
+          p[klo-1] = getPgivenRTh(r[klo-1]*theta);
+      }
+
+      // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
+      for (int k = kstart; k <= khi; k++)
+      {
+          // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
+          // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
+          bool converged_hse = false;
+
+          r[k] = r[k-1];
+
+          Real p_eos = getPgivenRTh(r[k]*theta);
+          Real p_hse;
+
+          for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+          {
+              Real  r_avg = myhalf * (r[k-1]+r[k]);
+              Real dz_avg = myhalf * (stretched_dz_d[k-1] + stretched_dz_d[k]);
+              p_hse = p[k-1] -  dz_avg * r_avg * CONST_GRAV;
+              p_eos = getPgivenRTh(r[k]*theta);
+
+              Real A = p_hse - p_eos;
+
+              Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+              // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-one) ;
+
+              Real drho = A / (dpdr + dz_avg * CONST_GRAV);
+
+              r[k] = r[k] + drho;
+              p[k] = getPgivenRTh(r[k]*theta);
+
+              if (std::abs(drho) < TOL * r[k-1])
+              {
+                  converged_hse = true;
+                  // amrex::Print() << " converged " << std::endl;
+                  break;
+              }
+          }
+
+          // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
+          // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+      }
+      r[khi+1] = r[khi];
+    }
+
 
     /**
      * Function to calculate the hydrostatic density and pressure over terrain
@@ -209,98 +319,98 @@ namespace HSEutils
                                  amrex::Real* p,
                                  const amrex::Array4<amrex::Real const> z_cc,
                                  const int& klo, const int& khi)
-{
-    int kstart;
+    {
+        int kstart;
 
-    if (klo == 0)  {
-        //
-        // r_sfc / p_0 are the density / pressure at the surface
-        //
-        // Initial guess
-        int k0 = 0;
+        if (klo == 0)  {
+            //
+            // r_sfc / p_0 are the density / pressure at the surface
+            //
+            // Initial guess
+            int k0 = 0;
 
-        // Where we start the lower iteration
-        kstart = 1;
+            // Where we start the lower iteration
+            kstart = 1;
 
-        Real myhalf_dz = z_cc(i,j,k0);
-        r[k0] = r_sfc;
-        p[k0] = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
-        {
-            // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
-            bool converged_hse = false;
-            Real p_hse;
-            Real p_eos;
-
-            for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+            Real myhalf_dz = z_cc(i,j,k0);
+            r[k0] = r_sfc;
+            p[k0] = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
             {
-                p_hse = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
-                p_eos = getPgivenRTh(r[k0]*theta);
+                // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
+                bool converged_hse = false;
+                Real p_hse;
+                Real p_eos;
 
-                Real A = p_hse - p_eos;
-
-                Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
-
-                Real drho = A / (dpdr + myhalf_dz * CONST_GRAV);
-
-                r[k0] = r[k0] + drho;
-                p[k0] = getPgivenRTh(r[k0]*theta);
-
-                if (std::abs(drho) < TOL)
+                for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
                 {
-                    converged_hse = true;
-                    break;
+                    p_hse = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
+                    p_eos = getPgivenRTh(r[k0]*theta);
+
+                    Real A = p_hse - p_eos;
+
+                    Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
+
+                    Real drho = A / (dpdr + myhalf_dz * CONST_GRAV);
+
+                    r[k0] = r[k0] + drho;
+                    p[k0] = getPgivenRTh(r[k0]*theta);
+
+                    if (std::abs(drho) < TOL)
+                    {
+                        converged_hse = true;
+                        break;
+                    }
                 }
+
+                //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
+                //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
             }
-
-            //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
-            //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+        } else {
+            kstart = klo; // because we need to solve for r[klo] here; r[klo-1] is what was passed in r_sfc
+            r[klo-1] = r_sfc; // r_sfc is really the interpolated density in the ghost cell in this case
+            p[klo-1] = getPgivenRTh(r[klo-1]*theta);
         }
-    } else {
-        kstart = klo; // because we need to solve for r[klo] here; r[klo-1] is what was passed in r_sfc
-        r[klo-1] = r_sfc; // r_sfc is really the interpolated density in the ghost cell in this case
-        p[klo-1] = getPgivenRTh(r[klo-1]*theta);
-    }
 
-     // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-     for (int k = kstart; k <= khi; k++)
-     {
          // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-         // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
-         bool converged_hse = false;
-
-         Real dz_loc = (z_cc(i,j,k) - z_cc(i,j,k-1));
-
-         r[k] = r[k-1];
-
-         Real p_eos = getPgivenRTh(r[k]*theta);
-         Real p_hse;
-
-         for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+         for (int k = kstart; k <= khi; k++)
          {
-             p_hse = p[k-1] -  dz_loc * myhalf * (r[k-1]+r[k]) * CONST_GRAV;
-             p_eos = getPgivenRTh(r[k]*theta);
+             // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
+             // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
+             bool converged_hse = false;
 
-             Real A = p_hse - p_eos;
+             Real dz_loc = (z_cc(i,j,k) - z_cc(i,j,k-1));
 
-             Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+             r[k] = r[k-1];
 
-             Real drho = A / (dpdr + dz_loc * CONST_GRAV);
+             Real p_eos = getPgivenRTh(r[k]*theta);
+             Real p_hse;
 
-             r[k] = r[k] + drho;
-             p[k] = getPgivenRTh(r[k]*theta);
-
-             if (std::abs(drho) < TOL * r[k-1])
+             for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
              {
-                 converged_hse = true;
-                 //amrex::Print() << " converged " << std::endl;
-                 break;
-             }
-         }
+                 p_hse = p[k-1] -  dz_loc * myhalf * (r[k-1]+r[k]) * CONST_GRAV;
+                 p_eos = getPgivenRTh(r[k]*theta);
 
-         // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
-         // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+                 Real A = p_hse - p_eos;
+
+                 Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+
+                 Real drho = A / (dpdr + dz_loc * CONST_GRAV);
+
+                 r[k] = r[k] + drho;
+                 p[k] = getPgivenRTh(r[k]*theta);
+
+                 if (std::abs(drho) < TOL * r[k-1])
+                 {
+                     converged_hse = true;
+                     //amrex::Print() << " converged " << std::endl;
+                     break;
+                 }
+             }
+
+             // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
+             // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+        }
     }
-}
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
@@ -348,8 +458,8 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH, const bo
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_F_for_temp(const Real T_b, const Real p_b, const Real q_t, const Real eq_pot_temp,
-                        const bool use_empirical, const int which_zone, const Real scaled_height)
+Real compute_F_for_temp_in_zone(const Real T_b, const Real p_b, const Real q_t, const Real eq_pot_temp,
+                                const bool use_empirical, const int which_zone, const Real scaled_height)
 {
     Real fac = Cp_d + Cp_l*q_t;
     Real RH  = compute_relative_humidity(p_b, T_b, use_empirical, which_zone, scaled_height);
@@ -367,8 +477,8 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     Real T_b = Real(200.0), delta_T; // Initial guess
     for (int iter=0; iter<20; iter++)
     {
-        Real F         = compute_F_for_temp(T_b      , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_plus_dF = compute_F_for_temp(T_b+Real(1e-10), p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F         = compute_F_for_temp_in_zone(T_b      , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F_plus_dF = compute_F_for_temp_in_zone(T_b+Real(1e-10), p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
         Real F_prime   = (F_plus_dF - F)/Real(1e-10);
         delta_T = -F/F_prime;
         T_b = T_b + delta_T;
@@ -466,11 +576,11 @@ Real compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& r
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
-                  Real& T_dp, Real& T_b, const Real dz, const Real rho_k_minus_1, const Real q_t,
-                  const Real eq_pot_temp, const bool use_empirical,
-                  const int which_zone, const Real scaled_height, const bool T_from_theta,
-                  const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
+Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
+                          Real& T_dp, Real& T_b, const Real dz, const Real rho_k_minus_1, const Real q_t,
+                          const Real eq_pot_temp, const bool use_empirical,
+                          const int which_zone, const Real scaled_height, const bool T_from_theta,
+                          const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
     Real delta_p_k;
 
@@ -531,9 +641,9 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         scaled_height = z/z_tr_2;
     }
 
-    compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, amrex::Real(0), q_t, eq_pot_temp,
-                use_empirical, which_zone, scaled_height, T_from_theta,
-                theta_0, theta_tr, z_tr_2, T_tr);
+    compute_p_k_in_zone(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, amrex::Real(0), q_t, eq_pot_temp,
+                        use_empirical, which_zone, scaled_height, T_from_theta,
+                        theta_0, theta_tr, z_tr_2, T_tr);
 
     for (int k=1; k<=khi; k++)
     {
@@ -551,9 +661,9 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
             scaled_height = z/z_tr_2;
         }
 
-        compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, r[k-1], q_t, eq_pot_temp,
-                    use_empirical, which_zone, scaled_height, T_from_theta,
-                    theta_0, theta_tr, z_tr_2, T_tr);
+        compute_p_k_in_zone(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, r[k-1], q_t, eq_pot_temp,
+                            use_empirical, which_zone, scaled_height, T_from_theta,
+                            theta_0, theta_tr, z_tr_2, T_tr);
     }
 
     r[khi+1] = r[khi];

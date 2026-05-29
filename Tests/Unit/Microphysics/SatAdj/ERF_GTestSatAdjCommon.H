@@ -3,10 +3,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <string>
 #include <utility>
 
+#include <AMReX_Arena.H>
 #include <AMReX_Array.H>
 #include <AMReX_Box.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MFIter.H>
@@ -80,6 +85,32 @@ struct ConservedState {
     amrex::Real rhoqc;
 };
 
+struct LocatedError {
+    amrex::Real normalized_error{amrex::Real(0.0)};
+    amrex::Real absolute_error{amrex::Real(0.0)};
+    amrex::Real actual_value{amrex::Real(0.0)};
+    amrex::Real expected_value{amrex::Real(0.0)};
+    amrex::Real eos_projected_actual_temperature{amrex::Real(0.0)};
+    amrex::Real eos_projected_expected_temperature{amrex::Real(0.0)};
+    int i{0};
+    int j{0};
+    int k{0};
+    int component{RhoTheta_comp};
+    int box_id{-1};
+};
+
+struct ActiveCellCounts {
+    long checked{0};
+    long changed{0};
+    long unexpected_unchanged{0};
+};
+
+enum class SatAdjActiveGeneratorRegime {
+    SupersaturatedCloud = 0,
+    CloudyRelaxation,
+    EvaporationThenRecondensation
+};
+
 enum StateDiffComp {
     StateDiffRho = 0,
     StateDiffRhoTheta,
@@ -150,6 +181,43 @@ amrex::Real latent_energy_budget_tol (const amrex::Real reference)
 #endif
 }
 
+// Water mixing ratios are O(1e-3) to O(1e-2), so the generic scaled_tol(...)
+// helper with an O(1) absolute floor is too permissive for qv/qc checks.
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real mixing_ratio_tol (const amrex::Real reference)
+{
+#ifdef AMREX_USE_FLOAT
+    return amrex::max(amrex::Real(2.0e-7),
+                      amrex::Real(2.0e-5) * amrex::Math::abs(reference));
+#else
+    return amrex::max(amrex::Real(1.0e-13),
+                      amrex::Real(1.0e-12) * amrex::Math::abs(reference));
+#endif
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real conserved_moisture_tol (const amrex::Real rho,
+                                    const amrex::Real q_reference)
+{
+    return amrex::max(amrex::Real(1.0e-14),
+                      amrex::Math::abs(rho) * mixing_ratio_tol(q_reference));
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real derived_temperature_tol (const amrex::Real temperature)
+{
+#ifdef AMREX_USE_FLOAT
+    return amrex::max(amrex::Real(2.0e-4),
+                      amrex::Real(5.0e-6) * amrex::Math::abs(temperature));
+#else
+    return amrex::max(amrex::Real(1.0e-10),
+                      amrex::Real(1.0e-12) * amrex::Math::abs(temperature));
+#endif
+}
+
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real qsat (const amrex::Real tabs, const amrex::Real pres_mbar)
@@ -166,10 +234,12 @@ inline amrex::Real dqsat_dt (const amrex::Real tabs, const amrex::Real pres_mbar
     return dqsat_local;
 }
 
-inline CellState make_cell_state (const amrex::Real tabs,
-                                  const amrex::Real pres_mbar,
-                                  const amrex::Real qv,
-                                  const amrex::Real qc)
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+CellState make_cell_state (const amrex::Real tabs,
+                           const amrex::Real pres_mbar,
+                           const amrex::Real qv,
+                           const amrex::Real qc)
 {
     return CellState{tabs,
                      pres_mbar,
@@ -191,7 +261,9 @@ void adjust (CellState& state)
                              state.qc);
 }
 
-inline ConservedState make_conserved_state (const CellState& state)
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+ConservedState make_conserved_state (const CellState& state)
 {
     const amrex::Real pres_pa = amrex::Real(100.0) * state.pres_mbar;
     const amrex::Real rho = getRhogivenTandPress(state.tabs, pres_pa, state.qv);
@@ -258,11 +330,411 @@ inline void sync ()
 #endif
 }
 
+inline amrex::Geometry make_multibox_geometry (
+    const int nx,
+    const int ny,
+    const int nz,
+    const amrex::Array<int, AMREX_SPACEDIM>& periodicity)
+{
+    amrex::Box domain(amrex::IntVect(AMREX_D_DECL(0, 0, 0)),
+                      amrex::IntVect(AMREX_D_DECL(nx - 1, ny - 1, nz - 1)));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, 1.0)});
+    return amrex::Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodicity.data());
+}
+
 template <typename F>
 inline void run_and_sync (F&& f)
 {
     std::forward<F>(f)();
     sync();
+}
+
+inline amrex::BoxArray make_boxarray (const amrex::Box& domain)
+{
+    return amrex::BoxArray(domain);
+}
+
+inline amrex::BoxArray make_boxarray (const amrex::Box& domain,
+                                      const amrex::IntVect& max_size)
+{
+    amrex::BoxArray ba(domain);
+    ba.maxSize(max_size);
+    return ba;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+CellState make_satadj_active_cell_state (const int i,
+                                         const int j,
+                                         const int k,
+                                         const CellState& evap_then_recond)
+{
+    const SatAdjActiveGeneratorRegime regime =
+        static_cast<SatAdjActiveGeneratorRegime>((i + 2 * j + 3 * k) % 3);
+
+    if (regime == SatAdjActiveGeneratorRegime::SupersaturatedCloud) {
+        const amrex::Real tabs = amrex::Real(289.0) + amrex::Real(0.15) * k;
+        const amrex::Real pres_mbar = amrex::Real(910.0) - amrex::Real(2.0) * j;
+        return make_cell_state(tabs,
+                               pres_mbar,
+                               qsat(tabs, pres_mbar) + amrex::Real(8.0e-4) + amrex::Real(2.0e-5) * i,
+                               amrex::Real(4.0e-4) + amrex::Real(1.0e-5) * (j + k));
+    }
+
+    if (regime == SatAdjActiveGeneratorRegime::CloudyRelaxation) {
+        const amrex::Real tabs = amrex::Real(287.5) + amrex::Real(0.1) * i;
+        const amrex::Real pres_mbar = amrex::Real(885.0) + amrex::Real(1.5) * k;
+        return make_cell_state(tabs,
+                               pres_mbar,
+                               amrex::Real(3.5e-3) + amrex::Real(1.0e-4) * (i + k),
+                               amrex::Real(1.4e-3) + amrex::Real(5.0e-5) * j);
+    }
+
+    return make_cell_state(evap_then_recond.tabs,
+                           evap_then_recond.pres_mbar,
+                           evap_then_recond.qv + amrex::Real(2.0e-5) * i,
+                           evap_then_recond.qc + amrex::Real(1.0e-5) * (j + k));
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+SatAdjActiveGeneratorRegime satadj_active_generator_regime (const int i,
+                                                            const int j,
+                                                            const int k)
+{
+    return static_cast<SatAdjActiveGeneratorRegime>((i + 2 * j + 3 * k) % 3);
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+CellState make_satadj_kessler_active_cell_state (const int i,
+                                                 const int j,
+                                                 const int k)
+{
+    const int selector = (i + 2 * j + 3 * k) % 2;
+
+    if (selector == 0) {
+        const amrex::Real tabs = amrex::Real(289.0) + amrex::Real(0.1) * k;
+        const amrex::Real pres_mbar = amrex::Real(905.0) - amrex::Real(2.0) * j;
+        return make_cell_state(tabs,
+                               pres_mbar,
+                               qsat(tabs, pres_mbar) + amrex::Real(7.0e-4) + amrex::Real(1.0e-5) * i,
+                               amrex::Real(3.5e-4) + amrex::Real(1.0e-5) * (j + k));
+    }
+
+    const amrex::Real tabs = amrex::Real(287.0) + amrex::Real(0.1) * i;
+    const amrex::Real pres_mbar = amrex::Real(890.0) + amrex::Real(1.0) * k;
+    return make_cell_state(tabs,
+                           pres_mbar,
+                           amrex::Real(3.5e-3) + amrex::Real(1.0e-4) * (i + k),
+                           amrex::Real(1.2e-3) + amrex::Real(4.0e-5) * j);
+}
+
+// Fill every valid cell with a SatAdj-active state. These are deliberately not
+// no-op states, so an unchanged active cell indicates skipped execution rather
+// than physically valid SatAdj behavior.
+inline void fill_satadj_active_conserved_state (amrex::MultiFab& cons)
+{
+    CellState evap_then_recond;
+    const bool found = find_evaporation_then_recondensation_state(evap_then_recond);
+    AMREX_ALWAYS_ASSERT(found);
+
+    const int ncomp = cons.nComp();
+    cons.setVal(amrex::Real(0.0));
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+
+        run_and_sync([=] {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const CellState state = make_satadj_active_cell_state(i, j, k, evap_then_recond);
+                const ConservedState conserved = make_conserved_state(state);
+
+                arr(i,j,k,Rho_comp) = conserved.rho;
+                arr(i,j,k,RhoTheta_comp) = conserved.rhotheta;
+                arr(i,j,k,RhoKE_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoScalar_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoQ1_comp) = conserved.rhoqv;
+                arr(i,j,k,RhoQ2_comp) = conserved.rhoqc;
+
+                if (ncomp > RhoQ3_comp) {
+                    arr(i,j,k,RhoQ3_comp) = amrex::Real(0.0);
+                }
+            });
+        });
+    }
+}
+
+inline void fill_satadj_kessler_active_conserved_state (amrex::MultiFab& cons)
+{
+    const int ncomp = cons.nComp();
+    cons.setVal(amrex::Real(0.0));
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+
+        run_and_sync([=] {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const CellState state = make_satadj_kessler_active_cell_state(i, j, k);
+                const ConservedState conserved = make_conserved_state(state);
+
+                arr(i,j,k,Rho_comp) = conserved.rho;
+                arr(i,j,k,RhoTheta_comp) = conserved.rhotheta;
+                arr(i,j,k,RhoKE_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoScalar_comp) = amrex::Real(0.0);
+                arr(i,j,k,RhoQ1_comp) = conserved.rhoqv;
+                arr(i,j,k,RhoQ2_comp) = conserved.rhoqc;
+
+                if (ncomp > RhoQ3_comp) {
+                    arr(i,j,k,RhoQ3_comp) = amrex::Real(0.0);
+                }
+            });
+        });
+    }
+}
+
+inline ConservedState scalar_reference_from_initial_conserved (const amrex::Real rho,
+                                                               const amrex::Real rhotheta,
+                                                               const amrex::Real rhoqv,
+                                                               const amrex::Real rhoqc)
+{
+    CellState reference_state = make_state_from_conserved(rho, rhotheta, rhoqv, rhoqc);
+    adjust(reference_state);
+    return ConservedState{rho,
+                          rho * reference_state.theta,
+                          rho * reference_state.qv,
+                          rho * reference_state.qc};
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real conserved_component (const ConservedState& conserved,
+                                 const int component)
+{
+    switch (component) {
+    case Rho_comp: return conserved.rho;
+    case RhoTheta_comp: return conserved.rhotheta;
+    case RhoQ1_comp: return conserved.rhoqv;
+    case RhoQ2_comp: return conserved.rhoqc;
+    default: return amrex::Real(0.0);
+    }
+}
+
+// The plotted or diagnosed temperature downstream of SatAdj may be
+// reconstructed from conserved rho, rhoTheta, and qv. This helper compares
+// that EOS-projected temperature against the scalar-reference conserved state,
+// without assuming it equals the fixed-pressure Newton temperature.
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real eos_projected_temperature_from_cons (const amrex::Real rho,
+                                                 const amrex::Real rhotheta,
+                                                 const amrex::Real rhoqv)
+{
+    return getTgivenRandRTh(rho, rhotheta, rhoqv / rho);
+}
+
+// Active-region tests infer execution from whether SatAdj-written components
+// changed. Moisture components must use water-scaled tolerances so smaller but
+// real qv/qc updates are not hidden by the generic O(1) tolerance floor.
+inline amrex::Real satadj_component_change_tol (const int component,
+                                                const amrex::Real rho_reference,
+                                                const amrex::Real conserved_reference)
+{
+    if (component == RhoQ1_comp || component == RhoQ2_comp) {
+        const amrex::Real q_reference = conserved_reference / rho_reference;
+        return conserved_moisture_tol(rho_reference, q_reference);
+    }
+
+    return scaled_tol(conserved_reference, amrex::Real(10.0) * kStateTolFactor);
+}
+
+inline bool satadj_written_component_changed (const int component,
+                                              const amrex::Real rho_reference,
+                                              const amrex::Real before,
+                                              const amrex::Real after)
+{
+    return amrex::Math::abs(after - before) >
+           satadj_component_change_tol(component, rho_reference, before);
+}
+
+inline amrex::MultiFab make_host_mirror (const amrex::MultiFab& src)
+{
+    amrex::MultiFab host(src.boxArray(),
+                         src.DistributionMap(),
+                         src.nComp(),
+                         src.nGrowVect(),
+                         amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+    amrex::MultiFab::Copy(host, src, 0, 0, src.nComp(), src.nGrowVect());
+    sync();
+    return host;
+}
+
+inline void run_satadj_public_flow (SatAdj& satadj,
+                                    const SolverChoice& sc,
+                                    const amrex::Geometry& geom,
+                                    amrex::MultiFab& cons,
+                                    const amrex::Real dt = amrex::Real(1.0))
+{
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+    run_and_sync([&]() {
+        satadj.Init(cons, cons.boxArray(), geom, dt, z_phys_nd, detJ_cc);
+        satadj.Copy_State_to_Micro(cons);
+        satadj.Advance(dt, sc);
+        satadj.Copy_Micro_to_State(cons);
+    });
+}
+
+inline void compare_public_flow_to_scalar_reference (const amrex::MultiFab& initial_cons,
+                                                     const amrex::MultiFab& final_cons,
+                                                     LocatedError& worst_error,
+                                                     ActiveCellCounts& counts)
+{
+    const amrex::MultiFab initial_host = make_host_mirror(initial_cons);
+    const amrex::MultiFab final_host = make_host_mirror(final_cons);
+
+    worst_error = LocatedError{};
+    counts = ActiveCellCounts{};
+
+    for (amrex::MFIter mfi(final_host); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto initial_arr = initial_host.const_array(mfi);
+        const auto final_arr = final_host.const_array(mfi);
+
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                    ++counts.checked;
+
+                    const ConservedState reference = scalar_reference_from_initial_conserved(
+                        initial_arr(i,j,k,Rho_comp),
+                        initial_arr(i,j,k,RhoTheta_comp),
+                        initial_arr(i,j,k,RhoQ1_comp),
+                        initial_arr(i,j,k,RhoQ2_comp));
+
+                    const amrex::Real rho_initial = initial_arr(i,j,k,Rho_comp);
+
+                    const bool changed =
+                        satadj_written_component_changed(RhoTheta_comp,
+                                                         rho_initial,
+                                                         initial_arr(i,j,k,RhoTheta_comp),
+                                                         final_arr(i,j,k,RhoTheta_comp)) ||
+                        satadj_written_component_changed(RhoQ1_comp,
+                                                         rho_initial,
+                                                         initial_arr(i,j,k,RhoQ1_comp),
+                                                         final_arr(i,j,k,RhoQ1_comp)) ||
+                        satadj_written_component_changed(RhoQ2_comp,
+                                                         rho_initial,
+                                                         initial_arr(i,j,k,RhoQ2_comp),
+                                                         final_arr(i,j,k,RhoQ2_comp));
+
+                    if (changed) {
+                        ++counts.changed;
+                    } else {
+                        ++counts.unexpected_unchanged;
+                    }
+
+                    const amrex::Real eos_actual = eos_projected_temperature_from_cons(
+                        final_arr(i,j,k,Rho_comp),
+                        final_arr(i,j,k,RhoTheta_comp),
+                        final_arr(i,j,k,RhoQ1_comp));
+                    const amrex::Real eos_expected = eos_projected_temperature_from_cons(
+                        reference.rho,
+                        reference.rhotheta,
+                        reference.rhoqv);
+
+                    const amrex::Real rho_actual = final_arr(i,j,k,Rho_comp);
+                    const amrex::Real rho_expected = reference.rho;
+
+                    // RhoTheta: compare in conserved space
+                    {
+                        const amrex::Real actual = final_arr(i,j,k,RhoTheta_comp);
+                        const amrex::Real expected = reference.rhotheta;
+                        const amrex::Real absolute_error = amrex::Math::abs(actual - expected);
+                        const amrex::Real normalized_error = absolute_error
+                            / scaled_tol(expected, amrex::Real(20.0) * kStateTolFactor);
+                        if (normalized_error > worst_error.normalized_error) {
+                            worst_error = LocatedError{normalized_error,
+                                                       absolute_error,
+                                                       actual,
+                                                       expected,
+                                                       eos_actual,
+                                                       eos_expected,
+                                                       i,
+                                                       j,
+                                                       k,
+                                                       RhoTheta_comp,
+                                                       mfi.index()};
+                        }
+                    }
+
+                    // RhoQ1: compare qv in mixing-ratio space
+                    {
+                        const amrex::Real qv_actual = final_arr(i,j,k,RhoQ1_comp) / rho_actual;
+                        const amrex::Real qv_expected = reference.rhoqv / rho_expected;
+                        const amrex::Real absolute_error = amrex::Math::abs(qv_actual - qv_expected);
+                        const amrex::Real normalized_error = absolute_error
+                            / mixing_ratio_tol(qv_expected);
+                        if (normalized_error > worst_error.normalized_error) {
+                            worst_error = LocatedError{normalized_error,
+                                                       absolute_error,
+                                                       qv_actual,
+                                                       qv_expected,
+                                                       eos_actual,
+                                                       eos_expected,
+                                                       i,
+                                                       j,
+                                                       k,
+                                                       RhoQ1_comp,
+                                                       mfi.index()};
+                        }
+                    }
+
+                    // RhoQ2: compare qc in mixing-ratio space
+                    {
+                        const amrex::Real qc_actual = final_arr(i,j,k,RhoQ2_comp) / rho_actual;
+                        const amrex::Real qc_expected = reference.rhoqc / rho_expected;
+                        const amrex::Real absolute_error = amrex::Math::abs(qc_actual - qc_expected);
+                        const amrex::Real normalized_error = absolute_error
+                            / mixing_ratio_tol(qc_expected);
+                        if (normalized_error > worst_error.normalized_error) {
+                            worst_error = LocatedError{normalized_error,
+                                                       absolute_error,
+                                                       qc_actual,
+                                                       qc_expected,
+                                                       eos_actual,
+                                                       eos_expected,
+                                                       i,
+                                                       j,
+                                                       k,
+                                                       RhoQ2_comp,
+                                                       mfi.index()};
+                        }
+                    }
+
+                    const amrex::Real eos_absolute_error = amrex::Math::abs(eos_actual - eos_expected);
+                    const amrex::Real eos_normalized_error = eos_absolute_error
+                        / derived_temperature_tol(eos_expected);
+                    if (eos_normalized_error > worst_error.normalized_error) {
+                        worst_error = LocatedError{eos_normalized_error,
+                                                   eos_absolute_error,
+                                                   eos_actual,
+                                                   eos_expected,
+                                                   eos_actual,
+                                                   eos_expected,
+                                                   i,
+                                                   j,
+                                                   k,
+                                                   -1,
+                                                   mfi.index()};
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Fill a small conserved-state MultiFab with deterministic SatAdj branch
@@ -563,12 +1035,8 @@ inline void compute_satadj_conservation_errors (const amrex::MultiFab& before,
 
 inline amrex::Geometry make_geometry (const int nx, const int ny, const int nz)
 {
-    amrex::Box domain(amrex::IntVect(AMREX_D_DECL(0, 0, 0)),
-                      amrex::IntVect(AMREX_D_DECL(nx - 1, ny - 1, nz - 1)));
-    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
-                            {AMREX_D_DECL(1.0, 1.0, 1.0)});
     amrex::Array<int, AMREX_SPACEDIM> periodicity{AMREX_D_DECL(1, 1, 1)};
-    return amrex::Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodicity.data());
+    return make_multibox_geometry(nx, ny, nz, periodicity);
 }
 
 } // namespace satadj_test

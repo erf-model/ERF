@@ -475,7 +475,8 @@ TEST(KesslerScalar, PrecipFlux_AnalyticDerivativeInPositiveDomain)
 }
 
 // Motivation: Face-state selection has three branches: bottom, top, and
-// interior. This protects the public sedimentation path's boundary logic.
+// interior. Interior faces keep rho centered on the z face while qp stays
+// donor/upwind for downward sedimentation.
 TEST(KesslerScalar, FaceState_BottomTopInteriorBranches)
 {
     const KesslerFaceState bottom =
@@ -489,7 +490,7 @@ TEST(KesslerScalar, FaceState_BottomTopInteriorBranches)
     EXPECT_NEAR(bottom.qp, amrex::Real(0.3), formula_abs_tol(amrex::Real(0.3)));
     EXPECT_NEAR(top.rho, amrex::Real(1.0), formula_abs_tol(amrex::Real(1.0)));
     EXPECT_NEAR(top.qp, amrex::Real(0.2), formula_abs_tol(amrex::Real(0.2)));
-    EXPECT_NEAR(interior.rho, amrex::Real(1.1), formula_abs_tol(amrex::Real(1.1)));
+    EXPECT_NEAR(interior.rho, amrex::Real(1.05), formula_abs_tol(amrex::Real(1.05)));
     EXPECT_NEAR(interior.qp, amrex::Real(0.3), formula_abs_tol(amrex::Real(0.3)));
 }
 
@@ -510,9 +511,8 @@ TEST(KesslerScalar, FaceState_ClipsNegativeFaceRainWater)
     EXPECT_NEAR(actual.qp, amrex::Real(0.0), exact_zero_or_near_zero_tol());
 }
 
-// Motivation: Interior sedimentation faces use the upper-cell donor state for
-// downward precipitation transport, then clip the donor rain water
-// nonnegative.
+// Motivation: Downward sedimentation upwinds the donor rain mixing ratio and
+// clips it nonnegative before forming a face flux.
 TEST(KesslerScalar, FaceState_UsesUpperCellDonorThenClips)
 {
     // MUST MATCH: production interior donor-cell selection and clipping order.
@@ -520,6 +520,17 @@ TEST(KesslerScalar, FaceState_UsesUpperCellDonorThenClips)
         kessler_face_state(1, 2, amrex::Real(1.0), amrex::Real(1.0), -amrex::Real(0.2), amrex::Real(0.1));
 
     EXPECT_NEAR(actual.qp, amrex::Real(0.1), formula_abs_tol(amrex::Real(0.1)));
+}
+
+// Motivation: The z-face flux uses face-centered density even when the donor
+// rain mixing ratio comes from the upper cell.
+TEST(KesslerScalar, FaceState_UsesFaceCenteredDensityWithDonorRain)
+{
+    const KesslerFaceState actual =
+        kessler_face_state(1, 2, amrex::Real(1.0), amrex::Real(1.4), amrex::Real(0.0), amrex::Real(1.0e-3));
+
+    EXPECT_NEAR(actual.rho, amrex::Real(1.2), formula_abs_tol(amrex::Real(1.2)));
+    EXPECT_NEAR(actual.qp, amrex::Real(1.0e-3), formula_abs_tol(amrex::Real(1.0e-3)));
 }
 
 // Motivation: Equal face fluxes imply zero sedimentation tendency. This is the
@@ -722,9 +733,8 @@ TEST(KesslerScalar, Characterization_SedimentationThresholdUsesAbsoluteOneEMinus
     EXPECT_FALSE(kessler_is_small_sedimentation_value(amrex::Real(1.0e-14)));
 }
 
-// Motivation: Rain accumulation converts precipitation mass per area to liquid
-// water depth in millimeters using ERF constants for water density and unit
-// conversion.
+// Motivation: Rain accumulation converts precipitation mass per area [kg m^-2]
+// to liquid-water depth [mm] using ERF water density and metric conversion.
 TEST(KesslerScalar, RainAccumulationConvertsMassPerAreaToMillimeters)
 {
     const amrex::Real rho = amrex::Real(1.2);

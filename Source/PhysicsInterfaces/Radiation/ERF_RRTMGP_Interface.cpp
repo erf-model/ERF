@@ -389,6 +389,10 @@ rrtmgp_main (const int ncol, const int nlay,
              real1d_k& t_sfc      , real1d_k& sfc_emis   , real1d_k& lw_src,
              real2d_k& lwp, real2d_k& iwp,
              real2d_k& rel, real2d_k& rei, real2d_k& cldfrac,
+             real3d_k& /*aer_tau_sw*/, real3d_k& /*aer_ssa_sw*/, real3d_k& /*aer_asm_sw*/,
+             real3d_k& /*aer_tau_lw*/,
+             real3d_k& /*cld_tau_sw_bnd*/, real3d_k& /*cld_tau_lw_bnd*/,
+             real3d_k& /*cld_tau_sw_gpt*/, real3d_k& /*cld_tau_lw_gpt*/,
              real2d_k& sw_flux_up, real2d_k& sw_flux_dn, real2d_k& sw_flux_dn_dir,
              real2d_k& lw_flux_up, real2d_k& lw_flux_dn,
              real2d_k& sw_clnclrsky_flux_up, real2d_k& sw_clnclrsky_flux_dn, real2d_k& sw_clnclrsky_flux_dn_dir,
@@ -453,8 +457,24 @@ rrtmgp_main (const int ncol, const int nlay,
     optical_props1_t aerosol_lw;
     aerosol_sw.init(k_dist_sw_k->get_band_lims_wavenumber());
     aerosol_sw.alloc_2str(ncol, nlay);
+    /*
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nswbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
+    {
+        aerosol_sw.tau(icol,ilay,ibnd) = aer_tau_sw(icol,ilay,ibnd);
+        aerosol_sw.ssa(icol,ilay,ibnd) = aer_ssa_sw(icol,ilay,ibnd);
+        aerosol_sw.g  (icol,ilay,ibnd) = aer_asm_sw(icol,ilay,ibnd);
+    });
+    */
     aerosol_lw.init(k_dist_lw_k->get_band_lims_wavenumber());
     aerosol_lw.alloc_1scl(ncol, nlay);
+    /*
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nlwbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
+    {
+        aerosol_lw.tau(icol,ilay,ibnd) = aer_tau_lw(icol,ilay,ibnd);
+    });
+    */
 
     // Convert cloud physical properties to optical properties for input to RRTMGP
     optical_props2_t clouds_sw = get_cloud_optics_sw(ncol, nlay,
@@ -463,6 +483,9 @@ rrtmgp_main (const int ncol, const int nlay,
     optical_props1_t clouds_lw = get_cloud_optics_lw(ncol, nlay,
                                                      *cloud_optics_lw_k, *k_dist_lw_k,
                                                      lwp, iwp, rel, rei);
+    //Kokkos::deep_copy(cld_tau_sw_bnd, clouds_sw.tau);
+    //Kokkos::deep_copy(cld_tau_lw_bnd, clouds_lw.tau);
+
     // Do subcolumn sampling to map bands -> gpoints based on cloud fraction and overlap assumption;
     // This implements the Monte Carlo Independent Column Approximation by mapping only a single
     // subcolumn (cloud state) to each gpoint.
@@ -473,6 +496,21 @@ rrtmgp_main (const int ncol, const int nlay,
     auto nlwgpts = k_dist_lw_k->get_ngpt();
     auto clouds_lw_gpt = get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts,
                                                clouds_lw, *k_dist_lw_k, cldfrac, p_lay);
+
+    /*
+    // Copy cloud properties to outputs (is this needed, or can we just use pointers?)
+    // Alternatively, just compute and output a subcolumn cloud mask
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nswgpts}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
+    {
+        cld_tau_sw_gpt(icol,ilay,igpt) = clouds_sw_gpt.tau(icol,ilay,igpt);
+    });
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nlwgpts}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
+    {
+        cld_tau_lw_gpt(icol,ilay,igpt) = clouds_lw_gpt.tau(icol,ilay,igpt);
+    });
+    */
 
   // Do shortwave
   rrtmgp_sw(ncol, nlay,
@@ -613,28 +651,16 @@ rrtmgp_sw (const int ncol,
         flux_up    (icol,ilev) = 0;
         flux_dn    (icol,ilev) = 0;
         flux_dn_dir(icol,ilev) = 0;
+        clnclrsky_flux_up    (icol,ilev) = 0;
+        clnclrsky_flux_dn    (icol,ilev) = 0;
+        clnclrsky_flux_dn_dir(icol,ilev) = 0;
         clrsky_flux_up    (icol,ilev) = 0;
         clrsky_flux_dn    (icol,ilev) = 0;
         clrsky_flux_dn_dir(icol,ilev) = 0;
+        clnsky_flux_up    (icol,ilev) = 0;
+        clnsky_flux_dn    (icol,ilev) = 0;
+        clnsky_flux_dn_dir(icol,ilev) = 0;
     });
-    if (extra_clnclrsky_diag) {
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
-                             KOKKOS_LAMBDA (int icol, int ilev)
-        {
-            clnclrsky_flux_up    (icol,ilev) = 0;
-            clnclrsky_flux_dn    (icol,ilev) = 0;
-            clnclrsky_flux_dn_dir(icol,ilev) = 0;
-        });
-    }
-    if (extra_clnsky_diag) {
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
-                             KOKKOS_LAMBDA (int icol, int ilev)
-        {
-            clnsky_flux_up    (icol,ilev) = 0;
-            clnsky_flux_dn    (icol,ilev) = 0;
-            clnsky_flux_dn_dir(icol,ilev) = 0;
-        });
-    }
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ilev, int ibnd)
     {
@@ -907,27 +933,15 @@ rrtmgp_lw (const int ncol,
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
                          KOKKOS_LAMBDA (int icol, int ilev)
     {
-        flux_up(icol, ilev)        = 0;
-        flux_dn(icol, ilev)        = 0;
-        clrsky_flux_up(icol, ilev) = 0;
-        clrsky_flux_dn(icol, ilev) = 0;
+        flux_up(icol, ilev)           = 0;
+        flux_dn(icol, ilev)           = 0;
+        clnclrsky_flux_up(icol, ilev) = 0;
+        clnclrsky_flux_dn(icol, ilev) = 0;
+        clrsky_flux_up(icol, ilev)    = 0;
+        clrsky_flux_dn(icol, ilev)    = 0;
+        clnsky_flux_up(icol, ilev)    = 0;
+        clnsky_flux_dn(icol, ilev)    = 0;
     });
-    if (extra_clnclrsky_diag) {
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
-                             KOKKOS_LAMBDA (int icol, int ilev)
-        {
-            clnclrsky_flux_up(icol, ilev) = 0;
-            clnclrsky_flux_dn(icol, ilev) = 0;
-        });
-    }
-    if (extra_clnsky_diag) {
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
-                             KOKKOS_LAMBDA (int icol, int ilev)
-        {
-            clnsky_flux_up(icol, ilev) = 0;
-            clnsky_flux_dn(icol, ilev) = 0;
-        });
-    }
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ilev, int ibnd)
     {
