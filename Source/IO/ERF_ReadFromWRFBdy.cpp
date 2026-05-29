@@ -512,21 +512,23 @@ convert_wrfbdy_data (const int itime,
         bdy_data_int[ivar].template setVal<RunOn::Device>(0);
     }
 
-    // Temporary heights
-    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
+    // Temporary "NEW" heights (this is the source array)
     amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
-    bdy_c_z_old.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
-    bdy_u_z_old.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
-    bdy_v_z_old.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
     bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
     bdy_u_z_new.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
     bdy_v_z_new.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
-    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
-    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
-    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
     Array4<Real> bdy_c_z_src = bdy_c_z_new.array();
     Array4<Real> bdy_u_z_src = bdy_u_z_new.array();
     Array4<Real> bdy_v_z_src = bdy_v_z_new.array();
+
+    // Temporary "OLD" heights (these are the heights to interpolate to at itime=0)
+    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
+    bdy_c_z_old.resize(bdy_data[0][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_old.resize(bdy_data[0][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_old.resize(bdy_data[0][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
+    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
+    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
 
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
@@ -536,7 +538,7 @@ convert_wrfbdy_data (const int itime,
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
 
-    // For interpolation (remove averaging error)
+    // For height interpolation (removes averaging error)
     Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
 
