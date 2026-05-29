@@ -1261,53 +1261,15 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                         }
                     }
                 } else {
-                    // No-host branch: every SD in this cell has tag > nat_tag
-                    // (cascading de-refinement leftovers).  Pick the first
-                    // surviving SD as the host, merge all others into it, and
-                    // retag the host as nat_tag.
-                    int host_k = -1;
+                    // No native host: retag without merging.  Mass-weighted
+                    // radius averaging inflates cross-section and breaks
+                    // evaporation in long moist runs.
                     for (int k = 0; k < np_bin; k++) {
                         unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() > 0) { host_k = k; break; }
-                    }
-                    if (host_k < 0) { return 0; }
-                    unsigned int h_idx = inds[bin_start + host_k];
-
-                    for (int k = host_k + 1; k < np_bin; k++) {
-                        unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() <= 0) { continue; }
-
-                        ParticleReal xi_e = mult_p[idx];
-                        ParticleReal xi_s = mult_p[h_idx];
-                        ParticleReal xi_new = xi_e + xi_s;
-                        if (xi_new <= ParticleReal(0)) { continue; }
-                        ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
-
-                        mult_p[h_idx] = xi_new;
-                        v_p0[h_idx] = (xi_e * v_p0[idx] + xi_s * v_p0[h_idx]) * inv_xi;
-                        v_p1[h_idx] = (xi_e * v_p1[idx] + xi_s * v_p1[h_idx]) * inv_xi;
-                        v_p2[h_idx] = (xi_e * v_p2[idx] + xi_s * v_p2[h_idx]) * inv_xi;
-
-                        for (int s = 0; s < num_sp; s++) {
-                            sp_mass_p[s][h_idx] = (xi_e * sp_mass_p[s][idx]
-                                                 + xi_s * sp_mass_p[s][h_idx]) * inv_xi;
+                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] > nat_tag) {
+                            active_int_p[idx] = nat_tag;
                         }
-                        for (int a = 0; a < num_ae; a++) {
-                            ae_mass_p[a][h_idx] = (xi_e * ae_mass_p[a][idx]
-                                                 + xi_s * ae_mass_p[a][h_idx]) * inv_xi;
-                        }
-
-                        pstruct_ptr[idx].id() = -1;
-                        bin_merged++;
                     }
-
-                    active_int_p[h_idx] = nat_tag;
-                    updateParticleAttributes(
-                        h_idx, radius_p, mass_p,
-                        idx_w, rho_w, num_sp, num_ae,
-                        sp_sol_p, ae_sol_p,
-                        sp_mass_p, ae_mass_p,
-                        sp_rho_p, ae_rho_p);
                 }
                 return bin_merged;
             });
