@@ -45,6 +45,8 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjThermo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjCell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjMultiFab.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjBoxCoverage.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjTemperatureDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
@@ -54,7 +56,7 @@ target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
 
 include(GoogleTest)
 gtest_discover_tests(${erf_exe_name}
-  DISCOVERY_MODE PRE_TEST
+  DISCOVERY_MODE POST_BUILD
   PROPERTIES
     LABELS "unit"
 )
@@ -73,6 +75,14 @@ if(ERF_ENABLE_MPI)
     set(ERF_PARALLEL_TEST_NRANKS "2")
   endif()
 
+  # Convert variables that may contain space-separated arguments used to build
+  # MPI_COMMANDS in CTestList.txt to lists compatible with COMMAND options below
+  # to handle resource managers with subcommands e.g., flux run
+  separate_arguments(erf_mpiexec_executable UNIX_COMMAND "${MPIEXEC_EXECUTABLE}")
+  separate_arguments(erf_mpiexec_numproc_flag UNIX_COMMAND "${MPIEXEC_NUMPROC_FLAG}")
+  separate_arguments(erf_mpiexec_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
+  separate_arguments(erf_mpiexec_postflags UNIX_COMMAND "${MPIEXEC_POSTFLAGS}")
+
   set(erf_parallel_test_mpiexec_preflags)
 
   if(DEFINED ERF_PARALLEL_TEST_MPIEXEC_PREFLAGS AND
@@ -83,7 +93,7 @@ if(ERF_ENABLE_MPI)
 
   if(ERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE)
     execute_process(
-      COMMAND ${MPIEXEC_EXECUTABLE} --version
+      COMMAND ${erf_mpiexec_executable} --version
       OUTPUT_VARIABLE erf_mpiexec_version_out
       ERROR_VARIABLE erf_mpiexec_version_err
       RESULT_VARIABLE erf_mpiexec_version_result
@@ -114,6 +124,7 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestParallelMain.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestParallelHelloWorld.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
   )
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}
@@ -138,12 +149,12 @@ if(ERF_ENABLE_MPI)
 
     add_test(NAME ${erf_parallel_test_name}
       COMMAND
-        ${MPIEXEC_EXECUTABLE}
-        ${MPIEXEC_NUMPROC_FLAG} ${erf_parallel_nprocs}
-        ${MPIEXEC_PREFLAGS}
+        ${erf_mpiexec_executable}
+        ${erf_mpiexec_numproc_flag} ${erf_parallel_nprocs}
+        ${erf_mpiexec_preflags}
         ${erf_parallel_test_mpiexec_preflags}
         $<TARGET_FILE:${erf_parallel_exe_name}>
-        ${MPIEXEC_POSTFLAGS}
+        ${erf_mpiexec_postflags}
       COMMAND_EXPAND_LISTS
     )
 

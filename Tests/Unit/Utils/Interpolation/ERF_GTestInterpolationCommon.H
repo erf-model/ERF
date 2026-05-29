@@ -579,14 +579,16 @@ amrex::Real upwind3sl_reference_flux (const amrex::Real sp1,
     return myhalf * (f_hi + f_lo);
 }
 
-inline amrex::Real smooth_periodic_function (const amrex::Real x)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real smooth_periodic_function (const amrex::Real x)
 {
     const amrex::Real two_pi = amrex::Real(2.0) * std::acos(amrex::Real(-1.0));
     return std::sin(two_pi * x) + amrex::Real(0.25) * std::cos(amrex::Real(3.0) * two_pi * x);
 }
 
-inline amrex::Real smooth_periodic_cell_average (const int cell,
-                                                 const int num_cells)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real smooth_periodic_cell_average (const int cell,
+                                          const int num_cells)
 {
     const amrex::Real dx = amrex::Real(1.0) / amrex::Real(num_cells);
     const amrex::Real x_lo = dx * amrex::Real(cell);
@@ -601,8 +603,9 @@ inline amrex::Real smooth_periodic_cell_average (const int cell,
     return avg_sin + amrex::Real(0.25) * avg_cos;
 }
 
-inline amrex::Real smooth_periodic_face_value (const int face,
-                                               const int num_cells)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real smooth_periodic_face_value (const int face,
+                                        const int num_cells)
 {
     return smooth_periodic_function(amrex::Real(face) / amrex::Real(num_cells));
 }

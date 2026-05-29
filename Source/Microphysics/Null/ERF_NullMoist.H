@@ -110,6 +110,14 @@ public:
     void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
 
+    virtual
+    void
+    // Current SatAdj/Kessler development paths do not trim by real width, but
+    // tests still exercise Set_RealWidth(0/1/2) as a future-proof contract.
+    // Keep the base hook as a no-op unless a concrete microphysics model
+    // chooses to implement width-sensitive behavior.
+    Set_RealWidth (const int /*real_width*/) { }
+
 
 private:
     int m_qmoist_size = 0;
