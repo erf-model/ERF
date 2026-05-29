@@ -643,6 +643,171 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
     }
 }
 
+/*! \brief Regrid-time merge in cells that lost fine-level coverage.  Builds
+ *  the de-refinement mask on `a_lev - 1` as old_fine_BA minus current_fine_BA
+ *  (refined to clev) and, for masked cells, reduces `np_bin` super-droplets
+ *  to `np_bin / merge_factor` via multiplicity-weighted host-cycling merge.
+ *  Excess SDs are deactivated (id = -1); the surviving heads retain summed
+ *  multiplicity and multiplicity-weighted averaged attributes.  Without this
+ *  pass, oscillating L_{n} -> L_{n+1} -> L_{n} cycles in moist runs leak SDs
+ *  by `merge_factor` per cycle. */
+void SuperDropletPC::MergeParticlesAtDerefinement (
+    int a_lev,
+    const amrex::BoxArray& a_old_fine_ba,
+    const amrex::IntVect& a_ref_ratio)
+{
+    BL_PROFILE("SuperDropletPC::MergeParticlesAtDerefinement()");
+
+    if (!m_split_merge_amr) { return; }
+
+    const int merge_factor = AMREX_D_TERM(a_ref_ratio[0], *a_ref_ratio[1], *a_ref_ratio[2]);
+    if (merge_factor <= 1) { return; }
+    if (a_old_fine_ba.empty()) { return; }
+
+    const int clev = a_lev - 1;
+    AMREX_ALWAYS_ASSERT(clev >= 0);
+
+    const auto& cba = ParticleBoxArray(clev);
+    const auto& cdm = ParticleDistributionMap(clev);
+    iMultiFab mask = makeFineMask(cba, cdm, a_old_fine_ba, a_ref_ratio,
+                                  /*crse_value=*/0, /*fine_value=*/1);
+
+    // Subtract cells still covered by the current fine level: only cells that
+    // genuinely lost coverage need to be merged.
+    if (a_lev <= finestLevel()) {
+        const BoxArray& cur_fine_ba = ParticleBoxArray(a_lev);
+        iMultiFab cur_mask = makeFineMask(cba, cdm, cur_fine_ba, a_ref_ratio,
+                                          /*crse_value=*/0, /*fine_value=*/1);
+        for (MFIter mfi(mask); mfi.isValid(); ++mfi) {
+            auto old_arr = mask[mfi].array();
+            auto cur_arr = cur_mask[mfi].const_array();
+            const Box& bx = mfi.validbox();
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (cur_arr(i,j,k)) { old_arr(i,j,k) = 0; }
+            });
+        }
+        Gpu::synchronize();
+    }
+
+    const auto& geom = m_gdb->Geom(clev);
+    const auto plo    = geom.ProbLoArray();
+    const auto dxi    = geom.InvCellSizeArray();
+    const auto domain = geom.Domain();
+
+    const int num_sp = m_num_species;
+    const int num_ae = m_num_aerosols;
+    const int mf     = merge_factor;
+    const auto ctx   = buildProcessContext(clev);
+    const IntVect bin_size = {AMREX_D_DECL(1,1,1)};
+    Long n_merged = 0;
+
+    forEachParticleTileSerial(clev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* pstruct_ptr,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& /*ctx_unused*/)
+    {
+        const size_t np = static_cast<size_t>(ptrs.num_particles);
+        if (np == 0) { return; }
+
+        Box box = mask[grid].box();
+        int ntiles = numTilesInBox(box, true, bin_size);
+        auto binner = GetParticleBinERF{plo, dxi, domain, bin_size, box};
+        DenseBins<ParticleType> bins;
+        bins.build(np, pstruct_ptr, ntiles, binner);
+        auto inds    = bins.permutationPtr();
+        auto offsets = bins.offsetsPtr();
+
+        auto mask_arr = mask[grid].const_array();
+
+        auto* mult_p   = ptrs.mult_ptr;
+        auto* v_p0     = ptrs.v_ptr[0];
+        auto* v_p1     = ptrs.v_ptr[1];
+        auto* v_p2     = ptrs.v_ptr[2];
+        auto* radius_p = ptrs.radius_ptr;
+        auto* mass_p   = ptrs.mass_ptr;
+        auto sp_mass_p = ptrs.sp_mass_ptrs;
+        auto ae_mass_p = ptrs.ae_mass_ptrs;
+        auto* sp_rho_p = ptrs.sp_rho_arr;
+        auto* sp_sol_p = ptrs.sp_sol_arr;
+        auto* ae_rho_p = ptrs.ae_rho_arr;
+        auto* ae_sol_p = ptrs.ae_sol_arr;
+        auto idx_w     = ctx.idx_water;
+        auto rho_w     = ctx.rho_water;
+
+        int num_bins = bins.numBins();
+
+        auto tile_merged = amrex::Reduce::Sum<Long>(num_bins,
+            [=] AMREX_GPU_DEVICE (int i_bin) -> Long
+        {
+            auto bin_start = offsets[i_bin];
+            auto bin_stop  = offsets[i_bin+1];
+            int np_bin = static_cast<int>(bin_stop - bin_start);
+            if (np_bin < 2) { return 0; }
+
+            unsigned int first_idx = inds[bin_start];
+            IntVect iv = amrex::getParticleCell(pstruct_ptr[first_idx], plo, dxi, domain);
+            if (!mask_arr(iv)) { return 0; }
+
+            int target = np_bin / mf;
+            if (target < 1) { target = 1; }
+            int n_excess = np_bin - target;
+            Long bin_merged = 0;
+
+            for (int k = 0; k < n_excess; k++) {
+                unsigned int i_excess   = inds[bin_start + target + k];
+                unsigned int i_survivor = inds[bin_start + (k % target)];
+
+                ParticleReal xi_e = mult_p[i_excess];
+                ParticleReal xi_s = mult_p[i_survivor];
+                ParticleReal xi_new = xi_e + xi_s;
+                if (xi_new <= ParticleReal(0)) { continue; }
+                ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
+
+                mult_p[i_survivor] = xi_new;
+                v_p0[i_survivor] = (xi_e * v_p0[i_excess] + xi_s * v_p0[i_survivor]) * inv_xi;
+                v_p1[i_survivor] = (xi_e * v_p1[i_excess] + xi_s * v_p1[i_survivor]) * inv_xi;
+                v_p2[i_survivor] = (xi_e * v_p2[i_excess] + xi_s * v_p2[i_survivor]) * inv_xi;
+
+                for (int s = 0; s < num_sp; s++) {
+                    sp_mass_p[s][i_survivor] = (xi_e * sp_mass_p[s][i_excess]
+                                              + xi_s * sp_mass_p[s][i_survivor]) * inv_xi;
+                }
+                for (int a = 0; a < num_ae; a++) {
+                    ae_mass_p[a][i_survivor] = (xi_e * ae_mass_p[a][i_excess]
+                                              + xi_s * ae_mass_p[a][i_survivor]) * inv_xi;
+                }
+
+                pstruct_ptr[i_excess].id() = -1;
+                bin_merged++;
+            }
+
+            for (int k = 0; k < target; k++) {
+                unsigned int idx = inds[bin_start + k];
+                if (pstruct_ptr[idx].id() > 0) {
+                    updateParticleAttributes(
+                        idx, radius_p, mass_p,
+                        idx_w, rho_w, num_sp, num_ae,
+                        sp_sol_p, ae_sol_p,
+                        sp_mass_p, ae_mass_p,
+                        sp_rho_p, ae_rho_p);
+                }
+            }
+
+            return bin_merged;
+        });
+        Gpu::synchronize();
+        n_merged += tile_merged;
+    });
+
+    ParallelDescriptor::ReduceLongSum(n_merged);
+    if (n_merged > 0) {
+        Redistribute(clev, clev);
+        Print() << "MergeParticlesAtDerefinement: merged " << n_merged
+                << " excess particles on L" << clev
+                << " (de-refined from level " << a_lev << ")\n";
+    }
+}
+
 /*! \brief Continuously split new entrants on fine levels, merge departees on
  *  coarse levels, and clean up leftover tags from disappeared levels.  Uses
  *  the tag = level + 1 convention (0 deactivated).
@@ -653,16 +818,15 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
  *                below flev's native value `flev + 1`) by refRatio(clev) and
  *                tag them native to flev.
  *        Part 3: repopulate empty fine cells on flev by cloning a face-
- *                adjacent neighbor.
+ *                adjacent neighbor inside the same coarse parent.
  *    - Per-level (lev = 0..finest):
  *        Part 2: in each cell on `lev`, merge any super-droplets with tag
  *                > lev+1 (leftovers from a finer level that has since drifted
  *                away or vanished) into a native (tag == lev+1) host via
  *                multiplicity-weighted host cycling.  If no native host is
- *                present, pick the first surviving SD as the host, merge all
- *                others in, and retag it native.  This single sweep handles
- *                per-step departees, regrid-time leftovers from disappeared
- *                finer levels, and cascading de-refinement in one pass.
+ *                present, the over-tag SDs are retagged native without
+ *                merging; count reduction at de-refinement is handled by
+ *                MergeParticlesAtDerefinement at regrid time.
  */
 void SuperDropletPC::SplitMergeAtLevelBoundary ()
 {
