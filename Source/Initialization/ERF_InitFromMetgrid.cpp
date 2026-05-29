@@ -77,7 +77,10 @@ ERF::init_from_metgrid (int lev)
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
     }
-    if (use_erfbdy || write_erfbdy) nvars_erfbdy = MetGridBdyVars::NumTypes;
+    // Set nvars_erfbdy based on whether moisture is enabled
+    if (use_erfbdy || write_erfbdy) {
+        nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
+    }
 
     // If the erfbdy file exists, load boundary data and skip met_em processing.
     if (lev == 0 && use_erfbdy) {
