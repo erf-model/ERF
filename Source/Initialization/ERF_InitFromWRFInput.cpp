@@ -1356,9 +1356,9 @@ init_terrain_from_wrfinput (int /*lev*/,
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells
-        int ilo = z_face_box.smallEnd()[0] + 1;
+        int ilo = z_face_box.smallEnd()[0];
         int ihi = z_face_box.bigEnd()[0];
-        int jlo = z_face_box.smallEnd()[1] + 1;
+        int jlo = z_face_box.smallEnd()[1];
         int jhi = z_face_box.bigEnd()[1];
         int klo = z_face_box.smallEnd()[2];
         int khi = z_face_box.bigEnd()[2];
@@ -1368,37 +1368,40 @@ init_terrain_from_wrfinput (int /*lev*/,
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
 
+            int im = std::max(std::min(i-1,ihi),ilo);
+            int jm = std::max(std::min(j-1,jhi),jlo);
+
             if (k < klo) {
-                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
-                                              nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
-                                              nc_phb_arr(ii,jj  ,klo  ) + nc_phb_arr(ii-1,jj  ,klo  ) +
-                                              nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
-                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo+1) + nc_ph_arr (ii-1,jj  ,klo+1) +
-                                              nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
-                                              nc_phb_arr(ii,jj  ,klo+1) + nc_phb_arr(ii-1,jj  ,klo+1) +
-                                              nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
+                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
+                                              nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
+                                              nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
+                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
+                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
+                                              nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
+                                              nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
+                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
                 z_arr(i, j, k) = two * z_klo - z_klop1;
             } else if (k > khi) {
-                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,khi-1) + nc_ph_arr (ii-1,jj  ,khi-1) +
-                                              nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
-                                              nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +
-                                              nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
+                                              nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
+                                              nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
+                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
                 z_arr(i, j, k) = two * z_top - z_khim1;
             } else if (k == khi) {
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
                 //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
                 //       will end up smoothing the terrain as we average from surface face centers
                 //       to nodes.
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
             }
         });
 

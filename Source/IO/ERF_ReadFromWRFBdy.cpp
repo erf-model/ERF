@@ -544,6 +544,13 @@ convert_wrfbdy_data (const int itime,
     int klo  = domain.smallEnd()[2];
     int khi  = domain.bigEnd()[2];
 
+    // PH bounds limiting
+    Box ph_bx  = bdy_data[itime][WRFBdyVars::PH].box();
+    int ilo_ph = ph_bx.smallEnd()[0];
+    int ihi_ph = ph_bx.bigEnd()[0];
+    int jlo_ph = ph_bx.smallEnd()[1];
+    int jhi_ph = ph_bx.bigEnd()[1];
+
     for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
     {
         Box tbx = mfi.tilebox();
@@ -580,46 +587,69 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> z_arr   = z_phys_nd->array(mfi);
         Array4<Real> PHB_arr = wrf_PHB->array(mfi);
 
-        // Examine z change
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        // New z values
+        ParallelFor(bx_t, bx_u, bx_v,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Prevent averaging outside domain and match init from WRF input
-            int ii = std::max(std::min(i,ihi),ilo+1);
-            int jj = std::max(std::min(j,jhi),jlo+1);
-
             // Mass coupling
-            Real mu     = mu_arr(ii  ,jj  ,0) + mub_arr(ii  ,jj  ,0);
-            Real mu_im  = mu_arr(ii-1,jj  ,0) + mub_arr(ii-1,jj  ,0);
-            Real mu_jm  = mu_arr(ii  ,jj-1,0) + mub_arr(ii  ,jj-1,0);
+            Real mu   = mu_arr(i ,j ,0) + mub_arr(i ,j ,0);
 
             // Pert and base geopotential
-            Real P       = PHB_arr(ii  ,jj  ,k  ) + bdy_ph_arr(ii  ,jj  ,k  )/mu   ;
-            Real P_im    = PHB_arr(ii-1,jj  ,k  ) + bdy_ph_arr(ii-1,jj  ,k  )/mu_im;
-            Real P_jm    = PHB_arr(ii  ,jj-1,k  ) + bdy_ph_arr(ii  ,jj-1,k  )/mu_jm;
-            Real P_kp    = PHB_arr(ii  ,jj  ,k+1) + bdy_ph_arr(ii  ,jj  ,k+1)/mu   ;
-            Real P_im_kp = PHB_arr(ii-1,jj  ,k+1) + bdy_ph_arr(ii-1,jj  ,k+1)/mu_im;
-            Real P_jm_kp = PHB_arr(ii  ,jj-1,k+1) + bdy_ph_arr(ii  ,jj-1,k+1)/mu_jm;
+            Real P    = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu;
+            Real P_kp = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu;
 
             // New heights
-            bdy_c_z_dst(i,j,k) = Real(0.5 ) * ( P + P_kp );
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp );
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp );
+            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
 
             // Original heights
             bdy_c_z_src(i,j,k) = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
                                                + z_arr(i,j,k+1) + z_arr(i+1,j  ,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
-            bdy_u_z_src(i,j,k) = Real(0.25 ) * ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j  ,k+1) + z_arr(i+1,j  ,k+1) );
-            bdy_v_z_src(i,j,k) = Real(0.25 ) * ( z_arr(i,j,k  ) + z_arr(i  ,j+1,k  ) + z_arr(i,j  ,k+1) + z_arr(i  ,j+1,k+1) );
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
+            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
 
-            // Fill for nodal data
-            if (i==ihi) {
-                bdy_u_z_dst(i+1,j,k) = bdy_u_z_dst(i,j,k);
-                bdy_u_z_src(i+1,j,k) = bdy_u_z_src(i,j,k);
-            }
-            if (j==jhi) {
-                bdy_v_z_dst(i,j+1,k) = bdy_v_z_dst(i,j,k);
-                bdy_v_z_src(i,j+1,k) = bdy_v_z_src(i,j,k);
-            }
+            // Mass coupling
+            Real mu     = mu_arr(ii,j ,0) + mub_arr(ii,j ,0);
+            Real mu_im  = mu_arr(im,j ,0) + mub_arr(im,j ,0);
+
+            // Pert and base geopotential
+            Real P       = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu   ;
+            Real P_im    = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im;
+            Real P_kp    = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu   ;
+            Real P_im_kp = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im;
+
+            // New heights
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( z_arr(i,j  ,k  ) + z_arr(i,j+1,k  )
+                                              + z_arr(i,j  ,k+1) + z_arr(i,j+1,k+1) );
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
+            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
+
+            // Mass coupling
+            Real mu     = mu_arr(i ,jj,0) + mub_arr(i ,jj,0);
+            Real mu_jm  = mu_arr(i ,jm,0) + mub_arr(i ,jm,0);
+
+            // Pert and base geopotential
+            Real P       = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu   ;
+            Real P_jm    = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm;
+            Real P_kp    = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu   ;
+            Real P_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm;
+
+            // New heights
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  )
+                                              + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) );
         });
 
         // Define u velocity
