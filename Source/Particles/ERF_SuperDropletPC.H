@@ -377,6 +377,13 @@ class SuperDropletPC : public ERFPC
          *  levels are folded into the same per-level tag-normalizing sweep. */
         void SplitMergeAtLevelBoundary () override;
 
+        /*! \brief Regrid-time merge in cells that lost fine-level coverage.
+         *  Reduces super-droplet count to `np_bin / merge_factor` so the
+         *  coarse-level density is restored after de-refinement. */
+        void MergeParticlesAtDerefinement ( int a_lev,
+                                            const amrex::BoxArray& a_old_fine_ba,
+                                            const amrex::IntVect& a_ref_ratio ) override;
+
         /*! \brief Whether split/merge across AMR levels is enabled. */
         bool splitMergeAMR () const { return m_split_merge_amr; }
 

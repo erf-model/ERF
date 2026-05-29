@@ -213,6 +213,14 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
          *  super-droplet density across levels.  Default no-op. */
         virtual void SplitMergeAtLevelBoundary () {}
 
+        /*! Regrid-time de-refinement merge.  For cells that were in the old
+         *  fine BoxArray at level `a_lev` but are no longer in the current
+         *  one, reduces the coarse-level super-droplet count from `np_bin`
+         *  to `np_bin / merge_factor`.  Default no-op. */
+        virtual void MergeParticlesAtDerefinement ( int /*a_lev*/,
+                                                    const amrex::BoxArray& /*a_old_fine_ba*/,
+                                                    const amrex::IntVect& /*a_ref_ratio*/ ) {}
+
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
