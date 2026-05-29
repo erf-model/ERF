@@ -536,6 +536,10 @@ convert_wrfbdy_data (const int itime,
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
 
+    // For interpolation (remove averaging error)
+    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
+    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
+
     // Bounds limiting
     int ilo  = domain.smallEnd()[0];
     int ihi  = domain.bigEnd()[0];
@@ -592,18 +596,20 @@ convert_wrfbdy_data (const int itime,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Mass coupling
-            Real mu   = mu_arr(i ,j ,0) + mub_arr(i ,j ,0);
+            Real mu    = mu_arr(i ,j ,0) + mub_arr(i ,j ,0);
+            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
 
             // Pert and base geopotential
-            Real P    = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu;
-            Real P_kp = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu;
+            Real P     = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
+            Real P_kp  = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
+            Real P0    = PHB_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
+            Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
 
             // New heights
             bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_c_z_src(i,j,k) = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j  ,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                               + z_arr(i,j,k+1) + z_arr(i+1,j  ,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -612,21 +618,26 @@ convert_wrfbdy_data (const int itime,
             int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
 
             // Mass coupling
-            Real mu     = mu_arr(ii,j ,0) + mub_arr(ii,j ,0);
-            Real mu_im  = mu_arr(im,j ,0) + mub_arr(im,j ,0);
+            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
+            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
+            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
+            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
 
             // Pert and base geopotential
-            Real P       = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu   ;
-            Real P_im    = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im;
-            Real P_kp    = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu   ;
-            Real P_im_kp = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im;
+            Real P        = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
+            Real P_im     = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
+            Real P_kp     = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
+            Real P_im_kp  = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
+            Real P0       = PHB_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
+            Real P0_im    = PHB_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
+            Real P0_kp    = PHB_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
+            Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
 
             // New heights
             bdy_u_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_u_z_src(i,j,k) = Real(0.25) * ( z_arr(i,j  ,k  ) + z_arr(i,j+1,k  )
-                                              + z_arr(i,j  ,k+1) + z_arr(i,j+1,k+1) );
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -635,21 +646,26 @@ convert_wrfbdy_data (const int itime,
             int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
 
             // Mass coupling
-            Real mu     = mu_arr(i ,jj,0) + mub_arr(i ,jj,0);
-            Real mu_jm  = mu_arr(i ,jm,0) + mub_arr(i ,jm,0);
+            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
+            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
+            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
+            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
 
             // Pert and base geopotential
-            Real P       = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu   ;
-            Real P_jm    = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm;
-            Real P_kp    = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu   ;
-            Real P_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm;
+            Real P        = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
+            Real P_jm     = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
+            Real P_kp     = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
+            Real P_jm_kp  = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
+            Real P0       = PHB_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
+            Real P0_jm    = PHB_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
+            Real P0_kp    = PHB_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
+            Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
 
             // New heights
             bdy_v_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_v_z_src(i,j,k) = Real(0.25) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  )
-                                              + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) );
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
         });
 
         // Define u velocity
@@ -716,111 +732,100 @@ convert_wrfbdy_data (const int itime,
         });
 
         // Interpolate in height
-        if (itime > 0) {
-            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (mask_c_arr(i,j,k)) {
-                    if (k>klo && k<khi) {
-                        int kstart, kend;
-                        Real z_dst, z_hi_src, z_lo_src;
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
 
-                        kstart   = k - 1;
-                        z_dst    = bdy_c_z_dst(i,j,k);
-                        z_lo_src = bdy_c_z_src(i,j,kstart);
+                kstart   = k - amrex::min(3,k);
+                z_dst    = bdy_c_z_dst(i,j,k);
+                z_lo_src = bdy_c_z_src(i,j,kstart);
 
-                        bool found = false;
-                        for (int lk(kstart+1); lk<khi; ++lk) {
-                            z_hi_src = bdy_c_z_src(i,j,lk);
-                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                                found = true;
-                                kend  = lk;
-                                break;
-                            }
-                            z_lo_src = z_hi_src;
-                            kstart   = lk;
-                        }
-
-                        amrex::ignore_unused(found);
-                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY CC interpolation could not find bounding heights!");
-
-                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                        bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
-                        bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
-                    } else {
-                        bdy_t_int(i,j,k) =  bdy_t_tmp(i,j,k);
-                        bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_c_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
                     }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
                 }
-            });
 
-            ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (mask_u_arr(i,j,k)) {
-                    if (k>klo && k<khi) {
-                        int kstart, kend;
-                        Real z_dst, z_hi_src, z_lo_src;
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                } else {
+                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
+                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                }
+            }
+        });
 
-                        kstart   = k - 1;
-                        z_dst    = bdy_u_z_dst(i,j,k);
-                        z_lo_src = bdy_u_z_src(i,j,kstart);
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
 
-                        bool found = false;
-                        for (int lk(kstart+1); lk<khi; ++lk) {
-                            z_hi_src = bdy_u_z_src(i,j,lk);
-                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                                found = true;
-                                kend  = lk;
-                                break;
-                            }
-                            z_lo_src = z_hi_src;
-                            kstart   = lk;
-                        }
+                kstart   = k - amrex::min(3,k);;
+                z_dst    = bdy_u_z_dst(i,j,k);
+                z_lo_src = bdy_u_z_src(i,j,kstart);
 
-                        amrex::ignore_unused(found);
-                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY U interpolation could not find bounding heights!");
-
-                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                        bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
-                    } else {
-                        bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_u_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
                     }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
                 }
-            });
 
-            ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (mask_v_arr(i,j,k)) {
-                    if (k>klo && k<khi) {
-                        int kstart, kend;
-                        Real z_dst, z_hi_src, z_lo_src;
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
+                } else {
+                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                }
+            }
+        });
 
-                        kstart   = k - 1;
-                        z_dst    = bdy_v_z_dst(i,j,k);
-                        z_lo_src = bdy_v_z_src(i,j,kstart);
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
 
-                        bool found = false;
-                        for (int lk(kstart+1); lk<khi; ++lk) {
-                            z_hi_src = bdy_v_z_src(i,j,lk);
-                            if (z_dst > z_lo_src && z_dst < z_hi_src) {
-                                found = true;
-                                kend  = lk;
-                                break;
-                            }
-                            z_lo_src = z_hi_src;
-                            kstart   = lk;
-                        }
+                kstart   = k - amrex::min(3,k);;
+                z_dst    = bdy_v_z_dst(i,j,k);
+                z_lo_src = bdy_v_z_src(i,j,kstart);
 
-                        amrex::ignore_unused(found);
-                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "BDY V interpolation could not find bounding heights!");
-
-                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                        bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
-                    } else {
-                        bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_v_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
                     }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
                 }
-            });
-        } // itime==0
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
+                } else {
+                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                }
+            }
+        });
     } // mfi
 
 
