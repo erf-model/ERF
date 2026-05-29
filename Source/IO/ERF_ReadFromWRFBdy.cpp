@@ -506,7 +506,6 @@ convert_wrfbdy_data (const int itime,
     }
 
     // Temporary bdy data structures for interpolation
-    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
     amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
     for (int ivar(0); ivar < vsize; ++ivar) {
         bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
