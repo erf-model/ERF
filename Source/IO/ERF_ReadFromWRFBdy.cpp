@@ -513,20 +513,20 @@ convert_wrfbdy_data (const int itime,
     }
 
     // Temporary heights
-    amrex::FArrayBox bdy_c_z_org, bdy_u_z_org, bdy_v_z_org;
-    amrex::FArrayBox bdy_c_z_tmp, bdy_u_z_tmp, bdy_v_z_tmp;
-    bdy_c_z_org.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
-    bdy_u_z_org.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
-    bdy_v_z_org.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
-    bdy_c_z_tmp.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
-    bdy_u_z_tmp.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
-    bdy_v_z_tmp.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
-    Array4<Real> bdy_c_z_src = bdy_c_z_org.array();
-    Array4<Real> bdy_u_z_src = bdy_u_z_org.array();
-    Array4<Real> bdy_v_z_src = bdy_v_z_org.array();
-    Array4<Real> bdy_c_z_dst = bdy_c_z_tmp.array();
-    Array4<Real> bdy_u_z_dst = bdy_u_z_tmp.array();
-    Array4<Real> bdy_v_z_dst = bdy_v_z_tmp.array();
+    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
+    amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
+    bdy_c_z_old.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_old.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_old.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_new.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_new.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
+    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
+    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
+    Array4<Real> bdy_c_z_src = bdy_c_z_new.array();
+    Array4<Real> bdy_u_z_src = bdy_u_z_new.array();
+    Array4<Real> bdy_v_z_src = bdy_v_z_new.array();
 
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
@@ -596,7 +596,7 @@ convert_wrfbdy_data (const int itime,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Mass coupling
-            Real mu    = mu_arr(i ,j ,0) + mub_arr(i ,j ,0);
+            Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
             Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
 
             // Pert and base geopotential
@@ -606,10 +606,10 @@ convert_wrfbdy_data (const int itime,
             Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
 
             // New heights
-            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
+            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -634,10 +634,10 @@ convert_wrfbdy_data (const int itime,
             Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
 
             // New heights
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_u_z_src(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -662,10 +662,10 @@ convert_wrfbdy_data (const int itime,
             Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
 
             // New heights
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_v_z_src(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
         });
 
         // Define u velocity
@@ -738,7 +738,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(3,k);
+                kstart   = k - amrex::min(5,k);
                 z_dst    = bdy_c_z_dst(i,j,k);
                 z_lo_src = bdy_c_z_src(i,j,kstart);
 
@@ -771,7 +771,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(3,k);;
+                kstart   = k - amrex::min(5,k);
                 z_dst    = bdy_u_z_dst(i,j,k);
                 z_lo_src = bdy_u_z_src(i,j,kstart);
 
@@ -802,7 +802,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(3,k);;
+                kstart   = k - amrex::min(5,k);
                 z_dst    = bdy_v_z_dst(i,j,k);
                 z_lo_src = bdy_v_z_src(i,j,kstart);
 
