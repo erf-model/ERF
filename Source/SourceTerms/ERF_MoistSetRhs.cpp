@@ -2,7 +2,6 @@
 
 #include <ERF_SrcHeaders.H>
 #include <ERF_Utils.H>
-//#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -255,6 +254,5 @@ moist_set_rhs (const Geometry& geom,
     });
     exit(0);
     */
-
 } // moist_set_rhs
 #endif
