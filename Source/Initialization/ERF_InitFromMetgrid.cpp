@@ -19,31 +19,36 @@ using namespace amrex;
 Real
 read_start_time_from_metgrid(int lev, const std::string& fname)
 {
-    std::string NC_dateTime;
-    Real        NC_epochTime;
+    Real NC_epochTime;
+    const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
+
     if (ParallelDescriptor::IOProcessor()) {
-        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        // Read the time stamps
+        using CharArray = NDArray<char>;
+        Vector<CharArray> array_ts(1);
+        Vector<int> success(1);
+        ReadNetCDFFile(fname, {"Times"}, array_ts, success);
 
-        // Read the Times variable (character array).
-        auto times_var = ncf.var("Times");
-        std::vector<size_t> start = {0, 0};  // Time index 0, character index 0.
-        std::vector<size_t> count = times_var.shape();
-        count[0] = 1;  // Read only the first time entry.
+        int ntimes = array_ts[0].get_vshape()[0];
+        auto dateStrLen = array_ts[0].get_vshape()[1];
+        char timeStamps[ntimes][dateStrLen];
 
-        // Allocate buffer for the time string.
-        std::vector<char> time_chars(count[1]);
-        times_var.get(time_chars.data(), start, count);
+        // Fill up the characters read
+        int str_len = static_cast<int>(dateStrLen);
+        for (int nt(0); nt < ntimes; nt++) {
+            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
+                auto n = nt*dateStrLen + dateStrCt;
+                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
+            }
+        }
 
-        // Convert to std::string and trim trailing whitespace/null characters.
-        NC_dateTime = std::string(time_chars.begin(), time_chars.end());
-        NC_dateTime.erase(NC_dateTime.find_last_not_of(" \0") + 1);
+        // Extract the first time entry
+        std::string date(&timeStamps[0][0], &timeStamps[0][dateStrLen-1]+1);
+        auto epochTime = getEpochTime(date, dateTimeFormat);
+        Print() << "  metgrid datetime 0 : " << date << " " << epochTime << std::endl;
+        NC_epochTime = static_cast<Real>(epochTime);
 
-        const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
-        NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
-
-        ncf.close();
-
-        amrex::Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        amrex::Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
     }
 
