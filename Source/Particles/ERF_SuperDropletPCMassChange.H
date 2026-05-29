@@ -918,6 +918,36 @@ namespace SDMassChangeUtils_SV
             return retval;
         }
 
+        /*! \brief Ice melt rate dm_ice/dt (Pruppacher-Klett; Seifert-Beheng 2006 Eq. 72).
+         *  Negative when melting. Heat conducted from warm air plus latent heat of the
+         *  vapour flux to the 0 degC wet surface, divided by the latent heat of fusion.
+         *  Reuses capacitance and ventilation. For this functor built with the water
+         *  material, L is the latent heat of vaporization, K the air thermal
+         *  conductivity, and Rv the vapour gas constant. */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT meltRate ( const RT a_a,         /*!< equatorial radius */
+                      const RT a_c,         /*!< polar radius */
+                      const RT a_vterm,     /*!< terminal velocity */
+                      const RT a_T,         /*!< temperature */
+                      const RT a_e_inf,     /*!< ambient vapour pressure */
+                      const RT a_e_sat_wT0, /*!< sat. pressure over water at melting point */
+                      const RT a_rhom,      /*!< moist density */
+                      const RT a_D,         /*!< vapour diffusion coeff */
+                      const RT a_L_f        /*!< latent heat of fusion */ ) const noexcept
+        {
+            auto capaci = capacitance(a_a, a_c);
+            auto X_vent = ventX(a_a, a_c, a_vterm, a_T, a_rhom, a_D);
+
+            RT f_vent = RT(0.0);
+            if (X_vent <= RT(1.0)) { f_vent = RT(1.0) + RT(0.14)*X_vent*X_vent; }
+            else               { f_vent = RT(0.86) + RT(0.28)*X_vent; }
+
+            RT T0 = RT(tmelt);
+            RT heat =   K * f_vent * (a_T - T0)
+                      + (L*a_D/Rv) * (a_e_inf/a_T - a_e_sat_wT0/T0) * f_vent;
+            return -(RT(4.0)*PI*capaci/a_L_f) * heat;
+        }
+
     };
 
     /*! \brief Implicit and explicit time integrators for the phase change equation */

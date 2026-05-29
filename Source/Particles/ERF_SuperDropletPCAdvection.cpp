@@ -145,7 +145,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 } else {
                     amrex::Abort("Invalid option for water droplet terminal velocity model");
                 }
-            } else if (par_phase == SDPhase::ice) {
+            } else if ((par_phase == SDPhase::ice) || (par_phase == SDPhase::mixed)) {
+                // wet (mixed) ice falls with its ice frame, loaded by the meltwater mass;
+                // SD_total_mass already includes the liquid, ice_rho uses the ice core
                 AMREX_ALWAYS_ASSERT(ctx.idx_ice >= 0);
                 if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
                     terminal_vel = term_vel.AtlasUlbrich( r_eff );

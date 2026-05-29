@@ -764,9 +764,12 @@ void SuperDropletPC::Coalescence( int   a_lev,
             int pj = partner_idx_ptr[i]; // predator - lower multiplicity
             AMREX_ALWAYS_ASSERT(ptrs.mult_ptr[pi] >= ptrs.mult_ptr[pj]);
 
-            // get phases for the two particles
+            // get phases for the two particles; a mixed wet-ice particle collides via
+            // its ice frame, so treat it as ice for kernel selection
             auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
             auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
+            if (phase_i == SDPhase::mixed) { phase_i = SDPhase::ice; }
+            if (phase_j == SDPhase::mixed) { phase_j = SDPhase::ice; }
 
             ParticleReal k_val = ParticleReal(zero);
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
@@ -1003,9 +1006,12 @@ void SuperDropletPC::Coalescence( int   a_lev,
             const auto j = partner_idx_ptr[i];
             if (j < 0) { return; }
 
-            // get phases for the two particles
+            // get phases for the two particles; a mixed wet-ice particle collides via
+            // its ice frame, so treat it as ice for the collision outcome
             auto phase_i = SD_phase(i, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
             auto phase_j = SD_phase(j, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
+            if (phase_i == SDPhase::mixed) { phase_i = SDPhase::ice; }
+            if (phase_j == SDPhase::mixed) { phase_j = SDPhase::ice; }
 
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
 

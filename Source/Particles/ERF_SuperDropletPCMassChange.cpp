@@ -5,6 +5,7 @@
 #include "ERF_Constants.H"
 #include "ERF_SuperDropletPCMassChange.H"
 #include "ERF_InterpolationUtils.H"
+#include "ERF_MicrophysicsUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -45,7 +46,7 @@ namespace SDMassChangeUtils_SV {
 AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
 /*! \brief Field indices for solid-liquid interpolation */
-AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, NUM_FIELDS);
+AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, moist_density, NUM_FIELDS);
 
 /*! \brief Field indices for solid-vapour interpolation */
 AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density, NUM_FIELDS);
@@ -143,9 +144,10 @@ void SuperDropletPC::MassChange_LV (  int                                       
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
-            // skip ice particles
+            // skip particles with an ice core (pure ice or mixed); the melt step owns
+            // wet-ice/vapour exchange
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
-            if (a_is_water && (par_phase == SDPhase::ice)) { return; }
+            if (a_is_water && (par_phase != SDPhase::water)) { return; }
 
             if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
 
@@ -262,11 +264,11 @@ void SuperDropletPC::MassChange_SL (  int                                       
                                       Real                                        a_dt,
                                       const MultiFab&                             a_temperature,
                                       const MultiFab&                             a_sat_ratio,
+                                      const MultiFab&                             a_moist_density,
                                       const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::MassChange_SL()");
     AMREX_ASSERT(a_lev >= 0 && a_lev <= finestLevel());
-    amrex::ignore_unused(a_dt);
 
     if (m_idx_i < 0) { return; } // ice not being modeled
 
@@ -275,6 +277,18 @@ void SuperDropletPC::MassChange_SL (  int                                       
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
+
+    // Water material and constants for the gradual melt rate (Seifert-Beheng 2006)
+    const MaterialProperties water_mat(*(m_species_mat[m_idx_w]));
+    const MaterialPropertiesCore& water_core = water_mat;
+    const ParticleReal melt_L_f = static_cast<ParticleReal>(water_core.m_lat_fus);
+    const ParticleReal melt_D   = static_cast<ParticleReal>(diffelq); // vapour diffusivity (water)
+    const ParticleReal e_sat_w_T0 = static_cast<ParticleReal>(erf_esatw(static_cast<Real>(tmelt))*Real(100));
+    SDMassChangeUtils_SV::dMdt<ParticleReal> dmelt{ static_cast<ParticleReal>(water_core.m_lat_vap),
+                                                    static_cast<ParticleReal>(therco),
+                                                    static_cast<ParticleReal>(water_core.m_Rv),
+                                                    static_cast<ParticleReal>(water_core.m_density) };
+    const ParticleReal ice_mass_min = static_cast<ParticleReal>(3.8403e-24); // ~1nm ice sphere
 
     forEachParticleTile(a_lev, ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
@@ -285,6 +299,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
+        const auto& moist_density_arr = a_moist_density[grid].array();
 
         ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -294,21 +309,22 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
             if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
 
-            // Interpolate temperature, saturation ratio
+            // Interpolate temperature, saturation ratio, moist density
             constexpr int nf = static_cast<int>(InterpFieldsSL::NUM_FIELDS);
             ParticleReal fv[nf];
             const Array4<const Real> fa[nf] = {
-                temperature_arr, sat_ratio_arr
+                temperature_arr, sat_ratio_arr, moist_density_arr
             };
             ERF::Interpolation::interpolateFields(
                 p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto temperature = fv[static_cast<int>(InterpFieldsSL::temperature)];
             const auto sat_ratio   = fv[static_cast<int>(InterpFieldsSL::sat_ratio)];
+            const auto moist_density = fv[static_cast<int>(InterpFieldsSL::moist_density)];
 
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
-                // SD is water, check for freezing
+                // SD is liquid water, check for freezing
                 if ((temperature <= ptrs.Tfz_ptr[i]) && (sat_ratio > one)) {
                     ptrs.sp_mass_ptrs[ctx.idx_ice][i] = ptrs.sp_mass_ptrs[ctx.idx_water][i];
                     ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
@@ -317,17 +333,53 @@ void SuperDropletPC::MassChange_SL (  int                                       
                     ptrs.nmono_ptr[i] = one;
                 }
 
-            } else if (par_phase == SDPhase::ice) {
-
-                // SD is ice, check for melting
-                if (temperature > tmelt /* from ERF_Constants.H */) {
-                    ptrs.sp_mass_ptrs[ctx.idx_water][i] = ptrs.sp_mass_ptrs[ctx.idx_ice][i];
-                    ptrs.sp_mass_ptrs[ctx.idx_ice][i] = zero;
-                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = ptrs.mrime_ptr[i] = ptrs.nmono_ptr[i] = zero;
-                }
-
             } else {
-                amrex::Abort("Unknown value for particle phase (must be ice or water)");
+
+                // SD has an ice core (pure ice or mixed wet ice)
+                auto m_ice   = ptrs.sp_mass_ptrs[ctx.idx_ice][i];
+                auto m_water = ptrs.sp_mass_ptrs[ctx.idx_water][i];
+
+                if ((temperature > tmelt) && (m_ice > zero)) {
+
+                    // Gradual melting (Seifert-Beheng 2006): meltwater accumulates on the
+                    // particle, which becomes a mixed ice-water (wet) super-droplet.
+                    auto e_sat_w_T = static_cast<ParticleReal>(erf_esatw(static_cast<Real>(temperature))*Real(100));
+                    auto e_inf = sat_ratio * e_sat_w_T;
+                    auto mdot = dmelt.meltRate( ptrs.a_ptr[i], ptrs.c_ptr[i], ptrs.vterm_ptr[i],
+                                                temperature, e_inf, e_sat_w_T0,
+                                                moist_density, melt_D, melt_L_f );
+
+                    if (mdot < zero) { // melt only; sublimational cooling does not refreeze here
+                        auto dm = std::max(mdot*static_cast<ParticleReal>(a_dt), -m_ice);
+                        auto m_ice_new = m_ice + dm;
+                        if (m_ice_new <= ice_mass_min) {
+                            // fully melted: pure water droplet
+                            ptrs.sp_mass_ptrs[ctx.idx_water][i] = m_water + m_ice;
+                            ptrs.sp_mass_ptrs[ctx.idx_ice][i]   = zero;
+                            ptrs.a_ptr[i] = ptrs.c_ptr[i] = ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
+                        } else {
+                            // partial melt: shrink ice core, keep aspect ratio and apparent density
+                            auto frac  = m_ice_new/m_ice;
+                            auto scale = std::cbrt(frac);
+                            ptrs.a_ptr[i] *= scale;
+                            ptrs.c_ptr[i] *= scale;
+                            ptrs.mrime_ptr[i] *= frac;
+                            ptrs.sp_mass_ptrs[ctx.idx_ice][i]   = m_ice_new;
+                            ptrs.sp_mass_ptrs[ctx.idx_water][i] = m_water - dm; // dm<0 -> water grows
+                        }
+                    }
+
+                } else if ((temperature < tmelt) && (m_water > zero) && (m_ice > zero)) {
+
+                    // Mixed particle in subfreezing air: refreeze the liquid film onto the core
+                    auto m_ice_new = m_ice + m_water;
+                    auto scale = std::cbrt(m_ice_new/m_ice);
+                    ptrs.a_ptr[i] *= scale;
+                    ptrs.c_ptr[i] *= scale;
+                    ptrs.sp_mass_ptrs[ctx.idx_ice][i]   = m_ice_new;
+                    ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
+                }
             }
 
             // update particle attributes
@@ -395,9 +447,10 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
-            // skip water particles
+            // deposition/sublimation acts on a pure-ice surface only; skip water and
+            // mixed wet-ice particles (the latter are melting, not depositing)
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
-            if (par_phase == SDPhase::water) { return; }
+            if (par_phase != SDPhase::ice) { return; }
 
             if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
 

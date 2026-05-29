@@ -386,11 +386,28 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
         });
     }
 
+    // Moist air density for the melt-rate ventilation factor
+    MultiFab mf_moist_density(  m_mic_fab_vars[a_lev][MicVar_SD::rho]->boxArray(),
+                                m_mic_fab_vars[a_lev][MicVar_SD::rho]->DistributionMap(),
+                                1,
+                                m_mic_fab_vars[a_lev][MicVar_SD::rho]->nGrowVect() );
+    for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
+        Box bx = mfi.tilebox();
+        bx.grow(qv_ptr->nGrowVect());
+        auto qv_arr = qv_ptr->const_array(mfi);
+        auto rho_arr = m_mic_fab_vars[a_lev][MicVar_SD::rho]->const_array(mfi);
+        auto rhom_arr = mf_moist_density.array(mfi);
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                     { rhom_arr(i,j,k) = (1.0+qv_arr(i,j,k)) * rho_arr(i,j,k); } );
+    }
+    mf_moist_density.FillBoundary();
+
     // Compute super-droplets mass change
     m_super_droplets->MassChange_SL ( a_lev,
                                       a_dt,
                                       (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
                                       (*sr_ptr),
+                                      mf_moist_density,
                                       a_z );
 
     // Compute new cloud/rain mixing ratios
