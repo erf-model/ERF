@@ -144,7 +144,7 @@ amrex::Real periodic_l2_error (const AdvType adv_type,
     });
     gpu_sync();
 
-    // Use ReduceOps since we operating on a single FArrayBox
+    // Use ReduceOps since we're operating on a single FArrayBox
     const auto out_const_arr = output.const_array();
     amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
     amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
