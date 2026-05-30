@@ -64,6 +64,7 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
     constexpr amrex::Real svp2  = amrex::Real(17.67);
     constexpr amrex::Real svp3  = amrex::Real(29.65);
     constexpr amrex::Real svpt0 = amrex::Real(273.15);
+    amrex::Print() << "COMPUTING WITH " << t << std::endl;
     amrex::Real esatw = amrex::Real(10.0) * svp1 * std::exp(svp2 * (t - svpt0) / (t - svp3));
     return esatw;
 }
@@ -132,6 +133,7 @@ amrex::Real erf_esatw (amrex::Real t, bool use_empirical=false)
         return erf_esatw_flatau_poly(t - amrex::Real(273.16));
     }
 
+    amrex::Print() << "ASKING FOR ESAT WITH " << t << std::endl;
     return erf_esatw_cc(t);
 }
 

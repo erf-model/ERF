@@ -17,7 +17,7 @@ using namespace amrex;
  * @param[out] mfs_mom Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
  */
 void
-ERF::FillPatchFineLevel (int lev, Real time,
+ERF::FillPatchFineLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                          const MultiFab& old_base_state,
@@ -27,6 +27,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     BL_PROFILE_VAR("ERF::FillPatchFineLevel()",ERF_FillPatchFineLevel);
 
     AMREX_ALWAYS_ASSERT(lev > 0);
+
+    Real time = static_cast<Real>(time_d);
 
     Interpolater* mapper = nullptr;
 
@@ -87,9 +89,9 @@ ERF::FillPatchFineLevel (int lev, Real time,
     amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
 
     Vector<MultiFab*> fmf;
-    if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
+    if ( amrex::almostEqual(static_cast<Real>(time),ftime[0]) || (time-ftime[0]) < small_dt ) {
         fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
-    } else if (amrex::almostEqual(time,ftime[1])) {
+    } else if (amrex::almostEqual(static_cast<Real>(time),ftime[1])) {
         fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
     } else {
         fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
@@ -105,7 +107,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
     if (interpolation_type == StateInterpType::Perturbational)
     {
         // Divide (rho theta) by rho to get theta (before we subtract rho0 from rho!)
-        if (!amrex::almostEqual(time,ctime[1])) {
+        if (!amrex::almostEqual(static_cast<Real>(time),ctime[1])) {
             MultiFab::Divide(vars_old[lev-1][Vars::cons],vars_old[lev-1][Vars::cons],
                              Rho_comp,RhoTheta_comp,1,ngvect_cons);
             MultiFab::Subtract(vars_old[lev-1][Vars::cons],base_state[lev-1],
@@ -285,13 +287,15 @@ ERF::FillPatchFineLevel (int lev, Real time,
 }
 
 void
-ERF::FillPatchCrseLevel (int lev, Real time,
+ERF::FillPatchCrseLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          bool cons_only)
 {
     BL_PROFILE_VAR("ERF::FillPatchCrseLevel()",ERF_FillPatchCrseLevel);
 
     AMREX_ALWAYS_ASSERT(lev == 0);
+
+    Real time = static_cast<Real>(time_d);
 
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();

@@ -15,7 +15,11 @@ namespace HSEutils
 
     // to control Newton iterations in init_isentropic_hse*
     const int MAX_ITER = 10;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real TOL = Real(1.e-6);
+#else
     const amrex::Real TOL = Real(1.e-8);
+#endif
 
     /**
      * Function to calculate the hydrostatic density and pressure
@@ -463,6 +467,7 @@ Real compute_F_for_temp_in_zone(const Real T_b, const Real p_b, const Real q_t, 
 {
     Real fac = Cp_d + Cp_l*q_t;
     Real RH  = compute_relative_humidity(p_b, T_b, use_empirical, which_zone, scaled_height);
+    amrex::Print() << "IN COMPUTE F WITH T_B " << T_b << " " << p_b << std::endl;
     Real q_v = vapor_mixing_ratio(p_b, T_b, RH, use_empirical, which_zone);
     Real p_s = compute_saturation_pressure(T_b, use_empirical);
     Real p_v = compute_vapor_pressure(p_s, RH);
@@ -475,16 +480,27 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
                           const int which_zone, const Real scaled_height)
 {
     Real T_b = Real(200.0), delta_T; // Initial guess
+
+#ifdef AMREX_USE_FLOAT
+    Real eps = Real(1.e-6) * T_b;
+#else
+    Real eps = Real(1.e-10) * T_b;
+#endif
     for (int iter=0; iter<20; iter++)
     {
-        Real F         = compute_F_for_temp_in_zone(T_b      , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_plus_dF = compute_F_for_temp_in_zone(T_b+Real(1e-10), p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_prime   = (F_plus_dF - F)/Real(1e-10);
+        amrex::Print() << " " << std::endl;
+        amrex::Print() << "ITER " << iter << " " << p_b << " " << T_b << " " << T_b + eps << std::endl;
+        Real F         = compute_F_for_temp_in_zone(T_b    , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F_plus_dF = compute_F_for_temp_in_zone(T_b+eps, p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        amrex::Print() << "DIFF OF F's " << F << " " << F_plus_dF << " " << (F_plus_dF - F) << std::endl;
+        Real F_prime   = (F_plus_dF - F)/eps;
         delta_T = -F/F_prime;
+        amrex::Print() << "Delta T is " << delta_T << " " << F << " " << F_prime << std::endl;
         T_b = T_b + delta_T;
     }
 
-    if(std::fabs(delta_T) > 1e-8){
+    if (std::fabs(delta_T) > TOL * T_b) {
+         amrex::Print() << "Delta T is only " << delta_T << std::endl;
          amrex::Abort("Newton Raphson for temperature could not converge");
     }
 
@@ -586,10 +602,8 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 
 #ifdef AMREX_USE_FLOAT
     Real eps = Real(1e-6);
-    Real tol = Real(1e-8);
 #else
     Real eps = Real(1e-10);
-    Real tol = Real(1e-8);
 #endif
 
     for(int iter=0; iter<20; iter++)
@@ -605,7 +619,7 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
         p_k            = p_k + delta_p_k;
     }
 
-    if (std::fabs(delta_p_k) > tol) {
+    if (std::fabs(delta_p_k) > TOL) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 

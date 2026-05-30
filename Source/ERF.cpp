@@ -769,7 +769,7 @@ ERF::Evolve ()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, Real time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -3192,7 +3192,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
               const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;

@@ -243,21 +243,22 @@ public:
     void check_for_low_temp       (amrex::MultiFab& S);
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
+    // Note that "cur_time" is always in double precision
+    bool writeNow (double cur_time, const int nstep, const int plot_int,
                    const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
 
     // Called after every level 0 timestep
-    void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
+    void post_timestep (int nstep, double time, amrex::Real dt_lev);
 
     // Diagnostics
-    void sum_integrated_quantities (amrex::Real time);
-    void sum_derived_quantities (amrex::Real time);
-    void sum_energy_quantities (amrex::Real time);
+    void sum_integrated_quantities (double time);
+    void sum_derived_quantities (double time);
+    void sum_energy_quantities (double time);
 
-    void write_1D_profiles (amrex::Real time);
-    void write_1D_profiles_stag (amrex::Real time);
+    void write_1D_profiles (double time);
+    void write_1D_profiles_stag (double time);
 
-    amrex::Real cloud_fraction (amrex::Real time);
+    amrex::Real cloud_fraction (double time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
@@ -265,7 +266,7 @@ public:
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
-    void derive_diag_profiles (amrex::Real time,
+    void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
@@ -287,7 +288,7 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
-    void derive_diag_profiles_stag (amrex::Real time,
+    void derive_diag_profiles_stag (double time,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
@@ -332,7 +333,7 @@ public:
                      amrex::MultiFab& mf_2d, const amrex::MultiFab& dJ);
 
     // Decide if it is time to take an action
-    static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
+    static bool is_it_time_for_action (int nstep, double time, amrex::Real dt,
                                        int action_interval, amrex::Real action_per);
 
     // Make a new level using provided BoxArray and DistributionMapping and
@@ -687,12 +688,12 @@ private:
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
     // This one works only at level = 0 (base state does not change)
-    void FillPatchCrseLevel (int lev, amrex::Real time,
+    void FillPatchCrseLevel (int lev, double time,
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              bool cons_only=false);
 
     // This one works only at level > 0 (base state does change)
-    void FillPatchFineLevel (int lev, amrex::Real time,
+    void FillPatchFineLevel (int lev, double time,
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                              const amrex::MultiFab& old_base_state,
@@ -718,7 +719,7 @@ private:
 
     // advance a level by dt
     // includes a recursive call for finer levels
-    void timeStep (int lev, amrex::Real time, int iteration);
+    void timeStep (int lev, double time, int iteration);
 
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);

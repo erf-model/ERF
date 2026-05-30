@@ -14,7 +14,7 @@ using namespace amrex;
  */
 
 void
-ERF::timeStep (int lev, Real time, int /*iteration*/)
+ERF::timeStep (int lev, double time, int /*iteration*/)
 {
     //
     // We need to FillPatch the coarse level before assessing whether to regrid

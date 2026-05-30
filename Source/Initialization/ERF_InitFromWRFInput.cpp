@@ -1164,7 +1164,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             Real Pd = PB_arr(ii,jj,kk);
             // Have inverse base density
             if (ALB_arr) {
-                Rd  = 1.0 / ALB_arr(ii,jj,kk);
+                Rd  = Real(1.0) / ALB_arr(ii,jj,kk);
                 Td  = Pd / (R_d * Rd);
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
             } else {
