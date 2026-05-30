@@ -131,11 +131,11 @@ amrex::Real periodic_l2_error (const AdvType adv_type,
     amrex::FArrayBox output(out_box, 1);
 
     auto qty_arr = qty.array();
-    for (int i = qty_box.smallEnd(0); i <= qty_box.bigEnd(0); ++i) {
+    amrex::ParallelFor(qty_box, [=] AMREX_GPU_DEVICE (int i, int, int) noexcept {
         int periodic_index = i % num_cells;
         if (periodic_index < 0) periodic_index += num_cells;
         qty_arr(i, 0, 0, 0) = smooth_periodic_cell_average(periodic_index, num_cells);
-    }
+    });
 
     const auto qty_const_arr = qty.const_array();
     auto out_arr = output.array();
@@ -144,12 +144,19 @@ amrex::Real periodic_l2_error (const AdvType adv_type,
     });
     gpu_sync();
 
+    // Use ReduceOps since we're operating on a single FArrayBox
     const auto out_const_arr = output.const_array();
-    amrex::Real error_sum = amrex::Real(0.0);
-    for (int i = 0; i < num_cells; ++i) {
-        const amrex::Real diff = out_const_arr(i, 0, 0, 0) - smooth_periodic_face_value(i, num_cells);
-        error_sum += diff * diff;
-    }
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+
+    reduce_op.eval(out_box, reduce_data,
+    [=] AMREX_GPU_DEVICE (int i, int, int) -> amrex::GpuTuple<amrex::Real> {
+        const amrex::Real diff = out_const_arr(i, 0, 0, 0)
+            - smooth_periodic_face_value(i, num_cells);
+        return diff * diff;
+    });
+
+    amrex::Real error_sum = amrex::get<0>(reduce_data.value());
 
     return std::sqrt(error_sum / amrex::Real(num_cells));
 }
@@ -159,9 +166,32 @@ inline amrex::Box wrapper_branch_dense_box ()
     return amrex::Box(amrex::IntVect(-7, -7, -7), amrex::IntVect(7, 7, 7));
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real branch_dense_profile (const int index)
 {
     return smooth_periodic_cell_average(index + 9, 32) + amrex::Real(0.05) * amrex::Real(index * index - 3 * index);
+}
+
+void fill_branch_dense_profile_3d (const amrex::Box& box,
+                                   const amrex::Array4<amrex::Real>& qty_x,
+                                   const amrex::Array4<amrex::Real>& qty_y,
+                                   const amrex::Array4<amrex::Real>& qty_z)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        qty_x(i, j, k, 0) = branch_dense_profile(i);
+        qty_y(i, j, k, 0) = branch_dense_profile(j);
+        qty_z(i, j, k, 0) = branch_dense_profile(k);
+    });
+    gpu_sync();
+}
+
+void weno7_fill_qty_with_index (const amrex::Box& box,
+                                const amrex::Array4<amrex::Real>& arr)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int k) noexcept {
+        arr(0, 0, k, 0) = amrex::Real(k);
+    });
+    gpu_sync();
 }
 
 void launch_weno7_z_indexing_case (const amrex::Array4<const amrex::Real>& qty,
@@ -268,16 +298,19 @@ TEST(InterpolationWENOKernel, Weno7DirectionalLowFaceIndexingInZ)
 {
     const amrex::Box qty_box(amrex::IntVect(0, 0, -4), amrex::IntVect(0, 0, 4));
     amrex::FArrayBox qty(qty_box, 1);
-    auto qty_arr = qty.array();
-    for (int k = qty_box.smallEnd(2); k <= qty_box.bigEnd(2); ++k) {
-        qty_arr(0, 0, k, 0) = amrex::Real(k);
-    }
+    weno7_fill_qty_with_index(qty_box, qty.array());
 
     const auto qty_const_arr = qty.const_array();
     amrex::FArrayBox output(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0)), 2);
     launch_weno7_z_indexing_case(qty_const_arr, output.array());
 
-    const auto out_const_arr = output.const_array();
+    amrex::FArrayBox host_output(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0)),
+                                 2, amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(),
+                     host_output.dataPtr(0));
+
+    const auto out_const_arr = host_output.const_array();
     EXPECT_NEAR(out_const_arr(0, 0, 0, 0), amrex::Real(-0.5),
                 scaled_tol(out_const_arr(0, 0, 0, 0), amrex::Real(-0.5), kWenoDeviceRelTol));
     EXPECT_NEAR(out_const_arr(0, 0, 0, 1), amrex::Real(-0.5),
@@ -297,15 +330,7 @@ TEST(InterpolationWENOKernel, Weno7DirectionalWrappersAreEquivalentOnBranchDense
     auto qty_x_arr = qty_x.array();
     auto qty_y_arr = qty_y.array();
     auto qty_z_arr = qty_z.array();
-    for (int k = qty_box.smallEnd(2); k <= qty_box.bigEnd(2); ++k) {
-        for (int j = qty_box.smallEnd(1); j <= qty_box.bigEnd(1); ++j) {
-            for (int i = qty_box.smallEnd(0); i <= qty_box.bigEnd(0); ++i) {
-                qty_x_arr(i, j, k, 0) = branch_dense_profile(i);
-                qty_y_arr(i, j, k, 0) = branch_dense_profile(j);
-                qty_z_arr(i, j, k, 0) = branch_dense_profile(k);
-            }
-        }
-    }
+    fill_branch_dense_profile_3d(qty_box, qty_x_arr, qty_y_arr, qty_z_arr);
 
     const auto qty_x_const_arr = qty_x.const_array();
     const auto qty_y_const_arr = qty_y.const_array();
@@ -314,7 +339,12 @@ TEST(InterpolationWENOKernel, Weno7DirectionalWrappersAreEquivalentOnBranchDense
     launch_weno7_directional_wrapper_cases(out_box, qty_x_const_arr, qty_y_const_arr,
                                            qty_z_const_arr, output.array());
 
-    const auto out_const_arr = output.const_array();
+    amrex::FArrayBox host_output(out_box, 6, amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(),
+                     host_output.dataPtr(0));
+
+    const auto out_const_arr = host_output.const_array();
     for (int sigma_index = 0; sigma_index < 2; ++sigma_index) {
         const int sigma = (sigma_index == 0) ? -1 : 1;
         for (int i = 0; i < 4; ++i) {
@@ -346,15 +376,7 @@ TEST(InterpolationWENOKernel, WenoZDirectionalWrappersAreEquivalentOnBranchDense
     auto qty_x_arr = qty_x.array();
     auto qty_y_arr = qty_y.array();
     auto qty_z_arr = qty_z.array();
-    for (int k = qty_box.smallEnd(2); k <= qty_box.bigEnd(2); ++k) {
-        for (int j = qty_box.smallEnd(1); j <= qty_box.bigEnd(1); ++j) {
-            for (int i = qty_box.smallEnd(0); i <= qty_box.bigEnd(0); ++i) {
-                qty_x_arr(i, j, k, 0) = branch_dense_profile(i);
-                qty_y_arr(i, j, k, 0) = branch_dense_profile(j);
-                qty_z_arr(i, j, k, 0) = branch_dense_profile(k);
-            }
-        }
-    }
+    fill_branch_dense_profile_3d(qty_box, qty_x_arr, qty_y_arr, qty_z_arr);
 
     const auto qty_x_const_arr = qty_x.const_array();
     const auto qty_y_const_arr = qty_y.const_array();
@@ -364,7 +386,12 @@ TEST(InterpolationWENOKernel, WenoZDirectionalWrappersAreEquivalentOnBranchDense
     launch_wenoz_directional_wrapper_cases(out_box, ncomp, qty_x_const_arr, qty_y_const_arr,
                                            qty_z_const_arr, output.array());
 
-    const auto out_const_arr = output.const_array();
+    amrex::FArrayBox host_output(out_box, ncomp, amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(),
+                     host_output.dataPtr(0));
+
+    const auto out_const_arr = host_output.const_array();
     for (int n = 0; n < 2 * static_cast<int>(schemes.size()); ++n) {
         const AdvType adv_type = schemes[n / 2];
         const int sigma = (n % 2 == 0) ? -1 : 1;

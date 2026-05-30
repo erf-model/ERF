@@ -40,7 +40,7 @@ stages:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"s
-    - srun --jobid=${JOBID} -N 1 -v --overlap ${TEST_SCRIPT}
+    - srun --jobid=${JOBID} -N 1 -v --overlap --mpi=none ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
