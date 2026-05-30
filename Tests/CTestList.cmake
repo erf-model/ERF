@@ -248,6 +248,8 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_Box3D_IceFrzDep             "" "erf_exec"  "plt00010" 1e-14 1e-12)
     # ice sublimation
     add_test_sdm(SDM_Box3D_IceSub                "" "erf_exec"  "plt00010" 1e-14 2e-13)
+    # ice melting (gradual, mixed ice-water)
+    add_test_sdm(SDM_Box3D_IceMelt               "" "erf_exec"  "plt00010" 1e-12 1e-12)
     # terminal velocity
     add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"  "plt00001" 5e-13 1e-14)
     # Congestus case
