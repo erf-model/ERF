@@ -11,6 +11,10 @@
 #include "ERF_HSEUtils.H"
 #include "ERF_TileNoZ.H"
 
+#ifdef ERF_USE_NETCDF
+#include <ERF_NCInterface.H>
+#endif
+
 struct ProbParmDefaults {
     amrex::Real rho_0 = one;
     amrex::Real T_0 = amrex::Real(300.0);
@@ -348,26 +352,165 @@ public:
                           amrex::FArrayBox& terrain_fab,
                           const amrex::Real& time)
     {
-        // Check if a valid text file exists for the terrain
-        std::string fname, fname_usgs;
         amrex::ParmParse pp("erf");
-        auto valid_fname      = pp.query("terrain_file_name",fname);
-        auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname_usgs);
 
-        bool is_usgs;
+        // NetCDF terrain file takes priority
+        std::string fname_nc;
+        auto valid_fname_nc = pp.query("terrain_file_name_nc", fname_nc);
 
-        if (valid_fname) {
-            is_usgs = false;
-            read_custom_terrain(fname,is_usgs,geom,terrain_fab,time);
+        std::string fname, fname_usgs;
+        auto valid_fname      = pp.query("terrain_file_name",      fname);
+        auto valid_fname_USGS = pp.query("terrain_file_name_USGS", fname_usgs);
+
+        if (valid_fname_nc) {
+#ifdef ERF_USE_NETCDF
+            read_terrain_netcdf(fname_nc, geom, terrain_fab, time);
+#else
+            amrex::Abort("ERF must be compiled with NetCDF support to use terrain_file_name_nc");
+#endif
+        } else if (valid_fname) {
+            read_custom_terrain(fname, false, geom, terrain_fab, time);
 
         } else if (valid_fname_USGS) {
-            is_usgs = true;
-            read_custom_terrain(fname_usgs,is_usgs,geom,terrain_fab,time);
+            read_custom_terrain(fname_usgs, true, geom, terrain_fab, time);
 
         } else {
             init_my_custom_terrain (geom, terrain_fab, time);
         }
     }
+
+#ifdef ERF_USE_NETCDF
+    void
+    read_terrain_netcdf (const std::string& fname,
+                         const amrex::Geometry& geom,
+                         amrex::FArrayBox& terrain_fab,
+                         const amrex::Real& /*time*/)
+    {
+        amrex::Print() << "Reading terrain from NetCDF file: " << fname << std::endl;
+
+        amrex::Vector<amrex::Real> m_xterrain, m_yterrain, m_zterrain;
+        int nx = 0, ny = 0;
+
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+
+            // Try common terrain variable names
+            std::string height_varname = "height";
+            if (!ncf.has_var("height")) {
+                if      (ncf.has_var("z"))       height_varname = "z";
+                else if (ncf.has_var("terrain"))  height_varname = "terrain";
+                else if (ncf.has_var("HGT_M"))    height_varname = "HGT_M";
+                else if (ncf.has_var("AGL"))       height_varname = "AGL";
+                else
+                    amrex::Abort("No terrain height variable found in NetCDF file. "
+                                 "Expected: 'height', 'z', 'terrain', 'HGT_M', or 'AGL'");
+            }
+            amrex::Print() << "  Using terrain variable: " << height_varname << std::endl;
+
+            auto var  = ncf.var(height_varname);
+            auto dims = var.shape();
+
+            if (dims.size() != 2) {
+                amrex::Abort("Expected 2D terrain data in NetCDF file, got "
+                             + std::to_string(dims.size()) + "D");
+            }
+            ny = dims[0];
+            nx = dims[1];
+
+            if (!ncf.has_var("x") || !ncf.has_var("y")) {
+                amrex::Abort("NetCDF terrain file must have 'x' and 'y' coordinate variables");
+            }
+
+            m_xterrain.resize(nx);
+            m_yterrain.resize(ny);
+            ncf.var("x").get(m_xterrain.data());
+            ncf.var("y").get(m_yterrain.data());
+
+            m_zterrain.resize(nx * ny);
+            var.get(m_zterrain.data());
+            ncf.close();
+
+            amrex::Print() << "  Grid size: " << nx << " x " << ny << "\n"
+                           << "  X range: [" << m_xterrain[0] << ", " << m_xterrain[nx-1] << "]\n"
+                           << "  Y range: [" << m_yterrain[0] << ", " << m_yterrain[ny-1] << "]\n"
+                           << "  Height range: ["
+                           << *std::min_element(m_zterrain.begin(), m_zterrain.end()) << ", "
+                           << *std::max_element(m_zterrain.begin(), m_zterrain.end()) << "]\n";
+        }
+
+        // Broadcast to all MPI ranks
+        amrex::ParallelDescriptor::Bcast(&nx, 1, amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(&ny, 1, amrex::ParallelDescriptor::IOProcessorNumber());
+
+        if (!amrex::ParallelDescriptor::IOProcessor()) {
+            m_xterrain.resize(nx);
+            m_yterrain.resize(ny);
+            m_zterrain.resize(nx * ny);
+        }
+
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(), nx,      amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_yterrain.data(), ny,      amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_zterrain.data(), nx * ny, amrex::ParallelDescriptor::IOProcessorNumber());
+
+        // Copy to GPU
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx), d_yterrain(ny), d_zterrain(nx * ny);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
+
+        amrex::Real* d_xt = d_xterrain.data();
+        amrex::Real* d_yt = d_yterrain.data();
+        amrex::Real* d_zt = d_zterrain.data();
+
+        auto dx_arr  = geom.CellSizeArray();
+        auto prob_lo = geom.ProbLoArray();
+
+        int ilo = geom.Domain().smallEnd(0);
+        int jlo = geom.Domain().smallEnd(1);
+        int klo = geom.Domain().smallEnd(2);
+        int ihi = geom.Domain().bigEnd(0) + 1;
+        int jhi = geom.Domain().bigEnd(1) + 1;
+
+        amrex::Box zbx = terrain_fab.box();
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+        {
+            int ii = amrex::min(amrex::max(i, ilo), ihi);
+            int jj = amrex::min(amrex::max(j, jlo), jhi);
+
+            amrex::Real x = prob_lo[0] + ii * dx_arr[0];
+            amrex::Real y = prob_lo[1] + jj * dx_arr[1];
+
+            amrex::Real dx_t = (nx > 1) ? (d_xt[1] - d_xt[0]) : 1.0;
+            amrex::Real dy_t = (ny > 1) ? (d_yt[1] - d_yt[0]) : 1.0;
+
+            amrex::Real fx = (x - d_xt[0]) / dx_t;
+            amrex::Real fy = (y - d_yt[0]) / dy_t;
+
+            int i_t = static_cast<int>(amrex::Math::floor(fx));
+            int j_t = static_cast<int>(amrex::Math::floor(fy));
+
+            if (i_t >= 0 && i_t < nx - 1 && j_t >= 0 && j_t < ny - 1) {
+                amrex::Real wx = fx - i_t;
+                amrex::Real wy = fy - j_t;
+
+                // Data is stored [y, x] in NetCDF
+                amrex::Real z00 = d_zt[ j_t      * nx +  i_t     ];
+                amrex::Real z10 = d_zt[ j_t      * nx + (i_t + 1)];
+                amrex::Real z01 = d_zt[(j_t + 1) * nx +  i_t     ];
+                amrex::Real z11 = d_zt[(j_t + 1) * nx + (i_t + 1)];
+
+                z_arr(i, j, klo) = (1.0 - wx) * (1.0 - wy) * z00 +
+                                         wx   * (1.0 - wy) * z10 +
+                                   (1.0 - wx) *       wy   * z01 +
+                                         wx   *       wy   * z11;
+            } else {
+                z_arr(i, j, klo) = 0.0;
+            }
+        });
+    }
+#endif
 
     void
     read_custom_terrain(const std::string& fname,
