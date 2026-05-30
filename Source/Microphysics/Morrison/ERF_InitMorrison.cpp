@@ -37,7 +37,7 @@ Morrison::Init (const MultiFab& cons_in,
                  MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 
     // initialize microphysics variables
-#ifdef ERF_USE_MORR_FORT && AMREX_USE_GPU
+#ifdef (ERF_USE_MORR_FORT && AMREX_USE_GPU)
     Arena* Arena_Used = The_Managed_Arena();
 #else
     Arena* Arena_Used = The_Arena();
