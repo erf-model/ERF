@@ -120,6 +120,9 @@ public:
     int
     Qstate_Moist_Size () override { return SatAdj::n_qstate_moist_size; }
 
+    int
+    Qstate_Moist_NumConc_Size () override { return SatAdj::n_qstate_moist_numconc_size; }
+
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
@@ -287,6 +290,9 @@ private:
 
     // Number of qstate variables
     int n_qstate_moist_size = 2;
+
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
 
     // geometry
     amrex::Geometry m_geom;

@@ -90,7 +90,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i  , j, k, eddy_x)
-                                  + mu_turb(i-1, j, k, eddy_x) );
+                                     + mu_turb(i-1, j, k, eddy_x) );
             }
 
             bool ext_dir_on_xlo = ( (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir)      ||
@@ -132,7 +132,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i, j  , k, eddy_y)
-                                  + mu_turb(i, j-1, k, eddy_y) );
+                                     + mu_turb(i, j-1, k, eddy_y) );
             }
 
             bool ext_dir_on_ylo = ( (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir)      ||
@@ -174,7 +174,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i, j, k  , eddy_z)
-                                  + mu_turb(i, j, k-1, eddy_z) );
+                                     + mu_turb(i, j, k-1, eddy_z) );
             }
 
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
@@ -208,7 +208,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                                             - two*cell_prim(i, j, k, prim_index) ) * dz_inv;
                 } else {
                     zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index)
-                                            - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+                                              - cell_prim(i, j, k-1, prim_index)) * dz_inv;
                 }
             }
 

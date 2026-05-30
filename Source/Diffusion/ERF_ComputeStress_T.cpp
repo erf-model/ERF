@@ -483,7 +483,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau12bar = Real(1.5)*tau12lo - myhalf*tau12hi;
 
             Real mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
-                               + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
             Real rhoAlpha_bar = fourth*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
                                      + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
             Real mu_tot = rhoAlpha_bar + two*mu_bar;
@@ -516,9 +516,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau22bar = Real(1.5)*tau22lo - myhalf*tau22hi;
 
             Real mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
-                               + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
             Real rhoAlpha_bar = fourth*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
-                                     + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
+                                       + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
             Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
@@ -551,9 +551,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau12bar = Real(1.5)*tau12hi - myhalf*tau12lo;
 
             Real mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
-                               + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
             Real rhoAlpha_bar = fourth*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
-                                     + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
+                                       + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
             Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
             tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
@@ -584,9 +584,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau22bar = Real(1.5)*tau22hi - myhalf*tau22lo;
 
             Real mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
-                               + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
             Real rhoAlpha_bar = fourth*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
-                                     + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
+                                       + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
             Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
             tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
@@ -618,9 +618,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                + tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
 
         Real mu_bar = fourth * ( mu_turb(i-1, j  , k  , EddyDiff::Mom_v) + mu_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + mu_turb(i-1, j  , k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+                               + mu_turb(i-1, j  , k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
         Real rhoAlpha_bar = fourth * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
-                                   + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
+                                     + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
         Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
         tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
@@ -645,9 +645,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                + tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
 
         Real mu_bar = fourth * ( mu_turb(i  , j-1, k  , EddyDiff::Mom_v) + mu_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + mu_turb(i  , j-1, k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+                               + mu_turb(i  , j-1, k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
         Real rhoAlpha_bar = fourth * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
-                                   + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
+                                     + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
         Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
         tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
@@ -680,9 +680,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
         Real mu_bar = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
-                           + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
+                             + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
         Real rhoAlpha_bar = fourth*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
-                                 + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
+                                   + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
         Real mu_tot = rhoAlpha_bar + two*mu_bar;
 
         tau12(i,j,k) *= -mu_tot*met_h_zeta/mfx;
