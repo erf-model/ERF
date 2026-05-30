@@ -35,11 +35,17 @@ Morrison::Init (const MultiFab& cons_in,
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 
+#if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
+    Arena* Arena_Used = The_Managed_Arena();
+#else
+    Arena* Arena_Used = The_Arena();
+#endif
+
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Morr::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
                                                         1, cons_in.nGrowVect(),
-                                                        MFInfo().SetArena(The_Managed_Arena()));
+                                                        MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.);
     }
 
