@@ -1088,9 +1088,11 @@ Radiation::run_impl ()
     // H2O is obtained from qv.
     // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
+    Vector<real2d_k> vmr_full_vec(m_ngas);
     for (int igas(0); igas < m_ngas; ++igas) {
-        auto tmp2d = Kokkos::View<RealT**,layout_t,KokkosDefaultMem>("tmp2d", ncol, nlay);
         auto name = m_gas_names[igas];
+        vmr_full_vec[igas] = real2d_k("vmr_full_" + name, ncol, nlay);
+        auto tmp2d = vmr_full_vec[igas];
         auto gas_mol_weight = m_mol_weight_gas[igas];
         if (name == "H2O") {
             auto qv_lay_d = qv_lay;
@@ -1176,14 +1178,6 @@ Radiation::run_impl ()
     // -----------------------------------------------------------------------
     const int ncol_chunk = std::min(m_ncol_chunk, ncol);
     const int kbot = 0;
-
-    // Pre-fetch full-domain VMR arrays outside the chunk loop to avoid
-    // repeatedly allocating and filling full-size views for every chunk.
-    Vector<real2d_k> vmr_full_vec(m_ngas);
-    for (int igas = 0; igas < m_ngas; ++igas) {
-        vmr_full_vec[igas] = real2d_k("vmr_full_" + std::to_string(igas), ncol, nlay);
-        m_gas_concs.get_vmr(m_gas_names[igas], vmr_full_vec[igas]);
-    }
 
     for (int col_s = 0; col_s < ncol; col_s += ncol_chunk) {
         const int ncol_c = std::min(ncol_chunk, ncol - col_s);
