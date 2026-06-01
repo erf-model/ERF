@@ -2,7 +2,11 @@ CEXE_sources += ERF_InitMorrison.cpp
 CEXE_sources += ERF_UpdateMorrison.cpp
 CEXE_sources += ERF_AdvanceMorrison.cpp
 CEXE_sources += ERF_Morrison_Plot.cpp
+
 CEXE_headers += ERF_Morrison.H
+CEXE_headers += ERF_Morrison_Advance_F.H
+CEXE_headers += ERF_MorrisonGammaFunction.H
+CEXE_headers += ERF_MorrisonVaporPressure.H
 
 ifeq ($(USE_MORR_FORT),TRUE)
      F90EXE_sources += ERF_module_mp_morr_two_moment.F90

@@ -1960,10 +1960,6 @@ List of Parameters
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
-|                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
-|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_do_subcol_sampling**      | Enable MCICA subcolumn sampling        | true / false      | true                              |
