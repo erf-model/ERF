@@ -1100,11 +1100,10 @@ WSM6::Advance(const Real& dt_advance,
     microphysics_debug = std::max(0, std::min(2, microphysics_debug));
     const bool micro_diag_canonical = wsm6_diag_mode_enabled(micro_diag_mode, false);
     const bool micro_diag_forensic = wsm6_diag_mode_enabled(micro_diag_mode, true);
+#ifdef ERF_USE_WSM6_FORT
     const int microphysics_debug_bridge = micro_diag_forensic
         ? microphysics_debug
         : std::min(microphysics_debug, 1);
-
-#ifdef ERF_USE_WSM6_FORT
     bool use_wsm6_cpp_answer = false;
     { amrex::ParmParse pp("erf");
       pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
@@ -1132,6 +1131,7 @@ WSM6::Advance(const Real& dt_advance,
     constexpr double rv = static_cast<double>(R_v);
     constexpr double t0c = 273.15;
     constexpr double ep1 = static_cast<double>(R_v / R_d - one);
+    amrex::ignore_unused(g, rd, ep1);
     constexpr double ep2 = static_cast<double>(R_d / R_v);
     constexpr double qmin = 1.0e-12;
     constexpr double xls = static_cast<double>(lsub);
@@ -1179,6 +1179,7 @@ WSM6::Advance(const Real& dt_advance,
         const int jmhi = fab_box.bigEnd(1);
         const int kmlo = fab_box.smallEnd(2);
         const int kmhi = fab_box.bigEnd(2);
+        amrex::ignore_unused(imlo, imhi, jmlo, jmhi, kmlo, kmhi);
 
         const Real dz_val = m_geom.CellSize(m_axis);
         FArrayBox delz_fab(fab_box, 1);
