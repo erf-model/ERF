@@ -23,15 +23,18 @@ void fill_centered_face_box (amrex::FArrayBox& qty,
                              const CenteredFaceStencil9& stencil)
 {
     auto qty_arr = qty.array();
-    qty_arr(-4, 0, 0, 0) = stencil.qm4;
-    qty_arr(-3, 0, 0, 0) = stencil.qm3;
-    qty_arr(-2, 0, 0, 0) = stencil.qm2;
-    qty_arr(-1, 0, 0, 0) = stencil.qm1;
-    qty_arr( 0, 0, 0, 0) = stencil.q0;
-    qty_arr( 1, 0, 0, 0) = stencil.q1;
-    qty_arr( 2, 0, 0, 0) = stencil.q2;
-    qty_arr( 3, 0, 0, 0) = stencil.q3;
-    qty_arr( 4, 0, 0, 0) = stencil.q4;
+    amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+        qty_arr(-4, 0, 0, 0) = stencil.qm4;
+        qty_arr(-3, 0, 0, 0) = stencil.qm3;
+        qty_arr(-2, 0, 0, 0) = stencil.qm2;
+        qty_arr(-1, 0, 0, 0) = stencil.qm1;
+        qty_arr( 0, 0, 0, 0) = stencil.q0;
+        qty_arr( 1, 0, 0, 0) = stencil.q1;
+        qty_arr( 2, 0, 0, 0) = stencil.q2;
+        qty_arr( 3, 0, 0, 0) = stencil.q3;
+        qty_arr( 4, 0, 0, 0) = stencil.q4;
+    });
+    gpu_sync();
 }
 
 CenteredFaceStencil9 make_constant_stencil9 (const amrex::Real value)

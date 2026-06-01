@@ -48,11 +48,15 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
                              1, 0, 0,
-                             0, 0, 0};
+                             0, 0, 0,
+                             0, 0, 0,
+                             0, 0};
 
     Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
                             RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
+                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
+                            RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
+                            RhoQ10_comp, RhoQ11_comp};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );

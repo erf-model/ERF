@@ -23,6 +23,9 @@
 
 using namespace amrex;
 
+#include "ERF_MorrisonGammaFunction.H"
+#include "ERF_MorrisonVaporPressure.H"
+
 namespace MORRInd {
     enum  {
       /*
@@ -156,345 +159,6 @@ namespace MORRInd {
     };
 }
 
-constexpr Real xxx = Real(0.9189385332046727417803297);
-/*
-!------------------------------------------------------------------------------
-
-      REAL(C_DOUBLE) FUNCTION GAMMA(X)
-!----------------------------------------------------------------------
-!
-! THIS ROUTINE CALCULATES THE GAMMA FUNCTION FOR A REAL(C_DOUBLE) ARGUMENT X.
-!   COMPUTATION IS BASED ON AN ALGORITHM OUTLINED IN REFERENCE one
-!   THE PROGRAM USES RATIONAL FUNCTIONS THAT APPROXIMATE THE GAMMA
-!   FUNCTION TO AT LEAST 20 SIGNIFICANT DECIMAL DIGITS.  COEFFICIENTS
-!   FOR THE APPROXIMATION OVER THE INTERVAL (1,2) ARE UNPUBLISHED.
-!   THOSE FOR THE APPROXIMATION FOR X .GE. 12 ARE FROM REFERENCE two
-!   THE ACCURACY ACHIEVED DEPENDS ON THE ARITHMETIC SYSTEM, THE
-!   COMPILER, THE INTRINSIC FUNCTIONS, AND PROPER SELECTION OF THE
-!   MACHINE-DEPENDENT CONSTANTS.
-!
-!
-!*******************************************************************
-!*******************************************************************
-!
-! EXPLANATION OF MACHINE-DEPENDENT CONSTANTS
-!
-! BETA   - RADIX FOR THE FLOATING-POINT REPRESENTATION
-! MAXEXP - THE SMALLEST POSITIVE POWER OF BETA THAT OVERFLOWS
-! XBIG   - THE LARGEST ARGUMENT FOR WHICH GAMMA(X) IS REPRESENTABLE
-!          IN THE MACHINE, I.E., THE SOLUTION TO THE EQUATION
-!                  GAMMA(XBIG) = BETA**MAXEXP
-! XINF   - THE LARGEST MACHINE REPRESENTABLE FLOATING-POINT NUMBER;
-!          APPROXIMATELY BETA**MAXEXP
-! EPS    - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          one+EPS .GT. one
-! XMININ - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          1/XMININ IS MACHINE REPRESENTABLE
-!
-!     APPROXIMATE VALUES FOR SOME IMPORTANT MACHINES ARE:
-!
-!                            BETA       MAXEXP        XBIG
-!
-! CRAY-1         (S.P.)        2         8191        Real(966.961)
-! CYBER 180/855
-!   UNDER NOS    (S.P.)        2         1070        Real(177.803)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)        2          128        Real(35.040)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)        2         1024        Real(171.624)
-! IBM 3033       (D.P.)       16           63        Real(57.574)
-! VAX D-FORMAT   (D.P.)        2          127        Real(34.844)
-! VAX G-FORMAT   (D.P.)        2         1023        Real(171.489)
-!
-!                            XINF         EPS        XMININ
-!
-! CRAY-1         (S.P.)   Real(5.45E+2465)   Real(7.11E-15)    Real(1.84E-2466)
-! CYBER 180/855
-!   UNDER NOS    (S.P.)   Real(1.26E+322)    Real(3.55E-15)    Real(3.14E-294)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)   Real(3.40E+38)     Real(1.19E-7)     Real(1.18E-38)
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)   1.79D+308    2.22D-16    2.23D-308
-! IBM 3033       (D.P.)   7.23D+75     2.22D-16    1.39D-76
-! VAX D-FORMAT   (D.P.)   1.70D+38     1.39D-17    5.88D-39
-! VAX G-FORMAT   (D.P.)   8.98D+307    1.11D-16    1.12D-308
-!
-!*******************************************************************
-!*******************************************************************
-!
-! ERROR RETURNS
-!
-!  THE PROGRAM RETURNS THE VALUE XINF FOR SINGULARITIES OR
-!     WHEN OVERFLOW WOULD OCCUR.  THE COMPUTATION IS BELIEVED
-!     TO BE FREE OF UNDERFLOW AND OVERFLOW.
-!
-!
-!  INTRINSIC FUNCTIONS REQUIRED ARE:
-!
-!     INT, DBLE, EXP, LOG, REAL(C_DOUBLE), SIN
-!
-!
-! REFERENCES:  AN OVERVIEW OF SOFTWARE DEVELOPMENT FOR SPECIAL
-!              FUNCTIONS   W. J. CODY, LECTURE NOTES IN MATHEMATICS,
-!              506, NUMERICAL ANALYSIS DUNDEE, 1975, G. A. WATSON
-!              (ED.), SPRINGER VERLAG, BERLIN, Real(1976.)
-!
-!              COMPUTER APPROXIMATIONS, HART, ET. AL., WILEY AND
-!              SONS, NEW YORK, Real(1968.)
-!
-!  LATEST MODIFICATION: OCTOBER 12, 1989
-!
-!  AUTHORS: W. J. CODY AND L. STOLTZ
-!           APPLIED MATHEMATICS DIVISION
-!           ARGONNE NATIONAL LABORATORY
-!           ARGONNE, IL 60439
-!
-!----------------------------------------------------------------------
-*/
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real wrf_gamma (amrex::Real x)
-{
-    // Debug: using printf since it's GPU compatible
-//    printf("wrf_gamma: Input value x = %g\n", x);
-
-    // Local variables
-    int i, n;
-    bool parity = false;
-    amrex::Real fact, res, sum, twelve, xbig, xden, xinf, xminin;
-    amrex::Real xnum, y, y1, ysq, z;
-    amrex::Real c[7];
-    amrex::Real p[8];
-    amrex::Real q[8];
-
-    // Mathematical constants
-    twelve = Real(12.0);
-
-    // Machine dependent parameters
-    xbig = Real(35.040);
-    xminin = Real(1.18e-38);
-    amrex::Real eps = Real(1.19e-7);
-    xinf = Real(3.4e38);
-
-    // Numerator and denominator coefficients for rational minimax approximation over (1,2)
-    p[0] = -Real(1.71618513886549492533811e+0);
-    p[1] =  Real(2.47656508055759199108314e+1);
-    p[2] = -Real(3.79804256470945635097577e+2);
-    p[3] =  Real(6.29331155312818442661052e+2);
-    p[4] =  Real(8.66966202790413211295064e+2);
-    p[5] = -Real(3.14512729688483675254357e+4);
-    p[6] = -Real(3.61444134186911729807069e+4);
-    p[7] =  Real(6.64561438202405440627855e+4);
-
-    q[0] = -Real(3.08402300119738975254353e+1);
-    q[1] =  Real(3.15350626979604161529144e+2);
-    q[2] = -Real(1.01515636749021914166146e+3);
-    q[3] = -Real(3.10777167157231109440444e+3);
-    q[4] =  Real(2.25381184209801510330112e+4);
-    q[5] =  Real(4.75584627752788110767815e+3);
-    q[6] = -Real(1.34659959864969306392456e+5);
-    q[7] = -Real(1.15132259675553483497211e+5);
-
-    // Coefficients for minimax approximation over (12, inf)
-    c[0] = -Real(1.910444077728e-03);
-    c[1] = Real(8.4171387781295e-04);
-    c[2] = -Real(5.952379913043012e-04);
-    c[3] = Real(7.93650793500350248e-04);
-    c[4] = -Real(2.777777777777681622553e-03);
-    c[5] = Real(8.333333333333333331554247e-02);
-    c[6] = Real(5.7083835261e-03);
-
-    // Initialize variables
-    parity = false;
-    fact = one;
-    n = 0;
-    y = x;
-
-//    printf("wrf_gamma: Initial y = %g\n", y);
-
-    if (y <= Real(0)) {
-        // Argument is negative
-//        printf("wrf_gamma: Handling negative argument\n");
-        y = -x;
-        y1 = std::floor(y);
-        res = y - y1;
-        if (res != Real(0)) {
-            if (y1 != std::floor(y1 * myhalf) * Real(2))
-                parity = true;
-            Real pi=amrex::Math::pi<Real>();
-            fact = -pi / std::sin(pi * res);
-            y = y + one;
-//            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n",
-//                   y, fact, parity);
-        }
-        else {
-//            printf("wrf_gamma: Singularity detected, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-
-    // Argument is positive
-    if (y < eps) {
-        // Argument < eps
-//        printf("wrf_gamma: Small argument branch (y < eps)\n");
-        if (y >= xminin) {
-            res = one / y;
-//            printf("wrf_gamma: Small argument result: res = %g\n", res);
-        }
-        else {
-//            printf("wrf_gamma: Argument too small, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-    else if (y < twelve) {
-        // Medium range argument
-//        printf("wrf_gamma: Medium range branch (eps <= y < 12)\n");
-        y1 = y;
-        if (y < one) {
-            // Real(0) < argument < one
-//            printf("wrf_gamma: Sub-branch: 0 < y < 1\n");
-            z = y;
-            y = y + one;
-        }
-        else {
-            // one < argument < Real(12.0), reduce argument if necessary
-            n = static_cast<int>(y) - 1;
-//            printf("wrf_gamma: Sub-branch: 1 <= y < 12, n = %d\n", n);
-            y = y - static_cast<amrex::Real>(n);
-            z = y - one;
-        }
-
-        // Evaluate approximation
-//        printf("wrf_gamma: Before approximation: z = %g, y = %g\n", z, y);
-        xnum = Real(0);
-        xden = one;
-        for (i = 0; i < 8; i++) {
-            xnum = (xnum + p[i]) * z;
-            xden = xden * z + q[i];
-        }
-        res = xnum / xden + one;
-//        printf("wrf_gamma: After approximation: res = %g\n", res);
-
-        if (y1 < y) {
-            // Adjust result for case Real(0) < argument < one
-            res = res / y1;
-//            printf("wrf_gamma: Adjusted for y < 1: res = %g\n", res);
-        }
-        else if (y1 > y) {
-            // Adjust for two < argument < Real(12.0)
-//            printf("wrf_gamma: Adjusting for y > 2 with %d multiplications\n", n);
-            for (i = 0; i < n; i++) {
-                res = res * y;
-                y = y + one;
-//                printf("wrf_gamma: Multiplication %d: res = %g, y = %g\n", i+1, res, y);
-            }
-        }
-    }
-    else {
-        // Large argument
-//        printf("wrf_gamma: Large argument branch (y >= 12)\n");
-        if (y <= xbig) {
-            ysq = y * y;
-            sum = c[6];
-            for (i = 0; i < 6; i++) {
-                sum = sum / ysq + c[i];
-//                printf("wrf_gamma: Sum step %d: sum = %g\n", i+1, sum);
-            }
-            sum = sum / y - y + xxx;
-            sum = sum + (y - myhalf) * std::log(y);
-//            printf("wrf_gamma: Before exp: sum = %g\n", sum);
-            res = std::exp(sum);
-//            printf("wrf_gamma: After exp: res = %g\n", res);
-        }
-        else {
-//            printf("wrf_gamma: Argument too large, returning xinf = %g\n", xinf);
-            res = xinf;
-            return res;
-        }
-    }
-
-    // Final adjustments
-    if (parity) {
-        res = -res;
-//        printf("wrf_gamma: Applied parity adjustment: res = %g\n", res);
-    }
-    if (fact != one) {
-        res = fact / res;
-//        printf("wrf_gamma: Applied reflection adjustment: res = %g\n", res);
-    }
-
-//    printf("wrf_gamma: Final result = %g\n", res);
-    return res;
-}
-
-// Gamma function using the custom wrf implementation of the gamma function
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real gamma_function(Real x) {
-  return wrf_gamma(x);
-}
-  /**
-   * Helper function to calculate saturation vapor pressure for water or ice.
-   * This corresponds to the POLYSVP function in the Fortran code (line ~5580).
-   *
-   * @param[in] T Temperature in Kelvin
-   * @param[in] type 0 for liquid water, 1 for ice
-   * @return Saturation vapor pressure in Pascals
-   */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-  amrex::Real
-  calc_saturation_vapor_pressure (const amrex::Real T, const int type)
-  {
-    amrex::Real polysvp = Real(0);
-    amrex::Real del_T = T - Real(273.15);  // Convert to Celsius
-
-    if (type == 1) {  // Ice (lines ~5631-5644)
-        if (T >= Real(195.8)) {
-            // Flatau et al. formula for ice
-            const amrex::Real a0i = Real(6.11147274);
-            const amrex::Real a1i = Real(0.503160820);
-            const amrex::Real a2i = Real(0.188439774e-1);
-            const amrex::Real a3i = Real(0.420895665e-3);
-            const amrex::Real a4i = Real(0.615021634e-5);
-            const amrex::Real a5i = Real(0.602588177e-7);
-            const amrex::Real a6i = Real(0.385852041e-9);
-            const amrex::Real a7i = Real(0.146898966e-11);
-            const amrex::Real a8i = Real(0.252751365e-14);
-
-            polysvp = a0i + del_T*(a1i + del_T*(a2i + del_T*(a3i + del_T*(a4i + del_T*(a5i + del_T*(a6i + del_T*(a7i + a8i*del_T)))))));
-            polysvp *= Real(100.0);  // Convert from hPa to Pa
-        } else {
-            // Goff-Gratch formula for ice at cold temperatures
-            polysvp = std::pow(Real(10.0), (-Real(9.09718)*(Real(273.16)/T-one) - Real(3.56654)*std::log10(Real(273.16)/T) +
-                                             Real(0.876793)*(one-T/Real(273.16)) + std::log10(Real(6.1071)))) * Real(100.0);
-        } // T
-    } else {  // Water (lines ~5648-5665)
-      if (T >= Real(202.0)) {
-        // Flatau et al. formula for liquid water
-        const amrex::Real a0 = Real(6.11239921);
-        const amrex::Real a1 = Real(0.443987641);
-        const amrex::Real a2 = Real(0.142986287e-1);
-        const amrex::Real a3 = Real(0.264847430e-3);
-        const amrex::Real a4 = Real(0.302950461e-5);
-        const amrex::Real a5 = Real(0.206739458e-7);
-        const amrex::Real a6 = Real(0.640689451e-10);
-        const amrex::Real a7 = -Real(0.952447341e-13);
-        const amrex::Real a8 = -Real(0.976195544e-15);
-
-        polysvp = a0 + del_T*(a1 + del_T*(a2 + del_T*(a3 + del_T*(a4 + del_T*(a5 + del_T*(a6 + del_T*(a7 + a8*del_T)))))));
-        polysvp *= Real(100.0);  // Convert from hPa to Pa
-      } else {
-        // Goff-Gratch formula for water at cold temperatures
-        polysvp = std::pow(Real(10.0), (-Real(7.90298)*(Real(373.16)/T-one) + Real(5.02808)*std::log10(Real(373.16)/T) -
-                                  Real(1.3816e-7)*(std::pow(Real(10.0), (Real(11.344)*(one-T/Real(373.16))))-one) +
-                                  Real(8.1328e-3)*(std::pow(Real(10.0), (-Real(3.49149)*(Real(373.16)/T-one)))-one) +
-                                  std::log10(Real(1013.246)))) * Real(100.0);
-      }
-    }
-
-    return polysvp;
-  }
-
     // wrapper to do all the updating
     void
     Morrison::Advance (const Real& dt_advance,
@@ -508,10 +172,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
         // Check if CPP or FORT answer is used
         ParmParse pp("erf");
-        bool run_morr_cpp        = true;
         bool use_morr_cpp_answer = true;
         pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
-        bool run_morr_fort = !use_morr_cpp_answer;
+
+        // Ensure that only one of these is true
+        bool run_morr_cpp  =  use_morr_cpp_answer;
+        bool run_morr_fort = !run_morr_cpp;
+
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
         // Allow user to override constant droplet concentration from inputs file
@@ -530,24 +197,26 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
-          auto const& qv_arr    = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
-          auto const& qcl_arr   = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
-          auto const& qpr_arr   = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
-          auto const& qci_arr   = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
-          auto const& qps_arr   = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
-          auto const& qpg_arr   = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
-          auto const& ni_arr    = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
-          [[maybe_unused]] auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
-          auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
+
+          auto const& qv_arr  = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
+
+          auto const& qcl_arr = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
+          auto const& qpr_arr = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
+          auto const& qci_arr = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
+          auto const& qps_arr = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
+          auto const& qpg_arr = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
+
+          auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
+          auto const& ni_arr = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
+          auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
-          [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
-          auto const& pres_arr = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
-          [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
+
+          auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
-          auto const& w_arr = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+          auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -562,17 +231,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           const int khi = box.hiVect()[2];
 
           Box grown_box(box); grown_box.grow(3);
-#ifdef ERF_USE_MORR_FORT
-          const int ilom = grown_box.loVect()[0];
-          const int ihim = grown_box.hiVect()[0];
-          const int jlom = grown_box.loVect()[1];
-          const int jhim = grown_box.hiVect()[1];
-          const int klom = grown_box.loVect()[2];
-          const int khim = grown_box.hiVect()[2];
+
+#if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
+          Arena* Arena_Used = The_Pinned_Arena();
+#else
+          Arena* Arena_Used = The_Async_Arena();
 #endif
+
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          FArrayBox pii_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox pii_fab(grown_box, 1, Arena_Used);
           auto const& pii_arr = pii_fab.array();
 
           const Real p0 = Real(100000.0); // Reference pressure (Pa)
@@ -587,11 +255,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
           // Create arrays for height differences (dz)
-          FArrayBox dz_fab(grown_box, 1, The_Async_Arena());
+          FArrayBox dz_fab(grown_box, 1, Arena_Used);
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
-          const Real dz_val = m_geom.CellSize(m_axis);
+          const Real dz_val = m_geom.CellSize(2);
           const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
@@ -603,10 +271,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
 
           // Arrays to store precipitation rates
-          FArrayBox    rainncv_fab(grown_boxD, 1, The_Async_Arena());
-          FArrayBox         sr_fab(grown_boxD, 1, The_Async_Arena());     // Ratio of snow to total precipitation
-          FArrayBox    snowncv_fab(grown_boxD, 1, The_Async_Arena());
-          FArrayBox graupelncv_fab(grown_boxD, 1, The_Async_Arena());
+          FArrayBox    rainncv_fab(grown_boxD, 1, Arena_Used);
+          FArrayBox         sr_fab(grown_boxD, 1, Arena_Used);     // Ratio of snow to total precipitation
+          FArrayBox    snowncv_fab(grown_boxD, 1, Arena_Used);
+          FArrayBox graupelncv_fab(grown_boxD, 1, Arena_Used);
 
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr      = sr_fab.array();
@@ -622,68 +290,12 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
           // Create terrain height array (not actually used by Morrison scheme)
-          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, The_Async_Arena());
+          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1, Arena_Used);
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
-          ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
-                                                   + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
-          });
-
-#ifdef ERF_USE_MORR_FORT
-          // Create dummy arrays for cumulus tendencies (if needed)
-          FArrayBox qrcuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qscuten_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qicuten_fab(grown_box, 1, The_Async_Arena());
-          auto const& qrcuten_arr = qrcuten_fab.array();
-          auto const& qscuten_arr = qscuten_fab.array();
-          auto const& qicuten_arr = qicuten_fab.array();
-
-          // Initialize tendencies to Real(0) (no cumulus parameterization in this example)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            qrcuten_arr(i,j,k) = Real(0);
-            qscuten_arr(i,j,k) = Real(0);
-            qicuten_arr(i,j,k) = Real(0);
-          });
-
-          // WRF-Chem related variables (optional)
-          bool flag_qndrop = false;  // Flag to indicate droplet number prediction
-
-          // Now create arrays for other optional variables
-          FArrayBox rainprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox evapprod_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox qlsink_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precr_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox preci_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precs_fab(grown_box, 1, The_Async_Arena());
-          FArrayBox precg_fab(grown_box, 1, The_Async_Arena());
-
-          auto const& rainprod_arr = rainprod_fab.array();
-          auto const& evapprod_arr = evapprod_fab.array();
-          auto const& qlsink_arr = qlsink_fab.array();
-          auto const& precr_arr = precr_fab.array();
-          auto const& preci_arr = preci_fab.array();
-          auto const& precs_arr = precs_fab.array();
-          auto const& precg_arr = precg_fab.array();
-
-          // Initialize WRF-Chem arrays to Real(0)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainprod_arr(i,j,k) = Real(0);
-            evapprod_arr(i,j,k) = Real(0);
-            qlsink_arr(i,j,k)   = Real(0);
-            precr_arr(i,j,k)    = Real(0);
-            preci_arr(i,j,k)    = Real(0);
-            precs_arr(i,j,k)    = Real(0);
-            precg_arr(i,j,k)    = Real(0);
-          });
-#endif
-
-#ifdef ERF_USE_MORR_FORT
-          // Prepare data pointers for Fortran call
-          // These would be passed directly to the Fortran interface
-          double dummy_reflectivity = Real(0);
-          double* dummy_reflectivity_ptr = &dummy_reflectivity;
-#endif
-          // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
+          // ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          //  ht_arr(i,j,k) = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
+          //                                         + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : Real(0.);  // Not used by Morrison scheme
+          //});
 
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1:std::power-law, 2: lognormal aerosol)
@@ -691,27 +303,27 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-          [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
-          [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
+          // int m_ibase = 2;   // Cloud base activation option
+          // int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 
           if(sc.moisture_type == MoistureType::Morrison_NoIce) {
             m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
             m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-            m_ibase = 2;   // Cloud base activation option
-            m_isub = 0;    // Sub-grid vertical velocity option
+            // m_ibase = 2;   // Cloud base activation option
+            // m_isub = 0;    // Sub-grid vertical velocity option
             m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
             m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
           }
-          [[maybe_unused]] bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
+          // bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
 
           // Physical constants
           Real m_pi;          // Pi constant
           Real m_R;           // Gas constant for dry air (J/kg/K)
           Real m_Rd;           // Gas constant for dry air (J/kg/K)
           Real m_Rv;          // Gas constant for water vapor (J/kg/K)
-          [[maybe_unused]] Real m_cp;          // Specific heat at constant pressure (J/kg/K)
+          // Real m_cp;          // Specific heat at constant pressure (J/kg/K)
           Real m_g;           // Gravitational acceleration (m/s^2)
           Real m_ep_2;        // Molecular weight ratio (Rd/Rv)
 
@@ -724,7 +336,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           // Fall speed parameters (V=AD^B)
           Real m_ai, m_bi;    // Cloud ice fall speed parameters
-          [[maybe_unused]] Real m_ac, m_bc;    // Cloud droplet fall speed parameters
+          // Real m_ac;    // Cloud droplet fall speed parameters
+          Real m_bc;    // Cloud droplet fall speed parameters
           Real m_as, m_bs;    // Snow fall speed parameters
           Real m_ar, m_br;    // Rain fall speed parameters
           Real m_ag, m_bg;    // Graupel/hail fall speed parameters
@@ -759,29 +372,29 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Real m_lammaxg, m_lamming;    // Graupel lambda limits
 
           // CCN spectra parameters (for IACT = 1)
-          [[maybe_unused]] Real m_k1;          // Exponent in CCN activation formula
-          [[maybe_unused]] Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
+          // Real m_k1;          // Exponent in CCN activation formula
+          // Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
 
           // Aerosol activation parameters (for IACT = 2)
-          [[maybe_unused]] Real m_mw;          // Molecular weight water (kg/mol)
-          [[maybe_unused]] Real m_osm;         // Osmotic coefficient
-          [[maybe_unused]] Real m_vi;          // Number of ions dissociated in solution
-          [[maybe_unused]] Real m_epsm;        // Aerosol soluble fraction
-          [[maybe_unused]] Real m_rhoa;        // Aerosol bulk density (kg/m^3)
-          [[maybe_unused]] Real m_map;         // Molecular weight aerosol (kg/mol)
-          [[maybe_unused]] Real m_ma;          // Molecular weight of air (kg/mol)
-          [[maybe_unused]] Real m_rr;          // Universal gas constant (J/mol/K)
-          [[maybe_unused]] Real m_bact;        // Activation parameter
-          [[maybe_unused]] Real m_rm1;         // Geometric mean radius, mode 1 (m)
-          [[maybe_unused]] Real m_rm2;         // Geometric mean radius, mode 2 (m)
+          // Real m_mw;          // Molecular weight water (kg/mol)
+          // Real m_osm;         // Osmotic coefficient
+          // Real m_vi;          // Number of ions dissociated in solution
+          // Real m_epsm;        // Aerosol soluble fraction
+          // Real m_rhoa;        // Aerosol bulk density (kg/m^3)
+          // Real m_map;         // Molecular weight aerosol (kg/mol)
+          // Real m_ma;          // Molecular weight of air (kg/mol)
+          // Real m_rr;          // Universal gas constant (J/mol/K)
+          // Real m_bact;        // Activation parameter
+          // Real m_rm1;         // Geometric mean radius, mode 1 (m)
+          // Real m_rm2;         // Geometric mean radius, mode 2 (m)
           Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
           Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
-          [[maybe_unused]] Real m_sig1;        // Standard deviation of aerosol dist, mode 1
-          [[maybe_unused]] Real m_sig2;        // Standard deviation of aerosol dist, mode 2
-          [[maybe_unused]] Real m_f11;         // Correction factor for activation, mode 1
-          [[maybe_unused]] Real m_f12;         // Correction factor for activation, mode 1
-          [[maybe_unused]] Real m_f21;         // Correction factor for activation, mode 2
-          [[maybe_unused]] Real m_f22;         // Correction factor for activation, mode 2
+          // Real m_sig1;        // Standard deviation of aerosol dist, mode 1
+          // Real m_sig2;        // Standard deviation of aerosol dist, mode 2
+          // Real m_f11;         // Correction factor for activation, mode 1
+          // Real m_f12;         // Correction factor for activation, mode 1
+          // Real m_f21;         // Correction factor for activation, mode 2
+          // Real m_f22;         // Correction factor for activation, mode 2
 
           // Precomputed constants for efficiency
           Real m_cons1, m_cons2, m_cons3, m_cons4, m_cons5;
@@ -789,8 +402,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
           Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
           Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
-          Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] Real m_cons30;
-          Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] Real m_cons33;
+          Real m_cons26, m_cons27, m_cons28, m_cons29;
+          Real m_cons31, m_cons32, m_cons34, m_cons35;
           Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
           Real m_cons41;
 
@@ -803,7 +416,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_R    = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rd   = Real(287.0);         // Gas constant for dry air (J/kg/K)
           m_Rv   = Real(461.6);        // Gas constant for water vapor (J/kg/K)
-          m_cp   = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
+          // m_cp   = Real(7.0)*Real(287.0)/Real(2);        // Specific heat at constant pressure (J/kg/K)
           m_g    = Real(9.81);           // Gravitational acceleration (m/s^2)
           m_ep_2 = m_Rd / m_Rv;     // Molecular weight ratio (Rd/Rv)
 
@@ -828,7 +441,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_bi = one;
 
           // Cloud droplets
-          m_ac = Real(3.0E7);
+          // m_ac = Real(3.0E7);
           m_bc = Real(2);
 
           // Snow
@@ -903,38 +516,38 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if (m_iact == 1) {
             // Maritime CCN spectrum parameters (modified from Rasmussen et al. 2002)
             // NCCN = C*S^K, where S is supersaturation in %
-            m_k1 = Real(0.4);        // Exponent in CCN activation formula
-            m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
+            // m_k1 = Real(0.4);        // Exponent in CCN activation formula
+            // m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
           }
 
           // Initialize aerosol activation parameters for lognormal distribution
           if (m_iact == 2) {
             // Parameters for ammonium sulfate
-            m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
-            m_osm = one;       // Osmotic coefficient
-            m_vi = three;        // Number of ions dissociated in solution
-            m_epsm = Real(0.7);      // Aerosol soluble fraction
-            m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
-            m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
-            m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
-            m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
-            m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
-            //            m_a_w = two * m_mw * Real(0.0761) / (m_rhow * m_r_v * Real(293.15));  // "A" parameter
+            // m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
+            // m_osm = one;       // Osmotic coefficient
+            // m_vi = three;        // Number of ions dissociated in solution
+            // m_epsm = Real(0.7);      // Aerosol soluble fraction
+            // m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
+            // m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
+            // m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
+            // m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
+            // m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
+            //  m_a_w = two * m_mw * Real(0.0761) / (m_rhow * m_r_v * Real(293.15));  // "A" parameter
 
             // Aerosol size distribution parameters for MPACE (Morrison et al. 2007, JGR)
             // Mode 1
-            m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
-            m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
+            // m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
+            // m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
-            m_f21 = one + fourth * std::log(m_sig1);
+            // m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
+            // m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
-            m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
-            m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
+            // m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
+            // m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
-            m_f22 = one + fourth * std::log(m_sig2);
+            // m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
+            // m_f22 = one + fourth * std::log(m_sig2);
           }
 
           // Precompute constants for efficiency
@@ -969,10 +582,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_cons27 = gamma_function(one + m_bi);
           m_cons28 = gamma_function(Real(4.0) + m_bi) / Real(6.0);
           m_cons29 = Real(4.0)/three * m_pi * m_rhow * amrex::Math::powi<3>(Real(25.0E-6));
-          m_cons30 = Real(4.0)/three * m_pi * m_rhow;
           m_cons31 = m_pi * m_pi * m_ecr * m_rhosn;
           m_cons32 = m_pi / Real(2) * m_ecr;
-          m_cons33 = m_pi * m_pi * m_ecr * m_rhog;
           m_cons34 = Real(5.0)/Real(2) + m_br/Real(2);
           m_cons35 = Real(5.0)/Real(2) + m_bs/Real(2);
           m_cons36 = Real(5.0)/Real(2) + m_bg/Real(2);
@@ -986,37 +597,37 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if (m_iact == 1) {
             // Maritime CCN spectrum parameters (modified from Rasmussen et al. 2002)
             // NCCN = C*S^K, where S is supersaturation in %
-            m_k1 = Real(0.4);        // Exponent in CCN activation formula
-            m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
+            // m_k1 = Real(0.4);        // Exponent in CCN activation formula
+            // m_c1 = Real(120.0);      // Coefficient in CCN activation formula (cm^-3)
           }
 
           // Initialize aerosol activation parameters for IACT=2
           if (m_iact == 2) {
             // Parameters for ammonium sulfate
-            m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
-            m_osm = one;       // Osmotic coefficient
-            m_vi = three;        // Number of ions dissociated in solution
-            m_epsm = Real(0.7);      // Aerosol soluble fraction
-            m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
-            m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
-            m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
-            m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
-            m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
+            // m_mw = Real(0.018);      // Molecular weight of water (kg/mol)
+            // m_osm = one;       // Osmotic coefficient
+            // m_vi = three;        // Number of ions dissociated in solution
+            // m_epsm = Real(0.7);      // Aerosol soluble fraction
+            // m_rhoa = Real(1777.0);   // Aerosol bulk density (kg/m^3)
+            // m_map = Real(0.132);     // Molecular weight of aerosol (kg/mol)
+            // m_ma = Real(0.0284);     // Molecular weight of air (kg/mol)
+            // m_rr = Real(8.3145);     // Universal gas constant (J/mol/K)
+            // m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
 
             // Aerosol size distribution parameters for MPACE (Morrison et al. 2007, JGR)
             // Mode 1
-            m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
-            m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
+            // m_rm1 = Real(0.052E-6);  // Geometric mean radius, mode 1 (m)
+            // m_sig1 = Real(2.04);     // Standard deviation of aerosol size distribution, mode 1
             m_nanew1 = Real(72.2E6); // Total aerosol concentration, mode 1 (m^-3)
-            m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
-            m_f21 = one + fourth * std::log(m_sig1);
+            // m_f11 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig1)));
+            // m_f21 = one + fourth * std::log(m_sig1);
 
             // Mode 2
-            m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
-            m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
+            // m_rm2 = Real(1.3E-6);    // Geometric mean radius, mode 2 (m)
+            // m_sig2 = Real(2.5);      // Standard deviation of aerosol size distribution, mode 2
             m_nanew2 = Real(1.8E6);  // Total aerosol concentration, mode 2 (m^-3)
-            m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
-            m_f22 = one + fourth * std::log(m_sig2);
+            // m_f12 = myhalf * std::exp(Real(2.5) * amrex::Math::powi<2>(std::log(m_sig2)));
+            // m_f22 = one + fourth * std::log(m_sig2);
           }
           // Set microphysics control parameters
           m_iact = 2;  // Lognormal aerosol activation
@@ -1029,19 +640,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               m_igraup = 0;         // Include graupel processes
           }
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
-          m_isub = 0;           // Sub-grid vertical velocity option
-          m_do_radar_ref = false; // Disable radar reflectivity by default
+          // m_isub = 0;             // Sub-grid vertical velocity option
+          // m_do_radar_ref = false; // Disable radar reflectivity by default
           Box boxD(box); boxD.makeSlab(2,0);
-
-#ifdef ERF_USE_MORR_FORT
-          // If using Fortran version, update the Fortran module variable as well
-          set_morrison_ndcnst_c(m_ndcnst);
-#endif
 
           if(run_morr_cpp) {
 
             // One FAB to rule them all
-            FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Async_Arena());
+            FArrayBox morr_fab(grown_box, MORRInd::NumInds, Arena_Used);
             morr_fab.template setVal<RunOn::Device>(0);
             auto const& morr_arr = morr_fab.array();
 
@@ -1054,41 +660,39 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           {
             // Tendencies and mixing ratios
             morr_arr(i,j,k,MORRInd::qc3d)  = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qi3d)  = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qni3d) = qps_arr(i,j,k);  // SNOW MIXING RATIO
-            morr_arr(i,j,k,MORRInd::qr3d)  = qpr_arr(i,j,k);   // RAIN MIXING RATIO
-            morr_arr(i,j,k,MORRInd::ni3d)  = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::ns3d)  = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nr3d)  = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
-            morr_arr(i,j,k,MORRInd::nc3d)  = nc_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::qi3d)  = qci_arr(i,j,k);   // CLOUD ICE   MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qni3d) = qps_arr(i,j,k);   // SNOW        MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qr3d)  = qpr_arr(i,j,k);   // RAIN        MIXING RATIO
+            morr_arr(i,j,k,MORRInd::qg3d)  = qpg_arr(i,j,k);    // GRAUPEL     MIXING RATIO
+
+            morr_arr(i,j,k,MORRInd::nc3d)  = nc_arr(i,j,k);    // CLOUD WATER NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ni3d)  = ni_arr(i,j,k);    // CLOUD ICE   NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ns3d)  = ns_arr(i,j,k);    // SNOW        NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::nr3d)  = nr_arr(i,j,k);    // RAIN        NUMBER CONCENTRATION
+            morr_arr(i,j,k,MORRInd::ng3d)  = ng_arr(i,j,k);    // GRAUPEL      NUMBER CONCENTRATION
 
             morr_arr(i,j,k,MORRInd::t3d)  = theta_arr(i,j,k) * pii_arr(i,j,k);  // TEMPERATURE
             morr_arr(i,j,k,MORRInd::qv3d) = qv_arr(i,j,k);                     // WATER VAPOR MIXING RATIO
             morr_arr(i,j,k,MORRInd::pres) = pres_arr(i,j,k);                   // ATMOSPHERIC PRESSURE
             morr_arr(i,j,k,MORRInd::dzq)  = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
             morr_arr(i,j,k,MORRInd::w3d)  = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
-            morr_arr(i,j,k,MORRInd::qg3d) = qpg_arr(i,j,k);                    // GRAUPEL MIX RATIO
-            morr_arr(i,j,k,MORRInd::ng3d) = ng_arr(i,j,k);                     // GRAUPEL NUMBER CONC
 
-            // NOTE: There are no cumulus tendecies passed to Morrison
+            // NOTE: There are no cumulus tendencies passed to Morrison
             //       and the FORTRAN version zeros these out.
-            morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qscu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
-            morr_arr(i,j,k,MORRInd::qicu1d) = Real(0.); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qrcuten_arr);              // RAIN FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qscu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qscuten_arr);              // SNOW FROM CUMULUS PARAMETERIZATION
+            morr_arr(i,j,k,MORRInd::qicu1d) = Real(0); //morr_arr(i,j,k,MORRInd::qicuten_arr);              // ICE FROM CUMULUS PARAMETERIZATION
           });
+
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
           {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            int nstep;                        // NSTEP: Timestep counter
            int iinum=m_inum;                      // iinum: Integer control variable
 
-           for(int k=klo; k<=khi; k++) {
-            // Model input parameters
-            //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
-            //amrex::Real morr_arr(i,j,k,MORRInd::lami);               // LAMI: Slope parameter for cloud ice (m^-1)
-
+           for (int k=klo; k<=khi; k++) {
             // Microphysical processes
-            [[maybe_unused]] Real nsubc;              // NSUBC: Loss of NC during evaporation
+            // Real nsubc;              // NSUBC: Loss of NC during evaporation
             Real nsubi;              // NSUBI: Loss of NI during sublimation
             Real nsubs;              // NSUBS: Loss of NS during sublimation
             Real nsubr;              // NSUBR: Loss of NR during evaporation
@@ -1123,7 +727,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
             Real pracs;              // PRACS: Change Q rain-snow collection
             Real npracs;             // NPRACS: Change N rain-snow collection
-            [[maybe_unused]] Real pccn;               // PCCN: Change Q droplet activation
+            // Real pccn;               // PCCN: Change Q droplet activation
             Real psmlt;              // PSMLT: Change Q melting snow to rain
             Real evpms;              // EVPMS: Change Q melting snow evaporating
             Real nsmlts;             // NSMLTS: Change N melting snow
@@ -1175,11 +779,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             // Dummy variables
             Real dum;                // DUM: General dummy variable
             Real dum1;               // DUM1: General dummy variable
-            [[maybe_unused]] Real dum2;               // DUM2: General dummy variable
             Real dumt;               // DUMT: Dummy variable for temperature
             Real dumqv;              // DUMQV: Dummy variable for water vapor
             Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
-            [[maybe_unused]] Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
             Real dums;               // DUMS: General dummy variable
 
             // Prognostic supersaturation
@@ -1192,33 +794,37 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
             Real kc2;                // KC2: Total ice nucleation rate
             Real di0;                // DC0: Characteristic diameter for ice
-            [[maybe_unused]] Real dc0;                // DC0: Characteristic diameter for cloud droplets
             Real ds0;                // DS0: Characteristic diameter for snow
             Real dg0;                // DG0: Characteristic diameter for graupel
             Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
-            [[maybe_unused]] Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
             Real ratio;              // RATIO: General ratio variable
             Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
             Real fudgef;             // FUDGEF: Adjustment factor
+
+            // Real dum2;               // DUM2: General dummy variable
+            // Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
+            // Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            // Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+
             // For WRF-CHEM
-            [[maybe_unused]] Real c2prec;             // C2PREC: Cloud to precipitation conversion
-            [[maybe_unused]] Real csed;               // CSED: Cloud sedimentation
-            [[maybe_unused]] Real ised;               // ISED: Ice sedimentation
-            [[maybe_unused]] Real ssed;               // SSED: Snow sedimentation
-            [[maybe_unused]] Real gsed;               // GSED: Graupel sedimentation
-            [[maybe_unused]] Real rsed;               // RSED: Rain sedimentation
-            [[maybe_unused]] Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+            // Real c2prec;             // C2PREC: Cloud to precipitation conversion
+            // Real csed;               // CSED: Cloud sedimentation
+            // Real ised;               // ISED: Ice sedimentation
+            // Real ssed;               // SSED: Snow sedimentation
+            // Real gsed;               // GSED: Graupel sedimentation
+            // Real rsed;               // RSED: Rain sedimentation
+            // Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
 
             // NC3DTEN LOCAL ARRAY INITIALIZED
             morr_arr(i,j,k,MORRInd::nc3dten) = Real(0);
 
             // INITIALIZE VARIABLES FOR WRF-CHEM OUTPUT TO ZERO
-            c2prec = Real(0);
-            csed = Real(0);
-            ised = Real(0);
-            ssed = Real(0);
-            gsed = Real(0);
-            rsed = Real(0);
+            // c2prec = Real(0);
+            // csed = Real(0);
+            // ised = Real(0);
+            // ssed = Real(0);
+            // gsed = Real(0);
+            // rsed = Real(0);
 
             // LATENT HEAT OF VAPORIZATION
             morr_arr(i,j,k,MORRInd::xxlv) = Real(3.1484E6) - Real(2370.0) * morr_arr(i,j,k,MORRInd::t3d);
@@ -1540,7 +1146,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 evpms = Real(0);       // Melting snow evaporation rate (EVPMS)
                 pcc = Real(0);         // Condensation/evaporation of cloud water (PCC)
                 pre = Real(0);         // Evaporation of rain (PRE)
-                nsubc = Real(0);       // Loss of cloud droplet number during evaporation (NSUBC)
+                // nsubc = Real(0);       // Loss of cloud droplet number during evaporation (NSUBC)
                 nsubr = Real(0);       // Loss of rain number during evaporation (NSUBR)
                 pracg = Real(0);       // Collection of rain by graupel (PRACG)
                 npracg = Real(0);      // Change in number due to collection of rain by graupel (NPRACG)
@@ -1816,7 +1422,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::nr3dten) = morr_arr(i,j,k,MORRInd::nr3dten) + (nprc1 + nragg - npracg);
 
                 // HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
-                c2prec = pra + prc;
+                // c2prec = pra + prc;
 
                 if (pre < Real(0)) {
                   dum = pre * dt / morr_arr(i,j,k,MORRInd::qr3d);
@@ -2060,7 +1666,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 prds = Real(0);        // Deposition snow (PRDS)
                 eprd = Real(0);        // Sublimation cloud ice (EPRD)
                 eprds = Real(0);       // Sublimation snow (EPRDS)
-                nsubc = Real(0);       // Loss of NC during evaporation (NSUBC)
+                // nsubc = Real(0);       // Loss of NC during evaporation (NSUBC)
                 nsubi = Real(0);       // Loss of NI during sublimation (NSUBI)
                 nsubs = Real(0);       // Loss of NS during sublimation (NSUBS)
                 nsubr = Real(0);       // Loss of NR during evaporation (NSUBR)
@@ -2815,8 +2421,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                                                    nragg - niacr - niacrs - npracg - ngracs);
 
                 // hm add, wrf-chem, add tendencies for c2prec
-                c2prec = pra + prc + psacws + qmults + qmultg + psacwg +
-                  pgsacw + mnuccc + psacwi;
+                // c2prec = pra + prc + psacws + qmults + qmultg + psacwg + pgsacw + mnuccc + psacwi;
 
                 // CALCULATE SATURATION ADJUSTMENT TO CONDENSE EXTRA VAPOR ABOVE
                 // WATER SATURATION
@@ -2891,7 +2496,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             nstep = 1;
 
-            if(ltrue != 0) {
+            if (ltrue != 0) {
             //goto 400
             // CALCULATE SEDIMENTATION
             // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
@@ -3122,7 +2727,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::faloutnc) = morr_arr(i,j,k,MORRInd::fnc) * morr_arr(i,j,k,MORRInd::dumfnc);
                 morr_arr(i,j,k,MORRInd::faloutg) = morr_arr(i,j,k,MORRInd::fg) * morr_arr(i,j,k,MORRInd::dumg);
                 morr_arr(i,j,k,MORRInd::faloutng) = morr_arr(i,j,k,MORRInd::fng) * morr_arr(i,j,k,MORRInd::dumfng);
-              }
+              } //k
 
               // Process top of model level
               int k = khi;
@@ -3212,6 +2817,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               morr_arr(i,j,klo,MORRInd::snowprt) += (morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::falouts)) * dt / nstep;
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
             }
+
             for(int k=klo; k<=khi; k++) {
               Real evs;                // EVS: Saturation vapor pressure
               Real eis;                // EIS: Ice saturation vapor pressure
@@ -3549,119 +3155,53 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
          label_400:*/
             //End of _micro
 
-            if(use_morr_cpp_answer) {
-              for(int k=klo; k<=khi; k++) {
+          if(use_morr_cpp_answer) {
+              for (int k=klo; k<=khi; k++) {
+                  // Transfer 1D variables back to 3D arrays
+                  qcl_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qc3d);
+                  qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
+                  qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
+                  qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
+                  ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
+                  ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
+                  nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
+                  qpg_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qg3d);
+                  ng_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ng3d);
 
-            // Transfer 1D variables back to 3D arrays
-            qcl_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qc3d);
-            qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
-            qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
-            qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
-            ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
-            ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
-            nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
-            qpg_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qg3d);
-            ng_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ng3d);
+                  // Temperature and potential temperature conversion
+                  theta_arr(i,j,k) = morr_arr(i,j,k,MORRInd::t3d) / pii_arr(i,j,k); // Convert temp back to potential temp
+                  qv_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qv3d);
 
-            // Temperature and potential temperature conversion
-            theta_arr(i,j,k) = morr_arr(i,j,k,MORRInd::t3d) / pii_arr(i,j,k); // Convert temp back to potential temp
-            qv_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qv3d);
+                  //Deleted wrf-check, effc, and precr type data as not used by ERF
+                  /*
+                  // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
+                  rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
+                  snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
+                  graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
+                  */
 
-            //Deleted wrf-check, effc, and precr type data as not used by ERF
-            /*
-            // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
-            rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
-            snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
-            graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);*/
-            rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
-            snowncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowprt);
-            graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
-            sr_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + Real(1.e-12));
-              }
-            // Update precipitation accumulation variables
-            // These are outside the k-loop in the original code
-            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
-            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
-            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
-            }
+                  rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
+                  snowncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowprt);
+                  graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
+                  sr_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + Real(1.e-12));
+              } // k
+
+              // Update precipitation accumulation variables
+              // These are outside the k-loop in the original code
+              rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
+              snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
+              graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+
+            } // cpp
          });
-          //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
-          }
 
-          // amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
+          }
 
           if (run_morr_fort) {
 #ifdef ERF_USE_MORR_FORT
-          mp_morr_two_moment_c
-          (
-              1,  // ITIMESTEP - Use 1 for simplicity
-
-              // 3D arrays in Fortran expected order (assume column-major for Fortran)
-              theta_arr.dataPtr(),      // TH
-              qv_arr.dataPtr(),         // QV
-              qcl_arr.dataPtr(),        // QC
-              qpr_arr.dataPtr(),        // QR
-              qci_arr.dataPtr(),        // QI
-              qps_arr.dataPtr(),        // QS
-              qpg_arr.dataPtr(),        // QG
-              ni_arr.dataPtr(),         // NI
-              ns_arr.dataPtr(),         // NS
-              nr_arr.dataPtr(),         // NR
-              ng_arr.dataPtr(),         // NG
-
-              rho_arr.dataPtr(),        // RHO
-              pii_arr.dataPtr(),        // PII (Exner function)
-              pres_arr.dataPtr(),       // P (in hPa, convert if needed)
-              dt,                       // DT_IN
-              dz_arr.dataPtr(),         // DZ
-              w_arr.dataPtr(),          // W (vertical velocity)
-
-              // 2D arrays for precipitation accounting
-              rain_accum_arr.dataPtr(), // RAINNC
-              rainncv_arr.dataPtr(),    // RAINNCV
-              sr_arr.dataPtr(),         // SR
-              snow_accum_arr.dataPtr(), // SNOWNC
-              snowncv_arr.dataPtr(),    // SNOWNCV
-              graup_accum_arr.dataPtr(),// GRAUPELNC
-              graupelncv_arr.dataPtr(), // GRAUPELNCV
-
-              // Radar reflectivity
-              dummy_reflectivity_ptr,  // refl_10cm
-              true,                     // diagflag
-              0,   // do_radar_ref
-
-              // Cumulus tendencies
-              qrcuten_arr.dataPtr(),    // qrcuten
-              qscuten_arr.dataPtr(),    // qscuten
-              qicuten_arr.dataPtr(),    // qicuten
-
-              // WRF-Chem flags
-              flag_qndrop,              // F_QNDROP
-              nullptr,                  // qndrop (not used here)
-              ht_arr.dataPtr(),         // HT (terrain height - not used)
-
-              // Domain dimensions
-              ilo, ihi, jlo, jhi, klo, khi,  // IDS,IDE,JDS,JDE,KDS,KDE
-              ilom, ihim, jlom, jhim, klom, khim,  // IMS,IME,JMS,JME,KMS,KME
-              ilo, ihi, jlo, jhi, klo, khi,  // ITS,ITE,JTS,JTE,KTS,KTE
-
-              // Optional WRF-Chem outputs
-              false,                    // wetscav_on
-              rainprod_arr.dataPtr(),   // rainprod
-              evapprod_arr.dataPtr(),   // evapprod
-              qlsink_arr.dataPtr(),     // QLSINK
-              precr_arr.dataPtr(),      // PRECR
-              preci_arr.dataPtr(),      // PRECI
-              precs_arr.dataPtr(),      // PRECS
-              precg_arr.dataPtr()       // PRECG
-          );
-#else
-          amrex::Abort("Trying to run fortran without compiling with USE_MORR_FORT=TRUE");
+#include  "ERF_Morrison_Advance_F.H"
 #endif
-        }
-          //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
-          // After the call, all fields are updated
-          // We don't need to copy results back since we passed direct pointers
-          // to our class member arrays
+          } // run_morr_fort
+
         }
     }

@@ -1,4 +1,5 @@
 #include <AMReX_ParReduce.H>
+#include <AMReX_ParallelDescriptor.H>
 #include "ERF_SAM.H"
 #include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
@@ -77,7 +78,11 @@ void SAM::IceFall (const SolverChoice& sc) {
                          {
                              return { ma_fz_arr[box_no](i,j,k) };
                          });
-    wt_max = get<0>(max) + std::numeric_limits<Real>::epsilon();
+    wt_max = get<0>(max);
+    // ParReduce over a MultiFab gives the local rank maximum here. IceFall
+    // needs one global substep count across ranks, matching PrecipFall.
+    ParallelDescriptor::ReduceRealMax(wt_max);
+    wt_max += std::numeric_limits<Real>::epsilon();
     n_substep = sam_substep_count_from_reduced_flux(wt_max, dtn, m_dzmin);
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
