@@ -5,7 +5,6 @@
 #include <array>
 #include <cctype>
 #include <cstdio>
-#include <cstdlib>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -14,255 +13,6 @@
 
 using namespace amrex;
 
-namespace {
-
-constexpr int WSM6_DIAG_SCHEMA_V1 = 1;
-constexpr int WSM6_DIAG_FRAC_DIGITS = 20;
-constexpr int WSM6_DIAG_EXP_DIGITS = 3;
-
-std::string
-wsm6_to_lower(std::string s)
-{
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
-std::string
-wsm6_trim(std::string s)
-{
-    auto not_space = [](unsigned char c) { return !std::isspace(c); };
-    auto first = std::find_if(s.begin(), s.end(), not_space);
-    if (first == s.end()) return std::string{};
-    auto last = std::find_if(s.rbegin(), s.rend(), not_space).base();
-    return std::string(first, last);
-}
-
-bool
-wsm6_list_has(const std::vector<std::string>& entries, const std::string& token)
-{
-    if (entries.empty()) return false;
-    const std::string want = wsm6_to_lower(wsm6_trim(token));
-    for (const auto& e : entries) {
-        if (wsm6_to_lower(wsm6_trim(e)) == want) return true;
-    }
-    return false;
-}
-
-std::string
-wsm6_fmt_diag_value(double v)
-{
-    char raw[96];
-    std::snprintf(raw, sizeof(raw), "%+.*E", WSM6_DIAG_FRAC_DIGITS, v);
-
-    const char* epos = std::strchr(raw, 'E');
-    if (epos == nullptr) {
-        return std::string(raw);
-    }
-
-    std::string mant(raw, epos - raw);
-    const int exp_val = std::atoi(epos + 1);
-
-    char expbuf[16];
-    std::snprintf(expbuf, sizeof(expbuf), "%+0*d",
-                  WSM6_DIAG_EXP_DIGITS + 1, exp_val);
-
-    return mant + "E" + std::string(expbuf);
-}
-
-bool
-wsm6_diag_mode_enabled(const std::string& mode, bool want_forensic)
-{
-    const std::string m = wsm6_to_lower(mode);
-    if (want_forensic) {
-        return (m == "forensic" || m == "both");
-    } else {
-        return (m == "canonical" || m == "both");
-    }
-}
-
-bool
-wsm6_store_enabled(const std::vector<std::string>& stores, const std::string& store_id)
-{
-    if (stores.empty()) return false;
-    if (wsm6_list_has(stores, "all")) return true;
-    if (wsm6_list_has(stores, "standing")) {
-        if (store_id == "broken_full" || store_id == "fused_min") return true;
-    }
-    if (wsm6_list_has(stores, store_id)) return true;
-    if (store_id == "broken_full" && wsm6_list_has(stores, "broken")) return true;
-    if (store_id == "fused_min" && wsm6_list_has(stores, "fused")) return true;
-    return false;
-}
-
-bool
-wsm6_expr_enabled(const std::vector<std::string>& exprs, const std::string& expr_id)
-{
-    if (exprs.empty()) return false;
-    if (wsm6_list_has(exprs, "all")) return true;
-    if (wsm6_list_has(exprs, "standing")) {
-        if (expr_id == "recip" || expr_id == "mul_add" || expr_id == "pow_sqrt" ||
-            expr_id == "x_mul_x_mul_x" || expr_id == "x_times_sqrtx" ||
-            expr_id == "sq_then_mul" || expr_id == "mul_then_sq" ||
-            expr_id == "canonical_tag" || expr_id == "block_signature") return true;
-    }
-    return wsm6_list_has(exprs, expr_id);
-}
-
-bool
-wsm6_tag_enabled(const std::vector<std::string>& tags, const std::string& tag)
-{
-    if (tags.empty()) return false;
-    if (wsm6_list_has(tags, "all")) return true;
-    if (wsm6_list_has(tags, "standing")) return true;
-    return wsm6_list_has(tags, tag);
-}
-
-bool
-wsm6_thermo_k_focus(int k_dbg)
-{
-    return ((k_dbg >= 1 && k_dbg <= 4) || k_dbg == 29 || k_dbg == 30);
-}
-
-bool
-wsm6_qr_k_focus(int k_dbg)
-{
-    return (k_dbg >= 10 && k_dbg <= 20);
-}
-
-bool
-wsm6_mixedphase_k_focus(int k_dbg)
-{
-    return (k_dbg >= 21 && k_dbg <= 24);
-}
-
-const std::array<const char*, 6>&
-wsm6_tag6_var_names(const char* tag)
-{
-    static const std::array<const char*, 6> fallback =
-        {"v1", "v2", "v3", "v4", "v5", "v6"};
-    static const std::array<const char*, 6> denfac =
-        {"denfac", "den", "qv", "qc", "qr", "qi"};
-    static const std::array<const char*, 6> qsat =
-        {"qsatw", "qsati", "rhw", "rhi", "qv", "t"};
-    static const std::array<const char*, 6> slope =
-        {"rslope_r", "rslope_s", "rslope_g", "rslopeb_r", "rslopeb_s", "rslopeb_g"};
-    static const std::array<const char*, 6> nislfv_r =
-        {"qr", "fall_r", "work1r", "denqrs1", "den", "denfac"};
-    static const std::array<const char*, 6> nislfv_sg =
-        {"qs", "qg", "fall_s", "fall_g", "work1s", "work1g"};
-    static const std::array<const char*, 6> fall =
-        {"qr", "qs", "qg", "fall_r", "fall_s", "fall_g"};
-    static const std::array<const char*, 6> melt =
-        {"psmlt", "pgmlt", "qs", "qg", "qr", "t"};
-    static const std::array<const char*, 6> vice =
-        {"qi", "fallc", "work1c", "denqci", "xni", "den"};
-    static const std::array<const char*, 6> phase =
-        {"pimlt", "pihmf", "pihtf", "pgfrz", "qc", "qi"};
-    static const std::array<const char*, 6> praut =
-        {"praut", "qc", "qr", "qv", "t", "den"};
-    static const std::array<const char*, 6> pracw =
-        {"pracw", "qc", "qr", "qv", "t", "den"};
-    static const std::array<const char*, 6> prevp =
-        {"prevp", "qr", "qv", "t", "den", "cpm"};
-    static const std::array<const char*, 6> praci =
-        {"praci", "piacr", "qr", "qs", "qg", "qc"};
-    static const std::array<const char*, 6> psaci =
-        {"psaci", "psacw", "paacw", "qs", "qc", "qi"};
-    static const std::array<const char*, 6> pracs =
-        {"pracs", "psacr", "qr", "qs", "qg", "qv"};
-    static const std::array<const char*, 6> pseml =
-        {"pseml", "pgeml", "qs", "qg", "qr", "t"};
-    static const std::array<const char*, 6> pidep =
-        {"pidep", "pigen", "psdep", "pgdep", "qv", "qi"};
-    static const std::array<const char*, 6> psaut =
-        {"psaut", "pgaut", "qi", "qs", "qg", "t"};
-    static const std::array<const char*, 6> psevp =
-        {"psevp", "pgevp", "qv", "qs", "qg", "t"};
-    static const std::array<const char*, 6> update =
-        {"qv", "qc", "qi", "qr", "qs", "qg"};
-    static const std::array<const char*, 6> qsat2 =
-        {"qsatw", "qsat2", "qv", "t", "p", "den"};
-    static const std::array<const char*, 6> pcond =
-        {"pcond", "qv", "qc", "t", "xl", "cpm"};
-
-    if (std::strcmp(tag, "WSM6-CPP_DENFAC") == 0) return denfac;
-    if (std::strcmp(tag, "WSM6-CPP_QSAT") == 0) return qsat;
-    if (std::strcmp(tag, "WSM6-CPP_SLOPE1") == 0) return slope;
-    if (std::strcmp(tag, "WSM6-CPP_NISLFV_R") == 0) return nislfv_r;
-    if (std::strcmp(tag, "WSM6-CPP_NISLFV_SG") == 0) return nislfv_sg;
-    if (std::strcmp(tag, "WSM6-CPP_FALL") == 0) return fall;
-    if (std::strcmp(tag, "WSM6-CPP_SLOPE2") == 0) return slope;
-    if (std::strcmp(tag, "WSM6-CPP_MELT") == 0) return melt;
-    if (std::strcmp(tag, "WSM6-CPP_VICE") == 0) return vice;
-    if (std::strcmp(tag, "WSM6-CPP_PHASE") == 0) return phase;
-    if (std::strcmp(tag, "WSM6-CPP_SLOPE3") == 0) return slope;
-    if (std::strcmp(tag, "WSM6-CPP_PRAUT") == 0) return praut;
-    if (std::strcmp(tag, "WSM6-CPP_PRACW") == 0) return pracw;
-    if (std::strcmp(tag, "WSM6-CPP_PREVP") == 0) return prevp;
-    if (std::strcmp(tag, "WSM6-CPP_PRACI") == 0) return praci;
-    if (std::strcmp(tag, "WSM6-CPP_PSACI") == 0) return psaci;
-    if (std::strcmp(tag, "WSM6-CPP_PRACS") == 0) return pracs;
-    if (std::strcmp(tag, "WSM6-CPP_PSEML") == 0) return pseml;
-    if (std::strcmp(tag, "WSM6-CPP_PIDEP") == 0) return pidep;
-    if (std::strcmp(tag, "WSM6-CPP_PSAUT") == 0) return psaut;
-    if (std::strcmp(tag, "WSM6-CPP_PSEVP") == 0) return psevp;
-    if (std::strcmp(tag, "WSM6-CPP_UPDATE") == 0) return update;
-    if (std::strcmp(tag, "WSM6-CPP_QSAT2") == 0) return qsat2;
-    if (std::strcmp(tag, "WSM6-CPP_PCOND") == 0) return pcond;
-    return fallback;
-}
-
-void
-wsm6_emit_diag_t2_line(
-    const char* tag,
-    const char* phase,
-    const char* source_layer,
-    const char* path_id,
-    const char* expr_id,
-    const char* store_id,
-    int loop_out,
-    int i_dbg,
-    int j_dbg,
-    int k_dbg,
-    int k_raw,
-    int debug_level,
-    const char* var,
-    double value)
-{
-    std::printf(
-        "WSM6-DIAG-T2 diag_schema=%d tag=%s phase=%s source_layer=%s path_id=%s expr_id=%s store_id=%s loop=%d "
-        "i_dbg=%d j_dbg=%d k_dbg=%d k_raw=%d debug_level=%d var=%s value=%s\n",
-        WSM6_DIAG_SCHEMA_V1, tag, phase, source_layer, path_id, expr_id, store_id, loop_out,
-        i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, wsm6_fmt_diag_value(value).c_str());
-}
-
-void
-wsm6_emit_diag_t2_blocksig_line(
-    const char* tag,
-    const char* phase,
-    const char* source_layer,
-    const char* block_id,
-    const char* role,
-    int loop_out,
-    int i_dbg,
-    int j_dbg,
-    int k_dbg,
-    int k_raw,
-    int debug_level,
-    const char* var,
-    double value)
-{
-    const std::string path_id = std::string(block_id) + "__block_signature";
-    std::printf(
-        "WSM6-DIAG-T2 diag_schema=%d tag=%s phase=%s source_layer=%s path_id=%s expr_id=block_signature "
-        "store_id=block_signature block_id=%s role=%s loop=%d i_dbg=%d j_dbg=%d k_dbg=%d k_raw=%d "
-        "debug_level=%d var=%s value=%s\n",
-        WSM6_DIAG_SCHEMA_V1, tag, phase, source_layer, path_id.c_str(), block_id, role, loop_out,
-        i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, wsm6_fmt_diag_value(value).c_str());
-}
-
-} // namespace
 
 // ---------------------------------------------------------------
 // WSM6 device-callable free functions (Rule 16, Rule 18)
@@ -1098,9 +848,9 @@ WSM6::Advance(const Real& dt_advance,
       pp.queryarr("micro_diag_target_column", micro_diag_target_column);
     }
     microphysics_debug = std::max(0, std::min(2, microphysics_debug));
-    const bool micro_diag_canonical = wsm6_diag_mode_enabled(micro_diag_mode, false);
-    const bool micro_diag_forensic = wsm6_diag_mode_enabled(micro_diag_mode, true);
 #ifdef ERF_USE_WSM6_FORT
+    const std::string micro_diag_mode_lower = [&]{ std::string m = micro_diag_mode; std::transform(m.begin(), m.end(), m.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); }); return m; }();
+    const bool micro_diag_forensic = (micro_diag_mode_lower == "forensic" || micro_diag_mode_lower == "both");
     const int microphysics_debug_bridge = micro_diag_forensic
         ? microphysics_debug
         : std::min(microphysics_debug, 1);
@@ -1142,8 +892,6 @@ WSM6::Advance(const Real& dt_advance,
     constexpr double cliq = static_cast<double>(Cp_l);
     constexpr double cice = 2106.0;
     constexpr double psat = 610.78;
-    const double xlv1_const = static_cast<double>(m_xlv1);
-
     for (MFIter mfi(*mic_fab_vars[MicVar_WSM6::qv], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box box = mfi.tilebox();
         const Box fab_box = mfi.fabbox();
@@ -1170,8 +918,6 @@ WSM6::Advance(const Real& dt_advance,
         const bool has_target_override = (micro_diag_target_column.size() == 2);
         const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
         const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
-        const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
-                                       diag_j >= jlo && diag_j <= jhi);
 
         const int imlo = fab_box.smallEnd(0);
         const int imhi = fab_box.bigEnd(0);
@@ -1179,7 +925,7 @@ WSM6::Advance(const Real& dt_advance,
         const int jmhi = fab_box.bigEnd(1);
         const int kmlo = fab_box.smallEnd(2);
         const int kmhi = fab_box.bigEnd(2);
-        amrex::ignore_unused(imlo, imhi, jmlo, jmhi, kmlo, kmhi);
+        amrex::ignore_unused(ihi, jhi, diag_i, diag_j, imlo, imhi, jmlo, jmhi, kmlo, kmhi);
 
         const Real dz_val = m_geom.CellSize(m_axis);
         FArrayBox delz_fab(fab_box, 1);
@@ -1224,33 +970,6 @@ WSM6::Advance(const Real& dt_advance,
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& snowacc_arr = snowacc_fab.array();
         auto const& graupacc_arr = graupacc_fab.array();
-        auto print_wsm6_state = [&](const char* tag,
-                                    const Array4<const Real>& qv,
-                                    const Array4<const Real>& qc,
-                                    const Array4<const Real>& qr,
-                                    const Array4<const Real>& qi,
-                                    const Array4<const Real>& qs,
-                                    const Array4<const Real>& qg,
-                                    const Array4<const Real>& t,
-                                    int ilo, int ihi,
-                                    int jlo, int jhi,
-                                    int klo, int khi) {
-            if (!ParallelDescriptor::IOProcessor()) return;
-            if (microphysics_debug < 2) return;
-            Gpu::synchronize();
-            for (int k = klo; k <= khi; ++k)
-            for (int j = jlo; j <= jhi; ++j)
-            for (int i = ilo; i <= ihi; ++i)
-                std::printf(
-                    "%s i=%d j=%d k=%d "
-                    "qv=%.15e qc=%.15e qr=%.15e "
-                    "qi=%.15e qs=%.15e qg=%.15e t=%.15e\n",
-                    tag, i, j, k,
-                    (double)qv(i,j,k), (double)qc(i,j,k),
-                    (double)qr(i,j,k), (double)qi(i,j,k),
-                    (double)qs(i,j,k), (double)qg(i,j,k),
-                    (double)t(i,j,k));
-        };
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rainacc_arr(i,j,0) = rain_arr(i,j,klo);
             snowacc_arr(i,j,0) = snow_arr(i,j,klo);
@@ -1260,79 +979,6 @@ WSM6::Advance(const Real& dt_advance,
             snowncv_arr(i,j,0) = Real(0.0);
             graupelncv_arr(i,j,0) = Real(0.0);
         });
-        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
-            wsm6_tag_enabled(micro_diag_tags, "DENFAC") &&
-            wsm6_expr_enabled(micro_diag_expr, "canonical_tag") &&
-            wsm6_store_enabled(micro_diag_store, "fused_min")) {
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                wsm6_emit_diag_t2_line(
-                    "DENFAC", "PRECALL", "PRECALL_CPP",
-                    "canonical_tag__fused_min", "canonical_tag", "fused_min",
-                    0, diag_i, diag_j, k_dbg, k, microphysics_debug, "den_precall",
-                    (double)den_arr(diag_i,diag_j,k));
-            }
-        }
-        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
-            wsm6_tag_enabled(micro_diag_tags, "THERMO_STATE") &&
-            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-            wsm6_store_enabled(micro_diag_store, "fused_min")) {
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpd", (double)cpd);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpv", (double)cpv);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "qmin", (double)qmin);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv0", (double)xlv0);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv1", xlv1_const);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "t0c", (double)t0c);
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                if (!wsm6_thermo_k_focus(k_dbg)) continue;
-                const double t_entry = (double)t_arr(diag_i,diag_j,k);
-                const double p_entry = (double)p_arr(diag_i,diag_j,k);
-                const double qv_entry = (double)qv_arr(diag_i,diag_j,k);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_entry", t_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "p_entry", p_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_entry", qv_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_for_xl", t_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_for_cpm", qv_entry);
-            }
-        }
-        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
-            wsm6_tag_enabled(micro_diag_tags, "QR_STATE") &&
-            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-            wsm6_store_enabled(micro_diag_store, "fused_min")) {
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                if (!wsm6_qr_k_focus(k_dbg)) continue;
-                const double qr_working_pre = (double)qr_arr(diag_i,diag_j,k);
-                const double rho_pre = (double)den_arr(diag_i,diag_j,k);
-                const double rhoq4_pre_equiv = rho_pre * qr_working_pre;
-                const double qrain_persistent_pre = (rho_pre > 0.0)
-                    ? (rhoq4_pre_equiv / rho_pre) : 0.0;
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
-                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "qr_working_pre", qr_working_pre);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "rho_pre", rho_pre);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
-                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "RhoQ4_pre_equiv", rhoq4_pre_equiv);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "PRECALL_CPP", "QR_STATE",
-                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "qrain_persistent_pre", qrain_persistent_pre);
-            }
-        }
 
 #ifdef ERF_USE_WSM6_FORT
         if (run_wsm6_fort) {
@@ -1363,9 +1009,6 @@ WSM6::Advance(const Real& dt_advance,
         auto const& delqrs1_arr   = delqrs1_fab.array();
         auto const& delqrs2_arr   = delqrs2_fab.array();
         auto const& delqrs3_arr   = delqrs3_fab.array();
-        auto const& delqi_arr     = delqi_fab.array();
-        auto const& tstepsnow_arr = tstepsnow_fab.array();
-        auto const& tstepgraup_arr= tstepgraup_fab.array();
 
         // 3D working FABs
         FArrayBox denfac_fab(fab_box,1);  FArrayBox xni_fab(fab_box,1);
@@ -1449,11 +1092,9 @@ WSM6::Advance(const Real& dt_advance,
         auto const& workdiffi_arr = workdiffi_fab.array();
         auto const& workr_arr     = workr_fab.array();
         auto const& worka_arr     = worka_fab.array();
-        auto const& work1c_arr    = work1c_fab.array();
         auto const& denqrs1_arr   = denqrs1_fab.array();
         auto const& denqrs2_arr   = denqrs2_fab.array();
         auto const& denqrs3_arr   = denqrs3_fab.array();
-        auto const& denqci_arr    = denqci_fab.array();
         auto const& fall_r_arr    = fall_r_fab.array();
         auto const& fall_s_arr    = fall_s_fab.array();
         auto const& fall_g_arr    = fall_g_fab.array();
@@ -1492,164 +1133,6 @@ WSM6::Advance(const Real& dt_advance,
         auto const& pihmf_arr     = pihmf_fab.array();
         auto const& pihtf_arr     = pihtf_fab.array();
         auto const& pgfrz_arr     = pgfrz_fab.array();
-        FArrayBox nislfv_r_search_denqrs1_before_kernel_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qq_or_rql_initial_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_den_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_denfac_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_dz_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_tk_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_ww_input_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_dtcld_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_zi_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_za_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_dza_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_wi_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_ww_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_wa_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_was_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qa_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qmi_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qpi_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kb_before_backstep_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kt_before_backstep_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kb_after_backstep_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kt_after_backstep_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kb_after_search_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_kt_after_search_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_zsum_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qsum_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_qn_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_denqrs1_after_kernel_dbg_fab(fab_box, 1);
-        FArrayBox nislfv_r_search_precip_or_delqrs1_dbg_fab(fab_box, 1);
-        FArrayBox qr_update_before_dbg_fab(fab_box, 1);
-        FArrayBox qr_update_increment_dbg_fab(fab_box, 1);
-        FArrayBox qr_update_after_dbg_fab(fab_box, 1);
-        FArrayBox qr_update_clamp_flag_dbg_fab(fab_box, 1);
-        FArrayBox qr_prod_before_dbg_fab(fab_box, 1);
-        FArrayBox qr_prod_denqrs1_dbg_fab(fab_box, 1);
-        FArrayBox qr_prod_den_dbg_fab(fab_box, 1);
-        FArrayBox qr_prod_after_dbg_fab(fab_box, 1);
-        FArrayBox denqrs1_prod_qr_input_dbg_fab(fab_box, 1);
-        FArrayBox denqrs1_prod_den_input_dbg_fab(fab_box, 1);
-        FArrayBox denqrs1_prod_after_init_dbg_fab(fab_box, 1);
-        FArrayBox denqrs1_prod_before_sed_dbg_fab(fab_box, 1);
-        FArrayBox denqrs1_prod_after_sed_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_qr_before_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_qs_before_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_qg_before_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_den_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_denqrs2_before_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_denqrs3_before_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_denqrs2_after_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_denqrs3_after_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_qs_after_dbg_fab(fab_box, 1);
-        FArrayBox mixedphase_prod_qg_after_dbg_fab(fab_box, 1);
-        auto const& qr_update_before_dbg_arr = qr_update_before_dbg_fab.array();
-        auto const& qr_update_increment_dbg_arr = qr_update_increment_dbg_fab.array();
-        auto const& qr_update_after_dbg_arr = qr_update_after_dbg_fab.array();
-        auto const& qr_update_clamp_flag_dbg_arr = qr_update_clamp_flag_dbg_fab.array();
-        auto const& qr_prod_before_dbg_arr = qr_prod_before_dbg_fab.array();
-        auto const& qr_prod_denqrs1_dbg_arr = qr_prod_denqrs1_dbg_fab.array();
-        auto const& qr_prod_den_dbg_arr = qr_prod_den_dbg_fab.array();
-        auto const& qr_prod_after_dbg_arr = qr_prod_after_dbg_fab.array();
-        auto const& denqrs1_prod_qr_input_dbg_arr = denqrs1_prod_qr_input_dbg_fab.array();
-        auto const& denqrs1_prod_den_input_dbg_arr = denqrs1_prod_den_input_dbg_fab.array();
-        auto const& denqrs1_prod_after_init_dbg_arr = denqrs1_prod_after_init_dbg_fab.array();
-        auto const& denqrs1_prod_before_sed_dbg_arr = denqrs1_prod_before_sed_dbg_fab.array();
-        auto const& denqrs1_prod_after_sed_dbg_arr = denqrs1_prod_after_sed_dbg_fab.array();
-        auto const& mixedphase_prod_qr_before_dbg_arr = mixedphase_prod_qr_before_dbg_fab.array();
-        auto const& mixedphase_prod_qs_before_dbg_arr = mixedphase_prod_qs_before_dbg_fab.array();
-        auto const& mixedphase_prod_qg_before_dbg_arr = mixedphase_prod_qg_before_dbg_fab.array();
-        auto const& mixedphase_prod_den_dbg_arr = mixedphase_prod_den_dbg_fab.array();
-        auto const& mixedphase_prod_denqrs2_before_dbg_arr = mixedphase_prod_denqrs2_before_dbg_fab.array();
-        auto const& mixedphase_prod_denqrs3_before_dbg_arr = mixedphase_prod_denqrs3_before_dbg_fab.array();
-        auto const& mixedphase_prod_denqrs2_after_dbg_arr = mixedphase_prod_denqrs2_after_dbg_fab.array();
-        auto const& mixedphase_prod_denqrs3_after_dbg_arr = mixedphase_prod_denqrs3_after_dbg_fab.array();
-        auto const& mixedphase_prod_qs_after_dbg_arr = mixedphase_prod_qs_after_dbg_fab.array();
-        auto const& mixedphase_prod_qg_after_dbg_arr = mixedphase_prod_qg_after_dbg_fab.array();
-        auto const& nislfv_r_search_denqrs1_before_kernel_dbg_arr = nislfv_r_search_denqrs1_before_kernel_dbg_fab.array();
-        auto const& nislfv_r_search_qq_or_rql_initial_dbg_arr = nislfv_r_search_qq_or_rql_initial_dbg_fab.array();
-        auto const& nislfv_r_search_den_dbg_arr = nislfv_r_search_den_dbg_fab.array();
-        auto const& nislfv_r_search_denfac_dbg_arr = nislfv_r_search_denfac_dbg_fab.array();
-        auto const& nislfv_r_search_dz_dbg_arr = nislfv_r_search_dz_dbg_fab.array();
-        auto const& nislfv_r_search_tk_dbg_arr = nislfv_r_search_tk_dbg_fab.array();
-        auto const& nislfv_r_search_ww_input_dbg_arr = nislfv_r_search_ww_input_dbg_fab.array();
-        auto const& nislfv_r_search_dtcld_dbg_arr = nislfv_r_search_dtcld_dbg_fab.array();
-        auto const& nislfv_r_search_zi_dbg_arr = nislfv_r_search_zi_dbg_fab.array();
-        auto const& nislfv_r_search_za_dbg_arr = nislfv_r_search_za_dbg_fab.array();
-        auto const& nislfv_r_search_dza_dbg_arr = nislfv_r_search_dza_dbg_fab.array();
-        auto const& nislfv_r_search_wi_dbg_arr = nislfv_r_search_wi_dbg_fab.array();
-        auto const& nislfv_r_search_ww_dbg_arr = nislfv_r_search_ww_dbg_fab.array();
-        auto const& nislfv_r_search_wa_dbg_arr = nislfv_r_search_wa_dbg_fab.array();
-        auto const& nislfv_r_search_was_dbg_arr = nislfv_r_search_was_dbg_fab.array();
-        auto const& nislfv_r_search_qa_dbg_arr = nislfv_r_search_qa_dbg_fab.array();
-        auto const& nislfv_r_search_qmi_dbg_arr = nislfv_r_search_qmi_dbg_fab.array();
-        auto const& nislfv_r_search_qpi_dbg_arr = nislfv_r_search_qpi_dbg_fab.array();
-        auto const& nislfv_r_search_kb_before_backstep_dbg_arr = nislfv_r_search_kb_before_backstep_dbg_fab.array();
-        auto const& nislfv_r_search_kt_before_backstep_dbg_arr = nislfv_r_search_kt_before_backstep_dbg_fab.array();
-        auto const& nislfv_r_search_kb_after_backstep_dbg_arr = nislfv_r_search_kb_after_backstep_dbg_fab.array();
-        auto const& nislfv_r_search_kt_after_backstep_dbg_arr = nislfv_r_search_kt_after_backstep_dbg_fab.array();
-        auto const& nislfv_r_search_kb_after_search_dbg_arr = nislfv_r_search_kb_after_search_dbg_fab.array();
-        auto const& nislfv_r_search_kt_after_search_dbg_arr = nislfv_r_search_kt_after_search_dbg_fab.array();
-        auto const& nislfv_r_search_zsum_dbg_arr = nislfv_r_search_zsum_dbg_fab.array();
-        auto const& nislfv_r_search_qsum_dbg_arr = nislfv_r_search_qsum_dbg_fab.array();
-        auto const& nislfv_r_search_qn_dbg_arr = nislfv_r_search_qn_dbg_fab.array();
-        auto const& nislfv_r_search_denqrs1_after_kernel_dbg_arr = nislfv_r_search_denqrs1_after_kernel_dbg_fab.array();
-        auto const& nislfv_r_search_precip_or_delqrs1_dbg_arr = nislfv_r_search_precip_or_delqrs1_dbg_fab.array();
-        auto print_wsm6_tag6 = [&](const char* tag,
-                                   const Array4<const Real>& a1,
-                                   const Array4<const Real>& a2,
-                                   const Array4<const Real>& a3,
-                                   const Array4<const Real>& a4,
-                                   const Array4<const Real>& a5,
-                                   const Array4<const Real>& a6,
-                                   int loop) {
-            if (microphysics_debug < 1 || loop != 0 || !micro_diag_canonical) return;
-            if (!ParallelDescriptor::IOProcessor()) return;
-            Gpu::synchronize();
-            const auto& names = wsm6_tag6_var_names(tag);
-            std::string tag_short(tag);
-            const std::string prefix = "WSM6-CPP_";
-            if (tag_short.rfind(prefix, 0) == 0) {
-                tag_short = tag_short.substr(prefix.size());
-            }
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            tag, k_dbg,
-                            (double)a1(ilo,jlo,k), (double)a2(ilo,jlo,k),
-                            (double)a3(ilo,jlo,k), (double)a4(ilo,jlo,k),
-                            (double)a5(ilo,jlo,k), (double)a6(ilo,jlo,k));
-                if (microphysics_debug >= 2 && micro_diag_forensic &&
-                    diag_col_in_tile &&
-                    wsm6_tag_enabled(micro_diag_tags, tag_short) &&
-                    wsm6_expr_enabled(micro_diag_expr, "canonical_tag") &&
-                    wsm6_store_enabled(micro_diag_store, "fused_min")) {
-                    const int loop_out = loop + 1;
-                    const double values[6] = {
-                        (double)a1(diag_i,diag_j,k), (double)a2(diag_i,diag_j,k), (double)a3(diag_i,diag_j,k),
-                        (double)a4(diag_i,diag_j,k), (double)a5(diag_i,diag_j,k), (double)a6(diag_i,diag_j,k)
-                    };
-                    for (int iv = 0; iv < 6; ++iv) {
-                        wsm6_emit_diag_t2_line(
-                            tag_short.c_str(), "INCORE", "INCORE_CPP",
-                            "canonical_tag__fused_min", "canonical_tag", "fused_min",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, names[iv], values[iv]);
-                    }
-                }
-            }
-        };
-
-        // G18 stub: rainprod2d / evapprod2d are not implemented yet.
-        // Keep this ignore_unused block here until the 2D diagnostics are wired.
-        {
-            const bool g18_stub = false;
-            amrex::ignore_unused(g18_stub);
-        }
-
-        print_wsm6_state("WSM6-CPP PRE-GA",
-                         qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                         ilo, ihi, jlo, jhi, klo, khi);
 
         // Groups A-E: pre-loop setup
         // Clamp negative values (Group A)
@@ -1662,9 +1145,6 @@ WSM6::Advance(const Real& dt_advance,
             den_tmp_arr(i,j,k)  = den_arr(i,j,k);
             delz_tmp_arr(i,j,k) = delz_arr(i,j,k);
         });
-        print_wsm6_state("WSM6-CPP POST-GA",
-                         qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                         ilo, ihi, jlo, jhi, klo, khi);
 
         // Group B: cpm, xl — computed once from initial state [lines 455-460]
         const Real xlv1_loc = m_xlv1;
@@ -1672,47 +1152,6 @@ WSM6::Advance(const Real& dt_advance,
             cpm_arr(i,j,k) = wsm6_cpmcal(qv_arr(i,j,k), Real(qmin), Real(cpd), Real(cpv));
             xl_arr(i,j,k)  = wsm6_xlcal(t_arr(i,j,k), Real(xlv0), xlv1_loc, Real(t0c));
         });
-        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-            ParallelDescriptor::IOProcessor() &&
-            wsm6_tag_enabled(micro_diag_tags, "THERMO_STATE") &&
-            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-            wsm6_store_enabled(micro_diag_store, "fused_min")) {
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpd", (double)cpd);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "cpv", (double)cpv);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "qmin", (double)qmin);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv0", (double)xlv0);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "xlv1", xlv1_const);
-            wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                            "constant", 0, diag_i, diag_j, 0, -1, microphysics_debug, "t0c", (double)t0c);
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                if (!wsm6_thermo_k_focus(k_dbg)) continue;
-                const double t_entry = (double)t_arr(diag_i,diag_j,k);
-                const double p_entry = (double)p_arr(diag_i,diag_j,k);
-                const double qv_entry = (double)qv_arr(diag_i,diag_j,k);
-                const double xl_derived = (double)xl_arr(diag_i,diag_j,k);
-                const double cpm_derived = (double)cpm_arr(diag_i,diag_j,k);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_entry", t_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "p_entry", p_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_entry", qv_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "derived", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "xl", xl_derived);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "derived", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "cpm", cpm_derived);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "t_for_xl", t_entry);
-                wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "THERMO_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug, "qv_for_cpm", qv_entry);
-            }
-        }
 
         // Outer minor timestep loop (Rule 29)
         const int wsm6_loops = std::max(
@@ -1737,56 +1176,10 @@ WSM6::Advance(const Real& dt_advance,
 
         for (int loop = 0; loop < wsm6_loops; ++loop) {
             // G1b: denfac = sqrt(den0/den)  [lines 503-515]
-            if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                ParallelDescriptor::IOProcessor() &&
-                wsm6_tag_enabled(micro_diag_tags, "DENFAC") &&
-                wsm6_expr_enabled(micro_diag_expr, "recip")) {
-                const int loop_out = loop + 1;
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    const double den_val = (double)den_arr(diag_i,diag_j,k);
-
-                    if (wsm6_store_enabled(micro_diag_store, "broken_full")) {
-                        const double a_broken = 1.0 / den_val;
-                        const double t_broken = a_broken * (double)den0;
-                        const double denfac_broken = std::sqrt(t_broken);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__broken_full", "recip", "broken_full",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "den", den_val);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__broken_full", "recip", "broken_full",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "a", a_broken);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__broken_full", "recip", "broken_full",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "t1", t_broken);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__broken_full", "recip", "broken_full",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "denfac", denfac_broken);
-                    }
-                    if (wsm6_store_enabled(micro_diag_store, "fused_min")) {
-                        const double denfac_fused = std::sqrt((double)den0 / den_val);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__fused_min", "recip", "fused_min",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "den", den_val);
-                        wsm6_emit_diag_t2_line(
-                            "DENFAC", "INCORE", "INCORE_CPP",
-                            "recip__fused_min", "recip", "fused_min",
-                            loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug, "denfac", denfac_fused);
-                    }
-                }
-            }
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real invden = Real(1.0) / den_arr(i,j,k);
                 denfac_arr(i,j,k) = std::sqrt(invden * Real(den0));
             });
-            print_wsm6_tag6("WSM6-CPP_DENFAC",
-                            denfac_arr, den_arr, qv_arr, qc_arr, qr_arr, qi_arr, loop);
-
             // G1c: qsatw, qsati, rhw, rhi  [lines 517-549]
             {
                 const Real ttp  = Real(t0c) + Real(0.01);
@@ -1814,9 +1207,6 @@ WSM6::Advance(const Real& dt_advance,
                     rhi_arr(i,j,k)   = amrex::max(qv_arr(i,j,k)/qsi, Real(qmin));
                 });
             }
-            print_wsm6_tag6("WSM6-CPP_QSAT",
-                            qsatw_arr, qsati_arr, rhw_arr, rhi_arr, qv_arr, t_arr, loop);
-
             // G2: zero all process rates each sub-step  [lines 555-594]
             // WSM6-CPP TAG: RATES_ZERO
             //   legacy_group: G2
@@ -1846,27 +1236,18 @@ WSM6::Advance(const Real& dt_advance,
             //   legacy_group: G3
             //   process: Ice crystal number concentration
             //   compare_vars: xni, qi, den
-            print_wsm6_state("WSM6-CPP PRE-G3",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real tmp = den_arr(i,j,k)*amrex::max(qi_arr(i,j,k), Real(qmin));
                 xni_arr(i,j,k) = amrex::min(
                     amrex::max(Real(5.38e7)*std::sqrt(std::sqrt(tmp*tmp*tmp)), Real(1.e3)),
                     Real(1.e6));
             });
-            print_wsm6_state("WSM6-CPP POST-G3",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
 
             // G4: pack qrs_tmp, first slope_wsm6 [lines 610-618]
             // WSM6-CPP TAG: SLOPE1
             //   legacy_group: G4
             //   process: First slope calculation
             //   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
-            print_wsm6_state("WSM6-CPP PRE-G4",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
                 qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
@@ -1900,101 +1281,7 @@ WSM6::Advance(const Real& dt_advance,
                     work1_g_arr(i,j,k));
                 n0sfac_arr(i,j,k) = dummy_n0sfac;
             });
-            print_wsm6_tag6("WSM6-CPP_SLOPE1",
-                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
-                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
-            print_wsm6_state("WSM6-CPP POST-G4",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            print_wsm6_state("WSM6-CPP PRE-G1",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
             // G5a-G5e: sedimentation setup, nislfv calls, and flux updates
-            print_wsm6_state("WSM6-CPP PRE-G5",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-            const bool emit_qr_producer_boundary =
-                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                 ParallelDescriptor::IOProcessor() &&
-                 wsm6_tag_enabled(micro_diag_tags, "QR_PRODUCER_BOUNDARY") &&
-                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-                 wsm6_store_enabled(micro_diag_store, "fused_min"));
-            const bool emit_denqrs1_producer_boundary =
-                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                 ParallelDescriptor::IOProcessor() &&
-                 wsm6_tag_enabled(micro_diag_tags, "DENQRS1_PRODUCER_BOUNDARY") &&
-                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-                 wsm6_store_enabled(micro_diag_store, "fused_min"));
-            const bool emit_nislfv_r_search_state =
-                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                 ParallelDescriptor::IOProcessor() &&
-                 wsm6_tag_enabled(micro_diag_tags, "NISLFV_R_SEARCH_STATE") &&
-                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-                 wsm6_store_enabled(micro_diag_store, "fused_min"));
-            const bool emit_mixedphase_producer_boundary =
-                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                 ParallelDescriptor::IOProcessor() &&
-                 wsm6_tag_enabled(micro_diag_tags, "MIXEDPHASE_PRODUCER_BOUNDARY") &&
-                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-                 wsm6_store_enabled(micro_diag_store, "fused_min"));
-            if (emit_qr_producer_boundary) {
-                qr_prod_before_dbg_fab.setVal(Real(0.0));
-                qr_prod_denqrs1_dbg_fab.setVal(Real(0.0));
-                qr_prod_den_dbg_fab.setVal(Real(0.0));
-                qr_prod_after_dbg_fab.setVal(Real(0.0));
-            }
-            if (emit_denqrs1_producer_boundary) {
-                denqrs1_prod_qr_input_dbg_fab.setVal(Real(0.0));
-                denqrs1_prod_den_input_dbg_fab.setVal(Real(0.0));
-                denqrs1_prod_after_init_dbg_fab.setVal(Real(0.0));
-                denqrs1_prod_before_sed_dbg_fab.setVal(Real(0.0));
-                denqrs1_prod_after_sed_dbg_fab.setVal(Real(0.0));
-            }
-            if (emit_mixedphase_producer_boundary) {
-                mixedphase_prod_qr_before_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_qs_before_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_qg_before_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_den_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_denqrs2_before_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_denqrs3_before_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_denqrs2_after_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_denqrs3_after_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_qs_after_dbg_fab.setVal(Real(0.0));
-                mixedphase_prod_qg_after_dbg_fab.setVal(Real(0.0));
-            }
-            if (emit_nislfv_r_search_state) {
-                nislfv_r_search_denqrs1_before_kernel_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qq_or_rql_initial_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_den_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_denfac_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_dz_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_tk_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_ww_input_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_dtcld_dbg_fab.setVal(Real(dtcld));
-                nislfv_r_search_zi_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_za_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_dza_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_wi_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_ww_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_wa_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_was_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qa_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qmi_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qpi_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_kb_before_backstep_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_kt_before_backstep_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_kb_after_backstep_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_kt_after_backstep_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_kb_after_search_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_kt_after_search_dbg_fab.setVal(Real(-1.0));
-                nislfv_r_search_zsum_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qsum_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_qn_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_denqrs1_after_kernel_dbg_fab.setVal(Real(0.0));
-                nislfv_r_search_precip_or_delqrs1_dbg_fab.setVal(Real(0.0));
-            }
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
                 if (km_local > WSM6_MAX_LEVELS) return;
@@ -2013,52 +1300,6 @@ WSM6::Advance(const Real& dt_advance,
                 Real delqrs1_col = Real(0.0);
                 Real delqrs2_col = Real(0.0);
                 Real delqrs3_col = Real(0.0);
-                Real search_zi_col[WSM6_MAX_LEVELS];
-                Real search_za_col[WSM6_MAX_LEVELS];
-                Real search_dza_col[WSM6_MAX_LEVELS];
-                Real search_wi_col[WSM6_MAX_LEVELS];
-                Real search_ww_col[WSM6_MAX_LEVELS];
-                Real search_wa_col[WSM6_MAX_LEVELS];
-                Real search_was_col[WSM6_MAX_LEVELS];
-                Real search_qa_col[WSM6_MAX_LEVELS];
-                Real search_qmi_col[WSM6_MAX_LEVELS];
-                Real search_qpi_col[WSM6_MAX_LEVELS];
-                Real search_kb_before_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kt_before_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kb_after_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kt_after_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kb_after_search_col[WSM6_MAX_LEVELS];
-                Real search_kt_after_search_col[WSM6_MAX_LEVELS];
-                Real search_zsum_col[WSM6_MAX_LEVELS];
-                Real search_qsum_col[WSM6_MAX_LEVELS];
-                Real search_qn_col[WSM6_MAX_LEVELS];
-                Real search_denqrs1_after_kernel_col[WSM6_MAX_LEVELS];
-                const bool emit_nislfv_r_search_kcol =
-                    emit_nislfv_r_search_state && (i == diag_i) && (j == diag_j);
-                if (emit_nislfv_r_search_kcol) {
-                    for (int kk = 0; kk < km_local; ++kk) {
-                        search_zi_col[kk] = Real(0.0);
-                        search_za_col[kk] = Real(0.0);
-                        search_dza_col[kk] = Real(0.0);
-                        search_wi_col[kk] = Real(0.0);
-                        search_ww_col[kk] = Real(0.0);
-                        search_wa_col[kk] = Real(0.0);
-                        search_was_col[kk] = Real(0.0);
-                        search_qa_col[kk] = Real(0.0);
-                        search_qmi_col[kk] = Real(0.0);
-                        search_qpi_col[kk] = Real(0.0);
-                        search_kb_before_backstep_col[kk] = Real(-1.0);
-                        search_kt_before_backstep_col[kk] = Real(-1.0);
-                        search_kb_after_backstep_col[kk] = Real(-1.0);
-                        search_kt_after_backstep_col[kk] = Real(-1.0);
-                        search_kb_after_search_col[kk] = Real(-1.0);
-                        search_kt_after_search_col[kk] = Real(-1.0);
-                        search_zsum_col[kk] = Real(0.0);
-                        search_qsum_col[kk] = Real(0.0);
-                        search_qn_col[kk] = Real(0.0);
-                        search_denqrs1_after_kernel_col[kk] = Real(0.0);
-                    }
-                }
 
                 // G5a: pack sedimentation work arrays
                 for (int k = klo; k <= khi; ++k) {
@@ -2076,44 +1317,9 @@ WSM6::Advance(const Real& dt_advance,
                     } else {
                         worka_col[kk] = Real(0.0);
                     }
-                    const bool emit_denqrs1_prod_k =
-                        emit_denqrs1_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_qr_k_focus(kk + 1);
-                    if (emit_denqrs1_prod_k) {
-                        denqrs1_prod_qr_input_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                        denqrs1_prod_den_input_dbg_arr(i,j,k) = den_col[kk];
-                    }
                     denqrs1_col[kk] = den_col[kk] * qr_arr(i,j,k);
                     denqrs2_col[kk] = den_col[kk] * qs_arr(i,j,k);
                     denqrs3_col[kk] = den_col[kk] * qg_arr(i,j,k);
-                    const bool emit_mixedphase_prod_k =
-                        emit_mixedphase_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_mixedphase_k_focus(kk + 1);
-                    if (emit_mixedphase_prod_k) {
-                        mixedphase_prod_qr_before_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                        mixedphase_prod_qs_before_dbg_arr(i,j,k) = qs_arr(i,j,k);
-                        mixedphase_prod_qg_before_dbg_arr(i,j,k) = qg_arr(i,j,k);
-                        mixedphase_prod_den_dbg_arr(i,j,k) = den_col[kk];
-                        mixedphase_prod_denqrs2_before_dbg_arr(i,j,k) = denqrs2_col[kk];
-                        mixedphase_prod_denqrs3_before_dbg_arr(i,j,k) = denqrs3_col[kk];
-                    }
-                    if (emit_denqrs1_prod_k) {
-                        denqrs1_prod_after_init_dbg_arr(i,j,k) = denqrs1_col[kk];
-                        denqrs1_prod_before_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
-                    }
-                    if (emit_nislfv_r_search_kcol && wsm6_qr_k_focus(kk + 1)) {
-                        nislfv_r_search_denqrs1_before_kernel_dbg_arr(i,j,k) = denqrs1_col[kk];
-                        // qq_or_rql_initial maps to the local qq state transported by nislfv_rain_plm
-                        nislfv_r_search_qq_or_rql_initial_dbg_arr(i,j,k) = denqrs1_col[kk];
-                        nislfv_r_search_den_dbg_arr(i,j,k) = den_col[kk];
-                        nislfv_r_search_denfac_dbg_arr(i,j,k) = denfac_col[kk];
-                        nislfv_r_search_dz_dbg_arr(i,j,k) = dz_col[kk];
-                        nislfv_r_search_tk_dbg_arr(i,j,k) = t_col[kk];
-                        nislfv_r_search_ww_input_dbg_arr(i,j,k) = workr_col[kk];
-                        nislfv_r_search_dtcld_dbg_arr(i,j,k) = dtcld;
-                    }
                     if (qr_arr(i,j,k) <= Real(0.0)) {
                         workr_col[kk] = Real(0.0);
                     }
@@ -2123,59 +1329,9 @@ WSM6::Advance(const Real& dt_advance,
                 wsm6_nislfv_rain_plm(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1, 0,
-                    emit_nislfv_r_search_kcol ? search_zi_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_za_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_dza_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_wi_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_ww_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_wa_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_was_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_qa_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_qmi_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_qpi_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kb_before_backstep_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kt_before_backstep_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kb_after_backstep_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kt_after_backstep_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kb_after_search_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_kt_after_search_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_zsum_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_qsum_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_qn_col : nullptr,
-                    emit_nislfv_r_search_kcol ? search_denqrs1_after_kernel_col : nullptr);
-                for (int k = klo; k <= khi; ++k) {
-                    const int kk = k - klo;
-                    const bool emit_denqrs1_prod_k =
-                        emit_denqrs1_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_qr_k_focus(kk + 1);
-                    if (emit_denqrs1_prod_k) {
-                        denqrs1_prod_after_sed_dbg_arr(i,j,k) = denqrs1_col[kk];
-                    }
-                    if (emit_nislfv_r_search_kcol && wsm6_qr_k_focus(kk + 1)) {
-                        nislfv_r_search_zi_dbg_arr(i,j,k) = search_zi_col[kk];
-                        nislfv_r_search_za_dbg_arr(i,j,k) = search_za_col[kk];
-                        nislfv_r_search_dza_dbg_arr(i,j,k) = search_dza_col[kk];
-                        nislfv_r_search_wi_dbg_arr(i,j,k) = search_wi_col[kk];
-                        nislfv_r_search_ww_dbg_arr(i,j,k) = search_ww_col[kk];
-                        nislfv_r_search_wa_dbg_arr(i,j,k) = search_wa_col[kk];
-                        nislfv_r_search_was_dbg_arr(i,j,k) = search_was_col[kk];
-                        nislfv_r_search_qa_dbg_arr(i,j,k) = search_qa_col[kk];
-                        nislfv_r_search_qmi_dbg_arr(i,j,k) = search_qmi_col[kk];
-                        nislfv_r_search_qpi_dbg_arr(i,j,k) = search_qpi_col[kk];
-                        nislfv_r_search_kb_before_backstep_dbg_arr(i,j,k) = search_kb_before_backstep_col[kk];
-                        nislfv_r_search_kt_before_backstep_dbg_arr(i,j,k) = search_kt_before_backstep_col[kk];
-                        nislfv_r_search_kb_after_backstep_dbg_arr(i,j,k) = search_kb_after_backstep_col[kk];
-                        nislfv_r_search_kt_after_backstep_dbg_arr(i,j,k) = search_kt_after_backstep_col[kk];
-                        nislfv_r_search_kb_after_search_dbg_arr(i,j,k) = search_kb_after_search_col[kk];
-                        nislfv_r_search_kt_after_search_dbg_arr(i,j,k) = search_kt_after_search_col[kk];
-                        nislfv_r_search_zsum_dbg_arr(i,j,k) = search_zsum_col[kk];
-                        nislfv_r_search_qsum_dbg_arr(i,j,k) = search_qsum_col[kk];
-                        nislfv_r_search_qn_dbg_arr(i,j,k) = search_qn_col[kk];
-                        nislfv_r_search_denqrs1_after_kernel_dbg_arr(i,j,k) = search_denqrs1_after_kernel_col[kk];
-                        nislfv_r_search_precip_or_delqrs1_dbg_arr(i,j,k) = delqrs1_col;
-                    }
-                }
+                    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                    nullptr, nullptr, nullptr, nullptr);
                 // Strict Rule 30 snapshot: immediately after G5b
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
@@ -2201,14 +1357,6 @@ WSM6::Advance(const Real& dt_advance,
                     nislfv_sg_diag_arr(i,j,k,3) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
                     nislfv_sg_diag_arr(i,j,k,4) = denqrs2_col[kk];
                     nislfv_sg_diag_arr(i,j,k,5) = denqrs3_col[kk];
-                    const bool emit_mixedphase_prod_k =
-                        emit_mixedphase_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_mixedphase_k_focus(kk + 1);
-                    if (emit_mixedphase_prod_k) {
-                        mixedphase_prod_denqrs2_after_dbg_arr(i,j,k) = denqrs2_col[kk];
-                        mixedphase_prod_denqrs3_after_dbg_arr(i,j,k) = denqrs3_col[kk];
-                    }
                 }
 
                 // G5d: update species and fall speeds
@@ -2220,29 +1368,9 @@ WSM6::Advance(const Real& dt_advance,
                     denqrs1_arr(i,j,k) = denqrs1_col[kk];
                     denqrs2_arr(i,j,k) = denqrs2_col[kk];
                     denqrs3_arr(i,j,k) = denqrs3_col[kk];
-                    const bool emit_qr_prod_k =
-                        emit_qr_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_qr_k_focus(kk + 1);
-                    if (emit_qr_prod_k) {
-                        qr_prod_before_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                        qr_prod_denqrs1_dbg_arr(i,j,k) = denqrs1_col[kk];
-                        qr_prod_den_dbg_arr(i,j,k) = den_col[kk];
-                    }
                     qr_arr(i,j,k) = amrex::max(denqrs1_col[kk] / den_col[kk], Real(0.0));
-                    if (emit_qr_prod_k) {
-                        qr_prod_after_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                    }
                     qs_arr(i,j,k) = amrex::max(denqrs2_col[kk] / den_col[kk], Real(0.0));
                     qg_arr(i,j,k) = amrex::max(denqrs3_col[kk] / den_col[kk], Real(0.0));
-                    const bool emit_mixedphase_prod_k =
-                        emit_mixedphase_producer_boundary &&
-                        (i == diag_i) && (j == diag_j) &&
-                        wsm6_mixedphase_k_focus(kk + 1);
-                    if (emit_mixedphase_prod_k) {
-                        mixedphase_prod_qs_after_dbg_arr(i,j,k) = qs_arr(i,j,k);
-                        mixedphase_prod_qg_after_dbg_arr(i,j,k) = qg_arr(i,j,k);
-                    }
                     fall_r_arr(i,j,k) = denqrs1_col[kk] * workr_col[kk] / delz_arr(i,j,k);
                     fall_s_arr(i,j,k) = denqrs2_col[kk] * worka_col[kk] / delz_arr(i,j,k);
                     fall_g_arr(i,j,k) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
@@ -2256,565 +1384,6 @@ WSM6::Advance(const Real& dt_advance,
                 fall_s_arr(i,j,klo) = delqrs2_arr(i,j,0);
                 fall_g_arr(i,j,klo) = delqrs3_arr(i,j,0);
             });
-            print_wsm6_tag6("WSM6-CPP_NISLFV_R",
-                            nislfv_r_diag_fab.const_array(0),
-                            nislfv_r_diag_fab.const_array(1),
-                            nislfv_r_diag_fab.const_array(2),
-                            nislfv_r_diag_fab.const_array(3),
-                            nislfv_r_diag_fab.const_array(4),
-                            nislfv_r_diag_fab.const_array(5), loop);
-            print_wsm6_tag6("WSM6-CPP_NISLFV_SG",
-                            nislfv_sg_diag_fab.const_array(0),
-                            nislfv_sg_diag_fab.const_array(1),
-                            nislfv_sg_diag_fab.const_array(2),
-                            nislfv_sg_diag_fab.const_array(3),
-                            nislfv_sg_diag_fab.const_array(4),
-                            nislfv_sg_diag_fab.const_array(5), loop);
-            print_wsm6_tag6("WSM6-CPP_FALL",
-                            qr_arr, qs_arr, qg_arr,
-                            fall_r_arr, fall_s_arr, fall_g_arr, loop);
-            if (emit_denqrs1_producer_boundary && ParallelDescriptor::IOProcessor()) {
-                const int loop_out = loop + 1;
-                Gpu::synchronize();
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    if (!wsm6_qr_k_focus(k_dbg)) continue;
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qr_input_for_denqrs1", (double)denqrs1_prod_qr_input_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "den_input_for_denqrs1", (double)denqrs1_prod_den_input_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1_after_init", (double)denqrs1_prod_after_init_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1_before_sedimentation", (double)denqrs1_prod_before_sed_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_RAIN_SEDIMENTATION_DENQRS1", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1_after_sedimentation", (double)denqrs1_prod_after_sed_dbg_arr(diag_i,diag_j,k));
-                }
-            }
-            if (emit_mixedphase_producer_boundary && ParallelDescriptor::IOProcessor()) {
-                const int loop_out = loop + 1;
-                Gpu::synchronize();
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    if (!wsm6_mixedphase_k_focus(k_dbg)) continue;
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qr_before_block", (double)mixedphase_prod_qr_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qs_before_block", (double)mixedphase_prod_qs_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qg_before_block", (double)mixedphase_prod_qg_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "den", (double)mixedphase_prod_den_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs2_before_block", (double)mixedphase_prod_denqrs2_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs3_before_block", (double)mixedphase_prod_denqrs3_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs2_after_block", (double)mixedphase_prod_denqrs2_after_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs3_after_block", (double)mixedphase_prod_denqrs3_after_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qs_after_block", (double)mixedphase_prod_qs_after_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qg_after_block", (double)mixedphase_prod_qg_after_dbg_arr(diag_i,diag_j,k));
-                    // qs/qg are the snow/graupel state variables in this kernel.
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qsnow_or_qs_state", (double)mixedphase_prod_qs_after_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qgraup_or_qg_state", (double)mixedphase_prod_qg_after_dbg_arr(diag_i,diag_j,k));
-                }
-            }
-            if (emit_nislfv_r_search_state && ParallelDescriptor::IOProcessor()) {
-                const int loop_out = loop + 1;
-                Gpu::synchronize();
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    if (!wsm6_qr_k_focus(k_dbg)) continue;
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1_before_kernel", (double)nislfv_r_search_denqrs1_before_kernel_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qq_or_rql_initial", (double)nislfv_r_search_qq_or_rql_initial_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "den", (double)nislfv_r_search_den_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denfac", (double)nislfv_r_search_denfac_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "dz", (double)nislfv_r_search_dz_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "tk", (double)nislfv_r_search_tk_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "ww_or_fall_speed_input", (double)nislfv_r_search_ww_input_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "timestep",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "dtcld", (double)nislfv_r_search_dtcld_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "zi", (double)nislfv_r_search_zi_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "za", (double)nislfv_r_search_za_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "dza", (double)nislfv_r_search_dza_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "wi", (double)nislfv_r_search_wi_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "ww", (double)nislfv_r_search_ww_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "wa", (double)nislfv_r_search_wa_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "was", (double)nislfv_r_search_was_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qa", (double)nislfv_r_search_qa_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qmi", (double)nislfv_r_search_qmi_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qpi", (double)nislfv_r_search_qpi_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kb_before_backstep", (double)nislfv_r_search_kb_before_backstep_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kt_before_backstep", (double)nislfv_r_search_kt_before_backstep_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kb_after_backstep", (double)nislfv_r_search_kb_after_backstep_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kt_after_backstep", (double)nislfv_r_search_kt_after_backstep_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kb_after_search", (double)nislfv_r_search_kb_after_search_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "kt_after_search", (double)nislfv_r_search_kt_after_search_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "zsum", (double)nislfv_r_search_zsum_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qsum", (double)nislfv_r_search_qsum_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qn", (double)nislfv_r_search_qn_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1_after_kernel", (double)nislfv_r_search_denqrs1_after_kernel_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5b_NISLFV_RAIN_SEDIMENTATION", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "precip_or_delqrs1", (double)nislfv_r_search_precip_or_delqrs1_dbg_arr(diag_i,diag_j,k));
-                }
-            }
-            if (emit_qr_producer_boundary && ParallelDescriptor::IOProcessor()) {
-                const int loop_out = loop + 1;
-                Gpu::synchronize();
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    if (!wsm6_qr_k_focus(k_dbg)) continue;
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qr_before_block", (double)qr_prod_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5d_RAIN_SEDIMENTATION_WRITEBACK", "working",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "denqrs1", (double)qr_prod_denqrs1_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "den", (double)qr_prod_den_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line(
-                        "QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_CPP",
-                        "G5d_RAIN_SEDIMENTATION_WRITEBACK", "output",
-                        loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                        "qr_after_block", (double)qr_prod_after_dbg_arr(diag_i,diag_j,k));
-                }
-            }
-            print_wsm6_state("WSM6-CPP POST-G5",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            print_wsm6_state("WSM6-CPP POST-G1",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-            print_wsm6_state("WSM6-CPP PRE-G2",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-            print_wsm6_state("WSM6-CPP POST-G2",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            print_wsm6_state("WSM6-CPP PRE-G6",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            // G6: repack qrs_tmp, second slope_wsm6 [lines 655-663]
-            // WSM6-CPP TAG: SLOPE2
-            //   legacy_group: G6
-            //   process: Second slope calculation after sedimentation
-            //   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
-            // slope params updated after sedimentation moved mass
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
-                qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
-                qrs_tmp_g_arr(i,j,k) = qg_arr(i,j,k);
-                Real dummy_n0sfac;
-                wsm6_slope_rain_cell(
-                    qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0r, Real(qcrmin), m_rslopermax, m_rsloperbmax,
-                    m_rsloper2max, m_rsloper3max, Real(bvtr), Real(pvtr),
-                    rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
-                    rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
-                    work1_r_arr(i,j,k));
-                wsm6_slope_snow_cell(
-                    qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
-                    Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
-                    m_rslopesmax, m_rslopesbmax,
-                    m_rslopes2max, m_rslopes3max,
-                    Real(bvts), Real(pvts),
-                    rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
-                    rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
-                    work1_s_arr(i,j,k), dummy_n0sfac);
-                wsm6_slope_graup_cell(
-                    qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0g, Real(qcrmin),
-                    m_rslopegmax, m_rslopegbmax,
-                    m_rslopeg2max, m_rslopeg3max,
-                    m_bvtg, Real(pvtg),
-                    rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
-                    rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
-                    work1_g_arr(i,j,k));
-            });
-            print_wsm6_tag6("WSM6-CPP_SLOPE2",
-                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
-                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
-
-            print_wsm6_state("WSM6-CPP POST-G6",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-            print_wsm6_state("WSM6-CPP PRE-G7",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            // G7: melting (T>T0 only) [lines 665-704]
-            // WSM6-CPP TAG: MELT
-            //   legacy_group: G7
-            //   process: Melting of snow/graupel and latent heating coupling
-            //   compare_vars: psmlt, pgmlt, t, qrs, qci, q
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                const Real supcol = Real(t0c) - t_arr(i,j,k);
-                n0sfac_arr(i,j,k) = amrex::max(
-                    amrex::min(std::exp(Real(alpha_wsm6) * supcol),
-                               Real(n0smax) / Real(n0s)),
-                    Real(1.0));
-
-                if (t_arr(i,j,k) > Real(t0c)) {
-                    const Real xlf = Real(xlf0);
-                    work2_arr(i,j,k) = wsm6_venfac(
-                        p_arr(i,j,k), t_arr(i,j,k), den_arr(i,j,k), Real(den0));
-
-                    if (qs_arr(i,j,k) > Real(0.0)) {
-                        const Real coeres =
-                            rslope2_s_arr(i,j,k) *
-                            std::sqrt(rslope_s_arr(i,j,k) * rslopeb_s_arr(i,j,k));
-                        psmlt_arr(i,j,k) =
-                            wsm6_xka(t_arr(i,j,k), den_arr(i,j,k)) / xlf *
-                            (Real(t0c) - t_arr(i,j,k)) * m_pi_wsm6 * Real(0.5) *
-                            n0sfac_arr(i,j,k) *
-                            (Real(precs1) * rslope2_s_arr(i,j,k) +
-                             Real(precs2) * work2_arr(i,j,k) * coeres) /
-                            den_arr(i,j,k);
-                        psmlt_arr(i,j,k) = amrex::min(
-                            amrex::max(psmlt_arr(i,j,k) * dtcld,
-                                       -qs_arr(i,j,k)),
-                            Real(0.0));
-                        qs_arr(i,j,k) = qs_arr(i,j,k) + psmlt_arr(i,j,k);
-                        qr_arr(i,j,k) = qr_arr(i,j,k) - psmlt_arr(i,j,k);
-                        t_arr(i,j,k) = t_arr(i,j,k) + xlf / cpm_arr(i,j,k) * psmlt_arr(i,j,k);
-                    }
-
-                    if (qg_arr(i,j,k) > Real(0.0)) {
-                        const Real coeres =
-                            rslope2_g_arr(i,j,k) *
-                            std::sqrt(rslope_g_arr(i,j,k) * rslopeb_g_arr(i,j,k));
-                        pgmlt_arr(i,j,k) =
-                            wsm6_xka(t_arr(i,j,k), den_arr(i,j,k)) / xlf *
-                            (Real(t0c) - t_arr(i,j,k)) *
-                            (Real(precg1) * rslope2_g_arr(i,j,k) +
-                             Real(precg2) * work2_arr(i,j,k) * coeres) /
-                            den_arr(i,j,k);
-                        pgmlt_arr(i,j,k) = amrex::min(
-                            amrex::max(pgmlt_arr(i,j,k) * dtcld,
-                                       -qg_arr(i,j,k)),
-                            Real(0.0));
-                        qg_arr(i,j,k) = qg_arr(i,j,k) + pgmlt_arr(i,j,k);
-                        qr_arr(i,j,k) = qr_arr(i,j,k) - pgmlt_arr(i,j,k);
-                        t_arr(i,j,k) = t_arr(i,j,k) + xlf / cpm_arr(i,j,k) * pgmlt_arr(i,j,k);
-                    }
-                }
-            });
-            print_wsm6_tag6("WSM6-CPP_MELT",
-                            psmlt_arr, pgmlt_arr, qs_arr,
-                            qg_arr, qr_arr, t_arr, loop);
-
-            print_wsm6_state("WSM6-CPP POST-G7",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-            print_wsm6_state("WSM6-CPP PRE-G8",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            // G8: cloud ice sedimentation/fallout [lines 708-735]
-            // WSM6-CPP TAG: VICE
-            //   legacy_group: G8
-            //   process: Cloud ice sedimentation/fallout
-            //   compare_vars: qci, fall, fallc, den, p
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (qi_arr(i,j,k) <= Real(0.0)) {
-                    work1c_arr(i,j,k) = Real(0.0);
-                } else {
-                    const Real tmp = den_arr(i,j,k) *
-                        amrex::max(qi_arr(i,j,k), Real(qmin));
-                    const Real xni = amrex::min(
-                        amrex::max(Real(5.38e7) *
-                                   std::sqrt(std::sqrt(tmp*tmp*tmp)),
-                                   Real(1.0e3)),
-                        Real(1.0e6));
-                    const Real xmi = den_arr(i,j,k) * qi_arr(i,j,k) / xni;
-                    const Real diameter = amrex::max(
-                        amrex::min(Real(dicon) * std::sqrt(xmi), Real(dimax)),
-                        Real(1.0e-25));
-                    work1c_arr(i,j,k) = Real(1.49e4) *
-                        std::exp(std::log(diameter) * Real(1.31));
-                }
-                denqci_arr(i,j,k) = den_arr(i,j,k) * qi_arr(i,j,k);
-            });
-
-            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                const int km_local = khi - klo + 1;
-                Real den_col[WSM6_MAX_LEVELS];
-                Real denfac_col[WSM6_MAX_LEVELS];
-                Real t_col[WSM6_MAX_LEVELS];
-                Real dz_col[WSM6_MAX_LEVELS];
-                Real work1c_col[WSM6_MAX_LEVELS];
-                Real denqci_col[WSM6_MAX_LEVELS];
-                Real delqi_col = Real(0.0);
-
-                for (int k = klo; k <= khi; ++k) {
-                    const int kk = k - klo;
-                    den_col[kk]    = den_arr(i,j,k);
-                    denfac_col[kk] = denfac_arr(i,j,k);
-                    t_col[kk]      = t_arr(i,j,k);
-                    dz_col[kk]     = delz_tmp_arr(i,j,k);
-                    work1c_col[kk]  = work1c_arr(i,j,k);
-                    denqci_col[kk]  = denqci_arr(i,j,k);
-                }
-
-                wsm6_nislfv_rain_plm(
-                    1, km_local, den_col, denfac_col, t_col, dz_col,
-                    work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
-                    (microphysics_debug >= 2 && i == ilo && j == jlo) ? 2 : 0);
-
-                for (int k = klo; k <= khi; ++k) {
-                    const int kk = k - klo;
-                    work1c_arr(i,j,k) = work1c_col[kk];
-                    denqci_arr(i,j,k) = denqci_col[kk];
-                    qi_arr(i,j,k) = amrex::max(
-                        denqci_col[kk] / den_col[kk], Real(0.0));
-                }
-
-                delqi_arr(i,j,0) = delqi_col / delz_arr(i,j,klo) / dtcld;
-                fallc_arr(i,j,klo) = delqi_arr(i,j,0);
-            });
-            print_wsm6_tag6("WSM6-CPP_VICE",
-                            qi_arr, fallc_arr, work1c_arr,
-                            denqci_arr, xni_arr, den_arr, loop);
-
-            print_wsm6_state("WSM6-CPP POST-G8",
-                             qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
-                             ilo, ihi, jlo, jhi, klo, khi);
-
-            // G9: surface precipitation accumulation [lines 741-770]
-            // WSM6-CPP TAG: PRECIP
-            //   legacy_group: G9
-            //   process: Surface precipitation accumulation
-            //   compare_vars: rainncv, snowncv, graupelncv, sr
-            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                const Real fallsum =
-                    fall_r_arr(i,j,klo) + fall_s_arr(i,j,klo) +
-                    fall_g_arr(i,j,klo) + fallc_arr(i,j,klo);
-                const Real fallsum_qsi = fall_s_arr(i,j,klo) + fallc_arr(i,j,klo);
-                const Real fallsum_qg = fall_g_arr(i,j,klo);
-                const Real precip = delz_arr(i,j,klo) / denr * dtcld * Real(1000.0);
-
-                if (fallsum > Real(0.0)) {
-                    rainncv_arr(i,j,0) += fallsum * precip;
-                    rainacc_arr(i,j,0) += fallsum * precip;
-                }
-                if (fallsum_qsi > Real(0.0)) {
-                    tstepsnow_arr(i,j,0) += fallsum_qsi * precip;
-                    snowncv_arr(i,j,0) += fallsum_qsi * precip;
-                    snowacc_arr(i,j,0) += fallsum_qsi * precip;
-                }
-                if (fallsum_qg > Real(0.0)) {
-                    tstepgraup_arr(i,j,0) += fallsum_qg * precip;
-                    graupelncv_arr(i,j,0) += fallsum_qg * precip;
-                    graupacc_arr(i,j,0) += fallsum_qg * precip;
-                }
-                if (fallsum > Real(0.0)) {
-                    sr_arr(i,j,0) =
-                        (snowncv_arr(i,j,0) + graupelncv_arr(i,j,0)) /
-                        (rainncv_arr(i,j,0) + Real(1.0e-12));
-                }
-            });
-            if (microphysics_debug >= 1 && loop == 0 &&
-                ParallelDescriptor::IOProcessor()) {
-                Gpu::synchronize();
-                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            "WSM6-CPP_PRECIP", 1,
-                            (double)rainncv_arr(ilo,jlo,0),
-                            (double)snowncv_arr(ilo,jlo,0),
-                            (double)graupelncv_arr(ilo,jlo,0),
-                            (double)rainacc_arr(ilo,jlo,0),
-                            (double)snowacc_arr(ilo,jlo,0),
-                            (double)graupacc_arr(ilo,jlo,0));
-                std::printf("%s %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            "WSM6-CPP_PRECIP", 2,
-                            (double)fall_r_arr(ilo,jlo,klo),
-                            (double)fall_s_arr(ilo,jlo,klo),
-                            (double)fall_g_arr(ilo,jlo,klo),
-                            (double)fallc_arr(ilo,jlo,klo),
-                            (double)sr_arr(ilo,jlo,0),
-                            0.0);
-            }
-
             constexpr Real pi = Real(3.141592653589793238462643383279502884);
 
             // G10: instantaneous phase changes [lines 774-830]
@@ -2876,10 +1445,6 @@ WSM6::Advance(const Real& dt_advance,
                     qr_arr(i,j,k) = qr_arr(i,j,k) - pfrzdtr;
                 }
             });
-            print_wsm6_tag6("WSM6-CPP_PHASE",
-                            pimlt_arr, pihmf_arr, pihtf_arr,
-                            pgfrz_arr, qc_arr, qi_arr, loop);
-
             // G11: third slope_wsm6 call [lines 836-844]
             // WSM6-CPP TAG: SLOPE3
             //   legacy_group: G11
@@ -2918,10 +1483,6 @@ WSM6::Advance(const Real& dt_advance,
                     work1_g_arr(i,j,k));
                 n0sfac_arr(i,j,k) = dummy_n0sfac;
             });
-            print_wsm6_tag6("WSM6-CPP_SLOPE3",
-                            rslope_r_arr, rslope_s_arr, rslope_g_arr,
-                            rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
-
             // G12: workdiffw, workdiffi, work2 [lines 851-857]
             // WSM6-CPP TAG: DIFF_PREP
             //   legacy_group: G12
@@ -2979,16 +1540,6 @@ WSM6::Advance(const Real& dt_advance,
                     }
                 });
             }
-            print_wsm6_tag6("WSM6-CPP_PRAUT",
-                            praut_arr, qc_arr, qr_arr,
-                            qv_arr, t_arr, den_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PRACW",
-                            pracw_arr, qc_arr, qr_arr,
-                            qv_arr, t_arr, den_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PREVP",
-                            prevp_arr, qr_arr, qv_arr,
-                            t_arr, den_arr, cpm_arr, loop);
-
             // G13b: cold-rain, mixed-phase, and ice deposition/nucleation
             // [lines 904-1062, 1075-1192]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -3376,45 +1927,11 @@ WSM6::Advance(const Real& dt_advance,
                     }
                 }
             });
-            print_wsm6_tag6("WSM6-CPP_PRACI",
-                            praci_arr, piacr_arr, qr_arr,
-                            qs_arr, qg_arr, qc_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PSACI",
-                            psaci_arr, psacw_arr, paacw_arr,
-                            qs_arr, qc_arr, qi_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PRACS",
-                            pracs_arr, psacr_arr, qr_arr,
-                            qs_arr, qg_arr, qv_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PSEML",
-                            pseml_arr, pgeml_arr, qs_arr,
-                            qg_arr, qr_arr, t_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PIDEP",
-                            pidep_arr, pigen_arr, psdep_arr,
-                            pgdep_arr, qv_arr, qi_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PSAUT",
-                            psaut_arr, pgaut_arr, qi_arr,
-                            qs_arr, t_arr, den_arr, loop);
-            print_wsm6_tag6("WSM6-CPP_PSEVP",
-                            psevp_arr, pgevp_arr, qv_arr,
-                            qs_arr, qg_arr, t_arr, loop);
-
             // G14: mass conservation check and state update [lines 1200-1388]
             // WSM6-CPP TAG: UPDATE
             //   legacy_group: G14
             //   process: Mass conservation and state update
             //   compare_vars: t, q, qci, qrs, qv
-            const bool emit_qr_update_inputs =
-                (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
-                 ParallelDescriptor::IOProcessor() &&
-                 wsm6_tag_enabled(micro_diag_tags, "QR_UPDATE_INPUTS") &&
-                 wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-                 wsm6_store_enabled(micro_diag_store, "fused_min"));
-            if (emit_qr_update_inputs) {
-                qr_update_before_dbg_fab.setVal(Real(0.0));
-                qr_update_increment_dbg_fab.setVal(Real(0.0));
-                qr_update_after_dbg_fab.setVal(Real(0.0));
-                qr_update_clamp_flag_dbg_fab.setVal(Real(-1.0));
-            }
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real qmin_l  = Real(qmin);
                 const Real qcrmin_l= Real(qcrmin);
@@ -3615,30 +2132,12 @@ WSM6::Advance(const Real& dt_advance,
                                        + paacw_arr(i,j,k) + paacw_arr(i,j,k))
                                        * dtcld,
                         Real(0.0));
-                    const bool emit_qr_update_k =
-                        emit_qr_update_inputs &&
-                        (i == diag_i) && (j == diag_j) &&
-                        ((k - klo + 1) >= 10) && ((k - klo + 1) <= 20);
-                    if (emit_qr_update_k) {
-                        qr_update_before_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                        qr_update_increment_dbg_arr(i,j,k) =
-                            (praut_arr(i,j,k) + pracw_arr(i,j,k)
-                           + prevp_arr(i,j,k) + paacw_arr(i,j,k)
-                           + paacw_arr(i,j,k) - pseml_arr(i,j,k)
-                           - pgeml_arr(i,j,k)) * dtcld;
-                    }
                     qr_arr(i,j,k) = amrex::max(
                         qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + prevp_arr(i,j,k) + paacw_arr(i,j,k)
                                        + paacw_arr(i,j,k) - pseml_arr(i,j,k)
                                        - pgeml_arr(i,j,k)) * dtcld,
                         Real(0.0));
-                    if (emit_qr_update_k) {
-                        qr_update_after_dbg_arr(i,j,k) = qr_arr(i,j,k);
-                        qr_update_clamp_flag_dbg_arr(i,j,k) =
-                            ((qr_update_before_dbg_arr(i,j,k) + qr_update_increment_dbg_arr(i,j,k)) <= Real(0.0))
-                            ? Real(1.0) : Real(0.0);
-                    }
                     qs_arr(i,j,k) = amrex::max(
                         qs_arr(i,j,k) + (psevp_arr(i,j,k) - pgacs_arr(i,j,k)
                                        + pseml_arr(i,j,k)) * dtcld,
@@ -3655,53 +2154,6 @@ WSM6::Advance(const Real& dt_advance,
                     t_arr(i,j,k) = t_arr(i,j,k) - xlwork2 / cpm_arr(i,j,k) * dtcld;
                 }
             });
-            print_wsm6_tag6("WSM6-CPP_UPDATE",
-                            qv_arr, qc_arr, qi_arr,
-                            qr_arr, qs_arr, qg_arr, loop);
-            if (emit_qr_update_inputs && ParallelDescriptor::IOProcessor()) {
-                const int loop_out = loop + 1;
-                Gpu::synchronize();
-                for (int k = klo; k <= khi; ++k) {
-                    const int k_dbg = (k - klo) + 1;
-                    if (!wsm6_qr_k_focus(k_dbg)) continue;
-                    const double clamp_flag = (double)qr_update_clamp_flag_dbg_arr(diag_i,diag_j,k);
-                    if (clamp_flag < -0.5) continue;
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "input", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "qr_before_update", (double)qr_update_before_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "praut", (double)praut_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "pracw", (double)pracw_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "prevp", (double)prevp_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "paacw", (double)paacw_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "pseml", (double)pseml_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "pgeml", (double)pgeml_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "timestep", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "dtcld", (double)dtcld);
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "tendency", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "update_increment", (double)qr_update_increment_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "output", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "qr_after_update", (double)qr_update_after_dbg_arr(diag_i,diag_j,k));
-                    wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_CPP", "FINAL_QR_UPDATE",
-                                                    "clamp", loop_out, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                    "clamp_flag", clamp_flag);
-                }
-            }
-
             // G15: second qsat computation [lines 1390-1420]
             // WSM6-CPP TAG: QSAT2
             //   legacy_group: G15
@@ -3720,10 +2172,6 @@ WSM6::Advance(const Real& dt_advance,
                 qsatw_arr(i,j,k) = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsatw_arr(i,j,k) = amrex::max(qsatw_arr(i,j,k), Real(qmin));
             });
-            print_wsm6_tag6("WSM6-CPP_QSAT2",
-                            qsatw_arr, qsati_arr, qv_arr,
-                            t_arr, p_arr, den_arr, loop);
-
             // G16: pcond condensational/evaporational update [lines 1427-1437]
             // WSM6-CPP TAG: PCOND
             //   legacy_group: G16
@@ -3749,10 +2197,6 @@ WSM6::Advance(const Real& dt_advance,
                              + pcond_arr(i,j,k) * xl_arr(i,j,k)
                              / cpm_arr(i,j,k) * dtcld;
             });
-            print_wsm6_tag6("WSM6-CPP_PCOND",
-                            pcond_arr, qv_arr, qc_arr,
-                            t_arr, xl_arr, cpm_arr, loop);
-
             // G17: padding for small values [lines 1444-1449]
             // WSM6-CPP TAG: CLIP
             //   legacy_group: G17
@@ -3767,35 +2211,6 @@ WSM6::Advance(const Real& dt_advance,
 #ifdef ERF_USE_WSM6_FORT
         }
 #endif
-        if (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile && ParallelDescriptor::IOProcessor() &&
-            wsm6_tag_enabled(micro_diag_tags, "QR_STATE") &&
-            wsm6_expr_enabled(micro_diag_expr, "block_signature") &&
-            wsm6_store_enabled(micro_diag_store, "fused_min")) {
-            for (int k = klo; k <= khi; ++k) {
-                const int k_dbg = (k - klo) + 1;
-                if (!wsm6_qr_k_focus(k_dbg)) continue;
-                const double qr_incore_final = (double)qr_arr(diag_i,diag_j,k);
-                const double rho_post = (double)den_arr(diag_i,diag_j,k);
-                const double rhoq4_post_equiv = rho_post * qr_incore_final;
-                const double qrain_persistent_post = (rho_post > 0.0)
-                    ? (rhoq4_post_equiv / rho_post) : 0.0;
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_CPP", "QR_STATE",
-                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "qr_incore_final", qr_incore_final);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
-                                                "working", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "qr_working_post", qr_incore_final);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
-                                                "input", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "rho_post", rho_post);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
-                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "RhoQ4_post_equiv", rhoq4_post_equiv);
-                wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "POST_UNPACK_CPP", "QR_STATE",
-                                                "persistent", 0, diag_i, diag_j, k_dbg, k, microphysics_debug,
-                                                "qrain_persistent_post", qrain_persistent_post);
-            }
-        }
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rain_arr(i,j,klo) = rainacc_arr(i,j,0);
             snow_arr(i,j,klo) = snowacc_arr(i,j,0);

@@ -63,100 +63,7 @@
 
  real(kind=kind_phys),public,save:: pidn0s,pidnc
 
- integer, parameter, private :: WSM6_DIAG_SCHEMA_V1 = 1
-
  contains
-
-!=================================================================================================================
- subroutine wsm6_diag_value_string(val, sout)
-!=================================================================================================================
- real(kind=kind_phys), intent(in) :: val
- character(len=*), intent(out) :: sout
- character(len=64) :: tmp
-
- write(tmp,'(SP,ES30.20E3)') val
- sout = trim(adjustl(tmp))
-
- end subroutine wsm6_diag_value_string
-
-!=================================================================================================================
- subroutine wsm6_emit_diag_t2_line(tag, phase, source_layer, path_id, expr_id, store_id, &
-                                   loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
-!=================================================================================================================
- character(len=*), intent(in) :: tag, phase, source_layer, path_id, expr_id, store_id, var
- integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
- real(kind=kind_phys), intent(in) :: value
-
- character(len=32) :: s_schema, s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
- character(len=64) :: s_value
-
- write(s_schema,'(I0)') WSM6_DIAG_SCHEMA_V1
- write(s_loop  ,'(I0)') loop_out
- write(s_i     ,'(I0)') i_dbg
- write(s_j     ,'(I0)') j_dbg
- write(s_kdbg  ,'(I0)') k_dbg
- write(s_kraw  ,'(I0)') k_raw
- write(s_dbg   ,'(I0)') debug_level
- call wsm6_diag_value_string(value, s_value)
-
- write(*,'(A)') 'WSM6-DIAG-T2 diag_schema='//trim(s_schema)// &
-                ' tag='//trim(tag)// &
-                ' phase='//trim(phase)// &
-                ' source_layer='//trim(source_layer)// &
-                ' path_id='//trim(path_id)// &
-                ' expr_id='//trim(expr_id)// &
-                ' store_id='//trim(store_id)// &
-                ' loop='//trim(s_loop)// &
-                ' i_dbg='//trim(s_i)// &
-                ' j_dbg='//trim(s_j)// &
-                ' k_dbg='//trim(s_kdbg)// &
-                ' k_raw='//trim(s_kraw)// &
-                ' debug_level='//trim(s_dbg)// &
-                ' var='//trim(var)// &
-                ' value='//trim(s_value)
-
- end subroutine wsm6_emit_diag_t2_line
-
-!=================================================================================================================
- subroutine wsm6_emit_diag_t2_blocksig_line(tag, phase, source_layer, block_id, role, &
-                                            loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
-!=================================================================================================================
- character(len=*), intent(in) :: tag, phase, source_layer, block_id, role, var
- integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
- real(kind=kind_phys), intent(in) :: value
-
- character(len=32) :: s_schema, s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
- character(len=64) :: s_value
-
- write(s_schema,'(I0)') WSM6_DIAG_SCHEMA_V1
- write(s_loop  ,'(I0)') loop_out
- write(s_i     ,'(I0)') i_dbg
- write(s_j     ,'(I0)') j_dbg
- write(s_kdbg  ,'(I0)') k_dbg
- write(s_kraw  ,'(I0)') k_raw
- write(s_dbg   ,'(I0)') debug_level
- call wsm6_diag_value_string(value, s_value)
-
- write(*,'(A)') 'WSM6-DIAG-T2 diag_schema='//trim(s_schema)// &
-                ' tag='//trim(tag)// &
-                ' phase='//trim(phase)// &
-                ' source_layer='//trim(source_layer)// &
-                ' path_id='//trim(block_id)//'__block_signature'// &
-                ' expr_id=block_signature'// &
-                ' store_id=block_signature'// &
-                ' block_id='//trim(block_id)// &
-                ' role='//trim(role)// &
-                ' loop='//trim(s_loop)// &
-                ' i_dbg='//trim(s_i)// &
-                ' j_dbg='//trim(s_j)// &
-                ' k_dbg='//trim(s_kdbg)// &
-                ' k_raw='//trim(s_kraw)// &
-                ' debug_level='//trim(s_dbg)// &
-                ' var='//trim(var)// &
-                ' value='//trim(s_value)
-
- end subroutine wsm6_emit_diag_t2_blocksig_line
-
 
 !=================================================================================================================
 !>\section arg_table_mp_wsm6_init
@@ -502,8 +409,6 @@
             xlf, pfrzdtc, pfrzdtr, supice, alpha2, delta2, delta3
 real(kind=kind_phys):: vt2ave
 real(kind=kind_phys):: holdc, holdci
-real(kind=kind_phys):: diag_snowncv, diag_graupelncv, diag_snow, diag_graupel
-real(kind=kind_phys):: qr_before_update_dbg, update_increment_dbg, qr_after_update_dbg, clamp_flag_dbg
 integer:: i, j, k, mstepmax,                                     &
            iprt, latd, lond, loop, loops, ifsat, n, idim, kdim, idbg_col
  integer :: mpdbg_level
@@ -572,44 +477,6 @@ integer:: i, j, k, mstepmax,                                     &
      xl(i,k) = xlcal(t(i,k))
    enddo
  enddo
- if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "cpd", cpd)
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "cpv", cpv)
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "qmin", qmin)
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "xlv0", xlv0)
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "xlv1", xlv1)
-   call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-        "THERMO_STATE", "constant", 0, i_dbg_local, j_dbg_local, 0, -1, mpdbg_level, "t0c", t0c)
-   do k = kts, kte
-     if (.not. (((k-kts+1) >= 1 .and. (k-kts+1) <= 4) .or. (k-kts+1) == 29 .or. (k-kts+1) == 30)) cycle
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "t_entry", t(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "p_entry", p(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "qv_entry", q(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "derived", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "xl", xl(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "derived", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "cpm", cpm(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "t_for_xl", t(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("THERMO_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "THERMO_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "qv_for_cpm", q(i_dbg_local,k))
-   enddo
- endif
  do k = kts, kte
    do i = its, ite
      delz_tmp(i,k) = delz(i,k)
@@ -642,39 +509,9 @@ integer:: i, j, k, mstepmax,                                     &
 !----------------------------------------------------------------
 ! initialize the large scale variables
 !
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-GA', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    do i = its, ite
      mstep(i) = 1
      flgcld(i) = .true.
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-GA', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-   enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G1b', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
    enddo
 !
 !  do k = kts, kte
@@ -687,54 +524,14 @@ integer:: i, j, k, mstepmax,                                     &
        dvec1(i) = den(i,k)
      enddo
      call vrec(tvec1,dvec1,ite-its+1)
-     if (mpdbg_level >= 2 .and. loop == 1) then
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__broken_full", "recip", "broken_full", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "den", dvec1(i_dbg_local))
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__broken_full", "recip", "broken_full", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "a", tvec1(i_dbg_local))
-     endif
      do i = its, ite
        tvec1(i) = tvec1(i)*den0
      enddo
-     if (mpdbg_level >= 2 .and. loop == 1) then
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__broken_full", "recip", "broken_full", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "t1", tvec1(i_dbg_local))
-     endif
      call vsqrt(dvec1,tvec1,ite-its+1)
-     if (mpdbg_level >= 2 .and. loop == 1) then
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__broken_full", "recip", "broken_full", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "denfac", dvec1(i_dbg_local))
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__fused_min", "recip", "fused_min", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "den", den(i_dbg_local,k))
-       call wsm6_emit_diag_t2_line("DENFAC", "INCORE", "INCORE_FORTRAN", &
-            "recip__fused_min", "recip", "fused_min", &
-            loop, i_dbg_local, j_dbg_local, k, k_raw_base_local + k - 1, mpdbg_level, "denfac", sqrt(den0/den(i_dbg_local,k)))
-     endif
      do i = its,ite
         denfac(i,k) = dvec1(i)
      enddo
    enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G1b', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_DENFAC ', k, &
-         denfac(its,k), den(its,k), q(its,k), qc(its,k), qr(its,k), qi(its,k)
-     enddo
-   endif
 !
 ! Inline expansion for fpvs
 !  qsat(i,k,1) = fpvs(t(i,k),0,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
@@ -749,16 +546,6 @@ integer:: i, j, k, mstepmax,                                     &
    dldti=cvap-cice
    xai=-dldti/rv
    xbi=xai+hsub/(rv*ttp)
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G1c', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    do k = kts, kte
      do i = its, ite
        tr=ttp/t(i,k)
@@ -779,22 +566,6 @@ integer:: i, j, k, mstepmax,                                     &
        rh(i,k,2) = max(q(i,k) / qsat(i,k,2),qmin)
      enddo
    enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G1c', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_QSAT ', k, &
-         qsat(its,k,1), qsat(its,k,2), rh(its,k,1), rh(its,k,2), q(its,k), t(its,k)
-     enddo
-   endif
 !
 !----------------------------------------------------------------
 ! initialize the variables for microphysical physics
@@ -844,16 +615,6 @@ integer:: i, j, k, mstepmax,                                     &
        xni(i,k) = 1.e3
      enddo
    enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G2', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
 ! WSM6-F90 TAG: XNI
 !   legacy_group: G3
 !   process: Ice crystal number concentration
@@ -866,26 +627,6 @@ integer:: i, j, k, mstepmax,                                     &
        temp = (den(i,k)*max(qi(i,k),qmin))
        temp = sqrt(sqrt(temp*temp*temp))
        xni(i,k) = min(max(5.38e7*temp,1.e3),1.e6)
-     enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G2', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G3', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
      enddo
    enddo
 !
@@ -904,55 +645,8 @@ integer:: i, j, k, mstepmax,                                     &
        qrs_tmp(i,k,3) = qg(i,k)
      enddo
    enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G4', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_SLOPE1 ', k, &
-         rslope(its,k,1), rslope(its,k,2), rslope(its,k,3), &
-         rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
-     enddo
-   endif
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G3', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G4', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G5', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
 !
    do k = kte, kts, -1
      do i = its, ite
@@ -967,129 +661,18 @@ integer:: i, j, k, mstepmax,                                     &
        denqrs1(i,k) = den(i,k)*qr(i,k)
        denqrs2(i,k) = den(i,k)*qs(i,k)
        denqrs3(i,k) = den(i,k)*qg(i,k)
-       if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-           (k-kts+1) >= 21 .and. (k-kts+1) <= 24) then
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_before_block", qr(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qs_before_block", qs(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qg_before_block", qg(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den", den(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "working", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs2_before_block", denqrs2(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5c_to_G6_SNOW_GRAUPEL_STATE", "working", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs3_before_block", denqrs3(i,k))
-       endif
-       if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-           (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
-         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_input_for_denqrs1", qr(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den_input_for_denqrs1", den(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5b_RAIN_SEDIMENTATION_DENQRS1", "working", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_after_init", denqrs1(i,k))
-         call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-              "G5b_RAIN_SEDIMENTATION_DENQRS1", "input", loop, i_dbg_local, j_dbg_local, &
-              k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_before_sedimentation", denqrs1(i,k))
-       endif
        if(qr(i,k).le.0.0) workr(i,k) = 0.0
      enddo
    enddo
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,workr,denqrs1,  &
-                        delqrs1,dtcld,1,1,                                  &
-                        emit_search_state=(mpdbg_level >= 2 .and. j_dbg_local >= 0), &
-                        diag_i_local=max(1,min(idim,i_dbg_local-its+1)),    &
-                        diag_j_dbg=j_dbg_local,                              &
-                        diag_k_raw_base=k_raw_base_local,                    &
-                        diag_loop_out=loop,                                  &
-                        diag_debug_level=mpdbg_level)
-   if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
-     do k = kts, kte
-       if ((k-kts+1) < 10 .or. (k-kts+1) > 20) cycle
-       call wsm6_emit_diag_t2_blocksig_line("DENQRS1_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-            "G5b_RAIN_SEDIMENTATION_DENQRS1", "output", loop, i_dbg_local, j_dbg_local, &
-            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1_after_sedimentation", denqrs1(i_dbg_local,k))
-     enddo
-   endif
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_R ', k, &
-         max(denqrs1(its,k)/den(its,k),0.), &
-         denqrs1(its,k)*workr(its,k)/delz(its,k), &
-         workr(its,k), denqrs1(its,k), den(its,k), denfac(its,k)
-     enddo
-   endif
+                        delqrs1,dtcld,1,1)
    call nislfv_rain_plm6(idim,kdim,den_tmp,denfac,t,delz_tmp,worka,         &
                          denqrs2,denqrs3,delqrs2,delqrs3,dtcld,1,1)
-   if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
-     do k = kts, kte
-       if ((k-kts+1) < 21 .or. (k-kts+1) > 24) cycle
-       call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-            "G5c_to_G6_SNOW_GRAUPEL_STATE", "output", loop, i_dbg_local, j_dbg_local, &
-            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs2_after_block", denqrs2(i_dbg_local,k))
-       call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-            "G5c_to_G6_SNOW_GRAUPEL_STATE", "output", loop, i_dbg_local, j_dbg_local, &
-            k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs3_after_block", denqrs3(i_dbg_local,k))
-     enddo
-   endif
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_NISLFV_SG ', k, &
-         max(denqrs2(its,k)/den(its,k),0.), max(denqrs3(its,k)/den(its,k),0.), &
-         denqrs2(its,k)*worka(its,k)/delz(its,k), &
-         denqrs3(its,k)*worka(its,k)/delz(its,k), denqrs2(its,k), denqrs3(its,k)
-     enddo
-   endif
    do k = kts, kte
      do i = its, ite
-      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-          (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
-        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_before_block", qr(i,k))
-        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "working", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "denqrs1", denqrs1(i,k))
-        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "input", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "den", den(i,k))
-      endif
        qr(i,k) = max(denqrs1(i,k)/den(i,k),0.)
-      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-          (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
-        call wsm6_emit_diag_t2_blocksig_line("QR_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5d_RAIN_SEDIMENTATION_WRITEBACK", "output", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qr_after_block", qr(i,k))
-      endif
        qs(i,k) = max(denqrs2(i,k)/den(i,k),0.)
        qg(i,k) = max(denqrs3(i,k)/den(i,k),0.)
-      if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-          (k-kts+1) >= 21 .and. (k-kts+1) <= 24) then
-        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qs_after_block", qs(i,k))
-        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qg_after_block", qg(i,k))
-        ! qs/qg are the snow/graupel state variables in this kernel.
-        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qsnow_or_qs_state", qs(i,k))
-        call wsm6_emit_diag_t2_blocksig_line("MIXEDPHASE_PRODUCER_BOUNDARY", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-             "G5c_to_G6_SNOW_GRAUPEL_STATE", "persistent", loop, i_dbg_local, j_dbg_local, &
-             k-kts+1, k_raw_base_local + k - kts, mpdbg_level, "qgraup_or_qg_state", qg(i,k))
-      endif
        fall(i,k,1) = denqrs1(i,k)*workr(i,k)/delz(i,k)
        fall(i,k,2) = denqrs2(i,k)*worka(i,k)/delz(i,k)
        fall(i,k,3) = denqrs3(i,k)*worka(i,k)/delz(i,k)
@@ -1100,36 +683,10 @@ integer:: i, j, k, mstepmax,                                     &
      fall(i,1,2) = delqrs2(i)/delz(i,1)/dtcld
      fall(i,1,3) = delqrs3(i)/delz(i,1)/dtcld
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_FALL ', k, &
-         qr(its,k), qs(its,k), qg(its,k), fall(its,k,1), fall(its,k,2), fall(its,k,3)
-     enddo
-   endif
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G5', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    ! WSM6-F90 TAG: SLOPE2
    !   legacy_group: G6
    !   process: Second slope calculation after sedimentation
    !   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G6', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    do k = kts, kte
      do i = its, ite
        qrs_tmp(i,k,1) = qr(i,k)
@@ -1139,37 +696,10 @@ integer:: i, j, k, mstepmax,                                     &
    enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_SLOPE2 ', k, &
-         rslope(its,k,1), rslope(its,k,2), rslope(its,k,3), &
-         rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
-     enddo
-   endif
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G6', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
    ! WSM6-F90 TAG: MELT
    !   legacy_group: G7
    !   process: Melting of snow/graupel and latent heating coupling
    !   compare_vars: psmlt, pgmlt, t, qrs, qci, q
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G7', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
 !
    do k = kte, kts, -1
      do i = its, ite
@@ -1211,33 +741,6 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_MELT ', k, &
-         psmlt(its,k), pgmlt(its,k), qs(its,k), &
-         qg(its,k), qr(its,k), t(its,k)
-     enddo
-   endif
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G7', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT PRE-G8', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
-   enddo
 ! WSM6-F90 TAG: VICE
 !   legacy_group: G8
 !   process: Cloud ice sedimentation/fallout
@@ -1264,10 +767,8 @@ integer:: i, j, k, mstepmax,                                     &
        denqci(i,k) = den(i,k)*qi(i,k)
      enddo
    enddo
-   idbg_col = 0
-   if (mpdbg_level >= 2 .and. loop == 1) idbg_col = 1
    call nislfv_rain_plm(idim,kdim,den_tmp,denfac,t,delz_tmp,work1c,denqci,  &
-                        delqi,dtcld,idbg_col,0)
+                        delqi,dtcld,1,0)
    do k = kts, kte
      do i = its, ite
        qi(i,k) = max(denqci(i,k)/den(i,k),0.)
@@ -1275,23 +776,6 @@ integer:: i, j, k, mstepmax,                                     &
    enddo
    do i = its, ite
      fallc(i,1) = delqi(i)/delz(i,1)/dtcld
-   enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_VICE ', k, &
-         qi(its,k), fallc(its,k), work1c(its,k), &
-         denqci(its,k), xni(its,k), den(its,k)
-     enddo
-   endif
-   do k = kts, kte
-     do i = its, ite
-       if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
-         'WSM6-FORT POST-G8', &
-         ' i=',i,' j=',j_dbg_local,' k=',k, &
-         ' qv=',q(i,k),' qc=',qc(i,k),' qr=',qr(i,k), &
-         ' qi=',qi(i,k),' qs=',qs(i,k),' qg=',qg(i,k), &
-         ' t=',t(i,k)
-     enddo
    enddo
 !
 !----------------------------------------------------------------
@@ -1331,26 +815,6 @@ integer:: i, j, k, mstepmax,                                     &
         if(fallsum.gt.0.)sr(i)=(snowncv(i) + graupelncv(i))/(rainncv(i)+1.e-12)
      else
         if(fallsum.gt.0.)sr(i)=(tstepsnow(i) + tstepgraup(i))/(rainncv(i)+1.e-12)
-     endif
-     if (mpdbg_level >= 1 .and. loop == 1 .and. i == its) then
-        diag_snowncv = tstepsnow(i)
-        diag_graupelncv = tstepgraup(i)
-        diag_snow = tstepsnow(i)
-        diag_graupel = tstepgraup(i)
-        if (present(snowncv) .and. present(snow)) then
-           diag_snowncv = snowncv(i)
-           diag_snow = snow(i)
-        endif
-        if (present(graupelncv) .and. present(graupel)) then
-           diag_graupelncv = graupelncv(i)
-           diag_graupel = graupel(i)
-        endif
-        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRECIP ', 1, &
-             rainncv(i), diag_snowncv, diag_graupelncv, &
-             rain(i), diag_snow, diag_graupel
-        write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRECIP ', 2, &
-             fall(i,kts,1), fall(i,kts,2), fall(i,kts,3), &
-             fallc(i,kts), sr(i), 0.
      endif
    enddo
 !
@@ -1423,13 +887,6 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PHASE ', k, &
-         pimlt(its,k), pihmf(its,k), pihtf(its,k), &
-         pgfrz(its,k), qc(its,k), qi(its,k)
-     enddo
-   endif
 !
 !
 !----------------------------------------------------------------
@@ -1448,13 +905,6 @@ integer:: i, j, k, mstepmax,                                     &
    enddo
    call slope_wsm6(qrs_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2,rslope3, &
                    work1,its,ite,kts,kte)
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_SLOPE3 ', k, &
-         rslope(its,k,1), rslope(its,k,2), rslope(its,k,3), &
-         rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
-     enddo
-   endif
 ! WSM6-F90 TAG: DIFF_PREP
 !   legacy_group: G12
 !   process: Prepare diffusion/work terms
@@ -1518,20 +968,6 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRAUT ', k, &
-         praut(its,k), qc(its,k), qr(its,k), q(its,k), t(its,k), den(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRACW ', k, &
-         pracw(its,k), qc(its,k), qr(its,k), q(its,k), t(its,k), den(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PREVP ', k, &
-         prevp(its,k), qr(its,k), q(its,k), t(its,k), den(its,k), cpm(its,k)
-     enddo
-   endif
 !
 !===============================================================
 !
@@ -1853,36 +1289,6 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRACI ', k, &
-         praci(its,k), piacr(its,k), qr(its,k), qs(its,k), qg(its,k), qc(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PSACI ', k, &
-         psaci(its,k), psacw(its,k), paacw(its,k), qs(its,k), qc(its,k), qi(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRACS ', k, &
-         pracs(its,k), psacr(its,k), qr(its,k), qs(its,k), qg(its,k), q(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PSEML ', k, &
-         pseml(its,k), pgeml(its,k), qs(its,k), qg(its,k), qr(its,k), t(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PIDEP ', k, &
-         pidep(its,k), pigen(its,k), psdep(its,k), pgdep(its,k), q(its,k), qi(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PSAUT ', k, &
-         psaut(its,k), pgaut(its,k), qi(its,k), qs(its,k), t(its,k), den(its,k)
-     enddo
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PSEVP ', k, &
-         psevp(its,k), pgevp(its,k), q(its,k), qs(its,k), qg(its,k), t(its,k)
-     enddo
-   endif
 !
 !
 !----------------------------------------------------------------
@@ -2065,54 +1471,9 @@ integer:: i, j, k, mstepmax,                                     &
          q(i,k) = q(i,k)+work2(i,k)*dtcld
          qc(i,k) = max(qc(i,k)-(praut(i,k)+pracw(i,k)                       &
                  + paacw(i,k)+paacw(i,k))*dtcld,0.)
-         if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-             (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
-           qr_before_update_dbg = qr(i,k)
-          update_increment_dbg = (praut(i,k)+pracw(i,k)+prevp(i,k)+paacw(i,k)+paacw(i,k) &
-               -pseml(i,k)-pgeml(i,k))*dtcld
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "input", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "qr_before_update", qr_before_update_dbg)
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "praut", praut(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "pracw", pracw(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "prevp", prevp(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "paacw", paacw(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "pseml", pseml(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "pgeml", pgeml(i,k))
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "timestep", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "dtcld", dtcld)
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "tendency", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "update_increment", update_increment_dbg)
-         endif
          qr(i,k) = max(qr(i,k)+(praut(i,k)+pracw(i,k)                       &
                  + prevp(i,k)+paacw(i,k)+paacw(i,k)-pseml(i,k)              &
                - pgeml(i,k))*dtcld,0.)
-         if (mpdbg_level >= 2 .and. j_dbg_local >= 0 .and. i == i_dbg_local .and. &
-             (k-kts+1) >= 10 .and. (k-kts+1) <= 20) then
-           qr_after_update_dbg = qr(i,k)
-           clamp_flag_dbg = 0.0
-           if (qr_before_update_dbg + update_increment_dbg <= 0.0) clamp_flag_dbg = 1.0
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "output", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "qr_after_update", qr_after_update_dbg)
-           call wsm6_emit_diag_t2_blocksig_line("QR_UPDATE_INPUTS", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                "FINAL_QR_UPDATE", "clamp", loop, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-                "clamp_flag", clamp_flag_dbg)
-         endif
          qs(i,k) = max(qs(i,k)+(psevp(i,k)-pgacs(i,k)                       &
                  + pseml(i,k))*dtcld,0.)
          qg(i,k) = max(qg(i,k)+(pgacs(i,k)+pgevp(i,k)                       &
@@ -2124,12 +1485,6 @@ integer:: i, j, k, mstepmax,                                     &
        endif
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_UPDATE ', k, &
-         q(its,k), qc(its,k), qi(its,k), qr(its,k), qs(its,k), qg(its,k)
-     enddo
-   endif
 !
 ! WSM6-F90 TAG: QSAT2
 !   legacy_group: G15
@@ -2166,12 +1521,6 @@ integer:: i, j, k, mstepmax,                                     &
        qsat(i,k,2) = max(qsat(i,k,2),qmin)
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_QSAT2 ', k, &
-         qsat(its,k,1), qsat(its,k,2), q(its,k), t(its,k), p(its,k), den(its,k)
-     enddo
-   endif
 !
 !----------------------------------------------------------------
 ! pcond: condensational/evaporational rate of cloud water [HL A46] [RH83 A6]
@@ -2194,12 +1543,6 @@ integer:: i, j, k, mstepmax,                                     &
          t(i,k) = t(i,k)+pcond(i,k)*xl(i,k)/cpm(i,k)*dtcld
      enddo
    enddo
-   if (mpdbg_level >= 1 .and. loop == 1) then
-     do k = kts, kte
-       write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PCOND ', k, &
-         pcond(its,k), q(its,k), qc(its,k), t(its,k), xl(its,k), cpm(its,k)
-     enddo
-   endif
 !
 !
 !----------------------------------------------------------------
@@ -2216,21 +1559,6 @@ integer:: i, j, k, mstepmax,                                     &
      enddo
    enddo
  enddo                  ! big loops
-
- if (mpdbg_level >= 2 .and. j_dbg_local >= 0) then
-   do k = kts, kte
-     if ((k-kts+1) < 10 .or. (k-kts+1) > 20) cycle
-     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "QR_STATE", "working", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "qr_incore_final", qr(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "QR_STATE", "input", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "rho_incore_final", den(i_dbg_local,k))
-     call wsm6_emit_diag_t2_blocksig_line("QR_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-          "QR_STATE", "persistent", 0, i_dbg_local, j_dbg_local, k-kts+1, k_raw_base_local + k - kts, mpdbg_level, &
-          "RhoQ4_incore_equiv", den(i_dbg_local,k) * qr(i_dbg_local,k))
-   enddo
- endif
 
  if(present(rainprod2d) .and. present(evapprod2d)) then
    do k = kts, kte
@@ -2532,9 +1860,7 @@ integer:: i, j, k, mstepmax,                                     &
  end subroutine slope_graup
 
 !=================================================================================================================
-subroutine nislfv_rain_plm(im,km,denl,denfacl,tkl,dzl,wwl,rql,precip,dt,id,iter, &
-                           emit_search_state,diag_i_local,diag_j_dbg,diag_k_raw_base, &
-                           diag_loop_out,diag_debug_level)
+subroutine nislfv_rain_plm(im,km,denl,denfacl,tkl,dzl,wwl,rql,precip,dt,id,iter)
 !=================================================================================================================
 !
 ! for non-iteration semi-Lagrangain forward advection for cloud
@@ -2559,9 +1885,6 @@ subroutine nislfv_rain_plm(im,km,denl,denfacl,tkl,dzl,wwl,rql,precip,dt,id,iter,
 
 !--- input arguments:
 integer,intent(in):: im,km,id,iter
-logical,intent(in),optional :: emit_search_state
-integer,intent(in),optional :: diag_i_local,diag_j_dbg,diag_k_raw_base
-integer,intent(in),optional :: diag_loop_out,diag_debug_level
 
  real(kind=kind_phys),intent(in):: dt
  real(kind=kind_phys),intent(in),dimension(im,km):: dzl,denl,denfacl,tkl
@@ -2572,8 +1895,6 @@ integer,intent(in),optional :: diag_loop_out,diag_debug_level
 
 !---- local variables and arrays:
 integer:: i,k,n,m,kk,kb,kt
-integer:: diag_i_local_use,diag_j_dbg_use,diag_k_raw_base_use
-integer:: diag_loop_out_use,diag_debug_level_use
 real(kind=kind_phys):: tl,tl2,qql,dql,qqd
 real(kind=kind_phys):: th,th2,qqh,dqh
 real(kind=kind_phys):: zsum,qsum,dim,dip,c1,con1,fa1,fa2
@@ -2583,22 +1904,8 @@ real(kind=kind_phys),dimension(km):: den,denfac,tk
 real(kind=kind_phys),dimension(km):: qn,qr,tmp,tmp1,tmp2,tmp3
 real(kind=kind_phys),dimension(km+1):: wi,zi,za
 real(kind=kind_phys),dimension(km+1):: dza,qa,qmi,qpi
-logical :: do_search_state_probe,emit_search_k
 
 !-----------------------------------------------------------------------------------------------------------------
-
- do_search_state_probe = .false.
- if (present(emit_search_state)) do_search_state_probe = emit_search_state
- diag_i_local_use = 1
- if (present(diag_i_local)) diag_i_local_use = max(1,min(im,diag_i_local))
- diag_j_dbg_use = -1
- if (present(diag_j_dbg)) diag_j_dbg_use = diag_j_dbg
- diag_k_raw_base_use = 0
- if (present(diag_k_raw_base)) diag_k_raw_base_use = diag_k_raw_base
- diag_loop_out_use = 0
- if (present(diag_loop_out)) diag_loop_out_use = diag_loop_out
- diag_debug_level_use = 2
- if (present(diag_debug_level)) diag_debug_level_use = diag_debug_level
 
  precip(:) = 0.0
 
@@ -2612,44 +1919,7 @@ logical :: do_search_state_probe,emit_search_k
 ! skip for no precipitation for all layers
     allold = 0.0
     do k=1,km
-       if (iter == 0 .and. id /= 0 .and. (id < 0 .or. i == id)) then
-          write(*,'(A,I3,6E24.16)') 'WSM6-FORT_PRE_ALLOLD ', k, &
-               real(i,kind=kind_phys), qq(k), allold, dz(k), ww(k), den(k)
-       endif
        allold = allold + qq(k)
-       if (iter == 0 .and. id /= 0 .and. (id < 0 .or. i == id)) then
-          write(*,'(A,I3,6E24.16)') 'WSM6-FORT_POST_ALLOLD ', k, &
-               real(i,kind=kind_phys), qq(k), allold, dz(k), ww(k), den(k)
-       endif
-       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
-       if (emit_search_k) then
-          ! qq is the local transported rain-mass state; we emit it as qq_or_rql_initial
-          ! to align with the C++ probe vocabulary.
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denqrs1_before_kernel", qq(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qq_or_rql_initial", qq(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "den", den(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denfac", denfac(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dz", dz(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "tk", tk(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "input", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "ww_or_fall_speed_input", ww(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "timestep", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dtcld", dt)
-       endif
     enddo
     if(allold.le.0.0) then
        cycle i_loop
@@ -2710,33 +1980,6 @@ logical :: do_search_state_probe,emit_search_k
     do k=1,km
        qa(k) = qq(k)*dz(k)/dza(k)
        qr(k) = qa(k)/den(k)
-       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
-       if (emit_search_k) then
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "zi", zi(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "za", za(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "dza", dza(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "wi", wi(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "ww", ww(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "wa", wa(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "was", was(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qa", qa(k))
-       endif
     enddo
     qa(km+1) = 0.0
 !     call maxmin(km,1,qa,' arrival points ')
@@ -2773,15 +2016,6 @@ logical :: do_search_state_probe,emit_search_k
              qmi(k) = qa(k)
           endif
        endif
-       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
-       if (emit_search_k) then
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qmi", qmi(k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qpi", qpi(k))
-       endif
     enddo
     qpi(1)=qa(1)
     qmi(1)=qa(1)
@@ -2793,25 +2027,8 @@ logical :: do_search_state_probe,emit_search_k
     kb=1
     kt=1
     intp : do k=1,km
-       emit_search_k = do_search_state_probe .and. i == diag_i_local_use .and. k >= 10 .and. k <= 20
-       if (emit_search_k) then
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_before_backstep", real(kb,kind=kind_phys))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_before_backstep", real(kt,kind=kind_phys))
-       endif
        kb=max(kb-1,1)
        kt=max(kt-1,1)
-       if (emit_search_k) then
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_after_backstep", real(kb,kind=kind_phys))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_after_backstep", real(kt,kind=kind_phys))
-       endif
 ! find kb and kt
        if( zi(k).ge.za(km+1) ) then
           exit intp
@@ -2833,14 +2050,6 @@ logical :: do_search_state_probe,emit_search_k
              endif
           enddo find_kt
           kt = kt - 1
-          if (emit_search_k) then
-             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kb_after_search", real(kb,kind=kind_phys))
-             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "kt_after_search", real(kt,kind=kind_phys))
-          endif
 ! compute q with piecewise constant method
           if( kt.eq.kb ) then
              tl=(zi(k)-za(kb))/dza(kb)
@@ -2875,17 +2084,6 @@ logical :: do_search_state_probe,emit_search_k
              qsum  = qsum + dqh*dza(kt)
              qn(k) = qsum/zsum
           endif
-          if (emit_search_k) then
-             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "zsum", zsum)
-             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                  "G5b_NISLFV_RAIN_SEDIMENTATION", "diagnostic", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qsum", qsum)
-             call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-                  "G5b_NISLFV_RAIN_SEDIMENTATION", "working", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-                  k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "qn", qn(k))
-          endif
           cycle intp
        endif
 !
@@ -2905,17 +2103,6 @@ logical :: do_search_state_probe,emit_search_k
 !
 ! replace the new values
     rql(i,:) = qn(:)
-    if (do_search_state_probe .and. i == diag_i_local_use) then
-       do k=1,km
-          if (k < 10 .or. k > 20) cycle
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "output", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "denqrs1_after_kernel", rql(i,k))
-          call wsm6_emit_diag_t2_blocksig_line("NISLFV_R_SEARCH_STATE", "BLOCK_SIGNATURE", "INCORE_FORTRAN", &
-               "G5b_NISLFV_RAIN_SEDIMENTATION", "output", diag_loop_out_use, diag_i_local_use, diag_j_dbg_use, &
-               k, diag_k_raw_base_use + k - 1, diag_debug_level_use, "precip_or_delqrs1", precip(i))
-       enddo
-    endif
  enddo i_loop
 
  end subroutine nislfv_rain_plm
