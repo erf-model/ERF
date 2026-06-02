@@ -54,21 +54,20 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 
         ntimes = array_ts[0].get_vshape()[0];
 
-        auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        Vector<std::string> timeStamps;
+        timeStamps.reserve(ntimes);
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
+        const char* data = array_ts[0].get_data();
+        auto dateStrLen  = array_ts[0].get_vshape()[1];
+
+        for (int nt = 0; nt < ntimes; ++nt) {
+            const char* begin = data + nt * dateStrLen;
+            timeStamps.emplace_back(begin, begin + dateStrLen);
         }
 
         Vector<std::time_t> epochTimes;
         for (int nt(0); nt < ntimes; nt++) {
-            std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
+            std::string date = timeStamps[nt];
             auto epochTime = getEpochTime(date, dateTimeFormat);
             Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
@@ -80,7 +79,9 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             }
         }
         start_bdy_time = static_cast<Real>(epochTimes[0]);
-        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1]);
+        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1] + timeInterval);
+        Print() << "  start_bdy_time " << start_bdy_time << std::endl;
+        Print() << "  final_bdy_time " << final_bdy_time << std::endl;
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
@@ -102,18 +103,159 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 }
 
 void
-read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& domain,
-                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                  int real_width)
+convert_wrfbdy_data (const int itime,
+                     Vector<Vector<FArrayBox>>& bdy_data,
+                     const MultiFab& mf_MUB,
+                     const MultiFab& mf_C1H,
+                     const MultiFab& mf_C2H,
+                     const MultiFab& xvel,
+                     const MultiFab& yvel,
+                     const MultiFab& cons,
+                     const Geometry& geom,
+                     const bool& use_moist)
+{
+    // Owner masks for parallel reduce sum
+    std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
+    std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
+    std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
+
+    // Temporary bdy data structures for global reductions
+    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
+    amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
+        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
+    }
+
+    // BDY data
+    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
+    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
+    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
+    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
+
+    // Bounds limiting
+    const Box& domain = geom.Domain();
+    int ilo  = domain.smallEnd()[0];
+    int ihi  = domain.bigEnd()[0];
+    int jlo  = domain.smallEnd()[1];
+    int jhi  = domain.bigEnd()[1];
+
+    for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
+    {
+        Box tbx = mfi.tilebox();
+        Box xbx = mfi.nodaltilebox(0);
+        Box ybx = mfi.nodaltilebox(1);
+
+        const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
+        const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
+        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
+        const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
+
+        // TMP BDY data
+        Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
+        Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
+
+        // Mask data
+        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
+        const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
+        const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
+
+        // Populated from read wrfinput
+        Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
+        Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
+        Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
+
+        // Define u velocity
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                Real xmu;
+                if (i == ilo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (i > ihi) {
+                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
+                } else {
+                    xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
+                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
+                }
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
+                bdy_u_tmp(i,j,k) = new_bdy;
+            }
+        });
+
+        // Define v velocity
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                Real xmu;
+                if (j == jlo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (j > jhi) {
+                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
+                } else {
+                    xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
+                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
+                }
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
+                bdy_v_tmp(i,j,k) = new_bdy;
+            }
+        });
+
+        // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
+        const Real wrf_theta_ref = Real(300.);
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
+                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
+                new_bdy_Th      /= qv_fac;
+                bdy_t_tmp(i,j,k) = new_bdy_Th;
+            }
+        });
+
+        // Define Qv
+        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
+                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
+            }
+        });
+    } // mfi
+
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
+                                      bdy_data_tmp[ivar].size(),
+                                      ParallelContext::CommunicatorAll());
+        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
+    }
+}
+
+void
+read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
+                              Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                              Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                              Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                              Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                              const MultiFab& mf_MUB, const MultiFab& mf_C1H, const MultiFab& mf_C2H,
+                              const MultiFab& xvel, const MultiFab& yvel, const MultiFab& cons,
+                              const Geometry& geom, const bool& use_moist, int real_width)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
     // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
     int nvars = WRFBdyVars::NumTypes*4;
 
+    const Box& domain = geom.Domain();
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
     const int khi = hi[2];
@@ -461,173 +603,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
         ParallelDescriptor::Bcast(bdy_data_ylo[itime][i].dataPtr(),bdy_data_ylo[itime][i].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(bdy_data_yhi[itime][i].dataPtr(),bdy_data_yhi[itime][i].box().numPts(),ioproc);
     }
-}
 
-void
-convert_wrfbdy_data (const int itime,
-                     const Box& domain,
-                     Vector<Vector<FArrayBox>>& bdy_data,
-                     const MultiFab& mf_MUB,
-                     const MultiFab& mf_C1H,
-                     const MultiFab& mf_C2H,
-                     const MultiFab& xvel,
-                     const MultiFab& yvel,
-                     const MultiFab& cons,
-                     const Geometry& geom,
-                     const bool& use_moist)
-{
-    // Owner masks for parallel reduce sum
-    std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
-
-    // Temporary bdy data structures for global reductions
-    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
-    amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
-    for (int ivar(0); ivar < vsize; ++ivar) {
-        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
-        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
-    }
-
-    // BDY data
-    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
-    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
-    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
-    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
-
-    // Bounds limiting
-    int ilo  = domain.smallEnd()[0];
-    int ihi  = domain.bigEnd()[0];
-    int jlo  = domain.smallEnd()[1];
-    int jhi  = domain.bigEnd()[1];
-
-    for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
-    {
-        Box tbx = mfi.tilebox();
-        Box xbx = mfi.nodaltilebox(0);
-        Box ybx = mfi.nodaltilebox(1);
-
-        const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
-        const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
-        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
-        const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
-
-        // TMP BDY data
-        Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
-        Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
-        Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
-
-        // Mask data
-        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
-        const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
-        const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
-
-        // Populated from read wrfinput
-        Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
-        Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
-        Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
-
-        // Define u velocity
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_u_arr(i,j,k)) {
-                Real xmu;
-                if (i == ilo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (i > ihi) {
-                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
-                } else {
-                    xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
-                }
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
-                bdy_u_tmp(i,j,k) = new_bdy;
-            }
-        });
-
-        // Define v velocity
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_v_arr(i,j,k)) {
-                Real xmu;
-                if (j == jlo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (j > jhi) {
-                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
-                } else {
-                    xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
-                }
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
-                bdy_v_tmp(i,j,k) = new_bdy;
-            }
-        });
-
-        // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
-        const Real wrf_theta_ref = Real(300.);
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
-                new_bdy_Th      /= qv_fac;
-                bdy_t_tmp(i,j,k) = new_bdy_Th;
-            }
-        });
-
-        // Define Qv
-        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
-            }
-        });
-    } // mfi
-
-    for (int ivar(0); ivar < vsize; ++ivar) {
-        amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
-                                      bdy_data_tmp[ivar].size(),
-                                      ParallelContext::CommunicatorAll());
-        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
-    }
-}
-
-void
-convert_all_wrfbdy_data (const int itime,
-                         const Box& domain,
-                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                         const MultiFab& mf_MUB,
-                         const MultiFab& mf_C1H,
-                         const MultiFab& mf_C2H,
-                         const MultiFab& xvel,
-                         const MultiFab& yvel,
-                         const MultiFab& cons,
-                         const Geometry& geom,
-                         const bool& use_moist)
-{
-    convert_wrfbdy_data(itime, domain, bdy_data_xlo,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_xhi,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_ylo,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_yhi,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
+    convert_wrfbdy_data(itime, bdy_data_xlo, mf_MUB, mf_C1H, mf_C2H, xvel, yvel, cons, geom, use_moist);
+    convert_wrfbdy_data(itime, bdy_data_xhi, mf_MUB, mf_C1H, mf_C2H, xvel, yvel, cons, geom, use_moist);
+    convert_wrfbdy_data(itime, bdy_data_ylo, mf_MUB, mf_C1H, mf_C2H, xvel, yvel, cons, geom, use_moist);
+    convert_wrfbdy_data(itime, bdy_data_yhi, mf_MUB, mf_C1H, mf_C2H, xvel, yvel, cons, geom, use_moist);
 }
 #endif // ERF_USE_NETCDF
