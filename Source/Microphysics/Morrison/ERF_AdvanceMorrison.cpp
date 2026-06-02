@@ -212,6 +212,7 @@ namespace MORRInd {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
 
+          auto const& rho_arr         = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
