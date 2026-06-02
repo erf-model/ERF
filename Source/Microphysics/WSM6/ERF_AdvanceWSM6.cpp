@@ -3036,6 +3036,10 @@ WSM6::Advance(const Real& dt_advance,
                           + Real(2.0) * diameter * rslope2_r_arr(i,j,k)
                           + diameter * diameter * rslope_r_arr(i,j,k);
 
+                        // WSM6-CPP TAG: PRACI
+                        //   legacy_group: G13b
+                        //   process: Accretion of cloud ice by rain
+                        //   compare_vars: praci, qi, qr, den
                         praci_arr(i,j,k) = Real(pi) * qi_arr(i,j,k) * Real(n0r)
                             * std::abs(vt2r - vt2i) * acrfac / Real(4.0);
                         praci_arr(i,j,k) *= std::pow(
@@ -3065,6 +3069,10 @@ WSM6::Advance(const Real& dt_advance,
                             Real(2.0) * rslope3_s_arr(i,j,k)
                           + Real(2.0) * diameter * rslope2_s_arr(i,j,k)
                           + diameter * diameter * rslope_s_arr(i,j,k);
+                        // WSM6-CPP TAG: PSACI
+                        //   legacy_group: G13e
+                        //   process: Accretion of cloud ice by snow
+                        //   compare_vars: psaci, qi, qs, den
                         psaci_arr(i,j,k) = Real(pi) * qi_arr(i,j,k) * eacrs
                             * Real(n0s) * n0sfac_arr(i,j,k)
                             * std::abs(vt2ave - vt2i) * acrfac / Real(4.0);
@@ -3126,6 +3134,10 @@ WSM6::Advance(const Real& dt_advance,
                                 * rslope2_r_arr(i,j,k)
                           + Real(0.5) * rslope2_s_arr(i,j,k) * rslope2_s_arr(i,j,k)
                                 * rslope3_r_arr(i,j,k);
+                        // WSM6-CPP TAG: PRACS
+                        //   legacy_group: G13f
+                        //   process: Accretion of snow by rain / rain-snow interaction
+                        //   compare_vars: pracs, qr, qs, den
                         pracs_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
                             * Real(n0s) * n0sfac_arr(i,j,k)
                             * std::abs(vt2r - vt2ave) * (Real(dens_snow) / den_arr(i,j,k))
@@ -3188,6 +3200,10 @@ WSM6::Advance(const Real& dt_advance,
                 if (supcol <= Real(0.0)) {
                     const Real xlf = Real(xlf0);
                     if (qs_arr(i,j,k) > Real(0.0)) {
+                        // WSM6-CPP TAG: PSEML
+                        //   legacy_group: G13g
+                        //   process: Snow evaporation/sublimation
+                        //   compare_vars: pseml, qs, qv, qsat, den
                         pseml_arr(i,j,k) = amrex::min(
                             amrex::max(
                                 Real(cliq) * supcol
@@ -3207,6 +3223,10 @@ WSM6::Advance(const Real& dt_advance,
 
                 if (supcol > Real(0.0)) {
                     if (qi_arr(i,j,k) > Real(0.0) && ifsat != 1) {
+                        // WSM6-CPP TAG: PIDEP
+                        //   legacy_group: G13h
+                        //   process: Ice deposition/sublimation
+                        //   compare_vars: pidep, qi, qv, qsat, den, t
                         pidep_arr(i,j,k) = Real(4.0) * diameter * xni
                             * (rhi_arr(i,j,k) - Real(1.0))
                             / workdiffi_arr(i,j,k);
@@ -3301,6 +3321,10 @@ WSM6::Advance(const Real& dt_advance,
 
                     if (qi_arr(i,j,k) > Real(0.0)) {
                         const Real qimax = Real(roqimax) / den_arr(i,j,k);
+                        // WSM6-CPP TAG: PSAUT
+                        //   legacy_group: G13i
+                        //   process: Autoconversion to snow
+                        //   compare_vars: psaut, qi, qs, den
                         psaut_arr(i,j,k) = amrex::max(
                             Real(0.0), (qi_arr(i,j,k) - qimax) / dtcld);
                     }
@@ -3321,6 +3345,10 @@ WSM6::Advance(const Real& dt_advance,
                         const Real coeres = rslope2_s_arr(i,j,k)
                                           * std::sqrt(rslope_s_arr(i,j,k)
                                                       * rslopeb_s_arr(i,j,k));
+                        // WSM6-CPP TAG: PSEVP
+                        //   legacy_group: G13j
+                        //   process: Graupel evaporation/sublimation
+                        //   compare_vars: psevp, qg, qv, qsat, den
                         psevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0))
                             * n0sfac_arr(i,j,k)
                             * (Real(precs1) * rslope2_s_arr(i,j,k)
