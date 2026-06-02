@@ -1871,7 +1871,7 @@ struct moeng_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real umean    = um_arr(i,j,0);
@@ -1907,7 +1907,7 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2011,7 +2011,7 @@ struct donelan_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real Cd       = amrex::Real(0.001);
@@ -2046,7 +2046,7 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2145,7 +2145,7 @@ struct custom_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = (fluxes_include_rho) ? one : myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar   = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
@@ -2171,7 +2171,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = (fluxes_include_rho) ? one : myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2280,7 +2280,7 @@ struct bulk_coeff_flux
         amrex::Real rho   = myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real wsp   = std::sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<u'w'> = -K dudz
@@ -2305,7 +2305,7 @@ struct bulk_coeff_flux
     {
         amrex::Real rho   = myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real wsp   = std::sqrt(velx*velx+vely*vely);
 
@@ -2403,7 +2403,7 @@ struct rico_flux
     {
         amrex::Real velx = velx_arr(i,j,k);
         amrex::Real vely = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                  + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                    + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho  = myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
@@ -2429,7 +2429,7 @@ struct rico_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
