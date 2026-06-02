@@ -47,8 +47,8 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,dJ0,mfx0,mfy0,false);
     Real mois_sl = zero;
     if (solverChoice.moisture_type != MoistureType::None) {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-        for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
@@ -60,8 +60,8 @@ ERF::sum_integrated_quantities (Real time)
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
         if (solverChoice.moisture_type != MoistureType::None) {
-            int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-            for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
             }
         }
