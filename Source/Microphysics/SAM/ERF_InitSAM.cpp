@@ -7,6 +7,21 @@
 
 using namespace amrex;
 
+namespace {
+
+amrex::Real copy_table_value_to_host (const amrex::TableData<amrex::Real, 1>& src,
+                                      const int lo,
+                                      const int hi,
+                                      const int k)
+{
+    amrex::TableData<amrex::Real, 1> host({lo}, {hi}, amrex::The_Pinned_Arena());
+    host.copy(src);
+    amrex::Gpu::streamSynchronize();
+    return host.const_table()(k);
+}
+
+} // namespace
+
 /**
  * Initializes the Microphysics module.
  *
@@ -223,4 +238,25 @@ void SAM::Compute_Coefficients ()
         evapr1_t(k) = row.evapr1;
         evapr2_t(k) = row.evapr2;
     });
+}
+
+SAMCoefficientRow
+SAM::CoefficientRowAt (const int k) const
+{
+    AMREX_ALWAYS_ASSERT(k >= zlo && k <= zhi);
+
+    SAMCoefficientRow row{};
+    row.accrrc = copy_table_value_to_host(accrrc, zlo, zhi, k);
+    row.accrsi = copy_table_value_to_host(accrsi, zlo, zhi, k);
+    row.accrsc = copy_table_value_to_host(accrsc, zlo, zhi, k);
+    row.coefice = copy_table_value_to_host(coefice, zlo, zhi, k);
+    row.evaps1 = copy_table_value_to_host(evaps1, zlo, zhi, k);
+    row.evaps2 = copy_table_value_to_host(evaps2, zlo, zhi, k);
+    row.accrgi = copy_table_value_to_host(accrgi, zlo, zhi, k);
+    row.accrgc = copy_table_value_to_host(accrgc, zlo, zhi, k);
+    row.evapg1 = copy_table_value_to_host(evapg1, zlo, zhi, k);
+    row.evapg2 = copy_table_value_to_host(evapg2, zlo, zhi, k);
+    row.evapr1 = copy_table_value_to_host(evapr1, zlo, zhi, k);
+    row.evapr2 = copy_table_value_to_host(evapr2, zlo, zhi, k);
+    return row;
 }
