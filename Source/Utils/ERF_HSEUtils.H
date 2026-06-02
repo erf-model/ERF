@@ -495,7 +495,6 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     }
 
     if (std::fabs(delta_T) > TOL * T_b) {
-         amrex::Print() << "Delta T is only " << delta_T << std::endl;
          amrex::Abort("Newton Raphson for temperature could not converge");
     }
 
