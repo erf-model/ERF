@@ -732,6 +732,7 @@ void
 SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                                                   MultiFab& cons_in)
 {
+    Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
@@ -774,10 +775,10 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
                                     + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
                 u_star_arr(i,j,0) = std::sqrt(tau);
-                t_star_arr(i,j,0) = -lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0);
-                q_star_arr(i,j,0) = -lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0);
+                t_star_arr(i,j,0) = -lsm_t_flux_arr(i,j,0) / (u_star_arr(i,j,0) + eps);
+                q_star_arr(i,j,0) = -lsm_q_flux_arr(i,j,0) / (u_star_arr(i,j,0) + eps);
                 olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                                    ( KAPPA * CONST_GRAV * (t_star_arr(i,j,0) + eps) );
             }
         });
     }
