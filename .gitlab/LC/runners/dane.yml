@@ -30,6 +30,9 @@ stages:
   tags:
     - shell
     - dane
+  variables:
+    # Limit build parallelism for matrix jobs
+    CMAKE_BUILD_PARALLEL_LEVEL: 16
 
 .job_on_dane:
   extends: .on_dane
@@ -67,7 +70,7 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 30
+    ALLOC_TIME: 60
   extends: .on_dane
   stage: allocate-resources
   script:
