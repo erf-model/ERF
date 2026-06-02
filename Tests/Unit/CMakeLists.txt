@@ -87,8 +87,10 @@ if(ERF_ENABLE_MPI)
 
   if(DEFINED ERF_PARALLEL_TEST_MPIEXEC_PREFLAGS AND
      NOT "${ERF_PARALLEL_TEST_MPIEXEC_PREFLAGS}" STREQUAL "")
+    separate_arguments(erf_parallel_test_user_mpiexec_preflags
+      UNIX_COMMAND "${ERF_PARALLEL_TEST_MPIEXEC_PREFLAGS}")
     list(APPEND erf_parallel_test_mpiexec_preflags
-      ${ERF_PARALLEL_TEST_MPIEXEC_PREFLAGS})
+      ${erf_parallel_test_user_mpiexec_preflags})
   endif()
 
   if(ERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE)

@@ -60,6 +60,10 @@ public:
 
     virtual
     int
+    Qstate_Moist_NumConc_Size () { return NullMoist::m_qstate_moist_numconc_size; }
+
+    virtual
+    int
     Qstate_NonMoist_Size () { return NullMoist::m_qstate_nonmoist_size; }
 
     virtual
@@ -122,6 +126,7 @@ public:
 private:
     int m_qmoist_size = 0;
     int m_qstate_moist_size = 0;
+    int m_qstate_moist_numconc_size = 0;
     int m_qstate_nonmoist_size = 0;
 };
 

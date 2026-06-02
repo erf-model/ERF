@@ -582,8 +582,8 @@ amrex::Real upwind3sl_reference_flux (const amrex::Real sp1,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real smooth_periodic_function (const amrex::Real x)
 {
-    const amrex::Real two_pi = amrex::Real(2.0) * std::acos(amrex::Real(-1.0));
-    return std::sin(two_pi * x) + amrex::Real(0.25) * std::cos(amrex::Real(3.0) * two_pi * x);
+    return amrex::Math::sinpi(amrex::Real(2.0) * x) +
+           amrex::Real(0.25) * amrex::Math::cospi(amrex::Real(6.0) * x);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -593,13 +593,16 @@ amrex::Real smooth_periodic_cell_average (const int cell,
     const amrex::Real dx = amrex::Real(1.0) / amrex::Real(num_cells);
     const amrex::Real x_lo = dx * amrex::Real(cell);
     const amrex::Real x_hi = x_lo + dx;
-    const amrex::Real two_pi = amrex::Real(2.0) * std::acos(amrex::Real(-1.0));
-    const amrex::Real six_pi = amrex::Real(3.0) * two_pi;
+    const amrex::Real pi = amrex::Math::pi<amrex::Real>();
 
-    const amrex::Real avg_sin = (std::cos(two_pi * x_lo) - std::cos(two_pi * x_hi)) /
-                                (two_pi * dx);
-    const amrex::Real avg_cos = (std::sin(six_pi * x_hi) - std::sin(six_pi * x_lo)) /
-                                (six_pi * dx);
+    const amrex::Real avg_sin =
+        (amrex::Math::cospi(amrex::Real(2.0) * x_lo) -
+         amrex::Math::cospi(amrex::Real(2.0) * x_hi)) /
+        (amrex::Real(2.0) * pi * dx);
+    const amrex::Real avg_cos =
+        (amrex::Math::sinpi(amrex::Real(6.0) * x_hi) -
+         amrex::Math::sinpi(amrex::Real(6.0) * x_lo)) /
+        (amrex::Real(6.0) * pi * dx);
     return avg_sin + amrex::Real(0.25) * avg_cos;
 }
 

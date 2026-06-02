@@ -91,7 +91,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -128,7 +128,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -162,7 +162,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -212,7 +212,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -247,7 +247,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -281,7 +281,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;

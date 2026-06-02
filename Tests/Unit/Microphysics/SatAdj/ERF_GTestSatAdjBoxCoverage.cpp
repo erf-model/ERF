@@ -91,27 +91,6 @@ void run_kessler_norain_public_flow (Kessler& kessler,
     });
 }
 
-void poison_ghost_cells (amrex::MultiFab& mf,
-                         const std::initializer_list<int>& components,
-                         const amrex::Real sentinel)
-{
-    for (amrex::MFIter mfi(mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const amrex::Box& fab_box = mfi.fabbox();
-        const amrex::Box& valid_box = mfi.validbox();
-        auto arr = mf.array(mfi);
-
-        run_and_sync([=] {
-            amrex::ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (!valid_box.contains(amrex::IntVect(AMREX_D_DECL(i, j, k)))) {
-                    for (const int comp : components) {
-                        arr(i,j,k,comp) = sentinel;
-                    }
-                }
-            });
-        });
-    }
-}
-
 int wrap_index (int idx,
                 const int lo,
                 const int hi)
@@ -406,7 +385,7 @@ TEST(SatAdjBoxCoverage, PeriodicGhostFillAfterFullPublicFlow)
     });
 
     poison_ghost_cells(cons,
-                       {Rho_comp, RhoTheta_comp, RhoQ1_comp, RhoQ2_comp},
+                       amrex::GpuArray<int, 4>{Rho_comp, RhoTheta_comp, RhoQ1_comp, RhoQ2_comp},
                        amrex::Real(-999.0));
 
     run_and_sync([&]() { satadj.Copy_Micro_to_State(cons); });
