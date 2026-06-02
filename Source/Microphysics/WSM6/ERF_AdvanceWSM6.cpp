@@ -261,37 +261,7 @@ void wsm6_nislfv_rain_plm (int im, int km,
             den[k] = denl[idx];
             denfac[k] = denfacl[idx];
             tk[k] = tkl[idx];
-            if (line_check_dbg >= 2 && iter == 0) {
-                auto safe_print = [](Real v) -> double {
-                    std::uint64_t bits = 0;
-                    std::memcpy(&bits, &v, sizeof(bits));
-                    const bool is_nan = ((bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
-                                        ((bits & 0x000fffffffffffffULL) != 0ULL);
-                    return is_nan ? 0.0 : static_cast<double>(v);
-                };
-                std::printf("WSM6-CPP_PRE_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            k + 1,
-                            static_cast<double>(Real(id)),
-                            safe_print(qq[k]), safe_print(allold),
-                            safe_print(dz[k]), safe_print(ww[k]), safe_print(den[k]));
-                std::fflush(stdout);
-            }
             allold += qq[k];
-            if (line_check_dbg >= 2 && iter == 0) {
-                auto safe_print = [](Real v) -> double {
-                    std::uint64_t bits = 0;
-                    std::memcpy(&bits, &v, sizeof(bits));
-                    const bool is_nan = ((bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL) &&
-                                        ((bits & 0x000fffffffffffffULL) != 0ULL);
-                    return is_nan ? 0.0 : static_cast<double>(v);
-                };
-                std::printf("WSM6-CPP_POST_ALLOLD %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            k + 1,
-                            static_cast<double>(Real(id)),
-                            safe_print(qq[k]), safe_print(allold),
-                            safe_print(dz[k]), safe_print(ww[k]), safe_print(den[k]));
-                std::fflush(stdout);
-            }
         }
 
         precip[i] = Real(0.0);
@@ -308,22 +278,8 @@ void wsm6_nislfv_rain_plm (int im, int km,
         }
 
         auto update_wind_and_state = [&](void) {
-            if (line_check_dbg == 1 && iter == 0) {
-                std::printf("WSM6-CPP_PRE_WI_TOP %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            km,
-                            (double)ww[0], (double)ww[km - 1],
-                            (double)dz[0], (double)dz[km - 1],
-                            (double)dt, (double)Real(km));
-            }
             wi[0] = ww[0];
             wi[km] = ww[km - 1];
-            if (line_check_dbg == 1 && iter == 0) {
-                std::printf("WSM6-CPP_POST_WI_TOP %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            km,
-                            (double)wi[0], (double)wi[km],
-                            (double)ww[0], (double)ww[km - 1],
-                            (double)dz[0], (double)dz[km - 1]);
-            }
             for (int k = 1; k < km; ++k) {
                 wi[k] = (ww[k] * dz[k - 1] + ww[k - 1] * dz[k]) / (dz[k - 1] + dz[k]);
             }
