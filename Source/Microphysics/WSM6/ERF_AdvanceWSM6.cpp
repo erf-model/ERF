@@ -1818,6 +1818,10 @@ WSM6::Advance(const Real& dt_advance,
                             qsatw_arr, qsati_arr, rhw_arr, rhi_arr, qv_arr, t_arr, loop);
 
             // G2: zero all process rates each sub-step  [lines 555-594]
+            // WSM6-CPP TAG: RATES_ZERO
+            //   legacy_group: G2
+            //   process: Zero all process rates each sub-step
+            //   compare_vars: prevp, psdep, pgdep, praut, psaut, pgaut, pracw, praci, psaci, pracs, pidep, pcond, psmlt, pgmlt, pseml, psevp, fall_r, fall_s, fall_g, fallc
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 prevp_arr(i,j,k) = Real(0.0); psdep_arr(i,j,k) = Real(0.0);
                 pgdep_arr(i,j,k) = Real(0.0); praut_arr(i,j,k) = Real(0.0);
@@ -1838,6 +1842,10 @@ WSM6::Advance(const Real& dt_advance,
             });
 
             // G3: xni ice crystal number concentration  [lines 598-604]
+            // WSM6-CPP TAG: XNI
+            //   legacy_group: G3
+            //   process: Ice crystal number concentration
+            //   compare_vars: xni, qi, den
             print_wsm6_state("WSM6-CPP PRE-G3",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);
@@ -1852,6 +1860,10 @@ WSM6::Advance(const Real& dt_advance,
                              ilo, ihi, jlo, jhi, klo, khi);
 
             // G4: pack qrs_tmp, first slope_wsm6 [lines 610-618]
+            // WSM6-CPP TAG: SLOPE1
+            //   legacy_group: G4
+            //   process: First slope calculation
+            //   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
             print_wsm6_state("WSM6-CPP PRE-G4",
                              qv_arr, qc_arr, qr_arr, qi_arr, qs_arr, qg_arr, t_arr,
                              ilo, ihi, jlo, jhi, klo, khi);
@@ -2563,6 +2575,10 @@ WSM6::Advance(const Real& dt_advance,
                              ilo, ihi, jlo, jhi, klo, khi);
 
             // G6: repack qrs_tmp, second slope_wsm6 [lines 655-663]
+            // WSM6-CPP TAG: SLOPE2
+            //   legacy_group: G6
+            //   process: Second slope calculation after sedimentation
+            //   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
             // slope params updated after sedimentation moved mass
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
@@ -2608,6 +2624,10 @@ WSM6::Advance(const Real& dt_advance,
                              ilo, ihi, jlo, jhi, klo, khi);
 
             // G7: melting (T>T0 only) [lines 665-704]
+            // WSM6-CPP TAG: MELT
+            //   legacy_group: G7
+            //   process: Melting of snow/graupel and latent heating coupling
+            //   compare_vars: psmlt, pgmlt, t, qrs, qci, q
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = Real(t0c) - t_arr(i,j,k);
                 n0sfac_arr(i,j,k) = amrex::max(
@@ -2672,6 +2692,10 @@ WSM6::Advance(const Real& dt_advance,
                              ilo, ihi, jlo, jhi, klo, khi);
 
             // G8: cloud ice sedimentation/fallout [lines 708-735]
+            // WSM6-CPP TAG: VICE
+            //   legacy_group: G8
+            //   process: Cloud ice sedimentation/fallout
+            //   compare_vars: qci, fall, fallc, den, p
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qi_arr(i,j,k) <= Real(0.0)) {
                     work1c_arr(i,j,k) = Real(0.0);
@@ -2738,6 +2762,10 @@ WSM6::Advance(const Real& dt_advance,
                              ilo, ihi, jlo, jhi, klo, khi);
 
             // G9: surface precipitation accumulation [lines 741-770]
+            // WSM6-CPP TAG: PRECIP
+            //   legacy_group: G9
+            //   process: Surface precipitation accumulation
+            //   compare_vars: rainncv, snowncv, graupelncv, sr
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const Real fallsum =
                     fall_r_arr(i,j,klo) + fall_s_arr(i,j,klo) +
@@ -2790,6 +2818,10 @@ WSM6::Advance(const Real& dt_advance,
             constexpr Real pi = Real(3.141592653589793238462643383279502884);
 
             // G10: instantaneous phase changes [lines 774-830]
+            // WSM6-CPP TAG: PHASE
+            //   legacy_group: G10
+            //   process: Instantaneous phase changes
+            //   compare_vars: t, q, qci, qrs
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = Real(t0c) - t_arr(i,j,k);
                 const Real xlf = (supcol < Real(0.0))
@@ -2849,6 +2881,10 @@ WSM6::Advance(const Real& dt_advance,
                             pgfrz_arr, qc_arr, qi_arr, loop);
 
             // G11: third slope_wsm6 call [lines 836-844]
+            // WSM6-CPP TAG: SLOPE3
+            //   legacy_group: G11
+            //   process: Third slope calculation
+            //   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qrs_tmp_r_arr(i,j,k) = qr_arr(i,j,k);
                 qrs_tmp_s_arr(i,j,k) = qs_arr(i,j,k);
@@ -2887,6 +2923,10 @@ WSM6::Advance(const Real& dt_advance,
                             rslopeb_r_arr, rslopeb_s_arr, rslopeb_g_arr, loop);
 
             // G12: workdiffw, workdiffi, work2 [lines 851-857]
+            // WSM6-CPP TAG: DIFF_PREP
+            //   legacy_group: G12
+            //   process: Prepare diffusion/work terms
+            //   compare_vars: workdiffw, workdiffi, work2
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 workdiffw_arr(i,j,k) = wsm6_diffac(
                     xl_arr(i,j,k), p_arr(i,j,k), t_arr(i,j,k),
@@ -3331,6 +3371,10 @@ WSM6::Advance(const Real& dt_advance,
                             qs_arr, qg_arr, t_arr, loop);
 
             // G14: mass conservation check and state update [lines 1200-1388]
+            // WSM6-CPP TAG: UPDATE
+            //   legacy_group: G14
+            //   process: Mass conservation and state update
+            //   compare_vars: t, q, qci, qrs, qv
             const bool emit_qr_update_inputs =
                 (microphysics_debug >= 2 && micro_diag_forensic && diag_col_in_tile &&
                  ParallelDescriptor::IOProcessor() &&
@@ -3631,6 +3675,10 @@ WSM6::Advance(const Real& dt_advance,
             }
 
             // G15: second qsat computation [lines 1390-1420]
+            // WSM6-CPP TAG: QSAT2
+            //   legacy_group: G15
+            //   process: Second saturation mixing ratio computation
+            //   compare_vars: qs, qvs, den, denfac, t, p
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real ttp   = Real(t0c) + Real(0.01);
                 const Real dldt  = Real(cpv) - Real(cliq);
@@ -3649,6 +3697,10 @@ WSM6::Advance(const Real& dt_advance,
                             t_arr, p_arr, den_arr, loop);
 
             // G16: pcond condensational/evaporational update [lines 1427-1437]
+            // WSM6-CPP TAG: PCOND
+            //   legacy_group: G16
+            //   process: Condensation/evaporation update
+            //   compare_vars: pcond, t, qv, qc, qsat
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real workcond = wsm6_conden(
                     t_arr(i,j,k), qv_arr(i,j,k), qsatw_arr(i,j,k),
@@ -3674,6 +3726,10 @@ WSM6::Advance(const Real& dt_advance,
                             t_arr, xl_arr, cpm_arr, loop);
 
             // G17: padding for small values [lines 1444-1449]
+            // WSM6-CPP TAG: CLIP
+            //   legacy_group: G17
+            //   process: Padding/clipping for small values
+            //   compare_vars: qv, qc, qr, qi, qs, qg
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qc_arr(i,j,k) <= Real(qmin)) qc_arr(i,j,k) = Real(0.0);
                 if (qi_arr(i,j,k) <= Real(qmin)) qi_arr(i,j,k) = Real(0.0);
