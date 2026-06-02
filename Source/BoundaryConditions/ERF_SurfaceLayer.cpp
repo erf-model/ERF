@@ -40,8 +40,10 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
+    // NOTE: Do iterations to seed variables on the first step (LSM called post step)
+    //*******************************************************************************
     // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes) {
+    if (m_has_lsm_fluxes && elapsed_time_since_start_low > zero) {
         compute_sfc_params_from_lsm_fluxes(lev, cons_in);
     } else {
         // ***************************************************************
@@ -774,11 +776,19 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 Real Thv = Thd * (one + (R_v/R_d - one)*qv);
                 Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
                                     + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
-                u_star_arr(i,j,0) = std::sqrt(tau);
-                t_star_arr(i,j,0) = -lsm_t_flux_arr(i,j,0) / (u_star_arr(i,j,0) + eps);
-                q_star_arr(i,j,0) = -lsm_q_flux_arr(i,j,0) / (u_star_arr(i,j,0) + eps);
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+                if (lsm_t_flux_arr(i,j,0)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                }
+                if (lsm_q_flux_arr(i,j,0)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                }
                 olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                    ( KAPPA * CONST_GRAV * (t_star_arr(i,j,0) + eps) );
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
             }
         });
     }
