@@ -82,7 +82,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             for (int k(0); k<nk; ++k) {
                 ratio = (hf - treeZm) / (hf - ztree);
                 if (ztree < treeZm) {
-                    expFun += std::pow(ratio, Real(6.0)) *
+                    expFun += amrex::Math::powi<6>(ratio) *
                               std::exp(6 * (1 - ratio));
                 } else {
                     expFun += std::pow(ratio, myhalf) *
@@ -121,7 +121,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                     if (tf == 2) {
                         Real ratio = (hf - treeZm) / (hf - z);
                         if (z < treeZm) {
-                            factor = std::pow(ratio, Real(6.0)) *
+                            factor = amrex::Math::powi<6>(ratio) *
                                      std::exp(Real(6.0) * (one - ratio));
                         } else if (z <= hf) {
                             factor = std::pow(ratio, myhalf) *

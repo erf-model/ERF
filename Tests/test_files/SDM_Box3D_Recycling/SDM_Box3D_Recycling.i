@@ -1,5 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step  = 20
+erf.prob_name = "Bubble"
+max_step = 60
 stop_time = 3600.0
 
 erf.init_type = Isentropic
@@ -93,7 +94,7 @@ super_droplets_moisture.multiplicity_type = "constant"
 super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
 super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-19 #kg
 super_droplets_moisture.initial_species_distribution_type_H2O = "mass_constant"
-super_droplets_moisture.initial_species_mean_mass_H2O = 0.0 # kg
+super_droplets_moisture.initial_species_mean_mass_H2O = 1.0e-3 # kg
 super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
 super_droplets_moisture.initial_particles_per_cell = 1
 

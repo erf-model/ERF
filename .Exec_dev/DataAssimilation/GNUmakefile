@@ -24,6 +24,8 @@ DEBUG = FALSE
 TEST = FALSE
 USE_ASSERTION = TRUE
 
+USE_LAPACK = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

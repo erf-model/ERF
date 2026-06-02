@@ -24,13 +24,21 @@ query_one_or_per_level (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query(query_string, query_var);
-  } else if (count == maxlev + 1) {
+  } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
-      ": if specified, specify once total or once for each level");
+      ": if specified, specify once total or at least once for each level");
     return 0; // avoid compiler warning
   }
 }
@@ -48,10 +56,18 @@ query_one_or_per_level_enum_case_insensitive (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query_enum_case_insensitive(query_string, query_var);
   } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query_enum_case_insensitive(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
       ": if specified, specify once total or at least once for each level");
@@ -70,7 +86,6 @@ public:
     amrex::ParmParse pp(pp_prefix);
 
     // Which LES closure?
-    std::string les_type_string = "None";
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
 
     // Handle 2-D Smag
@@ -80,7 +95,6 @@ public:
     }
 
     // Which RANS closure?
-    std::string rans_type_string = "None";
     query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
     if ((rans_type != RANSType::None) && (les_type != LESType::None)) {
@@ -88,7 +102,6 @@ public:
     }
 
     // Which PBL Closure
-    static std::string pbl_type_string = "None";
     query_one_or_per_level(pp, "pbl_type", pbl_type, lev, max_level);
 
     // Do some more stuff for PBL Modeling
@@ -181,6 +194,10 @@ public:
         // Apply numerical diffusion to QKE/TKE?
         query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
+
+    // There is a default value of 1e-6 but the user can override the value here,
+    //   and in addition can add perturbational values.  and in addition can add perturbational values.
+    pp.query("tke_min",tke_min);
 
     // LES constants...
     query_one_or_per_level(pp, "Cs", Cs, lev, max_level);
@@ -392,7 +409,7 @@ public:
   }
 
   // LES model
-  LESType les_type;
+  LESType les_type = LESType::None;
 
   // Turbulent Prandtl number
   amrex::Real Pr_t = one / three;
@@ -434,12 +451,12 @@ public:
   amrex::Real Ri_crit = fourth;
 
   // RANS type
-  RANSType rans_type;
+  RANSType rans_type = RANSType::None;
 
   bool dirichlet_k = false;
 
   // PBL model
-  PBLType pbl_type;
+  PBLType pbl_type = PBLType::None;
 
   MYNNLevel25 pbl_mynn;
   MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime
@@ -457,6 +474,9 @@ public:
   // function of the friction velocity calculated by the surface layer scheme
   // (e.g., as done in MYNN-EDMF)
   bool init_tke_from_ustar = false;
+
+  // This is the value of tke_min in WRF 4.5
+  amrex::Real tke_min = amrex::Real(1.e-6);
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above

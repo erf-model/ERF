@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 max_step  = 1
 stop_time = 3600.0
 
@@ -13,7 +14,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0.   0.   0.
 geometry.prob_hi     =  8.   8.   4.
 amr.n_cell           =  8    8    4
-geometry.is_periodic =  1 1 1
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.00125

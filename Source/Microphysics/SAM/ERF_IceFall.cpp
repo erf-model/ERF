@@ -1,5 +1,6 @@
 #include <AMReX_ParReduce.H>
 #include "ERF_SAM.H"
+#include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
 #include <cmath>
 
@@ -10,8 +11,7 @@ using namespace amrex;
  */
 void SAM::IceFall (const SolverChoice& sc) {
 
-    if(sc.moisture_type == MoistureType::SAM_NoIce ||
-       sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+    if (sam_is_no_ice(sc.moisture_type))
       return;
 
     Real dtn  = dt;
@@ -44,19 +44,16 @@ void SAM::IceFall (const SolverChoice& sc) {
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            Real rho_avg, qci_avg;
-            if (k==k_lo) {
-                rho_avg = rho_array(i,j,k);
-                qci_avg = qci_array(i,j,k);
-            } else if (k==k_hi+1) {
-                rho_avg = rho_array(i,j,k-1);
-                qci_avg = qci_array(i,j,k-1);
-            } else {
-                rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
-            }
-            Real vt_ice = min( Real(0.4),
-                               Real(8.66)*std::pow( (amrex::max(Real(0),qci_avg)+Real(1.e-10)) , Real(0.24)) );
+            const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
+            const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
+            const Real qci_km1 = (k == k_lo) ? qci_array(i,j,k) : qci_array(i,j,k-1);
+            const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
+            const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
+                                                                   rho_km1, rho_k,
+                                                                   zero, zero,
+                                                                   qci_km1, qci_k,
+                                                                   zero, zero);
+            const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
 
             // NOTE: Fz is the sedimentation flux from the advective operator.
             //       In the terrain-following coordinate system, the z-deriv in
@@ -64,7 +61,7 @@ void SAM::IceFall (const SolverChoice& sc) {
             //       there are no u/v components to the sedimentation velocity.
             //       Therefore, we simply end up with a division by detJ when
             //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
-            fz_array(i,j,k) = rho_avg*vt_ice*qci_avg;
+            fz_array(i,j,k) = face_state.rho_avg * vt_ice * face_state.qci_avg;
         });
     }
 
@@ -81,7 +78,7 @@ void SAM::IceFall (const SolverChoice& sc) {
                              return { ma_fz_arr[box_no](i,j,k) };
                          });
     wt_max = get<0>(max) + std::numeric_limits<Real>::epsilon();
-    n_substep = int( std::ceil(wt_max * coef / CFL_MAX) );
+    n_substep = sam_substep_count_from_reduced_flux(wt_max, dtn, m_dzmin);
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
     dtn  /= Real(n_substep);
@@ -103,19 +100,16 @@ void SAM::IceFall (const SolverChoice& sc) {
             // Update vertical flux every substep
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real rho_avg, qci_avg;
-                if (k==k_lo) {
-                    rho_avg = rho_array(i,j,k);
-                    qci_avg = qci_array(i,j,k);
-                } else if (k==k_hi+1) {
-                    rho_avg = rho_array(i,j,k-1);
-                    qci_avg = qci_array(i,j,k-1);
-                } else {
-                    rho_avg = myhalf*(rho_array(i,j,k-1) + rho_array(i,j,k));
-                    qci_avg = myhalf*(qci_array(i,j,k-1) + qci_array(i,j,k));
-                }
-                Real vt_ice = min( Real(0.4),
-                                   Real(8.66)*std::pow( (amrex::max(Real(0),qci_avg)+Real(1.e-10)) , Real(0.24)) );
+                const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
+                const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
+                const Real qci_km1 = (k == k_lo) ? qci_array(i,j,k) : qci_array(i,j,k-1);
+                const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
+                const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
+                                                                       rho_km1, rho_k,
+                                                                       zero, zero,
+                                                                       qci_km1, qci_k,
+                                                                       zero, zero);
+                const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -123,7 +117,7 @@ void SAM::IceFall (const SolverChoice& sc) {
                 //       there are no u/v components to the sedimentation velocity.
                 //       Therefore, we simply end up with a division by detJ when
                 //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
-                fz_array(i,j,k) = rho_avg*vt_ice*qci_avg;
+                fz_array(i,j,k) = face_state.rho_avg * vt_ice * face_state.qci_avg;
             });
 
             // Update precip every substep
@@ -135,7 +129,8 @@ void SAM::IceFall (const SolverChoice& sc) {
                 //==================================================
                 // Cloud ice sedimentation (A32)
                 //==================================================
-                Real dqi  = dJinv * (one/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
+                Real dqi  = sam_sedimentation_tendency(fz_array(i,j,k+1), fz_array(i,j,k),
+                                                       rho_array(i,j,k), dJinv, coef);
                 dqi = std::max(-qci_array(i,j,k), dqi);
 
                 // Add this increment to both non-precipitating and total water.

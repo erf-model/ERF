@@ -6,6 +6,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_TerminalVelocity.H"
 #include "ERF_InterpolationUtils.H"
+#include "ERF_TerrainConversion.H"
 
 using namespace amrex;
 using namespace SDPCDefn;
@@ -37,21 +38,22 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::AdvectParticles()");
+    AMREX_ALWAYS_ASSERT((a_lev >= 0) && (a_lev <= finestLevel()));
+
     const MFPtr& z_height = a_z_phys_nd[a_lev];
 
     AMREX_ASSERT(OK(a_lev, a_lev, a_flow_vel[0].nGrow()-1));
-    AMREX_ASSERT(a_lev >= 0 && a_lev < GetParticles().size());
     AMREX_D_TERM(AMREX_ASSERT(a_flow_vel[0].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[1].nGrow() >= 1);,
                  AMREX_ASSERT(a_flow_vel[2].nGrow() >= 1););
-
     AMREX_D_TERM(AMREX_ASSERT(!a_flow_vel[0].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
     const auto ctx = buildProcessContext(a_lev);
     const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto is_periodic_z = geom.isPeriodic(2);
+    const Box& dom = geom.Domain();
+    const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
@@ -90,10 +92,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             ParticleReal v[AMREX_SPACEDIM];
             v[0] = v[1] = v[2] = zero;
 
-            if (is_periodic_z) {
-                mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
-            } else {
-                mac_interpolate_mapped_z(p, ctx.plo, ctx.dxi, umacarr, zheight, v);
+            mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
+            if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                v[0] = zero; v[1] = zero; v[2] = zero;
             }
 
             // Interpolate density, pressure, temperature at particle position
@@ -103,8 +104,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 density_arr, pressure_arr, temperature_arr
             };
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, fa, fv, nf,
-                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                p, ctx.plo, ctx.dxi, fa, fv, nf
             );
             const auto density     = fv[static_cast<int>(InterpFieldsAdv::density)];
             const auto pressure    = fv[static_cast<int>(InterpFieldsAdv::pressure)];
@@ -145,45 +145,42 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
             ptrs.vterm_ptr[i] = terminal_vel;
 
-            if (advect_w_flow) {
-                for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
-                    p.pos(dim) += static_cast<ParticleReal>(a_dt*v[dim]);
+            // Advance in physical (x, y, z); pos(2) is zeta on disk so go
+            // through z_from_zeta / zeta_from_z around the update.
+            if (advect_w_flow || advect_w_gravity) {
+                const Real x0 = static_cast<Real>(p.pos(0));
+                const Real y0 = static_cast<Real>(p.pos(1));
+                const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                    x0, y0, p.pos(AMREX_SPACEDIM-1), ctx.plo, ctx.dxi, zheight));
+                Real x_n = x0;
+                Real y_n = y0;
+                Real z_n = z_phys0;
+                if (advect_w_flow) {
+                    x_n += static_cast<Real>(a_dt * v[0]);
+                    y_n += static_cast<Real>(a_dt * v[1]);
+                    z_n += static_cast<Real>(a_dt * v[AMREX_SPACEDIM-1]);
                 }
+                if (advect_w_gravity) {
+                    z_n -= static_cast<Real>(a_dt * terminal_vel);
+                }
+                int qi = int(amrex::Math::floor((x_n - ctx.plo[0]) * ctx.dxi[0]));
+                int qj = int(amrex::Math::floor((y_n - ctx.plo[1]) * ctx.dxi[1]));
+                int qk = int(amrex::Math::floor((z_n - ctx.plo[AMREX_SPACEDIM-1])
+                                                * ctx.dxi[AMREX_SPACEDIM-1]));
+                if (qi     < zheight.begin[0] || qi + 1 >= zheight.end[0] ||
+                    qj     < zheight.begin[1] || qj + 1 >= zheight.end[1] ||
+                    qk     < zheight.begin[2] || qk + 1 >= zheight.end[2]) { return; }
+                p.pos(0) = static_cast<ParticleReal>(x_n);
+                p.pos(1) = static_cast<ParticleReal>(y_n);
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, ctx.plo, ctx.dxi, zheight, k_max));
             }
-            if (advect_w_gravity) {
-                p.pos(AMREX_SPACEDIM-1) -= static_cast<ParticleReal>(a_dt*terminal_vel);
-            }
-
-            // Update z-coordinate carried by the particle
-            update_location_idata(p,ctx.plo,ctx.dxi,zheight);
-
         });
         Gpu::synchronize();
     }); // end forEachParticleTile
 
     applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
     Redistribute();
-
-    // After redistribution, update k-index for particles that moved to new tiles.
-    // This is needed because update_location_idata skips particles outside the
-    // local tile bounds (to avoid out-of-bounds array access). After Redistribute,
-    // those particles are now on the correct tile and can update their k-index.
-    forEachParticleTile(a_lev, ctx,
-        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-            const SDProcess::ParticlePointers& ptrs,
-            const SDProcess::ProcessContext& ctx)
-    {
-        auto zheight = (*z_height)[grid].array();
-
-        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
-        {
-            ParticleType& p = p_pbox[i];
-            if (p.id() > 0) {
-                update_location_idata(p, ctx.plo, ctx.dxi, zheight);
-            }
-        });
-        Gpu::synchronize();
-    });
 }
 
 #endif

@@ -23,6 +23,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SAMUtils.H"
 
 namespace MicVar {
    enum {
@@ -117,7 +118,8 @@ public:
     }
 
     void
-    Update_State_Vars (amrex::MultiFab& cons_in) override
+    Update_State_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& /*z_phys_nd*/) override
     {
         this->Copy_Micro_to_State(cons_in);
     }
@@ -151,9 +153,6 @@ public:
     int
     Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
 
-    void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
-
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static amrex::Real
@@ -186,7 +185,7 @@ public:
         amrex::Real fff, dfff, dtabs;
         amrex::Real lstar, dlstar;
         amrex::Real lstarw, lstari;
-        amrex::Real delta_qv, delta_qc, delta_qi;
+        amrex::Real delta_qc, delta_qi;
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
@@ -209,39 +208,36 @@ public:
             erf_dtqsatw(tabs, pres, dqsatw);
             erf_dtqsati(tabs, pres, dqsati);
 
+            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+
             if (SAM_moisture_type == 1) {
                 // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
-                    omn   = one;
                 }
                 // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
-                    omn    = zero;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
                     lstari = fac_fus;
-                    omn    = an*tabs-bn;
                     domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                omn  = one;
                 domn = zero;
             }
 
             // Linear combination of each component
-            qsat   =  omn * qsatw  + (one-omn) * qsati;
-            dqsat  =  omn * dqsatw + (one-omn) * dqsati
-                   + domn *  qsatw -     domn  *  qsati;
+            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
+            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
             lstar  =  omn * lstarw + (one-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
+            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = -one + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -255,12 +251,14 @@ public:
         qsat += dqsat*dtabs;
 
         // Changes in each component
-        delta_qv = qv_array(i,j,k) - qsat;
-        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
-        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (one-omn));
+        const SAMCloudPhaseChange phase_change =
+            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
+                                         qc_array(i,j,k), qi_array(i,j,k), omn);
+        delta_qc = phase_change.delta_qc;
+        delta_qi = phase_change.delta_qi;
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = qsat;
+        qv_array(i,j,k)  = phase_change.qv;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
@@ -299,9 +297,6 @@ private:
 
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

@@ -65,12 +65,16 @@ ERF::initHSE (int lev)
          (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
     }
 
+    bool is_constant_dz  = (solverChoice.mesh_type == MeshType::ConstantDz);
+    bool is_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
+
     if (all_boxes_touch_bottom || lev > 0) {
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
         if ( (solverChoice.init_type == InitType::MoistBaseState) ||
              (solverChoice.init_type == InitType::HindCast) )
         {
+            AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
             prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
 
         }
@@ -97,7 +101,8 @@ ERF::initHSE (int lev)
         {
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+            prob->erf_init_dens_hse_dry(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev], stretched_dz_d[lev],
+                                        is_constant_dz, is_stretched_dz);
         }
 
         if (solverChoice.init_type != InitType::Uniform && solverChoice.init_type !=InitType::ConstantDensityLinearTheta) {
@@ -141,8 +146,8 @@ ERF::initHSE (int lev)
 
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
         if (solverChoice.init_type == InitType::MoistBaseState) {
+            AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
             prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
-
         } else if (solverChoice.init_type == InitType::ConstantDensity) {
 
             // In this case we set rho from user-specified values, then integrate
@@ -156,7 +161,8 @@ ERF::initHSE (int lev)
             prob->erf_init_const_dens_and_th_hse(new_r_hse,new_p_hse,new_pi_hse,new_th_hse,new_qv_hse,solverChoice.rdOcp);
 
         } else {
-            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
+            prob->erf_init_dens_hse_dry(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev], stretched_dz_d[lev],
+                                        is_constant_dz, is_stretched_dz);
         }
 
         erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);

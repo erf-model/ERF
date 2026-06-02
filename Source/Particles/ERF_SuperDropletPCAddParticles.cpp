@@ -18,7 +18,8 @@ using namespace SDPCDefn;
  * \param[in] a_box Box region within which to initialize particles
  * \param[in] a_subgrid Flag indicating if the box is smaller than a grid cell
  */
-void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
+void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
+                                              iMultiFab& a_num_sd,
                                               const int a_n_per_cell,
                                               const MFPtr& a_height_ptr,
                                               const RealBox& a_box,
@@ -27,10 +28,10 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
     BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
     a_num_sd.setVal(0);
 
-    const auto dx = Geom(m_lev).CellSizeArray();
-    const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dx = Geom(a_lev).CellSizeArray();
+    const auto plo = Geom(a_lev).ProbLoArray();
 
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+    for(MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
         auto num_superdroplets_arr = a_num_sd[mfi].array();
         if (a_height_ptr) {
@@ -84,7 +85,8 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
 }
 
 /*! Sets the initial number of the super-droplets per cell as a bubble with a uniform distribution */
-void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
+void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
+                                                  iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
                                                   const int a_n_per_cell, /*!< number of superdroplets per cell */
                                                   const MFPtr& a_height_ptr, /*!< terrain */
                                                   const RealBox& a_bubble, /*!< bubble within which to initialize particles */
@@ -93,10 +95,10 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
     BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
     a_num_sd.setVal(0);
 
-    const auto dx = Geom(m_lev).CellSizeArray();
-    const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dx = Geom(a_lev).CellSizeArray();
+    const auto plo = Geom(a_lev).ProbLoArray();
 
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+    for(MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
         auto num_superdroplets_arr = a_num_sd[mfi].array();
         if (a_height_ptr) {
@@ -125,9 +127,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     const auto& x_r = a_bubble.hi(); // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }
@@ -156,9 +158,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                     const auto& x_r = a_bubble.hi();       // radius
 
                     Real rad = zero;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    if (x_r[0] > 0) rad += amrex::Math::powi<2>((x - x_c[0])/x_r[0]);
+                    if (x_r[1] > 0) rad += amrex::Math::powi<2>((y - x_c[1])/x_r[1]);
+                    if (x_r[2] > 0) rad += amrex::Math::powi<2>((z - x_c[2])/x_r[2]);
                     rad = std::sqrt(rad);
 
                     if(rad <= one) { flag = true; }
@@ -178,15 +180,16 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
     + The number of super-droplets per cell is computed from the super-droplet number;
       if specified (if not specified, it is set to the particles per cell, whose default value is 1).
 */
-void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
+void SuperDropletPC::addParticles ( int a_lev,
+                                    const MFPtr& a_height_ptr, /*!< terrain */
                                     const SDInitProperties& a_init /*!< initialization parameters */ )
 {
     BL_PROFILE("SuperDropletPC::addParticles");
 
-    const auto dx_h = Geom(m_lev).CellSize();
+    const auto dx_h = Geom(a_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
-    const auto dx = Geom(m_lev).CellSizeArray();
-    const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dx = Geom(a_lev).CellSizeArray();
+    const auto plo = Geom(a_lev).ProbLoArray();
     const auto init_volume = a_init.volume();
     const bool subgrid = (init_volume < cell_volume);
     const auto itype = a_init.m_type;
@@ -211,20 +214,20 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
     const auto sampled_multiplicity = a_init.sampledMultiplicity();
 
-    iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
-                                 ParticleDistributionMap(m_lev),
+    iMultiFab num_superdroplets( ParticleBoxArray(a_lev),
+                                 ParticleDistributionMap(a_lev),
                                  1, 0 );
 
     if (a_init.m_type == SDInitShape::uniform) {
         Print() << "    Adding particles in box with volume " << a_init.volume() << ".\n";
-        setNumSDBoxDistribution( num_superdroplets,
+        setNumSDBoxDistribution( a_lev, num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
                                  a_init.m_particle_domain,
                                  subgrid );
     } else if (a_init.m_type == SDInitShape::bubble) {
         Print() << "    Adding particles in bubble with volume: " << a_init.volume() << ".\n";
-        setNumSDBubbleDistribution( num_superdroplets,
+        setNumSDBubbleDistribution( a_lev, num_superdroplets,
                                     num_sd_per_cell,
                                     a_height_ptr,
                                     a_init.m_particle_domain,
@@ -238,17 +241,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         amrex::Error("See error message!");
     }
 
-    iMultiFab offsets( ParticleBoxArray(m_lev),
-                       ParticleDistributionMap(m_lev),
+    iMultiFab offsets( ParticleBoxArray(a_lev),
+                       ParticleDistributionMap(a_lev),
                        1, 0 );
     offsets.setVal(0);
 
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+    for(MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
 
         int np = 0;
         {
-            int ncell = num_superdroplets[mfi].numPts();
+            int ncell = static_cast<int>(num_superdroplets[mfi].numPts());
             const int* in = num_superdroplets[mfi].dataPtr();
             int* out = offsets[mfi].dataPtr();
             np = Scan::PrefixSum<int>( ncell,
@@ -259,7 +262,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         }
         auto offset_arr = offsets[mfi].array();
 
-        auto& particle_tile = DefineAndReturnParticleTile(m_lev, mfi);
+        auto& particle_tile = DefineAndReturnParticleTile(a_lev, mfi);
 
         auto my_proc = ParallelDescriptor::MyProc();
         auto nprocs = ParallelDescriptor::NProcs();
@@ -278,15 +281,15 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         auto& soa = particle_tile.GetStructOfArrays();
 
         /* SoA attributes */
-        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data() + size_old;
-        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data() + size_old;
-        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data() + size_old;
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data() + size_old;
+        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdx::vx).data() + size_old;
+        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdx::vy).data() + size_old;
+        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdx::vz).data() + size_old;
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdx::mass).data() + size_old;
 
         /* Runtime-added SoA attributes */
-        int rt_off_i = SuperDropletsIntIdxSoA::ncomps;
+        int rt_off_i = SuperDropletsIntIdx::ncomps;
         auto* active_ptr = soa.GetIntData(rt_off_i+SuperDropletsIntIdxSoA_RT::active).data() + size_old;
-        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+        int rt_off_r = SuperDropletsRealIdx::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
         auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
         auto* vterm_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
@@ -433,7 +436,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                     }
                 }
 
-                p.idata(SuperDropletsIntIdxAoS::k) = k;
                 active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
@@ -448,7 +450,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                 } else {
                     mult_ptr[n] = num_to_add;
                 }
-                num_to_add -= mult_ptr[n];
+                num_to_add -= static_cast<Real>(mult_ptr[n]);
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
                 // Species and aerosol masses already sampled directly into particle SoA
@@ -476,9 +478,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
                 auto& p = aos[n+size_old];
-                Real x = p.pos(0);
-                Real y = p.pos(1);
-                Real z = p.pos(2);
+                Real x = static_cast<Real>(p.pos(0));
+                Real y = static_cast<Real>(p.pos(1));
+                Real z = static_cast<Real>(p.pos(2));
                 Real r[3] = { (x-plo[0])/dx[0] - i,
                               (y-plo[1])/dx[1] - j,
                               (z-plo[2])/dx[2] - k };

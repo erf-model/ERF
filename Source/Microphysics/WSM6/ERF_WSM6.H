@@ -89,7 +89,8 @@ public:
         Copy_State_to_Micro(cons_in);
     }
 
-    void Update_State_Vars(amrex::MultiFab& cons_in) override
+    void Update_State_Vars(amrex::MultiFab& cons_in,
+                           const amrex::MultiFab& /*z_phys_nd*/) override
     {
         Copy_Micro_to_State(cons_in);
     }
@@ -106,8 +107,6 @@ public:
     int Qmoist_Size() override { return m_qmoist_size; }
     int Qstate_Moist_Size() override { return n_qstate_moist_size; }
 
-    void Set_RealWidth(const int real_width) override { m_real_width = real_width; }
-
     void Qmoist_Restart_Vars(const SolverChoice&,
                              std::vector<int>& a_idx,
                              std::vector<std::string>& a_names) const override
@@ -123,7 +122,6 @@ private:
     amrex::Vector<int> MicVarMap;
 
     amrex::Geometry m_geom;
-    int m_real_width{0};
     amrex::Real dt{0.0};
     amrex::Real m_dzmin{0.0};
     int nlev{0}, zlo{0}, zhi{0};

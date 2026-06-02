@@ -4,13 +4,19 @@
 
 using namespace amrex;
 
+#ifdef ERF_REMORA_FORCE_PROBINIT_LINK
+// Force archive extraction of this TU when ERF is linked as a static library
+// inside a parent coupled executable and amrex_probinit is weak.
+void erf_probinit_link_anchor_func () noexcept {}
+#endif
+
 std::unique_ptr<ProblemBase>
-amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
 {
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
 {
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
@@ -29,7 +35,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b)
 {
-    return erf_esatw(T_b)*100.0;
+    return erf_esatw(T_b)*Real(100.0);
 }
 
 AMREX_FORCE_INLINE
@@ -54,10 +60,10 @@ AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
     Real T_dp, gamma, T;
-    T = T_b - 273.15;
+    T = T_b - Real(273.15);
 
-    Real b = 18.678, c = 257.14, d = 234.5;
-    gamma = log(RH*exp((b - T/d)*T/(c + T)));
+    Real b = Real(18.678), c = Real(257.14), d = Real(234.5);
+    gamma = std::log(RH*std::exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
 
@@ -146,6 +152,10 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else {
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
+                << "does not add any state perturbations. \n";
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -212,7 +222,7 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name_ci == "moving terrain") {
 #include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
     }
-    if (my_prob_name_ci == "bubble") {
+    else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if  (my_prob_name_ci == "bomex") {
@@ -236,6 +246,10 @@ Problem::init_custom_pert_vels (
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else {
+        Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
+                << "does not add any velocity perturbations. \n";
     }
 
     amrex::Gpu::streamSynchronize();

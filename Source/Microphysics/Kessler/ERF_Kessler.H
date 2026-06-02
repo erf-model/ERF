@@ -11,6 +11,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
+#include "ERF_KesslerUtils.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
@@ -53,7 +54,9 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        m_fac_cond = lcond / sc.c_p;
+        // Use one latent-over-cp factor for both the saturation solve and theta
+        // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
+        m_fac_cond = L_v / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -91,7 +94,8 @@ public:
 
     // update state vars
     void
-    Update_State_Vars (amrex::MultiFab& cons_in) override
+    Update_State_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& /*z_phys_nd*/) override
     {
         this->Copy_Micro_to_State(cons_in);
     }
@@ -120,9 +124,6 @@ public:
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
-
-    void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
@@ -142,16 +143,13 @@ private:
     int n_qstate_moist_size = 3;
 
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = myhalf;
+    static constexpr amrex::Real CFL_MAX = kessler_sedimentation_cfl_max;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

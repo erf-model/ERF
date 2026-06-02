@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <AMReX_MultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 
@@ -52,7 +53,10 @@ public:
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
-    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
+
+    /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
@@ -90,10 +94,6 @@ public:
     /*! \brief Import minimum dz at this level */
     virtual void Set_dzmin (const int lev,
                             const amrex::Real dz_min) const = 0;
-
-    /*! \brief Define the nudging+set width for real BCs */
-    virtual void Set_RealWidth (const int lev,
-                                const int real_width) const = 0;
 
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)

@@ -98,9 +98,10 @@ public:
 
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        m_moist_model[lev]->Update_State_Vars(cons_in);
+        m_moist_model[lev]->Update_State_Vars(cons_in, z_phys_nd);
     }
 
     /*! \brief get pointer to a moisture variable */
@@ -157,13 +158,6 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model[a_lev]->Set_dzmin(dz_min);
-    }
-
-    /*! \brief Populates real_width in micro model for box limiting */
-    virtual void Set_RealWidth (const int a_lev,
-                                const int real_width) const override
-    {
-        m_moist_model[a_lev]->Set_RealWidth(real_width);
     }
 
 protected:

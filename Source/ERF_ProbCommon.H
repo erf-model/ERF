@@ -63,16 +63,18 @@ public:
      * @param[in] geom container for geometric information
     */
     virtual void
-    erf_init_dens_hse (amrex::MultiFab& /*rho_hse*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
-                       amrex::Geometry const& /*geom*/)
+    erf_init_dens_hse_dry (amrex::MultiFab& /*rho_hse*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                           amrex::Geometry const& /*geom*/,
+                           const amrex::Gpu::DeviceVector<amrex::Real>& /*stretched_dz_d*/,
+                           bool /*is_constant_dz*/, bool /*is_stretched_dz*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
             << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
-        amrex::Error("Should never call this version of erf_init_dens_hse for "+name()+" problem");
+        amrex::Error("Should never call this version of erf_init_dens_hse_dry for "+name()+" problem");
     }
 
     virtual void
@@ -494,8 +496,8 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
+            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
+            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;
@@ -691,7 +693,11 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.query("prob_name",prob_name); return prob_name; }
+    std::string name() {
+        std::string prob_name;
+        amrex::ParmParse pp("erf");
+        pp.get("prob_name",prob_name); return prob_name;
+    }
 };
 
 
