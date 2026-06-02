@@ -89,9 +89,9 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
 
     Vector<MultiFab*> fmf;
-    if ( amrex::almostEqual(static_cast<Real>(time),ftime[0]) || (time-ftime[0]) < small_dt ) {
+    if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
         fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
-    } else if (amrex::almostEqual(static_cast<Real>(time),ftime[1])) {
+    } else if (amrex::almostEqual(time,ftime[1])) {
         fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
     } else {
         fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
@@ -107,7 +107,7 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     if (interpolation_type == StateInterpType::Perturbational)
     {
         // Divide (rho theta) by rho to get theta (before we subtract rho0 from rho!)
-        if (!amrex::almostEqual(static_cast<Real>(time),ctime[1])) {
+        if (!amrex::almostEqual(time,ctime[1])) {
             MultiFab::Divide(vars_old[lev-1][Vars::cons],vars_old[lev-1][Vars::cons],
                              Rho_comp,RhoTheta_comp,1,ngvect_cons);
             MultiFab::Subtract(vars_old[lev-1][Vars::cons],base_state[lev-1],

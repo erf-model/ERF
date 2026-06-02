@@ -25,7 +25,6 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
-    amrex::Print() << "IN ERROR EST " << levc << std::endl;
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
 
@@ -464,7 +463,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 void
 ERF::refinement_criteria_setup ()
 {
-    amrex::Print() << "IN REF CRITERIA SETUP " << std::endl;
     if (max_level > 0)
     {
         ParmParse pp(pp_prefix);
@@ -474,7 +472,6 @@ ERF::refinement_criteria_setup ()
         for (int i=0; i<refinement_indicators.size(); ++i)
         {
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
-            amrex::Print() << "READING " << ref_prefix << std::endl;
 
             ParmParse ppr(ref_prefix);
             RealBox realbox;
