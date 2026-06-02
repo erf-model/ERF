@@ -70,7 +70,6 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -103,7 +102,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Compute_Coefficients();
     }
 
     void
@@ -125,14 +123,14 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
-    void
-    Compute_Coefficients ();
-
     int
     Qmoist_Size () override { return Morrison::m_qmoist_size; }
 
     int
     Qstate_Moist_Size () override { return Morrison::n_qstate_moist_size; }
+
+    int
+    Qstate_Moist_NumConc_Size () override { return Morrison::n_qstate_moist_numconc_size; }
 
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
@@ -143,17 +141,11 @@ public:
         a_names.clear();
 
         // The ordering here needs to match that in
-        // MicVarMap = {MicVar_Morr::nc, MicVar_Morr::nr, MicVar_Morr::ni, MicVar_Morr::ns, MicVar_Morr::ng,
-        //              MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+        // MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
         //
-        a_idx.push_back(0); a_names.push_back("Nc");
-        a_idx.push_back(1); a_names.push_back("Nr");
-        a_idx.push_back(2); a_names.push_back("Ni");
-        a_idx.push_back(3); a_names.push_back("Ns");
-        a_idx.push_back(4); a_names.push_back("Ng");
-        a_idx.push_back(5); a_names.push_back("RainAccum");
-        a_idx.push_back(6); a_names.push_back("SnowAccum");
-        a_idx.push_back(7); a_names.push_back("GraupAccum");
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
     void
@@ -172,26 +164,20 @@ public:
     }
 
 private:
-    // Number of qmoist variables (Ncloud, Nrain, Nice, Nsnow, Ngraup, rain_accum, snow_accum, graup_accum)
-    int m_qmoist_size = 8;
+    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
+    int m_qmoist_size = 3;
 
     // Number of qstate variables
-    int n_qstate_moist_size = 6;
+    int n_qstate_moist_size = 11;
 
-    // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = myhalf;
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 5;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;
-
-    // number of vertical levels
-    int nlev, zlo, zhi;
-
-    // plane average axis
-    int m_axis;
 
     // constants
     amrex::Real m_rdOcp;
@@ -206,27 +192,5 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Morr::NumVars> mic_fab_vars;
-
-    // microphysics parameters/coefficients
-    amrex::TableData<amrex::Real, 1> accrrc;
-    amrex::TableData<amrex::Real, 1> accrsi;
-    amrex::TableData<amrex::Real, 1> accrsc;
-    amrex::TableData<amrex::Real, 1> coefice;
-    amrex::TableData<amrex::Real, 1> evaps1;
-    amrex::TableData<amrex::Real, 1> evaps2;
-    amrex::TableData<amrex::Real, 1> accrgi;
-    amrex::TableData<amrex::Real, 1> accrgc;
-    amrex::TableData<amrex::Real, 1> evapg1;
-    amrex::TableData<amrex::Real, 1> evapg2;
-    amrex::TableData<amrex::Real, 1> evapr1;
-    amrex::TableData<amrex::Real, 1> evapr2;
-
-    // vertical plane average data
-    amrex::TableData<amrex::Real, 1> rho1d;
-    amrex::TableData<amrex::Real, 1> pres1d;
-    amrex::TableData<amrex::Real, 1> tabs1d;
-    amrex::TableData<amrex::Real, 1> qt1d;
-    amrex::TableData<amrex::Real, 1> qv1d;
-    amrex::TableData<amrex::Real, 1> qn1d;
 };
 #endif

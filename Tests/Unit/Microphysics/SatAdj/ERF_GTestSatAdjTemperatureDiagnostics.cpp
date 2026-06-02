@@ -197,18 +197,25 @@ TEST(SatAdjTemperatureDiagnostics, ProductionMoistDerivedTemperatureMatchesEOSPr
     const amrex::BoxArray ba = make_boxarray(geom.Domain(), amrex::IntVect(AMREX_D_DECL(4, 4, 2)));
     const amrex::DistributionMapping dm(ba);
     amrex::MultiFab cons(ba, dm, RhoQ2_comp + 1, 0);
+    amrex::MultiFab der(ba, dm, 1, 0);
+    amrex::MultiFab zcc(ba, dm, 1, 0);
     fill_conserved_state_portable(cons);
+    zcc.setVal(amrex::Real(0.0));
 
     for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
-        const amrex::Box bx = mfi.validbox();
-        amrex::FArrayBox derfab(bx, 1);
-        amrex::FArrayBox zfab(bx, 1);  // unused by erf_dermoisttemp
-        derived::erf_dermoisttemp(bx, derfab, 0, 1, cons[mfi], zfab, geom,
+        const amrex::Box& bx = mfi.validbox();
+        derived::erf_dermoisttemp(bx, der[mfi], 0, 1, cons[mfi], zcc[mfi], geom,
                                   amrex::Real(0.0), nullptr, 0);
-        amrex::Gpu::streamSynchronize();
+    }
+    satadj_test::sync();
 
-        const auto der = derfab.const_array();
-        const auto dat = cons[mfi].const_array();
+    const amrex::MultiFab der_host = make_host_mirror(der);
+    const amrex::MultiFab cons_host = make_host_mirror(cons);
+
+    for (amrex::MFIter mfi(cons_host); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto der_arr = der_host.const_array(mfi);
+        const auto dat = cons_host.const_array(mfi);
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
             for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
                 for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
@@ -216,7 +223,7 @@ TEST(SatAdjTemperatureDiagnostics, ProductionMoistDerivedTemperatureMatchesEOSPr
                     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
                     const amrex::Real qv = dat(i, j, k, RhoQ1_comp) / rho;
                     const amrex::Real expected = getTgivenRandRTh(rho, rhotheta, qv);
-                    const amrex::Real actual = der(i, j, k);
+                    const amrex::Real actual = der_arr(i, j, k);
                     EXPECT_NEAR(actual, expected,
                                 derived_temperature_tol(expected))
                         << "i=" << i << " j=" << j << " k=" << k
