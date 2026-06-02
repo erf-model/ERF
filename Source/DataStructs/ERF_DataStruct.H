@@ -110,14 +110,25 @@ struct MoistureComponentIndices {
     int qr = -1;  // Rain
     int qs = -1;  // Snow
     int qg = -1;  // Graupel
+    int nc = -1;  // number concentration for cloud liquid water
+    int ni = -1;  // number concentration for cloud ice
+    int nr = -1;  // number concentration for rain
+    int ns = -1;  // number concentration for snow
+    int ng = -1;  // number concentration for graupel
 
     // Constructor for easy initialization
     MoistureComponentIndices (int qv_comp, int qc_comp,
                               int qi_comp=-1,
                               int qr_comp=-1,
                               int qs_comp=-1,
-                              int qg_comp=-1)
-        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp) {}
+                              int qg_comp=-1,
+                              int nc_comp=-1,
+                              int ni_comp=-1,
+                              int nr_comp=-1,
+                              int ns_comp=-1,
+                              int ng_comp=-1)
+        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
+                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp) {}
 
     // Default constructor
     MoistureComponentIndices() = default;
@@ -156,10 +167,24 @@ struct SolverChoice {
         if (pp.query("moisture_type",moisture_type) > 0) {
             amrex::Error("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
+
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if ( (moisture_type == MoistureType::Morrison) ||
-             (moisture_type == MoistureType::WSM6) ||
-             (moisture_type == MoistureType::SAM) ) {
+        if (moisture_type == MoistureType::Morrison) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp,  // graupel
+                RhoQ7_comp,  // number concentration of cloud water
+                RhoQ8_comp,  // number concentration of cloud ice
+                RhoQ9_comp,  // number concentration of rain
+                RhoQ10_comp,  // number concentration of snow
+                RhoQ11_comp  // number concentration of graupel
+            );
+        } else if ( (moisture_type == MoistureType::WSM6) ||
+                    (moisture_type == MoistureType::SAM) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
@@ -432,7 +457,10 @@ struct SolverChoice {
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
-
+#ifdef AMREX_USE_FLOAT
+        poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
+        poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
+#endif
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0)
             {

@@ -1153,7 +1153,9 @@ private:
     amrex::Vector<std::string> plot2d_var_names_2;
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
-                                                     "rhoQ4", "rhoQ5", "rhoQ6"};
+                                                     "rhoQ4", "rhoQ5", "rhoQ6",
+                                                     "rhoQ7", "rhoQ8", "rhoQ9",
+                                                     "rhoQ10", "rhoQ11"};
 
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
@@ -1185,7 +1187,8 @@ private:
                                                     // dissipation
                                                     "diss",
                                                     // moisture vars
-                                                    "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
+                                                    "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
+                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask

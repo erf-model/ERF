@@ -350,6 +350,30 @@ inline void run_and_sync (F&& f)
     sync();
 }
 
+template <unsigned int N>
+inline void poison_ghost_cells (amrex::MultiFab& mf,
+                                const amrex::GpuArray<int, N>& components,
+                                const amrex::Real sentinel)
+{
+    const amrex::GpuArray<int, N> comps = components;
+
+    for (amrex::MFIter mfi(mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box fab_box = mfi.fabbox();
+        const amrex::Box valid_box = mfi.validbox();
+        auto arr = mf.array(mfi);
+
+        run_and_sync([=] {
+            amrex::ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (!valid_box.contains(amrex::IntVect(AMREX_D_DECL(i, j, k)))) {
+                    for (unsigned int n = 0; n < N; ++n) {
+                        arr(i,j,k,comps[n]) = sentinel;
+                    }
+                }
+            });
+        });
+    }
+}
+
 inline amrex::BoxArray make_boxarray (const amrex::Box& domain)
 {
     return amrex::BoxArray(domain);
