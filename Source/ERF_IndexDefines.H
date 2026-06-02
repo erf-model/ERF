@@ -134,6 +134,7 @@ namespace WRFBdyVars {
         V  = 1,
         T  = 2,
         QV = 3, // water vapor
+        PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
         NumTypes

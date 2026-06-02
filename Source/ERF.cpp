@@ -1133,7 +1133,7 @@ ERF::InitData_post ()
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              *mf_MUB, *mf_C1H, *mf_C2H,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             geom[0], use_moist, real_width);
+                                             geom[0], use_moist, wrf_PHB, real_width);
             } // itime
         } // use_real_bcs
 

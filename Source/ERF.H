@@ -797,6 +797,9 @@ private:
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = zero;
 
+    // Base geopotential
+    std::unique_ptr<amrex::MultiFab> wrf_PHB;
+
 #endif // ERF_USE_NETCDF
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
