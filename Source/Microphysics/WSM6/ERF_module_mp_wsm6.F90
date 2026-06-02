@@ -800,6 +800,10 @@ integer:: i, j, k, mstepmax,                                     &
 ! initialize the variables for microphysical physics
 !
 !
+   ! WSM6-F90 TAG: RATES_ZERO
+   !   legacy_group: G2
+   !   process: Zero all process rates each sub-step
+   !   compare_vars: prevp, psdep, pgdep, praut, psaut, pgaut, pracw, praci, psaci, pracs, pidep, pcond, psmlt, pgmlt, pseml, psevp, fall_r, fall_s, fall_g, fallc
    do k = kts, kte
      do i = its, ite
        prevp(i,k) = 0.
@@ -850,6 +854,10 @@ integer:: i, j, k, mstepmax,                                     &
          ' t=',t(i,k)
      enddo
    enddo
+! WSM6-F90 TAG: XNI
+!   legacy_group: G3
+!   process: Ice crystal number concentration
+!   compare_vars: xni, qi, den
 !-------------------------------------------------------------
 ! Ni: ice crystal number concentraiton   [HDC 5c]
 !-------------------------------------------------------------
@@ -885,6 +893,10 @@ integer:: i, j, k, mstepmax,                                     &
 ! compute the fallout term:
 ! first, vertical terminal velosity for minor loops
 !----------------------------------------------------------------
+   ! WSM6-F90 TAG: SLOPE1
+   !   legacy_group: G4
+   !   process: First slope calculation
+   !   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
    do k = kts, kte
      do i = its, ite
        qrs_tmp(i,k,1) = qr(i,k)
@@ -1104,6 +1116,10 @@ integer:: i, j, k, mstepmax,                                     &
          ' t=',t(i,k)
      enddo
    enddo
+   ! WSM6-F90 TAG: SLOPE2
+   !   legacy_group: G6
+   !   process: Second slope calculation after sedimentation
+   !   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
@@ -1140,6 +1156,10 @@ integer:: i, j, k, mstepmax,                                     &
          ' t=',t(i,k)
      enddo
    enddo
+   ! WSM6-F90 TAG: MELT
+   !   legacy_group: G7
+   !   process: Melting of snow/graupel and latent heating coupling
+   !   compare_vars: psmlt, pgmlt, t, qrs, qci, q
    do k = kts, kte
      do i = its, ite
        if (mpdbg_level >= 2) write(*,'(A,3(A,I4),7(A,E22.15))') &
@@ -1218,6 +1238,10 @@ integer:: i, j, k, mstepmax,                                     &
          ' t=',t(i,k)
      enddo
    enddo
+! WSM6-F90 TAG: VICE
+!   legacy_group: G8
+!   process: Cloud ice sedimentation/fallout
+!   compare_vars: qci, fall, fallc, den, p
 !---------------------------------------------------------------
 ! Vice [ms-1] : fallout of ice crystal [HDC 5a]
 !---------------------------------------------------------------
@@ -1273,6 +1297,10 @@ integer:: i, j, k, mstepmax,                                     &
 !----------------------------------------------------------------
 !      rain (unit is mm/sec;kgm-2s-1: /1000*delt ===> m)==> mm for wrf
 !
+   ! WSM6-F90 TAG: PRECIP
+   !   legacy_group: G9
+   !   process: Surface precipitation accumulation
+   !   compare_vars: rainncv, snowncv, graupelncv, sr
    do i = its, ite
      fallsum = fall(i,kts,1)+fall(i,kts,2)+fall(i,kts,3)+fallc(i,kts)
      fallsum_qsi = fall(i,kts,2)+fallc(i,kts)
@@ -1326,6 +1354,10 @@ integer:: i, j, k, mstepmax,                                     &
      endif
    enddo
 !
+! WSM6-F90 TAG: PHASE
+!   legacy_group: G10
+!   process: Instantaneous phase changes
+!   compare_vars: t, q, qci, qrs
 !---------------------------------------------------------------
 ! pimlt: instantaneous melting of cloud ice [HL A47] [RH83 A28]
 !       (T>T0: I->C)
@@ -1403,6 +1435,10 @@ integer:: i, j, k, mstepmax,                                     &
 !----------------------------------------------------------------
 ! update the slope parameters for microphysics computation
 !
+   ! WSM6-F90 TAG: SLOPE3
+   !   legacy_group: G11
+   !   process: Third slope calculation
+   !   compare_vars: rslope, rslope2, rslope3, rslopeb, falk, fall, work1
    do k = kts, kte
      do i = its, ite
        qrs_tmp(i,k,1) = qr(i,k)
@@ -1419,6 +1455,10 @@ integer:: i, j, k, mstepmax,                                     &
          rslopeb(its,k,1), rslopeb(its,k,2), rslopeb(its,k,3)
      enddo
    endif
+! WSM6-F90 TAG: DIFF_PREP
+!   legacy_group: G12
+!   process: Prepare diffusion/work terms
+!   compare_vars: workdiffw, workdiffi, work2
 !------------------------------------------------------------------
 ! work1: the thermodynamic term in the denominator associated with
 !        heat conduction and vapor diffusion
@@ -1537,6 +1577,10 @@ integer:: i, j, k, mstepmax,                                     &
        endif
        if(supcol.gt.0.and.qi(i,k).gt.qmin) then
          if(qr(i,k).gt.qcrmin) then
+! WSM6-F90 TAG: PRACI
+!   legacy_group: G13b
+!   process: Accretion of cloud ice by rain
+!   compare_vars: praci, qi, qr, den
 !-------------------------------------------------------------
 ! praci: accretion of cloud ice by rain [HL A15] [LFO 25]
 !          (T<T0: I->R)
@@ -1558,6 +1602,10 @@ integer:: i, j, k, mstepmax,                                     &
            piacr(i,k) = piacr(i,k)*min(max(0.0,qi(i,k)/qr(i,k)),1.)**2
            piacr(i,k) = min(piacr(i,k),qr(i,k)/dtcld)
          endif
+! WSM6-F90 TAG: PSACI
+!   legacy_group: G13e
+!   process: Accretion of cloud ice by snow
+!   compare_vars: psaci, qi, qs, den
 !-------------------------------------------------------------
 ! psaci: accretion of cloud ice by snow [HDC 10]
 !        (T<T0: I->S)
@@ -1609,6 +1657,10 @@ integer:: i, j, k, mstepmax,                                     &
          paacw(i,k) = (qs(i,k)*psacw(i,k)+qg(i,k)*pgacw(i,k))               &
                     /(qsum(i,k))
        endif
+! WSM6-F90 TAG: PRACS
+!   legacy_group: G13f
+!   process: Accretion of snow by rain / rain-snow interaction
+!   compare_vars: pracs, qr, qs, den
 !-------------------------------------------------------------
 ! pracs: accretion of snow by rain [HL A11] [LFO 27]
 !         (T<T0: S->G)
@@ -1662,6 +1714,10 @@ integer:: i, j, k, mstepmax,                                     &
        endif
        if(supcol.le.0) then
          xlf = xlf0
+! WSM6-F90 TAG: PSEML
+!   legacy_group: G13g
+!   process: Snow evaporation/sublimation
+!   compare_vars: pseml, qs, qv, qsat, den
 !-------------------------------------------------------------
 ! pseml: enhanced melting of snow by accretion of water [HL A34]
 !        (T>=T0: S->R)
@@ -1678,6 +1734,10 @@ integer:: i, j, k, mstepmax,                                     &
                       / xlf,-qg(i,k)/dtcld),0.)
        endif
        if(supcol.gt.0) then
+! WSM6-F90 TAG: PIDEP
+!   legacy_group: G13h
+!   process: Ice deposition/sublimation
+!   compare_vars: pidep, qi, qv, qsat, den, t
 !-------------------------------------------------------------
 ! pidep: deposition/Sublimation rate of ice [HDC 9]
 !       (T<T0: V->I or I->V)
@@ -1741,6 +1801,10 @@ integer:: i, j, k, mstepmax,                                     &
            pigen(i,k) = min(min(pigen(i,k),satdt),supice)
          endif
 !
+! WSM6-F90 TAG: PSAUT
+!   legacy_group: G13i
+!   process: Autoconversion to snow
+!   compare_vars: psaut, qi, qs, den
 !-------------------------------------------------------------
 ! psaut: conversion(aggregation) of ice to snow [HDC 12]
 !        (T<T0: I->S)
@@ -1760,6 +1824,10 @@ integer:: i, j, k, mstepmax,                                     &
          endif
        endif
 !
+! WSM6-F90 TAG: PSEVP
+!   legacy_group: G13j
+!   process: Graupel evaporation/sublimation
+!   compare_vars: psevp, qg, qv, qsat, den
 !-------------------------------------------------------------
 ! psevp: evaporation of melting snow [HL A35] [RH83 A27]
 !       (T>=T0: S->V)
@@ -1821,6 +1889,10 @@ integer:: i, j, k, mstepmax,                                     &
 !     check mass conservation of generation terms and feedback to the
 !     large scale
 !
+   ! WSM6-F90 TAG: UPDATE
+   !   legacy_group: G14
+   !   process: Mass conservation and state update
+   !   compare_vars: t, q, qci, qrs, qv
    do k = kts, kte
      do i = its, ite
 !
@@ -2059,6 +2131,10 @@ integer:: i, j, k, mstepmax,                                     &
      enddo
    endif
 !
+! WSM6-F90 TAG: QSAT2
+!   legacy_group: G15
+!   process: Second saturation mixing ratio computation
+!   compare_vars: qs, qvs, den, denfac, t, p
 ! Inline expansion for fpvs
 !  qsat(i,k,1) = fpvs(t(i,k),0,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
 !  qsat(i,k,2) = fpvs(t(i,k),1,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
@@ -2102,6 +2178,10 @@ integer:: i, j, k, mstepmax,                                     &
 ! if there exists additional water vapor condensated/if
 ! evaporation of cloud water is not enough to remove subsaturation
 !
+   ! WSM6-F90 TAG: PCOND
+   !   legacy_group: G16
+   !   process: Condensation/evaporation update
+   !   compare_vars: pcond, t, qv, qc, qsat
    do k = kts, kte
      do i = its, ite
        work1(i,k,1) = conden(t(i,k),q(i,k),qsat(i,k,1),xl(i,k),cpm(i,k))
@@ -2125,6 +2205,10 @@ integer:: i, j, k, mstepmax,                                     &
 !----------------------------------------------------------------
 ! padding for small values
 !
+   ! WSM6-F90 TAG: CLIP
+   !   legacy_group: G17
+   !   process: Padding/clipping for small values
+   !   compare_vars: qv, qc, qr, qi, qs, qg
    do k = kts, kte
      do i = its, ite
        if(qc(i,k).le.qmin) qc(i,k) = 0.0
