@@ -940,7 +940,8 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainNoClipColumnBudgetCloses)
     amrex::BoxArray ba(domain);
     ba.maxSize(amrex::IntVect(1, 1, nz));
     amrex::DistributionMapping dm(ba);
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precipfall_pure_rain_state(cons, pres_mbar, false);
 
     const PrecipFallBudgetSummary summary =
@@ -987,7 +988,8 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainLimiterActiveColumnBudgetCloses)
     amrex::BoxArray ba(domain);
     ba.maxSize(amrex::IntVect(1, 1, nz));
     amrex::DistributionMapping dm(ba);
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precipfall_pure_rain_state(cons, pres_mbar, true);
 
     const PrecipFallBudgetSummary summary =
@@ -1036,7 +1038,8 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
     amrex::BoxArray ba(domain);
     ba.maxSize(amrex::IntVect(1, 1, nz));
     amrex::DistributionMapping dm(ba);
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precipfall_mixed_component_state(cons, pres_mbar);
 
     const PrecipFallBudgetSummary summary =
@@ -1199,13 +1202,13 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                             continue;
                         }
 
-                        amrex::FArrayBox tabs_fab(single_cell_box(), 1);
-                        amrex::FArrayBox pres_fab(single_cell_box(), 1);
-                        amrex::FArrayBox qv_fab(single_cell_box(), 1);
-                        amrex::FArrayBox qc_fab(single_cell_box(), 1);
-                        amrex::FArrayBox qi_fab(single_cell_box(), 1);
-                        amrex::FArrayBox qn_fab(single_cell_box(), 1);
-                        amrex::FArrayBox qt_fab(single_cell_box(), 1);
+                        amrex::FArrayBox tabs_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox pres_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox qv_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox qc_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox qi_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox qn_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+                        amrex::FArrayBox qt_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
 
                         auto tabs_array = tabs_fab.array();
                         auto pres_array = pres_fab.array();
@@ -1452,9 +1455,11 @@ TEST(SAMPhysicalProperties, PrecipFall_DetJWeightedComponentBudgetsClose)
     amrex::BoxArray ba(domain);
     ba.maxSize(amrex::IntVect(1, 1, nz));
     amrex::DistributionMapping dm(ba);
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precipfall_mixed_component_state(cons, pres_mbar);
-    amrex::MultiFab detJ_cc(ba, dm, 1, 0);
+    amrex::MultiFab detJ_cc(amrex::The_Pinned_Arena());
+    detJ_cc.define(ba, dm, 1, 0);
     fill_precipfall_detj(detJ_cc);
 
     const PrecipFallBudgetSummary summary =

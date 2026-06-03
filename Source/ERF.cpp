@@ -1127,7 +1127,7 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
             // Need itime=0 for vertical interpolation
-            if (n_time_old>0) {
+            if (n_time_old > 0) {
                 int itime = 0;
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
