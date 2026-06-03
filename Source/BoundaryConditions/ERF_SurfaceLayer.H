@@ -476,6 +476,7 @@ public:
 
   void
   update_fluxes (const int& lev,
+                 const amrex::Real& elapsed_time,
                  const amrex::Real& elapsed_time_since_start_low,
                  amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,

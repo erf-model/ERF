@@ -10,6 +10,7 @@ using namespace amrex;
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
+                             const Real& elapsed_time,
                              const Real& elapsed_time_since_start_low,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -43,7 +44,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     // NOTE: Do iterations to seed variables on the first step (LSM called post step)
     //*******************************************************************************
     // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes && elapsed_time_since_start_low > zero) {
+    if (m_has_lsm_fluxes && elapsed_time > zero) {
         compute_sfc_params_from_lsm_fluxes(lev, cons_in);
     } else {
         // ***************************************************************
