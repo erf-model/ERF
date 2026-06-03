@@ -48,7 +48,8 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             }
             */
 
-            bool clear_itime = (itime < n_time_old);
+            // Note that we never release itime == 0 because it is used for the spatial interpolation at later times
+            bool clear_itime = (itime > 0 && itime < n_time_old);
 
             if (clear_itime && bdy_data_xlo[itime].size() > 0) {
                 bdy_data_xlo[itime].clear();

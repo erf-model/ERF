@@ -30,7 +30,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<amrex::MultiFab>& wrf_C2H, std::unique_ptr<amrex::MultiFab>& wrf_PHB,
                               const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& cons,
                               const amrex::Geometry& geom, const bool& use_moist,
-                              int real_width, amrex::Real bdy_time_interval);
+                              int real_width, amrex::Real bdy_time_interval,
+                              bool do_conversion = true);
 
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,

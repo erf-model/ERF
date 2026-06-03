@@ -401,28 +401,26 @@ void make_sources (int level,
         // *************************************************************************************
         // Real(6.) Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
-        if (l_use_ndiff && is_slow_step) {
-            int sc;
-            int nc;
-
+        if (l_use_ndiff && is_slow_step)
+        {
             const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
             const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
             // Rho is a special case
-            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, 0, 1, dt, solverChoice.num_diff_coeff,
                                     cell_data, cell_data, cell_src, mf_mx, mf_my);
 
             // Other scalars proceed as normal
-            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, 1, 1, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_mx, mf_my);
 
 
             if (l_use_KE && l_diff_KE) {
-                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
+                NumericalDiffusion_Scal(bx, RhoKE_comp, 1, dt, solverChoice.num_diff_coeff,
                                         cell_prim, cell_data, cell_src, mf_mx, mf_my);
             }
 
-            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, RhoScalar_comp, NSCALARS, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_mx, mf_my);
         }
 

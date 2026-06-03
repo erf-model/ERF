@@ -115,7 +115,6 @@ convert_wrfbdy_data (const int itime,
                      const iMultiFab* mask_c,
                      const bool& use_moist)
 {
-
     // Temporary bdy data structures for global reductions
     int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
@@ -447,8 +446,6 @@ convert_wrfbdy_data (const int itime,
         });
     } // mfi
 
-
-
     for (int ivar(0); ivar < vsize; ++ivar) {
         amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
                                       bdy_data_int[ivar].size(),
@@ -470,13 +467,25 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const MultiFab& xvel, const MultiFab& yvel, const MultiFab& cons,
                               const Geometry& geom,
                               const bool& use_moist,
-                              int real_width, Real bdy_time_interval)
+                              int real_width, Real bdy_time_interval,
+                              bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
     // If we are trying to define the bdy data at the final time, we must do it by first reading the tendency from
     // the previous time, then adding the previous time value + dT * tendency.
     bool do_tendency = (itime == bdy_data_xlo.size()-1);
+
+    // If we are going to extrapolate from the older time we need to re-grab it since it has been over-written already
+    if (do_tendency)
+    {
+        read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
+                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                     xvel, yvel, cons, geom,
+                                     use_moist, real_width, bdy_time_interval,
+                                     false);
+    }
 
     // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
     int nvars = WRFBdyVars::NumTypes*4;
@@ -578,9 +587,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             bdyType = WRFBdyTypes::x_lo;
         } else if (last3 == "BXE" || last4 == "BTXE") {
             bdyType = WRFBdyTypes::x_hi;
-        } else if (last3 == "BYS" || last4 == "BYXS") {
+        } else if (last3 == "BYS" || last4 == "BTYS") {
             bdyType = WRFBdyTypes::y_lo;
-        } else if (last3 == "BYE" || last4 == "BYXE") {
+        } else if (last3 == "BYE" || last4 == "BTYE") {
             bdyType = WRFBdyTypes::y_hi;
         }
 
@@ -858,20 +867,36 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         {
             // Multiply the tendency bdy_tend_prev (stored in bdy_data at itime) by dt to get difference between old and new
             bdy_data_xlo[itime][i].mult(bdy_time_interval,0,1);
+            bdy_data_xhi[itime][i].mult(bdy_time_interval,0,1);
+            bdy_data_ylo[itime][i].mult(bdy_time_interval,0,1);
+            bdy_data_yhi[itime][i].mult(bdy_time_interval,0,1);
 
             // Add bdy_prev to dt*bdy_tend_prev to get bdy_current
             bdy_data_xlo[itime][i].plus(bdy_data_xlo[itime-1][i], 0, 0, 1);
+            bdy_data_xhi[itime][i].plus(bdy_data_xhi[itime-1][i], 0, 0, 1);
+            bdy_data_ylo[itime][i].plus(bdy_data_ylo[itime-1][i], 0, 0, 1);
+            bdy_data_yhi[itime][i].plus(bdy_data_yhi[itime-1][i], 0, 0, 1);
         }
     }
 
-    // Owner masks for parallel reduce sum
-    std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
+    if (do_conversion)
+    {
+        // Owner masks for parallel reduce sum
+        std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
+        std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
+        std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
-    convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-    convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        if (do_tendency) {
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        }
+
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+    }
 }
 #endif // ERF_USE_NETCDF
