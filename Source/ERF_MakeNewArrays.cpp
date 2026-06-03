@@ -801,6 +801,10 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 
             std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+        else {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+            std::swap(temp_zphys_nd, z_phys_nd[lev]);
+        }
     } else {
         if (lev > 0)
         {
@@ -819,6 +823,10 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 
             std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+        else {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+            std::swap(temp_zphys_nd, z_phys_nd[lev]);
+        }
     }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

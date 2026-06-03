@@ -2204,6 +2204,9 @@ ERF::restart ()
 
     ReadCheckpointFile();
 
+    // Force regrid on level 0 if more procs than boxes are requested
+    regrid_level_0_on_restart = ( regrid_level_0_on_restart ||
+                                  grids[0].size() < ParallelDescriptor::NProcs() );
     if (regrid_level_0_on_restart) {
         //
         // Coarsening before we split the grids ensures that each resulting
