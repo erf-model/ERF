@@ -13,6 +13,22 @@ using namespace amrex;
 using namespace SDPCDefn;
 using SDTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
+namespace {
+//! Map a droplet radius to a log-spaced bin index over a per-cell [rmin,rmax]
+//! range.  inv_lnrange = nbins / (ln rmax - ln rmin), or <= 0 when the cell is
+//! monodisperse (all SDs collapse to bin 0).  Used to keep AMR merges within a
+//! single size class so the droplet spectrum (and its rain-seeding tail) is
+//! preserved.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int sdmRadiusBin (amrex::ParticleReal r, amrex::ParticleReal lnrmin,
+                  amrex::ParticleReal inv_lnrange, int nbins)
+{
+    if (inv_lnrange <= amrex::ParticleReal(0) || r <= amrex::ParticleReal(0)) { return 0; }
+    int b = static_cast<int>((std::log(r) - lnrmin) * inv_lnrange);
+    return amrex::min(amrex::max(b, 0), nbins-1);
+}
+}
+
 /*! Initialize device property arrays for species and aerosol materials */
 void SuperDropletPC::initializeDeviceProperties()
 {
@@ -697,6 +713,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
     const int num_sp = m_num_species;
     const int num_ae = m_num_aerosols;
     const int mf     = merge_factor;
+    const int n_rbin = (m_num_sd_per_cell >= 2) ? amrex::min(m_num_sd_per_cell, 256) : 60;
     const auto ctx   = buildProcessContext(clev);
     const IntVect bin_size = {AMREX_D_DECL(1,1,1)};
     Long n_merged = 0;
@@ -748,40 +765,77 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
             IntVect iv = amrex::getParticleCell(pstruct_ptr[first_idx], plo, dxi, domain);
             if (!mask_arr(iv)) { return 0; }
 
-            int target = np_bin / mf;
-            if (target < 1) { target = 1; }
-            int n_excess = np_bin - target;
+            // Per-cell adaptive radius range over live SDs.
+            ParticleReal rmin_c = ParticleReal(-1);
+            ParticleReal rmax_c = ParticleReal(-1);
+            for (int k = 0; k < np_bin; k++) {
+                unsigned int idx = inds[bin_start + k];
+                if (pstruct_ptr[idx].id() <= 0) { continue; }
+                ParticleReal r = radius_p[idx];
+                if (r > ParticleReal(0)) {
+                    if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }
+                    if (r > rmax_c) { rmax_c = r; }
+                }
+            }
+            if (rmax_c <= ParticleReal(0)) { return 0; }
+            const ParticleReal lnrmin  = std::log(rmin_c);
+            const ParticleReal lnrange = std::log(rmax_c) - lnrmin;
+            const ParticleReal inv_lnr = (lnrange > ParticleReal(1.0e-12))
+                                       ? (static_cast<ParticleReal>(n_rbin) / lnrange)
+                                       : ParticleReal(0);
+
+            constexpr int KEEP_MAX = 16;
             Long bin_merged = 0;
 
-            for (int k = 0; k < n_excess; k++) {
-                unsigned int i_excess   = inds[bin_start + target + k];
-                unsigned int i_survivor = inds[bin_start + (k % target)];
-
-                ParticleReal xi_e = mult_p[i_excess];
-                ParticleReal xi_s = mult_p[i_survivor];
-                ParticleReal xi_new = xi_e + xi_s;
-                if (xi_new <= ParticleReal(0)) { continue; }
-                ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
-
-                mult_p[i_survivor] = xi_new;
-                v_p0[i_survivor] = (xi_e * v_p0[i_excess] + xi_s * v_p0[i_survivor]) * inv_xi;
-                v_p1[i_survivor] = (xi_e * v_p1[i_excess] + xi_s * v_p1[i_survivor]) * inv_xi;
-                v_p2[i_survivor] = (xi_e * v_p2[i_excess] + xi_s * v_p2[i_survivor]) * inv_xi;
-
-                for (int s = 0; s < num_sp; s++) {
-                    sp_mass_p[s][i_survivor] = (xi_e * sp_mass_p[s][i_excess]
-                                              + xi_s * sp_mass_p[s][i_survivor]) * inv_xi;
+            // Reduce each occupied radius bin to max(1, round(count/mf)),
+            // merging only same-size super-droplets.  Singletons and the
+            // sparsely-populated large-droplet tail are left untouched.
+            for (int rb = 0; rb < n_rbin; rb++) {
+                int cnt = 0;
+                for (int k = 0; k < np_bin; k++) {
+                    unsigned int idx = inds[bin_start + k];
+                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) == rb) { cnt++; }
                 }
-                for (int a = 0; a < num_ae; a++) {
-                    ae_mass_p[a][i_survivor] = (xi_e * ae_mass_p[a][i_excess]
-                                              + xi_s * ae_mass_p[a][i_survivor]) * inv_xi;
-                }
+                if (cnt < 2) { continue; }
+                int keep = (cnt + mf/2) / mf;
+                if (keep < 1) { keep = 1; }
+                if (keep > KEEP_MAX) { keep = KEEP_MAX; }
+                if (cnt <= keep) { continue; }
 
-                pstruct_ptr[i_excess].id() = -1;
-                bin_merged++;
+                int surv[KEEP_MAX];
+                int ns = 0, cyc = 0;
+                for (int k = 0; k < np_bin; k++) {
+                    unsigned int idx = inds[bin_start + k];
+                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) != rb) { continue; }
+                    if (ns < keep) { surv[ns++] = static_cast<int>(idx); continue; }
+                    unsigned int h = static_cast<unsigned int>(surv[cyc % keep]); cyc++;
+
+                    ParticleReal xi_e = mult_p[idx];
+                    ParticleReal xi_s = mult_p[h];
+                    ParticleReal xi_new = xi_e + xi_s;
+                    if (xi_new <= ParticleReal(0)) { continue; }
+                    ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
+
+                    mult_p[h] = xi_new;
+                    v_p0[h] = (xi_e * v_p0[idx] + xi_s * v_p0[h]) * inv_xi;
+                    v_p1[h] = (xi_e * v_p1[idx] + xi_s * v_p1[h]) * inv_xi;
+                    v_p2[h] = (xi_e * v_p2[idx] + xi_s * v_p2[h]) * inv_xi;
+                    for (int s = 0; s < num_sp; s++) {
+                        sp_mass_p[s][h] = (xi_e * sp_mass_p[s][idx]
+                                         + xi_s * sp_mass_p[s][h]) * inv_xi;
+                    }
+                    for (int a = 0; a < num_ae; a++) {
+                        ae_mass_p[a][h] = (xi_e * ae_mass_p[a][idx]
+                                         + xi_s * ae_mass_p[a][h]) * inv_xi;
+                    }
+                    pstruct_ptr[idx].id() = -1;
+                    bin_merged++;
+                }
             }
 
-            for (int k = 0; k < target; k++) {
+            for (int k = 0; k < np_bin; k++) {
                 unsigned int idx = inds[bin_start + k];
                 if (pstruct_ptr[idx].id() > 0) {
                     updateParticleAttributes(
@@ -1193,14 +1247,10 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
     // ----- Per-level tag-normalizing merge sweep -----
     //
     // For every level lev in [0, finest], merge any super-droplets whose tag
-    // exceeds lev+1 (leftovers from a finer level that has since drifted away
-    // or vanished entirely) into a native (tag == lev+1) host within the same
-    // cell.  If no native host is present in a cell, the first surviving SD
-    // is promoted to host: all other SDs in that cell are merged into it via
-    // multiplicity-weighted averaging and the host is retagged native.  This
-    // single sweep handles per-step departees, regrid-time leftovers from
-    // disappeared finer levels, and cascading de-refinement (e.g. simultaneous
-    // loss of L1 and L2) in one pass.
+    // exceeds lev+1 (departees from a finer level) into a native (tag == lev+1)
+    // host in the same cell AND the same log-radius bin, so only same-size
+    // droplets combine and the rain-seeding large-droplet tail is preserved.
+    // A size bin with no native promotes its first departee to native.
     for (int lev = 0; lev <= finest; lev++) {
         const int lev_native = lev + 1;
         const auto& geom = m_gdb->Geom(lev);
@@ -1210,6 +1260,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
         const int num_sp = m_num_species;
         const int num_ae = m_num_aerosols;
+        const int n_rbin = (m_num_sd_per_cell >= 2) ? amrex::min(m_num_sd_per_cell, 256) : 60;
         const auto ctx = buildProcessContext(lev);
         const IntVect bin_size = {AMREX_D_DECL(1,1,1)};
         Long n_merged = 0;
@@ -1272,78 +1323,91 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     return 0;
                 }
 
-                int n_hosts = 0;
+                // Per-cell adaptive radius range over live SDs.
+                ParticleReal rmin_c = ParticleReal(-1);
+                ParticleReal rmax_c = ParticleReal(-1);
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == nat_tag) {
-                        n_hosts++;
+                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    ParticleReal r = radius_p[idx];
+                    if (r > ParticleReal(0)) {
+                        if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }
+                        if (r > rmax_c) { rmax_c = r; }
                     }
                 }
+                if (rmax_c <= ParticleReal(0)) { return 0; }
+                const ParticleReal lnrmin  = std::log(rmin_c);
+                const ParticleReal lnrange = std::log(rmax_c) - lnrmin;
+                const ParticleReal inv_lnr = (lnrange > ParticleReal(1.0e-12))
+                                           ? (static_cast<ParticleReal>(n_rbin) / lnrange)
+                                           : ParticleReal(0);
 
                 Long bin_merged = 0;
-                if (n_hosts > 0) {
-                    int host_cycle = 0;
+
+                // Absorb departees (tag > native) into a same-size native host;
+                // if a size bin has no native, promote its first departee.
+                // Natives are never merged with one another, so the boundary
+                // cell's resolved spectrum is preserved.
+                for (int rb = 0; rb < n_rbin; rb++) {
+                    int host = -1;
                     for (int k = 0; k < np_bin; k++) {
                         unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= nat_tag) { continue; }
-
-                        int target_h = host_cycle % n_hosts;
-                        unsigned int h_idx = 0;
-                        int h_count = 0;
-                        for (int h = 0; h < np_bin; h++) {
-                            unsigned int candidate = inds[bin_start + h];
-                            if (pstruct_ptr[candidate].id() > 0
-                                && active_int_p[candidate] == nat_tag) {
-                                if (h_count == target_h) { h_idx = candidate; break; }
-                                h_count++;
+                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] != nat_tag) { continue; }
+                        if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) == rb) {
+                            host = static_cast<int>(idx); break;
+                        }
+                    }
+                    if (host < 0) {
+                        for (int k = 0; k < np_bin; k++) {
+                            unsigned int idx = inds[bin_start + k];
+                            if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= nat_tag) { continue; }
+                            if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) == rb) {
+                                active_int_p[idx] = nat_tag;
+                                host = static_cast<int>(idx); break;
                             }
                         }
-                        host_cycle++;
+                    }
+                    if (host < 0) { continue; }
+
+                    unsigned int h = static_cast<unsigned int>(host);
+                    for (int k = 0; k < np_bin; k++) {
+                        unsigned int idx = inds[bin_start + k];
+                        if (static_cast<int>(idx) == host) { continue; }
+                        if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= nat_tag) { continue; }
+                        if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) != rb) { continue; }
 
                         ParticleReal xi_e = mult_p[idx];
-                        ParticleReal xi_s = mult_p[h_idx];
+                        ParticleReal xi_s = mult_p[h];
                         ParticleReal xi_new = xi_e + xi_s;
                         if (xi_new <= ParticleReal(0)) { continue; }
                         ParticleReal inv_xi = ParticleReal(1.0) / xi_new;
 
-                        mult_p[h_idx] = xi_new;
-                        v_p0[h_idx] = (xi_e * v_p0[idx] + xi_s * v_p0[h_idx]) * inv_xi;
-                        v_p1[h_idx] = (xi_e * v_p1[idx] + xi_s * v_p1[h_idx]) * inv_xi;
-                        v_p2[h_idx] = (xi_e * v_p2[idx] + xi_s * v_p2[h_idx]) * inv_xi;
-
+                        mult_p[h] = xi_new;
+                        v_p0[h] = (xi_e * v_p0[idx] + xi_s * v_p0[h]) * inv_xi;
+                        v_p1[h] = (xi_e * v_p1[idx] + xi_s * v_p1[h]) * inv_xi;
+                        v_p2[h] = (xi_e * v_p2[idx] + xi_s * v_p2[h]) * inv_xi;
                         for (int s = 0; s < num_sp; s++) {
-                            sp_mass_p[s][h_idx] = (xi_e * sp_mass_p[s][idx]
-                                                 + xi_s * sp_mass_p[s][h_idx]) * inv_xi;
+                            sp_mass_p[s][h] = (xi_e * sp_mass_p[s][idx]
+                                             + xi_s * sp_mass_p[s][h]) * inv_xi;
                         }
                         for (int a = 0; a < num_ae; a++) {
-                            ae_mass_p[a][h_idx] = (xi_e * ae_mass_p[a][idx]
-                                                 + xi_s * ae_mass_p[a][h_idx]) * inv_xi;
+                            ae_mass_p[a][h] = (xi_e * ae_mass_p[a][idx]
+                                             + xi_s * ae_mass_p[a][h]) * inv_xi;
                         }
-
                         pstruct_ptr[idx].id() = -1;
                         bin_merged++;
                     }
+                }
 
-                    for (int k = 0; k < np_bin; k++) {
-                        unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == nat_tag) {
-                            updateParticleAttributes(
-                                idx, radius_p, mass_p,
-                                idx_w, rho_w, num_sp, num_ae,
-                                sp_sol_p, ae_sol_p,
-                                sp_mass_p, ae_mass_p,
-                                sp_rho_p, ae_rho_p);
-                        }
-                    }
-                } else {
-                    // No native host: retag without merging.  Mass-weighted
-                    // radius averaging inflates cross-section and breaks
-                    // evaporation in long moist runs.
-                    for (int k = 0; k < np_bin; k++) {
-                        unsigned int idx = inds[bin_start + k];
-                        if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] > nat_tag) {
-                            active_int_p[idx] = nat_tag;
-                        }
+                for (int k = 0; k < np_bin; k++) {
+                    unsigned int idx = inds[bin_start + k];
+                    if (pstruct_ptr[idx].id() > 0 && active_int_p[idx] == nat_tag) {
+                        updateParticleAttributes(
+                            idx, radius_p, mass_p,
+                            idx_w, rho_w, num_sp, num_ae,
+                            sp_sol_p, ae_sol_p,
+                            sp_mass_p, ae_mass_p,
+                            sp_rho_p, ae_rho_p);
                     }
                 }
                 return bin_merged;
