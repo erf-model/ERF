@@ -69,7 +69,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
            }
         } // itime
     } // use_real_bcs && lev == 0
