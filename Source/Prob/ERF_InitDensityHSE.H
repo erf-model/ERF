@@ -15,7 +15,7 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        amrex::Geometry const& geom,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                       const amrex::Vector<amrex::Real>& stretched_dz_h,
                        bool is_constant_dz, bool is_stretched_dz) override
 {
     const amrex::Real T_sfc    = amrex::Real(300.);
@@ -91,7 +91,7 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
             const amrex::Real dz = geom.CellSize()[2];
             HSEutils::init_isentropic_hse_constant_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,klo,khi);
         } else { // stretched_dz
-            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_d,klo,khi);
+            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_h.data(),klo,khi);
         }
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
