@@ -26,12 +26,11 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                              const amrex::MultiFab& mf_MUB, const amrex::MultiFab& mf_C1H, const amrex::MultiFab& mf_C2H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_MUB, std::unique_ptr<amrex::MultiFab>& wrf_C1H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C2H, std::unique_ptr<amrex::MultiFab>& wrf_PHB,
                               const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& cons,
                               const amrex::Geometry& geom, const bool& use_moist,
-                              std::unique_ptr<amrex::MultiFab>& wrf_PHB,
-                              std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                              int real_width);
+                              int real_width, amrex::Real bdy_time_interval);
 
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,

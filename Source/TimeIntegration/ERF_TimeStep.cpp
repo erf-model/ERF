@@ -63,9 +63,9 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
 
             if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             *mf_MUB, *mf_C1H, *mf_C2H,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                             geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
+                                             geom[lev], use_moist, real_width, bdy_time_interval);
            }
         } // itime
     } // use_real_bcs && lev == 0

@@ -202,11 +202,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput (int lev,
-                         MultiFab& mf_C1H_lev,
-                         MultiFab& mf_C2H_lev,
-                         MultiFab& mf_MUB_lev,
-                         MultiFab& mf_PSFC_lev)
+ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 {
     if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -629,9 +625,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_MUB_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_MUB, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_MUB_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_MUB)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -639,9 +635,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C1H_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_C1H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C1H_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_C1H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -649,9 +645,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C2H_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_C2H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C2H_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_C2H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -1047,9 +1043,9 @@ ERF::init_from_wrfinput (int lev,
         {
             read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                         mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
+                                         wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                          lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         geom[0], use_moist, wrf_PHB, z_phys_nd[lev], real_width);
+                                         geom[0], use_moist, real_width, bdy_time_interval);
         } // itime
 
         //
