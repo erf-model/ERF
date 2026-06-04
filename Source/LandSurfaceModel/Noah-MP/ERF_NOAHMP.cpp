@@ -130,8 +130,8 @@ NOAHMP::Init (const int& lev,
         bx.makeSlab(2,klo);
 
         // Allocate pinned buffers for each box
-        noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx2d, NoahmpInputComp::NumComps , The_Pinned_Arena());
-        noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx2d, NoahmpOutputComp::NumComps, The_Pinned_Arena());
+        noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
+        noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps, The_Pinned_Arena());
 
         // Get reference to the noahmpio object
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
