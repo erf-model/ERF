@@ -1126,33 +1126,25 @@ ERF::InitData_post ()
             Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
-            int lev = 0;
+            // Need itime=0 for vertical interpolation
+            if (n_time_old > 0) {
+                int itime = 0;
+                read_and_convert_from_wrfbdy(itime,nc_bdy_file,
+                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
+                                             geom[0], use_moist, real_width, bdy_time_interval);
+            }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
-            // Need itime=0 for vertical interpolation
-            if (n_time_old>0) {
-                int itime = 0;
-                amrex::Print() << "READING IN BDY " << itime << std::endl;
-                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                 real_width);
-                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
-                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
-            }
-
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                amrex::Print() << "READING IN BDY " << itime << std::endl;
-                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                 real_width);
-                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
-                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
+                read_and_convert_from_wrfbdy(itime,nc_bdy_file,
+                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
+                                             geom[0], use_moist, real_width, bdy_time_interval);
             } // itime
         } // use_real_bcs
 
@@ -1171,7 +1163,6 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                amrex::Print() << "READING IN LOW " << itime << std::endl;
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
                 // Need to read PSFC
@@ -2304,7 +2295,7 @@ ERF::init_only (int lev, Real elapsed_time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
 
-        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+        init_from_wrfinput(lev, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
