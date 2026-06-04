@@ -675,7 +675,7 @@ void ERF::init_bcs ()
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
+                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 }
                 if (keqn_dir) {
                     Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;

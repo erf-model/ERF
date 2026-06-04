@@ -70,8 +70,10 @@ SAM::Cloud (const SolverChoice& sc)
             qcl_array(i,j,k) = phase_change.qcl;
             qci_array(i,j,k) = phase_change.qci;
             tabs_array(i,j,k) = phase_change.tabs;
-            theta_array(i,j,k) = sam_theta_from_stored_pressure_as_pa(tabs_array(i,j,k),
-                                                                      pres_array(i,j,k), rdOcp);
+            // Cloud adjustment updates tabs under the held-pressure SAM source
+            // convention, then refreshes theta from the same stored pressure.
+            theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
+                                                                             pres_array(i,j,k), rdOcp);
 
             // Saturation moisture fractions
             erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);

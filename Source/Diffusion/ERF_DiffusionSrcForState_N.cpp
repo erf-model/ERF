@@ -184,10 +184,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (  (Real(8.)/three) * cell_prim(i, j, k  , prim_index)
                                                  - three * cell_prim(i, j, k-1, prim_index)
                                             + (one/three) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            } else if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -302,10 +306,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (  (Real(8.)/three) * cell_prim(i, j, k  , prim_index)
                                                  - three * cell_prim(i, j, k-1, prim_index)
                                             + (one/three) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            } else if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -417,10 +425,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (  (Real(8.)/three) * cell_prim(i, j, k  , prim_index)
                                                  - three * cell_prim(i, j, k-1, prim_index)
                                             + (one/three) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            } else if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -529,10 +541,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (  (Real(8.)/three) * cell_prim(i, j, k  , prim_index)
                                                  - three * cell_prim(i, j, k-1, prim_index)
                                             + (one/three) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            } else if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }

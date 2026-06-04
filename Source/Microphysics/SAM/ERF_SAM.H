@@ -144,8 +144,18 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
+    const amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) const
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
+    }
+
     void
     Compute_Coefficients ();
+
+    SAMCoefficientRow
+    CoefficientRowAt (int k) const;
 
     int
     Qmoist_Size () override { return SAM::m_qmoist_size; }
@@ -176,7 +186,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& fac_fus,
+                   const amrex::Real& /*fac_fus*/,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -234,9 +244,9 @@ public:
                 // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
                 }
-                // Mixed cloud phase (condensation & fusion)
+                // Mixed cloud phase (condensation & deposition)
                 else {
-                    lstari = fac_fus;
+                    lstari = fac_sub;
                     domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
