@@ -514,7 +514,10 @@ void make_sources (int level,
             const Real z0                 = solverChoice.if_z0;
             const Real tflux              = solverChoice.if_surf_temp_flux;
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+
+            // Note this has been converted to K / s when it was read in;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
+
             const Real Olen_in            = solverChoice.if_Olen_in;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -531,7 +534,7 @@ void make_sources (int level,
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > zero) {
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
                         cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
                     }
@@ -612,6 +615,8 @@ void make_sources (int level,
             const Real min_t_blank      = Real(0.005);
 
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+
+            // Note this has been converted to K / s when it was read in;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -635,7 +640,7 @@ void make_sources (int level,
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > zero) {
-                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                     if (t_blank > 0 && (t_blank_above == zero) && (t_blank_below == one)) { // building roof
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
