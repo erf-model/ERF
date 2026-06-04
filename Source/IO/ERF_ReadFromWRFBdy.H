@@ -18,36 +18,20 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                        amrex::Real& start_bdy_time,
-                        amrex::Real& final_bdy_time);
+                        amrex::Real& start_bdy_time, amrex::Real& final_bdy_time);
 
 void
-read_from_wrfbdy (const int itime,
-                  const std::string& nc_bdy_file,
-                  const amrex::Box& domain,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                  int real_width);
-
-void
-convert_all_wrfbdy_data (const int itime,
-                         const amrex::Box& domain,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                         const amrex::MultiFab& mf_MUB,
-                         const amrex::MultiFab& mf_C1H,
-                         const amrex::MultiFab& mf_C2H,
-                         const amrex::MultiFab& xvel,
-                         const amrex::MultiFab& yvel,
-                         const amrex::MultiFab& cons,
-                         const amrex::Geometry& geom,
-                         const bool& use_moist,
-                         std::unique_ptr<amrex::MultiFab>& wrf_PHB,
-                         std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                              std::unique_ptr<amrex::MultiFab>& wrf_MUB, std::unique_ptr<amrex::MultiFab>& wrf_C1H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C2H, std::unique_ptr<amrex::MultiFab>& wrf_PHB,
+                              const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& cons,
+                              const amrex::Geometry& geom, const bool& use_moist,
+                              int real_width, amrex::Real bdy_time_interval,
+                              bool do_conversion = true);
 
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,

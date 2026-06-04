@@ -85,21 +85,11 @@ read_from_metgrid (int lev, int itime,
         Vector<int> success(1);
         ReadNetCDFFile(fname, {"Times"}, array_ts, success);
 
-        int ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        const char* time_stamp_data = array_ts[0].get_data();
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
-        }
+        std::string date(time_stamp_data, time_stamp_data + dateStrLen);
 
-        // Extract the first time entry
-        std::string date(&timeStamps[0][0], &timeStamps[0][dateStrLen-1]+1);
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "parsed metgrid datetime " << date << " " << epochTime << std::endl;
 
