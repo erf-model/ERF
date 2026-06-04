@@ -73,7 +73,7 @@ ERF::init_from_metgrid (int lev)
     }
 
     // Check for an erfbdy file.
-    if (lev == 0) {
+    if (lev == 0 && !write_erfbdy) {
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
     }

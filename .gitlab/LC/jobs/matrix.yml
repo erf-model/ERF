@@ -1,4 +1,17 @@
 matrix_cuda_12.9.1:
+  parallel:
+    matrix:
+      - ERF_PRECISION: [single, double]
+        ERF_PARTICLES_PRECISION: [single, double]
+  rules:
+    # Build only when using single precision
+    - if: $ERF_PRECISION == "single" || $ERF_PARTICLES_PRECISION == "single"
+      variables:
+        RUN_CTEST: "false"
+    # Default to always test
+    - when: always
+      variables:
+        RUN_CTEST: "true"
   variables:
     MODULE_LIST: cmake/3.30.5 ninja/1.11.1 gcc/13.3.1 cuda/13.1.1
     ERF_ENABLE_CUDA: "ON"

@@ -49,8 +49,8 @@ struct PlotVarEntry {
  *
  * **Number concentrations (1/kg):**
  * - micro_nc: Cloud droplet number concentration
- * - micro_nr: Rain drop number concentration
  * - micro_ni: Cloud ice number concentration
+ * - micro_nr: Rain drop number concentration
  * - micro_ns: Snow number concentration
  * - micro_ng: Graupel number concentration
  *
@@ -75,8 +75,8 @@ constexpr PlotVarEntry plot_entries[] = {
     {"micro_qsnow",  MicVar_Morr::qps},      // Snow
     {"micro_qgraup", MicVar_Morr::qpg},      // Graupel
     {"micro_nc",     MicVar_Morr::nc},       // Cloud droplet number
-    {"micro_nr",     MicVar_Morr::nr},       // Rain number
     {"micro_ni",     MicVar_Morr::ni},       // Ice number
+    {"micro_nr",     MicVar_Morr::nr},       // Rain number
     {"micro_ns",     MicVar_Morr::ns},       // Snow number
     {"micro_ng",     MicVar_Morr::ng},       // Graupel number
     {"micro_omega",  MicVar_Morr::omega}     // Vertical velocity

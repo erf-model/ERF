@@ -67,6 +67,9 @@ public:
     /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
     virtual int Get_Qstate_Moist_Size () = 0;
 
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    virtual int Get_Qstate_Moist_NumConc_Size () = 0;
+
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     virtual int Get_Qstate_NonMoist_Size () = 0;
 

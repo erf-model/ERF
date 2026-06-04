@@ -505,6 +505,7 @@ ERF::refinement_criteria_setup ()
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
                 lev_for_box = max_level;
                 ppr.query("max_level",lev_for_box);
+
                 if (lev_for_box > 0 && lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
@@ -628,13 +629,16 @@ ERF::refinement_criteria_setup ()
 
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
-                } // lev
+                } // (lev_for_box > 0 && lev_for_box <= max_level)
 
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if ( (num_files_at_level[lev_for_box] > 0) &&
-                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
-                        amrex::Error("Number of boxes doesn't match number of input files");
-
+                    amrex::Print() << "Size of num_boxes " << num_boxes_at_level.size() << std::endl;
+                    amrex::Print() << "Size of num_files " << num_files_at_level.size() << std::endl;
+                    amrex::Print() << "Consider lev_for_box = " << lev_for_box << std::endl;
+                    amrex::Print() << "Number of boxes at level  " << num_boxes_at_level[lev_for_box] << std::endl;
+                    amrex::Print() << "Number of available files " << num_files_at_level[lev_for_box] << std::endl;
+                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                           amrex::Print() << "Will need to rely on refinement criteria from inputs file" << std::endl;
                     }
                 }
 
@@ -727,8 +731,8 @@ ERF::refinement_criteria_setup ()
 
                     }
                 }
-            }
-            else if (num_indx_lo_crse > 0) {
+
+            } else if (num_indx_lo_crse > 0) {
 
                 std::vector<int> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);

@@ -141,13 +141,10 @@ void fill_directional_qty (amrex::FArrayBox& qty)
     auto qty_arr = qty.array();
     const amrex::Box box = qty.box();
 
-    for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-        for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-            for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                qty_arr(i, j, k, 0) = directional_field_value(i, j, k);
-            }
-        }
-    }
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        qty_arr(i, j, k, 0) = directional_field_value(i, j, k);
+    });
+    gpu_sync();
 }
 
 void fill_perturbation_boxes (amrex::FArrayBox& qty,
@@ -158,15 +155,12 @@ void fill_perturbation_boxes (amrex::FArrayBox& qty,
     auto r0_arr = r0.array();
     const amrex::Box box = qty.box();
 
-    for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-        for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-            for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                const amrex::Real background = perturbation_background(direction, i, j, k);
-                r0_arr(i, j, k, 0) = background;
-                qty_arr(i, j, k, 0) = background + kPerturbationConstant;
-            }
-        }
-    }
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        const amrex::Real background = perturbation_background(direction, i, j, k);
+        r0_arr(i, j, k, 0) = background;
+        qty_arr(i, j, k, 0) = background + kPerturbationConstant;
+    });
+    gpu_sync();
 }
 
 void fill_density_boxes (amrex::FArrayBox& cons_in,
@@ -176,31 +170,31 @@ void fill_density_boxes (amrex::FArrayBox& cons_in,
     auto r0_arr = r0.array();
     const amrex::Box box = cons_in.box();
 
-    for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-        for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-            for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                const amrex::Real background = amrex::Real(1.0) +
-                    amrex::Real(0.5) * finite_volume_cell_average_monomial(4, i) -
-                    amrex::Real(0.25) * finite_volume_cell_average_monomial(3, j) +
-                    amrex::Real(0.125) * finite_volume_cell_average_monomial(2, k);
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        const amrex::Real background = amrex::Real(1.0) +
+            amrex::Real(0.5) * finite_volume_cell_average_monomial(4, i) -
+            amrex::Real(0.25) * finite_volume_cell_average_monomial(3, j) +
+            amrex::Real(0.125) * finite_volume_cell_average_monomial(2, k);
 
-                r0_arr(i, j, k, 0) = background;
-                cons_arr(i, j, k, 0) = background + density_quantity_value(i, j, k);
-            }
-        }
-    }
+        r0_arr(i, j, k, 0) = background;
+        cons_arr(i, j, k, 0) = background + density_quantity_value(i, j, k);
+    });
+    gpu_sync();
 }
 
 void apply_far_sentinels (amrex::FArrayBox& qty)
 {
     auto qty_arr = qty.array();
 
-    qty_arr( 2, 0, 0, 0) += amrex::Real(1000.0);
-    qty_arr(-3, 0, 0, 0) -= amrex::Real(750.0);
-    qty_arr( 0, 2, 0, 0) += amrex::Real(900.0);
-    qty_arr( 0,-3, 0, 0) -= amrex::Real(650.0);
-    qty_arr( 0, 0, 2, 0) += amrex::Real(800.0);
-    qty_arr( 0, 0,-3, 0) -= amrex::Real(550.0);
+    amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+        qty_arr( 2, 0, 0, 0) += amrex::Real(1000.0);
+        qty_arr(-3, 0, 0, 0) -= amrex::Real(750.0);
+        qty_arr( 0, 2, 0, 0) += amrex::Real(900.0);
+        qty_arr( 0,-3, 0, 0) -= amrex::Real(650.0);
+        qty_arr( 0, 0, 2, 0) += amrex::Real(800.0);
+        qty_arr( 0, 0,-3, 0) -= amrex::Real(550.0);
+    });
+    gpu_sync();
 }
 
 void launch_interpolated_val_cases (const int ncases,
@@ -377,8 +371,15 @@ TEST(InterpolationKernel, DirectionalWrappersMatchIndependentReference)
     launch_wrapper_cases(eval_box(), qty.const_array(), device_cases.data(),
                          static_cast<int>(cases.size()), output.array());
 
-    const auto qty_arr = qty.const_array();
-    const auto output_arr = output.const_array();
+    amrex::FArrayBox host_qty(qty.box(), qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     qty.dataPtr(0), qty.dataPtr(0) + qty.size(), host_qty.dataPtr(0));
+    amrex::FArrayBox host_output(output.box(), output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(), host_output.dataPtr(0));
+
+    const auto qty_arr = host_qty.const_array();
+    const auto output_arr = host_output.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {
@@ -414,8 +415,15 @@ TEST(InterpolationKernel, ZeroUpwindWrappersReduceToCentered)
     launch_wrapper_cases(eval_box(), qty.const_array(), device_cases.data(),
                          static_cast<int>(cases.size()), output.array());
 
-    const auto qty_arr = qty.const_array();
-    const auto output_arr = output.const_array();
+    amrex::FArrayBox host_qty(qty.box(), qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     qty.dataPtr(0), qty.dataPtr(0) + qty.size(), host_qty.dataPtr(0));
+    amrex::FArrayBox host_output(output.box(), output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(), host_output.dataPtr(0));
+
+    const auto qty_arr = host_qty.const_array();
+    const auto output_arr = host_output.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {
@@ -465,7 +473,11 @@ TEST(InterpolationKernel, PerturbationConstantInvariantAllDirections)
                               qty_z.const_array(), r0_z.const_array(),
                               output.array());
 
-    const auto output_arr = output.const_array();
+    amrex::FArrayBox host_output(output.box(), output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(), host_output.dataPtr(0));
+
+    const auto output_arr = host_output.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {
@@ -504,8 +516,17 @@ TEST(InterpolationKernel, DensityWrapperMatchesGenericPerturbationHelper)
                                   cons_in.const_array(), r0.const_array(),
                                   generic_output.array(), density_output.array());
 
-    const auto generic_arr = generic_output.const_array();
-    const auto density_arr = density_output.const_array();
+    amrex::FArrayBox host_generic(generic_output.box(), generic_output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     generic_output.dataPtr(0), generic_output.dataPtr(0) + generic_output.size(),
+                     host_generic.dataPtr(0));
+    amrex::FArrayBox host_density(density_output.box(), density_output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     density_output.dataPtr(0), density_output.dataPtr(0) + density_output.size(),
+                     host_density.dataPtr(0));
+
+    const auto generic_arr = host_generic.const_array();
+    const auto density_arr = host_density.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {
@@ -552,8 +573,17 @@ TEST(InterpolationKernel, LowerOrderSchemesIgnoreFarStencilSentinels)
     amrex::Gpu::copy(amrex::Gpu::deviceToHost,
                      device_modified.begin(), device_modified.end(), host_modified.begin());
 
-    const auto base_arr = base_qty.const_array();
-    const auto modified_arr = modified_qty.const_array();
+    amrex::FArrayBox host_base_qty(base_qty.box(), base_qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     base_qty.dataPtr(0), base_qty.dataPtr(0) + base_qty.size(),
+                     host_base_qty.dataPtr(0));
+    amrex::FArrayBox host_modified_qty(modified_qty.box(), modified_qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     modified_qty.dataPtr(0), modified_qty.dataPtr(0) + modified_qty.size(),
+                     host_modified_qty.dataPtr(0));
+
+    const auto base_arr = host_base_qty.const_array();
+    const auto modified_arr = host_modified_qty.const_array();
 
     for (int sample_index = 0; sample_index < static_cast<int>(cases.size()); ++sample_index) {
         const SentinelCase& test_case = cases[sample_index];
@@ -600,8 +630,17 @@ TEST(InterpolationKernel, FifthAndSixthOrderSchemesUseFarStencil)
     amrex::Gpu::copy(amrex::Gpu::deviceToHost,
                      device_modified.begin(), device_modified.end(), host_modified.begin());
 
-    const auto base_arr = base_qty.const_array();
-    const auto modified_arr = modified_qty.const_array();
+    amrex::FArrayBox host_base_qty(base_qty.box(), base_qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     base_qty.dataPtr(0), base_qty.dataPtr(0) + base_qty.size(),
+                     host_base_qty.dataPtr(0));
+    amrex::FArrayBox host_modified_qty(modified_qty.box(), modified_qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     modified_qty.dataPtr(0), modified_qty.dataPtr(0) + modified_qty.size(),
+                     host_modified_qty.dataPtr(0));
+
+    const auto base_arr = host_base_qty.const_array();
+    const auto modified_arr = host_modified_qty.const_array();
 
     for (int sample_index = 0; sample_index < static_cast<int>(cases.size()); ++sample_index) {
         const SentinelCase& test_case = cases[sample_index];

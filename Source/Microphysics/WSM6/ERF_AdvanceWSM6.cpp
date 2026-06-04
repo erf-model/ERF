@@ -74,7 +74,7 @@ WSM6::Advance(const Real& dt_advance,
         const int kmlo = fab_box.smallEnd(2);
         const int kmhi = fab_box.bigEnd(2);
 
-        const Real dz_val = m_geom.CellSize(m_axis);
+        const Real dz_val = m_geom.CellSize(2);
         FArrayBox delz_fab(fab_box, 1);
         auto const& delz_arr = delz_fab.array();
         delz_fab.setVal(dz_val);
