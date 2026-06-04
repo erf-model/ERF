@@ -129,7 +129,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
+    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","PH","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -183,6 +183,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             bdyVarType = WRFBdyVars::T;
         } else if (first2 == "QV") {
             bdyVarType = WRFBdyVars::QV;
+        } else if (first2 == "PH") {
+            bdyVarType = WRFBdyVars::PH;
         } else if (first2 == "MU") {
             bdyVarType = WRFBdyVars::MU;
         } else if (first2 == "PC") {
@@ -222,6 +224,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xlo_plane_no_stag(pbx_xlo);
             Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
             Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
+            Box xlo_plane_z_stag = convert(pbx_xlo, {0, 0, 1});
 
             Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
@@ -233,9 +236,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU ||
-                       bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));
+            } else if (bdyVarType == WRFBdyVars::PH) {
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::x_hi) {
@@ -250,6 +254,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xhi_plane_no_stag(pbx_xhi);
             Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
             Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
+            Box xhi_plane_z_stag = convert(pbx_xhi, {0, 0, 1});
 
             Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
@@ -261,9 +266,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU ||
-                       bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used)); // MU
+            } else if (bdyVarType == WRFBdyVars::PH) {
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_lo) {
@@ -278,6 +284,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box ylo_plane_no_stag(pbx_ylo);
             Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
             Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
+            Box ylo_plane_z_stag = convert(pbx_ylo, {0, 0, 1});
 
             Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
@@ -289,9 +296,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU ||
-                       bdyVarType == WRFBdyVars::PC) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used)); // PC
+            } else if (bdyVarType == WRFBdyVars::PH) {
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used));          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_hi) {
@@ -306,6 +314,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box yhi_plane_no_stag(pbx_yhi);
             Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
             Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
+            Box yhi_plane_z_stag = convert(pbx_yhi, {0, 0, 1});
 
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
@@ -317,9 +326,10 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
-            } else if (bdyVarType == WRFBdyVars::MU ||
-                       bdyVarType == WRFBdyVars::PC) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used)); // PC
+            } else if (bdyVarType == WRFBdyVars::PH) {
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_z_stag, 1, Arena_Used));  // PH
+            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used));          // MU/PC
             }
         }
 
@@ -335,14 +345,17 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
 
             Array4<Real> fab_arr;
 
-            if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
-                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
+            if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V  ||
+                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV ||
+                bdyVarType == WRFBdyVars::PH)
             {
                 // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
                 // ylo,yhi dims: (Time, bdy_width, bottom_top, west_east)
 
                 int ns2 = tslice[iv].get_vshape()[2]; // vertical size
                 int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
+
+                int lkhi = (bdyVarType == WRFBdyVars::PH) ? khi+1 : khi;
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = tslice[iv].ndim();
@@ -352,7 +365,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff+i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -364,7 +377,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff-i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -376,7 +389,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -388,13 +401,14 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
-                        if (k > khi) continue;
+                        if (k > lkhi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } // bdyType
 
-            } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+            } else if (bdyVarType == WRFBdyVars::MU ||
+                       bdyVarType == WRFBdyVars::PC) {
                 // xlo,xhi dims: (Time, bdy_width, south_north)
                 // ylo,yhi dims: (Time, bdy_width, west_east)
 
@@ -474,7 +488,9 @@ convert_wrfbdy_data (const int itime,
                      const MultiFab& yvel,
                      const MultiFab& cons,
                      const Geometry& geom,
-                     const bool& use_moist)
+                     const bool& use_moist,
+                     std::unique_ptr<MultiFab>& wrf_PHB,
+                     std::unique_ptr<MultiFab>& z_phys_nd)
 {
     // Owner masks for parallel reduce sum
     std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
@@ -489,18 +505,57 @@ convert_wrfbdy_data (const int itime,
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
     }
 
+    // Temporary bdy data structures for interpolation
+    amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
+        bdy_data_int[ivar].template setVal<RunOn::Device>(0);
+    }
+
+    // Temporary "NEW" heights (this is the source array)
+    amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
+    bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_new.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_new.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_src = bdy_c_z_new.array();
+    Array4<Real> bdy_u_z_src = bdy_u_z_new.array();
+    Array4<Real> bdy_v_z_src = bdy_v_z_new.array();
+
+    // Temporary "OLD" heights (these are the heights to interpolate to at itime=0)
+    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
+    bdy_c_z_old.resize(bdy_data[0][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_old.resize(bdy_data[0][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_old.resize(bdy_data[0][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
+    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
+    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
+
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
     Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
     Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
+    Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
+
+    // For height interpolation (removes averaging error)
+    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
+    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
 
     // Bounds limiting
     int ilo  = domain.smallEnd()[0];
     int ihi  = domain.bigEnd()[0];
     int jlo  = domain.smallEnd()[1];
     int jhi  = domain.bigEnd()[1];
+    int klo  = domain.smallEnd()[2];
+    int khi  = domain.bigEnd()[2];
+
+    // PH bounds limiting
+    Box ph_bx  = bdy_data[itime][WRFBdyVars::PH].box();
+    int ilo_ph = ph_bx.smallEnd()[0];
+    int ihi_ph = ph_bx.bigEnd()[0];
+    int jlo_ph = ph_bx.smallEnd()[1];
+    int jhi_ph = ph_bx.bigEnd()[1];
 
     for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
     {
@@ -519,6 +574,12 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
 
+        // TMP INTERP BDY data
+        Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
+        Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
+
         // Mask data
         const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
         const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
@@ -528,6 +589,86 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
         Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
         Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
+
+        Array4<Real> z_arr   = z_phys_nd->array(mfi);
+        Array4<Real> PHB_arr = wrf_PHB->array(mfi);
+
+        // New z values
+        ParallelFor(bx_t, bx_u, bx_v,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Mass coupling
+            Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
+            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
+
+            // Pert and base geopotential
+            Real P     = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
+            Real P_kp  = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
+            Real P0    = PHB_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
+            Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
+
+            // New heights
+            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
+            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
+
+            // Mass coupling
+            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
+            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
+            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
+            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
+
+            // Pert and base geopotential
+            Real P        = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
+            Real P_im     = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
+            Real P_kp     = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
+            Real P_im_kp  = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
+            Real P0       = PHB_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
+            Real P0_im    = PHB_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
+            Real P0_kp    = PHB_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
+            Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
+
+            // New heights
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
+            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
+
+            // Mass coupling
+            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
+            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
+            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
+            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
+
+            // Pert and base geopotential
+            Real P        = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
+            Real P_jm     = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
+            Real P_kp     = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
+            Real P_jm_kp  = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
+            Real P0       = PHB_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
+            Real P0_jm    = PHB_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
+            Real P0_kp    = PHB_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
+            Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
+
+            // New heights
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+        });
 
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -591,13 +732,111 @@ convert_wrfbdy_data (const int itime,
                 bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
             }
         });
+
+        // Interpolate in height
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_c_z_dst(i,j,k);
+                z_lo_src = bdy_c_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_c_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                } else {
+                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
+                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_u_z_dst(i,j,k);
+                z_lo_src = bdy_u_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_u_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
+                } else {
+                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_v_z_dst(i,j,k);
+                z_lo_src = bdy_v_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_v_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
+                } else {
+                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                }
+            }
+        });
     } // mfi
 
+
+
     for (int ivar(0); ivar < vsize; ++ivar) {
-        amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
-                                      bdy_data_tmp[ivar].size(),
+        amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
+                                      bdy_data_int[ivar].size(),
                                       ParallelContext::CommunicatorAll());
-        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
+        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_int[ivar],0,0,1);
     }
 }
 
@@ -615,19 +854,25 @@ convert_all_wrfbdy_data (const int itime,
                          const MultiFab& yvel,
                          const MultiFab& cons,
                          const Geometry& geom,
-                         const bool& use_moist)
+                         const bool& use_moist,
+                         std::unique_ptr<MultiFab>& wrf_PHB,
+                         std::unique_ptr<MultiFab>& z_phys_nd)
 {
     convert_wrfbdy_data(itime, domain, bdy_data_xlo,
                         mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
+                        xvel, yvel, cons, geom, use_moist,
+                        wrf_PHB, z_phys_nd);
     convert_wrfbdy_data(itime, domain, bdy_data_xhi,
                         mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
+                        xvel, yvel, cons, geom, use_moist,
+                        wrf_PHB, z_phys_nd);
     convert_wrfbdy_data(itime, domain, bdy_data_ylo,
                         mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
+                        xvel, yvel, cons, geom, use_moist,
+                        wrf_PHB, z_phys_nd);
     convert_wrfbdy_data(itime, domain, bdy_data_yhi,
                         mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist);
+                        xvel, yvel, cons, geom, use_moist,
+                        wrf_PHB, z_phys_nd);
 }
 #endif // ERF_USE_NETCDF

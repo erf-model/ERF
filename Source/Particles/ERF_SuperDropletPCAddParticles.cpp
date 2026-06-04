@@ -31,6 +31,10 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
     const auto dx = Geom(a_lev).CellSizeArray();
     const auto plo = Geom(a_lev).ProbLoArray();
 
+    // Half-open [lo,hi) on the cell center keeps the injected cell count independent of box-grid alignment.
+    const Real blo0 = a_box.lo(0), blo1 = a_box.lo(1), blo2 = a_box.lo(2);
+    const Real bhi0 = a_box.hi(0), bhi1 = a_box.hi(1), bhi2 = a_box.hi(2);
+
     for(MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
         auto num_superdroplets_arr = a_num_sd[mfi].array();
@@ -54,7 +58,10 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
                                       height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                       height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
                                       height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k+1) );
-                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
+                    bool in_box = AMREX_D_TERM(   (x >= blo0) && (x < bhi0),
+                                               && (y >= blo1) && (y < bhi1),
+                                               && (z >= blo2) && (z < bhi2) );
+                    if (in_box) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
@@ -74,7 +81,10 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
                     Real x = plo[0] + (i + myhalf)*dx[0];
                     Real y = plo[1] + (j + myhalf)*dx[1];
                     Real z = plo[2] + (k + myhalf)*dx[2];
-                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
+                    bool in_box = AMREX_D_TERM(   (x >= blo0) && (x < bhi0),
+                                               && (y >= blo1) && (y < bhi1),
+                                               && (z >= blo2) && (z < bhi2) );
+                    if (in_box) { flag = true; }
                 }
                 if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
