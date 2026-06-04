@@ -422,6 +422,14 @@ class SuperDropletPC : public ERFPC
         SDMassChangeTIMethod m_mass_change_ti; /*!< time integrator for mass change ODE */
         long m_num_unconverged_particles; /*!< total number of unconverged particles */
 
+        /* Ventilation factor for phase change (water species) */
+        bool m_mass_change_ventilation; /*!< include ventilation factor in phase change */
+        amrex::Real m_vent_alpha1; /*!< ventilation factor fit coefficient alpha_1 */
+        amrex::Real m_vent_beta1;  /*!< ventilation factor fit exponent beta_1 */
+        amrex::Real m_vent_alpha2; /*!< ventilation factor fit coefficient alpha_2 */
+        amrex::Real m_vent_beta2;  /*!< ventilation factor fit exponent beta_2 */
+        amrex::Real m_vent_fcap;   /*!< maximum ventilation factor */
+
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
 
         int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */

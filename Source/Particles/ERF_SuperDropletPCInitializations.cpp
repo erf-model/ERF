@@ -70,6 +70,14 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     m_mass_change_cfl = Real(1000.0);
     m_mass_change_ti = SDMassChangeTIMethod::BE; // backward Euler
 
+    /* ventilation factor (Bayley et al., 2025, Eq. 3); off by default */
+    m_mass_change_ventilation = false;
+    m_vent_alpha1 = Real(6.954e7);
+    m_vent_beta1  = Real(1.963);
+    m_vent_alpha2 = Real(1.069e3);
+    m_vent_beta2  = Real(0.702);
+    m_vent_fcap   = Real(20.0);
+
     /* log file for unconverged particles */
     m_mass_change_logging = false;
     m_mass_change_log_fname = "unconverged_superdroplets.log";
@@ -132,6 +140,12 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
     pp.query("mass_change_ti_method", ti_name);
+    pp.query("mass_change_ventilation", m_mass_change_ventilation);
+    pp.query("ventilation_alpha1", m_vent_alpha1);
+    pp.query("ventilation_beta1",  m_vent_beta1);
+    pp.query("ventilation_alpha2", m_vent_alpha2);
+    pp.query("ventilation_beta2",  m_vent_beta2);
+    pp.query("ventilation_fcap",   m_vent_fcap);
     if (ti_name == "rk3bs") {
         m_mass_change_ti = SDMassChangeTIMethod::RK3BS;
     } else if (ti_name == "rk4") {
@@ -322,6 +336,8 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const
             Print() << "dirk2";
         }
         Print() << " (cfl = " << m_mass_change_cfl << ")\n";
+        Print() << "    Ventilation factor: "
+                << (m_mass_change_ventilation ? "true" : "false") << "\n";
         Print() << "    Terminal velocity model(s): "
                 << getEnumNameString(m_term_vel_type_w) << " (water)";
         if (m_idx_i >= 0) {
