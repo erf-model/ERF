@@ -769,7 +769,7 @@ ERF::Evolve ()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, Real time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -1113,7 +1113,7 @@ ERF::InitData_post ()
         // This follows init_from_wrfinput()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
 
             if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
                  amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
@@ -1130,6 +1130,19 @@ ERF::InitData_post ()
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
+            // Need itime=0 for vertical interpolation
+            if (n_time_old>0) {
+                int itime = 0;
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
+            }
+
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 amrex::Print() << "READING IN BDY " << itime << std::endl;
@@ -1139,7 +1152,7 @@ ERF::InitData_post ()
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
             } // itime
         } // use_real_bcs
 
@@ -1356,6 +1369,23 @@ ERF::InitData_post ()
 
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
+
+#ifdef ERF_USE_NETCDF
+        if (solverChoice.use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            if (solverChoice.upwind_real_bcs) {
+                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                         ncomp_cons,ngvect_cons,ngvect_vels);
+            } else {
+                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                  ncomp_cons,ngvect_cons,ngvect_vels);
+            }
+            do_fb = false;
+    }
+#endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
@@ -3175,7 +3205,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
               const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;

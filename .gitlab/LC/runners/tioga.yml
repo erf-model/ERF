@@ -30,6 +30,9 @@ stages:
   tags:
     - shell
     - tioga
+  variables:
+    # Limit build parallelism for matrix jobs
+    CMAKE_BUILD_PARALLEL_LEVEL: 8
 
 .job_on_tioga:
   extends: .on_tioga
@@ -44,7 +47,7 @@ stages:
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
-    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv -o pmi=off ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
@@ -71,7 +74,7 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 60
+    ALLOC_TIME: 90
   extends: .on_tioga
   stage: allocate-resources
   script:

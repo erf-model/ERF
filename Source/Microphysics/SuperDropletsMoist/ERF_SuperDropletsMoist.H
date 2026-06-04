@@ -243,6 +243,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qstate_moist_size;
         }
 
+        /*! \brief returns number of moist conserved variables that are number concentrations */
+        inline virtual int Qstate_Moist_NumConc_Size () override
+        {
+            return m_qstate_moist_numconc_size;
+        }
+
         /*! \brief returns number of non-water species conserved variables */
         inline virtual int Qstate_NonMoist_Size () override
         {
@@ -430,11 +436,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         std::string m_name;
         /*! Geometry object */
         amrex::Geometry m_geom;
-
         /*! number of microphysics variables */
         int m_qmoist_size;
         /*! number of water-related state variables for this moisture model */
         int m_qstate_moist_size;
+
+        /*! number of water-related state variables that are number concentrations */
+        int m_qstate_moist_numconc_size = 0;
+
         /*! number of non-water-related state variables for this moisture model */
         int m_qstate_nonmoist_size;
 

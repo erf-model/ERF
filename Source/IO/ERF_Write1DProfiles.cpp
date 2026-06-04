@@ -14,7 +14,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::write_1D_profiles (Real time)
+ERF::write_1D_profiles (double time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
@@ -187,7 +187,7 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles(Real /*time*/,
+ERF::derive_diag_profiles(double /*time*/,
                           Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_Kmv , Gpu::HostVector<Real>& h_avg_Khv,

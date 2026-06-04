@@ -80,6 +80,7 @@ jobs:
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+            -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
           cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \

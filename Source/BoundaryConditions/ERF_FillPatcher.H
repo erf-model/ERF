@@ -127,11 +127,11 @@ ERFFillPatcher::Fill (amrex::MultiFab& mf, amrex::Real time,
     AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
 
     // Time interpolation factors
-    amrex::Real fac_new = 0.0;
-    amrex::Real fac_old = 1.0;
+    amrex::Real fac_new = amrex::Real(0.0);
+    amrex::Real fac_old = amrex::Real(1.0);
     if (amrex::Math::abs(m_dt_crse) > eps) {
         fac_new = (time - m_crse_times[0]) / m_dt_crse;
-        fac_old = 1.0 - fac_new;
+        fac_old = amrex::Real(1.0) - fac_new;
     }
 
     // Boundary condition operator

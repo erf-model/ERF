@@ -67,6 +67,9 @@ public:
     /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
     virtual int Get_Qstate_Moist_Size () = 0;
 
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    virtual int Get_Qstate_Moist_NumConc_Size () = 0;
+
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     virtual int Get_Qstate_NonMoist_Size () = 0;
 
@@ -94,10 +97,6 @@ public:
     /*! \brief Import minimum dz at this level */
     virtual void Set_dzmin (const int lev,
                             const amrex::Real dz_min) const = 0;
-
-    /*! \brief Define the nudging+set width for real BCs */
-    virtual void Set_RealWidth (const int lev,
-                                const int real_width) const = 0;
 
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)

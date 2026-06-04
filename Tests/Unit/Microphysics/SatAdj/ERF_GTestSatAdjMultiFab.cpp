@@ -19,24 +19,6 @@ using namespace satadj_test;
 
 namespace {
 
-// Exercise the public SatAdj flow used by ERF: initialize microphysics
-// storage, copy conserved state into microphysics variables, advance, and copy
-// back.
-void run_public_flow (SatAdj& satadj,
-                      const SolverChoice& sc,
-                      const amrex::Geometry& geom,
-                      amrex::MultiFab& cons)
-{
-    std::unique_ptr<amrex::MultiFab> z_phys_nd;
-    std::unique_ptr<amrex::MultiFab> detJ_cc;
-    run_and_sync([&]() {
-        satadj.Init(cons, cons.boxArray(), geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
-        satadj.Copy_State_to_Micro(cons);
-        satadj.Advance(amrex::Real(1.0), sc);
-        satadj.Copy_Micro_to_State(cons);
-    });
-}
-
 std::vector<CellState> make_kernel_cases ()
 {
     CellState evap_then_recond;
@@ -120,7 +102,7 @@ TEST(SatAdjMultiFab, ShocNoOpKeepsStateUnchangedPortable)
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(true);
     satadj.Define(sc);
-    run_public_flow(satadj, sc, geom, cons);
+    run_satadj_public_flow(satadj, sc, geom, cons);
     compute_state_difference(cons, cons_initial, err);
 
     EXPECT_LE(err.max(StateDiffRho),
@@ -154,8 +136,7 @@ TEST(SatAdjMultiFab, PublicFlowPreservesSatAdjInvariantsPortable)
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
     satadj.Define(sc);
-    satadj.Set_RealWidth(0);
-    run_public_flow(satadj, sc, geom, cons);
+    run_satadj_public_flow(satadj, sc, geom, cons);
     compute_satadj_invariant_errors(cons_initial, cons, err);
 
     const amrex::Real normalized_tol =
@@ -203,9 +184,8 @@ TEST(SatAdjMultiFab, PublicFlowConservesWaterAndLatentEnergyPortable)
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
     satadj.Define(sc);
-    satadj.Set_RealWidth(0);
 
-    run_public_flow(satadj, sc, geom, cons);
+    run_satadj_public_flow(satadj, sc, geom, cons);
     compute_satadj_conservation_errors(cons_initial, cons, err);
 
     const amrex::Real rho_err = err.max(ConservationErrRho);
