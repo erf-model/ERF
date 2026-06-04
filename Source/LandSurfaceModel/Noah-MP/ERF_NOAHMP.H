@@ -50,6 +50,37 @@ namespace LsmFlux_NOAHMP {
   };
 }
 
+
+namespace NoahmpInputComp {
+    enum {
+        u_phy = 0,
+        v_phy,
+        t_phy,
+        qv_curr,
+        p8w,
+        swdown,
+        glw,
+        coszen,
+        NumComps
+    };
+}
+
+namespace NoahmpOutputComp {
+    enum {
+        hfx = 0,
+        lh,
+        tau_ew,
+        tau_ns,
+        tsk,
+        emiss,
+        albsfcdir_vis,
+        albsfcdir_nir,
+        albsfcdif_vis,
+        albsfcdif_nir,
+        NumComps
+    };
+}
+
 class NOAHMP : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -210,6 +241,10 @@ private:
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;
+
+    // Pinned memory buffers for host/device coupling to Noah-MP
+    amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_input_tmp;
+    amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_output_tmp;
 
     // Plot frequency
     int m_plot_int_1 = -1;

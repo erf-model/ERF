@@ -48,7 +48,8 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             }
             */
 
-            bool clear_itime = (itime < n_time_old);
+            // Note that we never release itime == 0 because it is used for the spatial interpolation at later times
+            bool clear_itime = (itime > 0 && itime < n_time_old);
 
             if (clear_itime && bdy_data_xlo[itime].size() > 0) {
                 bdy_data_xlo[itime].clear();
@@ -62,14 +63,10 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
             if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                 real_width);
-
-                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
-                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
+                read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                             geom[lev], use_moist, real_width, bdy_time_interval);
            }
         } // itime
     } // use_real_bcs && lev == 0
