@@ -17,7 +17,7 @@ int closest_index (const Vector<Real>& vec, const Real value)
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
 
-    const int idx = std::distance(vec.begin(), it);
+    const int idx = static_cast<int>(std::distance(vec.begin(), it));
     return std::max(idx - 1, 0);
 }
 
@@ -101,7 +101,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datn   = (*m_data_n[ori])[lev];
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
@@ -115,7 +115,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         const auto& datnp2 = (*m_data_np2[ori])[lev];

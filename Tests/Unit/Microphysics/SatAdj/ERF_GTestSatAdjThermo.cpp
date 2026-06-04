@@ -4,8 +4,14 @@
 
 #include "ERF_GTestSatAdjCommon.H"
 
+// These tests check consistency among ERF's saturation utilities. They do not
+// introduce an independent saturation model; the derivative identity is built
+// from ERF's own esat and d(esat)/dT functions.
+
 using namespace satadj_test;
 
+// Motivation: SatAdj's Newton solve depends on a correct qsat temperature
+// derivative. This checks consistency among ERF's own saturation utilities.
 TEST(SatAdjThermo, SaturationDerivativeConsistency)
 {
     const std::array<amrex::Real, 5> temperatures = {
@@ -23,6 +29,8 @@ TEST(SatAdjThermo, SaturationDerivativeConsistency)
             erf_dtqsatw(tabs, pres_mbar, dqsat_local);
 
             const amrex::Real esat = erf_esatw(tabs);
+            // From qsat = eps * esat / (p - esat):
+            // d(qsat)/dT = eps * p * d(esat)/dT / (p - esat)^2.
             const amrex::Real expected = Rd_on_Rv * erf_dtesatw(tabs) * pres_mbar /
                                          ((pres_mbar - esat) * (pres_mbar - esat));
 

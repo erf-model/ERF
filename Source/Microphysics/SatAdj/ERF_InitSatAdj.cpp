@@ -33,13 +33,16 @@ void SatAdj::Init (const MultiFab& cons_in,
 }
 
 /**
- * Initializes the Microphysics module.
+ * Copies conserved ERF state into SatAdj's internal specific variables.
+ * rho is copied but not modified by SatAdj.
+ * theta, qv, and qc are formed by dividing conserved densities by rho.
+ * tabs and pressure are diagnosed from the same conserved state snapshot.
+ * pressure is converted from Pa to mbar/hPa for saturation helper calls.
  *
  * @param[in] cons_in Conserved variables input
  */
 void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
 {
-    // Get the temperature, density, theta, qt and qp from input
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& tbx = mfi.tilebox();
 
@@ -53,20 +56,25 @@ void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
         auto tabs_array  = mic_fab_vars[MicVar_SatAdj::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_SatAdj::pres]->array(mfi);
 
-        // Get pressure, theta, temperature, density, and qt, qp
+        // Use local scalars so temperature and pressure are diagnosed from the same
+        // conserved state values copied into the microphysics arrays. This avoids
+        // hidden read-after-write dependencies inside the kernel body.
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
-            theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-            qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
-            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
+            const Real rho      = states_array(i,j,k,Rho_comp);
+            const Real rhoTheta = states_array(i,j,k,RhoTheta_comp);
+            const Real qv       = states_array(i,j,k,RhoQ1_comp) / rho;
+            const Real qc       = states_array(i,j,k,RhoQ2_comp) / rho;
+            const Real theta    = rhoTheta / rho;
 
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp),
-                                                  qv_array(i,j,k));
+            rho_array(i,j,k)   = rho;
+            theta_array(i,j,k) = theta;
+            qv_array(i,j,k)    = qv;
+            qc_array(i,j,k)    = qc;
+            tabs_array(i,j,k)  = getTgivenRandRTh(rho, rhoTheta, qv);
 
-            // Pressure in [mbar] for qsat evaluation
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
+            // Pressure is stored in mbar/hPa because erf_qsatw expects that unit.
+            pres_array(i,j,k)  = getPgivenRTh(rhoTheta, qv) * Real(0.01);
         });
     }
 }

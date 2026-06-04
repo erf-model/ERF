@@ -107,6 +107,19 @@ void realbdy_interior_bxs_xy (const amrex::Box& bx,
                               const bool get_int_ng=false);
 
 /*
+ * Compute boxes for looping over set region cells
+ * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
+ */
+void realbdy_bc_bxs_xy (const amrex::Box& bx,
+                        const amrex::Box& domain,
+                        const int& set_width,
+                        amrex::Box& bx_xlo,
+                        amrex::Box& bx_xhi,
+                        amrex::Box& bx_ylo,
+                        amrex::Box& bx_yhi,
+                        const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0));
+
+/*
  * Compute relaxation region RHS with wrfbdy
  */
 void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,

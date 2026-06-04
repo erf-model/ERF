@@ -1,6 +1,6 @@
 This implementation of Morrison
 
-In order to compare with double precision fortran, if you're using the Submodule AMReX with gcc, set the real default flag.
+In order to compare with double precision Fortran, if you're using the Submodule AMReX with gcc, set the real default flag.
 
 echo "FFLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
 echo "F90FLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
@@ -13,9 +13,9 @@ cd ../../../Exec/CanonicalTests/SquallLine_2D
 #echo "FFLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
 #echo "F90FLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
 
-make -j4 USE_MORR_FORT=TRUE USE_MORR_WARM_ONLY=TRUE DEBUG=FALSE
-mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1         = plt_Morrfort erf.check_file      = chk_Morrfort erf.use_morr_cpp_answer = false erf.moisture_model="Morrison"
-mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1         = plt_Morrcpp erf.check_file      = chk_Morrcpp erf.use_morr_cpp_answer = true erf.moisture_model="Morrison"
+make -j4 USE_MORR_FORT=TRUE DEBUG=FALSE
+mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1 = plt_Morrfort erf.check_file = chk_Morrfort erf.use_morr_cpp_answer = false erf.moisture_model="Morrison"
+mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1 = plt_Morrcpp erf.check_file = chk_Morrcpp erf.use_morr_cpp_answer = true erf.moisture_model="Morrison"
 
 Warm difference at 6000 steps:
 

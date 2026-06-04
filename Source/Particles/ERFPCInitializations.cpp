@@ -98,6 +98,10 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
     const auto dx = Geom(lev).CellSizeArray();
     const auto plo = Geom(lev).ProbLoArray();
 
+    // Half-open [lo,hi) on the cell center keeps the particle cell count independent of box-grid alignment.
+    const Real blo0 = particle_init_domain.lo(0), blo1 = particle_init_domain.lo(1), blo2 = particle_init_domain.lo(2);
+    const Real bhi0 = particle_init_domain.hi(0), bhi1 = particle_init_domain.hi(1), bhi2 = particle_init_domain.hi(2);
+
     int particles_per_cell = m_ppc_init;
 
     iMultiFab num_particles( ParticleBoxArray(lev),
@@ -124,7 +128,10 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                 //                      height_arr(i,j+1,0) + height_arr(i+1,j+1,0) );
                 // Real z = std::max((zh-z_sfc),zero);
 
-                if (particle_init_domain.contains(RealVect(x,y,z))) {
+                bool in_box = AMREX_D_TERM(   (x >= blo0) && (x < bhi0),
+                                           && (y >= blo1) && (y < bhi1),
+                                           && (z >= blo2) && (z < bhi2) );
+                if (in_box) {
                     num_particles_arr(i,j,k) = particles_per_cell;
                 }
             });
@@ -135,7 +142,10 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                 Real x = plo[0] + (i + myhalf)*dx[0];
                 Real y = plo[1] + (j + myhalf)*dx[1];
                 Real z = plo[2] + (k + myhalf)*dx[2];
-                if (particle_init_domain.contains(RealVect(x,y,z))) {
+                bool in_box = AMREX_D_TERM(   (x >= blo0) && (x < bhi0),
+                                           && (y >= blo1) && (y < bhi1),
+                                           && (z >= blo2) && (z < bhi2) );
+                if (in_box) {
                     num_particles_arr(i,j,k) = particles_per_cell;
                 }
             });

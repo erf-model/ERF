@@ -274,15 +274,17 @@ ERF::ERF_shared ()
     // Get lo/hi indices for massflux calc
     if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-1e34));
+            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( 1e34));
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
             const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
             const Real dz = geom[0].CellSize(2);
-            if (massflux_zlo == -1e34) {
+            if (zlo_unset) {
                 solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
             } else {
                 solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - myhalf));
             }
-            if (massflux_zhi ==  1e34) {
+            if (zhi_unset) {
                 solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
             } else {
                 solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - myhalf));
@@ -618,8 +620,8 @@ ERF::Evolve ()
     //
     // cur_time = t_new is elapsed time, not total time
     // stop_time is total time
-    //
-    Real cur_time = t_new[0];
+    // Tracked in double to avoid float32 drift over many timesteps in single-precision builds.
+    double cur_time = static_cast<double>(t_new[0]);
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
@@ -631,7 +633,7 @@ ERF::Evolve ()
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt(step);
+        ComputeDt(step, cur_time);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -666,7 +668,9 @@ ERF::Evolve ()
         int iteration = 1;
         timeStep(0, cur_time, iteration);
 
-        cur_time  += dt[0];
+        cur_time += static_cast<double>(dt[0]);
+        // Sync t_new[0] from accurate double to prevent float32 accumulation drift in SP builds.
+        t_new[0] = static_cast<Real>(cur_time);
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
@@ -791,7 +795,7 @@ ERF::Evolve ()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, Real time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -1166,7 +1170,7 @@ ERF::InitData_post ()
         // This follows init_from_wrfinput()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
 
             if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
                  amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
@@ -1183,6 +1187,19 @@ ERF::InitData_post ()
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
+            // Need itime=0 for vertical interpolation
+            if (n_time_old>0) {
+                int itime = 0;
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
+            }
+
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 amrex::Print() << "READING IN BDY " << itime << std::endl;
@@ -1192,7 +1209,7 @@ ERF::InitData_post ()
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
             } // itime
         } // use_real_bcs
 
@@ -1416,6 +1433,23 @@ ERF::InitData_post ()
 
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
+
+#ifdef ERF_USE_NETCDF
+        if (solverChoice.use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            if (solverChoice.upwind_real_bcs) {
+                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                         ncomp_cons,ngvect_cons,ngvect_vels);
+            } else {
+                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                  ncomp_cons,ngvect_cons,ngvect_vels);
+            }
+            do_fb = false;
+    }
+#endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
@@ -2817,7 +2851,7 @@ ERF::ReadParameters ()
                     << "\", format should be " << datetime_format << std::endl;
                 exit(0);
             }
-            start_time = getEpochTime(start_datetime, datetime_format);
+            start_time = static_cast<amrex::Real>(getEpochTime(start_datetime, datetime_format));
 
 #ifdef ERF_USE_NETCDF
             if (solverChoice.init_type == InitType::WRFInput) {
@@ -2883,7 +2917,7 @@ ERF::ReadParameters ()
                 exit(0);
             }
 
-            stop_time = getEpochTime(stop_datetime, datetime_format);
+            stop_time = static_cast<amrex::Real>(getEpochTime(stop_datetime, datetime_format));
             Print() << "Stop  datetime : " << start_datetime << std::endl;
 
         } else {
@@ -2917,7 +2951,7 @@ ERF::ReadParameters ()
     if ((solverChoice.init_type == InitType::WRFInput) ||
         (solverChoice.init_type == InitType::Metgrid)  ||
         (solverChoice.init_type == InitType::NCFile) ) {
-        int num_files = nc_init_file[0].size();
+        int num_files = static_cast<int>(nc_init_file[0].size());
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
         for (int j = 0; j < num_files; j++) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
@@ -3164,7 +3198,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     }
 
     // combine sums from different MPI ranks
-    ParallelDescriptor::ReduceRealSum(h_havg.dataPtr(), h_havg.size());
+    ParallelDescriptor::ReduceRealSum(h_havg.dataPtr(), static_cast<int>(h_havg.size()));
 
     // divide by the total number of cells we are averaging over
     for (int k = 0; k < size_z; ++k) {
@@ -3250,7 +3284,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
               const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;

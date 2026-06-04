@@ -62,7 +62,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
-    m_maxlev = m_geom.size();
+    m_maxlev = static_cast<int>(m_geom.size());
 
     m_fields.resize(m_maxlev);
     m_rot_fields.resize(m_maxlev);
@@ -540,7 +540,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
     // Capture for device
     Real d_zref   = zref_tmp;
-    Real d_radius = m_radius;
+    Real d_radius = static_cast<Real>(m_radius);
     amrex::ignore_unused(d_radius);
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
@@ -611,7 +611,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
     // Capture for device
     Real d_zref   = zref_tmp;
-    Real d_radius = m_radius;
+    Real d_radius = static_cast<Real>(m_radius);
 
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
@@ -1141,7 +1141,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
     // Copy to host and sum across procs
     Gpu::copy(Gpu::deviceToHost, pavg.begin(), pavg.end(), plane_average.begin());
-    ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
+    ParallelDescriptor::ReduceRealSum(plane_average.data(), static_cast<int>(plane_average.size()));
 
     // No spatial variation with plane averages
     for (int iavg(0); iavg < m_navg; ++iavg){

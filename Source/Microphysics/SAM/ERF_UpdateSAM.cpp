@@ -34,15 +34,16 @@ SAM::Copy_Micro_to_State (MultiFab& cons)
         // get potential total density, temperature, qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
-
-            states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*std::max(Real(0),qv_arr(i,j,k));
-            states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*std::max(Real(0),qc_arr(i,j,k));
-            states_arr(i,j,k,RhoQ3_comp)    = rho_arr(i,j,k)*std::max(Real(0),qi_arr(i,j,k));
-
-            states_arr(i,j,k,RhoQ4_comp)    = rho_arr(i,j,k)*std::max(Real(0),qpr_arr(i,j,k));
-            states_arr(i,j,k,RhoQ5_comp)    = rho_arr(i,j,k)*std::max(Real(0),qps_arr(i,j,k));
-            states_arr(i,j,k,RhoQ6_comp)    = rho_arr(i,j,k)*std::max(Real(0),qpg_arr(i,j,k));
+            SAMPrimitiveCell primitive{};
+            primitive.rho = rho_arr(i,j,k);
+            primitive.theta = theta_arr(i,j,k);
+            primitive.qv = qv_arr(i,j,k);
+            primitive.qcl = qc_arr(i,j,k);
+            primitive.qci = qi_arr(i,j,k);
+            primitive.qpr = qpr_arr(i,j,k);
+            primitive.qps = qps_arr(i,j,k);
+            primitive.qpg = qpg_arr(i,j,k);
+            sam_primitive_to_cons(primitive, states_arr, i, j, k);
         });
     }
 

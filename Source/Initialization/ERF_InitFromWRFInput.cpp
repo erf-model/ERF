@@ -74,7 +74,6 @@ init_terrain_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               MultiFab* z_phys,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
@@ -92,19 +91,36 @@ init_base_state_from_wrfinput (const Box& subdomain,
 Real
 read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
-    std::string NC_dateTime;
-    Real        NC_epochTime;
+    Real NC_epochTime;
+    const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
+
     if (ParallelDescriptor::IOProcessor()) {
-        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        // Read the time stamps
+        using CharArray = NDArray<char>;
+        Vector<CharArray> array_ts(1);
+        Vector<int> success(1);
+        ReadNetCDFFile(fname, {"Times"}, array_ts, success);
 
-        NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+        int ntimes = array_ts[0].get_vshape()[0];
+        auto dateStrLen = array_ts[0].get_vshape()[1];
+        char timeStamps[ntimes][dateStrLen];
 
-        const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
-        NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
+        // Fill up the characters read
+        int str_len = static_cast<int>(dateStrLen);
+        for (int nt(0); nt < ntimes; nt++) {
+            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
+                auto n = nt*dateStrLen + dateStrCt;
+                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
+            }
+        }
 
-        ncf.close();
+        // Extract the first time entry
+        std::string date(&timeStamps[0][0], &timeStamps[0][dateStrLen-1]+1);
+        auto epochTime = getEpochTime(date, dateTimeFormat);
+        Print() << "  wrfinput datetime 0 : " << date << " " << epochTime << std::endl;
+        NC_epochTime = static_cast<Real>(epochTime);
 
-        Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
     }
 
@@ -114,8 +130,7 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
 }
 
 void
-read_base_state_params_from_wrfinput (int lev,
-                                      const std::string& fname,
+read_base_state_params_from_wrfinput (const std::string& fname,
                                       Real& T00,
                                       Real& P00,
                                       Real& TLP,
@@ -276,7 +291,7 @@ ERF::init_from_wrfinput (int lev,
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
-    MultiFab mf_PH , mf_PHB;          // For geopotential height
+    MultiFab mf_PH ;                  // For geopotential height
     MultiFab mf_PB , mf_P  ;          // For base state
     std::unique_ptr<MultiFab> mf_ALB; // For base state
 
@@ -287,7 +302,7 @@ ERF::init_from_wrfinput (int lev,
     Real TISO = Real(200.0);
     Real TLP_STRAT = Real(-11.0);
     Real P_STRAT   = zero;
-    read_base_state_params_from_wrfinput(lev, nc_init_file[lev][0],
+    read_base_state_params_from_wrfinput(nc_init_file[lev][0],
                                          T00, P00, TLP, TISO,
                                          TLP_STRAT, P_STRAT);
 
@@ -574,14 +589,14 @@ ERF::init_from_wrfinput (int lev,
           } else if ( var_name == "PHB" ) {
               if (success) {
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PHB.define(ba_w, dm, 1, ngz);
+                  wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, ngz);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                  for ( MFIter mfi(mf_PHB, false); mfi.isValid(); ++mfi )
+                  for ( MFIter mfi(*wrf_PHB, false); mfi.isValid(); ++mfi )
                   {
-                    FArrayBox &cur_fab = mf_PHB[mfi];
-                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                      FArrayBox &cur_fab = (*wrf_PHB)[mfi];
+                      cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
                   }
                   var_fab.clear();
               } else {
@@ -969,7 +984,7 @@ ERF::init_from_wrfinput (int lev,
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            z_top = compute_terrain_top_and_bottom(mf_PH, mf_PHB, geom[lev].Domain());
+            z_top = compute_terrain_top_and_bottom(mf_PH, *wrf_PHB, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -977,13 +992,13 @@ ERF::init_from_wrfinput (int lev,
         // **************************************************************************
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
-         mf_PH.FillBoundary(geom[lev].periodicity());
-        mf_PHB.FillBoundary(geom[lev].periodicity());
+        mf_PH.FillBoundary(geom[lev].periodicity());
+        wrf_PHB->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, mf_PHB);
+        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *wrf_PHB);
 
         // **************************************************************************
         // Initialize the metric quantities
@@ -1002,7 +1017,7 @@ ERF::init_from_wrfinput (int lev,
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, z_phys_nd[lev].get(),
+    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
@@ -1050,7 +1065,7 @@ ERF::init_from_wrfinput (int lev,
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                    geom[lev], use_moist);
+                                    geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
         } // itime
 
         //
@@ -1118,7 +1133,6 @@ ERF::init_from_wrfinput (int lev,
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
-                               MultiFab* z_phys_nd,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
@@ -1148,7 +1162,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
-        const Array4<Real const>&      z_arr = z_phys_nd->const_array(mfi);
 
         const Array4<Real const>&      PB_arr = mf_PB.const_array(mfi);
         const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
@@ -1164,12 +1177,11 @@ init_base_state_from_wrfinput (const Box& subdomain,
             int kk = std::max(k , dom_lo.z);
                 kk = std::min(kk, dom_hi.z);
 
-
             Real Rd, Td, Thd;
             Real Pd = PB_arr(ii,jj,kk);
             // Have inverse base density
             if (ALB_arr) {
-                Rd  = 1.0 / ALB_arr(ii,jj,kk);
+                Rd  = Real(1.0) / ALB_arr(ii,jj,kk);
                 Td  = Pd / (R_d * Rd);
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
             } else {
@@ -1361,9 +1373,9 @@ init_terrain_from_wrfinput (int /*lev*/,
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells
-        int ilo = z_face_box.smallEnd()[0] + 1;
+        int ilo = z_face_box.smallEnd()[0];
         int ihi = z_face_box.bigEnd()[0];
-        int jlo = z_face_box.smallEnd()[1] + 1;
+        int jlo = z_face_box.smallEnd()[1];
         int jhi = z_face_box.bigEnd()[1];
         int klo = z_face_box.smallEnd()[2];
         int khi = z_face_box.bigEnd()[2];
@@ -1373,37 +1385,40 @@ init_terrain_from_wrfinput (int /*lev*/,
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
 
+            int im = std::max(std::min(i-1,ihi),ilo);
+            int jm = std::max(std::min(j-1,jhi),jlo);
+
             if (k < klo) {
-                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
-                                              nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
-                                              nc_phb_arr(ii,jj  ,klo  ) + nc_phb_arr(ii-1,jj  ,klo  ) +
-                                              nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
-                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,klo+1) + nc_ph_arr (ii-1,jj  ,klo+1) +
-                                              nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
-                                              nc_phb_arr(ii,jj  ,klo+1) + nc_phb_arr(ii-1,jj  ,klo+1) +
-                                              nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
+                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
+                                              nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
+                                              nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
+                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
+                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
+                                              nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
+                                              nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
+                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
                 z_arr(i, j, k) = two * z_klo - z_klop1;
             } else if (k > khi) {
-                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj  ,khi-1) + nc_ph_arr (ii-1,jj  ,khi-1) +
-                                              nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
-                                              nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +
-                                              nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
+                                              nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
+                                              nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
+                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
                 z_arr(i, j, k) = two * z_top - z_khim1;
             } else if (k == khi) {
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
                 //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
                 //       will end up smoothing the terrain as we average from surface face centers
                 //       to nodes.
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
-                                                nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
-                                                nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
-                                                nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
             }
         });
 

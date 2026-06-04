@@ -51,6 +51,27 @@ One must also set
 
 in the inputs file or on the command line at runtime.
 
+Particle Precision
+~~~~~~~~~~~~~~~~~~
+
+Particle floating-point data (positions, velocities, and any user-defined
+real-typed attributes) can be stored in single precision independently of
+the mesh-data precision. With cmake, set
+
+::
+
+   -DERF_PARTICLES_PRECISION:STRING=SINGLE \
+
+(default is ``DOUBLE``, which matches ``ERF_PRECISION``). This forwards to
+``AMReX_PARTICLES_PRECISION`` and defines ``AMREX_SINGLE_PRECISION_PARTICLES``.
+With gmake, set
+
+::
+
+   USE_SINGLE_PRECISION_PARTICLES = TRUE
+
+in the GNUmakefile.
+
 Initialization
 --------------
 

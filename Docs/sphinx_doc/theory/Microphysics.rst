@@ -220,15 +220,15 @@ Saturation Adjustment (SatAdj) Microphysics Model
 The saturation adjustment microphysics model is a warm-cloud, cell-local adjustment scheme that only transports
 water vapor, :math:`q_v`, and cloud water, :math:`q_c`. It does not include rain, ice, sedimentation,
 autoconversion, accretion, or subgrid cloud fraction. Pressure is diagnosed from the local cell state and the
-saturation relation uses pressure in millibars.
+saturation relation uses pressure in mbar (hPa).
 
-SatAdj uses the warm saturation relation
+In the normal physical branch used by SatAdj, the warm saturation relation is
 
 .. math::
   q_{sat}(T,p) = \epsilon \frac{e_s(T)}{p - e_s(T)},
 
 where :math:`\epsilon = R_d / R_v`, :math:`e_s(T)` is the saturation vapor pressure over liquid water, and
-:math:`p` is the cell pressure in mbar.
+:math:`p` is the cell pressure in mbar (hPa).
 
 During the adjustment, the conserved nonprecipitating water and local moist enthalpy proxy are
 
@@ -285,8 +285,11 @@ The implemented branch structure is
   update theta from the adjusted T and diagnosed pressure
 
 In the implementation, :math:`q_{sat}` and :math:`dq_{sat}/dT` are evaluated with ERF's internal thermodynamic
-utilities, pressure is passed in mbar for saturation calls, and pressure is converted back to Pa when
-recomputing :math:`\theta` from :math:`T`.
+utilities. For warm-water saturation pressure, ERF uses the Flatau polynomial on the current positive selected
+interval, about [-70, 70] C, and otherwise falls back to a Magnus-style closed-form exponential approximation.
+That fallback is commonly motivated by simplified integrations of the Clausius-Clapeyron relation, but the
+helper does not perform a direct Clausius-Clapeyron integration. Pressure is passed in mbar for saturation
+calls, and pressure is converted back to Pa when recomputing :math:`\theta` from :math:`T`.
 
 When SHOC is enabled, SatAdj condensation is disabled so that SHOC owns the phase-change adjustment and ERF
 does not double-apply condensation tendencies.

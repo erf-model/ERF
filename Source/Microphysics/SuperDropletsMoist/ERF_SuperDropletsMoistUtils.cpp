@@ -322,8 +322,8 @@ void SuperDropletsMoist::AverageDownMicroVars (const int finest_level)
                          ? m_super_droplets->GetParGDB()->refRatio(lev-1)
                          : IntVect(2);
 
-        const int n = std::min<int>(m_mic_fab_vars[lev].size(),
-                                    m_mic_fab_vars[lev-1].size());
+        const int n = std::min<int>(static_cast<int>(m_mic_fab_vars[lev].size()),
+                                    static_cast<int>(m_mic_fab_vars[lev-1].size()));
         for (int v = 0; v < n; ++v) {
             if (!m_mic_fab_vars[lev][v] || !m_mic_fab_vars[lev-1][v]) continue;
             average_down( *m_mic_fab_vars[lev][v],

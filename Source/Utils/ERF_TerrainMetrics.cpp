@@ -186,7 +186,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
     int imax = domhi_x; // if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
     int jmax = domhi_y; // if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
 
-    int nz = z_levels_h.size();
+    int nz = static_cast<int>(z_levels_h.size());
     Real z_top = z_levels_h[nz-1];
 
     Gpu::DeviceVector<Real> z_levels_d;
@@ -460,7 +460,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
 
                     // Fill lateral boundaries and below the bottom surface
                     if (k == k0) {
@@ -501,7 +501,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     } else {
                         // Fill levels using model from Sullivan et. al. 2014
                         int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                        z_arr(i,j,k) = z + (std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
                     }
                 });
                 gbx.setBig(2,0);

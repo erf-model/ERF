@@ -3,10 +3,15 @@
 using namespace amrex;
 
 /**
- * Compute Precipitation-related Microphysics quantities.
+ * AdvanceSatAdj is a local valid-cell update over MFIter tileboxes.
+ * It uses pressure diagnosed in Copy_State_to_Micro and holds that pressure
+ * fixed inside each cell adjustment.
+ * There are no stencils, face fluxes, or ghost-cell reads in this kernel.
  */
 void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 {
+    // Saturation adjustment can be disabled by solver choice, e.g. when SHOC
+    // owns moist thermodynamics instead of the standalone SatAdj module.
     if (!m_do_cond) { return; }
 
     auto tabs  = mic_fab_vars[MicVar_SatAdj::tabs];
@@ -15,20 +20,9 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
     Real d_fac_cond = m_fac_cond;
     Real rdOcp      = m_rdOcp;
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
-    // get the temperature, density, theta, qt and qc from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         auto tbx = mfi.tilebox();
-        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
         auto qv_array    = mic_fab_vars[MicVar_SatAdj::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_SatAdj::qc]->array(mfi);
