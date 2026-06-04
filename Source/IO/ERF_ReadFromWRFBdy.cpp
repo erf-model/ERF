@@ -95,9 +95,6 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
     bdy_data_ylo.resize(ntimes+1);
     bdy_data_yhi.resize(ntimes+1);
 
-    // Make sure all processors know timeInterval
-    ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
-
     // Return the number of seconds between the boundary plane data
     return timeInterval;
 }
@@ -116,7 +113,7 @@ convert_wrfbdy_data (const int itime,
                      const bool& use_moist)
 {
     // Temporary bdy data structures for global reductions
-    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
+    int vsize = bdy_data[itime].size() - 3; // Don't do PH, MU, or PC
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
     for (int ivar(0); ivar < vsize; ++ivar) {
         bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
@@ -501,7 +498,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     // ******************************************************************
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
-    // WRFBdyVars:  U, V, R, T, QV, MU, PC
+    // WRFBdyVars:  U, V, T, QV, PH, MU, PC
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
