@@ -101,21 +101,11 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
         Vector<int> success(1);
         ReadNetCDFFile(fname, {"Times"}, array_ts, success);
 
-        int ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        const char* time_stamp_data = array_ts[0].get_data();
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
-        }
+        std::string date(time_stamp_data, time_stamp_data + dateStrLen);
 
-        // Extract the first time entry
-        std::string date(&timeStamps[0][0], &timeStamps[0][dateStrLen-1]+1);
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  wrfinput datetime 0 : " << date << " " << epochTime << std::endl;
         NC_epochTime = static_cast<Real>(epochTime);
@@ -212,11 +202,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput (int lev,
-                         MultiFab& mf_C1H_lev,
-                         MultiFab& mf_C2H_lev,
-                         MultiFab& mf_MUB_lev,
-                         MultiFab& mf_PSFC_lev)
+ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 {
     if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -639,9 +625,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_MUB_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_MUB, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_MUB_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_MUB)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -649,9 +635,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C1H_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_C1H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C1H_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_C1H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -659,9 +645,9 @@ ERF::init_from_wrfinput (int lev,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C2H_lev, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*wrf_C2H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C2H_lev[mfi];
+                FArrayBox &cur_fab = (*wrf_C2H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -1045,6 +1031,9 @@ ERF::init_from_wrfinput (int lev,
                                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                    start_bdy_time, final_bdy_time);
 
+        Print() << "Reading in boundary data with width " << real_width << std::endl;
+        Print() << "Running with relaxation width       " << real_width << std::endl;
+
         // *******************************************************************************************
         // We intentionally only read in the first three slices here ... we will read the rest in
         // as needed during the time stepping procedure
@@ -1052,20 +1041,11 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-            read_from_wrfbdy(itime, nc_bdy_file, geom[0].Domain(),
-                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                             real_width);
-
-            if (itime == 0) {
-                Print() << "Read in boundary data with width "  << real_width << std::endl;
-                Print() << "Running with relaxation width: " << real_width << std::endl;
-            }
-
-            convert_all_wrfbdy_data(itime, geom[lev].Domain(),
-                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
-                                    lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                    geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
+            read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                         bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                         wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                         lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                         geom[0], use_moist, real_width, bdy_time_interval);
         } // itime
 
         //

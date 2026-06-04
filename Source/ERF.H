@@ -583,11 +583,7 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev,
-                             amrex::MultiFab& mf_C1H,
-                             amrex::MultiFab& mf_C2H,
-                             amrex::MultiFab& mf_MUB,
-                             amrex::MultiFab& mf_PSFC);
+    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -797,9 +793,6 @@ private:
 
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = zero;
-
-    // Base geopotential
-    std::unique_ptr<amrex::MultiFab> wrf_PHB;
 
 #endif // ERF_USE_NETCDF
 
@@ -1309,9 +1302,13 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
-    std::unique_ptr<amrex::MultiFab> mf_C1H;
-    std::unique_ptr<amrex::MultiFab> mf_C2H;
-    std::unique_ptr<amrex::MultiFab> mf_MUB;
+
+    std::unique_ptr<amrex::MultiFab> wrf_C1H;
+    std::unique_ptr<amrex::MultiFab> wrf_C2H;
+    std::unique_ptr<amrex::MultiFab> wrf_MUB;
+
+    // Base geopotential
+    std::unique_ptr<amrex::MultiFab> wrf_PHB;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
