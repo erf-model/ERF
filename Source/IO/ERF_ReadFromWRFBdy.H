@@ -45,7 +45,9 @@ convert_all_wrfbdy_data (const int itime,
                          const amrex::MultiFab& yvel,
                          const amrex::MultiFab& cons,
                          const amrex::Geometry& geom,
-                         const bool& use_moist);
+                         const bool& use_moist,
+                         std::unique_ptr<amrex::MultiFab>& wrf_PHB,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,

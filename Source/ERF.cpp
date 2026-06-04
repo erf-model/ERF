@@ -769,7 +769,7 @@ ERF::Evolve ()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, Real time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -1130,6 +1130,19 @@ ERF::InitData_post ()
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
+            // Need itime=0 for vertical interpolation
+            if (n_time_old>0) {
+                int itime = 0;
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
+            }
+
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 amrex::Print() << "READING IN BDY " << itime << std::endl;
@@ -1139,7 +1152,7 @@ ERF::InitData_post ()
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
+                                        geom[lev], use_moist, wrf_PHB, z_phys_nd[0]);
             } // itime
         } // use_real_bcs
 
@@ -3192,7 +3205,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
               const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;
