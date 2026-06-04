@@ -148,7 +148,10 @@ public:
           if (erf_st) {
               theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
               pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
-              surf_heating_rate = surf_heating_rate / amrex::Real(3600.0);        // [K/s]
+
+              // Modify rate to be in units of K / s rather than K / hr
+              surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
+
               if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
