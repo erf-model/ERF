@@ -12,7 +12,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::sum_integrated_quantities (Real time)
+ERF::sum_integrated_quantities (double time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
@@ -174,7 +174,7 @@ ERF::sum_integrated_quantities (Real time)
 }
 
 void
-ERF::sum_derived_quantities (Real time)
+ERF::sum_derived_quantities (double time)
 {
     if (verbose <= 0 || NumDerDataLogs() <= 0) return;
 
@@ -310,7 +310,7 @@ ERF::sum_derived_quantities (Real time)
 }
 
 void
-ERF::sum_energy_quantities (Real time)
+ERF::sum_energy_quantities (double time)
 {
     if ( (verbose <= 0) || (tot_e_datalog.size() < 1) ) { return; }
 
@@ -449,7 +449,7 @@ ERF::sum_energy_quantities (Real time)
 }
 
 Real
-ERF::cloud_fraction (Real /*time*/)
+ERF::cloud_fraction (double /*time*/)
 {
     BL_PROFILE("ERF::cloud_fraction()");
 
@@ -651,7 +651,7 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action (int nstep, Real time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, double time, Real dtlev, int action_interval, Real action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 
