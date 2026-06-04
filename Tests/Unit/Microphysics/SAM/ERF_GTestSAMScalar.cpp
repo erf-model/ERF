@@ -136,7 +136,8 @@ TEST(SAMScalar, PrimitiveClipsNegativeMoisture)
     primitive_to_write.qps = amrex::Real(3.0e-4);
     primitive_to_write.qpg = -amrex::Real(2.0e-4);
 
-    amrex::FArrayBox state_fab(single_cell_box(), RhoQ6_comp + 1);
+    amrex::FArrayBox state_fab(single_cell_box(), RhoQ6_comp + 1,
+                               amrex::The_Pinned_Arena());
     auto state = single_cell_state_array(state_fab);
     sam_primitive_to_cons(primitive_to_write, state, 0, 0, 0);
 
@@ -178,7 +179,8 @@ TEST(SAMScalar, PrimitiveConservedMoistureRoundtrip)
     expect_near_roundoff(primitive.qpg, qpg);
     expect_near_roundoff(primitive.qp, qpr + qps + qpg);
 
-    amrex::FArrayBox state_fab(single_cell_box(), RhoQ6_comp + 1);
+    amrex::FArrayBox state_fab(single_cell_box(), RhoQ6_comp + 1,
+                               amrex::The_Pinned_Arena());
     auto state = single_cell_state_array(state_fab);
     sam_primitive_to_cons(primitive, state, 0, 0, 0);
 
@@ -981,9 +983,9 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
               static_cast<int>(std::ceil(amrex::Real(12.0) * (amrex::Real(5.0) / amrex::Real(100.0)) / myhalf)));
 
     amrex::Box col_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 2));
-    amrex::FArrayBox rho_fab(col_box, 1);
-    amrex::FArrayBox tabs_fab(col_box, 1);
-    amrex::FArrayBox qp_fab(col_box, 1);
+    amrex::FArrayBox rho_fab(col_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox tabs_fab(col_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qp_fab(col_box, 1, amrex::The_Pinned_Arena());
     auto rho = rho_fab.array();
     auto tabs = tabs_fab.array();
     auto qp = qp_fab.array();
@@ -1153,11 +1155,11 @@ TEST(SAMScalar, SurfaceAccumulationMatchesPurePhaseBottomFlux)
 TEST(SAMScalar, PrecipComponentFaceState_BottomTopInteriorBranches)
 {
     const amrex::Box column_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 1));
-    amrex::FArrayBox rho_fab(column_box, 1);
-    amrex::FArrayBox tabs_fab(column_box, 1);
-    amrex::FArrayBox qpr_fab(column_box, 1);
-    amrex::FArrayBox qps_fab(column_box, 1);
-    amrex::FArrayBox qpg_fab(column_box, 1);
+    amrex::FArrayBox rho_fab(column_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox tabs_fab(column_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qpr_fab(column_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qps_fab(column_box, 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qpg_fab(column_box, 1, amrex::The_Pinned_Arena());
 
     auto rho = rho_fab.array();
     auto tabs = tabs_fab.array();

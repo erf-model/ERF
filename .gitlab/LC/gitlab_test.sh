@@ -26,13 +26,14 @@ mpiexec_preflags=${MPIEXEC_PREFLAGS:-""}
 host=$(hostname)
 build_type=${BUILD_TYPE:-"Debug"}
 
+RUN_CTEST=${RUN_CTEST,,:-"true"}
 ERF_ENABLE_CUDA=${ERF_ENABLE_CUDA:-"OFF"}
 ERF_ENABLE_HIP=${ERF_ENABLE_HIP:-"OFF"}
 
 echo "HOST: ${host}"
 src_dir="${PWD}"
 echo "Source directory: ${src_dir}"
-build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_$(date +%F_%H_%M_%S)")"
+build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_${CI_JOB_ID}_$(date +%F_%H_%M_%S)")"
 echo "Build directory: ${build_dir}"
 
 echo "============="
@@ -48,35 +49,39 @@ module list
 # Default fcompare executable
 FCOMPARE_EXE="${build_dir}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
 
-# For GPU builds we use a CPU version of fcompare to compare output files as it
-# can be faster than the GPU version because data does not need to migrate to
-# device memory.
-if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
-then
-    echo "======================="
-    echo "Build CPU amrex_fcompre"
-    echo "======================="
-    time cmake \
-         -G Ninja \
-         -S "${src_dir}" \
-         -B "${build_dir}_cpu" \
-         -D CMAKE_INSTALL_PREFIX:PATH=./install \
-         -D CMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
-         -D CMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
-         -D CMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
-         -D CMAKE_BUILD_TYPE:STRING=Release \
-         -D ERF_DIM:STRING=3 \
-         -D ERF_ENABLE_MPI:BOOL=ON \
-         -D ERF_ENABLE_CUDA:BOOL=OFF \
-         -D ERF_ENABLE_TESTS:BOOL=OFF \
-         -D ERF_ENABLE_FCOMPARE:BOOL=ON \
-         -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-         -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
-         -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
-    time cmake --build "${build_dir}_cpu" --target fcompare
-    FCOMPARE_EXE="${build_dir}_cpu/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
+if [[ $RUN_CTEST == "true" ]]; then
+    # For GPU builds we use a CPU version of fcompare to compare output files as it
+    # can be faster than the GPU version because data does not need to migrate to
+    # device memory.
+    if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
+    then
+        echo "======================="
+        echo "Build CPU amrex_fcompre"
+        echo "======================="
+        time cmake \
+             -G Ninja \
+             -S "${src_dir}" \
+             -B "${build_dir}_cpu" \
+             -D CMAKE_INSTALL_PREFIX:PATH=./install \
+             -D CMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
+             -D CMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
+             -D CMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
+             -D CMAKE_BUILD_TYPE:STRING=Release \
+             -D ERF_DIM:STRING=3 \
+             -D ERF_ENABLE_MPI:BOOL=ON \
+             -D ERF_ENABLE_CUDA:BOOL=OFF \
+             -D ERF_ENABLE_TESTS:BOOL=OFF \
+             -D ERF_ENABLE_UNIT_TESTS:BOOL=OFF \
+             -D ERF_ENABLE_FCOMPARE:BOOL=ON \
+             -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+             -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+             -D ERF_PRECISION:STRING="${ERF_PRECISION^^}" \
+             -D ERF_PARTICLES_PRECISION:STRING="${ERF_PARTICLES_PRECISION^^}" \
+             -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
+        time cmake --build "${build_dir}_cpu" --target fcompare
+        FCOMPARE_EXE="${build_dir}_cpu/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
+    fi
 fi
-echo "fcompare executable: ${FCOMPARE_EXE}"
 
 echo "========================"
 echo "Clone LC gold files repo"
@@ -86,33 +91,32 @@ echo "========================"
 ERF_TEST_GOLD_FILES_DIRECTORY="${src_dir}/Tests/ERFGoldFiles"
 ERF_TEST_ENABLE_EXTRA_SDM_TESTS="OFF"
 
-# Clone LC gold files repo -- note that we need to grant this repo job
-# token permissions to the gold file repo
-rm -rf erf-llnl-gold-files
-git clone \
-    --branch ${CI_GOLD_FILES_GIT_REF:-"main"} --depth 1 \
-    https://gitlab-ci-token:${CI_JOB_TOKEN}@lc.llnl.gov/gitlab/erf-model/erf-llnl-gold-files.git
-cd erf-llnl-gold-files
-git log -1
-if [[ -d ${CI_MACHINE} ]]
-then
-    ERF_TEST_GOLD_FILES_DIRECTORY="$(pwd)/${CI_MACHINE}"
-    ERF_TEST_ENABLE_EXTRA_SDM_TESTS="ON"
-    if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
+if [[ $RUN_CTEST == "true" ]]; then
+    # Clone LC gold files repo -- note that we need to grant this repo job
+    # token permissions to the gold file repo
+    rm -rf erf-llnl-gold-files
+    git clone \
+        --branch ${CI_GOLD_FILES_GIT_REF:-"main"} --depth 1 \
+        https://gitlab-ci-token:${CI_JOB_TOKEN}@lc.llnl.gov/gitlab/erf-model/erf-llnl-gold-files.git
+    cd erf-llnl-gold-files
+    git log -1
+    if [[ -d ${CI_MACHINE} ]]
     then
-        if [[ -d "${CI_MACHINE}/gpu" ]]; then
-            ERF_TEST_GOLD_FILES_DIRECTORY+="/gpu"
-        fi
-    else
-        if [[ -d "${CI_MACHINE}/cpu" ]]; then
-            ERF_TEST_GOLD_FILES_DIRECTORY+="/cpu"
+        ERF_TEST_GOLD_FILES_DIRECTORY="$(pwd)/${CI_MACHINE}"
+        ERF_TEST_ENABLE_EXTRA_SDM_TESTS="ON"
+        if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
+        then
+            if [[ -d "${CI_MACHINE}/gpu" ]]; then
+                ERF_TEST_GOLD_FILES_DIRECTORY+="/gpu"
+            fi
+        else
+            if [[ -d "${CI_MACHINE}/cpu" ]]; then
+                ERF_TEST_GOLD_FILES_DIRECTORY+="/cpu"
+            fi
         fi
     fi
+    cd -
 fi
-cd -
-
-echo "Gold files directory: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
-echo "Extra SDM tests enabled: ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}"
 
 echo "============="
 echo "Configure ERF"
@@ -130,7 +134,9 @@ time cmake \
      -D MPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
      -D CMAKE_BUILD_TYPE:STRING="${build_type}" \
      -D ERF_DIM:STRING=3 \
+     -D ERF_PRECISION:STRING="${ERF_PRECISION^^}" \
      -D ERF_ENABLE_PARTICLES:BOOL=ON \
+     -D ERF_PARTICLES_PRECISION:STRING="${ERF_PARTICLES_PRECISION^^}" \
      -D ERF_ENABLE_MPI:BOOL=ON \
      -D ERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
      -D AMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
@@ -139,7 +145,8 @@ time cmake \
      -D ERF_ENABLE_FCOMPARE:BOOL=ON \
      -D FCOMPARE_EXE="${FCOMPARE_EXE}" \
      -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-     -D ERF_ENABLE_TESTS:BOOL=ON \
+     -D ERF_ENABLE_TESTS:BOOL=${RUN_CTEST} \
+     -D ERF_ENABLE_UNIT_TESTS:BOOL=${RUN_CTEST} \
      -D ERF_TEST_NRANKS:STRING=${ERF_TEST_NRANKS:-"4"} \
      -D ERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY}" \
      -D ERF_TEST_ENABLE_EXTRA_SDM_TESTS="${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}" \
@@ -154,10 +161,16 @@ echo "========="
 
 time cmake --build "${build_dir}"
 
-echo "========"
-echo "Test ERF"
-echo "========"
+if [[ "$RUN_CTEST" == "true" ]]; then
+    echo "========"
+    echo "Test ERF"
+    echo "========"
 
-time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure
+    echo "fcompare executable: ${FCOMPARE_EXE}"
+    echo "Gold files directory: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
+    echo "Extra SDM tests enabled: ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}"
+
+    time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure
+fi
 
 echo "End: $(date)"
