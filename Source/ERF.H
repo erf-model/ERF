@@ -393,6 +393,7 @@ public:
                       amrex::MultiFab& cons_in,
                       amrex::MultiFab& xvel_in,
                       amrex::MultiFab& yvel_in,
+                      const amrex::Real& time,
                       const amrex::Real& dt_advance);
 
     void advance_radiation (int lev,
