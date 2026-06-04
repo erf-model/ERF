@@ -561,15 +561,23 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
           if ( var_name == "PH" ) {
               if (success) {
+                  // NOTE: We call FillBoundary on mf_PH below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PH.define(ba_w, dm, 1, ngz);
+                  mf_PH.define(ba_w, dm, 1, IntVect(1,1,0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
                   for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
                   {
-                    FArrayBox &cur_fab = mf_PH[mfi];
-                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                      Box gtbx = mfi.growntilebox();
+                      const Array4<      Real>& dst_arr = mf_PH->array(mfi);
+                      const Array4<const Real>& src_arr = var_fab.const_array();
+                      ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                      {
+                          int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                          int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                          dst_arr(i,j,k) = src_arr(li,lj,k);
+                      });
                   }
                   var_fab.clear();
               } else {
