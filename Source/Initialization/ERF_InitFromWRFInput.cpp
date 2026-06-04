@@ -555,6 +555,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 var_fab.clear();
             } // valid var (not rho)
 
+          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
+          int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+          int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+
           if ( var_name == "PH" ) {
               if (success) {
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
@@ -574,15 +578,23 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               }
           } else if ( var_name == "PHB" ) {
               if (success) {
+                  // NOTE: We call FillBoundary on wrf_PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, ngz);
+                  wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(1,1,0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
                   for ( MFIter mfi(*wrf_PHB, false); mfi.isValid(); ++mfi )
                   {
-                      FArrayBox &cur_fab = (*wrf_PHB)[mfi];
-                      cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                      Box gtbx = mfi.growntilebox();
+                      const Array4<      Real>& dst_arr = wrf_PHB->array(mfi);
+                      const Array4<const Real>& src_arr = var_fab.const_array();
+                      ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                      {
+                          int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                          int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                          dst_arr(i,j,k) = src_arr(li,lj,k);
+                      });
                   }
                   var_fab.clear();
               } else {
@@ -652,10 +664,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               }
               var_fab.clear();
           }
-
-          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
-          int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
-          int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {

@@ -487,7 +487,12 @@ struct SolverChoice {
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
+
         pp.query("if_surf_heating_rate", if_surf_heating_rate);
+
+        // Modify rate to be in units of K / s rather than K / hr
+        if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
+
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
