@@ -7,8 +7,21 @@
 #include "ERF_Interpolation_WENO_Z.H"
 
 /**
- * Interpolation operators used in construction of advective fluxes using non-WENO schemes
+ * Interpolation operators used in construction of advective fluxes using
+ * non-WENO centered/upwind schemes.
  */
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+isSupportedInterpolationAdvType (const AdvType adv_type) noexcept
+{
+    return adv_type == AdvType::Centered_2nd ||
+           adv_type == AdvType::Upwind_3rd   ||
+           adv_type == AdvType::Centered_4th ||
+           adv_type == AdvType::Upwind_5th   ||
+           adv_type == AdvType::Centered_6th;
+}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -17,6 +30,10 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
                  amrex::Real diff1, amrex::Real diff2, amrex::Real diff3,
                  amrex::Real scaled_upw, const AdvType adv_type)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        isSupportedInterpolationAdvType(adv_type),
+        "interpolatedVal only supports Centered_2nd, Upwind_3rd, Centered_4th, Upwind_5th, and Centered_6th");
+
     amrex::Real myInterpolatedVal(amrex::Real(0));
     if (adv_type == AdvType::Centered_2nd) {
         myInterpolatedVal = myhalf * avg1;
@@ -29,6 +46,10 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
                           -(scaled_upw/amrex::Real(60.0))*(diff3 - amrex::Real(5.0)*diff2 + amrex::Real(10.0)*diff1);
     } else if (adv_type == AdvType::Centered_6th) {
         myInterpolatedVal = (amrex::Real(37.0)/amrex::Real(60.0))*avg1 -(amrex::Real(2)/amrex::Real(15.0))*avg2 +(amrex::Real(1)/amrex::Real(60.0))*avg3;
+    } else {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            false,
+            "interpolatedVal only supports Centered_2nd, Upwind_3rd, Centered_4th, Upwind_5th, and Centered_6th");
     }
     return myInterpolatedVal;
 }
@@ -131,6 +152,8 @@ InterpolatePertFromCell (int i, int j, int k,
                          int qty_index, amrex::Real upw, Coord coordDir,
                          const AdvType adv_type, const amrex::Array4<const amrex::Real>& r0_arr)
 {
+    // Reconstruct the perturbation qty - r0_arr, so both averages and
+    // differences must be formed from perturbation quantities.
     amrex::Real avg1 = amrex::Real(0); amrex::Real avg2 = amrex::Real(0); amrex::Real avg3 = amrex::Real(0);
     amrex::Real diff1 = amrex::Real(0); amrex::Real diff2 = amrex::Real(0); amrex::Real diff3 = amrex::Real(0);
     amrex::Real scaled_upw = amrex::Real(0);
@@ -142,33 +165,39 @@ InterpolatePertFromCell (int i, int j, int k,
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i-1,j,k));
         diff1 = (qty(i  , j, k, qty_index) - qty(i-1, j, k, qty_index));
+        diff1 -= (r0_arr(i,j,k) - r0_arr(i-1,j,k));
         if (adv_type != AdvType::Centered_2nd)
         {
             avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
             avg2 -= (r0_arr(i+1,j,k) + r0_arr(i-2,j,k));
             diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
+            diff2 -= (r0_arr(i+1,j,k) - r0_arr(i-2,j,k));
         }
         if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
             avg3 -= (r0_arr(i+2,j,k) + r0_arr(i-3,j,k));
             diff3 = (qty(i+2, j, k, qty_index) - qty(i-3, j, k, qty_index));
+            diff3 -= (r0_arr(i+2,j,k) - r0_arr(i-3,j,k));
         }
     } else if (coordDir == Coord::y) {
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i,j-1,k));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
+        diff1 -= (r0_arr(i,j,k) - r0_arr(i,j-1,k));
         if (adv_type != AdvType::Centered_2nd)
         {
             avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
             avg2 -= (r0_arr(i,j+1,k) + r0_arr(i,j-2,k));
             diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
+            diff2 -= (r0_arr(i,j+1,k) - r0_arr(i,j-2,k));
         }
         if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
             avg3 -= (r0_arr(i,j+2,k) + r0_arr(i,j-3,k));
             diff3 = (qty(i, j+2, k, qty_index) - qty(i, j-3, k, qty_index));
+            diff3 -= (r0_arr(i,j+2,k) - r0_arr(i,j-3,k));
         }
     } else {
         avg1  = (qty(i, j, k  , qty_index) + qty(i, j, k-1, qty_index));

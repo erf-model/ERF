@@ -121,8 +121,11 @@ ERF::init_custom (int lev)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp,        1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,NSCALARS, cons_pert.nGrow());
 
-    // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, or MYNN with PBL
+    // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, MYJ, SHOC, MYNN2.5 or MYNN-EDMF
+    // Here we initialize TKE to the tke_min value and then add problem-specific perturbations
     if (solverChoice.turbChoice[lev].use_tke) {
+        lev_new[Vars::cons].setVal(solverChoice.turbChoice[lev].tke_min, RhoKE_comp, 1);
+        MultiFab::Multiply(lev_new[Vars::cons],lev_new[Vars::cons],Rho_comp,RhoKE_comp,1,lev_new[Vars::cons].nGrowVect());
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 

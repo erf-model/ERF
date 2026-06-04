@@ -35,10 +35,10 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("pert_periods_U", parms.pert_periods_U);
   pp.query("pert_periods_V", parms.pert_periods_V);
   pp.query("pert_ref_height", parms.pert_ref_height);
-  parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
-  parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
-  parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
-  parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+  parms.aval = parms.pert_periods_U * amrex::Real(2.0) * PI / (probhi[1] - problo[1]);
+  parms.bval = parms.pert_periods_V * amrex::Real(2.0) * PI / (probhi[0] - problo[0]);
+  parms.ufac = parms.pert_deltaU * std::exp(amrex::Real(0.5)) / parms.pert_ref_height;
+  parms.vfac = parms.pert_deltaV * std::exp(amrex::Real(0.5)) / parms.pert_ref_height;
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
@@ -89,21 +89,21 @@ Problem::init_custom_pert (
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();
     const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+    const Real x = prob_lo[0] + (i + Real(0.5)) * dx[0];
+    const Real y = prob_lo[1] + (j + Real(0.5)) * dx[1];
+    const Real z = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + Real(0.5)) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
-    const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-    const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+    const Real xc = Real(0.5) * (prob_lo[0] + prob_hi[0]);
+    const Real yc = Real(0.5) * (prob_lo[1] + prob_hi[1]);
+    const Real zc = Real(0.5) * (prob_lo[2] + prob_hi[2]);
 
     const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
     // Add temperature perturbations
     if ((z <= parms_d.pert_ref_height) && (parms_d.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
+        state_pert(i, j, k, RhoTheta_comp) = (rand_double*Real(2.0) - Real(1.0))*parms_d.T_0_Pert_Mag;
         if (!parms_d.pert_rhotheta) {
             // we're perturbing theta, not rho*theta
             state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
@@ -111,7 +111,7 @@ Problem::init_custom_pert (
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
+    state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(Real(-10.)*r*r);
 
     // Set an initial value for SGS KE
     if (state_pert.nComp() > RhoKE_comp) {
@@ -124,8 +124,8 @@ Problem::init_custom_pert (
         if (parms_d.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state_pert(i, j, k, RhoKE_comp) *= max(
-                std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
-                1e-12);
+                std::pow(Real(1.0) - min(z/parms_d.KE_decay_height,Real(1.0)), parms_d.KE_decay_order),
+                Real(1e-12));
         }
     }
   });
@@ -150,24 +150,24 @@ Problem::init_custom_pert_vels (
   ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
-    const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = (z_nd) ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
-                                 + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
-                               : prob_lo[2] + (k + 0.5) * dx[2];
+    const Real y = prob_lo[1] + (j + Real(0.5)) * dx[1];
+    const Real z = (z_nd) ? Real(0.25)*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+                                       + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
+                               : prob_lo[2] + (k + Real(0.5)) * dx[2];
 
     // Set the x-velocity
     x_vel_pert(i, j, k) = parms_d.U_0;
     if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
+        Real x_vel_prime = (rand_double*Real(2.0) - Real(1.0))*parms_d.U_0_Pert_Mag;
         x_vel_pert(i, j, k) += x_vel_prime;
     }
     if (parms_d.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
         const amrex::Real zl = z / parms_d.pert_ref_height;
-        const amrex::Real damp = std::exp(-0.5 * zl * zl);
+        const amrex::Real damp = std::exp(Real(-0.5) * zl * zl);
         x_vel_pert(i, j, k) += parms_d.ufac * damp * z * std::cos(parms_d.aval * yl);
     }
   });
@@ -176,24 +176,24 @@ Problem::init_custom_pert_vels (
   ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = (z_nd) ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
-                                 + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
-                               : prob_lo[2] + (k + 0.5) * dx[2];
+    const Real x = prob_lo[0] + (i + Real(0.5)) * dx[0];
+    const Real z = (z_nd) ? Real(0.25)*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
+                                       + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
+                               : prob_lo[2] + (k + Real(0.5)) * dx[2];
 
     // Set the y-velocity
     y_vel_pert(i, j, k) = parms_d.V_0;
     if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
+        Real y_vel_prime = (rand_double*Real(2.0) - Real(1.0))*parms_d.V_0_Pert_Mag;
         y_vel_pert(i, j, k) += y_vel_prime;
     }
     if (parms_d.pert_deltaV != 0.0)
     {
         const amrex::Real xl = x - prob_lo[0];
         const amrex::Real zl = z / parms_d.pert_ref_height;
-        const amrex::Real damp = std::exp(-0.5 * zl * zl);
+        const amrex::Real damp = std::exp(Real(-0.5) * zl * zl);
         y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
     }
   });
@@ -211,7 +211,7 @@ Problem::init_custom_pert_vels (
     else if (parms_d.W_0_Pert_Mag != 0.0)
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
+        Real z_vel_prime = (rand_double*Real(2.0) - Real(1.0))*parms_d.W_0_Pert_Mag;
         z_vel_pert(i, j, k) = parms_d.W_0 + z_vel_prime;
     }
   });
@@ -243,7 +243,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real D = 3.75e-6;
+    Real D = Real(3.75e-6);
     for (int k = 0; k <= khi; k++) {
         const Real z_w_face = (z_phys_nd) ? zlevels[k] : prob_lo[2] + k*dx[2];
         wbar[k] = -D * z_w_face;

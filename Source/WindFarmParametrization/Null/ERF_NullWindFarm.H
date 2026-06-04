@@ -147,11 +147,11 @@ bool find_if_marked (amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real
     // x = x1, x = x2, y = y1, y = y2. The intersections are
     // (xval1,y1), (xval2,y2), (x1,yval1) and (x2,yval2)
 
-    amrex::Real xval1 = x0 - (y1-y0)*ny/(nx+1e-10);
-    amrex::Real xval2 = x0 - (y2-y0)*ny/(nx+1e-10);
+    amrex::Real xval1 = x0 - (y1-y0)*ny/(nx+amrex::Real(1e-10));
+    amrex::Real xval2 = x0 - (y2-y0)*ny/(nx+amrex::Real(1e-10));
 
-    amrex::Real yval1 = y0 - (x1-x0)*nx/(ny+1e-10);
-    amrex::Real yval2 = y0 - (x2-x0)*nx/(ny+1e-10);
+    amrex::Real yval1 = y0 - (x1-x0)*nx/(ny+amrex::Real(1e-10));
+    amrex::Real yval2 = y0 - (x2-x0)*nx/(ny+amrex::Real(1e-10));
 
     if( xval1 >=x1 and xval1 <=x2 ) {
         if(std::pow((xval1-x0)*(xval1-x0) + (y1-y0)*(y1-y0) + (z-d_hub_height)*(z-d_hub_height),myhalf) < d_rotor_rad ) {

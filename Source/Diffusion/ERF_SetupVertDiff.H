@@ -76,33 +76,24 @@
        }
     }
 
-//  Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
-//                            EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h ,
-//                            EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h };
-//  Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
-//                            EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h ,
-//                            EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h };
+    // The number of quantities following Scalar_h must be equal to the number
+    //   of quantities in the conserved state following RhoScalar_comp -- this is
+    //   currently all the moist quantities, which tops out at 11 for the Morrison model
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::Scalar_v,
-                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v ,
-                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v };
+                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v,
+                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v,
+                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v,
+                              EddyDiff::Q_v    , EddyDiff::Q_v};
 
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;
-//  Gpu::AsyncVector<int>  eddy_diff_idx_d;
-//  Gpu::AsyncVector<int>  eddy_diff_idy_d;
     Gpu::AsyncVector<int>  eddy_diff_idz_d;
     alpha_eff_d.resize(alpha_eff.size());
-//  eddy_diff_idx_d.resize(eddy_diff_idx.size());
-//  eddy_diff_idy_d.resize(eddy_diff_idy.size());
     eddy_diff_idz_d.resize(eddy_diff_idz.size());
 
     Gpu::copy(Gpu::hostToDevice, alpha_eff.begin()    , alpha_eff.end()    , alpha_eff_d.begin());
-//  Gpu::copy(Gpu::hostToDevice, eddy_diff_idx.begin(), eddy_diff_idx.end(), eddy_diff_idx_d.begin());
-//  Gpu::copy(Gpu::hostToDevice, eddy_diff_idy.begin(), eddy_diff_idy.end(), eddy_diff_idy_d.begin());
     Gpu::copy(Gpu::hostToDevice, eddy_diff_idz.begin(), eddy_diff_idz.end(), eddy_diff_idz_d.begin());
 
     // Capture pointers for device code
     Real* d_alpha_eff     = alpha_eff_d.data();
-//  int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
-//  int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
     [[maybe_unused]] int*  d_eddy_diff_idz = eddy_diff_idz_d.data();

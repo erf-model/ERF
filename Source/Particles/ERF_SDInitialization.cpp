@@ -17,7 +17,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
         m_init_particle_p2[i] = a_geom.ProbHi(i);
     }
 
-    m_num_species = a_species_mat.size();
+    m_num_species = static_cast<int>(a_species_mat.size());
     m_mass_species_min.resize(m_num_species);
     m_mass_species_max.resize(m_num_species);
     m_mass_species_mean.resize(m_num_species);
@@ -48,7 +48,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
         m_radius_species_geom_std[i] = two;
     }
 
-    m_num_aerosols = a_aerosol_mat.size();
+    m_num_aerosols = static_cast<int>(a_aerosol_mat.size());
     m_mass_aerosol_min.resize(m_num_aerosols);
     m_mass_aerosol_max.resize(m_num_aerosols);
     m_mass_aerosol_mean.resize(m_num_aerosols);
@@ -420,13 +420,13 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
     a_mass.resize(a_np);
     AMREX_ALWAYS_ASSERT(static_cast<amrex::Long>(a_mult.size()) == a_np);
     if (a_init_type == SDDistributionType::mass_constant) {
-        std::uniform_real_distribution<> urd(zero, one);
+        std::uniform_real_distribution<amrex::Real> urd(zero, one);
         for (int n = 0; n < a_np; n++) {
             a_mass[n] = a_mass_mean;
             a_mult[n] += urd(a_rng); // initially this will be a non-integer; later we will rescale to an integer.
         }
     } else if (a_init_type == SDDistributionType::mass_exponential) {
-        std::uniform_real_distribution<> urd(zero, one);
+        std::uniform_real_distribution<amrex::Real> urd(zero, one);
         auto delta = a_mass_mean - a_mass_min;
         auto lnrng = std::log(a_mass_max) - std::log(a_mass_min);
         auto lnmin = std::log(a_mass_min);
@@ -436,7 +436,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             a_mult[n] += (m_numdens * a_dV) * std::exp(-a_mass[n] / delta);
         }
     } else if (a_init_type == SDDistributionType::radius_log_normal) {
-        std::uniform_real_distribution<> urd(zero, one);
+        std::uniform_real_distribution<amrex::Real> urd(zero, one);
         auto sigma = std::log(a_radius_gstd);
         auto mu = a_radius_mean;
         auto lnrng = std::log(a_radius_max) - std::log(a_radius_min);
@@ -446,14 +446,14 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             a_mass[n] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(two*sigma*sigma));
-            a_mult[n] += ( m_numdens * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
+            a_mult[n] += ( m_numdens * a_dV ) / (sigma*std::sqrt(amrex::Real(2)*PI)) * term;
         }
     } else if (a_init_type == SDDistributionType::radius_lognormal_autorange) {
-        std::uniform_real_distribution<> urd(zero, one);
+        std::uniform_real_distribution<amrex::Real> urd(zero, one);
         auto sigma = std::log(a_radius_gstd);
         auto mu = a_radius_mean;
         // automatically find the min and max radius of superdroplets, using Dziekan & Pawlowska 2017
-        auto rmin = 1e-9;
+        auto rmin = amrex::Real(1e-9);
         auto rmax = one;
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = zero;
@@ -470,8 +470,8 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             if (P_min <= tol) {
                 rmin = rmin * amrex::Real(1.01);
             }
-            P_min = (1 + std::erf((std::log(rmin / mu)) / sigma / std::sqrt(2))) / 2;
-            P_max = (1 + std::erf((std::log(rmax / mu)) / sigma / std::sqrt(2))) / 2;
+            P_min = (one + std::erf((std::log(rmin / mu)) / sigma / std::sqrt(amrex::Real(2)))) / amrex::Real(2);
+            P_max = (one + std::erf((std::log(rmax / mu)) / sigma / std::sqrt(amrex::Real(2)))) / amrex::Real(2);
         }
         dlnr = (std::log(rmax) - std::log(rmin));
         amrex::Print() << "Range: rmin =" << rmin << ", rmax = " << rmax << ", dlnr = " << dlnr << "\n";
@@ -484,17 +484,17 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             tmp_mass[n] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(two*sigma*sigma));
-            tmp_mult[n] =  (m_numdens * a_dV)/ (sigma*std::sqrt(2*PI)) * term;
+            tmp_mult[n] =  (m_numdens * a_dV)/ (sigma*std::sqrt(amrex::Real(2)*PI)) * term;
         }
 
         // initialize the tail using approximate erfinv
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
-        auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(two*sigma*sigma)) / (sigma*std::sqrt(2*PI));
+        auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(two*sigma*sigma)) / (sigma*std::sqrt(amrex::Real(2)*PI));
         for (int n = 0; n < a_np_tail; n++) {
             int sd_id = static_cast<int>(std::round(urd(a_rng) * a_np));
             auto tmp = P_max + (one - P_max) * urd(a_rng);
-            auto tmp2 = SD_erfinv(2 * tmp - 1);
-            auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
+            auto tmp2 = SD_erfinv(amrex::Real(2) * tmp - amrex::Real(1));
+            auto dry_r = mu * std::exp(sigma * std::sqrt(amrex::Real(2)) * tmp2);
             tmp_mass[sd_id] = four_thirds_pi * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
             tmp_mult[sd_id] = (m_numdens * a_dV) * tail_mult;

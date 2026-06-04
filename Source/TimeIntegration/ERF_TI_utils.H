@@ -53,13 +53,13 @@
     {
         BL_PROFILE("make_qt()");
 
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
 
         // All moisture models are guaranteed to have RhoQ1_comp
         MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, qt.nGrowVect());
 
         // Sum up each component
-        for (int n(1); n<n_qstate_moist; ++n) {
+        for (int n(1); n<n_qstate_into_total; ++n) {
             MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, qt.nGrowVect());
         }
 

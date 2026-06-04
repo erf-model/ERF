@@ -19,7 +19,8 @@ MODULE mp_morr_two_moment_isohelper
                 snownc, snowncv, graupelnc, graupelncv, &
                 refl_10cm, diagflag, do_radar_ref, &
                 qrcuten, qscuten, qicuten, &
-                f_qndrop, qndrop, ht, &
+                !  f_qndrop, qndrop, ht, &
+                f_qndrop, qndrop, &
                 ids, ide, jds, jde, kds, kde, &
                 ims, ime, jms, jme, kms, kme, &
                 its, ite, jts, jte, kts, kte, &
@@ -40,7 +41,7 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: qrcuten, qscuten, qicuten
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: f_qndrop
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: qndrop
-    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme) :: ht
+    ! REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme) :: ht
 
     ! Domain dimensions
     INTEGER(C_INT), VALUE, INTENT(IN) :: ids, ide, jds, jde, kds, kde
@@ -62,7 +63,8 @@ MODULE mp_morr_two_moment_isohelper
 
     CALL MP_MORR_TWO_MOMENT(itimestep, &
                 th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
-                rho, pii, p, dt_in, dz, ht, w, &
+                ! rho, pii, p, dt_in, dz, ht, w, &
+                rho, pii, p, dt_in, dz, w, &
                 rainnc, rainncv, sr, &
                 snownc, snowncv, graupelnc, graupelncv, &
                 refl_10cm, diag_flag_f, do_radar_ref, &

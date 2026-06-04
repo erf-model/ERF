@@ -2,9 +2,13 @@
 #define ERF_SATADJ_H
 
 /*
- * Implementation saturation adjustment microphysics model
- * The model transports qv and qc and does Newton iterations
- * to complete condensation/evaporation.
+ * SatAdj is a cell-local, fixed-pressure saturation-adjustment source step.
+ * It is not a flux-form finite-volume update.
+ *
+ * The scheme reads rho, rhoTheta, rhoQv, and rhoQc from the conserved state,
+ * adjusts theta/qv/qc locally, and writes rhoTheta/rhoQv/rhoQc back.
+ * Density is copied for diagnostics and conservative reconstruction, but rho is
+ * not a SatAdj prognostic variable and is not modified by this module.
  */
 
 #include <string>
@@ -27,13 +31,13 @@
 namespace MicVar_SatAdj {
    enum {
       // independent variables
-      rho=0, // density
-      theta, // liquid/ice water potential temperature
-      tabs,  // temperature
-      pres,  // pressure
+    rho=0, // density copied from conserved state; not modified by SatAdj
+    theta, // dry potential temperature
+    tabs,  // absolute temperature [K]
+    pres,  // pressure [mbar/hPa] for saturation helpers
       // non-precipitating vars
-      qv,    // cloud vapor
-      qc,   // cloud water
+    qv,    // water-vapor mixing ratio
+    qc,    // cloud-water mixing ratio
       NumVars
   };
 }
@@ -116,6 +120,9 @@ public:
     int
     Qstate_Moist_Size () override { return SatAdj::n_qstate_moist_size; }
 
+    int
+    Qstate_Moist_NumConc_Size () override { return SatAdj::n_qstate_moist_numconc_size; }
+
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
@@ -125,12 +132,21 @@ public:
         a_names.clear();
     }
 
-    void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
-
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static amrex::Real
+    // Newton solve for the saturated final temperature at fixed pressure.
+    // The invariant is T + (L/cp) * qv for the local cell. The solve finds
+    // T_new such that qv_new = qsat(T_new, p). The pressure argument is held
+    // fixed in mbar/hPa throughout the solve.
+    //
+    // Solves the fixed-pressure saturation equation
+    //   0 = -T_new + T_old + (L/cp) * (qv_old - qsat(T_new, p))
+    // for T_new. On return, qsat is evaluated exactly at the returned
+    // temperature. The caller uses that qsat to set qv and qc while
+    // conserving qv + qc. Density does not enter this solve.
+    // If the Newton iteration reaches max_niter before the tolerance, the
+    // routine returns the last iterate and recomputes qsat at that temperature.
     NewtonSolveSatTemperature (const amrex::Real fac_cond,
                                const amrex::Real tabs_old,
                                const amrex::Real pres_mbar,
@@ -171,8 +187,8 @@ public:
             niter = niter+1;
         } while(std::abs(dtabs) > tol && niter < max_niter);
 
-        // Update qsat from last iteration (dq = dq/dt * dt)
-        qsat += dqsat*dtabs;
+        // Return qsat evaluated at the final temperature, not a tangent extrapolation.
+        erf_qsatw(tabs, pres_mbar, qsat);
 
         return tabs;
     }
@@ -180,6 +196,11 @@ public:
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static void
+    // Cell-local fixed-pressure saturation adjustment.
+    // Inputs/outputs are specific quantities for one cell. The density is not
+    // used or modified. The update conserves qv + qc and, at the pressure
+    // passed in, conserves T + (L/cp) * qv. The final state should satisfy
+    // qc >= 0 and either qc == 0 or qv == qsat(T,p).
     AdjustSatAdjCell (const amrex::Real fac_cond,
                       const amrex::Real rdOcp,
                       amrex::Real& tabs,
@@ -192,12 +213,18 @@ public:
         erf_qsatw(tabs, pres_mbar, qsat);
 
         if ((qv + qc) > qsat) {
+            // Total water exceeds saturation at the initial temperature, so the final state
+            // is cloudy and saturated. Solve directly for the final saturated temperature.
+            // This is algebraically equivalent to evaporating existing cloud water first
+            // and then recondensing to the fixed-pressure equilibrium state.
 #if defined(AMREX_DEBUG)
             const amrex::Real qvprev = qv;
             const amrex::Real qcprev = qc;
 #endif
 
             if (qc < 0) {
+                // Repair negative cloud water by transferring the deficit back to vapor
+                // before solving the saturated equilibrium and clamping qc to zero.
                 qv += qc;
                 qc = zero;
             }
@@ -217,6 +244,9 @@ public:
 
             theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
         } else {
+            // Total water does not exceed initial saturation. Evaporate all cloud water,
+            // cooling the cell by latent heat absorption. The cooled cell can become
+            // supersaturated, so recondense if needed.
             const amrex::Real delta_qc = qc;
 
             qv += qc;
@@ -261,11 +291,11 @@ private:
     // Number of qstate variables
     int n_qstate_moist_size = 2;
 
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
+
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

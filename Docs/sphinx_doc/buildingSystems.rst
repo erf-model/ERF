@@ -548,6 +548,14 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables support for Lagrangian particles
      - OFF
      - ON/OFF
+   * - ``ERF_PRECISION``
+     - Floating-point precision for mesh data
+     - DOUBLE
+     - SINGLE/DOUBLE
+   * - ``ERF_PARTICLES_PRECISION``
+     - Floating-point precision for particle data; defaults to ``ERF_PRECISION``
+     - DOUBLE
+     - SINGLE/DOUBLE
    * - ``ERF_ENABLE_MULTIBLOCK``
      - Enables multiblock capability
      - OFF

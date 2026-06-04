@@ -138,6 +138,12 @@ public:
         return m_moist_model->Qstate_Moist_Size();
     }
 
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    int Get_Qstate_Moist_NumConc_Size () override
+    {
+        return m_moist_model->Qstate_Moist_NumConc_Size();
+    }
+
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     int Get_Qstate_NonMoist_Size () override
     {
@@ -210,13 +216,6 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model->Set_dzmin(dz_min);
-    }
-
-    /*! \brief Populates real_width in micro model for box limiting */
-    virtual void Set_RealWidth (const int /*a_lev*/,
-                                const int real_width) const override
-    {
-        m_moist_model->Set_RealWidth(real_width);
     }
 
 protected:

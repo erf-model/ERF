@@ -228,9 +228,9 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                           + vfrac(i  ,j,k-1) * mu_turb(i  , j, k-1, EddyDiff::Mom_v) ) / vol_sum;
             } else {
                 rho_bar = fourth*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i  , j, k  , Rho_comp)
-                               + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i  , j, k-1, Rho_comp) );
+                                 + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i  , j, k-1, Rho_comp) );
                 mu_bar  = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i  , j, k  , EddyDiff::Mom_v)
-                               + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i  , j, k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i  , j, k-1, EddyDiff::Mom_v) );
             }
             Real mu_13 = rho_bar*mu_eff + two*mu_bar;
             tau13(i,j,k) *= -mu_13;
@@ -250,9 +250,9 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                           + vfrac(i,j  ,k-1) * mu_turb(i, j  , k-1, EddyDiff::Mom_v) ) / vol_sum;
             } else {
                 rho_bar = fourth*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j  , k  , Rho_comp)
-                               + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j  , k-1, Rho_comp) );
+                                 + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j  , k-1, Rho_comp) );
                 mu_bar  = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j  , k  , EddyDiff::Mom_v)
-                               + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j  , k-1, EddyDiff::Mom_v) );
+                                 + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j  , k-1, EddyDiff::Mom_v) );
             }
             Real mu_23 = rho_bar*mu_eff + two*mu_bar;
             tau23(i,j,k) *= -mu_23;
@@ -292,7 +292,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          + vfrac(i  ,j-1,k) * mu_turb(i  , j-1, k, EddyDiff::Mom_h) ) / vol_sum;
             } else {
                 mu_bar = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i  , j  , k, EddyDiff::Mom_h)
-                              + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i  , j-1, k, EddyDiff::Mom_h) );
+                                + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i  , j-1, k, EddyDiff::Mom_h) );
             }
             Real mu_12 = mu_eff + two*mu_bar;
             tau12(i,j,k) *= -mu_12;
@@ -307,7 +307,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          + vfrac(i  ,j,k-1) * mu_turb(i  , j, k-1, EddyDiff::Mom_v) ) / vol_sum;
             } else {
                 mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i  , j, k  , EddyDiff::Mom_v)
-                              + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i  , j, k-1, EddyDiff::Mom_v) );
+                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i  , j, k-1, EddyDiff::Mom_v) );
             }
             Real mu_13 = mu_eff + two*mu_bar;
             tau13(i,j,k) *= -mu_13;
@@ -323,7 +323,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          + vfrac(i,j  ,k-1) * mu_turb(i, j  , k-1, EddyDiff::Mom_v) ) / vol_sum;
             } else {
                 mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j  , k  , EddyDiff::Mom_v)
-                              + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j  , k-1, EddyDiff::Mom_v) );
+                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j  , k-1, EddyDiff::Mom_v) );
             }
             Real mu_23 = mu_eff + two*mu_bar;
             tau23(i,j,k) *= -mu_23;

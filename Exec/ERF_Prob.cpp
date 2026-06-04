@@ -222,7 +222,7 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name_ci == "moving terrain") {
 #include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
     }
-    if (my_prob_name_ci == "bubble") {
+    else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if  (my_prob_name_ci == "bomex") {

@@ -63,16 +63,18 @@ public:
      * @param[in] geom container for geometric information
     */
     virtual void
-    erf_init_dens_hse (amrex::MultiFab& /*rho_hse*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
-                       amrex::Geometry const& /*geom*/)
+    erf_init_dens_hse_dry (amrex::MultiFab& /*rho_hse*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                           amrex::Geometry const& /*geom*/,
+                           const amrex::Vector<amrex::Real>& /*stretched_dz_h*/,
+                           bool /*is_constant_dz*/, bool /*is_stretched_dz*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
             << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
-        amrex::Error("Should never call this version of erf_init_dens_hse for "+name()+" problem");
+        amrex::Error("Should never call this version of erf_init_dens_hse_dry for "+name()+" problem");
     }
 
     virtual void

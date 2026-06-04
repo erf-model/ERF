@@ -53,14 +53,14 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             const auto& p = ptd.m_aos[i];
             if (p.id() <= 0) { return; }
 
-            const Real pval = value_func(ptd, i);
+            const Real pval = static_cast<Real>(value_func(ptd, i));
 
-            const Real lx = (p.pos(0) - plo[0]) * dxi[0] + Real(0.5);
+            const Real lx = static_cast<Real>((p.pos(0) - plo[0]) * dxi[0]) + Real(0.5);
             const int  ix = static_cast<int>(Math::floor(lx)) - 1;
             const Real wx1 = lx - static_cast<Real>(ix + 1);
             const Real wx0 = Real(1.0) - wx1;
 
-            const Real ly = (p.pos(1) - plo[1]) * dxi[1] + Real(0.5);
+            const Real ly = static_cast<Real>((p.pos(1) - plo[1]) * dxi[1]) + Real(0.5);
             const int  iy = static_cast<int>(Math::floor(ly)) - 1;
             const Real wy1 = ly - static_cast<Real>(iy + 1);
             const Real wy0 = Real(1.0) - wy1;
@@ -69,8 +69,8 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
                                                                * dxi[AMREX_SPACEDIM-1]));
             const int ix_p = static_cast<int>(Math::floor((p.pos(0) - plo[0]) * dxi[0]));
             const int iy_p = static_cast<int>(Math::floor((p.pos(1) - plo[1]) * dxi[1]));
-            const Real fx  = (p.pos(0) - plo[0]) * dxi[0] - static_cast<Real>(ix_p);
-            const Real fy  = (p.pos(1) - plo[1]) * dxi[1] - static_cast<Real>(iy_p);
+            const Real fx  = static_cast<Real>((p.pos(0) - plo[0]) * dxi[0]) - static_cast<Real>(ix_p);
+            const Real fy  = static_cast<Real>((p.pos(1) - plo[1]) * dxi[1]) - static_cast<Real>(iy_p);
 
             auto zface = [=] AMREX_GPU_DEVICE (int k_face) -> Real {
                 return zheight(ix_p  , iy_p  , k_face) * (Real(1.0)-fx) * (Real(1.0)-fy)
@@ -95,9 +95,9 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
             // Particle pos(2) is computational zeta; convert to physical z so
             // the cell-center comparison and weight span are in the same units
             // as zface() (which is built from the height array).
-            const Real p_z = ERF::ParticlePos::z_from_zeta(
+            const Real p_z = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
                 p.pos(0), p.pos(1), p.pos(AMREX_SPACEDIM-1),
-                plo, dxi, zheight);
+                plo, dxi, zheight));
 
             int  kz_lo, kz_hi;
             Real wz_lo, wz_hi;

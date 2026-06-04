@@ -9,7 +9,6 @@ void ERF::advance_microphysics (int lev,
                                 const Real& time )
 {
     if (solverChoice.moisture_type != MoistureType::None) {
-        micro->Set_RealWidth(lev, real_width);
         if (lev > 0) {
             MultiFab& U_new = vars_new[lev][Vars::xvel];
             MultiFab& V_new = vars_new[lev][Vars::yvel];

@@ -34,7 +34,7 @@ GeneralAD::compute_power_output (const Real& time)
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-     const int n_spec_table = wind_speed.size();
+     const int n_spec_table = static_cast<int>(wind_speed.size());
   // Compute power based on the look-up table
 
     if (ParallelDescriptor::IOProcessor()){
@@ -45,8 +45,8 @@ GeneralAD::compute_power_output (const Real& time)
             Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
         }
         Real total_power = zero;
-        for(int it=0; it<xloc.size(); it++){
-            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+        for(int it=0; it<static_cast<int>(xloc.size()); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + Real(1e-10));
             Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
             total_power = total_power + turb_power;
         }
@@ -144,16 +144,16 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
 
     // Reduce the data on every processor
     amrex::ParallelAllReduce::Sum(freestream_velocity.data(),
-                                  freestream_velocity.size(),
+                                  static_cast<int>(freestream_velocity.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
     amrex::ParallelAllReduce::Sum(freestream_phi.data(),
-                                  freestream_phi.size(),
+                                  static_cast<int>(freestream_phi.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
 
    amrex::ParallelAllReduce::Sum(disk_cell_count.data(),
-                                 disk_cell_count.size(),
+                                 static_cast<int>(disk_cell_count.size()),
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
@@ -265,19 +265,19 @@ compute_source_terms_Fn_Ft (const Real rad,
         Cn = Cl*std::cos(psi) + Cd*std::sin(psi);
         Ct = Cl*std::sin(psi) - Cd*std::cos(psi);
 
-        ftip = B*(rtip-rad)/(two*rad*std::sin(psi)+1e-10);
-        fhub = B*(rad-rhub)/(two*rad*std::sin(psi)+1e-10);
+        ftip = B*(rtip-rad)/(two*rad*std::sin(psi)+Real(1e-10));
+        fhub = B*(rad-rhub)/(two*rad*std::sin(psi)+Real(1e-10));
 
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-fhub))<=one);
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-ftip))<=one);
 
         F = two/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
 
-        at_new = one/ ( Real(4.0)*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - one );
-        an_new = one/ ( one + Real(4.0)*F*amrex::Math::powi<2>(std::sin(psi))/(s*Cn + 1e-10) );
+        at_new = one/ ( Real(4.0)*F*std::sin(psi)*std::cos(psi)/(s*Ct+Real(1e-10)) - one );
+        an_new = one/ ( one + Real(4.0)*F*amrex::Math::powi<2>(std::sin(psi))/(s*Cn + Real(1e-10)) );
         at_new = std::max(Real(0.), at_new);
 
-        if(std::fabs(at_new-at) < 1e-5 and std::fabs(an_new-an) < 1e-5) {
+        if(std::fabs(at_new-at) < Real(1e-5) and std::fabs(an_new-an) < Real(1e-5)) {
             //printf("Converged at, an = %d %0.15g %0.15g %0.15g\n",i, at, an, psi);
             at = at_new;
             an = an_new;
@@ -354,7 +354,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
       // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
       mf_vars_generalAD.setVal(0.0);
 
-     long unsigned int nturbs = xloc.size();
+     long unsigned int nturbs = static_cast<long unsigned int>(xloc.size());
 
     // This is the angle phi in Fig. 10 in Mirocha et. al. 2014
     // set_turb_disk angle in ERF_InitWindFarm.cpp sets this phi as
@@ -372,7 +372,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Real* d_freestream_velocity_ptr = d_freestream_velocity.data();
     Real* d_disk_cell_count_ptr     = d_disk_cell_count.data();
 
-    int n_bld_sections = bld_rad_loc.size();
+    int n_bld_sections = static_cast<int>(bld_rad_loc.size());
 
     Gpu::DeviceVector<Real>    d_bld_rad_loc(n_bld_sections);
     Gpu::DeviceVector<Real>    d_bld_twist(n_bld_sections);
@@ -390,7 +390,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cl(n_bld_sections);
     Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cd(n_bld_sections);
 
-    int n_pts_airfoil = bld_airfoil_aoa[0].size();
+    int n_pts_airfoil = static_cast<int>(bld_airfoil_aoa[0].size());
 
     for(int i=0;i<n_bld_sections;i++){
         d_bld_airfoil_aoa[i].resize(n_pts_airfoil);
@@ -420,7 +420,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     auto d_bld_airfoil_Cl_ptr  = Cl.data();
     auto d_bld_airfoil_Cd_ptr  = Cd.data();
 
-    int n_spec_extra = velocity.size();
+    int n_spec_extra = static_cast<int>(velocity.size());
 
     Gpu::DeviceVector<Real> d_velocity(n_spec_extra);
     Gpu::DeviceVector<Real> d_rotor_RPM(n_spec_extra);
@@ -456,7 +456,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
             std::array<Real,2> Fn_and_Ft;
 
             for(long unsigned int it=0;it<nturbs;it++) {
-                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
+                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + Real(1e-10));
                  Real phi = d_turb_disk_angle;
 
                 // This if check makes sure it is a point on the actuator disk

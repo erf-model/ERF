@@ -24,6 +24,7 @@ CEXE_headers += ERF_InitCustomPert_UserDefined.H
 
 CEXE_headers += ERF_InitCustomPertVels_Bomex.H
 CEXE_headers += ERF_InitCustomPertVels_ConstantU.H
+CEXE_headers += ERF_InitCustomPertVels_CouettePoiseuille.H
 CEXE_headers += ERF_InitCustomPertVels_DensityCurrent.H
 CEXE_headers += ERF_InitCustomPertVels_IsentropicVortex.H
 CEXE_headers += ERF_InitCustomPertVels_MovingTerrain.H

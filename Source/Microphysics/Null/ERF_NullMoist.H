@@ -60,6 +60,10 @@ public:
 
     virtual
     int
+    Qstate_Moist_NumConc_Size () { return NullMoist::m_qstate_moist_numconc_size; }
+
+    virtual
+    int
     Qstate_NonMoist_Size () { return NullMoist::m_qstate_nonmoist_size; }
 
     virtual
@@ -112,12 +116,17 @@ public:
 
     virtual
     void
+    // Current SatAdj/Kessler development paths do not trim by real width, but
+    // tests still exercise Set_RealWidth(0/1/2) as a future-proof contract.
+    // Keep the base hook as a no-op unless a concrete microphysics model
+    // chooses to implement width-sensitive behavior.
     Set_RealWidth (const int /*real_width*/) { }
 
 
 private:
     int m_qmoist_size = 0;
     int m_qstate_moist_size = 0;
+    int m_qstate_moist_numconc_size = 0;
     int m_qstate_nonmoist_size = 0;
 };
 

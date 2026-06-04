@@ -47,6 +47,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    Initialization.rst
    BestPractices.rst
    AgenticWorkFlow.rst
+   ERFKnowledgeAssistant.rst
    HowToCite.rst
 
 .. toctree::

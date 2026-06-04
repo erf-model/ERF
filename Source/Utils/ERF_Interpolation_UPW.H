@@ -8,6 +8,8 @@
  */
 struct CENTERED2
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     CENTERED2 (const amrex::Array4<const amrex::Real>& phi,
                const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
@@ -91,6 +93,8 @@ private:
  */
 struct UPWIND3
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     UPWIND3 (const amrex::Array4<const amrex::Real>& phi,
              const amrex::Real upw_frac)
         : m_phi(phi)
@@ -196,6 +200,8 @@ struct UPWIND3
 
     int GetUpwindCellNumber() const {return 2;}
 
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
 
 private:
@@ -211,6 +217,8 @@ private:
  */
 struct UPWIND3SL
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     UPWIND3SL (const amrex::Array4<const amrex::Real>& phi,
                const amrex::Real /*upw_frac*/)
         : m_phi(phi)
@@ -306,7 +314,7 @@ struct UPWIND3SL
     {
         amrex::Real rmh = (s - sm1) / ((sm1 - sm2) + eps);
         amrex::Real K   = l2 + amrex::Real(2)*l2*rmh;
-        amrex::Real phi = std::max(amrex::Real(0),std::min(amrex::Real(2)*rmh,std::min(amrex::Real(2),K)));
+        amrex::Real phi = amrex::max(amrex::Real(0), amrex::min(amrex::Real(2)*rmh, amrex::min(amrex::Real(2), K)));
         return (sm1 + myhalf * phi * (sm1 - sm2));
     }
 
@@ -325,6 +333,8 @@ private:
  */
 struct CENTERED4
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     CENTERED4 (const amrex::Array4<const amrex::Real>& phi,
                const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
@@ -418,6 +428,8 @@ private:
  */
 struct UPWIND5
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     UPWIND5 (const amrex::Array4<const amrex::Real>& phi,
              const amrex::Real upw_frac)
         : m_phi(phi)
@@ -533,6 +545,8 @@ struct UPWIND5
 
     int GetUpwindCellNumber() const {return 3;}
 
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
 
 private:
@@ -548,6 +562,8 @@ private:
  */
 struct CENTERED6
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     CENTERED6 (const amrex::Array4<const amrex::Real>& phi,
                const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
@@ -651,6 +667,8 @@ private:
  */
 struct UPWINDALL
 {
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
     UPWINDALL (const amrex::Array4<const amrex::Real>& phi,
                const amrex::Real upw_frac)
         : m_phi(phi)

@@ -215,9 +215,9 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     m_aerosol_mat.clear();
 
     setSpeciesMaterial( a_species_mat );
-    m_num_species = m_species_mat.size();
+    m_num_species = static_cast<int>(m_species_mat.size());
     setAerosolMaterial( a_aerosol_mat );
-    m_num_aerosols = m_aerosol_mat.size();
+    m_num_aerosols = static_cast<int>(m_aerosol_mat.size());
 
     AMREX_ALWAYS_ASSERT(m_num_species  > 0);
     AMREX_ALWAYS_ASSERT(m_num_species  <= SupDropInit::num_species_max);
@@ -398,7 +398,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
             const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;
 
-            Real mult_rnd = -ptrs.mult_ptr[i]/3 + 2*ptrs.mult_ptr[i]/3*Random(rnd_engine);
+            Real mult_rnd = static_cast<Real>(-ptrs.mult_ptr[i]/3 + 2*ptrs.mult_ptr[i]/3*Random(rnd_engine));
             ptrs.mult_ptr[i] += mult_rnd;
 
             ParticleReal species_mass_total = zero;
@@ -413,7 +413,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
                 aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
             }
 
-            const Real mass_particle = mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total;
+            const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);
             ptrs.mass_ptr[i] = mass_particle;
 
             Real radius_cubed = mass_particle / (four_thirds_pi*rho_w);

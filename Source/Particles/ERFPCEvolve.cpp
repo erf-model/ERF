@@ -158,14 +158,14 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 // Advance in physical (x, y, z); pos(2) is zeta on disk so go
                 // through z_from_zeta / zeta_from_z around the update.
                 if (ipass == 0) {
-                    const Real x0 = p.pos(0);
-                    const Real y0 = p.pos(1);
-                    const Real zeta0 = p.pos(AMREX_SPACEDIM-1);
-                    const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
-                        x0, y0, zeta0, plo, dxi, zheight);
-                    const Real x_h = x0 + Real(0.5)*a_dt*v[0];
-                    const Real y_h = y0 + Real(0.5)*a_dt*v[1];
-                    const Real z_h = z_phys0 + Real(0.5)*a_dt*v[2];
+                    const Real x0 = static_cast<Real>(p.pos(0));
+                    const Real y0 = static_cast<Real>(p.pos(1));
+                    const Real zeta0 = static_cast<Real>(p.pos(AMREX_SPACEDIM-1));
+                    const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight));
+                    const Real x_h = x0 + static_cast<Real>(Real(0.5)*a_dt*v[0]);
+                    const Real y_h = y0 + static_cast<Real>(Real(0.5)*a_dt*v[1]);
+                    const Real z_h = z_phys0 + static_cast<Real>(Real(0.5)*a_dt*v[2]);
                     v_ptr[0][i] = static_cast<ParticleReal>(x0);
                     v_ptr[1][i] = static_cast<ParticleReal>(y0);
                     v_ptr[2][i] = static_cast<ParticleReal>(zeta0);
@@ -174,14 +174,14 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
                         ERF::ParticlePos::zeta_from_z(x_h, y_h, z_h, plo, dxi, zheight, k_max));
                 } else {
-                    const Real x0 = v_ptr[0][i];
-                    const Real y0 = v_ptr[1][i];
-                    const Real zeta0 = v_ptr[2][i];
-                    const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
-                        x0, y0, zeta0, plo, dxi, zheight);
-                    const Real x_n = x0 + a_dt*v[0];
-                    const Real y_n = y0 + a_dt*v[1];
-                    const Real z_n = z_phys0 + a_dt*v[2];
+                    const Real x0 = static_cast<Real>(v_ptr[0][i]);
+                    const Real y0 = static_cast<Real>(v_ptr[1][i]);
+                    const Real zeta0 = static_cast<Real>(v_ptr[2][i]);
+                    const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight));
+                    const Real x_n = x0 + static_cast<Real>(a_dt*v[0]);
+                    const Real y_n = y0 + static_cast<Real>(a_dt*v[1]);
+                    const Real z_n = z_phys0 + static_cast<Real>(a_dt*v[2]);
                     p.pos(0) = static_cast<ParticleReal>(x_n);
                     p.pos(1) = static_cast<ParticleReal>(y_n);
                     p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
@@ -269,11 +269,11 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
 
             // Advance in physical z, then back to zeta.
             {
-                const Real x0 = p.pos(0);
-                const Real y0 = p.pos(1);
-                const Real z_phys0 = ERF::ParticlePos::z_from_zeta(
-                    x0, y0, p.pos(AMREX_SPACEDIM-1), plo, dxi, zheight);
-                const Real z_phys_n = z_phys0 + Real(0.5) * a_dt * vz_ptr[i];
+                const Real x0 = static_cast<Real>(p.pos(0));
+                const Real y0 = static_cast<Real>(p.pos(1));
+                const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                    x0, y0, static_cast<Real>(p.pos(AMREX_SPACEDIM-1)), plo, dxi, zheight));
+                const Real z_phys_n = z_phys0 + static_cast<Real>(Real(0.5) * a_dt * vz_ptr[i]);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
                     ERF::ParticlePos::zeta_from_z(x0, y0, z_phys_n, plo, dxi, zheight, k_max));
             }
