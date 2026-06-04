@@ -80,7 +80,6 @@ namespace NoahmpOutputComp {
         NumComps
     };
 }
-}
 
 class NOAHMP : public NullSurf {
 
