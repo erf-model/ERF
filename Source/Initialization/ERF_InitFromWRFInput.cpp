@@ -564,7 +564,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               if (success) {
                   // NOTE: We call FillBoundary on mf_PH below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PH.define(ba_w, dm, 1, IntVect(1,1,0));
+                  int ng_x = z_phys_nd[lev]->nGrowVect()[0]+1;
+                  int ng_y = z_phys_nd[lev]->nGrowVect()[1]+1;
+                  mf_PH.define(ba_w, dm, 1, IntVect(ng_x,ng_y,0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -590,7 +592,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
                   if (lev == 0) {
-                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(1,1,0));
+                      int ng_x = z_phys_nd[lev]->nGrowVect()[0]+1;
+                      int ng_y = z_phys_nd[lev]->nGrowVect()[1]+1;
+                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ng_x,ng_y,0)); // We need 5 ghost cells because z_phys_nd needs 4
                       mf_PHB = wrf_PHB.get();
                   } else {
                       mf_PHB->define(ba_w, dm, 1, IntVect(1,1,0));
@@ -1373,7 +1377,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-        // PHB and PH are on z-faces (myhalf dx/y ahead of zphys)
+        // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells

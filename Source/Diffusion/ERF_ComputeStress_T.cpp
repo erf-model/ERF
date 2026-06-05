@@ -112,9 +112,9 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
 
         Real tau31bar = fourth * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
-                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
+                                 + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
         Real tau32bar = fourth * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
-                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
+                                 + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
         Real mu_tot   = rhoAlpha(i,j,k);
 
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
