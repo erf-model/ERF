@@ -446,8 +446,6 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                                                   *cum_ref[1],
                                                   *cum_ref[2]);
             if (split_factor <= 1) { continue; }
-            const ParticleReal inv_split = ParticleReal(1.0)
-                / static_cast<ParticleReal>(split_factor);
             const int daughter_tag = lev_native;
             const int sf_count = split_factor;
             const int src_tag = source_tag;
@@ -577,30 +575,17 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                 auto& copy_soa = copy_tile.GetStructOfArrays();
                 auto* copy_mult = copy_soa.GetRealData(mult_idx).data();
 
-                Gpu::DeviceVector<ParticleReal> copy_weight_d(n_copies, ParticleReal(0.0));
-                auto* copy_weight = copy_weight_d.data();
-                Gpu::DeviceVector<ParticleReal> weight_sum_d(n_split_tile, ParticleReal(0.0));
-                auto* weight_sum = weight_sum_d.data();
-
-                const ParticleReal alpha = ParticleReal(0.4);
                 const int nst = n_split_tile;
-                const int n_copies_per = split_factor - 1;
+                const int kf  = split_factor;
                 const auto local_src_dx  = src_dx;
                 const auto local_src_plo = src_plo;
                 const auto local_src_dxi = src_dxi;
 
+                // Jitter daughter positions uniformly across the source-level
+                // parent cell.  The next Redistribute spreads them into the
+                // appropriate finer sub-cells of that parent.
                 amrex::ParallelForRNG(n_copies,
                     [=] AMREX_GPU_DEVICE (int i, const amrex::RandomEngine& rng) {
-                    ParticleReal w = ParticleReal(1.0)
-                                   + alpha * (amrex::Random(rng) - ParticleReal(0.5));
-                    copy_weight[i] = w;
-                    int j = i % nst;
-                    Gpu::Atomic::AddNoRet(&weight_sum[j], w);
-
-                    // Jitter daughter positions uniformly across the
-                    // source-level parent cell that contains the parent SD.
-                    // The next Redistribute spreads them into the appropriate
-                    // finer sub-cells of that parent.
                     for (int d = 0; d < AMREX_SPACEDIM; d++) {
                         int src_cell = static_cast<int>(amrex::Math::floor(
                             (copy_p[i].pos(d) - local_src_plo[d]) * local_src_dxi[d]));
@@ -615,12 +600,19 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                     }
                 });
 
-                const ParticleReal copy_share
-                    = ParticleReal(n_copies_per) / ParticleReal(split_factor);
+                // Integer multiplicity split.  Each of the kf pieces (the
+                // original + kf-1 copies) gets base = floor(mult/kf) real
+                // droplets; the remainder mult - kf*base is handed out one
+                // droplet each to the first `rem` pieces (piece 0 = original).
+                // Every piece is an integer >= 1 and the parent multiplicity is
+                // conserved, so coalescence cannot drive super-droplets below
+                // one real droplet.
                 amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
-                    int j = i % nst;
-                    ParticleReal orig = copy_mult[i];
-                    copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
+                    long xil  = static_cast<long>(copy_mult[i] + ParticleReal(0.5));
+                    long base = xil / kf;
+                    long rem  = xil - base * kf;
+                    int  p    = (i / nst) + 1;            // copy piece index (1..kf-1)
+                    copy_mult[i] = static_cast<ParticleReal>(base + (p < rem ? 1 : 0));
                 });
 
                 auto* orig_mult   = soa.GetRealData(mult_idx).data();
@@ -628,7 +620,10 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
                 const int dtag = daughter_tag;
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
                     if (mask_d_ptr[i]) {
-                        orig_mult[i]   *= inv_split;
+                        long xil  = static_cast<long>(orig_mult[i] + ParticleReal(0.5));
+                        long base = xil / kf;
+                        long rem  = xil - base * kf;
+                        orig_mult[i]   = static_cast<ParticleReal>(base + (rem > 0 ? 1 : 0));
                         orig_active[i]  = dtag;
                     }
                 });
@@ -902,7 +897,6 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
         const IntVect ref_ratio = m_gdb->refRatio(clev);
         const int split_factor = AMREX_D_TERM(ref_ratio[0], *ref_ratio[1], *ref_ratio[2]);
         if (split_factor <= 1) { continue; }
-        const ParticleReal inv_split = ParticleReal(1.0) / static_cast<ParticleReal>(split_factor);
 
         // ---- Part 1: split new entrants on the fine level ----
         //
@@ -984,44 +978,32 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     copy_p[i].cpu() = proc;
                 });
 
-                // Multiplicity: original keeps 1/split_factor; copies share
-                // the remaining (split_factor-1)/split_factor, distributed by
-                // randomized weights (alpha = 0.4) normalized per source.
+                // Integer multiplicity split (see SplitParticlesForRefinement):
+                // each of the split_factor pieces gets base = floor(mult/kf)
+                // real droplets, with the remainder handed out one droplet each
+                // to the first `rem` pieces (piece 0 = original).  Keeps every
+                // piece an integer >= 1 and conserves the parent multiplicity.
                 auto& copy_soa = copy_tile.GetStructOfArrays();
                 auto* copy_mult = copy_soa.GetRealData(mult_idx).data();
 
-                Gpu::DeviceVector<ParticleReal> copy_weight_d(n_copies, ParticleReal(0.0));
-                auto* copy_weight = copy_weight_d.data();
-                Gpu::DeviceVector<ParticleReal> weight_sum_d(n_ent_tile, ParticleReal(0.0));
-                auto* weight_sum = weight_sum_d.data();
-
-                const ParticleReal alpha = ParticleReal(0.4);
                 const int nst = n_ent_tile;
-                amrex::ParallelForRNG(n_copies,
-                    [=] AMREX_GPU_DEVICE (int i, const amrex::RandomEngine& rng) {
-                    ParticleReal w = ParticleReal(1.0)
-                                   + alpha * (amrex::Random(rng) - ParticleReal(0.5));
-                    copy_weight[i] = w;
-                    int j = i % nst;
-                    Gpu::Atomic::AddNoRet(&weight_sum[j], w);
-                });
-
-                const int n_copies_per = split_factor - 1;
-                const ParticleReal copy_share
-                    = ParticleReal(n_copies_per) / ParticleReal(split_factor);
+                const int kf  = split_factor;
                 amrex::ParallelFor(n_copies, [=] AMREX_GPU_DEVICE (int i) {
-                    int j = i % nst;
-                    ParticleReal orig = copy_mult[i];
-                    copy_mult[i] = orig * copy_share * copy_weight[i] / weight_sum[j];
+                    long xil  = static_cast<long>(copy_mult[i] + ParticleReal(0.5));
+                    long base = xil / kf;
+                    long rem  = xil - base * kf;
+                    int  p    = (i / nst) + 1;            // copy piece index (1..kf-1)
+                    copy_mult[i] = static_cast<ParticleReal>(base + (p < rem ? 1 : 0));
                 });
 
-                // Reduce original new-entrant multiplicity and tag with this
-                // level's native value (flev + 1).
                 auto* orig_mult   = soa.GetRealData(mult_idx).data();
                 auto* orig_active = soa.GetIntData(active_idx).data();
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
                     if (ent_mask[i]) {
-                        orig_mult[i]   *= inv_split;
+                        long xil  = static_cast<long>(orig_mult[i] + ParticleReal(0.5));
+                        long base = xil / kf;
+                        long rem  = xil - base * kf;
+                        orig_mult[i]   = static_cast<ParticleReal>(base + (rem > 0 ? 1 : 0));
                         orig_active[i]  = flev_native;
                     }
                 });
