@@ -564,9 +564,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               if (success) {
                   // NOTE: We call FillBoundary on mf_PH below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  int ng_x = z_phys_nd[lev]->nGrowVect()[0]+1;
-                  int ng_y = z_phys_nd[lev]->nGrowVect()[1]+1;
-                  mf_PH.define(ba_w, dm, 1, IntVect(ng_x,ng_y,0));
+                  mf_PH.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -592,12 +590,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
                   if (lev == 0) {
-                      int ng_x = z_phys_nd[lev]->nGrowVect()[0]+1;
-                      int ng_y = z_phys_nd[lev]->nGrowVect()[1]+1;
-                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ng_x,ng_y,0)); // We need 5 ghost cells because z_phys_nd needs 4
+                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = wrf_PHB.get();
                   } else {
-                      mf_PHB->define(ba_w, dm, 1, IntVect(1,1,0));
+                      mf_PHB->define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                   }
 
 #ifdef _OPENMP
