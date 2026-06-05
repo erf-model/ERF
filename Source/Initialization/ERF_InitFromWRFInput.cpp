@@ -564,7 +564,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               if (success) {
                   // NOTE: We call FillBoundary on mf_PH below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PH.define(ba_w, dm, 1, IntVect(1,1,0));
+                  mf_PH.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -590,10 +590,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
                   if (lev == 0) {
-                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(1,1,0));
+                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = wrf_PHB.get();
                   } else {
-                      mf_PHB->define(ba_w, dm, 1, IntVect(1,1,0));
+                      mf_PHB->define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                   }
 
 #ifdef _OPENMP
@@ -1001,8 +1001,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // **************************************************************************
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
-        mf_PH.FillBoundary(geom[lev].periodicity());
-        mf_PHB->FillBoundary(geom[lev].periodicity());
+        // mf_PH.FillBoundary(geom[lev].periodicity());
+        // mf_PHB->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
@@ -1373,7 +1373,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-        // PHB and PH are on z-faces (myhalf dx/y ahead of zphys)
+        // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells
