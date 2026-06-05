@@ -18,6 +18,10 @@ ERF Knowledge Assistant
      margin: 0 0 0.4rem;
      font-size: 1.45rem;
    }
+   .erf-assistant-hero-context7 {
+     background: linear-gradient(135deg, #f7fcf4 0%, #edf8ef 48%, #f8fcf7 100%);
+     border-color: #d6ead8;
+   }
    .erf-assistant-hero p {
      margin: 0.35rem 0 0;
      line-height: 1.5;
@@ -34,20 +38,35 @@ ERF Knowledge Assistant
      letter-spacing: 0.02em;
      text-transform: uppercase;
    }
+   .erf-assistant-actions {
+     display: flex;
+     flex-wrap: wrap;
+     gap: 0.6rem;
+     margin-top: 1rem;
+   }
    .erf-assistant-button {
-     display: inline-block;
-     margin-top: 0.95rem;
-     padding: 0.72rem 1rem;
-     border-radius: 10px;
-     background: #0f4c81;
-     color: #ffffff !important;
-     font-weight: 700;
+     display: inline-flex;
+     align-items: center;
+     justify-content: center;
+     padding: 0.6rem 0.9rem;
+     border: 1px solid #cbd5e1;
+     border-radius: 999px;
+     background: rgba(255, 255, 255, 0.82);
+     color: #0f172a !important;
+     font-size: 0.95rem;
+     font-weight: 600;
+     line-height: 1.2;
      text-decoration: none !important;
+     transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
    }
    .erf-assistant-button:hover {
-     background: #123e66;
+     background: #ffffff;
+     border-color: #94a3b8;
+     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
    }
    </style>
+
+.. raw:: html
 
    <div class="erf-assistant-hero">
      <div class="erf-assistant-badge">Featured Assistant</div>
@@ -60,10 +79,69 @@ ERF Knowledge Assistant
        If your browser does not support embeds for external services, use the
        button below.
      </p>
-     <a class="erf-assistant-button" href="https://gemini.google.com/gem/1Kf8jWsF2tKLOyOzNDrjFkHsQNBD69mId?usp=sharing" target="_blank" rel="noopener noreferrer">
-       Open the ERF Specialized Assistant
-     </a>
+     <div class="erf-assistant-actions">
+       <a class="erf-assistant-button" href="https://gemini.google.com/gem/1Kf8jWsF2tKLOyOzNDrjFkHsQNBD69mId?usp=sharing" target="_blank" rel="noopener noreferrer">
+         Open the ERF Specialized Assistant
+       </a>
+     </div>
    </div>
+
+.. raw:: html
+
+   <div class="erf-assistant-hero erf-assistant-hero-context7">
+     <div class="erf-assistant-badge">Context7 Chat</div>
+     <h2>Context7 ERF Chatbot</h2>
+     <p>
+       Use the Context7 ERF chatbot for an MCP-backed ERF chat surface, or
+       open the ERF and AMReX chatbots directly in Context7.
+     </p>
+     <div class="erf-assistant-actions">
+       <a class="erf-assistant-button" href="https://context7.com/erf-model/erf?tab=chat" target="_blank" rel="noopener noreferrer">
+         Open ERF Chatbot
+       </a>
+       <a class="erf-assistant-button" href="https://context7.com/amrex-codes/amrex?tab=chat" target="_blank" rel="noopener noreferrer">
+         Open AMReX Chatbot
+       </a>
+     </div>
+     <p>
+       Context7 developer references:
+       <a href="https://context7.com/docs/resources/developer" target="_blank" rel="noopener noreferrer">Developer docs</a>
+       and
+       <a href="https://context7.com/docs/llms.txt" target="_blank" rel="noopener noreferrer">documentation index</a>.
+     </p>
+     <script src="https://context7.com/widget.js" data-library="/erf-model/erf"></script>
+   </div>
+
+.. list-table::
+   :widths: 30 18 18 18
+   :header-rows: 1
+
+   * - Assistant
+     - Documented Here
+     - MCP
+     - ERF-specific
+   * - `ERF Specialized Assistant <https://gemini.google.com/gem/1Kf8jWsF2tKLOyOzNDrjFkHsQNBD69mId?usp=sharing>`_
+     - Yes
+     - No
+     - Yes
+   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1wnuJ84MnXQrLnoZp3hvTCVsy_7tBmVck?usp=sharing>`_
+       | Deep research (AMReX/ERF)
+     - No
+     - No
+     - Yes
+   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1-nyIxXiueWECypPG1QJrkTAuc2GTPUAb?usp=sharing>`_
+       | Source/Exec
+     - No
+     - No
+     - Yes
+   * - `Context7 ERF chatbot <https://context7.com/erf-model/erf?tab=chat>`_
+     - Yes
+     - Yes
+     - Yes
+   * - `Context7 AMReX chatbot <https://context7.com/amrex-codes/amrex?tab=chat>`_
+     - Yes
+     - Yes
+     - No
 
 .. Previous assistant link retained for reference:
 .. https://gemini.google.com/gem/1CYi43osCZtA-pqmuBOyw6AZQJpkQBHox?usp=sharing
