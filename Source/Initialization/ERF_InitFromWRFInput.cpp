@@ -278,6 +278,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
     MultiFab* mf_PHB;
+    MultiFab PHB_tmp;
     MultiFab mf_PH ;                  // For geopotential height
     MultiFab mf_PB , mf_P  ;          // For base state
     std::unique_ptr<MultiFab> mf_ALB; // For base state
@@ -593,7 +594,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                       wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = wrf_PHB.get();
                   } else {
-                      mf_PHB->define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
+                      PHB_tmp.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
+                      mf_PHB = &PHB_tmp;
                   }
 
 #ifdef _OPENMP
