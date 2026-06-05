@@ -352,10 +352,10 @@ public:
       m_Hwave_lev[lev] = Hwave;
       m_Lwave_lev[lev] = Lwave;
       m_eddyDiffs_lev[lev] = eddyDiffs;
-      
+
       // For the case where surface heat fluxes and ustar are prescribed from a given file
-      pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
-      if (use_sfc_fluxes)
+      pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
+      if (m_use_sfc_fluxes)
       {
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
@@ -364,7 +364,7 @@ public:
           sfc = read_cols(sfc_file, 1);
 
           // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) USTAR(m/s)
-          
+
           // convert day to seconds, H to m2/s2, LE to kg/kg m/s
           // fluxes are divided by rho in MOST routine
           amrex::Real start_day = sfc[0][0];
@@ -378,11 +378,10 @@ public:
 
               // latent heat flux
               //sfc[3][i] = sfc[3][i] / L_v;
-             
           }
       }
 
-	  // Get pointers to LSM data and Fluxes
+      // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
       int nflux = static_cast<int>(lsm_flux.size());
       m_lsm_data_name.resize(ndata);
@@ -672,6 +671,8 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
+  bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
+
   static std::vector<std::vector<amrex::Real>>
   read_cols(const std::string& fname, const int skip_nlines = 1);
 
@@ -740,8 +741,9 @@ private:
   amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
-  bool use_sfc_fluxes = false;
+  bool m_use_sfc_fluxes = false;
   int sfc_time_ind = 0;
+  amrex::Real sfc_sst;
   amrex::Real sfc_qflux;
   amrex::Real sfc_tflux;
   amrex::Real sfc_ustar;
@@ -783,7 +785,7 @@ private:
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
-  
+
   std::vector<std::vector<amrex::Real>> sfc;
 };
 
