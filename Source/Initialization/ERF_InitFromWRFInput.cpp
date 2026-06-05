@@ -277,6 +277,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
+    MultiFab* mf_PHB;
     MultiFab mf_PH ;                  // For geopotential height
     MultiFab mf_PB , mf_P  ;          // For base state
     std::unique_ptr<MultiFab> mf_ALB; // For base state
@@ -570,7 +571,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
                   {
                       Box gtbx = mfi.growntilebox();
-                      const Array4<      Real>& dst_arr = mf_PH->array(mfi);
+                      const Array4<      Real>& dst_arr = mf_PH.array(mfi);
                       const Array4<const Real>& src_arr = var_fab.const_array();
                       ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                       {
@@ -586,16 +587,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               }
           } else if ( var_name == "PHB" ) {
               if (success) {
-                  // NOTE: We call FillBoundary on wrf_PHB below
+                  // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(1,1,0));
+                  if (lev == 0) {
+                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(1,1,0));
+                      mf_PHB = wrf_PHB.get();
+                  } else {
+                      mf_PHB->define(ba_w, dm, 1, IntVect(1,1,0));
+                  }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                  for ( MFIter mfi(*wrf_PHB, false); mfi.isValid(); ++mfi )
+                  for ( MFIter mfi(*mf_PHB, false); mfi.isValid(); ++mfi )
                   {
                       Box gtbx = mfi.growntilebox();
-                      const Array4<      Real>& dst_arr = wrf_PHB->array(mfi);
+                      const Array4<      Real>& dst_arr = mf_PHB->array(mfi);
                       const Array4<const Real>& src_arr = var_fab.const_array();
                       ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                       {
@@ -986,7 +993,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            z_top = compute_terrain_top_and_bottom(mf_PH, *wrf_PHB, geom[lev].Domain());
+            z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -995,12 +1002,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
         mf_PH.FillBoundary(geom[lev].periodicity());
-        wrf_PHB->FillBoundary(geom[lev].periodicity());
+        mf_PHB->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *wrf_PHB);
+        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *mf_PHB);
+        z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the metric quantities
