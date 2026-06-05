@@ -870,7 +870,8 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
  *    - Per-(clev, flev) pair (flev = 1..finest, clev = flev-1):
  *        Part 1: split new entrants on flev (active particles whose tag is
  *                below flev's native value `flev + 1`) by refRatio(clev) and
- *                tag them native to flev.
+ *                tag them native to flev.  Entrants with multiplicity below
+ *                split_factor are retagged native without splitting.
  *        Part 3: repopulate empty fine cells on flev by cloning a face-
  *                adjacent neighbor inside the same coarse parent.
  *    - Per-level (lev = 0..finest):
@@ -920,13 +921,29 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                 auto& soa = ptile.GetStructOfArrays();
                 auto* p_pbox = aos().data();
-                const auto* active_data = soa.GetIntData(active_idx).data();
+                auto* active_data = soa.GetIntData(active_idx).data();
+                const auto* mult_data = soa.GetRealData(mult_idx).data();
+                const ParticleReal sf_floor = static_cast<ParticleReal>(split_factor);
+
+                // Multiplicity floor: an entrant with multiplicity < split_factor
+                // cannot be split into split_factor daughters without driving
+                // each below one real droplet.  Retag those native (they already
+                // represent ~the coarse density) so they are not re-flagged.
+                amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    if (p_pbox[i].id() > 0
+                        && active_data[i] > 0
+                        && active_data[i] < flev_native
+                        && mult_data[i] < sf_floor) {
+                        active_data[i] = flev_native;
+                    }
+                });
 
                 int n_ent_tile = amrex::Reduce::Sum<int>(np,
                     [=] AMREX_GPU_DEVICE (int i) -> int {
                         return (p_pbox[i].id() > 0
                                 && active_data[i] > 0
-                                && active_data[i] < flev_native) ? 1 : 0;
+                                && active_data[i] < flev_native
+                                && mult_data[i] >= sf_floor) ? 1 : 0;
                     });
                 if (n_ent_tile == 0) { continue; }
 
@@ -935,7 +952,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
                     ent_mask[i] = (p_pbox[i].id() > 0
                                    && active_data[i] > 0
-                                   && active_data[i] < flev_native) ? 1 : 0;
+                                   && active_data[i] < flev_native
+                                   && mult_data[i] >= sf_floor) ? 1 : 0;
                 });
 
                 ParticleTileType src_tile;
