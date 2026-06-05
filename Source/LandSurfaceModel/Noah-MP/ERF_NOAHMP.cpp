@@ -213,9 +213,10 @@ NOAHMP::Init (const int& lev,
         // Write initial plotfile for land with the tag 0
         Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
         noahmpio->WriteLand(0);
-  }
+    }
+    AMREX_ALWAYS_ASSERT(m_dt <= noahmpio_vect[0].DTBL);
 
-  Print() << "Noah-MP initialization completed" << std::endl;
+    Print() << "Noah-MP initialization completed" << std::endl;
 
 };
 
@@ -234,9 +235,13 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
+                            const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep)
 {
+    // Verify we need to take another LSM step
+    Real NOAH_time = static_cast<Real>(noahmpio_vect[0].itimestep-1) * static_cast<Real>(noahmpio_vect[0].DTBL);
+    if (elapsed_time < NOAH_time) { return; }
 
     Box domain = m_geom.Domain();
 
@@ -325,7 +330,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Call the noahmpio driver code. This runs the land model forcing for
         // each object in noahmpio_vect that represent a block in the domain.
-        noahmpio->itimestep = nstep+1;
+        noahmpio->itimestep += 1;
         noahmpio->DriverMain();
 
         // Copy results from NoahmpIO back to temporary arrays

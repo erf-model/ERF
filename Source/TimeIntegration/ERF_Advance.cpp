@@ -288,7 +288,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the land surface model
     // **************************************************************************************
-    advance_lsm(lev, S_new, U_new, V_new, dt_lev);
+    Real time_at_end_of_step = time+dt_lev;
+    advance_lsm(lev, S_new, U_new, V_new, time_at_end_of_step, dt_lev);
 
     // Update weight average of land surface and urban model
     if (m_SurfaceModel) {
@@ -300,7 +301,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the particle positions
     // **************************************************************************************
-   evolveTracers( lev, dt_lev, vars_new, z_phys_nd );
+   evolveTracers(lev, dt_lev, vars_new, z_phys_nd);
 #endif
 
     // ***********************************************************************************************

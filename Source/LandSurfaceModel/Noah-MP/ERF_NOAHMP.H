@@ -114,6 +114,7 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
+                        const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep) override;
 
