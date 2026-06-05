@@ -1001,8 +1001,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // **************************************************************************
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
-        mf_PH.FillBoundary(geom[lev].periodicity());
-        mf_PHB->FillBoundary(geom[lev].periodicity());
+        // mf_PH.FillBoundary(geom[lev].periodicity());
+        // mf_PHB->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
