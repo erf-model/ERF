@@ -11,6 +11,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
+#include "ERF_KesslerUtils.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
@@ -53,11 +54,10 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        m_fac_cond = lcond / sc.c_p;
-        m_fac_fus = lfus / sc.c_p;
-        m_fac_sub = lsub / sc.c_p;
-        m_gOcp = CONST_GRAV / sc.c_p;
-        m_axis = sc.ave_plane;
+        // Use one latent-over-cp factor for both the saturation solve and theta
+        // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
+        m_fac_cond = L_v / sc.c_p;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -68,6 +68,13 @@ public:
           const amrex::Real& dt_advance,
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
 
     // Copy state into micro vars
     void
@@ -86,7 +93,8 @@ public:
 
     // update state vars
     void
-    Update_State_Vars (amrex::MultiFab& cons_in) override
+    Update_State_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& /*z_phys_nd*/) override
     {
         this->Copy_Micro_to_State(cons_in);
     }
@@ -114,6 +122,9 @@ public:
     int
     Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
+    int
+    Qstate_Moist_NumConc_Size () override { return Kessler::n_qstate_moist_numconc_size; }
+
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
@@ -133,8 +144,11 @@ private:
     // Number of qstate variables
     int n_qstate_moist_size = 3;
 
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
+
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = 0.5;
+    static constexpr amrex::Real CFL_MAX = kessler_sedimentation_cfl_max;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -142,23 +156,18 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
-
     // timestep
     amrex::Real dt;
+
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
 
     // number of vertical levels
     int nlev, zlo, zhi;
 
-    // plane average axis
-    int m_axis;
-
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_fac_fus;
-    amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
+    bool m_do_cond;
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

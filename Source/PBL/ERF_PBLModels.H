@@ -1,11 +1,45 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
-#include "ERF_Thetav.H"
+#include "ERF_DataStruct.H"
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Mellor-Yamada-Nakanishi-Niino Level 2.5 PBL scheme
+ * Mellor-Yamada-Janjic scheme (Janjic (2002), NCEP Office Note 437)
+ *
+ * @param[in] xvel Velocity in x-dir
+ * @param[in] yvel Velocity in y-dir
+ * @param[in] cons_in Cell center conserved quantities
+ * @param[out] eddyViscosity Holds turbulent viscosity
+ * @param[in] geom Problem geometry
+ * @param[in] turbChoice Container with turbulence parameters
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
+ * @param[in] use_moisture If we have microphysics enabled
+ * @param[in] level Current level
+ * @param[in] bc_ptr Pointer to array with boundary condition info
+ * @param[in] vert_only Only compute vertical eddy diffusivities
+ * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ */
+void
+ComputeDiffusivityMYJ (amrex::Real dt,
+                       const amrex::MultiFab& xvel,
+                       const amrex::MultiFab& yvel,
+                       amrex::MultiFab& cons_in,
+                       amrex::MultiFab& eddyViscosity,
+                       const amrex::Geometry& geom,
+                       const TurbChoice& turbChoice,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
+                       bool use_terrain_fitted_coords,
+                       bool use_moisture,
+                       int level,
+                       const amrex::BCRec* bc_ptr,
+                       bool /*vert_only*/,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const MoistureComponentIndices& moisture_indices);
+
+/**
+ * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
+ * Mellor-Yamada-Nakanishi-Niino Level amrex::Real(2.5) PBL scheme
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
@@ -34,13 +68,11 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                          const int RhoQv_comp,
-                          const int RhoQc_comp,
-                          const int RhoQr_comp);
+                          const MoistureComponentIndices& moisture_indices);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Mellor-Yamada-Nakanishi-Niino Level 2.5 PBL scheme
+ * Mellor-Yamada-Nakanishi-Niino Level amrex::Real(2.5) PBL scheme
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
@@ -69,9 +101,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             const amrex::BCRec* bc_ptr,
                             bool /*vert_only*/,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                            const int RhoQv_comp,
-                            const int RhoQc_comp,
-                            const int RhoQr_comp);
+                            const MoistureComponentIndices& moisture_indices);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -103,7 +133,8 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        int level,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
-                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const MoistureComponentIndices& moisture_indices);
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
  * older version of Yonsei University PBL scheme
@@ -134,7 +165,8 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        int level,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
-                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const MoistureComponentIndices& moisture_indices);
 
 /**
  * Function for computing vertical derivatives for use in PBL model
@@ -162,41 +194,39 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const int RhoQv_comp,
-                               const int RhoQc_comp,
-                               const int RhoQr_comp)
+                               const MoistureComponentIndices& moisture_indices)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                              - 3.0 * Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                              + 4.0 * Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
+        dthetadz = (one/three)*(       -GetThetav(i,j,k-1,cell_data,moisture_indices)
+                              - three * GetThetav(i,j,k  ,cell_data,moisture_indices)
+                              + amrex::Real(4.0) * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                              + 3.0 * Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                              - 4.0 * Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
+        dthetadz = (one/three)*(        GetThetav(i,j,k+1,cell_data,moisture_indices)
+                              + three * GetThetav(i,j,k  ,cell_data,moisture_indices)
+                              - amrex::Real(4.0) * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     } else {
-        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                        - Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
+        dthetadz = myhalf*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
+                        - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
-        dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                         + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
+        dudz = (one/amrex::Real(6.0))*( (-uvel(i  ,j,k-1) - three * uvel(i  ,j,k  ) + amrex::Real(4.0) * uvel(i  ,j,k+1))
+                         + (-uvel(i+1,j,k-1) - three * uvel(i+1,j,k  ) + amrex::Real(4.0) * uvel(i+1,j,k+1)) )*dz_inv;
     } else if ( k==izmin && u_ext_dir_on_zlo ) {
-        dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                         + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
+        dudz = (one/amrex::Real(6.0))*( (uvel(i  ,j,k+1) + three * uvel(i  ,j,k  ) - amrex::Real(4.0) * uvel(i  ,j,k-1))
+                         + (uvel(i+1,j,k+1) + three * uvel(i+1,j,k  ) - amrex::Real(4.0) * uvel(i+1,j,k-1)) )*dz_inv;
     } else {
-        dudz = 0.25*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
+        dudz = fourth*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
     }
 
     if ( k==izmax && v_ext_dir_on_zhi ) {
-        dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                         + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
+        dvdz = (one/amrex::Real(6.0))*( (-vvel(i,j  ,k-1) - three * vvel(i,j  ,k  ) + amrex::Real(4.0) * vvel(i,j  ,k+1))
+                         + (-vvel(i,j+1,k-1) - three * vvel(i,j+1,k  ) + amrex::Real(4.0) * vvel(i,j+1,k+1)) )*dz_inv;
     } else if ( k==izmin && v_ext_dir_on_zlo ) {
-        dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                         + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
+        dvdz = (one/amrex::Real(6.0))*( (vvel(i,j  ,k+1) + three * vvel(i,j  ,k  ) - amrex::Real(4.0) * vvel(i,j  ,k-1))
+                         + (vvel(i,j+1,k+1) + three * vvel(i,j+1,k  ) - amrex::Real(4.0) * vvel(i,j+1,k-1)) )*dz_inv;
     } else {
-        dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
+        dvdz = fourth*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
     }
 }
 
@@ -226,20 +256,18 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Box& domain,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
-                       const int RhoQv_comp,
-                       const int RhoQc_comp,
-                       const int RhoQr_comp,
+                       const MoistureComponentIndices& moisture_indices,
                        bool c_ext_dir_on_zlo,
                        bool c_ext_dir_on_zhi,
                        bool u_ext_dir_on_zlo,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
                        bool v_ext_dir_on_zhi,
-                       const amrex::Real met_h_zeta=1.0)
+                       const amrex::Real met_h_zeta=one)
 {
     // Compute some relevant derivatives
     amrex::Real dthetadz, dudz, dvdz;
-    amrex::Real source_term = 0.0;
+    amrex::Real source_term = zero;
 
     amrex::Real dz_inv = cellSizeInv[2];
     int izmin = domain.smallEnd(2);
@@ -251,10 +279,10 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz,
-                                  RhoQv_comp, RhoQc_comp, RhoQr_comp);
+                                  moisture_indices);
 
     // Notes:
-    // - We transport TKE = 0.5*QKE rather than QKE, so the RHS terms do not
+    // - We transport TKE = myhalf*QKE rather than QKE, so the RHS terms do not
     //   have a factor of two.
     // - Transport terms due to turbulence and pressure are included when
     //   DiffusionSrcForState_* is called from ERF_slow_rhs_post.
@@ -271,9 +299,9 @@ ComputeQKESourceTerms (int i, int j, int k,
     source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation (NN09, Eqn. 12)
-    amrex::Real qke = 2.0 * cell_prim(i,j,k,PrimKE_comp);
-    if (std::abs(qke) > 0.0) {
-        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+    amrex::Real qke = two * cell_prim(i,j,k,PrimKE_comp);
+    if (std::abs(qke) > zero) {
+        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,amrex::Real(1.5)) /
                        (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
     }
 

@@ -17,26 +17,38 @@ concurrency:
 
 jobs:
   Build-And-Test-SYCL:
-    name: oneAPI SYCL - Particles ${{matrix.particles}}
-    runs-on: ubuntu-22.04
+    name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
+        mesh_precision: [DOUBLE, SINGLE]
+        exclude:
+          - particles: OFF
+            particles_precision: SINGLE
+          - mesh_precision: SINGLE
+            particles: OFF
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
+    - name: Free up disk space
+      uses: ./.github/actions/free-space-ubuntu
+
     - name: Dependencies
-      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_dpcpp.sh
+      run: |
+        Submodules/AMReX/.github/workflows/dependencies/ubuntu_free_disk_space.sh
+        Submodules/AMReX/.github/workflows/dependencies/dependencies_dpcpp.sh
 
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
     - name: Set Up Cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cache/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
@@ -59,27 +71,29 @@ jobs:
         cmake .. \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_BUILD_TYPE:STRING=Release \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_SYCL:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
-          -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+          -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
+          -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
           -DCMAKE_C_COMPILER=$(which icx) \
           -DCMAKE_CXX_COMPILER=$(which icpx) \
-          -DCMAKE_CXX_STANDARD=17
-        make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+          -DCMAKE_CXX_STANDARD=17 \
+          -DAMReX_PARALLEL_LINK_JOBS=4
+        make -j 4 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         ccache -s
         du -hs ~/.cache/ccache
 
     - name: Report
       run: |
-        egrep "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | egrep -v "Submodules/amrex" | egrep -v "lto-wrapper: warning:" | sort | uniq \
+        grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
+          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')

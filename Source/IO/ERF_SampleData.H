@@ -20,57 +20,112 @@ struct LineSampler
     {
         amrex::ParmParse pp("erf");
 
+        bool has_line_idx  = pp.contains("sample_line_lo") || pp.contains("sample_line_hi");
+        bool has_line_real = pp.contains("sample_line_lo_real") || pp.contains("sample_line_hi_real");
+        if (has_line_idx && has_line_real) {
+            amrex::Abort("Specify only one of erf.sample_line_lo/hi or erf.sample_line_lo_real/hi_real");
+        }
+
         // Count number of lo and hi points define the line
         int n_line_lo  = pp.countval("sample_line_lo") / AMREX_SPACEDIM;
         int n_line_hi  = pp.countval("sample_line_hi") / AMREX_SPACEDIM;
+        int n_line_lo_real = pp.countval("sample_line_lo_real") / AMREX_SPACEDIM;
+        int n_line_hi_real = pp.countval("sample_line_hi_real") / AMREX_SPACEDIM;
         int n_line_dir = pp.countval("sample_line_dir");
-        AMREX_ALWAYS_ASSERT( (n_line_lo==n_line_hi ) &&
-                             (n_line_lo==n_line_dir) );
+        if (has_line_idx) {
+            AMREX_ALWAYS_ASSERT( (n_line_lo==n_line_hi ) &&
+                                 (n_line_lo==n_line_dir) );
+        } else if (has_line_real) {
+            AMREX_ALWAYS_ASSERT( (n_line_lo_real==n_line_hi_real ) &&
+                                 (n_line_lo_real==n_line_dir) );
+        }
 
         // Parse the data
-        if (n_line_lo > 0) {
-            // Parse lo
-            amrex::Vector<int> idx_lo; idx_lo.resize(n_line_lo*AMREX_SPACEDIM);
-            amrex::Vector<amrex::IntVect> iv_lo; iv_lo.resize(n_line_lo);
-            pp.queryarr("sample_line_lo",idx_lo,0,n_line_lo*AMREX_SPACEDIM);
-            for (int i(0); i < n_line_lo; i++) {
-                amrex::IntVect iv(idx_lo[AMREX_SPACEDIM*i+0],
-                                  idx_lo[AMREX_SPACEDIM*i+1],
-                                  idx_lo[AMREX_SPACEDIM*i+2]);
-                iv_lo[i] = iv;
-            }
+        int nline = 0;
+        if (has_line_idx) {
+            nline = n_line_lo;
+            if (nline > 0) {
+                // Parse lo
+                amrex::Vector<int> idx_lo; idx_lo.resize(nline*AMREX_SPACEDIM);
+                amrex::Vector<amrex::IntVect> iv_lo; iv_lo.resize(nline);
+                pp.queryarr("sample_line_lo",idx_lo,0,nline*AMREX_SPACEDIM);
+                for (int i(0); i < nline; i++) {
+                    amrex::IntVect iv(idx_lo[AMREX_SPACEDIM*i+0],
+                                      idx_lo[AMREX_SPACEDIM*i+1],
+                                      idx_lo[AMREX_SPACEDIM*i+2]);
+                    iv_lo[i] = iv;
+                }
 
-            // Parse hi
-            amrex::Vector<int> idx_hi; idx_hi.resize(n_line_hi*AMREX_SPACEDIM);
-            amrex::Vector<amrex::IntVect> iv_hi; iv_hi.resize(n_line_hi);
-            pp.queryarr("sample_line_hi",idx_hi,0,n_line_hi*AMREX_SPACEDIM);
-            for (int i(0); i < n_line_hi; i++) {
-                amrex::IntVect iv(idx_hi[AMREX_SPACEDIM*i+0],
-                                  idx_hi[AMREX_SPACEDIM*i+1],
-                                  idx_hi[AMREX_SPACEDIM*i+2]);
-                iv_hi[i] = iv;
-            }
+                // Parse hi
+                amrex::Vector<int> idx_hi; idx_hi.resize(nline*AMREX_SPACEDIM);
+                amrex::Vector<amrex::IntVect> iv_hi; iv_hi.resize(nline);
+                pp.queryarr("sample_line_hi",idx_hi,0,nline*AMREX_SPACEDIM);
+                for (int i(0); i < nline; i++) {
+                    amrex::IntVect iv(idx_hi[AMREX_SPACEDIM*i+0],
+                                      idx_hi[AMREX_SPACEDIM*i+1],
+                                      idx_hi[AMREX_SPACEDIM*i+2]);
+                    iv_hi[i] = iv;
+                }
 
-            // Construct vector of bounding boxes
-            m_bnd_bx.resize(n_line_lo);
-            for (int i = 0; i < n_line_hi; i++){
-                amrex::Box lbx(iv_lo[i],iv_hi[i]);
-                m_bnd_bx[i] = lbx;
+                // Construct vector of bounding boxes
+                m_bnd_bx.resize(nline);
+                for (int i = 0; i < nline; i++){
+                    amrex::Box lbx(iv_lo[i],iv_hi[i]);
+                    m_bnd_bx[i] = lbx;
+                }
             }
+        } else if (has_line_real) {
+            m_use_real_bx = true;
+            nline = n_line_lo_real;
+            if (nline > 0) {
+                // Parse lo
+                amrex::Vector<amrex::Real> real_lo; real_lo.resize(nline*AMREX_SPACEDIM);
+                amrex::Vector<amrex::Vector<amrex::Real>> rv_lo;
+                pp.queryarr("sample_line_lo_real",real_lo,0,nline*AMREX_SPACEDIM);
+                for (int i(0); i < nline; i++) {
+                    amrex::Vector<amrex::Real> rv = {real_lo[AMREX_SPACEDIM*i+0],
+                                                     real_lo[AMREX_SPACEDIM*i+1],
+                                                     real_lo[AMREX_SPACEDIM*i+2]};
+                    rv_lo.push_back(rv);
+                }
 
+                // Parse hi
+                amrex::Vector<amrex::Real> real_hi; real_hi.resize(nline*AMREX_SPACEDIM);
+                amrex::Vector<amrex::Vector<amrex::Real>> rv_hi;
+                pp.queryarr("sample_line_hi_real",real_hi,0,nline*AMREX_SPACEDIM);
+                for (int i(0); i < nline; i++) {
+                    amrex::Vector<amrex::Real> rv = {real_hi[AMREX_SPACEDIM*i+0],
+                                                     real_hi[AMREX_SPACEDIM*i+1],
+                                                     real_hi[AMREX_SPACEDIM*i+2]};
+                    rv_hi.push_back(rv);
+                }
+
+                // Construct vector of bounding real boxes
+                m_bnd_rbx.resize(nline);
+                for (int i = 0; i < nline; i++){
+                    amrex::RealBox rbx(rv_lo[i].data(),rv_hi[i].data());
+                    m_bnd_rbx[i] = rbx;
+                }
+
+                // Construct vector of bounding boxes
+                m_bnd_bx.resize(nline);
+            }
+        }
+
+        if (nline > 0) {
             // Parse directionality
             m_dir.resize(n_line_dir);
             pp.queryarr("sample_line_dir",m_dir,0,n_line_dir);
 
             // Parse names
             std::string name_base = "plt_line_";
-            m_name.resize(n_line_lo);
+            m_name.resize(nline);
             int n_names = pp.countval("sample_line_name");
             if (n_names > 0) {
-                AMREX_ALWAYS_ASSERT( n_names==n_line_lo );
+                AMREX_ALWAYS_ASSERT( n_names==nline );
                 pp.queryarr("sample_line_name",m_name,0,n_names);
             } else {
-                for (int iline(0); iline<n_line_lo; ++iline) {
+                for (int iline(0); iline<nline; ++iline) {
                     m_name[iline] = amrex::Concatenate(name_base, iline , 5);
                 }
             }
@@ -79,7 +134,7 @@ struct LineSampler
             m_lev.resize(n_line_dir,0);
 
             // Allocate space for MF pointers
-            m_ls_mf.resize(n_line_lo);
+            m_ls_mf.resize(nline);
 
             // Get requested vars
             if (pp.countval("line_sampling_vars") > 0) {
@@ -87,6 +142,10 @@ struct LineSampler
                 amrex::Vector<std::string> requested_vars;
                 pp.queryarr("line_sampling_vars",requested_vars);
                 amrex::Print() << "Selected line sampling vars :";
+                if (containerHasElement(requested_vars, "density")) {
+                    m_varnames.push_back("density");
+                    amrex::Print() << " " << "density";
+                }
                 if (containerHasElement(requested_vars, "x_velocity")) {
                     m_varnames.push_back("x_velocity");
                     amrex::Print() << " " << "x_velocity";
@@ -111,6 +170,10 @@ struct LineSampler
                     m_varnames.push_back("qv");
                     amrex::Print() << " " << "qv";
                 }
+                if (containerHasElement(requested_vars, "qc")) {
+                    m_varnames.push_back("qc");
+                    amrex::Print() << " " << "qc";
+                }
                 if (containerHasElement(requested_vars, "pressure")) {
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
@@ -122,10 +185,10 @@ struct LineSampler
             // times appended to the same file
             pp.query("line_sampling_text_output",m_write_ascii);
             if (m_write_ascii && amrex::ParallelDescriptor::IOProcessor()) {
-                int nvar = m_varnames.size();
-                m_datastream.resize(n_line_lo * nvar);
+                int nvar = static_cast<int>(m_varnames.size());
+                m_datastream.resize(nline * nvar);
                 int i = 0;
-                for (int iline(0); iline<n_line_lo; ++iline) {
+                for (int iline(0); iline<nline; ++iline) {
                     for (int ivar(0); ivar<nvar; ++ivar) {
                         std::string filename = m_name[iline] + "." + m_varnames[ivar];
                         m_datastream[i] = std::make_unique<std::fstream>();
@@ -140,21 +203,95 @@ struct LineSampler
         }
     }
 
+    amrex::Box
+    getIndexBox (const amrex::RealBox& real_box,
+                 const amrex::Geometry& geom) {
+        amrex::IntVect slice_lo, slice_hi;
+
+        AMREX_D_TERM(slice_lo[0]=static_cast<int>(std::floor((real_box.lo(0) - geom.ProbLo(0))/geom.CellSize(0)));,
+                     slice_lo[1]=static_cast<int>(std::floor((real_box.lo(1) - geom.ProbLo(1))/geom.CellSize(1)));,
+                     slice_lo[2]=static_cast<int>(std::floor((real_box.lo(2) - geom.ProbLo(2))/geom.CellSize(2))););
+
+        AMREX_D_TERM(slice_hi[0]=static_cast<int>(std::floor((real_box.hi(0) - geom.ProbLo(0))/geom.CellSize(0)));,
+                     slice_hi[1]=static_cast<int>(std::floor((real_box.hi(1) - geom.ProbLo(1))/geom.CellSize(1)));,
+                     slice_hi[2]=static_cast<int>(std::floor((real_box.hi(2) - geom.ProbLo(2))/geom.CellSize(2))););
+
+        return amrex::Box(slice_lo, slice_hi) & geom.Domain();
+    }
+
     void
-    get_line_mfs (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+    write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc,
+                  amrex::Vector<amrex::Geometry>& geom)
     {
-        int nlev  = vars_new.size();
-        int nline = m_bnd_bx.size();
-        int ncomp  = m_varnames.size();
+        if (!m_write_ascii) return;
+
+        amrex::Print() << "Writing out line coordinates to text" << std::endl;
+
+        for (int lev(0); lev < z_phys_cc.size(); ++lev) {
+            // Write one text file per level
+            std::ofstream outfile;
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                std::string fname = amrex::Concatenate("plt_line_lev", lev, 1);
+                fname += ".zcc";
+                outfile.open(fname);
+
+                if (!outfile.is_open()) {
+                    amrex::AllPrint() << "Could not open " << fname << std::endl;
+                }
+            }
+
+            // Loop over each line
+            int nline = static_cast<int>(m_ls_mf.size());
+            for (int iline(0); iline<nline; ++iline) {
+                int dir = m_dir[iline];
+                amrex::Box bnd_bx = (m_use_real_bx)
+                                  ? getIndexBox(m_bnd_rbx[iline], geom[lev])
+                                  : m_bnd_bx[iline];
+                amrex::IntVect first_cell = bnd_bx.smallEnd();
+
+                // Create multifab with "sampled" z_phys values
+                amrex::MultiFab line_coords_mf = get_line_data(
+                    *z_phys_cc[lev], dir, first_cell, bnd_bx
+                );
+
+                // Convert multifab to vector
+                amrex::Gpu::HostVector<amrex::Real> vec = sumToLine(
+                    line_coords_mf, 0, 1, bnd_bx, dir
+                );
+
+                // Append to file
+                if (amrex::ParallelDescriptor::IOProcessor()) {
+                    for (const auto& zval : vec) {
+                        outfile << " " << zval;
+                    }
+                    outfile << std::endl;
+                }
+            } // line loop
+
+            outfile.close();
+        } // level loop
+    }
+
+    void
+    get_sample_data (amrex::Vector<amrex::Geometry>& geom,
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+    {
+        int nlev  = static_cast<int>(vars_new.size());
+        int nline = static_cast<int>(m_bnd_bx.size());
+        int ncomp = static_cast<int>(m_varnames.size());
+
+        int qv_comp = -1;
 
         // Loop over each line
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
-            amrex::Box bnd_bx   = m_bnd_bx[iline];
-            amrex::IntVect cell = bnd_bx.smallEnd();
 
             // Search each level to get the finest data possible
             for (int ilev(nlev-1); ilev>=0; --ilev) {
+                amrex::Box bnd_bx = (m_use_real_bx)
+                                  ? getIndexBox(m_bnd_rbx[iline], geom[ilev])
+                                  : m_bnd_bx[iline];
+                amrex::IntVect cell = bnd_bx.smallEnd();
 
                 // Construct CC velocities
                 amrex::MultiFab mf_cc_vel;
@@ -171,6 +308,11 @@ struct LineSampler
                 mf_cc_data.define(ba, dm, ncomp, 1);
 
                 int mf_comp = 0;
+
+                if (containerHasElement(m_varnames, "density")) {
+                    amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
 
                 if (containerHasElement(m_varnames, "x_velocity")) {
                     amrex::MultiFab::Copy(mf_cc_data, mf_cc_vel, 0, mf_comp, 1, 0);
@@ -221,8 +363,10 @@ struct LineSampler
                     mf_comp += 1;
                 }
 
-                if (containerHasElement(m_varnames, "qv") && containerHasElement(m_varnames, "pressure")) {
+                if (containerHasElement(m_varnames, "qv")) {
                     // if qv is requested, assume that we have moisture
+                    if (qv_comp >= 0) AMREX_ALWAYS_ASSERT(qv_comp == mf_comp);
+                    qv_comp = mf_comp;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -233,29 +377,47 @@ struct LineSampler
 
                         amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
-                            dfab(i,j,k,mf_comp  ) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
-                            dfab(i,j,k,mf_comp+1) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
-                                                                 dfab(i,j,k,mf_comp));
-                        });
-                    }
-                    mf_comp += 2;
-                } else if (containerHasElement(m_varnames, "qv")) {
-                    // if qv is requested, assume that we have moisture
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
-
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp  ) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
                         });
                     }
                     mf_comp += 1;
-                } else if (containerHasElement(m_varnames, "pressure")) {
+                }
+                if (containerHasElement(m_varnames, "qc")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ2_comp) / cfab(i,j,k,Rho_comp);
+                        });
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "pressure") && (qv_comp >= 0)) {
+                    // if qv is requested, assume that we have moisture
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
+                                                               dfab(i,j,k,qv_comp));
+                        });
+                    }
+                    mf_comp += 1;
+                }
+                else if (containerHasElement(m_varnames, "pressure")) {
                     // pressure requested w/o qv, assume dry
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -278,17 +440,23 @@ struct LineSampler
 
                 // We can stop if we got the entire line
                 auto min_bnd_bx = m_ls_mf[iline].boxArray().minimalBox();
-                if (bnd_bx == min_bnd_bx) { continue; }
+                if (bnd_bx == min_bnd_bx) { break; }
 
             } // ilev
+
+            // Fill bnd_bx if use_rbx
+            if (m_use_real_bx) {
+                m_bnd_bx[iline] = m_ls_mf[iline].boxArray().minimalBox();
+            }
+
         }// iline
     }
 
     void
-    write_line_mfs (amrex::Vector<amrex::Real>& time,
-                    amrex::Vector<int>& level_steps,
-                    amrex::Vector<amrex::IntVect>& ref_ratio,
-                    amrex::Vector<amrex::Geometry>& geom)
+    write_sample_data (amrex::Vector<amrex::Real>& time,
+                       amrex::Vector<int>& level_steps,
+                       amrex::Vector<amrex::IntVect>& ref_ratio,
+                       amrex::Vector<amrex::Geometry>& geom)
     {
         if (m_write_ascii) {
             write_line_ascii(time);
@@ -305,13 +473,13 @@ struct LineSampler
         constexpr int datprecision = 6;
         constexpr int timeprecision = 13;
 
-        int nline = m_ls_mf.size();
-        int nvar = m_varnames.size();
+        int nline = static_cast<int>(m_ls_mf.size());
+        int nvar  = static_cast<int>(m_varnames.size());
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
             int lev = m_lev[iline];
             amrex::Real m_time = time[lev];
-            amrex::Box m_dom = m_bnd_bx[iline];
+            amrex::Box m_dom   = m_bnd_bx[iline];
 
             for (int ivar(0); ivar<nvar; ++ivar) {
                 // Convert multifab to vector
@@ -337,7 +505,7 @@ struct LineSampler
                          amrex::Vector<amrex::IntVect>& ref_ratio,
                          amrex::Vector<amrex::Geometry>& geom)
     {
-        int nline = m_ls_mf.size();
+        int nline = static_cast<int>(m_ls_mf.size());
         for (int iline(0); iline<nline; ++iline) {
             // Data members that can be used as-is
             int dir = m_dir[iline];
@@ -354,7 +522,7 @@ struct LineSampler
             amrex::Box m_dom = m_bnd_bx[iline];
             amrex::RealBox m_rb;
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
-                amrex::Real offset = (d==dir) ? 0 : 0.5;
+                amrex::Real offset = (d==dir) ? 0 : myhalf;
                 amrex::Real lo = plo[d] + ( m_dom.smallEnd(d) - offset ) * dx[d];
                 amrex::Real hi = plo[d] + ( m_dom.bigEnd(d)   + offset ) * dx[d];
 
@@ -383,9 +551,11 @@ struct LineSampler
     amrex::Vector<int> m_dir;
     amrex::Vector<int> m_lev;
     amrex::Vector<amrex::Box> m_bnd_bx;
+    amrex::Vector<amrex::RealBox> m_bnd_rbx;
     amrex::Vector<amrex::MultiFab> m_ls_mf;
     amrex::Vector<std::string> m_name;
 
+    bool m_use_real_bx{false};
     bool m_write_ascii{false};
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
     amrex::Vector<std::unique_ptr<std::fstream> > m_datastream;
@@ -479,11 +649,11 @@ struct PlaneSampler
     }
 
     void
-    get_plane_mfs (amrex::Vector<amrex::Geometry>& geom,
-                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+    get_sample_data (amrex::Vector<amrex::Geometry>& geom,
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
-        int nlev   = vars_new.size();
-        int nplane = m_bnd_rbx.size();
+        int nlev   = static_cast<int>(vars_new.size());
+        int nplane = static_cast<int>(m_bnd_rbx.size());
         int ncomp  = 2;
         bool interpolate = true;
 
@@ -534,17 +704,17 @@ struct PlaneSampler
                 // We can stop if we got the entire plane
                 auto min_bnd_bx   = m_ps_mf[iplane]->boxArray().minimalBox();
                 amrex::Box bnd_bx = getIndexBox(bnd_rbx, geom[ilev]);
-                if (bnd_bx == min_bnd_bx) { continue; }
+                if (bnd_bx == min_bnd_bx) { break; }
 
             } // ilev
         }// iplane
     }
 
     void
-    write_plane_mfs (amrex::Vector<amrex::Real>& time,
-                     amrex::Vector<int>& level_steps,
-                     amrex::Vector<amrex::IntVect>& ref_ratio,
-                     amrex::Vector<amrex::Geometry>& geom)
+    write_sample_data (amrex::Vector<amrex::Real>& time,
+                       amrex::Vector<int>& level_steps,
+                       amrex::Vector<amrex::IntVect>& ref_ratio,
+                       amrex::Vector<amrex::Geometry>& geom)
     {
         amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
@@ -564,8 +734,8 @@ struct PlaneSampler
             amrex::Vector<int> is_per(AMREX_SPACEDIM,0);
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
                 if (d==dir) {
-                    m_rb.setLo(d,point-0.5*geom[lev].CellSize(d));
-                    m_rb.setHi(d,point+0.5*geom[lev].CellSize(d));
+                    m_rb.setLo(d,point-myhalf*geom[lev].CellSize(d));
+                    m_rb.setHi(d,point+myhalf*geom[lev].CellSize(d));
                 }
                 is_per[d] = geom[lev].isPeriodic(d);
             }
@@ -592,43 +762,5 @@ struct PlaneSampler
     amrex::Vector<amrex::RealBox> m_bnd_rbx;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_ps_mf;
     amrex::Vector<std::string> m_name;
-};
-
-
-class SampleData
-{
-public:
-    explicit SampleData (bool do_line=false,
-                         bool do_plane=false)
-    {
-        if(do_line)  m_ls = std::make_unique<LineSampler >();
-        if(do_plane) m_ps = std::make_unique<PlaneSampler>();
-    }
-
-    void
-    get_sample_data (amrex::Vector<amrex::Geometry>& geom,
-                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
-    {
-        if (m_ls) m_ls->get_line_mfs(vars_new);
-        if (m_ps) m_ps->get_plane_mfs(geom, vars_new);
-    }
-
-    void
-    write_sample_data (amrex::Vector<amrex::Real>& time,
-                       amrex::Vector<int>& level_steps,
-                       amrex::Vector<amrex::IntVect>& ref_ratio,
-                       amrex::Vector<amrex::Geometry>& geom)
-    {
-        if (m_ls) m_ls->write_line_mfs(time, level_steps, ref_ratio, geom);
-        if (m_ps) m_ps->write_plane_mfs(time, level_steps, ref_ratio, geom);
-    }
-
-private:
-
-    // Structures for getting line MFs
-    std::unique_ptr<LineSampler> m_ls = nullptr;
-
-    // Structures for getting plane MFs
-    std::unique_ptr<PlaneSampler> m_ps = nullptr;
 };
 #endif

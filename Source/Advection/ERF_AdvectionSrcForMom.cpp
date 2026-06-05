@@ -11,7 +11,7 @@ using namespace amrex;
  * Function for computing the advective tendency for the momentum equations
  * This routine has explicit expressions for all cases (terrain or not) when
  * the horizontal and vertical spatial orders are <= 2, and calls more specialized
- * functions when either (or both) spatial order(s) is greater than 2.
+ * functions when either (or both) spatial order(s) is greater than two
  *
  * @param[in] mfi MultiFab Iterator
  * @param[in] bxx box over which the x-momentum is updated
@@ -113,11 +113,11 @@ AdvectionSrcForMom (const MFIter& mfi,
     ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_u_inv(i,j,0) = 1. / mf_ux(i,j,0);
+        mf_u_inv(i,j,0) = one / mf_ux(i,j,0);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_v_inv(i,j,0) = 1. / mf_vy(i,j,0);
+        mf_v_inv(i,j,0) = one / mf_vy(i,j,0);
     });
 
     if (mesh_type == MeshType::ConstantDz && terrain_type != TerrainType::EB)

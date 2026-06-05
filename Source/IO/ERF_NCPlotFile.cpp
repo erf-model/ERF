@@ -6,6 +6,7 @@
 #include <AMReX_Utility.H>
 #include <AMReX_MultiFab.H>
 
+#include "ERF_Constants.H"
 #include "ERF_NCInterface.H"
 
 using namespace amrex;
@@ -151,7 +152,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
 
     amrex::Vector<Real> CellSize;
     CellSize.clear();
-    for (double & j : dx) {
+    for (Real& j : dx) {
         CellSize.push_back(j);
     }
     auto nc_CellSize = ncf.var("CellSize");
@@ -176,15 +177,15 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                 for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                     for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                        x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+0.5));
-                        y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+0.5));
-                        z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+0.5));
+                        x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
+                        y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
+                        z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+myhalf));
                      }
                 }
             }
 
             goffset += glen;
-            glen = ba.numPts();
+            glen = bx.numPts();
 
             auto nc_x_grid = ncf.var("x_grid");
             auto nc_y_grid = ncf.var("y_grid");
@@ -216,9 +217,9 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
            long unsigned local_ny = bx.length()[1];
            long unsigned local_nz = bx.length()[2];
 
-           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
-           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
-           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
+           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]-subdomain.smallEnd()[0]);
+           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]-subdomain.smallEnd()[1]);
+           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]-subdomain.smallEnd()[2]);
 
            for (int k(0); k < ncomp; ++k) {
                FArrayBox tmp;

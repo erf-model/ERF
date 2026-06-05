@@ -10,7 +10,7 @@ an adaptive mesh refinement software framework, which provides the underlying so
 and performance portability.
 Visit the
 `AMReX documentation <https://amrex-codes.github.io/amrex/docs_html/>`_
-and `AMRex tutorials <https://amrex-codes.github.io/amrex/tutorials_html/>`_ for more information.
+and `AMReX tutorials <https://amrex-codes.github.io/amrex/tutorials_html/>`_ for more information.
 
 ERF is designed to run on machines from laptops to multicore CPU and hybrid CPU/GPU systems.
 
@@ -42,9 +42,12 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    GettingStarted.rst
+   buildingConfiguration.rst
    Inputs.rst
    Initialization.rst
    BestPractices.rst
+   AgenticWorkFlow.rst
+   ERFKnowledgeAssistant.rst
    HowToCite.rst
 
 .. toctree::
@@ -52,7 +55,6 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    theory/GoverningEquations.rst
-   theory/Anelastic.rst
    theory/BaseState.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst
@@ -61,6 +63,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Forcings.rst
    Particles.rst
    theory/Forest.rst
+   theory/HindCast.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::
@@ -75,6 +78,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    LinearSolvers.rst
    MeshRefinement.rst
    BoundaryConditions.rst
+   InflowTurbulenceGeneration.rst
    SurfaceLayer.rst
    DerivedQuantities.rst
    Checkpoint.rst

@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec::surface_layer
+.. _sec:surface_layer:
 
 Surface Layer Boundaries
 ------------------------
@@ -128,26 +128,26 @@ with the flux type. Therefore, the MOST implementation in ERF is a specific meth
 
    .. math::
 
-     \left. \frac{\tau_{xz}}{\rho} \right|_0 &= u_{\star}^{2} \frac{(u - \bar{u})|\mathbf{\bar{u}}| +  \bar{u}\sqrt{u^2 + v^2} }{|\mathbf{\bar{u}}|^2},
+     \left. \frac{\tau_{xz}}{\rho} \right|_0 &= u_{\star}^{2} \frac{(u - \bar{u})\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} +  \bar{u}\sqrt{u^2 + v^2} }{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}}^2},
 
-     \left. \frac{\tau_{yz}}{\rho}  \right|_0 &= u_{\star}^{2}  \frac{(v - \bar{v})|\mathbf{\bar{u}}| +  \bar{v}\sqrt{u^2 + v^2} }{|\mathbf{\bar{u}}|^2},
+     \left. \frac{\tau_{yz}}{\rho}  \right|_0 &= u_{\star}^{2}  \frac{(v - \bar{v})\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} +  \bar{v}\sqrt{u^2 + v^2} }{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}}^2},
 
-     \left.  \frac{\tau_{\theta z}}{\rho} \right|_0  &= \theta_\star u_{\star} \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta}) +
-                                                \sqrt{u^2+v^2}  (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| (\overline{\theta} -\theta_0) } =
-                                                u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta})  +
-                                                \sqrt{u^2+v^2} (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
+     \left.  \frac{\tau_{\theta z}}{\rho} \right|_0  &= \theta_\star u_{\star} \frac{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} ({\theta} - \overline{\theta}) +
+                                                \sqrt{u^2+v^2}  (\overline{\theta} - \theta_0) }{ \overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} (\overline{\theta} -\theta_0) } =
+                                                u_{\star} \kappa  \frac{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} ({\theta} - \overline{\theta})  +
+                                                \sqrt{u^2+v^2} (\overline{\theta} - \theta_0) }{ \overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
 
-     \left.  \frac{\tau_{q_{v} z}}{\rho} \right|_0  &= q_{v,\star} u_{\star} \frac{|\mathbf{\bar{u}}| ({q_{v}} - \overline{q_{v}}) +
-                                                \sqrt{u^2+v^2}  (\overline{q_{v}} - q_{v,0}) }{ |\mathbf{\bar{u}}| (\overline{q_{v}} - q_{v,0}) } =
-                                                u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({q_{v}} - \overline{q_{v}})  +
-                                                \sqrt{u^2+v^2} (\overline{q_{v}} - q_{v,0}) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
+     \left.  \frac{\tau_{q_{v} z}}{\rho} \right|_0  &= q_{v,\star} u_{\star} \frac{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} ({q_{v}} - \overline{q_{v}}) +
+                                                \sqrt{u^2+v^2}  (\overline{q_{v}} - q_{v,0}) }{ \overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} (\overline{q_{v}} - q_{v,0}) } =
+                                                u_{\star} \kappa  \frac{\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} ({q_{v}} - \overline{q_{v}})  +
+                                                \sqrt{u^2+v^2} (\overline{q_{v}} - q_{v,0}) }{ \overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}} [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
 
    where :math:`\bar{\psi}` are plane averaged values (at :math:`z_{ref}`) and
-   :math:`|\mathbf{\bar{u}}|` is the plane averaged magnitude of horizontal velocity (plane averaged wind speed).
+   :math:`\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}}` is the plane averaged magnitude of horizontal velocity (plane averaged wind speed).
    We note a slight variation in the denominator of the velocity terms from the form of the
    equations presented in Moeng. This difference is due to how the stress components are computed
-   --- i.e., the stress componen in Moeng's work, :math:`\tau_{xz,0}`, is given by :math:`\tau_{xz,0} = u_{\star}^{2} \bar{u}/|\mathbf{\bar{u}}|`,
-   where :math:`\bar{u}/|\mathbf{\bar{u}}|` is the unit vector component applied to the total stress :math:`u_{\star}^{2}`.
+   --- i.e., the stress componen in Moeng's work, :math:`\tau_{xz,0}`, is given by :math:`\tau_{xz,0} = u_{\star}^{2} \bar{u}/\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}}`,
+   where :math:`\bar{u}/\overline{{\scriptstyle|}\mathbf{u}{\scriptstyle|}}` is the unit vector component applied to the total stress :math:`u_{\star}^{2}`.
 
    Finally, it must be noted that using terrain-fitted coorindates will modify the surface normal and tangent vectors.
    Consequently, the MOST implementation with terrain-fitted coorindates will formally require local vector rotations.
@@ -180,15 +180,16 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.use_normal_vector = BOOL   #USE NORMAL VECTOR W/ TERRAIN?
    erf.most.use_interpolation = BOOL   #INTERPOLATE QUERY POINT W/ TERRAIN?
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
-   erf.most.z0                = FLOAT  #SURFACE ROUGHNESS
-   erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH)
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP
-   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX
-   erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE
-   erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX
+   erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
+   erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
+   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP [K]
+   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
+   erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
+   erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
-   erf.most.radius            = INT    #SPECIFIED REGION RADIUS
-   erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG
+   erf.most.radius            = INT    #SPECIFIED REGION RADIUS [grid cells]
+   erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG [s]
 
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 

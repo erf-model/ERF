@@ -22,7 +22,7 @@ of trees. Two different models are available as an alternative:
 Here :math:`LAI` is the leaf area index and is available from measurements, :math:`h` is the height of the tree, :math:`z_m` is the location
 of the maximum LAD, :math:`L_m` is the maximum value of LAD at :math:`z_m` and :math:`n` is a model constant with values  6 (below :math:`z_m`) and 0.5
 (above :math:`z_m`), respectively. :math:`L_m` is computed by integrating the following equation (see `Lalic and Mihailovic (2004)
-<https://doi.org/10.1175/1520-0450(2004)043<0641:AERDLD>2.0.CO;2>`_):
+<https://doi.org/10.1175/1520-0450(2004)043%3C0641:AERDLD%3E2.0.CO;2>`__):
 
 .. math::
    LAI = \int_{0}^{h} L(z) dz

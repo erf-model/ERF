@@ -60,6 +60,7 @@
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
+                    const Array4<const Real>& dJ_stg = detJ_cc_src[level]->const_array(mfi);
 
                     const Array4<const Real>& z_nd_old =     z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
@@ -73,8 +74,8 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        ssum[IntVars::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
-                                                          + slow_dt * fslow[IntVars::cons](i,j,k,n);
+                        ssum[IntVars::cons](i,j,k,n)  = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
+                                                      + slow_dt * dJ_stg(i,j,k) * fslow[IntVars::cons](i,j,k,n);
                         ssum[IntVars::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
@@ -84,13 +85,13 @@
                         Real h_zeta_old = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
                         Real h_zeta_new = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_new);
                         ssum[IntVars::xmom](i,j,k) = ( h_zeta_old *  sold[IntVars::xmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::xmom](i,j,k) ) / h_zeta_new;
+                                                     + slow_dt * fslow[IntVars::xmom](i,j,k) ) / h_zeta_new;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
                         Real h_zeta_new = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_new);
                         ssum[IntVars::ymom](i,j,k) = ( h_zeta_old *  sold[IntVars::ymom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::ymom](i,j,k) ) / h_zeta_new;
+                                                     + slow_dt * fslow[IntVars::ymom](i,j,k) ) / h_zeta_new;
                     });
                     ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -102,10 +103,10 @@
                                                                     ssum[IntVars::xmom], ssum[IntVars::ymom],
                                                                     mf_u, mf_v, z_nd_new,dxInv);
                         } else {
-                            Real dJ_old_kface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
-                            Real dJ_new_kface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                            Real dJ_old_kface = myhalf * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
+                            Real dJ_new_kface = myhalf * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
                             ssum[IntVars::zmom](i,j,k) = ( dJ_old_kface *  sold[IntVars::zmom](i,j,k)
-                                                             + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
+                                                         + slow_dt * fslow[IntVars::zmom](i,j,k) ) / dJ_new_kface;
                         }
                     });
 
@@ -114,9 +115,11 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        if (dJ_old(i,j,k) > 0.0) {
+                        if (dJ_old(i,j,k) > zero) {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                ( fslow[IntVars::cons](i,j,k,n) );
+                        } else {
+                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n);
                         }
                     });
 
@@ -129,7 +132,7 @@
 
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_u(i,j,k) > 0.0) {
+                            if (vfrac_u(i,j,k) > zero) {
                                 // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                                                            + slow_dt * fslow[IntVars::xmom](i,j,k);
@@ -138,7 +141,7 @@
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_v(i,j,k) > 0.0) {
+                            if (vfrac_v(i,j,k) > zero) {
                                 // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                            + slow_dt * fslow[IntVars::ymom](i,j,k);
@@ -147,7 +150,7 @@
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_w(i,j,k) > 0.0) {
+                            if (vfrac_w(i,j,k) > zero) {
                                 // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                            + slow_dt * fslow[IntVars::zmom](i,j,k);
@@ -176,48 +179,53 @@
 
             if (solverChoice.terrain_type == TerrainType::EB)
             {
+                BL_PROFILE("no_substep_fun_redistribute");
                 // Redistribute cons states (cell-centered)
 
-                MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
-                dUdt_tmp.setVal(0.);
-                MultiFab::Copy(dUdt_tmp, F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
-                dUdt_tmp.FillBoundary(fine_geom.periodicity());
-                dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+                Vector<MultiFab> dUdt(IntVars::NumTypes);
+                dUdt[IntVars::cons].define(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
+                for (int i = 1; i <= AMREX_SPACEDIM; ++i) {
+                    dUdt[i].define(F_slow[i].boxArray(), F_slow[i].DistributionMap(), F_slow[i].nComp(), F_slow[i].nGrow(), MFInfo());
+                }
+                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
+                    dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
+                    MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
+                    dUdt[i].setDomainBndry(amrex::Real(1.234e10), 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].FillBoundary(fine_geom.periodicity());
+                }
 
                 BCRec const* bc_ptr_d = domain_bcs_type_d.data();
-                S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
-                S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+                IntVect ngv_pert = S_old[IntVars::cons].nGrowVect();
 
-                // Update F_slow by Redistribution.
-                redistribute_term ( ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt_tmp,
-                                    S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
+                MultiFab S_pert_cons(ba, dm, S_old[IntVars::cons].nComp(), ngv_pert, MFInfo(), EBFactory(level));
+                MultiFab rt0(ba, dm, 1, ngv_pert, MFInfo(), EBFactory(level));
 
-                // Redistribute momentum states (face-centered)
+                // Copy S_old into S_pert
+                MultiFab::Copy(S_pert_cons, S_old[IntVars::cons],0,0,S_pert_cons.nComp(), ngv_pert);
 
-                Vector<MultiFab> dUdt_mom(AMREX_SPACEDIM);
-                for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-                    dUdt_mom[i].define(F_slow[1+i].boxArray(), F_slow[1+i].DistributionMap(), F_slow[1+i].nComp(), F_slow[1+i].nGrow(), MFInfo());
-                    dUdt_mom[i].setVal(0.);
-                    MultiFab::Copy(dUdt_mom[i], F_slow[1+i], 0, 0, F_slow[1+i].nComp(), F_slow[1+i].nGrow());
-                    dUdt_mom[i].FillBoundary(fine_geom.periodicity());
-                    dUdt_mom[i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);
-                }
+                // Copy theta0 into rt0
+                MultiFab::Copy(rt0,base_state[level],BaseState::th0_comp,0,1,ngv_pert);
 
-                for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-                    S_old[1+i].FillBoundary(fine_geom.periodicity());
-                    S_old[1+i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);
-                }
+                // Multiply theta0 by rho0 in rt0
+                MultiFab::Multiply(rt0,base_state[level],BaseState::r0_comp,0,1,ngv_pert);
 
-                // Update F_slow by Redistribution.
-                redistribute_term( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt_mom[0],
-                                   S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt);
-                redistribute_term( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt_mom[1],
-                                   S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt);
-                redistribute_term( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt_mom[2],
-                                   S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt);
+                MultiFab::Subtract(S_pert_cons, base_state[level], BaseState::r0_comp,0,1,ngv_pert);
+                MultiFab::Subtract(S_pert_cons, rt0              ,                  0,1,1,ngv_pert);
 
-                // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
+                // Update F_slow for perturbational fast quantities (rho - rho0) and (rho_theta - rho_theta_0)
+                redistribute_term(ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
+                                  S_pert_cons, EBFactory(level), bc_ptr_d, slow_dt);
 
+                // Update F_slow for momenta
+                redistribute_term(ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt[IntVars::xmom],
+                                  S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt, IntVars::xmom);
+                redistribute_term(ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt[IntVars::ymom],
+                                  S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt, IntVars::ymom);
+                redistribute_term(ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt[IntVars::zmom],
+                                  S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
+
+
+                // Update state using the updated F_slow.
                 for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box bx = mfi.tilebox();
@@ -253,7 +261,7 @@
                     ParallelFor(bx, ncomp_fast[IntVars::cons], [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                     {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        if (vfrac_c(i,j,k) > 0.0) {
+                        if (vfrac_c(i,j,k) > zero) {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                 ( fslow[IntVars::cons](i,j,k,n) );
                         }
@@ -265,27 +273,26 @@
 
                     ParallelFor(tbx, tby, tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_u(i,j,k) > 0.0) {
+                        if (vfrac_u(i,j,k) > zero) {
                             ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                             + slow_dt * fslow[IntVars::xmom](i,j,k);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_v(i,j,k) > 0.0) {
+                        if (vfrac_v(i,j,k) > zero) {
                             ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                     + slow_dt * fslow[IntVars::ymom](i,j,k);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (vfrac_w(i,j,k) > 0.0) {
+                        if (vfrac_w(i,j,k) > zero) {
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                     + slow_dt * fslow[IntVars::zmom](i,j,k);
+
                         }
                     });
                 } // MFIter
-
             } // EB
-
         } // omp
 
         // Even if we update all the conserved variables we don't need
@@ -298,7 +305,7 @@
             if (have_tb) {
                 project_velocity_tb(level, slow_dt, S_sum);
             } else {
-                project_momenta(level, slow_dt, S_sum);
+                project_momenta(level, time_for_fp, slow_dt, S_sum);
             }
         }
     };

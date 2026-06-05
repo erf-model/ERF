@@ -9,6 +9,7 @@
 
 void
 read_from_metgrid (int lev,
+                   int itime,
                    const amrex::Box& domain,
                    const std::string& fname,
                    std::string& NC_dateTime,
@@ -42,10 +43,12 @@ read_from_metgrid (int lev,
 
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
-                           const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);
+                           amrex::FArrayBox& NC_hgt_fab);
 
 void
-init_state_from_metgrid (const bool use_moisture,
+init_state_from_metgrid (const int lev,
+                         const int itime,
+                         const bool use_moisture,
                          const bool interp_theta,
                          const bool metgrid_debug_quiescent,
                          const bool metgrid_debug_isothermal,
@@ -66,17 +69,14 @@ init_state_from_metgrid (const bool use_moisture,
                          amrex::FArrayBox& y_vel_fab,
                          amrex::FArrayBox& z_vel_fab,
                          amrex::FArrayBox& z_phys_nd_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_ght_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_temp_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_rhum_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_pres_fab,
-                         amrex::FArrayBox& p_interp_fab,
-                         amrex::FArrayBox& t_interp_fab,
-                         amrex::FArrayBox& theta_fab,
-                         amrex::FArrayBox& mxrat_fab,
+                         const amrex::FArrayBox& NC_ght_fab,
+                         const amrex::FArrayBox& NC_xvel_fab,
+                         const amrex::FArrayBox& NC_yvel_fab,
+                         const amrex::FArrayBox& NC_temp_fab,
+                         const amrex::FArrayBox& NC_rhum_fab,
+                         const amrex::FArrayBox& NC_pres_fab,
+                         amrex::FArrayBox& tmp_src_fab,
+                         amrex::FArrayBox& tmp_dst_fab,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_xlo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_xhi,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs_ylo,
@@ -91,24 +91,25 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& msfv_fab,
                         amrex::FArrayBox& msfm_fab,
                         const int& flag_msf,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
+                        amrex::FArrayBox& NC_MSFU_fab,
+                        amrex::FArrayBox& NC_MSFV_fab,
+                        amrex::FArrayBox& NC_MSFM_fab);
 
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
                               const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
-                              const amrex::Vector<int>& flag_psfc,
-                              amrex::FArrayBox& state,
+                              const int& flag_psfc,
+                              amrex::FArrayBox& state_fab,
                               amrex::FArrayBox& r_hse_fab,
                               amrex::FArrayBox& p_hse_fab,
                               amrex::FArrayBox& pi_hse_fab,
                               amrex::FArrayBox& th_hse_fab,
                               amrex::FArrayBox& qv_hse_fab,
+                              amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
-                              const amrex::Vector<amrex::FArrayBox>& NC_psfc_fab);
+                              const amrex::FArrayBox& NC_psfc_fab);
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
@@ -124,16 +125,16 @@ lagrange_interp (const int& order,
     // where Lnk(x) = (x -x0)(x -x1)...(x -xk-1)(x -xk+1)...(x -xn)
     //                ---------------------------------------------
     //                (xk-x0)(xk-x1)...(xk-xk-1)(xk-xk+1)...(xk-xn)
-    amrex::Real Px = 0.0;
+    amrex::Real Px = zero;
     for (int i=0; i <= order; i++) {
-        amrex::Real n = 1.0;
-        amrex::Real d = 1.0;
+        amrex::Real n = one;
+        amrex::Real d = one;
         for (int k=0; k <= order; k++) {
             if (k == i) continue;
             n *= new_x-x[k];
             d *= x[i]-x[k];
         }
-        if (d != 0.0) {
+        if (d != zero) {
             Px += y[i]*n/d;
         }
     }
@@ -158,9 +159,9 @@ lagrange_setup (char var_type,
                 amrex::Real* new_y)
 {
 
-    amrex::Real CRC_const1 = 11880.516; // m
-    amrex::Real CRC_const2 = 0.1902632;
-    amrex::Real CRC_const3 = 0.0065; // K km-1
+    amrex::Real CRC_const1 = amrex::Real(11880.516); // m
+    amrex::Real CRC_const2 = amrex::Real(0.1902632);
+    amrex::Real CRC_const3 = amrex::Real(0.0065); // K km-1
 
     amrex::ignore_unused(i,j);
 #ifndef AMREX_USE_GPU
@@ -178,7 +179,7 @@ lagrange_setup (char var_type,
         for (int ko=0; ko < orig_n-1; ko++) {
             amrex::Real a = new_x_z[new_k]-orig_x_z[ko];
             amrex::Real b = new_x_z[new_k]-orig_x_z[ko+1];
-            if (a*b <= 0.0) {
+            if (a*b <= zero) {
                 kl = ko;
                 kr = ko+1;
                 extrapolating = false;
@@ -188,18 +189,18 @@ lagrange_setup (char var_type,
 
         if (extrapolating) {
             if (var_type == 'T') {
-                // Assume a standard atmosphere -6.5 K km-1 lapse rate.
-                // Comparable to the WRF default, t_extrap_type=2.
+                // Assume a standard atmosphere -amrex::Real(6.5) K km-1 lapse rate.
+                // Comparable to the WRF default, t_extrap_type=two
                 amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[0];
-                amrex::Real avg_of_extrap_p = 0.5*(new_x_p[new_k]+orig_x_p[0]);
-                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/100000.0, R_d/Cp_d);
-                amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/100.0, CRC_const2-1.0);
-                amrex::Real dZ = dZdP*(depth_of_extrap_in_p/100.0);
+                amrex::Real avg_of_extrap_p = myhalf*(new_x_p[new_k]+orig_x_p[0]);
+                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), R_d/Cp_d);
+                amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/amrex::Real(100.0), CRC_const2-one);
+                amrex::Real dZ = dZdP*(depth_of_extrap_in_p/amrex::Real(100.0));
                 amrex::Real dT = dZ*CRC_const3;
-                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(100000.0/new_x_p[new_k], R_d/Cp_d);
+                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(amrex::Real(100000.0)/new_x_p[new_k], R_d/Cp_d);
             } else {
                 // Use a constant value below ground.
-                // Comparable to the WRF default, extrap_type=2.
+                // Comparable to the WRF default, extrap_type=two
                 new_y[new_k] = orig_y[0];
             }
             continue;
@@ -341,7 +342,7 @@ lagrange_setup (char var_type,
 #endif
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
-                new_y[new_k] = 0.5*(new_y_l+new_y_r);
+                new_y[new_k] = myhalf*(new_y_l+new_y_r);
             } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
@@ -450,7 +451,7 @@ void
 calc_p_isothermal (const amrex::Real& z,
                    amrex::Real& p)
 {
-    p = p_0*exp(-CONST_GRAV*z/(290.0*R_d));
+    p = p_0*std::exp(-CONST_GRAV*z/(amrex::Real(290.0)*R_d));
 }
 
 AMREX_FORCE_INLINE
@@ -465,33 +466,26 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const int& metgrid_force_sfc_k,
                             const int& i,
                             const int& j,
+                            const int& kmax,
                             const int& src_comp,
-                            const int& itime,
+                            const int& dst_comp,
                             char var_type,
                             char stag,
                             const amrex::Array4<amrex::Real const>& orig_z_full,
                             const amrex::Array4<amrex::Real const>& orig_data,
                             const amrex::Array4<amrex::Real const>& new_z_full,
-                            const amrex::Array4<amrex::Real>& new_data_full,
-                            const bool& update_bc_data,
-                            const amrex::Array4<amrex::Real>& bc_data_xlo,
-                            const amrex::Array4<amrex::Real>& bc_data_xhi,
-                            const amrex::Array4<amrex::Real>& bc_data_ylo,
-                            const amrex::Array4<amrex::Real>& bc_data_yhi,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const int>& mask)
+                            const amrex::Array4<amrex::Real>& new_data_full)
 {
     // Here we closely follow WRF's vert_interp from
     // dyn_em/module_initialize_real.F, although changes have been
     // made to accommodate interpolation relative to height instead of
     // pressure.
+    int imin_orig = amrex::lbound(amrex::Box(orig_data)).x;
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
+    int jmin_orig = amrex::lbound(amrex::Box(orig_data)).y;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
     int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
-    int kmax_new  = amrex::ubound(amrex::Box(new_z_full)).z;
+    int kmax_new  = kmax + 1;
 
     AMREX_ASSERT(kmax_orig < 256);
     AMREX_ASSERT(kmax_new  < 256);
@@ -504,11 +498,11 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     amrex::Real* new_data_p = new_data.data();
     for (int k=0; k < kmax_new; k++) {
         if (stag == 'X') {
-            new_z_p[k] = 0.25*(new_z_full(i,j,k)+new_z_full(i,j+1,k)+new_z_full(i,j,k+1)+new_z_full(i,j+1,k+1));
+            new_z_p[k] = fourth*(new_z_full(i,j,k)+new_z_full(i,j+1,k)+new_z_full(i,j,k+1)+new_z_full(i,j+1,k+1));
         } else if (stag == 'Y') {
-            new_z_p[k] = 0.25*(new_z_full(i,j,k)+new_z_full(i+1,j,k)+new_z_full(i,j,k+1)+new_z_full(i+1,j,k+1));
+            new_z_p[k] = fourth*(new_z_full(i,j,k)+new_z_full(i+1,j,k)+new_z_full(i,j,k+1)+new_z_full(i+1,j,k+1));
         } else if (stag == 'M') {
-            new_z_p[k] = 0.125*(new_z_full(i,j,k  )+new_z_full(i,j+1,k  )+new_z_full(i+1,j,k  )+new_z_full(i+1,j+1,k  )+
+            new_z_p[k] = amrex::Real(0.125)*(new_z_full(i,j,k  )+new_z_full(i,j+1,k  )+new_z_full(i+1,j,k  )+new_z_full(i+1,j+1,k  )+
                               new_z_full(i,j,k+1)+new_z_full(i,j+1,k+1)+new_z_full(i+1,j,k+1)+new_z_full(i+1,j+1,k+1));
         }
         calc_p_isothermal(new_z_p[k], new_p_p[k]);
@@ -520,20 +514,20 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         if (stag == 'M') {
             orig_z_p[k] = orig_z_full(i,j,k);
         } else if (stag == 'X') {
-            if (i == 0) {
+            if (i <= imin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (i == imax_orig) {
+            } else if (i >= imax_orig) {
                 orig_z_p[k] = orig_z_full(imax_orig-1,j,k);
             } else {
-                orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
+                orig_z_p[k] = myhalf*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
             }
         } else if (stag == 'Y') {
-            if (j == 0) {
+            if (j <= jmin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (j == jmax_orig) {
+            } else if (j >= jmax_orig) {
                 orig_z_p[k] = orig_z_full(i,jmax_orig-1,k);
             } else {
-                orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
+                orig_z_p[k] = myhalf*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
             }
         }
     }
@@ -567,7 +561,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // Insert levels that are below the surface.
         for (int k=1; k < k_above_sfc; k++) {
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
 
@@ -587,7 +581,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
         // Insert the surface level.
         ordered_z_p[count] = orig_z_p[0];
-        ordered_data_p[count] = orig_data(i,j,0);
+        ordered_data_p[count] = orig_data(i,j,0,src_comp);
         count++;
 
         // Quoting WRF's comments, the next level to use is at,
@@ -618,7 +612,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // Insert levels that are above the surface.
         for (int k=knext; k < kmax_orig; k++) {
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
 
@@ -628,7 +622,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
         // Insert the surface.
         ordered_z_p[0] = orig_z[0];
-        ordered_data_p[0] = orig_data(i,j,0);
+        ordered_data_p[0] = orig_data(i,j,0,src_comp);
 
         // Similar to above, conditionally more strongly use the
         // surface data.
@@ -653,7 +647,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                 continue;
             }
             ordered_z_p[count] = orig_z_p[k];
-            ordered_data_p[count] = orig_data(i,j,k);
+            ordered_data_p[count] = orig_data(i,j,k,src_comp);
             count++;
         }
         kend_order = count;
@@ -696,14 +690,14 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     }
 
     // Insert the level of maximum winds.
-//    amrex::Real maxw_above_this_level = 30000.0;
-//    amrex::Real maxw_horiz_pres_diff = 5000.0;
+//    amrex::Real maxw_above_this_level = amrex::Real(30000.0);
+//    amrex::Real maxw_horiz_pres_diff = amrex::Real(5000.0);
 //    if ((flag_maxw == 1) && (use_maxw)) {
 //        amrex::Abort("metgrid initialization, use_maxw not yet implemented");
 //    }
 
     // Insert the level of the tropopause.
-//    amrex::Real trop_horiz_pres_diff = 5000.0;
+//    amrex::Real trop_horiz_pres_diff = amrex::Real(5000.0);
 //    if ((flag_trop == 1) && (use_trop)) {
 //        amrex::Abort("metgrid initialization, use_trop not yet implemented");
 //    }
@@ -758,11 +752,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
     // Save the interpolated data.
     for (int k=0; k < kmax_new; k++) {
-        if (mask(i,j,k) && update_bc_data && bx_xlo.contains(i,j,k)) bc_data_xlo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_xhi.contains(i,j,k)) bc_data_xhi(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_ylo.contains(i,j,k)) bc_data_ylo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_yhi.contains(i,j,k)) bc_data_yhi(i,j,k,0) = new_data[k];
-        if (itime == 0) new_data_full(i,j,k,src_comp) = new_data[k];
+        new_data_full(i,j,k,dst_comp) = new_data[k];
     }
 
 }
@@ -786,23 +776,23 @@ interpolate_column_metgrid_linear (const int& i,
 
     amrex::Real z;
     if (stag == 'X') {
-        z = 0.25*(new_z(i,j,k)+new_z(i,j+1,k)+new_z(i,j,k+1)+new_z(i,j+1,k+1));
+        z = fourth*(new_z(i,j,k)+new_z(i,j+1,k)+new_z(i,j,k+1)+new_z(i,j+1,k+1));
     }
     else if (stag == 'Y') {
-        z = 0.25*(new_z(i,j,k)+new_z(i+1,j,k)+new_z(i,j,k+1)+new_z(i+1,j,k+1));
+        z = fourth*(new_z(i,j,k)+new_z(i+1,j,k)+new_z(i,j,k+1)+new_z(i+1,j,k+1));
     }
     else if (stag == 'M') {
-        z = 0.125*(new_z(i,j,k  )+new_z(i,j+1,k  )+new_z(i+1,j,k  )+new_z(i+1,j+1,k  )+
+        z = amrex::Real(0.125)*(new_z(i,j,k  )+new_z(i,j+1,k  )+new_z(i+1,j,k  )+new_z(i+1,j+1,k  )+
                    new_z(i,j,k+1)+new_z(i,j+1,k+1)+new_z(i+1,j,k+1)+new_z(i+1,j+1,k+1));
     }
 
     amrex::Real z0, z1;
     int klow   = -1;
     int khi0   = -1;
-    amrex::Real dzlow =  1.0e12;
-    amrex::Real dzhi0 = -1.0e12;
+    amrex::Real dzlow =  amrex::Real(1.0e12);
+    amrex::Real dzhi0 = -amrex::Real(1.0e12);
     for (int kk = 0; kk < kmax_orig; kk++) {
-        amrex::Real orig_z_stag = 0.0;
+        amrex::Real orig_z_stag = zero;
         if (stag == 'M') {
             orig_z_stag = orig_z(i,j,kk);
         }
@@ -814,7 +804,7 @@ interpolate_column_metgrid_linear (const int& i,
                 orig_z_stag = orig_z(imax_orig-1,j,kk);
             }
             else {
-                orig_z_stag = 0.5*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
+                orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
             }
         }
         else if (stag == 'Y') {
@@ -825,17 +815,17 @@ interpolate_column_metgrid_linear (const int& i,
                 orig_z_stag = orig_z(i,jmax_orig-1,kk);
             }
             else {
-                orig_z_stag = 0.5*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
+                orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
             }
         }
 
         amrex::Real dz = z - orig_z_stag;
-        if ((dz < 0.0) && (dz > dzhi0)) {
+        if ((dz < zero) && (dz > dzhi0)) {
             dzhi0 = dz;
             khi0  = kk;
             z1    = orig_z_stag;
         }
-        if ((dz >= 0.0) && (dz < dzlow)) {
+        if ((dz >= zero) && (dz < dzlow)) {
             dzlow = dz;
             klow  = kk;
             z0    = orig_z_stag;
@@ -845,9 +835,9 @@ interpolate_column_metgrid_linear (const int& i,
     // extrapolate below the bottom surface
     if (klow == -1) {
         int khi1   = -1;
-        amrex::Real dzhi1 = -1.0e12;
+        amrex::Real dzhi1 = -amrex::Real(1.0e12);
         for (int kk = 0; kk < kmax_orig; kk++) {
-            amrex::Real orig_z_stag = 0.0;
+            amrex::Real orig_z_stag = zero;
             if (stag == 'M') {
                 orig_z_stag = orig_z(i,j,kk);
             }
@@ -859,7 +849,7 @@ interpolate_column_metgrid_linear (const int& i,
                     orig_z_stag = orig_z(imax_orig-1,j,kk);
                 }
                 else {
-                    orig_z_stag = 0.5*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
+                    orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i-1,j,kk));
                 }
             }
             else if (stag == 'Y') {
@@ -870,11 +860,11 @@ interpolate_column_metgrid_linear (const int& i,
                     orig_z_stag = orig_z(i,jmax_orig-1,kk);
                 }
                 else {
-                    orig_z_stag = 0.5*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
+                    orig_z_stag = myhalf*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
                 }
             }
             amrex::Real dz = z - orig_z_stag;
-            if ((dz < 0.0) && (dz > dzhi1) && (kk != khi0)) {
+            if ((dz < zero) && (dz > dzhi1) && (kk != khi0)) {
                 dzhi1 = dz;
                 khi1  = kk;
                 z1    = orig_z_stag;
@@ -899,7 +889,7 @@ interpolate_column_metgrid_linear (const int& i,
                 z0 = orig_z(imax_orig-1,j,khi0);
             }
             else {
-                z0 = 0.5*(orig_z(i,j,khi0)+orig_z(i-1,j,khi0));
+                z0 = myhalf*(orig_z(i,j,khi0)+orig_z(i-1,j,khi0));
             }
         }
         else if (stag == 'Y') {
@@ -910,7 +900,7 @@ interpolate_column_metgrid_linear (const int& i,
                 z0 = orig_z(i,jmax_orig-1,khi0);
             }
             else {
-                z0 = 0.5*(orig_z(i,j,khi0)+orig_z(i,j-1,khi0));
+                z0 = myhalf*(orig_z(i,j,khi0)+orig_z(i,j-1,khi0));
             }
         }
         amrex::Real y0 = orig_data(i,j,khi0,src_comp);
@@ -934,34 +924,35 @@ rh_to_mxrat (int i,
              const amrex::Array4<amrex::Real const>& rhum,
              const amrex::Array4<amrex::Real const>& temp,
              const amrex::Array4<amrex::Real const>& pres,
+             int src_indx,
              const amrex::Array4<amrex::Real>& mxrat)
 {
-    amrex::Real qv_max_p_safe = 10000.0; // WRF default value
-    amrex::Real qv_max_flag   = 1.0e-5; // WRF default value
-    amrex::Real qv_max_value  = 3.0e-6; // WRF default value
-    amrex::Real qv_min_p_safe = 110000.0; // WRF default value
-    amrex::Real qv_min_flag   = 1.0e-6; // WRF default value
-    amrex::Real qv_min_value  = 1.0e-6; // WRF default value
-    amrex::Real eps   = 0.622;
-    amrex::Real svp1  = 0.6112;
-    amrex::Real svp2  = 17.67;
-    amrex::Real svp3  = 29.65;
-    amrex::Real svpt0 = 273.15;
+    amrex::Real qv_max_p_safe = amrex::Real(10000.0); // WRF default value
+    amrex::Real qv_max_flag   = amrex::Real(1.0e-5); // WRF default value
+    amrex::Real qv_max_value  = amrex::Real(3.0e-6); // WRF default value
+    amrex::Real qv_min_p_safe = amrex::Real(110000.0); // WRF default value
+    amrex::Real qv_min_flag   = amrex::Real(1.0e-6); // WRF default value
+    amrex::Real qv_min_value  = amrex::Real(1.0e-6); // WRF default value
+    amrex::Real eps   = amrex::Real(0.622);
+    amrex::Real svp1  = amrex::Real(0.6112);
+    amrex::Real svp2  = amrex::Real(17.67);
+    amrex::Real svp3  = amrex::Real(29.65);
+    amrex::Real svpt0 = amrex::Real(273.15);
     // WRF's method when model_config_rec%rh2qv_wrt_liquid=.true. (default behavior)
-    if (temp(i,j,k) != 0.0) {
-        amrex::Real es=0.01*rhum(i,j,k)*svp1*10.0*exp(svp2*(temp(i,j,k)-svpt0)/(temp(i,j,k)-svp3));
-        if (es >= pres(i,j,k)/100.0) {
+    if (temp(i,j,k) != zero) {
+        amrex::Real es=amrex::Real(0.01)*rhum(i,j,k)*svp1*amrex::Real(10.0)*std::exp(svp2*(temp(i,j,k)-svpt0)/(temp(i,j,k)-svp3));
+        if (es >= pres(i,j,k)/amrex::Real(100.0)) {
             // vapor pressure exceeds total pressure
-            mxrat(i,j,k) = std::pow(10.0, -6);
+            mxrat(i,j,k,src_indx) = amrex::Math::powi<-6>(amrex::Real(10.0));
         }
         else {
-            mxrat(i,j,k) = amrex::max(eps*es/(pres(i,j,k)/100.0-es), 1.0e-6);
+            mxrat(i,j,k,src_indx) = amrex::max(eps*es/(pres(i,j,k)/amrex::Real(100.0)-es), amrex::Real(1.0e-6));
         }
     }
     else {
         // I don't know why there's a fringe case handled in WRF where T is absolute zero...
         // Let's just deal with it here in case we also end up needing it.
-        mxrat(i,j,k) = 1.0e-6;
+        mxrat(i,j,k,src_indx) = amrex::Real(1.0e-6);
     }
     // See the below comment from WRF dyn_em/module_initialize_real.F rh_to_mxrat1.
     // For pressures above a defined level, reasonable Qv values should be
@@ -970,13 +961,13 @@ rh_to_mxrat (int i,
     // attempt to catch those. Also, set the minimum value for the entire
     // domain that is above the selected pressure level.
     if (pres(i,j,k) < qv_max_p_safe) {
-        if (mxrat(i,j,k) > qv_max_flag) {
-            mxrat(i,j,k) = qv_max_value;
+        if (mxrat(i,j,k,src_indx) > qv_max_flag) {
+            mxrat(i,j,k,src_indx) = qv_max_value;
         }
     }
     if (pres(i,j,k) < qv_min_p_safe) {
-        if (mxrat(i,j,k) < qv_min_flag) {
-            mxrat(i,j,k) = qv_min_value;
+        if (mxrat(i,j,k,src_indx) < qv_min_flag) {
+            mxrat(i,j,k,src_indx) = qv_min_value;
         }
     }
 }

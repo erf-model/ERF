@@ -11,6 +11,7 @@
 #include <string>
 
 #include "ERF_NullMoistLagrangian.H"
+#include "ERF_SuperDropletsMoist.H"
 #include "ERF_Microphysics.H"
 
 /* forward declaration */
@@ -38,8 +39,12 @@ public:
                             const MoistureType& a_model_type /*!< moisture model */ )
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Lagrangian );
-        amrex::ignore_unused(a_model_type);
-        amrex::Abort("No Lagrangian moisture model implemented yet!") ;
+        if (a_model_type == MoistureType::SuperDroplets) {
+            SetModel<SuperDropletsMoist>();
+            amrex::Print() << "Super-Droplets moisture model!\n";
+        } else {
+            amrex::Abort("Unknown Lagrangian moisture model!") ;
+        }
     }
 
     /*! \brief Define the moisture model */
@@ -59,9 +64,21 @@ public:
                std::unique_ptr<amrex::MultiFab>& z_phys_nd,/*< Nodal z heights */
                std::unique_ptr<amrex::MultiFab>& detJ_cc /*< CC Jacobian determinants */) override
     {
+        if (lev == 0) {
+            m_moist_model->Init(cons_in, grids, geom, dt_advance,
+                                z_phys_nd, detJ_cc);
+        } else {
+            m_moist_model->InitLevel(lev, cons_in);
+        }
+    }
+
+    /*! \brief finish initializations steps that require flow variables */
+    void FinishInit (const int& lev, /*!< AMR level */
+                     amrex::MultiFab& cons_in, /*!< Conserved state variable */
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
+    {
         if (lev > 0) return;
-        m_moist_model->Init(cons_in, grids, geom, dt_advance,
-                            z_phys_nd, detJ_cc);
+        m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
     }
 
     /*! \brief Advance the moisture model for one time step */
@@ -74,7 +91,7 @@ public:
                   const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */,
                   const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& a_phys_bc_types ) override
     {
-        if (lev > 0) return;
+        m_moist_model->SetCurrentLevel(lev);
         m_moist_model->Advance(dt_advance, iter, time, a_vars, a_z, a_phys_bc_types);
     }
 
@@ -82,29 +99,37 @@ public:
     void Update_Micro_Vars_Lev (const int& lev, /*! AMR level */
                                 amrex::MultiFab& cons_in /*!< Conserved state variables */) override
     {
-        if (lev > 0) return;
+        m_moist_model->SetCurrentLevel(lev);
         m_moist_model->Update_Micro_Vars(cons_in);
     }
 
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        if (lev > 0) return;
-        m_moist_model->Update_State_Vars(cons_in);
+        m_moist_model->SetCurrentLevel(lev);
+        m_moist_model->Update_State_Vars(cons_in, z_phys_nd);
+    }
+
+    /*! \brief average down moisture multifabs from finest_level to 0 */
+    void AverageDownMicroVars (const int finest_level) override
+    {
+        m_moist_model->AverageDownMicroVars(finest_level);
     }
 
     /*! \brief get pointer to a moisture variable */
     amrex::MultiFab* Get_Qmoist_Ptr (const int& lev, /*!< AMR level */
                                      const int& varIdx /*!< moisture variable index */) override
     {
-        return (lev > 0 ? nullptr : m_moist_model->Qmoist_Ptr(varIdx));
+        m_moist_model->SetCurrentLevel(lev);
+        return m_moist_model->Qmoist_Ptr(varIdx);
     }
 
     /*! \brief get the number of moisture model variables */
-    int Get_Qmoist_Size (const int& a_lev /*!< AMR level */) override
+    int Get_Qmoist_Size (const int& /*a_lev*/ /*!< AMR level */) override
     {
-        return (a_lev > 0 ? 0 : m_moist_model->Qmoist_Size());
+        return m_moist_model->Qmoist_Size();
     }
 
     /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
@@ -113,16 +138,23 @@ public:
         return m_moist_model->Qstate_Moist_Size();
     }
 
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    int Get_Qstate_Moist_NumConc_Size () override
+    {
+        return m_moist_model->Qstate_Moist_NumConc_Size();
+    }
+
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     int Get_Qstate_NonMoist_Size () override
     {
         return m_moist_model->Qstate_NonMoist_Size();
     }
 
-    /*! \brief initialize particles in particle container */
-    inline void initParticles ( std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights */ )
+    /*! \brief initialize particles in particle container at level a_lev */
+    inline void initParticles ( const int a_lev, /*!< AMR level */
+                                std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights at level a_lev */ )
     {
-        m_moist_model->InitParticles(z_phys_nd);
+        m_moist_model->InitParticles(a_lev, z_phys_nd);
     }
 
     /*! \brief restart particles in particle container */
@@ -167,9 +199,23 @@ public:
     /*! \brief Fills in a MultiFab for plotting */
     virtual void GetPlotVar (const std::string& a_name,
                              amrex::MultiFab& a_mf,
-                             const int /* a_lev */) const override
+                             const int a_lev) const override
     {
-        m_moist_model->GetPlotVar(a_name, a_mf);
+        m_moist_model->SetCurrentLevel(a_lev);
+        m_moist_model->GetPlotVar(a_name, a_mf, a_lev);
+    }
+
+    /*! \brief get the diagnostics interval */
+    inline int getDiagnosticsInterval () const
+    {
+        return m_moist_model->getDiagnosticsInterval();
+    }
+
+     /*! \brief Populates dz_min in micro model for precipitation */
+    virtual void Set_dzmin (const int /*a_lev*/,
+                            const amrex::Real dz_min) const override
+    {
+        m_moist_model->Set_dzmin(dz_min);
     }
 
 protected:

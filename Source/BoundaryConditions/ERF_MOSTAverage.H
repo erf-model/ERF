@@ -16,6 +16,7 @@ public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
+                          const MeshType& m_mesh_type,
                           const TerrainType& m_terrain_type);
 
     // MOSTAverage() = default;
@@ -63,6 +64,9 @@ public:
     // Populate a 2D iMF k_indx (w/o terrain)
     void set_k_indices_N (const int& lev);
 
+    // Populate a 2D iMF k_indx (for EB)
+    void set_k_indices_EB (const int& lev);
+
     // Populate a 2D iMF k_indx (w/ terrain)
     void set_k_indices_T (const int& lev);
 
@@ -101,7 +105,10 @@ public:
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
     // Get z_ref (may be computed from specified k_indx)
-    [[nodiscard]] amrex::Real get_zref () const { return m_zref; }
+    [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
+
+    // Get pointer to the k-index mf
+    [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
 
     /**
      * Function to compute trilinear interpolation with terrain.
@@ -129,23 +136,23 @@ public:
         // Search to get z/k
         bool found = false;
         int kmax   = ubound(z_arr).z;
-        amrex::Real zval     = 0.0;
+        amrex::Real zval     = zero;
         amrex::Real z_target = zp;
 
         // Map position to i,j (must be same mapping in cpp file)
         amrex::Real ireal = (xp - plo[0]) * dxi[0];
         amrex::Real jreal = (yp - plo[1]) * dxi[1];
-        int i_new = (int) (ireal - 0.5);
-        int j_new = (int) (jreal - 0.5);
+        int i_new = (int) (ireal - myhalf);
+        int j_new = (int) (jreal - myhalf);
 
         for (int lk(0); lk<kmax; ++lk) {
-            amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
+            amrex::Real z_lo = fourth * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
-            amrex::Real z_hi = 0.25 * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
+            amrex::Real z_hi = fourth * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
                 found = true;
-                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
+                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
                 break;
             }
         }
@@ -154,7 +161,7 @@ public:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
-        const amrex::RealVect lx(ireal + 0.5, jreal + 0.5, zval);
+        const amrex::RealVect lx(ireal + myhalf, jreal + myhalf, zval);
 
         const amrex::IntVect ijk = lx.floor();
 
@@ -167,7 +174,7 @@ public:
 
         // Weights
         const amrex::RealVect sx_hi = lx  - ijk_r;
-        const amrex::RealVect sx_lo = 1.0 - sx_hi;
+        const amrex::RealVect sx_lo = one - sx_hi;
 
         for (int n = 0; n < interp_comp; n++) {
             interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
@@ -189,6 +196,7 @@ protected:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
     std::string m_pp_prefix;                                         // ParmParse prefix
+    MeshType m_mesh_type;                                            // Mesh type
     TerrainType m_terrain_type;                                      // Terrain type
 
     // General vars for multiple or all policies
@@ -198,7 +206,7 @@ protected:
     int  m_maxlev{0};                                                // Total number of levels
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
-    amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_zref;          // Height above surface for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_y_pos;         // Ptr to 2D mf to hold y position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_z_pos;         // Ptr to 2D mf to hold z position (maxlev)
@@ -228,12 +236,16 @@ protected:
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
-    amrex::Real m_time_window{1.0e-16};                              // Width of the exp filter function
+    amrex::Real m_time_window{amrex::Real(1.0e-16)};                              // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
 
     // Surface velocity correction
     //--------------------------------------------
     bool include_subgrid_vel = false;
     amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
+
+    // Default values
+    //--------------------------------------------
+    const amrex::Real zref_default = amrex::Real(10.0);
 };
 #endif

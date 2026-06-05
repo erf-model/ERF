@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
+erf.init_type = MoistBaseState
+
 max_step  = 10
 stop_time = 3600.0
 
@@ -18,8 +22,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
 erf.fixed_mri_dt_ratio = 4
-#erf.substepping_type = None
-#erf.fixed_dt = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -40,7 +42,6 @@ erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocit
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
     
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
@@ -54,17 +55,11 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "Kessler_NoRain"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 erf.alpha_C           = 0.0
-
-# INITIAL CONDITIONS
-#erf.init_type = "input_sounding"
-#erf.input_sounding_file = "BF02_moist_sounding"
-#erf.init_sounding_ideal = true
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input

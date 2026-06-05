@@ -1,0 +1,83 @@
+erf.prob_name = "Tornado"
+
+#stop_time = 36000.
+max_step = 12000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 195000. 	143000. 	20500.
+amr.n_cell           = 195   	143   		69
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+erf.fixed_fast_dt      = 0.25
+    
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1200   # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plotfile_type   = amrex  # prefix of plotfile name
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 10    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
+#erf.plotfile_type_2 = netcdf  # prefix of plotfile name
+#erf.plot_file_2     = plt     # prefix of plotfile name
+#erf.plot_int_2      = 1200    # number of timesteps between plotfiles
+#erf.plot_vars_2     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.terrain_type = StaticFittedMesh
+
+erf.moisture_model = "Kessler"
+
+erf.molec_diff_type  = "None"
+erf.pbl_type = "MYNN25"
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.15
+
+#erf.use_coriolis = true
+#erf.abl_driver_type = "GeostrophicWind"
+#erf.latitude = 90.
+#erf.abl_geo_wind = 15.0 0.0 0.0
+#erf.rotational_time_period = 86164.0900027328
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0   = 300.0
+prob.KE_0  = 0.5  # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 3
+
+# INITIALIZATION WITH ATM DATA
+erf.real_width     = 1
+erf.real_set_width = 1
+erf.init_type      = WRFInput
+erf.nc_init_file_0 = "wrfinput_tornado_d01"
+erf.nc_bdy_file    = "wrfbdy_tornado_d01"

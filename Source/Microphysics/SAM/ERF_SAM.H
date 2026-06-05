@@ -4,7 +4,7 @@
  * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
  * Journal of the atmospheric sciences, vol35, p1070
  * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
- * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
+ * model formulation, results, uncertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
  */
 #ifndef ERF_SAM_H
 #define ERF_SAM_H
@@ -23,6 +23,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SAMUtils.H"
 
 namespace MicVar {
    enum {
@@ -33,7 +34,7 @@ namespace MicVar {
       pres,  // pressure
       // non-precipitating vars
       qt,    // total cloud
-      qn,    // cloud condesnate (liquid + ice)
+      qn,    // cloud condensate (liquid + ice)
       qv,    // cloud vapor
       qcl,   // cloud water
       qci,   // cloud ice
@@ -80,9 +81,9 @@ public:
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
-        m_gOcp     = CONST_GRAV / sc.c_p;
         m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -93,6 +94,13 @@ public:
           const amrex::Real& dt_advance,
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
 
     // Copy state into micro vars
     void
@@ -110,7 +118,8 @@ public:
     }
 
     void
-    Update_State_Vars (amrex::MultiFab& cons_in) override
+    Update_State_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& /*z_phys_nd*/) override
     {
         this->Copy_Micro_to_State(cons_in);
     }
@@ -135,14 +144,41 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
+    const amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) const
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
+    }
+
     void
     Compute_Coefficients ();
+
+    SAMCoefficientRow
+    CoefficientRowAt (int k) const;
 
     int
     Qmoist_Size () override { return SAM::m_qmoist_size; }
 
     int
     Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
+
+    int
+    Qstate_Moist_NumConc_Size () override { return SAM::n_qstate_moist_numconc_size; }
+
+    void
+    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
+    {
+        a_idx.clear();
+        a_names.clear();
+
+        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
+    }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -163,7 +199,7 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = 1.0e-4;
+        amrex::Real tol = amrex::Real(1.0e-4);
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
@@ -176,7 +212,7 @@ public:
         amrex::Real fff, dfff, dtabs;
         amrex::Real lstar, dlstar;
         amrex::Real lstarw, lstari;
-        amrex::Real delta_qv, delta_qc, delta_qi;
+        amrex::Real delta_qc, delta_qi;
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
@@ -191,7 +227,7 @@ public:
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
             lstari  = fac_sub;
-            domn    = 0.0;
+            domn    = zero;
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
@@ -199,38 +235,36 @@ public:
             erf_dtqsatw(tabs, pres, dqsatw);
             erf_dtqsati(tabs, pres, dqsati);
 
+            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+
             if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation & fusion)
+                // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
-                    omn   = 1.0;
                 }
-                // Cloud water not permitted (sublimation & fusion)
+                // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
-                    omn    = 0.0;
                 }
-                // Mixed cloud phase (condensation & fusion)
+                // Mixed cloud phase (condensation & deposition)
                 else {
-                    omn   = an*tabs-bn;
-                    domn  = an;
+                    lstari = fac_sub;
+                    domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                omn  = 1.0;
-                domn = 0.0;
+                domn = zero;
             }
 
             // Linear combination of each component
-            qsat   =  omn * qsatw  + (1.0-omn) * qsati;
-            dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
-                   + domn *  qsatw -     domn  *  qsati;
-            lstar  =  omn * lstarw + (1.0-omn) * lstari;
+            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
+            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
+            lstar  =  omn * lstarw + (one-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
+            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -244,12 +278,14 @@ public:
         qsat += dqsat*dtabs;
 
         // Changes in each component
-        delta_qv = qv_array(i,j,k) - qsat;
-        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
-        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (1.0-omn));
+        const SAMCloudPhaseChange phase_change =
+            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
+                                         qc_array(i,j,k), qi_array(i,j,k), omn);
+        delta_qc = phase_change.delta_qc;
+        delta_qi = phase_change.delta_qi;
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = qsat;
+        qv_array(i,j,k)  = phase_change.qv;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
@@ -259,20 +295,6 @@ public:
         return tabs;
     }
 
-    void
-    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
-                         std::vector<int>& a_idx,
-                         std::vector<std::string>& a_names) const override
-    {
-        a_idx.clear();
-        a_names.clear();
-
-        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
-        a_idx.push_back(0); a_names.push_back("RainAccum");
-        a_idx.push_back(1); a_names.push_back("SnowAccum");
-        a_idx.push_back(2); a_names.push_back("GraupAccum");
-    }
-
 private:
     // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 3;
@@ -280,17 +302,17 @@ private:
     // Number of qstate variables
     int n_qstate_moist_size = 6;
 
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
+
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = 0.5;
+    static constexpr amrex::Real CFL_MAX = myhalf;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;
-
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
 
     // timestep
     amrex::Real dt;
@@ -305,8 +327,11 @@ private:
     amrex::Real m_fac_cond;
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
     amrex::Real m_rdOcp;
+    bool m_do_cond;
+
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;
@@ -336,8 +361,5 @@ private:
     amrex::TableData<amrex::Real, 1> qt1d;
     amrex::TableData<amrex::Real, 1> qv1d;
     amrex::TableData<amrex::Real, 1> qn1d;
-
-    amrex::TableData<amrex::Real, 1> gamaz;
-    amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
 };
 #endif

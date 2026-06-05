@@ -68,4 +68,4 @@ is modified via the strain rates
 When LES models are used, the cell volume is used to compute the eddy viscosities. The cell volume must be adjusted using the map factors:
 
 .. math::
-   cellVol = \frac{1}{\Delta x * m_x * \Delta y * m_y * \Delta z}
+   cellVol = \frac{\Delta x \Delta y \Delta z}{m_x m_y}

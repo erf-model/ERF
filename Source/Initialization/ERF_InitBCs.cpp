@@ -17,43 +17,38 @@ using namespace amrex;
  * Stores this information in both host and device vectors
  * so it is available for GPU kernels.
  */
-void ERF::init_bcs ()
+void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 {
-    bool rho_read = false;
-    bool read_prim_theta = true;
-    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
-    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
-    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
     auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
-        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -1.0; // It is important to set this negative
+        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  one;
+        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -one; // It is important to set this negative
                                                                  // because the sign is tested on below
         for (int n = BCVars::RhoKE_bc_comp; n < BCVars::xvel_bc; n++) {
-            m_bc_extdir_vals[n][ori]                     = 0.0;
+            m_bc_extdir_vals[n][ori]                     = zero;
         }
 
-        m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
-        m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero; // default
+        m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
+        m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
 
         // These are simply defaults for Neumann gradients -- they should be over-written below
-        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = 0.0;
-        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = 0.0;
+        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = zero;
+        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = zero;
 
-        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = 0.0;
+        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = zero;
 
-        m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
+        m_bc_neumann_vals[BCVars::xvel_bc][ori] = zero;
+        m_bc_neumann_vals[BCVars::yvel_bc][ori] = zero;
+        m_bc_neumann_vals[BCVars::zvel_bc][ori] = zero;
 
         std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
@@ -107,9 +102,9 @@ void ERF::init_bcs ()
 
             std::vector<Real> v;
             if (input_bndry_planes && m_r2d->ingested_velocity()) {
-                m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.;
-                m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.;
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.;
+                m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero;
+                m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
             } else {
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
@@ -125,9 +120,9 @@ void ERF::init_bcs ()
                 }
             }
 
-            Real rho_in = 0.;
+            Real rho_in = zero;
             if (input_bndry_planes && m_r2d->ingested_density()) {
-                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero;
             } else {
                 if (!pp.query("density", rho_in)) {
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
@@ -136,9 +131,9 @@ void ERF::init_bcs ()
             }
 
             bool th_read  = (th_bc_data[0].data()!=nullptr);
-            Real theta_in = 0.;
+            Real theta_in = zero;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero;
             } else if (!th_read) {
                 if (rho_in > 0) {
                     pp.get("theta", theta_in);
@@ -146,34 +141,42 @@ void ERF::init_bcs ()
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
 
-            Real scalar_in = 0.;
+            // Non-reflecting inflow: prescribe velocity and density but
+            // extrapolate RhoTheta (and hence pressure) from the interior.
+            // This lets upstream-propagating acoustic waves exit the domain
+            // instead of reflecting off the rigid Dirichlet boundary.
+            bool nonreflecting = false;
+            pp.query("nonreflecting", nonreflecting);
+            m_bc_nonreflecting[ori] = nonreflecting;
+
+            Real scalar_in = zero;
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
-                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
             } else {
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qv_in = 0.;
+                Real qv_in = zero;
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.;
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero;
                 } else {
                     if (pp.query("qv", qv_in))
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
                 }
-                Real qc_in = 0.;
+                Real qc_in = zero;
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.;
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero;
                 } else {
                     if (pp.query("qc", qc_in))
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
                 }
             }
 
-            Real KE_in = 0.;
+            Real KE_in = zero;
             if (input_bndry_planes && m_r2d->ingested_KE()) {
-                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero;
             } else {
                 if (pp.query("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
@@ -187,11 +190,11 @@ void ERF::init_bcs ()
 
             std::vector<Real> v;
 
-            // The values of m_bc_extdir_vals default to 0.
+            // The values of m_bc_extdir_vals default to zero
             // But if we find "velocity" in the inputs file, use those values instead.
             if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM))
             {
-                v[ori.coordDir()] = 0.0;
+                v[ori.coordDir()] = zero;
                 m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
                 m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
@@ -287,6 +290,30 @@ void ERF::init_bcs ()
     f("yhi", Orientation(Direction::y,Orientation::high));
     f("zlo", Orientation(Direction::z,Orientation::low));
     f("zhi", Orientation(Direction::z,Orientation::high));
+}
+
+void ERF::init_bcs ()
+{
+    bool rho_read = false;
+    bool read_prim_theta = true;
+
+    init_phys_bcs(rho_read, read_prim_theta);
+
+    Vector<Real> cons_dir_init(NBCVAR_max,zero);
+    cons_dir_init[BCVars::Rho_bc_comp] = one;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -one;
+
+    bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
+                     solverChoice.turbChoice[max_level].dirichlet_k == true);
+    if (keqn_dir) {
+        // Need to change wall BC type, assume for now that all levels are RANS
+        for (int lev = 0; lev < max_level; ++lev) {
+            if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
+                Error("If using one-eqn RANS, all levels must be RANS for now");
+            }
+        }
+        Print() << "Using dirichlet BC for k equation" << std::endl;
+    }
 
     // *****************************************************************************
     //
@@ -499,7 +526,7 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
@@ -513,7 +540,7 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
                 }
@@ -531,10 +558,10 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
@@ -548,10 +575,10 @@ void ERF::init_bcs ()
                             }
                         }
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > zero) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setHi(dir, ERFBCType::neumann);
                     }
                 }
@@ -580,6 +607,11 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                         }
                     }
+                    // Non-reflecting: extrapolate RhoTheta from interior so
+                    // pressure is not prescribed, allowing acoustic waves out
+                    if (m_bc_nonreflecting[ori]) {
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::foextrap);
+                    }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
@@ -602,6 +634,10 @@ void ERF::init_bcs ()
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                         }
+                    }
+                    // Non-reflecting: extrapolate RhoTheta from interior
+                    if (m_bc_nonreflecting[ori]) {
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::foextrap);
                     }
                 }
             }
@@ -639,7 +675,11 @@ void ERF::init_bcs ()
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
+                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                }
+                if (keqn_dir) {
+                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
+                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
                 }
             }
         }
@@ -651,8 +691,6 @@ void ERF::init_bcs ()
 
 void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
-    const bool use_terrain = (solverChoice.terrain_type != TerrainType::None);
-
     // Read the dirichlet_input file
     Print() << "dirichlet_input file location : " << input_file << std::endl;
     std::ifstream input_reader(input_file);
@@ -669,18 +707,18 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     // Top and bot for domain
     const int  klo  = geom[0].Domain().smallEnd()[2];
     const int  khi  = geom[0].Domain().bigEnd()[2];
-    const Real zbot = (use_terrain) ? zlevels_stag[0][klo]   : geom[0].ProbLo(2);
-    const Real ztop = (use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
+    const Real zbot = zlevels_stag[0][klo];
+    const Real ztop = zlevels_stag[0][khi+1];
 
     // Flag if theta input
-    Real th_init = -300.0;
+    Real th_init = -Real(300.0);
     bool th_read{false};
 
     // Add surface
     z_inp_tmp.push_back(zbot); // height above sea level [m]
-    u_inp_tmp.push_back(0.);
-    v_inp_tmp.push_back(0.);
-    w_inp_tmp.push_back(0.);
+    u_inp_tmp.push_back(zero);
+    v_inp_tmp.push_back(zero);
+    w_inp_tmp.push_back(zero);
     th_inp_tmp.push_back(th_init);
 
     // Read the vertical profile at each given height
@@ -692,6 +730,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         Real rval;
         while (iss_z >> rval) {
             rval_v.push_back(rval);
+        }
+        if ((rval_v.size() != 4) && (rval_v.size() != 5)) {
+            Abort("Unknown inflow file format!");
         }
         z = rval_v[0];
         u = rval_v[1];
@@ -737,6 +778,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     // Ensure we set a reasonable theta surface
     if (th_read) {
         if (th_inp_tmp[0] == th_init) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((th_inp_tmp.size() > 2) && (z_inp_tmp.size() > 2),
+                "Need at least 3 theta profile points to extrapolate surface theta");
             Real slope = (th_inp_tmp[2] - th_inp_tmp[1]) / (z_inp_tmp[2] - z_inp_tmp[1]);
             Real dz    = z_inp_tmp[0] - z_inp_tmp[1];
             th_inp_tmp[0] = slope * dz + th_inp_tmp[1];
@@ -749,27 +792,25 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     for (int lev = 0; lev <= max_level; lev++) {
 
         const int Nz  = geom[lev].Domain().size()[2];
-        const Real dz = geom[lev].CellSize()[2];
 
         // Size of Nz (domain grid)
         Vector<Real> zcc_inp(Nz  );
         Vector<Real> znd_inp(Nz+1);
-        Vector<Real> u_inp(Nz  ); xvel_bc_data[lev].resize(Nz  ,0.0);
-        Vector<Real> v_inp(Nz  ); yvel_bc_data[lev].resize(Nz  ,0.0);
-        Vector<Real> w_inp(Nz+1); zvel_bc_data[lev].resize(Nz+1,0.0);
+        Vector<Real> u_inp(Nz  ); xvel_bc_data[lev].resize(Nz  ,zero);
+        Vector<Real> v_inp(Nz  ); yvel_bc_data[lev].resize(Nz  ,zero);
+        Vector<Real> w_inp(Nz+1); zvel_bc_data[lev].resize(Nz+1,zero);
         Vector<Real> th_inp;
         if (th_read) {
             th_inp.resize(Nz);
-            th_bc_data[lev].resize(Nz, 0.0);
+            th_bc_data[lev].resize(Nz, zero);
         }
 
         // At this point, we have an input from zbot up to
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1])
-                                         : zbot + (k + 0.5) * dz;
-            znd_inp[k] = (use_terrain) ? zlevels_stag[lev][k+1] : zbot + (k) * dz;
+            zcc_inp[k] = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+            znd_inp[k] = zlevels_stag[lev][k+1];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

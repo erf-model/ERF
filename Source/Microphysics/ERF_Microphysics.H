@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <AMReX_MultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 
@@ -33,6 +34,11 @@ public:
                        std::unique_ptr<amrex::MultiFab>&,
                        std::unique_ptr<amrex::MultiFab>&) = 0;
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&,
+                             amrex::MultiFab&,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
+
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
                           const amrex::Real&,
@@ -47,7 +53,10 @@ public:
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
-    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
+
+    /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
@@ -57,6 +66,9 @@ public:
 
     /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
     virtual int Get_Qstate_Moist_Size () = 0;
+
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    virtual int Get_Qstate_Moist_NumConc_Size () = 0;
 
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     virtual int Get_Qstate_NonMoist_Size () = 0;
@@ -82,6 +94,10 @@ public:
                              amrex::MultiFab& a_mf,
                              const int a_lev) const = 0;
 
+    /*! \brief Import minimum dz at this level */
+    virtual void Set_dzmin (const int lev,
+                            const amrex::Real dz_min) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
@@ -90,11 +106,14 @@ public:
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
              || (a_moisture_type == MoistureType::Morrison)
              || (a_moisture_type == MoistureType::Morrison_NoIce)
+             || (a_moisture_type == MoistureType::WSM6)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
+        } else if ( (a_moisture_type == MoistureType::SuperDroplets) ) {
+            return MoistureModelType::Lagrangian;
         } else {
             amrex::Abort("Dont know this moisture_type!") ;
             return MoistureModelType::Undefined;

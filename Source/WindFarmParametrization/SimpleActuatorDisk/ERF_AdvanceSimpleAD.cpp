@@ -31,7 +31,7 @@ SimpleAD::compute_power_output (const Real& time)
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-     const int n_spec_table = wind_speed.size();
+     const int n_spec_table = static_cast<int>(wind_speed.size());
   // Compute power based on the look-up table
 
     if (ParallelDescriptor::IOProcessor()){
@@ -41,9 +41,9 @@ SimpleAD::compute_power_output (const Real& time)
             std::cerr << "Error opening file!" << std::endl;
             Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
         }
-        Real total_power = 0.0;
-        for(int it=0; it<xloc.size(); it++){
-            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+        Real total_power = zero;
+        for(int it=0; it<static_cast<int>(xloc.size()); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + Real(1e-10));
             Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
             total_power = total_power + turb_power;
             //printf("avg vel and power is %d %0.15g, %0.15g\n", it, avg_vel, turb_power);
@@ -72,11 +72,11 @@ SimpleAD::update (const Real& dt_advance,
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (simpleAD_array(i-1,j,k,0) + simpleAD_array(i,j,k,0))/2.0*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (simpleAD_array(i-1,j,k,0) + simpleAD_array(i,j,k,0))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (simpleAD_array(i,j-1,k,1) + simpleAD_array(i,j,k,1))/2.0*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (simpleAD_array(i,j-1,k,1) + simpleAD_array(i,j,k,1))/two*dt_advance;
         });
     }
 }
@@ -90,9 +90,9 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
      freestream_velocity.clear();
      freestream_phi.clear();
      disk_cell_count.clear();
-     freestream_velocity.resize(xloc.size(),0.0);
-     freestream_phi.resize(xloc.size(),0.0);
-     disk_cell_count.resize(xloc.size(),0.0);
+     freestream_velocity.resize(xloc.size(),zero);
+     freestream_phi.resize(xloc.size(),zero);
+     disk_cell_count.resize(xloc.size(),zero);
 
      Gpu::DeviceVector<Real> d_freestream_velocity(xloc.size());
      Gpu::DeviceVector<Real> d_freestream_phi(yloc.size());
@@ -115,11 +115,11 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) != -1.0) {
+            if(SMark_array(i,j,k,0) != -one) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
-                Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5));
-                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],1.0);
+                Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
+                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
         });
@@ -132,16 +132,16 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
 
     // Reduce the data on every processor
     amrex::ParallelAllReduce::Sum(freestream_velocity.data(),
-                                  freestream_velocity.size(),
+                                  static_cast<int>(freestream_velocity.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
     amrex::ParallelAllReduce::Sum(freestream_phi.data(),
-                                  freestream_phi.size(),
+                                  static_cast<int>(freestream_phi.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
 
    amrex::ParallelAllReduce::Sum(disk_cell_count.data(),
-                                 disk_cell_count.size(),
+                                 static_cast<int>(disk_cell_count.size()),
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
@@ -186,7 +186,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
       // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
       mf_vars_simpleAD.setVal(0.0);
 
-      long unsigned int nturbs = xloc.size();
+      long unsigned int nturbs = static_cast<long unsigned int>(xloc.size());
 
      Gpu::DeviceVector<Real> d_freestream_velocity(nturbs);
      Gpu::DeviceVector<Real> d_freestream_phi(nturbs);
@@ -213,7 +213,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
     const Real* wind_speed_d     = d_wind_speed.dataPtr();
     const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
-    const int n_spec_table = d_wind_speed.size();
+    const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -227,28 +227,28 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
 
-            Real source_x = 0.0;
-            Real source_y = 0.0;
+            Real source_x = zero;
+            Real source_y = zero;
 
             int it = static_cast<int>(SMark_array(ii,jj,kk,1));
 
               if(it != -1) {
-                Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
-                Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
+                Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + Real(1e-10));
+                Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + Real(1e-10));
 
                 Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, avg_vel, n_spec_table);
                 Real a;
                 if(C_T <= 1) {
-                    a = 0.5 - 0.5*std::pow(1.0-C_T,0.5);
+                    a = myhalf - myhalf*std::pow(one-C_T,myhalf);
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
                     if(C_T <= 1) {
-                        source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
                     else {
-                        source_x = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
              }
 

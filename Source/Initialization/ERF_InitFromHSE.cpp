@@ -15,7 +15,7 @@ using namespace amrex;
  * be calculated through a solver path such as:
  *
  *   ERF::initHSE(lev)
- *   - call prob->erf_init_dens_hse(...)
+ *   - call prob->erf_init_dens_hse_dry(...)
  *     - call Problem::init_isentropic_hse(...), to simultaneously calculate
  *       r_hse and p_hse with Newton iteration -- assuming constant theta
  *     - save r_hse

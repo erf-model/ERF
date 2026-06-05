@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Advection/Diffusion"
+
+erf.init_type = Uniform
+
 max_step = 100
 
 amrex.fpe_trap_invalid = 1
@@ -38,7 +42,6 @@ erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
 
 # SOLVER CHOICE
 erf.use_gravity = false
-erf.use_coriolis = false
 
 erf.rayleigh_damp_T = true
 erf.rayleigh_damp_U = true
@@ -50,15 +53,17 @@ erf.rayleigh_dampcoef = 1.0  # tau==1
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 
-erf.init_type = "uniform"
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0   = 1.0
 prob.A_0   = 1.0
-prob.u_0   = 0.0
-prob.v_0   = 0.0
+prob.U_0   = 0.0
+prob.V_0   = 0.0
 prob.rad_0 = 0.25
 prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
+
+prob.rayleigh_U_0   = 2.0
+prob.rayleigh_V_0   = 1.0
+prob.rayleigh_T_0   = 1.0

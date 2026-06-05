@@ -12,7 +12,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
                             const amrex::Real alpha_interp, const int alpha_size)
 {
-    amrex::Real beta_interp = -1.0e34;
+    amrex::Real beta_interp = -amrex::Real(1.0e34);
 
     // If the interpolation point already exists in the array,
     // just return it
@@ -77,8 +77,8 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
  * Example:
  *   Vector<Real> tmp_orig = {0,1,2};
  *   Vector<Real> tmp(4);
- *   expand_and_interpolate_1d(tmp, tmp_orig, 2, false); // tmp == {0, 0.5, 1, 1.5, 2}
- *   expand_and_interpolate_1d(tmp, tmp_orig, 2, true); // tmp == {0.25, 0.75, 1.25, 1.75}
+ *   expand_and_interpolate_1d(tmp, tmp_orig, 2, false); // tmp == {0, myhalf, 1, amrex::Real(1.5), 2}
+ *   expand_and_interpolate_1d(tmp, tmp_orig, 2, true); // tmp == {fourth, amrex::Real(0.75), amrex::Real(1.25), amrex::Real(1.75)}
  */
 AMREX_FORCE_INLINE
 void
@@ -109,7 +109,7 @@ expand_and_interpolate_1d (amrex::Vector<amrex::Real>& znew,
     }
     if (destag) {
         for (int k=0; k < Nz_refined-1; ++k) {
-            znew[k] = 0.5*(znew_stag[k] + znew_stag[k+1]);
+            znew[k] = myhalf*(znew_stag[k] + znew_stag[k+1]);
         }
     } else {
         znew = znew_stag;

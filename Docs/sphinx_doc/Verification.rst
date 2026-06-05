@@ -29,7 +29,7 @@ the temporal error.
 .. |bconv| image:: figures/conv_plot_spatial_WENO.png
            :width: 300
 
-.. _fig:convergence_spatial
+.. _fig:convergence_spatial:
 
 .. table:: Convergence studies of spatial error
 
@@ -48,7 +48,7 @@ accuracy of the RK3 scheme.
 .. |tconv| image:: figures/conv_plot_temporal.png
            :width: 300
 
-.. _fig:convergence_temporal
+.. _fig:convergence_temporal:
 
 .. table:: Convergence study of temporal error
 
@@ -74,7 +74,7 @@ of different codes can be found in the `Straka 1993 paper`_
 .. |bdc| image:: figures/density_current_900.png
          :width: 300
 
-.. _fig:density_currennt
+.. _fig:density_currennt:
 
 .. table:: Potential temperature perturbation at 600s and 900s
 
@@ -100,7 +100,7 @@ The steady solution is shown below, as well as a log-log plot showing the error 
 .. |bek| image:: figures/ekman_spiral_errors.png
          :width: 300
 
-.. _fig:ekman_spiral
+.. _fig:ekman_spiral:
 
 .. table:: Flow profile and Error
 
@@ -160,7 +160,7 @@ Dry bubble and moist bubble rise simulations
 Benchmark simulations of dry and moist bubble rises in `Bryan and Fritsch`_ are reproduced. The test case consists of a
 warm bubble rising in dry and moist conditions. The potential temperature perturbation and the vertical velocity
 are compared as shown in the figures below. Excellent quantitative comparisons are obtained. The dry and moist bubble cases are
-in ``Exec/DryRegTests/Bubble`` with the corresponding input files ``inputs_BF02_dry_bubble`` and ``inputs_BF02_moist_bubble``.
+in ``Exec/RegTests/Bubble`` with the corresponding input files ``inputs_BF02_dry_bubble`` and ``inputs_BF02_moist_bubble``.
 
 .. _`Bryan and Fritsch`: https://journals.ametsoc.org/view/journals/mwre/130/12/1520-0493_2002_130_2917_absfmn_2.0.co_2.xml
 

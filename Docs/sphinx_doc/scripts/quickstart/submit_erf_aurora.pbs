@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#PBS -A <PROJECT>
+#PBS -q debug
+#PBS -l select=1
+#PBS -l walltime=00:30:00
+#PBS -l filesystems=flare
+#PBS -N erf_aurora
+#PBS -j oe
+#PBS -o erf_${PBS_JOBID}.out
+
+set -euo pipefail
+
+cd "${PBS_O_WORKDIR}"
+
+# Expected to be submitted from ERF/install/bin.
+ERF_HOME="${ERF_HOME:-$(cd ../.. && pwd)}"
+source "${ERF_HOME}/Build/machines/aurora_erf.profile"
+
+NNODES=$(wc -l < "${PBS_NODEFILE}")
+NRANKS=4
+NDEPTH=16
+NTHREADS=1
+NTOTRANKS=$((NNODES * NRANKS))
+
+mpiexec --np "${NTOTRANKS}" -ppn "${NRANKS}" -d "${NDEPTH}" --cpu-bind depth \
+  -env OMP_NUM_THREADS="${NTHREADS}" \
+  ./erf_exec ../../Exec/CanonicalTests/ABL/inputs_most

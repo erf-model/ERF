@@ -55,15 +55,20 @@ class ParticleData
             m_namelist_unalloc.clear();
         }
 
-        /*! Write particle info to plot files */
-        void writePlotFile ( const std::string& a_fname ) const
+        /*! Write particle info to plot files.  Particles are stored with
+         *  pos(2) = computational zeta; the on-disk plotfile holds the
+         *  physical z, so convert in-place around the write. */
+        void writePlotFile ( const std::string& a_fname,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd ) const
         {
             BL_PROFILE("ParticleData::writePlotFile");
             if (!m_disable_particle_op) {
                 for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                     auto name( m_namelist[i] );
                     auto particles( m_particle_species.at(name) );
-                    particles->Checkpoint( a_fname, name, true, particles->varNames() );
+                    particles->ConvertZetaToZ(a_z_phys_nd);
+                    particles->WritePlotFile(a_fname, name, particles->varNames());
+                    particles->ConvertZToZeta(a_z_phys_nd);
                 }
             }
         }
@@ -95,9 +100,10 @@ class ParticleData
             }
         }
 
-        void GetMeshPlotVar (   const std::string& a_var_name,
-                                amrex::MultiFab&   a_mf,
-                                const int          a_lev )
+        void GetMeshPlotVar (   const std::string&      a_var_name,
+                                amrex::MultiFab&        a_mf,
+                                const amrex::MultiFab&  a_z_phys_nd,
+                                const int               a_lev )
         {
             BL_PROFILE("ParticleData::GetMeshPlotVar()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
@@ -110,7 +116,7 @@ class ParticleData
 
                     std::string var_name = particle_name+"_"+particle_var_names[n];
                     if ( var_name == a_var_name ) {
-                        particles->computeMeshVar(particle_var_names[n], a_mf, a_lev);
+                        particles->computeMeshVar(particle_var_names[n], a_mf, a_z_phys_nd, a_lev);
                         return;
                     }
                 }
@@ -124,6 +130,28 @@ class ParticleData
             BL_PROFILE("ParticleData::Redistribute()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                 m_particle_species[m_namelist[i]]->Redistribute();
+            }
+        }
+
+        /*! Redistribute after AMR regrid. */
+        inline void Redistribute (
+            const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*a_z_phys_nd*/)
+        {
+            BL_PROFILE("ParticleData::Redistribute(z_phys_nd)");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                m_particle_species[m_namelist[i]]->Redistribute();
+            }
+        }
+
+        /*! Get species of a given name */
+        inline bool HasSpecies ( const std::string& a_name )
+        {
+            BL_PROFILE("ParticleData::HasSpecies()");
+            ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                return false;
+            } else {
+                return true;
             }
         }
 
@@ -185,7 +213,7 @@ class ParticleData
 
         /*! Add a particle species to this container */
         inline void pushBack (const std::string&  a_name,
-                             ERFPC* const        a_pc )
+                              ERFPC* const        a_pc )
         {
             BL_PROFILE("ParticleData::pushBack()");
             AMREX_ASSERT(!contains(a_name));

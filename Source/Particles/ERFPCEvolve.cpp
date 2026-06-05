@@ -5,6 +5,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include <ERF_TerrainConversion.H>
 #include <AMReX_TracerParticle_mod_K.H>
 
 using namespace amrex;
@@ -17,6 +18,21 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 {
     BL_PROFILE("ERFPCPC::EvolveParticles()");
 
+    if (m_verbose > 0) {
+        Long np_total = 0;
+        int finest = m_gdb->finestLevel();
+        amrex::Print() << "[" << m_name << "] Evolving particles on level " << a_lev
+                       << ": ";
+        for (int lev = 0; lev <= finest; lev++) {
+            Long np_lev = NumberOfParticlesAtLevel(lev, true, true);
+            ParallelDescriptor::ReduceLongSum(np_lev);
+            amrex::Print() << "L" << lev << "=" << np_lev;
+            if (lev < finest) { amrex::Print() << " "; }
+            np_total += np_lev;
+        }
+        amrex::Print() << " (total=" << np_total << ")\n";
+    }
+
     if (m_advect_w_flow) {
         MultiFab* flow_vel( &a_flow_vars[a_lev][Vars::xvel] );
         AdvectWithFlow( flow_vel, a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
@@ -26,9 +42,19 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
 
+    // Per-level Redistribute keeps each level's particles on that level for
+    // the duration of the coarse step, avoiding double-advection of particles
+    // that geometrically cross between levels mid-step.  Cross-level moves
+    // happen only at regrid time.  For fine levels, particles that leave the
+    // level's BA must first be routed back to the coarse level.
+    if (a_lev == 0) {
+        Redistribute(0, 0);
+    } else {
+        ExtractAndRouteOORParticles(a_lev);
+    }
+
     ComputeTemperature( a_flow_vars[a_lev][Vars::cons], a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
 
-    Redistribute();
     return;
 }
 
@@ -54,6 +80,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+    const Box&  dom = geom.Domain();
+    const int   k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
@@ -76,6 +104,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
         }
     }
 
+    bool periodic_in_z = (geom.isPeriodic(2));
+
     for (int ipass = 0; ipass < 2; ipass++)
     {
 #ifdef AMREX_USE_OMP
@@ -91,9 +121,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             auto *p_pbox = aos().data();
 
             Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
-            v_ptr[0] = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-            v_ptr[1] = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-            v_ptr[2] = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+            v_ptr[0] = soa.GetRealData(ERFParticlesRealIdx::vx).data();
+            v_ptr[1] = soa.GetRealData(ERFParticlesRealIdx::vy).data();
+            v_ptr[2] = soa.GetRealData(ERFParticlesRealIdx::vz).data();
 
             const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&((*umac_pointer[0])[grid]),
                                                                   &((*umac_pointer[1])[grid]),
@@ -105,8 +135,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                                              (*fab[1]).array(),
                                              (*fab[2]).array() )}};
 
-            bool use_terrain = (a_z_height != nullptr);
-            auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+            auto zheight = (*a_z_height)[grid].array();
 
             ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
             {
@@ -114,28 +143,60 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 if (p.id() <= 0) { return; }
 
                 ParticleReal v[AMREX_SPACEDIM];
-                if (use_terrain) {
-                    mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+
+                int pk = int(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                                * dxi[AMREX_SPACEDIM-1]));
+                if (pk - 1 < zheight.begin[2] || pk + 2 >= zheight.end[2]) {
+                    v[0] = 0; v[1] = 0; v[2] = 0;
                 } else {
                     mac_interpolate(p, plo, dxi, umacarr, v);
+                    if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
+                        v[0] = 0; v[1] = 0; v[2] = 0;
+                    }
                 }
 
+                // Advance in physical (x, y, z); pos(2) is zeta on disk so go
+                // through z_from_zeta / zeta_from_z around the update.
                 if (ipass == 0) {
-                    for (int dim=0; dim < AMREX_SPACEDIM; dim++)
-                    {
-                        v_ptr[dim][i] = p.pos(dim);
-                        p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*v[dim]);
-                    }
-                    // Update z-coordinate carried by the particle
-                    update_location_idata(p,plo,dxi,zheight);
+                    const Real x0 = static_cast<Real>(p.pos(0));
+                    const Real y0 = static_cast<Real>(p.pos(1));
+                    const Real zeta0 = static_cast<Real>(p.pos(AMREX_SPACEDIM-1));
+                    const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight));
+                    const Real x_h = x0 + static_cast<Real>(Real(0.5)*a_dt*v[0]);
+                    const Real y_h = y0 + static_cast<Real>(Real(0.5)*a_dt*v[1]);
+                    const Real z_h = z_phys0 + static_cast<Real>(Real(0.5)*a_dt*v[2]);
+                    v_ptr[0][i] = static_cast<ParticleReal>(x0);
+                    v_ptr[1][i] = static_cast<ParticleReal>(y0);
+                    v_ptr[2][i] = static_cast<ParticleReal>(zeta0);
+                    p.pos(0) = static_cast<ParticleReal>(x_h);
+                    p.pos(1) = static_cast<ParticleReal>(y_h);
+                    p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                        ERF::ParticlePos::zeta_from_z(x_h, y_h, z_h, plo, dxi, zheight, k_max));
                 } else {
-                    for (int dim=0; dim < AMREX_SPACEDIM; dim++)
-                    {
-                        p.pos(dim) = v_ptr[dim][i] + static_cast<ParticleReal>(a_dt*v[dim]);
-                        v_ptr[dim][i] = v[dim];
+                    const Real x0 = static_cast<Real>(v_ptr[0][i]);
+                    const Real y0 = static_cast<Real>(v_ptr[1][i]);
+                    const Real zeta0 = static_cast<Real>(v_ptr[2][i]);
+                    const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                        x0, y0, zeta0, plo, dxi, zheight));
+                    const Real x_n = x0 + static_cast<Real>(a_dt*v[0]);
+                    const Real y_n = y0 + static_cast<Real>(a_dt*v[1]);
+                    const Real z_n = z_phys0 + static_cast<Real>(a_dt*v[2]);
+                    p.pos(0) = static_cast<ParticleReal>(x_n);
+                    p.pos(1) = static_cast<ParticleReal>(y_n);
+                    p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                        ERF::ParticlePos::zeta_from_z(x_n, y_n, z_n, plo, dxi, zheight, k_max));
+                    v_ptr[0][i] = static_cast<ParticleReal>(v[0]);
+                    v_ptr[1][i] = static_cast<ParticleReal>(v[1]);
+                    v_ptr[2][i] = static_cast<ParticleReal>(v[2]);
+                }
+
+                // Particle crossed below the bottom: move to 0.2*dz above floor
+                if (!periodic_in_z) {
+                    if (p.pos(AMREX_SPACEDIM-1) < plo[AMREX_SPACEDIM-1]) {
+                        p.pos(AMREX_SPACEDIM-1) = plo[AMREX_SPACEDIM-1]
+                                                + Real(0.2) / dxi[AMREX_SPACEDIM-1];
                     }
-                    // Update z-coordinate carried by the particle
-                    update_location_idata(p,plo,dxi,zheight);
                 }
             });
         }
@@ -169,6 +230,8 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+    const Box&  dom = geom.Domain();
+    const int   k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -182,10 +245,9 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
 
-        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdx::vz).data();
 
-        bool use_terrain = (a_z_height != nullptr);
-        auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*a_z_height)[grid].array();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -195,24 +257,29 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             ParticleReal v = vz_ptr[i];
 
             // Define acceleration to be (gravity minus drag) where drag is defined
-            // such the particles will reach a terminal velocity of 5.0 (totally arbitrary)
-            ParticleReal terminal_vel = 5.0;
+            // such the particles will reach a terminal velocity of Real(5.0) (totally arbitrary)
+            ParticleReal terminal_vel = Real(5.0);
             ParticleReal grav = CONST_GRAV;
             ParticleReal drag = CONST_GRAV * (v * v) / (terminal_vel*terminal_vel);
 
-            ParticleReal half_dt = 0.5 * a_dt;
+            ParticleReal myhalf_dt = myhalf * a_dt;
 
             // Update the particle velocity over first half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
 
-            // Update the particle position over (a_dt)
-            p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*vz_ptr[i]);
+            // Advance in physical z, then back to zeta.
+            {
+                const Real x0 = static_cast<Real>(p.pos(0));
+                const Real y0 = static_cast<Real>(p.pos(1));
+                const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
+                    x0, y0, static_cast<Real>(p.pos(AMREX_SPACEDIM-1)), plo, dxi, zheight));
+                const Real z_phys_n = z_phys0 + static_cast<Real>(Real(0.5) * a_dt * vz_ptr[i]);
+                p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                    ERF::ParticlePos::zeta_from_z(x0, y0, z_phys_n, plo, dxi, zheight, k_max));
+            }
 
             // Update the particle velocity over second half of step (a_dt/2)
-            vz_ptr[i] -= (grav - drag) * half_dt;
-
-            // also update z-coordinate here
-            update_location_idata(p,plo,dxi,zheight);
+            vz_ptr[i] -= (grav - drag) * myhalf_dt;
         });
     }
 
@@ -273,21 +340,20 @@ void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
 
-        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdx::temperature).data();
         auto temperature_arr  = T_mf.array(grid);
 
-        bool use_terrain = (a_z_height != nullptr);
-        auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*a_z_height)[grid].array();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
 
-            ParticleReal temperature;
-            if (use_terrain) {
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-            } else {
+            ParticleReal temperature = 0;
+            int pk = int(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                            * dxi[AMREX_SPACEDIM-1]));
+            if (pk >= zheight.begin[2] && pk + 2 < zheight.end[2]) {
                 cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
             }
             T_ptr[i] = temperature;

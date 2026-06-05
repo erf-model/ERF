@@ -3,15 +3,15 @@
 using namespace amrex;
 
 /**
- * Updates conserved and microphysics variables in the provided MultiFabs from
- * the internal MultiFabs that store Microphysics module data.
+ * Copies SatAdj's adjusted specific variables back into ERF's conserved state.
+ * The copied rho is used only to reconstruct rhoTheta, rhoQv, and rhoQc.
+ * Density itself is intentionally not written back because SatAdj does not own
+ * or modify rho.
  *
  * @param[out] cons Conserved variables
- * @param[out] qmoist: qv, qc
  */
 void SatAdj::Copy_Micro_to_State (MultiFab& cons)
 {
-    // Get the temperature, density, theta, qt and qp from input
     for (MFIter mfi(cons,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& tbx = mfi.tilebox();
 
@@ -22,7 +22,9 @@ void SatAdj::Copy_Micro_to_State (MultiFab& cons)
         auto qv_arr     = mic_fab_vars[MicVar_SatAdj::qv]->array(mfi);
         auto qc_arr     = mic_fab_vars[MicVar_SatAdj::qc]->array(mfi);
 
-        // get potential total density, temperature, qt, qp
+        // Density is intentionally not written back. SatAdj does not modify density;
+        // it uses the copied rho only to form conserved rhoTheta, rhoQv, and rhoQc
+        // from the adjusted specific variables.
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
@@ -31,7 +33,7 @@ void SatAdj::Copy_Micro_to_State (MultiFab& cons)
         });
     }
 
-    // Fill interior ghost cells and periodic boundaries
+    // Fill ghost and periodic boundary values after the valid-cell copy-back.
     cons.FillBoundary(m_geom.periodicity());
 }
 

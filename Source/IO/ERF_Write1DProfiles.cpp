@@ -14,7 +14,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::write_1D_profiles (Real time)
+ERF::write_1D_profiles (double time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
@@ -47,7 +47,7 @@ ERF::write_1D_profiles (Real time)
                                  h_avg_wthv);
         }
 
-        if (NumDataLogs() > 3 && time > 0.) {
+        if (NumDataLogs() > 3 && time > zero) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                    h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
@@ -65,9 +65,9 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -88,11 +88,11 @@ ERF::write_1D_profiles (Real time)
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
-                      Real thv = h_avg_th[k] * (1 + 0.61*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
+                      Real thv = h_avg_th[k] * (1 + Real(0.61)*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -136,16 +136,16 @@ ERF::write_1D_profiles (Real time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3 && time > 0.) {
+            if (NumDataLogs() > 3 && time > zero) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
                       if (zlevels_stag[0].size() > 1) {
-                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                          z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + 0.5)* dx[2];
+                          z = (k + myhalf)* dx[2];
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -187,7 +187,7 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles(Real /*time*/,
+ERF::derive_diag_profiles(double /*time*/,
                           Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_Kmv , Gpu::HostVector<Real>& h_avg_Khv,
@@ -241,9 +241,9 @@ ERF::derive_diag_profiles(Real /*time*/,
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
-    Gpu::DeviceVector<Real> d_avg_u(hu_size, Real(0.0));
-    Gpu::DeviceVector<Real> d_avg_v(hu_size, Real(0.0));
-    Gpu::DeviceVector<Real> d_avg_w(hu_size, Real(0.0));
+    Gpu::DeviceVector<Real> d_avg_u(hu_size, zero);
+    Gpu::DeviceVector<Real> d_avg_v(hu_size, zero);
+    Gpu::DeviceVector<Real> d_avg_w(hu_size, zero);
 
 #if 0
     auto* avg_u_ptr = d_avg_u.data();
@@ -279,7 +279,7 @@ ERF::derive_diag_profiles(Real /*time*/,
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 1) = theta;
-            Real ksgs = 0.0;
+            Real ksgs = zero;
             if (l_use_KE) {
                 ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
@@ -289,15 +289,15 @@ ERF::derive_diag_profiles(Real /*time*/,
                 fab_arr(i, j, k, 3) = eta_arr(i,j,k,EddyDiff::Mom_v); // Kmv
                 fab_arr(i, j, k, 4) = eta_arr(i,j,k,EddyDiff::Theta_v); // Khv
             } else {
-                fab_arr(i, j, k, 3) = 0.0;
-                fab_arr(i, j, k, 4) = 0.0;
+                fab_arr(i, j, k, 3) = zero;
+                fab_arr(i, j, k, 4) = zero;
             }
 #else
             // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
             Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
             Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
             Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
-            fab_arr(i, j, k, 3) = 0.5 * (upert*upert + vpert*vpert + wpert*wpert);
+            fab_arr(i, j, k, 3) = myhalf * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
@@ -324,16 +324,16 @@ ERF::derive_diag_profiles(Real /*time*/,
                 fab_arr(i, j, k,19) = p * u_cc_arr(i,j,k);     // p*u
                 fab_arr(i, j, k,20) = p * v_cc_arr(i,j,k);     // p*v
                 fab_arr(i, j, k,21) = p * w_cc_arr(i,j,k);     // p*w
-                fab_arr(i, j, k,22) = 0.;  // qv
-                fab_arr(i, j, k,23) = 0.;  // qc
-                fab_arr(i, j, k,24) = 0.;  // qr
-                fab_arr(i, j, k,25) = 0.;  // w*qv
-                fab_arr(i, j, k,26) = 0.;  // w*qc
-                fab_arr(i, j, k,27) = 0.;  // w*qr
-                fab_arr(i, j, k,28) = 0.;  // qi
-                fab_arr(i, j, k,29) = 0.;  // qs
-                fab_arr(i, j, k,30) = 0.;  // qg
-                fab_arr(i, j, k,31) = 0.;  // w*thv
+                fab_arr(i, j, k,22) = zero;  // qv
+                fab_arr(i, j, k,23) = zero;  // qc
+                fab_arr(i, j, k,24) = zero;  // qr
+                fab_arr(i, j, k,25) = zero;  // w*qv
+                fab_arr(i, j, k,26) = zero;  // w*qc
+                fab_arr(i, j, k,27) = zero;  // w*qr
+                fab_arr(i, j, k,28) = zero;  // qi
+                fab_arr(i, j, k,29) = zero;  // qs
+                fab_arr(i, j, k,30) = zero;  // qg
+                fab_arr(i, j, k,31) = zero;  // w*thv
             }
         });
     } // mfi
@@ -352,14 +352,14 @@ ERF::derive_diag_profiles(Real /*time*/,
             const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
-            int rhoqr_comp = solverChoice.RhoQr_comp;
+            int rhoqr_comp = solverChoice.moisture_indices.qr;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
-                                               Real(0.0);
+                                               zero;
                 Real p  = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
 
                 p -= p0_arr(i,j,k);
@@ -378,13 +378,13 @@ ERF::derive_diag_profiles(Real /*time*/,
                     fab_arr(i, j, k,29) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,30) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
                 } else {
-                    fab_arr(i, j, k,28) = 0.0;  // qi
-                    fab_arr(i, j, k,29) = 0.0;  // qs
-                    fab_arr(i, j, k,30) = 0.0;  // qg
+                    fab_arr(i, j, k,28) = zero;  // qi
+                    fab_arr(i, j, k,29) = zero;  // qs
+                    fab_arr(i, j, k,30) = zero;  // qg
                 }
                 Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv   = theta * (1 + 0.61*qv - ql);
+                Real thv   = theta * (1 + Real(0.61)*qv - ql);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
             });
         } // mfi
@@ -462,7 +462,7 @@ ERF::derive_diag_profiles(Real /*time*/,
 
 #if 0
     // Here we print the integrated total kinetic energy as computed in the 1D profile above
-    Real sum = 0.;
+    Real sum = zero;
     Real dz = geom[0].ProbHi(2) / static_cast<Real>(h_avg_u_size);
     for (int k = 0; k < h_avg_u_size; ++k) {
         sum += h_avg_kturb[k] * h_avg_rho[k] * dz;
@@ -531,9 +531,9 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
                                 / (   rho_arr(i,j,k  ) +   rho_arr(i,j+1,k  )
                                   +   rho_arr(i,j,k+1) +   rho_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 6) = 0.5 * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 7) = (l_use_moist) ? 0.5 * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : 0.0;
-            fab_arr(i, j, k, 8) = (l_use_moist) ? 0.5 * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : 0.0;
+            fab_arr(i, j, k, 6) = myhalf * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 7) = (l_use_moist) ? myhalf * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
+            fab_arr(i, j, k, 8) = (l_use_moist) ? myhalf * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
             fab_arr(i, j, k, 9) =  diss_arr(i,j,k) / rho_arr(i,j,k);
         });
     }
@@ -570,69 +570,24 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
     }
 }
 
-std::string
-ERF::MakeVTKFilename(int nstep) {
-    // Ensure output directory exists
-    const std::string dir = "Output_HurricaneTracker";
-    if (!fs::exists(dir)) {
-        fs::create_directory(dir);
-    }
-
-    // Construct filename with zero-padded step
-    std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
-    } else {
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
-    }
-
-    return oss.str();
-}
-
 void
-ERF::WriteVTKPolyline(const std::string& filename,
-                      Vector<std::array<Real, 2>>& points_xy)
+ERF::WriteLinePlot(const std::string& filename,
+                   Vector<std::array<Real, 2>>& points_xy)
 {
-    std::ofstream vtkfile(filename);
-    if (!vtkfile.is_open()) {
-        std::cerr << "Error: Cannot open file " << filename << std::endl;
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) {
+        amrex::Print() << "Error: Could not open file " << filename << " for writing.\n";
         return;
     }
 
-    int num_points = points_xy.size();
-    if (num_points == 0) {
-        vtkfile << "# vtk DataFile Version 3.0\n";
-        vtkfile << "Hurricane Track\n";
-        vtkfile << "ASCII\n";
-        vtkfile << "DATASET POLYDATA\n";
-        vtkfile << "POINTS " << num_points << " float\n";
-        vtkfile.close();
-        return;
-    }
-    if (num_points < 2) {
-        points_xy.push_back(points_xy[0]);
-    }
-    num_points = points_xy.size();
+    ofs << std::setprecision(10) << std::scientific;
+    ofs << "# x y\n";
 
-    vtkfile << "# vtk DataFile Version 3.0\n";
-    vtkfile << "Hurricane Track\n";
-    vtkfile << "ASCII\n";
-    vtkfile << "DATASET POLYDATA\n";
-
-    // Write points (Z=0 assumed)
-    vtkfile << "POINTS " << num_points << " float\n";
-    for (const auto& pt : points_xy) {
-        vtkfile << pt[0] << " " << pt[1] << " 10000.0\n";
+    for (const auto& p : points_xy) {
+        ofs << p[0] << " " << p[1] << "\n";
     }
 
-    // Write polyline connectivity
-    vtkfile << "LINES 1 " << num_points + 1 << "\n";
-    vtkfile << num_points << " ";
-    for (int i = 0; i < num_points; ++i) {
-        vtkfile << i << " ";
-    }
-    vtkfile << "\n";
+    ofs.close();
 
-    vtkfile.close();
+    amrex::Print() << "Line plot data written to " << filename << "\n";
 }
-

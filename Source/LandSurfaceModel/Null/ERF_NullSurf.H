@@ -17,7 +17,8 @@ class NullSurf {
     Define (SolverChoice& /*sc*/) { }
 
     virtual
-    void Init (const amrex::MultiFab& /*cons_in*/,
+    void Init (const int& /*lev*/,
+               const amrex::MultiFab& /*cons_in*/,
                const amrex::Geometry& /*geom*/,
                const amrex::Real& /*dt_advance*/) { }
 
@@ -35,6 +36,10 @@ class NullSurf {
                         amrex::MultiFab* /*qfx3_out*/,
                         const amrex::Real& /*dt_advance*/,
                         const int& /*nstep*/) { }
+
+    virtual
+    void
+    Plot_Landfile (const int& /*nstep*/) { }
 
     virtual
     void
@@ -69,15 +74,49 @@ class NullSurf {
     Lsm_Data_Size () { return NullSurf::m_lsm_size; }
 
     virtual
+    int
+    Lsm_Flux_Size () { return NullSurf::m_lsm_size; }
+
+    virtual
     std::string
-    Lsm_VarName (const int& /*varIdx*/)
+    Lsm_DataName (const int& /*varIdx*/)
     {
-        return varname;
+        return dataname;
+    }
+
+    virtual
+    std::string
+    Lsm_FluxName (const int& /*varIdx*/)
+    {
+        return fluxname;
+    }
+
+    virtual
+    int
+    Lsm_DataIndex (std::string /*varname*/)
+    {
+        return (-1);
+    }
+
+    virtual
+    int
+    Lsm_FluxIndex (std::string /*varname*/)
+    {
+        return (-1);
+    }
+
+    virtual
+    std::unordered_map<std::string, std::string>&
+    Lsm_WRFInputNames() {
+        return wrfinput_map;
     }
 
  private:
-    int m_lsm_size = 1;
+    int m_lsm_size = 0;
     amrex::Geometry m_lsm_geom;
-    std::string varname = " ";
+    std::string dataname = " ";
+    std::string fluxname = " ";
+
+    std::unordered_map<std::string,std::string> wrfinput_map;
 };
 #endif

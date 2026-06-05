@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL"
+
 stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
 max_step  = 100
 
@@ -23,7 +25,7 @@ zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
 
 # INITIALIZATION (Cuxart et al. 2006)
 erf.init_type           = "input_sounding"
-erf.init_sounding_ideal = 1
+erf.sounding_type       = Ideal
 erf.input_sounding_file = "input_sounding_GABLS1"
 
 # TIME STEP CONTROL

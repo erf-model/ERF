@@ -46,7 +46,7 @@ public:
         } else {
             n_sounding_times = 1;
             input_sounding_time.resize(n_sounding_times);
-            input_sounding_time[0] = 0.0;
+            input_sounding_time[0] = zero;
         }
 
         // If we have more files than times or times than files we just use the minimum
@@ -81,11 +81,9 @@ public:
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
-        const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
 
-        const bool use_terrain = (zlevels_stag.size() > 0);
-        const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
-        const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
+        const amrex::Real zbot = zlevels_stag[klo];
+        const amrex::Real ztop = zlevels_stag[khi+1];
 
         z_inp_sound[itime].resize(Nz+2);
         theta_inp_sound[itime].resize(Nz+2);
@@ -114,7 +112,7 @@ public:
             std::istringstream iss(line);
             iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
             press_ref_inp_sound *= 100; // convert from hPa to Pa
-            qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
+            qv_ref_inp_sound *= amrex::Real(0.001); // convert from g/kg to kg/kg
 
             // Add surface
             z_inp_sound_tmp.push_back(zbot); // height above sea level [m]
@@ -130,14 +128,14 @@ public:
                 iss_z >> z >> theta >> qv >> U >> V;
                 if (z == zbot) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
-                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
+                    AMREX_ALWAYS_ASSERT(qv*amrex::Real(0.001) == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
                     U_inp_sound_tmp[0] = U;
                     V_inp_sound_tmp[0] = V;
                 } else {
                     AMREX_ALWAYS_ASSERT(z > z_inp_sound_tmp[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
                     z_inp_sound_tmp.push_back(z);
                     theta_inp_sound_tmp.push_back(theta);
-                    qv_inp_sound_tmp.push_back(qv*0.001); // convert from g/kg to kg/kg
+                    qv_inp_sound_tmp.push_back(qv*amrex::Real(0.001)); // convert from g/kg to kg/kg
                     U_inp_sound_tmp.push_back(U);
                     V_inp_sound_tmp.push_back(V);
                     if (z >= ztop) break;
@@ -153,8 +151,7 @@ public:
             U_inp_sound[itime][0]     = U_inp_sound_tmp[0];
             V_inp_sound[itime][0]     = V_inp_sound_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sound[itime][k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                 : zbot + (k + 0.5) * dz;
+                z_inp_sound[itime][k+1] = myhalf * (zlevels_stag[k] + zlevels_stag[k+1]);
                 theta_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
                    qv_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
                     U_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
@@ -180,7 +177,7 @@ public:
          * from the surface up through the air column to get the dry density
          * and moist pressure.
          */
-        const amrex::Real tol = 1.0e-12;
+        const amrex::Real tol = amrex::Real(1.0e-12);
         const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
@@ -192,7 +189,8 @@ public:
                                               R_d/Cp_d,
                                               qv_ref_inp_sound);
 
-        amrex::Print() << "ideal sounding init: surface density of moist air = "
+        amrex::Print() << "ideal sounding init: surface dry air density = "
+                       << std::setprecision(15)
                        << rhod_integ[0] << " kg/m^3" << std::endl;
 
         // Note:
@@ -223,8 +221,8 @@ public:
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
 
             // Establish known constant
-            rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[itime][k-1]);
-            C  = -pm_integ[k-1] + 0.5*rho_tot_lo*CONST_GRAV*dz;
+            rho_tot_lo = rhod_integ[k-1] * (one + qv_inp_sound[itime][k-1]);
+            C  = -pm_integ[k-1] + myhalf*rho_tot_lo*CONST_GRAV*dz;
 
             // Initial guess and residual
             pm_integ[k]   = pm_integ[k-1];
@@ -232,14 +230,95 @@ public:
                                                   pm_integ[k],
                                                   R_d/Cp_d,
                                                   qv_inp_sound[itime][k]);
-            rho_tot_hi = rhod_integ[k] * (1. + qv_inp_sound[itime][k]);
-            F = pm_integ[k] + 0.5*rho_tot_hi*CONST_GRAV*dz + C;
+            rho_tot_hi = rhod_integ[k] * (one + qv_inp_sound[itime][k]);
+            F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
             if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
                                                               CONST_GRAV, C, theta_inp_sound[itime][k],
                                                               qv_inp_sound[itime][k], qv_inp_sound[itime][k],
                                                               pm_integ[k], rhod_integ[k], F);
+#if 0       // Printing
+            amrex::Print() << z_inp_sound[itime][k]
+                           << " " << pm_integ[k]
+                           << " " << rhod_integ[k]
+                           << " " << theta_inp_sound[itime][k]
+                           << " " << qv_inp_sound[itime][k]
+                           << " " << U_inp_sound[itime][k]
+                           << " " << V_inp_sound[itime][k]
+                           << std::endl;
+#endif
+        }
+        // Note: at this point, the surface pressure, density of the dry air
+        // column is stored in pm_integ[0], rhod_integ[0]
+
+        // update
+        host_to_device(itime);
+    }
+
+    void calc_rho_p_isentropic (int itime)
+    {
+        /* Calculate density and pressure assuming isentropic (constant theta)
+           background conditions. This does not use Newton-Raphson iterations
+           to calculate rho and p.
+         */
+        const int Ninp = size(itime);
+        pm_integ.resize(Ninp);
+        rhod_integ.resize(Ninp);
+
+        // evaluate surface quantities (k=0): total pressure and dry air
+        pm_integ[0] = press_ref_inp_sound;
+        rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
+                                              press_ref_inp_sound,
+                                              R_d/Cp_d,
+                                              qv_ref_inp_sound);
+
+        const amrex::Real th0 = theta_ref_inp_sound;
+        const amrex::Real p0_pow = std::pow(p_0, (Gamma-1)/Gamma);
+
+        amrex::Print() << "isentropic sounding init: surface dry air density = "
+                       << std::setprecision(15)
+                       << rhod_integ[0] << " kg/m^3" << std::endl;
+
+#if 0   // Printing
+        // In this absence of moisture, this moist profile will match the
+        // following dry profile
+        amrex::Print() << "z  p_m  rho_d  theta  qv  U  V" << std::endl;
+        amrex::Print() << z_inp_sound[itime][0]
+                       << " " << pm_integ[0]
+                       << " " << rhod_integ[0]
+                       << " " << theta_inp_sound[itime][0]
+                       << " " << qv_inp_sound[itime][0]
+                       << " " << U_inp_sound[itime][0]
+                       << " " << V_inp_sound[itime][0]
+                       << std::endl;
+#endif
+
+         // integrate from surface to domain top
+        amrex::Real dz;
+        for (int k=1; k < size(itime); ++k)
+        {
+            // Vertical grid spacing
+            dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
+
+            // Isentropic pressure at next level
+            amrex::Real qvmean = (assume_dry) ? zero : myhalf*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
+            amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
+            amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
+            pm_integ[k] = (Gamma-1)/Gamma *
+                (-CONST_GRAV * p0_pow / (R_d * thm0) * (1 + qvmean) * dz
+                 + Gamma/(Gamma-1) * plo_pow);
+            pm_integ[k] = std::pow(pm_integ[k], Gamma / (Gamma-1));
+
+            // Note: The pressure calculated here is copied to `p_inp_sound_d`
+            // and currently not used.
+
+            // Get corresponding dry air density
+            rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
+                                                  pm_integ[k],
+                                                  R_d/Cp_d,
+                                                  qv_inp_sound[itime][k]);
+
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
@@ -309,12 +388,14 @@ public:
     // Members
     int ntimes;
 
-    amrex::Real tau_nudging = 5.0; // time scale used for nudging
+    amrex::Real tau_nudging = amrex::Real(5.0); // time scale used for nudging
 
     amrex::Vector<std::string> input_sounding_file = {};
     amrex::Vector<amrex::Real> input_sounding_time = {};
     int n_sounding_files = 0;
     int n_sounding_times = 0;
+
+    bool assume_dry{false};
 
     // - read from file
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input

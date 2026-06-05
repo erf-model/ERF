@@ -15,8 +15,8 @@
 // This defines the ACTUAL number of non-moisture scalar vars
 #define NSCALARS   1
 
-// This defines the MAXIMUM number of moisture vars
-#define NMOIST_max 6
+// This defines the MAXIMUM number of moisture vars (six q's plus five n's)
+#define NMOIST_max 11
 
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
@@ -45,6 +45,11 @@
 #define RhoQ4_comp     (RhoQ1_comp+3)
 #define RhoQ5_comp     (RhoQ1_comp+4)
 #define RhoQ6_comp     (RhoQ1_comp+5)
+#define RhoQ7_comp     (RhoQ1_comp+6)
+#define RhoQ8_comp     (RhoQ1_comp+7)
+#define RhoQ9_comp     (RhoQ1_comp+8)
+#define RhoQ10_comp    (RhoQ1_comp+9)
+#define RhoQ11_comp    (RhoQ1_comp+10)
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
@@ -56,6 +61,11 @@
 #define PrimQ4_comp      (RhoQ4_comp-1)
 #define PrimQ5_comp      (RhoQ5_comp-1)
 #define PrimQ6_comp      (RhoQ6_comp-1)
+#define PrimQ7_comp      (RhoQ7_comp-1)
+#define PrimQ8_comp      (RhoQ8_comp-1)
+#define PrimQ9_comp      (RhoQ9_comp-1)
+#define PrimQ10_comp     (RhoQ10_comp-1)
+#define PrimQ11_comp     (RhoQ11_comp-1)
 
 // Base state variables
 namespace BaseState {
@@ -84,6 +94,11 @@ namespace BCVars {
         RhoQ4_bc_comp,
         RhoQ5_bc_comp,
         RhoQ6_bc_comp,
+        RhoQ7_bc_comp,
+        RhoQ8_bc_comp,
+        RhoQ9_bc_comp,
+        RhoQ10_bc_comp,
+        RhoQ11_bc_comp,
         xvel_bc = NBCVAR_max,
         yvel_bc = NBCVAR_max+1,
         zvel_bc = NBCVAR_max+2,
@@ -118,7 +133,8 @@ namespace WRFBdyVars {
         U  = 0,
         V  = 1,
         T  = 2,
-        QV    , // water vapor
+        QV = 3, // water vapor
+        PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
         NumTypes
@@ -127,10 +143,28 @@ namespace WRFBdyVars {
 
 namespace MetGridBdyVars {
     enum {
-        U = 0,
-        V = 1,
-        T = 2,
-        QV,
+        U  = 0,
+        V  = 1,
+        T  = 2,
+        QV = 3,
+        NumTypes
+    };
+}
+
+namespace MetGridTmpSrcVars {
+    enum {
+        Theta = 0,
+        QV    = 1,
+        NumTypes
+    };
+}
+
+namespace MetGridTmpDstVars {
+    enum {
+        P = 0,
+        T = 1,
+        Theta = 2,
+        QV = 3,
         NumTypes
     };
 }
@@ -201,20 +235,20 @@ enum struct ERF_BC {
 //     the end to use locally
 namespace ERFBCType {
 enum mathematicalBndryTypes : int {
-    bogus        = -666,
-    reflect_odd  = -1,
-    int_dir      =  0,
-    reflect_even =  1,
-    foextrap     =  2,
-    ext_dir      =  3,
+    bogus            = -666,
+    reflect_odd      = -1,
+    int_dir          =  0,
+    reflect_even     =  1,
+    foextrap         =  2,
+    ext_dir          =  3,
+    hoextrap         =  4,
     surface_layer    =  101,
     ext_dir_prim     =  102,
     ext_dir_ingested =  103,
     neumann          =  104,
     neumann_int      =  105,
     open             =  106,
-    hoextrap         =  107,
-    ext_dir_upwind   =  108
+    ext_dir_upwind   =  107
 };
 }
 

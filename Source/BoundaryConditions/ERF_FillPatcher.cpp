@@ -123,11 +123,47 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     // Minimal bounding box of fine BA plus a halo cell
     Box fba_bnd = grow(fba.minimalBox(), IntVect(1,1,1));
 
+    BoxArray fba_per;
+    Box fdomain = m_fgeom.Domain();
+    // Here we add additional boxes that are periodic wraparounds of existing boxes
+    if (m_fgeom.isAnyPeriodic())
+    {
+        Box domain_cc(fdomain); domain_cc.enclosedCells();
+        BoxList bl_mf = fba.boxList();
+        BoxList bl_mf_new;
+        for (auto& b : bl_mf) {
+            for (int dim = 0; dim < AMREX_SPACEDIM; dim++) {
+                if (m_fgeom.isPeriodic(dim)) {
+                    int n = domain_cc.length(dim);
+                    if (b.smallEnd(dim) == fdomain.smallEnd(dim)) {
+                        Box bb_lo(b); bb_lo.enclosedCells(); bb_lo.shift(dim,n); bb_lo.setType(b.ixType());
+                        bb_lo &= fba_bnd;
+                        bl_mf_new.push_back(bb_lo);
+                    }
+                    Box bb_hi(b); bb_hi.enclosedCells();
+                    if (bb_hi.bigEnd(dim) == fdomain.bigEnd(dim)) {
+                        bb_hi.shift(dim,-n); bb_hi.setType(b.ixType());
+                        bb_hi &= fba_bnd;
+                        bl_mf_new.push_back(bb_hi);
+                    }
+               } // periodic
+            } // dim
+        } // bl_mf
+
+        for (auto& b : bl_mf_new) {
+            bl_mf.push_back(b);
+        } // bl_mf
+        fba_per.define(std::move(bl_mf));
+
+    } else {
+        fba_per = fba;
+    }
+
     // BoxList and BoxArray to store complement
     BoxList com_bl; BoxArray com_ba;
 
     // Compute the complement
-    fba.complementIn(com_bl,fba_bnd);
+    fba_per.complementIn(com_bl,fba_bnd);
 
     // com_bl cannot be null since we grew with halo cells
     AMREX_ALWAYS_ASSERT(com_bl.size() > 0);
@@ -263,8 +299,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int ii = coarsen(i,ratio[0]);
                     if (i-ii*ratio[0] != 0) {
-                        Real const w = static_cast<Real>(i-ii*ratio[0]) * (Real(1.)/Real(ratio[0]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(ii*ratio[0],j,k,0) + w * fine_arr((ii+1)*ratio[0],j,k,0);
+                        Real const w = static_cast<Real>(i-ii*ratio[0]) * (Real(1.0)/Real(ratio[0]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(ii*ratio[0],j,k,0) + w * fine_arr((ii+1)*ratio[0],j,k,0);
                     }
                 }
             });
@@ -290,8 +326,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int jj = coarsen(j,ratio[1]);
                     if (j-jj*ratio[1] != 0) {
-                        Real const w = static_cast<Real>(j-jj*ratio[1]) * (Real(1.)/Real(ratio[1]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,jj*ratio[1],k,0) + w * fine_arr(i,(jj+1)*ratio[1],k,0);
+                        Real const w = static_cast<Real>(j-jj*ratio[1]) * (Real(1.0)/Real(ratio[1]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(i,jj*ratio[1],k,0) + w * fine_arr(i,(jj+1)*ratio[1],k,0);
                     }
                 }
             });
@@ -316,8 +352,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int kk = coarsen(k,ratio[2]);
                     if (k-kk*ratio[2] != 0) {
-                        Real const w = static_cast<Real>(k-kk*ratio[2]) * (Real(1.)/Real(ratio[2]));
-                        fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,j,kk*ratio[2],0) + w * fine_arr(i,j,(kk+1)*ratio[2],0);
+                        Real const w = static_cast<Real>(k-kk*ratio[2]) * (Real(1.0)/Real(ratio[2]));
+                        fine_arr(i,j,k,0) = (Real(1.0)-w) * fine_arr(i,j,kk*ratio[2],0) + w * fine_arr(i,j,(kk+1)*ratio[2],0);
                     }
                 }
             });

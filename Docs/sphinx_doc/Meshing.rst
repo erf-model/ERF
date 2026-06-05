@@ -18,7 +18,7 @@ See `WoA`_ for an example of a terrain-fitted grid; this one follows the Witch o
 .. _`WoA`: https://github.com/erf-model/validation/blob/main/JAMES_Paper/Flow_Over_Terrain/WoA_mesh.png
 
 As in many atmospheric modeling codes, variable mesh spacing in the vertical direction is allowed with or without terrain.
-The heights of each level can be parsed from a text file as ``z levels'' (as in WRF), or calculated at run-time given an
+The heights of each level can be parsed from a text file as "z levels" (as in WRF), or calculated at run-time given an
 initial mesh spacing at the bottom surface and a specified growth rate.  In the presence of non-flat terrain, the mesh is
 modified so that it fits the specified terrain at the bottom of the computational domain, and relaxes to flat at the top of the domain.
 Three approaches to this are offered in ERF: Basic Terrain Following (BTF), in which the influence of the terrain decreases

@@ -18,7 +18,7 @@ enum struct MolecDiffType {
 
 struct DiffChoice {
   public:
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -40,6 +40,9 @@ struct DiffChoice {
             pp.query("alpha_C", alpha_C);
             pp.query("dynamic_viscosity", dynamic_viscosity);
             pp.query("rho0_trans", rho0_trans);
+            pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
+            pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
+            pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
         }
 
         // Compute relevant forms of diffusion parameters
@@ -61,7 +64,7 @@ struct DiffChoice {
 
     }
 
-    void display()
+    void display ()
     {
         amrex::Print() << "Diffusion choices: " << std::endl;
         amrex::Print() << "    rho0_trans              : " << rho0_trans << std::endl;
@@ -81,15 +84,18 @@ struct DiffChoice {
     MolecDiffType molec_diff_type = MolecDiffType::Constant;
 
     // Diffusive/viscous coefficients [m2/s]
-    amrex::Real alpha_T = 0.0;
-    amrex::Real alpha_C = 0.0;
+    amrex::Real alpha_T = zero;
+    amrex::Real alpha_C = zero;
 
     // Density for computation of rhoAlpha (which is assumed constant) [kg/m3]
-    amrex::Real rho0_trans = 1.0;
+    amrex::Real rho0_trans = one;
 
     // Dynamic diffusion coefficients [kg/(m-s)]
-    amrex::Real rhoAlpha_T = 0.0;
-    amrex::Real rhoAlpha_C = 0.0;
-    amrex::Real dynamic_viscosity = 0.0;
+    amrex::Real rhoAlpha_T = zero;
+    amrex::Real rhoAlpha_C = zero;
+    amrex::Real dynamic_viscosity = zero;
+    bool eb_diff_constraint_x = false;
+    bool eb_diff_constraint_y = false;
+    bool eb_diff_constraint_z = false;
 };
 #endif

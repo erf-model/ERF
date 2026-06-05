@@ -3,6 +3,7 @@ CEXE_headers += ERF_TerrainPoisson.H
 CEXE_sources += ERF_TerrainPoisson.cpp
 
 CEXE_sources += ERF_ComputeDivergence.cpp
+CEXE_sources += ERF_FillZeroAreaFaceFluxes.cpp
 CEXE_sources += ERF_ImposeBCsOnPhi.cpp
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
@@ -10,8 +11,8 @@ CEXE_sources += ERF_PoissonWallDist.cpp
 CEXE_sources += ERF_SolveWithEBMLMG.cpp
 CEXE_sources += ERF_SolveWithGMRES.cpp
 CEXE_sources += ERF_SolveWithMLMG.cpp
+CEXE_headers += ERF_SolverUtils.H
 
 ifeq ($(USE_FFT), TRUE)
-CEXE_headers += ERF_FFTUtils.H
 CEXE_sources += ERF_SolveWithFFT.cpp
 endif

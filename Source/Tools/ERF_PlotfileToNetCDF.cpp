@@ -103,7 +103,7 @@ main_main()
     const Vector<std::string>& varnames = pf_data.varNames();
 
     Vector<int> istep{3};
-    Real time = 0.;
+    Real time = pf_data.time();
 
     int max_grid_size = 64;
 
@@ -126,7 +126,7 @@ main_main()
         Box bounding_region = (lev == 0) ? pf_data.probDomain(lev) : ba.minimalBox();
 
         // We assume only one "subdomain" at each level
-        int which = lev;
+        int which = 0;
 
         writeNCPlotFile(lev, which, iFile, GetVecOfConstPtrs(mfvec), varnames, istep,
                         pf_data.probLo(), pf_data.probHi(), pf_data.cellSize(lev), bounding_region, time, start_bdy_time);

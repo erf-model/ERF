@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Advection/Diffusion"
+
+erf.init_type = Uniform
+
 max_step = 20
 
 amrex.fpe_trap_invalid = 1
@@ -45,13 +49,12 @@ erf.dynamic_viscosity = 0.0
 erf.alpha_T           = 0.0
 erf.alpha_C           = 1.0
 
-erf.init_type = "uniform"
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 0.0
 prob.B_0 = 1.0
-prob.u_0 = 0.0
-prob.v_0 = 0.0
+prob.U_0 = 0.0
+prob.V_0 = 0.0
+prob.T_0 = 1.0
 prob.uRef = 0.0
 prob.prob_type = 10

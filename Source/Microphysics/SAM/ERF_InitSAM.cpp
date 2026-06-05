@@ -7,6 +7,21 @@
 
 using namespace amrex;
 
+namespace {
+
+amrex::Real copy_table_value_to_host (const amrex::TableData<amrex::Real, 1>& src,
+                                      const int lo,
+                                      const int hi,
+                                      const int k)
+{
+    amrex::TableData<amrex::Real, 1> host({lo}, {hi}, amrex::The_Pinned_Arena());
+    host.copy(src);
+    amrex::Gpu::streamSynchronize();
+    return host.const_table()(k);
+}
+
+} // namespace
+
 /**
  * Initializes the Microphysics module.
  *
@@ -20,15 +35,14 @@ using namespace amrex;
  */
 void
 SAM::Init (const MultiFab& cons_in,
-                const BoxArray& grids,
-                const Geometry& geom,
-                const Real& dt_advance,
-                std::unique_ptr<MultiFab>& z_phys_nd,
-                std::unique_ptr<MultiFab>& detJ_cc)
+           const BoxArray& /*grids*/,
+           const Geometry& geom,
+           const Real& dt_advance,
+           std::unique_ptr<MultiFab>& z_phys_nd,
+           std::unique_ptr<MultiFab>& detJ_cc)
 {
     dt = dt_advance;
     m_geom = geom;
-    m_gtoe = grids;
 
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();
@@ -43,38 +57,31 @@ SAM::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
-    // Set class data members
-    for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+    // NOTE: For multi-level not all ranks will own a box.
+    //       Furthermore, the plane average allocates space
+    //       for the entire domain. We make this consistent.
+    nlev = m_geom.Domain().length(2);
+    zlo  = m_geom.Domain().smallEnd(2);
+    zhi  = m_geom.Domain().bigEnd(2);
 
-        const auto& lo = lbound(box3d);
-        const auto& hi = ubound(box3d);
+    // parameters
+    accrrc.resize({zlo},  {zhi});
+    accrsi.resize({zlo},  {zhi});
+    accrsc.resize({zlo},  {zhi});
+    coefice.resize({zlo}, {zhi});
+    evaps1.resize({zlo},  {zhi});
+    evaps2.resize({zlo},  {zhi});
+    accrgi.resize({zlo},  {zhi});
+    accrgc.resize({zlo},  {zhi});
+    evapg1.resize({zlo},  {zhi});
+    evapg2.resize({zlo},  {zhi});
+    evapr1.resize({zlo},  {zhi});
+    evapr2.resize({zlo},  {zhi});
 
-        nlev = box3d.length(2);
-        zlo  = lo.z;
-        zhi  = hi.z;
-
-        // parameters
-        accrrc.resize({zlo},  {zhi});
-        accrsi.resize({zlo},  {zhi});
-        accrsc.resize({zlo},  {zhi});
-        coefice.resize({zlo}, {zhi});
-        evaps1.resize({zlo},  {zhi});
-        evaps2.resize({zlo},  {zhi});
-        accrgi.resize({zlo},  {zhi});
-        accrgc.resize({zlo},  {zhi});
-        evapg1.resize({zlo},  {zhi});
-        evapg2.resize({zlo},  {zhi});
-        evapr1.resize({zlo},  {zhi});
-        evapr2.resize({zlo},  {zhi});
-
-        // data (input)
-        rho1d.resize({zlo}, {zhi});
-        pres1d.resize({zlo}, {zhi});
-        tabs1d.resize({zlo}, {zhi});
-        gamaz.resize({zlo}, {zhi});
-        zmid.resize({zlo}, {zhi});
-    }
+    // data (input)
+    rho1d.resize({zlo}, {zhi});
+    pres1d.resize({zlo}, {zhi});
+    tabs1d.resize({zlo}, {zhi});
 }
 
 
@@ -111,26 +118,30 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
-        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
-            theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-
-            qv_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp));
-            qc_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp));
-            qi_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp));
-            qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
-            qt_array(i,j,k)    = qv_array(i,j,k) + qn_array(i,j,k);
-
-            qpr_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp));
-            qps_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp));
-            qpg_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp));
-             qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp),
-                                                  qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
+            const SAMPrimitiveCell primitive =
+                sam_cons_to_primitive(states_array(i,j,k,Rho_comp),
+                                      states_array(i,j,k,RhoTheta_comp),
+                                      states_array(i,j,k,RhoQ1_comp),
+                                      states_array(i,j,k,RhoQ2_comp),
+                                      states_array(i,j,k,RhoQ3_comp),
+                                      states_array(i,j,k,RhoQ4_comp),
+                                      states_array(i,j,k,RhoQ5_comp),
+                                      states_array(i,j,k,RhoQ6_comp));
+            rho_array(i,j,k) = primitive.rho;
+            theta_array(i,j,k) = primitive.theta;
+            qv_array(i,j,k) = primitive.qv;
+            qc_array(i,j,k) = primitive.qcl;
+            qi_array(i,j,k) = primitive.qci;
+            qn_array(i,j,k) = primitive.qn;
+            qt_array(i,j,k) = primitive.qt;
+            qpr_array(i,j,k) = primitive.qpr;
+            qps_array(i,j,k) = primitive.qps;
+            qpg_array(i,j,k) = primitive.qpg;
+            qp_array(i,j,k) = primitive.qp;
+            tabs_array(i,j,k) = primitive.tabs;
+            pres_array(i,j,k) = primitive.pres_mbar;
         });
     }
 }
@@ -138,9 +149,6 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 
 void SAM::Compute_Coefficients ()
 {
-    auto dz   = m_geom.CellSize(2);
-    auto lowz = m_geom.ProbLo(2);
-
     auto accrrc_t  = accrrc.table();
     auto accrsi_t  = accrsi.table();
     auto accrsc_t  = accrsc.table();
@@ -158,16 +166,13 @@ void SAM::Compute_Coefficients ()
     auto pres1d_t = pres1d.table();
     auto tabs1d_t = tabs1d.table();
 
-    auto gamaz_t  = gamaz.table();
-    auto zmid_t   = zmid.table();
-
-    Real gam3  = erf_gammafff(3.0             );
-    Real gamr1 = erf_gammafff(3.0+b_rain      );
-    Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-    Real gams1 = erf_gammafff(3.0+b_snow      );
-    Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
-    Real gamg1 = erf_gammafff(3.0+b_grau      );
-    Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
+    Real gam3  = erf_gammafff(three             );
+    Real gamr1 = erf_gammafff(three+b_rain      );
+    Real gamr2 = erf_gammafff((Real(5.0)+b_rain)/two);
+    Real gams1 = erf_gammafff(three+b_snow      );
+    Real gams2 = erf_gammafff((Real(5.0)+b_snow)/two);
+    Real gamg1 = erf_gammafff(three+b_grau      );
+    Real gamg2 = erf_gammafff((Real(5.0)+b_grau)/two);
 
     // calculate the plane average variables
     PlaneAverage rho_ave(mic_fab_vars[MicVar::rho].get(), m_geom, m_axis);
@@ -196,21 +201,17 @@ void SAM::Compute_Coefficients ()
     Real* theta_dptr = theta_d.data();
     Real* qv_dptr    = qv_d.data();
 
-    Real gOcp = m_gOcp;
-
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];
         Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
         rho1d_t(k)    = rho_dptr[k];
-        pres1d_t(k)   = pressure*0.01;
+        pres1d_t(k)   = sam_pa_to_mbar(pressure);
         // NOTE: Limit the temperature to the melting point of ice to avoid a divide by
         //       0 condition when computing the cold evaporation coefficients. This should
-        //       not affect results since evporation requires snow/graupel to be present
-        //       and thus T<273.16
-        tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),273.16);
-        zmid_t(k)     = lowz + (k+0.5)*dz;
-        gamaz_t(k)    = gOcp*zmid_t(k);
+        //       not affect results since evaporation requires snow/graupel to be present
+        //       and thus T<Real(273.16)
+        tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),Real(273.16));
     });
 
     if(round(gam3) != 2) {
@@ -221,52 +222,41 @@ void SAM::Compute_Coefficients ()
     // Populate all the coefficients
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
-        Real Prefactor;
-        Real pratio = sqrt(1.29 / rho1d_t(k));
-        //Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
-        //Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
-        Real estw   = 100.0*erf_esatw(tabs1d_t(k));
-        Real esti   = 100.0*erf_esati(tabs1d_t(k));
-
-        // accretion by snow:
-        Real coef1   = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
-        Real coef2   = exp(0.025*(tabs1d_t(k) - 273.15));
-        accrsi_t(k)  =  coef1 * coef2 * esicoef;
-        accrsc_t(k)  =  coef1 * esccoef;
-        coefice_t(k) =  coef2;
-
-        // evaporation of snow:
-        coef1 = (lsub/(tabs1d_t(k)*R_v)-1.0)*lsub/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * esti);
-        Prefactor = 2.0 * PI * nzeros / (rho1d_t(k) * (coef1 + coef2));
-        Prefactor *= (2.0/PI); // Shape factor snow
-        evaps1_t(k) = Prefactor * 0.65 * sqrt(rho1d_t(k) / (PI * rhos * nzeros));
-        evaps2_t(k) = Prefactor * 0.44 * sqrt(a_snow * rho1d_t(k) / muelq) * gams2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhos * nzeros) , ((5.0+b_snow)/8.0));
-
-        // accretion by graupel:
-        coef1 = 0.25*PI*nzerog*a_grau*gamg1*pratio/pow((PI*rhog*nzerog/rho1d_t(k)) , ((3.0+b_grau)/4.0));
-        coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
-        accrgi_t(k) = coef1 * coef2 * egicoef;
-        accrgc_t(k) = coef1 * egccoef;
-
-        // evaporation of graupel:
-        coef1 = (lsub/(tabs1d_t(k)*R_v)-1.0)*lsub/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * esti);
-        Prefactor = 2.0 * PI * nzerog / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for graupel is 1
-        evapg1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhog * nzerog));
-        evapg2_t(k) = Prefactor * 0.31 * sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhog * nzerog) , ((5.0+b_grau)/8.0));
-
-        // accretion by rain:
-        accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3.0+b_rain)/4.))* erccoef;
-
-        // evaporation of rain:
-        coef1 = (lcond/(tabs1d_t(k)*R_v)-1.0)*lcond/(therco*tabs1d_t(k));
-        coef2 = R_v * R_d / (diffelq * estw);
-        Prefactor = 2.0 * PI * nzeror / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for rain is 1
-        evapr1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhor * nzeror));
-        evapr2_t(k) = Prefactor * 0.31 * sqrt(a_rain * rho1d_t(k) / muelq) * gamr2
-                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhor * nzeror) , ((5.0+b_rain)/8.0));
+        const SAMCoefficientRow row =
+            sam_compute_coefficient_row(rho1d_t(k), tabs1d_t(k),
+                                        gamr1, gamr2, gams1, gams2, gamg1, gamg2);
+        accrrc_t(k) = row.accrrc;
+        accrsi_t(k) = row.accrsi;
+        accrsc_t(k) = row.accrsc;
+        coefice_t(k) = row.coefice;
+        evaps1_t(k) = row.evaps1;
+        evaps2_t(k) = row.evaps2;
+        accrgi_t(k) = row.accrgi;
+        accrgc_t(k) = row.accrgc;
+        evapg1_t(k) = row.evapg1;
+        evapg2_t(k) = row.evapg2;
+        evapr1_t(k) = row.evapr1;
+        evapr2_t(k) = row.evapr2;
     });
+}
+
+SAMCoefficientRow
+SAM::CoefficientRowAt (const int k) const
+{
+    AMREX_ALWAYS_ASSERT(k >= zlo && k <= zhi);
+
+    SAMCoefficientRow row{};
+    row.accrrc = copy_table_value_to_host(accrrc, zlo, zhi, k);
+    row.accrsi = copy_table_value_to_host(accrsi, zlo, zhi, k);
+    row.accrsc = copy_table_value_to_host(accrsc, zlo, zhi, k);
+    row.coefice = copy_table_value_to_host(coefice, zlo, zhi, k);
+    row.evaps1 = copy_table_value_to_host(evaps1, zlo, zhi, k);
+    row.evaps2 = copy_table_value_to_host(evaps2, zlo, zhi, k);
+    row.accrgi = copy_table_value_to_host(accrgi, zlo, zhi, k);
+    row.accrgc = copy_table_value_to_host(accrgc, zlo, zhi, k);
+    row.evapg1 = copy_table_value_to_host(evapg1, zlo, zhi, k);
+    row.evapg2 = copy_table_value_to_host(evapg2, zlo, zhi, k);
+    row.evapr1 = copy_table_value_to_host(evapr1, zlo, zhi, k);
+    row.evapr2 = copy_table_value_to_host(evapr2, zlo, zhi, k);
+    return row;
 }

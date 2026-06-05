@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Advection/Diffusion"
+
+erf.init_type = Uniform
+
 max_step = 80
 
 amrex.fpe_trap_invalid = 1
@@ -21,7 +25,6 @@ erf.cfl            = 0.9
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -41,14 +44,12 @@ erf.use_gravity = false
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 
-erf.init_type = "uniform"
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0   = 1.0
 prob.A_0   = 1.0
-prob.u_0   = 0.0
-prob.v_0   = 0.0
+prob.U_0   = 0.0
+prob.V_0   = 0.0
 prob.rad_0 = 0.25
 prob.z0    = 0.1
 prob.zRef  = 80.0

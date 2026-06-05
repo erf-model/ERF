@@ -1,0 +1,145 @@
+name: Linux GCC NetCDF RRTMGP
+
+on: [push, pull_request, workflow_dispatch]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
+  cancel-in-progress: true
+
+jobs:
+  library:
+    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+        netcdf: [OFF, ON]
+        rrtmgp: [OFF, ON]
+        exclude:
+        - rrtmgp: ON
+          netcdf: OFF
+    env:
+      ERF_DIR: ${{ github.workspace }}/erf_clone
+    steps:
+
+    - uses: actions/checkout@v5
+      with:
+        submodules: recursive
+        path: erf_clone
+
+    - name: Install Dependencies
+      run: ${ERF_DIR}/Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: ${ERF_DIR}/Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Free up disk space
+      uses: ./erf_clone/.github/actions/free-space-ubuntu
+
+    - name: Set Up Cache
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
+    - name: Setup Spack
+      uses: spack/setup-spack@v2
+      with:
+        path: ${{ github.workspace }}/spack_install_dir
+
+    - name: Install CA certificates
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates
+        sudo update-ca-certificates
+
+    - name: set up NetCDF
+      run: |
+        echo ${{ github.workspace }}
+        echo ${{ runner.workspace }}
+        . ${{ github.workspace }}/spack_install_dir/share/spack/setup-env.sh
+        export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+        export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+        export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+        spack env create erf_netcdf
+        spack env activate erf_netcdf
+        spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
+        spack concretize -f
+        spack install --deprecated
+
+    - name: Configure Project and Generate Build System
+      run: |
+        . ${{ github.workspace }}/spack_install_dir/share/spack/setup-env.sh
+        spack env activate erf_netcdf
+        export HDF5_ROOT=$(spack location -i hdf5)
+        export NETCDF_ROOT=$(spack location -i netcdf-c)
+        cmake \
+          -B${ERF_DIR}/build \
+          -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
+          '-DERF_PARALLEL_TEST_NRANKS:STRING=1;2;4' \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+          -DERF_ENABLE_NETCDF:BOOL=${{matrix.netcdf}} \
+          -DERF_ENABLE_HDF5:BOOL=${{matrix.netcdf}} \
+          -DERF_ENABLE_KOKKOS:BOOL=ON \
+          -DHDF5_ROOT=${HDF5_ROOT} \
+          -DNETCDF_ROOT=${NETCDF_ROOT} \
+          -DERF_ENABLE_EKAT:BOOL=${{matrix.rrtmgp}} \
+          -DERF_ENABLE_RRTMGP:BOOL=${{matrix.rrtmgp}} \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${ERF_DIR};
+
+    - name: Compile and Link
+      run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_MAXSIZE=300M
+        ccache -z
+
+        cmake --build ${ERF_DIR}/build --parallel 2 --verbose \
+        2>&1 | tee -a ${ERF_DIR}/build-output.txt;
+
+        ccache -s
+        du -hs ~/.cache/ccache
+
+    - name: Report
+      run: |
+        grep -Ei "warning:|error:" ${ERF_DIR}/../build-output.txt \
+          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/../build-output-warnings.txt
+        cat ${ERF_DIR}/../build-output-warnings.txt
+        export return=$(tail -n 1 ${ERF_DIR}/../build-output-warnings.txt | awk '{print $2}')
+        exit ${return}
+
+    - name: Check Unit Test Registration
+      run: |
+        Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{ github.workspace }}/unit-test-list.txt
+        grep -Eq '^[A-Za-z0-9_].*\.$' ${{ github.workspace }}/unit-test-list.txt
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: Run Serial Unit Tests
+      run: |
+        ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: Run Parallel Tests
+      run: |
+        ctest -L parallel --output-on-failure --no-tests=error
+      working-directory: ${{ github.workspace }}/erf_clone/build
+
+    - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
+      run: |
+        ctest -L regression -VV
+      working-directory: ${{ github.workspace }}/erf_clone/build

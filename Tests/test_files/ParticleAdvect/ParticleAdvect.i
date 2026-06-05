@@ -1,4 +1,9 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Particles Over Flat Ground"
+
+erf.init_type = Isentropic
+
+
 max_step =  10
 
 amrex.fpe_trap_invalid = 1
@@ -53,17 +58,11 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.use_coriolis = false
 erf.les_type = "None"
 
 # MULTILEVEL
 amr.max_level = 0
-amr.ref_ratio_vect = 2 2 1
 
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  2. 0.25
-erf.box1.in_box_hi =  8. 0.75
 
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd

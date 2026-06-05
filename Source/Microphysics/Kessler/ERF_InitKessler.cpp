@@ -1,7 +1,6 @@
 #include <AMReX_GpuContainers.H>
 #include "ERF_Kessler.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_PlaneAverage.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
 
@@ -20,7 +19,7 @@ using namespace amrex;
  * @param[in] dt_advance Timestep for the advance
  */
 void Kessler::Init (const MultiFab& cons_in,
-                    const BoxArray& grids,
+                    const BoxArray& /*grids*/,
                     const Geometry& geom,
                     const Real& dt_advance,
                     std::unique_ptr<MultiFab>& z_phys_nd,
@@ -28,7 +27,6 @@ void Kessler::Init (const MultiFab& cons_in,
 {
     dt = dt_advance;
     m_geom = geom;
-    m_gtoe = grids;
 
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();
@@ -56,6 +54,7 @@ void Kessler::Init (const MultiFab& cons_in,
     }
 }
 
+
 /**
  * Initializes the Microphysics module.
  *
@@ -80,7 +79,8 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
         auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
-        // Get pressure, theta, temperature, density, and qt, qp
+        // getPgivenRTh returns Pa. Kessler stores pressure in mbar / hPa for the
+        // qsat helper path, so convert here after forming temperature and density.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
@@ -93,7 +93,7 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
                                                   qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
         });
     }
 }

@@ -5,6 +5,7 @@
 #include <AMReX_ParallelDescriptor.H>
 
 #include "ERF.H"
+#include "ERF_InputsName.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -55,6 +56,17 @@ void add_par () {
 int main (int argc, char* argv[])
 {
 
+auto finalize_mpi_and_return = [](int code) {
+#ifdef AMREX_USE_MPI
+#ifdef ERF_USE_WW3_COUPLING
+    amrex::MPMD::Finalize();
++#else
+    MPI_Finalize();
+#endif
+#endif
+return code;
+};
+
 #if defined(AMREX_MPI_THREAD_MULTIPLE)
     int requested = MPI_THREAD_MULTIPLE;
     int provided = -1;
@@ -81,13 +93,23 @@ int main (int argc, char* argv[])
         }
     }
 
-    if (!amrex::FileSystem::Exists(std::string(argv[1]))) {
+    if (argc >= 2) {
+        for (auto i = 1; i < argc; i++) {
+            if (std::string(argv[i]) == "--describe") {
+                ERF::writeBuildInfo(std::cout);
+                return finalize_mpi_and_return(0);
+            }
+        }
+    }
+
+    if (!strchr(argv[1], '=') && !amrex::FileSystem::Exists(std::string(argv[1])))
+    {
         // Print usage and exit with error code if we cannot find the input file
         ERF::print_usage(MPI_COMM_WORLD, std::cout);
         ERF::print_error(
             MPI_COMM_WORLD, "Input file does not exist = " +
                                 std::string(argv[1]) + ". Exiting!!");
-        return 1;
+        return finalize_mpi_and_return(1);
     }
 
   //  print_banner(MPI_COMM_WORLD, std::cout);
@@ -107,6 +129,14 @@ int main (int argc, char* argv[])
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
 
+#ifdef ERF_USE_KOKKOS
+    // Initialize kokkos
+    if (!Kokkos::is_initialized()) {
+        Kokkos::initialize(Kokkos::InitializationSettings()
+                           .set_device_id(amrex::Gpu::Device::deviceId()));
+    }
+#endif
+
     // Save the inputs file name for later.
     if (!strchr(argv[1], '=')) {
       inputs_name = argv[1];
@@ -116,7 +146,7 @@ int main (int argc, char* argv[])
     BL_PROFILE_VAR("main()", pmain);
 
     // wallclock time
-    const Real strt_total = amrex::second();
+    const Real strt_total = Real(amrex::second());
 
     {
         // constructor - reads in parameters from inputs file
@@ -130,7 +160,7 @@ int main (int argc, char* argv[])
         erf.Evolve();
 
         // wallclock time
-        Real end_total = amrex::second() - strt_total;
+        Real end_total = Real(amrex::second()) - strt_total;
 
         // print wallclock time
         ParallelDescriptor::ReduceRealMax(end_total ,ParallelDescriptor::IOProcessorNumber());
@@ -144,6 +174,11 @@ int main (int argc, char* argv[])
 #ifdef ERF_USE_WW3_COUPLING
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
+
+#ifdef ERF_USE_KOKKOS
+    Kokkos::finalize();
+#endif
+
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING

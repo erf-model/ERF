@@ -9,6 +9,7 @@
 #include "ERF_SAM.H"
 #include "ERF_Kessler.H"
 #include "ERF_Morrison.H"
+#include "ERF_WSM6.H"
 #include "ERF_SatAdj.H"
 #include "ERF_Microphysics.H"
 
@@ -39,6 +40,8 @@ public:
         } else if (a_model_type == MoistureType::Morrison ||
                    a_model_type == MoistureType::Morrison_NoIce) {
             SetModel<Morrison>();
+        } else if (a_model_type == MoistureType::WSM6) {
+            SetModel<WSM6>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
         } else if (a_model_type == MoistureType::None) {
@@ -68,6 +71,11 @@ public:
                                  z_phys_nd, detJ_cc);
     }
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&,
+                             amrex::MultiFab&,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override { }
+
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */
@@ -90,9 +98,10 @@ public:
 
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        m_moist_model[lev]->Update_State_Vars(cons_in);
+        m_moist_model[lev]->Update_State_Vars(cons_in, z_phys_nd);
     }
 
     /*! \brief get pointer to a moisture variable */
@@ -112,6 +121,12 @@ public:
     int Get_Qstate_Moist_Size () override
     {
         return m_moist_model[0]->Qstate_Moist_Size();
+    }
+
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    int Get_Qstate_Moist_NumConc_Size () override
+    {
+        return m_moist_model[0]->Qstate_Moist_NumConc_Size();
     }
 
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
@@ -142,6 +157,13 @@ public:
                              const int a_lev) const override
     {
         m_moist_model[a_lev]->GetPlotVar(a_name, a_mf);
+    }
+
+    /*! \brief Populates dz_min in micro model for precipitation */
+    virtual void Set_dzmin (const int a_lev,
+                            const amrex::Real dz_min) const override
+    {
+        m_moist_model[a_lev]->Set_dzmin(dz_min);
     }
 
 protected:
