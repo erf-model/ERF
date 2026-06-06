@@ -792,7 +792,12 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                                     ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
             }
         });
-    }
+    } // mfi
+
+    u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+      olen[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 void
