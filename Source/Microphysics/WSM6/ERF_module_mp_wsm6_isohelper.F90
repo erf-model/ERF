@@ -1,5 +1,6 @@
 module mp_wsm6_isohelper
   use iso_c_binding
+  use amrex_fort_module, only: amrex_real
   use mp_wsm6, only: mp_wsm6_init, mp_wsm6_run
   implicit none
   integer, parameter :: WSM6_DIAG_SCHEMA_V1 = 1
@@ -7,7 +8,7 @@ module mp_wsm6_isohelper
 contains
 
   subroutine wsm6_diag_value_string(val, sout)
-    real(c_double), intent(in) :: val
+    real(amrex_real), intent(in) :: val
     character(len=*), intent(out) :: sout
     character(len=64) :: tmp
 
@@ -18,7 +19,7 @@ contains
 
 
   subroutine mp_wsm6_init_c(den0, denr, dens, cl, cpv, hail_opt) bind(C, name="mp_wsm6_init_c")
-    real(c_double), value, intent(in) :: den0, denr, dens, cl, cpv
+    real(amrex_real), value, intent(in) :: den0, denr, dens, cl, cpv
     integer(c_int), value, intent(in) :: hail_opt
     character(len=256) :: errmsg
     integer :: errflg
@@ -35,28 +36,31 @@ contains
                            xlv0, xlf0, den0, denr, cliq, cice, psat, &
                            rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
                            ims, ime, jms, jme, kms, kme, &
-                           its, ite, jts, jte, kts, kte, microphysics_debug, diag_i_dbg, diag_j_dbg) bind(C, name="mp_wsm6_run_c")
+                           its, ite, jts, jte, kts, kte, do_cond, &
+                           microphysics_debug, diag_i_dbg, diag_j_dbg) &
+                           bind(C, name="mp_wsm6_run_c")
     integer(c_int), value, intent(in) :: ims, ime, jms, jme, kms, kme
     integer(c_int), value, intent(in) :: its, ite, jts, jte, kts, kte
+    integer(c_int), value, intent(in) :: do_cond
     integer(c_int), value, intent(in) :: microphysics_debug
     integer(c_int), value, intent(in) :: diag_i_dbg, diag_j_dbg
-    real(c_double), intent(inout), dimension(ims:ime, jms:jme, kms:kme) :: t, qv, qc, qi, qr, qs, qg
-    real(c_double), intent(in), dimension(ims:ime, jms:jme, kms:kme) :: den, p, delz
-    real(c_double), value, intent(in) :: delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls
-    real(c_double), value, intent(in) :: xlv0, xlf0, den0, denr, cliq, cice, psat
-    real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: rain, rainncv, sr
-    real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
+    real(amrex_real), intent(inout), dimension(ims:ime, jms:jme, kms:kme) :: t, qv, qc, qi, qr, qs, qg
+    real(amrex_real), intent(in), dimension(ims:ime, jms:jme, kms:kme) :: den, p, delz
+    real(amrex_real), value, intent(in) :: delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls
+    real(amrex_real), value, intent(in) :: xlv0, xlf0, den0, denr, cliq, cice, psat
+    real(amrex_real), intent(inout), dimension(ims:ime, jms:jme) :: rain, rainncv, sr
+    real(amrex_real), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
 
     integer :: i, j, k, kk, kdim, debug_local, i_dbg_local, j_dbg_target
-    logical :: i_dbg_in_tile
+    logical :: i_dbg_in_tile, do_cond_local
     integer :: errflg
     character(len=256) :: errmsg
-    real(c_double) :: xlv1_bridge
+    real(amrex_real) :: xlv1_bridge
 
-    real(c_double), allocatable :: t_col(:,:), q_col(:,:), qc_col(:,:), qi_col(:,:), qr_col(:,:), qs_col(:,:), qg_col(:,:)
-    real(c_double), allocatable :: den_col(:,:), p_col(:,:), delz_col(:,:)
-    real(c_double), allocatable :: rain_col(:), rainncv_col(:), sr_col(:)
-    real(c_double), allocatable :: snow_col(:), snowncv_col(:), graupel_col(:), graupelncv_col(:)
+    real(amrex_real), allocatable :: t_col(:,:), q_col(:,:), qc_col(:,:), qi_col(:,:), qr_col(:,:), qs_col(:,:), qg_col(:,:)
+    real(amrex_real), allocatable :: den_col(:,:), p_col(:,:), delz_col(:,:)
+    real(amrex_real), allocatable :: rain_col(:), rainncv_col(:), sr_col(:)
+    real(amrex_real), allocatable :: snow_col(:), snowncv_col(:), graupel_col(:), graupelncv_col(:)
 
     if (its < ims .or. ite > ime .or. jts < jms .or. jte > jme .or. kts < kms .or. kte > kme) then
       write(*,'(A)') 'mp_wsm6_run_c bounds error: run-window outside storage bounds'
@@ -75,6 +79,7 @@ contains
     if (.not. i_dbg_in_tile) i_dbg_local = its
     j_dbg_target = diag_j_dbg
     if (j_dbg_target < jts .or. j_dbg_target > jte) j_dbg_target = jts - 1
+    do_cond_local = (do_cond /= 0_c_int)
 
     kdim = kte - kts + 1
     xlv1_bridge = cliq - cpv
@@ -122,6 +127,7 @@ contains
                        delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, den0, denr, &
                        cliq, cice, psat, rain_col, rainncv_col, sr_col, snow_col, snowncv_col, &
                        graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, &
+                       do_cond=do_cond_local, &
                        microphysics_debug=debug_local, diag_i_dbg=i_dbg_local, diag_j_dbg=j, diag_k_raw_base=kts, &
                        errmsg=errmsg, errflg=errflg)
 
