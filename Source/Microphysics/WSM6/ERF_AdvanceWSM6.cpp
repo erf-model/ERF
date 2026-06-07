@@ -1063,9 +1063,11 @@ WSM6::Advance(const Real& dt_advance,
         auto const& workdiffi_arr = workdiffi_fab.array();
         auto const& workr_arr     = workr_fab.array();
         auto const& worka_arr     = worka_fab.array();
+        auto const& work1c_arr    = work1c_fab.array();
         auto const& denqrs1_arr   = denqrs1_fab.array();
         auto const& denqrs2_arr   = denqrs2_fab.array();
         auto const& denqrs3_arr   = denqrs3_fab.array();
+        auto const& denqci_arr    = denqci_fab.array();
         auto const& fall_r_arr    = fall_r_fab.array();
         auto const& fall_s_arr    = fall_s_fab.array();
         auto const& fall_g_arr    = fall_g_fab.array();
@@ -1073,7 +1075,6 @@ WSM6::Advance(const Real& dt_advance,
         auto const& qsum_arr      = qsum_fab.array();
         auto const& nislfv_r_diag_arr = nislfv_r_diag_fab.array();
         auto const& nislfv_sg_diag_arr = nislfv_sg_diag_fab.array();
-        auto const& work1c_arr = work1c_fab.array();
 
         ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             work1c_arr(i,j,k) = Real(0.0);
@@ -1244,6 +1245,7 @@ WSM6::Advance(const Real& dt_advance,
             const Real rslopeg2max_loc = m_rslopeg2max;
             const Real rslopeg3max_loc = m_rslopeg3max;
             const Real bvtg_loc        = m_bvtg;
+            const Real pi_wsm6_loc     = m_pi_wsm6;
             const Real n0g_loc         = m_n0g;
 
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1392,27 +1394,27 @@ WSM6::Advance(const Real& dt_advance,
                 Real dummy_n0sfac;
                 wsm6_slope_rain_cell(
                     qrs_tmp_r_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0r, Real(qcrmin), m_rslopermax, m_rsloperbmax,
-                    m_rsloper2max, m_rsloper3max, Real(bvtr), Real(pvtr),
+                    pidn0r_loc, Real(qcrmin), rslopermax_loc, rsloperbmax_loc,
+                    rsloper2max_loc, rsloper3max_loc, Real(bvtr), Real(pvtr),
                     rslope_r_arr(i,j,k), rslopeb_r_arr(i,j,k),
                     rslope2_r_arr(i,j,k), rslope3_r_arr(i,j,k),
                     work1_r_arr(i,j,k));
                 wsm6_slope_snow_cell(
                     qrs_tmp_s_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    t_arr(i,j,k), m_pidn0s, Real(alpha_wsm6),
+                    t_arr(i,j,k), pidn0s_loc, Real(alpha_wsm6),
                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
-                    m_rslopesmax, m_rslopesbmax,
-                    m_rslopes2max, m_rslopes3max,
+                    rslopesmax_loc, rslopesbmax_loc,
+                    rslopes2max_loc, rslopes3max_loc,
                     Real(bvts), Real(pvts),
                     rslope_s_arr(i,j,k), rslopeb_s_arr(i,j,k),
                     rslope2_s_arr(i,j,k), rslope3_s_arr(i,j,k),
                     work1_s_arr(i,j,k), dummy_n0sfac);
                 wsm6_slope_graup_cell(
                     qrs_tmp_g_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
-                    m_pidn0g, Real(qcrmin),
-                    m_rslopegmax, m_rslopegbmax,
-                    m_rslopeg2max, m_rslopeg3max,
-                    m_bvtg, Real(pvtg),
+                    pidn0g_loc, Real(qcrmin),
+                    rslopegmax_loc, rslopegbmax_loc,
+                    rslopeg2max_loc, rslopeg3max_loc,
+                    bvtg_loc, Real(pvtg),
                     rslope_g_arr(i,j,k), rslopeb_g_arr(i,j,k),
                     rslope2_g_arr(i,j,k), rslope3_g_arr(i,j,k),
                     work1_g_arr(i,j,k));
@@ -1437,7 +1439,7 @@ WSM6::Advance(const Real& dt_advance,
                             std::sqrt(rslope_s_arr(i,j,k) * rslopeb_s_arr(i,j,k));
                         psmlt_arr(i,j,k) =
                             wsm6_xka(t_arr(i,j,k), den_arr(i,j,k)) / xlf *
-                            (Real(t0c) - t_arr(i,j,k)) * m_pi_wsm6 * Real(0.5) *
+                            (Real(t0c) - t_arr(i,j,k)) * pi_wsm6_loc * Real(0.5) *
                             n0sfac_arr(i,j,k) *
                             (Real(precs1) * rslope2_s_arr(i,j,k) +
                              Real(precs2) * work2_arr(i,j,k) * coeres) /
