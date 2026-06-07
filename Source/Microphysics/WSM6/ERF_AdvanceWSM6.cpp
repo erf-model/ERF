@@ -1564,33 +1564,6 @@ WSM6::Advance(const Real& dt_advance,
                 Real search_qn_col[WSM6_MAX_LEVELS];
                 Real search_denqrs1_after_kernel_col[WSM6_MAX_LEVELS];
 #endif
-                const bool emit_nislfv_r_search_kcol =
-                    emit_nislfv_r_search_state && (i == diag_i) && (j == diag_j);
-                if (emit_nislfv_r_search_kcol) {
-                    for (int kk = 0; kk < km_local; ++kk) {
-                        search_zi_col[kk] = Real(0.0);
-                        search_za_col[kk] = Real(0.0);
-                        search_dza_col[kk] = Real(0.0);
-                        search_wi_col[kk] = Real(0.0);
-                        search_ww_col[kk] = Real(0.0);
-                        search_wa_col[kk] = Real(0.0);
-                        search_was_col[kk] = Real(0.0);
-                        search_qa_col[kk] = Real(0.0);
-                        search_qmi_col[kk] = Real(0.0);
-                        search_qpi_col[kk] = Real(0.0);
-                        search_kb_before_backstep_col[kk] = Real(-1.0);
-                        search_kt_before_backstep_col[kk] = Real(-1.0);
-                        search_kb_after_backstep_col[kk] = Real(-1.0);
-                        search_kt_after_backstep_col[kk] = Real(-1.0);
-                        search_kb_after_search_col[kk] = Real(-1.0);
-                        search_kt_after_search_col[kk] = Real(-1.0);
-                        search_zsum_col[kk] = Real(0.0);
-                        search_qsum_col[kk] = Real(0.0);
-                        search_qn_col[kk] = Real(0.0);
-                        search_denqrs1_after_kernel_col[kk] = Real(0.0);
-                    }
-                }
-
                 // G5a: pack sedimentation work arrays
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
