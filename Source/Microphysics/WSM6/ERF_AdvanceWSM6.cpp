@@ -1467,6 +1467,9 @@ WSM6::Advance(const Real& dt_advance,
             // G5a-G5e: sedimentation setup, nislfv calls, and flux updates
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
+#ifdef AMREX_USE_GPU
+                if (km_local > WSM6_MAX_LEVELS) return;
+#endif
                 constexpr Real qsum_min = Real(1.0e-15);
                 Real delqrs1_col = Real(0.0);
                 Real delqrs2_col = Real(0.0);
@@ -1482,26 +1485,6 @@ WSM6::Advance(const Real& dt_advance,
                 amrex::Vector<Real> denqrs2_col_v(km_local);
                 amrex::Vector<Real> denqrs3_col_v(km_local);
                 amrex::Vector<Real> qsum_col_v(km_local);
-                amrex::Vector<Real> search_zi_col_v(km_local);
-                amrex::Vector<Real> search_za_col_v(km_local);
-                amrex::Vector<Real> search_dza_col_v(km_local);
-                amrex::Vector<Real> search_wi_col_v(km_local);
-                amrex::Vector<Real> search_ww_col_v(km_local);
-                amrex::Vector<Real> search_wa_col_v(km_local);
-                amrex::Vector<Real> search_was_col_v(km_local);
-                amrex::Vector<Real> search_qa_col_v(km_local);
-                amrex::Vector<Real> search_qmi_col_v(km_local);
-                amrex::Vector<Real> search_qpi_col_v(km_local);
-                amrex::Vector<Real> search_kb_before_backstep_col_v(km_local);
-                amrex::Vector<Real> search_kt_before_backstep_col_v(km_local);
-                amrex::Vector<Real> search_kb_after_backstep_col_v(km_local);
-                amrex::Vector<Real> search_kt_after_backstep_col_v(km_local);
-                amrex::Vector<Real> search_kb_after_search_col_v(km_local);
-                amrex::Vector<Real> search_kt_after_search_col_v(km_local);
-                amrex::Vector<Real> search_zsum_col_v(km_local);
-                amrex::Vector<Real> search_qsum_col_v(km_local);
-                amrex::Vector<Real> search_qn_col_v(km_local);
-                amrex::Vector<Real> search_denqrs1_after_kernel_col_v(km_local);
                 Real* den_col = den_col_v.data();
                 Real* denfac_col = denfac_col_v.data();
                 Real* t_col = t_col_v.data();
@@ -1512,26 +1495,6 @@ WSM6::Advance(const Real& dt_advance,
                 Real* denqrs2_col = denqrs2_col_v.data();
                 Real* denqrs3_col = denqrs3_col_v.data();
                 Real* qsum_col = qsum_col_v.data();
-                Real* search_zi_col = search_zi_col_v.data();
-                Real* search_za_col = search_za_col_v.data();
-                Real* search_dza_col = search_dza_col_v.data();
-                Real* search_wi_col = search_wi_col_v.data();
-                Real* search_ww_col = search_ww_col_v.data();
-                Real* search_wa_col = search_wa_col_v.data();
-                Real* search_was_col = search_was_col_v.data();
-                Real* search_qa_col = search_qa_col_v.data();
-                Real* search_qmi_col = search_qmi_col_v.data();
-                Real* search_qpi_col = search_qpi_col_v.data();
-                Real* search_kb_before_backstep_col = search_kb_before_backstep_col_v.data();
-                Real* search_kt_before_backstep_col = search_kt_before_backstep_col_v.data();
-                Real* search_kb_after_backstep_col = search_kb_after_backstep_col_v.data();
-                Real* search_kt_after_backstep_col = search_kt_after_backstep_col_v.data();
-                Real* search_kb_after_search_col = search_kb_after_search_col_v.data();
-                Real* search_kt_after_search_col = search_kt_after_search_col_v.data();
-                Real* search_zsum_col = search_zsum_col_v.data();
-                Real* search_qsum_col = search_qsum_col_v.data();
-                Real* search_qn_col = search_qn_col_v.data();
-                Real* search_denqrs1_after_kernel_col = search_denqrs1_after_kernel_col_v.data();
 #else
                 Real den_col[WSM6_MAX_LEVELS];
                 Real denfac_col[WSM6_MAX_LEVELS];
@@ -1543,26 +1506,6 @@ WSM6::Advance(const Real& dt_advance,
                 Real denqrs2_col[WSM6_MAX_LEVELS];
                 Real denqrs3_col[WSM6_MAX_LEVELS];
                 Real qsum_col[WSM6_MAX_LEVELS];
-                Real search_zi_col[WSM6_MAX_LEVELS];
-                Real search_za_col[WSM6_MAX_LEVELS];
-                Real search_dza_col[WSM6_MAX_LEVELS];
-                Real search_wi_col[WSM6_MAX_LEVELS];
-                Real search_ww_col[WSM6_MAX_LEVELS];
-                Real search_wa_col[WSM6_MAX_LEVELS];
-                Real search_was_col[WSM6_MAX_LEVELS];
-                Real search_qa_col[WSM6_MAX_LEVELS];
-                Real search_qmi_col[WSM6_MAX_LEVELS];
-                Real search_qpi_col[WSM6_MAX_LEVELS];
-                Real search_kb_before_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kt_before_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kb_after_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kt_after_backstep_col[WSM6_MAX_LEVELS];
-                Real search_kb_after_search_col[WSM6_MAX_LEVELS];
-                Real search_kt_after_search_col[WSM6_MAX_LEVELS];
-                Real search_zsum_col[WSM6_MAX_LEVELS];
-                Real search_qsum_col[WSM6_MAX_LEVELS];
-                Real search_qn_col[WSM6_MAX_LEVELS];
-                Real search_denqrs1_after_kernel_col[WSM6_MAX_LEVELS];
 #endif
                 // G5a: pack sedimentation work arrays
                 for (int k = klo; k <= khi; ++k) {
@@ -1761,6 +1704,9 @@ WSM6::Advance(const Real& dt_advance,
 
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
+#ifdef AMREX_USE_GPU
+                if (km_local > WSM6_MAX_LEVELS) return;
+#endif
 #ifndef AMREX_USE_GPU
                 amrex::Vector<Real> den_col_v(km_local);
                 amrex::Vector<Real> denfac_col_v(km_local);
