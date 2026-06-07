@@ -43,6 +43,7 @@ public:
 
     void Define(SolverChoice& sc) override
     {
+        m_axis = sc.ave_plane;
         m_do_cond = (!sc.use_shoc);
     }
 
@@ -126,6 +127,7 @@ private:
     amrex::Real dt{0.0};
     amrex::Real m_dzmin{0.0};
     int nlev{0}, zlo{0}, zhi{0};
+    int m_axis{2};
     bool m_do_cond{true};
 
     amrex::MultiFab* m_z_phys_nd{nullptr};

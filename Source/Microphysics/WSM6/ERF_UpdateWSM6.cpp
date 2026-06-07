@@ -1,4 +1,5 @@
 #include "ERF_WSM6.H"
+#include "ERF_EOS.H"
 
 using namespace amrex;
 
@@ -11,6 +12,8 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
 
         auto rho = mic_fab_vars[MicVar_WSM6::rho]->array(mfi);
         auto theta = mic_fab_vars[MicVar_WSM6::theta]->array(mfi);
+// Probably needed, not tested
+//        auto tabs = mic_fab_vars[MicVar_WSM6::tabs]->array(mfi);
 
         auto qv = mic_fab_vars[MicVar_WSM6::qv]->array(mfi);
         auto qc = mic_fab_vars[MicVar_WSM6::qc]->array(mfi);
@@ -20,6 +23,8 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
         auto qg = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+// Probably needed, not tested
+//            theta(i,j,k) = getThgivenRandT(rho(i,j,k), tabs(i,j,k), R_d / Cp_d, qv(i,j,k));
             states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);
             states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(Real(0), qv(i,j,k));
             states(i,j,k,RhoQ2_comp) = rho(i,j,k) * amrex::max(Real(0), qc(i,j,k));
