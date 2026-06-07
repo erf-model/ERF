@@ -360,6 +360,14 @@ struct SolverChoice {
             mesh_type = MeshType::VariableDz;
         }
 
+        if ( (moisture_type == MoistureType::SAM                ||
+              moisture_type == MoistureType::SAM_NoIce          ||
+              moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
+             (mesh_type == MeshType::VariableDz) )
+        {
+            amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
+        }
+
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
