@@ -199,9 +199,6 @@ erf.terrain_file_name_USGS
 erf.transport_scalar
   Source/DataStructs/ERF_DataStruct.H:603
 
-erf.upwind_real_bcs
-  Source/DataStructs/ERF_DataStruct.H:317
-
 erf.use_lagged_delta_rt
   Source/DataStructs/ERF_DataStruct.H:367
 

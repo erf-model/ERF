@@ -164,8 +164,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                     const Real& final_bdy_time,
                                     const Real& bdy_time_interval,
                                     const Real& nudge_factor,
-                                    int  width,
-                                    bool do_upwind,
+                                    int width,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
                                     Vector<MultiFab>& S_cur_data,
@@ -177,9 +176,13 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
-    // HACK HACK HACK
-    // Get bndry data
-    Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
+    // Get bndry data if we have it
+    Vector<int>  bnd_map = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
     Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
     Array4<Real> btenxlo, btenxhi, btenylo, btenyhi;
     if (m_r2d) {
@@ -196,11 +199,6 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         btenxhi = (*bndry_tend[3])[0].array();
         btenyhi = (*bndry_tend[4])[0].array();
     }
-
-    //
-    // Note that time (= start_time+old_stage_time)  is measured as total time
-    //           start_bdy_time and final_bdy_time are also measured as total time
-    //
 
     // Relaxation constants
     Real F1 = one/(nudge_factor*delta_t);
@@ -228,8 +226,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
 
     // Variable index map (WRFBdyVars -> Vars)
-    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons,    Vars::cons};
-    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
+    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons   };
+    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons};
 
     // Variable icomp map
     Vector<int> comp_map = {0, 0, RhoTheta_comp};
@@ -295,7 +293,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         const auto& dom_hi = ubound(domain);
 
         // BndryReg idx and limiting
-        int bdy_comp = ind_map2[ivar];
+        int bdy_comp = bnd_map[ivar];
         const auto& dom_cc_lo = lbound(geom.Domain());
         const auto& dom_cc_hi = ubound(geom.Domain());
 
@@ -492,22 +490,16 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 continue;
             }
 
-            Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-            Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
-            Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
-
             realbdy_compute_relaxation(icomp, 1,
-                                       width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+                                       width, dx, ProbLo, ProbHi, F1,
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                       data_arr, rhs_arr, do_upwind);
+                                       data_arr, rhs_arr);
         } // mfi
     } // ivar
 
     // Set normal velocity RHS at the boundary
     //==========================================================
-
     Box domain  = geom.Domain();
     Box domainx = convert(domain, IntVect(1,0,0));
     Box domainy = convert(domain, IntVect(0,1,0));
