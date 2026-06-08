@@ -10,6 +10,7 @@
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
+#include <ERF_PlaneAverage.H>
 
 using namespace amrex;
 
