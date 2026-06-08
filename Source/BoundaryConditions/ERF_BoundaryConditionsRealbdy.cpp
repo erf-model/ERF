@@ -88,7 +88,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         bdatylo = (*bndry_data[1])[0].array();
         bdatxhi = (*bndry_data[3])[0].array();
         bdatyhi = (*bndry_data[4])[0].array();
-    } 
+    }
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
