@@ -52,10 +52,11 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
         auto ori = oit();
         if (ori.coordDir() < 2) {
 
-            m_data_n[ori]      = std::make_unique<PlaneVector>();
-            m_data_np1[ori]    = std::make_unique<PlaneVector>();
-            m_data_np2[ori]    = std::make_unique<PlaneVector>();
-            m_data_interp[ori] = std::make_unique<PlaneVector>();
+            m_data_n[ori]        = std::make_unique<PlaneVector>();
+            m_data_np1[ori]      = std::make_unique<PlaneVector>();
+            m_data_np2[ori]      = std::make_unique<PlaneVector>();
+            m_data_interp[ori]   = std::make_unique<PlaneVector>();
+            m_data_tendency[ori] = std::make_unique<PlaneVector>();
 
             const auto& lo = domain.loVect();
             const auto& hi = domain.hiVect();
@@ -253,6 +254,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     m_data_np1.resize(size);
     m_data_np2.resize(size);
     m_data_interp.resize(size);
+    m_data_tendency.resize(size);
 }
 
 /**
