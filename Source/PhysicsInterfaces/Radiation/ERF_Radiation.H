@@ -376,7 +376,7 @@ private:
     int m_ncol_chunk = 1024;
 
     // Number of vars for s_mem allocation
-    size_t m_rad_nvar = 12;
+    int m_rad_nvar = 12;
 
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;

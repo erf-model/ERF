@@ -231,7 +231,7 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
                    const std::string& coefficients_file_lw,
                    const std::string& cloud_optics_file_sw,
                    const std::string& cloud_optics_file_lw,
-                   const size_t& nvar)
+                   const int& nvar)
 {
     // Initialize Kokkos
     if (!Kokkos::is_initialized()) {  Kokkos::initialize(); }
