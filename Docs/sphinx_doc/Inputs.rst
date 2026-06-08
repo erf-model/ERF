@@ -1956,13 +1956,15 @@ List of Parameters
 +=====================================+========================================+===================+===================================+
 | **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
 |                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
-|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
+|                                     | radiation in batches of this size.     |                   | kernel launch overhead.           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
