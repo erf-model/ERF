@@ -2157,10 +2157,10 @@ WSM6::Advance(const Real& dt_advance,
                     denqci_col[kk]  = denqci_arr(i,j,k);
                 }
 
-                wsm6_nislfv_rain_plm(
+                wsm6_nislfv_rain_plm_scratch(
                     1, km_local, den_col, denfac_col, t_col, dz_col,
                     work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
-                    (microphysics_debug >= 2 && i == ilo && j == jlo) ? 2 : 0);
+                    sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
