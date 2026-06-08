@@ -245,8 +245,14 @@ ERF::init_from_ncfile (int lev)
 
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
+
+#ifdef AMREX_USE_FLOAT
+        Real tol = Real(1.0e-6);
+#else
         Real tol = Real(1.0e-10);
+#endif
         Real grav = CONST_GRAV;
+
         for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
             Box bx  = mfi.tilebox();
             int klo = bx.smallEnd(2);

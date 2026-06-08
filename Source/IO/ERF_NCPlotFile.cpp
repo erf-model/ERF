@@ -7,6 +7,7 @@
 #include <AMReX_MultiFab.H>
 
 #include "ERF_Constants.H"
+#include "ERF_DataStruct.H"
 #include "ERF_NCInterface.H"
 
 using namespace amrex;
@@ -20,7 +21,10 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                  Array<Real,AMREX_SPACEDIM> prob_hi,
                  Array<Real,AMREX_SPACEDIM> dx_in,
                  const Box& subdomain,
-                 const Real time, const Real start_bdy_time)
+                 const Real time,
+                 const Real start_bdy_time,
+                 const SolverChoice& solverChoice,
+                 const Vector<Real>& zlevels_stag)
 {
     //
     // Set the full IO path for NetCDF output
@@ -170,34 +174,69 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     // *******************************************************************************
     // NOTE: the (x,y,z) output here are for a mesh withOUT terrain-fitted coordinates
     // *******************************************************************************
-    for (int i = 0; i < ba.size(); ++i) {
-        auto bx = ba[i];
-        if (subdomain.contains(bx)) {
-            x_grid.clear(); y_grid.clear(); z_grid.clear();
-            for (auto k3 = 0; k3 < bx.length(2); ++k3) {
-                for (auto k2 = 0; k2 < bx.length(1); ++k2) {
-                    for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                        x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
-                        y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
-                        z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+myhalf));
-                     }
+    if (solverChoice.mesh_type == MeshType::ConstantDz) {
+        for (int i = 0; i < ba.size(); ++i) {
+            auto bx = ba[i];
+            if (subdomain.contains(bx)) {
+                x_grid.clear(); y_grid.clear(); z_grid.clear();
+                for (auto k3 = 0; k3 < bx.length(2); ++k3) {
+                    for (auto k2 = 0; k2 < bx.length(1); ++k2) {
+                        for (auto k1 = 0; k1 < bx.length(0); ++k1) {
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
+                            z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+myhalf));
+                         }
+                    }
                 }
-            }
 
-            goffset += glen;
-            glen = bx.numPts();
+                goffset += glen;
+                glen = bx.numPts();
 
-            auto nc_x_grid = ncf.var("x_grid");
-            auto nc_y_grid = ncf.var("y_grid");
-            auto nc_z_grid = ncf.var("z_grid");
+                auto nc_x_grid = ncf.var("x_grid");
+                auto nc_y_grid = ncf.var("y_grid");
+                auto nc_z_grid = ncf.var("z_grid");
 
-            nc_x_grid.par_access(NC_COLLECTIVE);
-            nc_y_grid.par_access(NC_COLLECTIVE);
-            nc_z_grid.par_access(NC_COLLECTIVE);
+                nc_x_grid.par_access(NC_COLLECTIVE);
+                nc_y_grid.par_access(NC_COLLECTIVE);
+                nc_z_grid.par_access(NC_COLLECTIVE);
 
-            nc_x_grid.put(x_grid.data(), {goffset}, {glen});
-            nc_y_grid.put(y_grid.data(), {goffset}, {glen});
-            nc_z_grid.put(z_grid.data(), {goffset}, {glen});
+                nc_x_grid.put(x_grid.data(), {goffset}, {glen});
+                nc_y_grid.put(y_grid.data(), {goffset}, {glen});
+                nc_z_grid.put(z_grid.data(), {goffset}, {glen});
+           }
+       }
+   }
+   else if (solverChoice.mesh_type == MeshType::StretchedDz)
+   {
+        for (int i = 0; i < ba.size(); ++i) {
+            auto bx = ba[i];
+            if (subdomain.contains(bx)) {
+                x_grid.clear(); y_grid.clear(); z_grid.clear();
+                for (auto k3 = 0; k3 < bx.length(2); ++k3) {
+                    for (auto k2 = 0; k2 < bx.length(1); ++k2) {
+                        for (auto k1 = 0; k1 < bx.length(0); ++k1) {
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
+                            z_grid.push_back(myhalf * (zlevels_stag[k3] + zlevels_stag[k3+1]));
+                         }
+                    }
+                }
+
+                goffset += glen;
+                glen = bx.numPts();
+
+                auto nc_x_grid = ncf.var("x_grid");
+                auto nc_y_grid = ncf.var("y_grid");
+                auto nc_z_grid = ncf.var("z_grid");
+
+                nc_x_grid.par_access(NC_COLLECTIVE);
+                nc_y_grid.par_access(NC_COLLECTIVE);
+                nc_z_grid.par_access(NC_COLLECTIVE);
+
+                nc_x_grid.put(x_grid.data(), {goffset}, {glen});
+                nc_y_grid.put(y_grid.data(), {goffset}, {glen});
+                nc_z_grid.put(z_grid.data(), {goffset}, {glen});
+           }
        }
    }
 
