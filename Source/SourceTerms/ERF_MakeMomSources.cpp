@@ -162,6 +162,9 @@ void make_mom_sources (Real time,
     if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
                          enforce_massflux_x || enforce_massflux_y))
     {
+        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
+
         const int offset = 1;
         const int u_offset = 1;
         const int v_offset = 1;

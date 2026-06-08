@@ -17,7 +17,7 @@ using namespace amrex;
  * @param[out] mfs_mom Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
  */
 void
-ERF::FillPatchFineLevel (int lev, Real time,
+ERF::FillPatchFineLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                          const MultiFab& old_base_state,
@@ -27,6 +27,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     BL_PROFILE_VAR("ERF::FillPatchFineLevel()",ERF_FillPatchFineLevel);
 
     AMREX_ALWAYS_ASSERT(lev > 0);
+
+    Real time = static_cast<Real>(time_d);
 
     Interpolater* mapper = nullptr;
 
@@ -285,13 +287,15 @@ ERF::FillPatchFineLevel (int lev, Real time,
 }
 
 void
-ERF::FillPatchCrseLevel (int lev, Real time,
+ERF::FillPatchCrseLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          bool cons_only)
 {
     BL_PROFILE_VAR("ERF::FillPatchCrseLevel()",ERF_FillPatchCrseLevel);
 
     AMREX_ALWAYS_ASSERT(lev == 0);
+
+    Real time = static_cast<Real>(time_d);
 
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
@@ -352,7 +356,18 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
+#ifdef ERF_USE_NETCDF
+    if(solverChoice.use_real_bcs && (lev==0)) {
+        if (solverChoice.upwind_real_bcs) {
+            fill_from_realbdy_upwind(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        } else {
+            fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        }
+        do_fb = false;
+    }
+#endif
+
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call

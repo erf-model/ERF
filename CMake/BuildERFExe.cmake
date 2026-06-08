@@ -300,6 +300,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
@@ -547,18 +548,21 @@ endfunction(build_erf_lib)
 
 function(build_erf_exe erf_exe_name)
 
+  set(options NO_ERF_MAIN)
+  cmake_parse_arguments(BUILD_ERF_EXE "${options}" "" "" ${ARGN})
+
   set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
 
-  if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
-  target_sources(${erf_exe_name}
-     PRIVATE
-       ${SRC_DIR}/main.cpp
-  )
+  if(NOT BUILD_ERF_EXE_NO_ERF_MAIN)
+    target_sources(${erf_exe_name}
+       PRIVATE
+         ${SRC_DIR}/main.cpp
+    )
   endif()
 
-target_link_libraries(${erf_exe_name} PUBLIC ${erf_lib_name})
-include(${PROJECT_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
-set_erf_compile_flags(${erf_exe_name})
+  target_link_libraries(${erf_exe_name} PUBLIC ${erf_lib_name})
+  include(${PROJECT_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+  set_erf_compile_flags(${erf_exe_name})
 
   if(ERF_ENABLE_EKAT)
     # Link privately to avoid duplicate link flags, but propagate includes

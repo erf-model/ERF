@@ -22,6 +22,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
 #include "ERF_HurricaneDiagnostics.H"
+#include "ERF_SrcHeaders.H"
 
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
@@ -769,7 +770,7 @@ ERF::Evolve ()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, Real time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -1113,7 +1114,7 @@ ERF::InitData_post ()
         // This follows init_from_wrfinput()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
 
             if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
                  amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
@@ -1126,20 +1127,25 @@ ERF::InitData_post ()
             Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
-            int lev = 0;
+            // Need itime=0 for vertical interpolation
+            if (n_time_old > 0) {
+                int itime = 0;
+                read_and_convert_from_wrfbdy(itime,nc_bdy_file,
+                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
+                                             geom[0], use_moist, real_width, bdy_time_interval);
+            }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                amrex::Print() << "READING IN BDY " << itime << std::endl;
-                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                 real_width);
-                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
-                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
+                read_and_convert_from_wrfbdy(itime,nc_bdy_file,
+                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
+                                             geom[0], use_moist, real_width, bdy_time_interval);
             } // itime
         } // use_real_bcs
 
@@ -1158,7 +1164,6 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                amrex::Print() << "READING IN LOW " << itime << std::endl;
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
                 // Need to read PSFC
@@ -1356,6 +1361,23 @@ ERF::InitData_post ()
 
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
+
+#ifdef ERF_USE_NETCDF
+        if (solverChoice.use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            if (solverChoice.upwind_real_bcs) {
+                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                         ncomp_cons,ngvect_cons,ngvect_vels);
+            } else {
+                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                  ncomp_cons,ngvect_cons,ngvect_vels);
+            }
+            do_fb = false;
+    }
+#endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
@@ -1648,7 +1670,7 @@ ERF::InitData_post ()
 #else
                 Real elapsed_time_since_start_low = t_new[lev] + start_time;
 #endif
-                m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
+                m_SurfaceLayer->update_fluxes(lev, t_new[lev], elapsed_time_since_start_low,
                                               vars_new[lev][Vars::cons],
                                               z_phys_nd[lev],
                                               walldist[lev]);
@@ -1694,6 +1716,32 @@ ERF::InitData_post ()
         particleData.Redistribute(z_phys_nd);
     }
 #endif
+
+    // Print max values of lateral gradients of base state pressure at level 0
+    if (verbose > 0) {
+        if (SolverChoice::mesh_type == MeshType::VariableDz) {
+            int lev = 0;
+            Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
+            gradp_temp[0].define(vars_new[lev][Vars::xvel].boxArray(), vars_new[lev][Vars::xvel].DistributionMap(), 1, 0);
+            gradp_temp[0].setVal(0.);
+            gradp_temp[1].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::yvel].DistributionMap(), 1, 0);
+            gradp_temp[1].setVal(0.);
+            gradp_temp[2].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
+            gradp_temp[2].setVal(0.);
+
+            MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
+
+            int comp = 0;
+            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
+                          get_eb(lev), gradp_temp, solverChoice);
+
+            amrex::Print() << "Maximum value of x-gradient of base state pressure is " << gradp_temp[0].max(comp) <<
+                              " and occurs at face " << gradp_temp[0].maxIndex(comp) << std::endl;
+
+            amrex::Print() << "Maximum value of y-gradient of base state pressure is " << gradp_temp[1].max(comp) <<
+                              " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
+        }
+    }
 
     // check for additional plotting variables that are available after particle containers
     // are setup.
@@ -1941,7 +1989,6 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
-
 }
 
 void
@@ -2283,7 +2330,7 @@ ERF::init_only (int lev, Real elapsed_time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
 
-        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+        init_from_wrfinput(lev, *mf_PSFC[lev]);
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
@@ -3184,7 +3231,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
               const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;

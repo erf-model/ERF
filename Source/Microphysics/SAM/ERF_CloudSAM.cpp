@@ -27,12 +27,6 @@ SAM::Cloud (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto  qt_array = mic_fab_vars[MicVar::qt]->array(mfi);
         auto  qn_array = mic_fab_vars[MicVar::qn]->array(mfi);
@@ -45,10 +39,6 @@ SAM::Cloud (const SolverChoice& sc)
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
 
         auto tbx = mfi.tilebox();
-        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -80,8 +70,10 @@ SAM::Cloud (const SolverChoice& sc)
             qcl_array(i,j,k) = phase_change.qcl;
             qci_array(i,j,k) = phase_change.qci;
             tabs_array(i,j,k) = phase_change.tabs;
-            theta_array(i,j,k) = sam_theta_from_stored_pressure_as_pa(tabs_array(i,j,k),
-                                                                      pres_array(i,j,k), rdOcp);
+            // Cloud adjustment updates tabs under the held-pressure SAM source
+            // convention, then refreshes theta from the same stored pressure.
+            theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
+                                                                             pres_array(i,j,k), rdOcp);
 
             // Saturation moisture fractions
             erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);
