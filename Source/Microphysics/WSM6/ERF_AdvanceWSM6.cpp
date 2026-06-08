@@ -101,6 +101,20 @@ namespace WSM6SedCellScratch {
         wa2,
         qn,
         qn2,
+        dz,
+        ww,
+        qq,
+        qq2,
+        was,
+        den,
+        denfac,
+        tk,
+        qr,
+        qr2,
+        tmp,
+        tmp1,
+        tmp2,
+        tmp3,
         NumComps
     };
 }
@@ -819,8 +833,73 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
                                    int i_s, int j_s, int klo_s)
 {
     static_cast<void>(id);
+    auto DZ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::dz);
+    };
+    auto WW = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::ww);
+    };
+    auto QQ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qq);
+    };
+    auto WD = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::wd);
+    };
+    auto WA = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::wa);
+    };
+    auto WAS = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::was);
+    };
+    auto DEN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::den);
+    };
+    auto DENFAC = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::denfac);
+    };
+    auto TK = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tk);
+    };
+    auto QN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qn);
+    };
+    auto QR = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qr);
+    };
+    auto TMP = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp);
+    };
+    auto TMP1 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp1);
+    };
+    auto TMP2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp2);
+    };
+    auto TMP3 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp3);
+    };
 
-    if (km > WSM6_MAX_LEVELS) return;
+    auto WI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::wi);
+    };
+    auto ZI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::zi);
+    };
+    auto ZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::za);
+    };
+    auto DZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::dza);
+    };
+    auto QA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qa);
+    };
+    auto QMI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qmi);
+    };
+    auto QPI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qpi);
+    };
 
     constexpr Real pi = Real(3.141592653589793238462643383279502884);
     auto rgmma = [](Real x) -> Real {
@@ -842,62 +921,17 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
     const Real pvtr = WSM6::avtr * rgmma(Real(4.0) + WSM6::bvtr) / Real(6.0);
 
     for (int i = 0; i < im; ++i) {
-        Real dz[WSM6_MAX_LEVELS];
-        Real ww[WSM6_MAX_LEVELS];
-        Real qq[WSM6_MAX_LEVELS];
-        Real was[WSM6_MAX_LEVELS];
-        Real den[WSM6_MAX_LEVELS];
-        Real denfac[WSM6_MAX_LEVELS];
-        Real tk[WSM6_MAX_LEVELS];
-        Real qr[WSM6_MAX_LEVELS];
-        Real tmp[WSM6_MAX_LEVELS];
-        Real tmp1[WSM6_MAX_LEVELS];
-        Real tmp2[WSM6_MAX_LEVELS];
-        Real tmp3[WSM6_MAX_LEVELS];
-
-        auto WD = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::wd);
-        };
-        auto WA = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::wa);
-        };
-        auto QN = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::qn);
-        };
-
-        auto WI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::wi);
-        };
-        auto ZI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::zi);
-        };
-        auto ZA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::za);
-        };
-        auto DZA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::dza);
-        };
-        auto QA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qa);
-        };
-        auto QMI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qmi);
-        };
-        auto QPI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qpi);
-        };
-
         Real allold = Real(0.0);
         for (int k = 0; k < km; ++k) {
             const int idx = i * km + k;
-            dz[k] = dzl[idx];
-            qq[k] = rql[idx];
-            ww[k] = wwl[idx];
-            WD(k) = ww[k];
-            den[k] = denl[idx];
-            denfac[k] = denfacl[idx];
-            tk[k] = tkl[idx];
-            allold += qq[k];
+            DZ(k) = dzl[idx];
+            QQ(k) = rql[idx];
+            WW(k) = wwl[idx];
+            WD(k) = WW(k);
+            DEN(k) = denl[idx];
+            DENFAC(k) = denfacl[idx];
+            TK(k) = tkl[idx];
+            allold += QQ(k);
         }
 
         precip[i] = Real(0.0);
@@ -907,36 +941,36 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
 
         ZI(0) = Real(0.0);
         for (int k = 0; k < km; ++k) {
-            ZI(k + 1) = ZI(k) + dz[k];
+            ZI(k + 1) = ZI(k) + DZ(k);
         }
 
         auto update_wind_and_state = [&](void) {
-            WI(0) = ww[0];
-            WI(km) = ww[km - 1];
+            WI(0) = WW(0);
+            WI(km) = WW(km - 1);
             for (int k = 1; k < km; ++k) {
-                WI(k) = (ww[k] * dz[k - 1] + ww[k - 1] * dz[k]) / (dz[k - 1] + dz[k]);
+                WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
             }
 
-            WI(0) = ww[0];
-            WI(1) = Real(0.5) * (ww[1] + ww[0]);
+            WI(0) = WW(0);
+            WI(1) = Real(0.5) * (WW(1) + WW(0));
             for (int k = 2; k < km - 1; ++k) {
-                WI(k) = Real(9.0) / Real(16.0) * (ww[k] + ww[k - 1])
-                      - Real(1.0) / Real(16.0) * (ww[k + 1] + ww[k - 2]);
+                WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
+                      - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
             }
             if (km > 1) {
-                WI(km - 1) = Real(0.5) * (ww[km - 1] + ww[km - 2]);
-                WI(km) = ww[km - 1];
+                WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
+                WI(km) = WW(km - 1);
             }
 
             for (int k = 1; k < km; ++k) {
-                if (ww[k] == Real(0.0)) WI(k) = ww[k - 1];
+                if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
             }
 
             const Real con1 = Real(0.05);
             for (int k = km - 1; k >= 0; --k) {
-                const Real decfl = (WI(k + 1) - WI(k)) * dt / dz[k];
+                const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
                 if (decfl > con1) {
-                    WI(k) = WI(k + 1) - con1 * dz[k] / dt;
+                    WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
                 }
             }
 
@@ -946,13 +980,13 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 DZA(k) = ZA(k + 1) - ZA(k);
-                if (DZA(k) <= Real(0.0)) DZA(k) = dz[k];
+                if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
             }
             DZA(km) = ZI(km) - ZA(km);
-            if (DZA(km) <= Real(0.0)) DZA(km) = dz[km > 0 ? km - 1 : 0];
+            if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
             for (int k = 0; k < km; ++k) {
-                QA(k) = qq[k] * dz[k] / DZA(k);
-                qr[k] = QA(k) / den[k];
+                QA(k) = QQ(k) * DZ(k) / DZA(k);
+                QR(k) = QA(k) / DEN(k);
             }
             QA(km) = Real(0.0);
         };
@@ -961,15 +995,15 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
 
         if (iter > 0) {
             for (int k = 0; k < km; ++k) {
-                wsm6_slope_rain_cell(qr[k], den[k], denfac[k], pidn0r,
+                wsm6_slope_rain_cell(QR(k), DEN(k), DENFAC(k), pidn0r,
                                      WSM6::qcrmin,
                                      rslopermax, rsloperbmax, rsloper2max,
                                      rsloper3max, WSM6::bvtr, pvtr,
-                                     tmp[k], tmp1[k], tmp2[k], tmp3[k], WA(k));
+                                     TMP(k), TMP1(k), TMP2(k), TMP3(k), WA(k));
             }
             for (int k = 0; k < km; ++k) {
-                ww[k] = Real(0.5) * (WD(k) + WA(k));
-                was[k] = WA(k);
+                WW(k) = Real(0.5) * (WD(k) + WA(k));
+                WAS(k) = WA(k);
             }
             update_wind_and_state();
         }
@@ -1068,7 +1102,7 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
 
         for (int k = 0; k < km; ++k) {
             rql[i * km + k] = QN(k);
-            wwl[i * km + k] = ww[k];
+            wwl[i * km + k] = WW(k);
         }
     }
 }
@@ -1085,8 +1119,88 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
                                     int i_s, int j_s, int klo_s)
 {
     static_cast<void>(id);
+    auto DZ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::dz);
+    };
+    auto WW = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::ww);
+    };
+    auto QQ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qq);
+    };
+    auto QQ2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qq2);
+    };
+    auto WD = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::wd);
+    };
+    auto WA = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::wa);
+    };
+    auto WA2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::wa2);
+    };
+    auto WAS = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::was);
+    };
+    auto DEN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::den);
+    };
+    auto DENFAC = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::denfac);
+    };
+    auto TK = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tk);
+    };
+    auto QN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qn);
+    };
+    auto QN2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qn2);
+    };
+    auto QR = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qr);
+    };
+    auto QR2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qr2);
+    };
+    auto TMP = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp);
+    };
+    auto TMP1 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp1);
+    };
+    auto TMP2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp2);
+    };
+    auto TMP3 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tmp3);
+    };
 
-    if (km > WSM6_MAX_LEVELS) return;
+    auto WI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::wi);
+    };
+    auto ZI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::zi);
+    };
+    auto ZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::za);
+    };
+    auto DZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::dza);
+    };
+    auto QA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qa);
+    };
+    auto QA2 = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qa2);
+    };
+    auto QMI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qmi);
+    };
+    auto QPI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WSM6SedNodeScratch::qpi);
+    };
 
     constexpr Real pi = Real(3.141592653589793238462643383279502884);
     auto rgmma = [](Real x) -> Real {
@@ -1121,74 +1235,18 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
     const Real pvtg = avtg * rgmma(Real(4.0) + bvtg) / Real(6.0);
 
     for (int i = 0; i < im; ++i) {
-        Real dz[WSM6_MAX_LEVELS];
-        Real ww[WSM6_MAX_LEVELS];
-        Real qq[WSM6_MAX_LEVELS];
-        Real qq2[WSM6_MAX_LEVELS];
-        Real was[WSM6_MAX_LEVELS];
-        Real den[WSM6_MAX_LEVELS];
-        Real denfac[WSM6_MAX_LEVELS];
-        Real tk[WSM6_MAX_LEVELS];
-        Real qr[WSM6_MAX_LEVELS];
-        Real qr2[WSM6_MAX_LEVELS];
-        Real tmp[WSM6_MAX_LEVELS];
-        Real tmp1[WSM6_MAX_LEVELS];
-        Real tmp2[WSM6_MAX_LEVELS];
-        Real tmp3[WSM6_MAX_LEVELS];
-
-        auto WD = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::wd);
-        };
-        auto WA = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::wa);
-        };
-        auto WA2 = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::wa2);
-        };
-        auto QN = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::qn);
-        };
-        auto QN2 = [&](int k) -> Real& {
-            return sed_cell(i_s,j_s,klo_s+k,WSM6SedCellScratch::qn2);
-        };
-
-        auto WI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::wi);
-        };
-        auto ZI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::zi);
-        };
-        auto ZA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::za);
-        };
-        auto DZA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::dza);
-        };
-        auto QA = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qa);
-        };
-        auto QA2 = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qa2);
-        };
-        auto QMI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qmi);
-        };
-        auto QPI = [&](int k) -> Real& {
-            return sed_node(i_s,j_s,klo_s+k,WSM6SedNodeScratch::qpi);
-        };
-
         Real allold = Real(0.0);
         for (int k = 0; k < km; ++k) {
             const int idx = i * km + k;
-            dz[k] = dzl[idx];
-            qq[k] = rql[idx];
-            qq2[k] = rql2[idx];
-            ww[k] = wwl[idx];
-            WD(k) = ww[k];
-            den[k] = denl[idx];
-            denfac[k] = denfacl[idx];
-            tk[k] = tkl[idx];
-            allold += qq[k] + qq2[k];
+            DZ(k) = dzl[idx];
+            QQ(k) = rql[idx];
+            QQ2(k) = rql2[idx];
+            WW(k) = wwl[idx];
+            WD(k) = WW(k);
+            DEN(k) = denl[idx];
+            DENFAC(k) = denfacl[idx];
+            TK(k) = tkl[idx];
+            allold += QQ(k) + QQ2(k);
         }
 
         precip1[i] = Real(0.0);
@@ -1199,36 +1257,36 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
 
         ZI(0) = Real(0.0);
         for (int k = 0; k < km; ++k) {
-            ZI(k + 1) = ZI(k) + dz[k];
+            ZI(k + 1) = ZI(k) + DZ(k);
         }
 
         auto update_wind_and_state = [&](void) {
-            WI(0) = ww[0];
-            WI(km) = ww[km - 1];
+            WI(0) = WW(0);
+            WI(km) = WW(km - 1);
             for (int k = 1; k < km; ++k) {
-                WI(k) = (ww[k] * dz[k - 1] + ww[k - 1] * dz[k]) / (dz[k - 1] + dz[k]);
+                WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
             }
 
-            WI(0) = ww[0];
-            WI(1) = Real(0.5) * (ww[1] + ww[0]);
+            WI(0) = WW(0);
+            WI(1) = Real(0.5) * (WW(1) + WW(0));
             for (int k = 2; k < km - 1; ++k) {
-                WI(k) = Real(9.0) / Real(16.0) * (ww[k] + ww[k - 1])
-                      - Real(1.0) / Real(16.0) * (ww[k + 1] + ww[k - 2]);
+                WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
+                      - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
             }
             if (km > 1) {
-                WI(km - 1) = Real(0.5) * (ww[km - 1] + ww[km - 2]);
-                WI(km) = ww[km - 1];
+                WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
+                WI(km) = WW(km - 1);
             }
 
             for (int k = 1; k < km; ++k) {
-                if (ww[k] == Real(0.0)) WI(k) = ww[k - 1];
+                if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
             }
 
             const Real con1 = Real(0.05);
             for (int k = km - 1; k >= 0; --k) {
-                const Real decfl = (WI(k + 1) - WI(k)) * dt / dz[k];
+                const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
                 if (decfl > con1) {
-                    WI(k) = WI(k + 1) - con1 * dz[k] / dt;
+                    WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
                 }
             }
 
@@ -1238,15 +1296,15 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
 
             for (int k = 0; k < km; ++k) {
                 DZA(k) = ZA(k + 1) - ZA(k);
-                if (DZA(k) <= Real(0.0)) DZA(k) = dz[k];
+                if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
             }
             DZA(km) = ZI(km) - ZA(km);
-            if (DZA(km) <= Real(0.0)) DZA(km) = dz[km > 0 ? km - 1 : 0];
+            if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
             for (int k = 0; k < km; ++k) {
-                QA(k) = qq[k] * dz[k] / DZA(k);
-                QA2(k) = qq2[k] * dz[k] / DZA(k);
-                qr[k] = QA(k) / den[k];
-                qr2[k] = QA2(k) / den[k];
+                QA(k) = QQ(k) * DZ(k) / DZA(k);
+                QA2(k) = QQ2(k) * DZ(k) / DZA(k);
+                QR(k) = QA(k) / DEN(k);
+                QR2(k) = QA2(k) / DEN(k);
             }
             QA(km) = Real(0.0);
             QA2(km) = Real(0.0);
@@ -1257,31 +1315,31 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
         if (iter > 0) {
             Real n0sfac_dummy;
             for (int k = 0; k < km; ++k) {
-                wsm6_slope_snow_cell(qr[k], den[k], denfac[k], tk[k], pidn0s,
+                wsm6_slope_snow_cell(QR(k), DEN(k), DENFAC(k), TK(k), pidn0s,
                                      Real(0.12), Real(1.0e11), Real(2.0e6),
                                      Real(273.15), Real(WSM6::qcrmin),
                                      rslopesmax, rslopesbmax, rslopes2max,
                                      rslopes3max, WSM6::bvts, pvts,
-                                     tmp[k], tmp1[k], tmp2[k], tmp3[k],
+                                     TMP(k), TMP1(k), TMP2(k), TMP3(k),
                                      WA(k), n0sfac_dummy);
-                wsm6_slope_graup_cell(qr2[k], den[k], denfac[k], pidn0g,
+                wsm6_slope_graup_cell(QR2(k), DEN(k), DENFAC(k), pidn0g,
                                       Real(WSM6::qcrmin), rslopegmax,
                                       rslopegbmax, rslopeg2max, rslopeg3max,
                                       Real(0.8), pvtg,
-                                      tmp[k], tmp1[k], tmp2[k], tmp3[k],
+                                      TMP(k), TMP1(k), TMP2(k), TMP3(k),
                                       WA2(k));
             }
             for (int k = 0; k < km; ++k) {
-                const Real tmpq = amrex::max(qr[k] + qr2[k], Real(1.0e-15));
+                const Real tmpq = amrex::max(QR(k) + QR2(k), Real(1.0e-15));
                 if (tmpq > Real(1.0e-15)) {
-                    WA(k) = (WA(k) * qr[k] + WA2(k) * qr2[k]) / tmpq;
+                    WA(k) = (WA(k) * QR(k) + WA2(k) * QR2(k)) / tmpq;
                 } else {
                     WA(k) = Real(0.0);
                 }
             }
             for (int k = 0; k < km; ++k) {
-                ww[k] = Real(0.5) * (WD(k) + WA(k));
-                was[k] = WA(k);
+                WW(k) = Real(0.5) * (WD(k) + WA(k));
+                WAS(k) = WA(k);
             }
             update_wind_and_state();
         }
@@ -1396,7 +1454,7 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
         for (int k = 0; k < km; ++k) {
             rql[i * km + k] = QN(k);
             rql2[i * km + k] = QN2(k);
-            wwl[i * km + k] = ww[k];
+            wwl[i * km + k] = WW(k);
         }
     }
 }
