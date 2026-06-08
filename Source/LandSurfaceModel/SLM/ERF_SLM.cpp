@@ -41,7 +41,7 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::flbu,          LsmVar_SLM::flbv,         LsmVar_SLM::flbq,
       LsmVar_SLM::flbt,          LsmVar_SLM::prsfc,        LsmVar_SLM::precipref,
       LsmVar_SLM::swdsvisxyref,  LsmVar_SLM::swdsnirxyref, LsmVar_SLM::swdsvisdxyref,
-      LsmVar_SLM::swdsnirdxyref, LsmVar_SLM::lwref,        LsmVar_SLM::tref,
+      LsmVar_SLM::swdsnirdxyref, LsmVar_SLM::lwref,        LsmVar_SLM::coszrsxy, LsmVar_SLM::tref,
       LsmVar_SLM::uref,          LsmVar_SLM::vref,         LsmVar_SLM::dref,
       LsmVar_SLM::qref,          LsmVar_SLM::pref,         LsmVar_SLM::node_z,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
@@ -57,7 +57,7 @@ SLM::Init (const int& /*lev*/,
                   "surface_v",     "surface_vapor",  "surface_heat",
                   "precip_soil",   "ref_precip",     "SW_dw_dir_vis",
                   "SW_dw_dir_nir", "SW_dw_dif_vis",  "SW_dw_dif_nir",
-                  "LW_dw",         "ref_t",          "ref_u",
+                  "LW_dw",         "cos_zenith",     "ref_t",          "ref_u",
                   "ref_v",         "ref_d",          "ref_q",
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
@@ -3862,6 +3862,13 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
         auto slm_u       = lsm_fab_vars[LsmVar_SLM::uref]->array(mfi);
         auto slm_v       = lsm_fab_vars[LsmVar_SLM::vref]->array(mfi);
 
+        auto slm_dir_sw_vis  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->array(mfi);
+        auto slm_dir_sw_nir  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->array(mfi);
+        auto slm_diff_sw_vis = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->array(mfi);
+        auto slm_diff_sw_nir = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->array(mfi);
+        auto slm_lw          = lsm_fab_vars[LsmVar_SLM::lwref]->array(mfi);
+        auto slm_zenith      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->array(mfi);
+
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             const Real qv = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
@@ -3886,6 +3893,13 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
             qref_array(i, j, khi) = qref_array(i, j, 0);
             slm_u(i, j, khi) = slm_u(i, j, 0);
             slm_v(i, j, khi) = slm_v(i, j, 0);
+
+            slm_dir_sw_vis(i, j, khi) = slm_dir_sw_vis(i, j, 0);
+            slm_dir_sw_nir(i, j, khi) = slm_dir_sw_nir(i, j, 0);
+            slm_diff_sw_vis(i, j, khi) = slm_diff_sw_vis(i, j, 0);
+            slm_diff_sw_nir(i, j, khi) = slm_diff_sw_nir(i, j, 0);
+            slm_lw(i, j, khi) = slm_lw(i, j, 0);
+            slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
         });
     }
 
@@ -3959,56 +3973,6 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
 #endif
 }
 
-void
-SLM::set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                     const amrex::MultiFab* zenith_in)
-{
-    int khi = khi_lsm;
-
-    auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
-
-    for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
-
-        // Create a box with the same i,j bounds, but only at z = 0
-        amrex::Box b2d = box3d;
-        b2d.setRange(2, 0);
-
-        auto sw_lw_fluxes_arr = sw_lw_fluxes_in->const_array(mfi);
-        auto zenith_array     = zenith_in->const_array(mfi);
-
-        auto slm_dir_sw_vis  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->array(mfi);
-        auto slm_dir_sw_nir  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->array(mfi);
-        auto slm_diff_sw_vis = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->array(mfi);
-        auto slm_diff_sw_nir = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->array(mfi);
-
-        auto slm_lw          = lsm_fab_vars[LsmVar_SLM::lwref]->array(mfi);
-        auto slm_zenith      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->array(mfi);
-
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            slm_dir_sw_vis(i, j, k) = sw_lw_fluxes_arr(i, j, k, 0);
-            slm_dir_sw_nir(i, j, k) = sw_lw_fluxes_arr(i, j, k, 1);
-
-            slm_diff_sw_vis(i, j, k) = sw_lw_fluxes_arr(i, j, k, 2);
-            slm_diff_sw_nir(i, j, k) = sw_lw_fluxes_arr(i, j, k, 3);
-
-            slm_lw(i, j, k) = sw_lw_fluxes_arr(i, j, k, 5);
-            slm_zenith(i, j, k) = zenith_array(i, j, k, 0);
-            //slm_zenith(i, j, k) = 1.0;
-
-
-            // TODO: this is for plotting purposes.. state arrays are at k=0 which is ghost cell for SLM values
-            //  SLM AMREX plotfile does not write ghost cells, but NetCDF does - fix?
-            slm_dir_sw_vis(i, j, khi) = slm_dir_sw_vis(i, j, 0);
-            slm_dir_sw_nir(i, j, khi) = slm_dir_sw_nir(i, j, 0);
-            slm_diff_sw_vis(i, j, khi) = slm_diff_sw_vis(i, j, 0);
-            slm_diff_sw_nir(i, j, khi) = slm_diff_sw_nir(i, j, 0);
-            slm_lw(i, j, khi) = slm_lw(i, j, 0);
-            slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
-        });
-    }
-}
 
 void
 SLM::set_precip_input(const amrex::MultiFab* precip_in)
@@ -4165,12 +4129,9 @@ std::vector<std::vector<amrex::Real>> SLM::read_cols(const std::string &fname, c
     return datasets;
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev)
+void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
-    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_lev", lev, 1) + "_" + amrex::Concatenate("", level_step, 5);
-
-    amrex::Geometry lsm_2d_geom;
-    lsm_2d_geom.define( ba_lsm_2d.minimalBox(), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
+    geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
     amrex::Vector<amrex::MultiFab*> mf_data;
 
@@ -4225,7 +4186,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
 
     // Total number of output MFs: net_rad components + mf_data size - 1
     const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars + 1;
-    MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
+    fab.define(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
     {
@@ -4235,7 +4196,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     MultiFab::Copy(fab, *(lsm_fab_flux[LsmFlux_SLM::olen]), 0, output_size - 1, 1, 0);
 
 
-    amrex::Vector<std::string> varnames;
+    varnames = amrex::Vector<std::string>();
     // net_rad component names:
     varnames.push_back("net_swup1");
     varnames.push_back("net_swup2");
@@ -4307,7 +4268,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
 
     if (plotfile_type == PlotFileType::Amrex) {
-        amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, lsm_2d_geom, time, level_step);
+        //amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, lsm_2d_geom, time, level_step);
 #ifdef ERF_USE_NETCDF
         // Temporarily write NetCDF always
         //writeSLM_NetCDF(fab, varnames, time, plot_prefix, level_step);

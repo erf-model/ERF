@@ -33,15 +33,20 @@ ERF::AverageDown ()
 
 // Set covered coarse cells to be the average of overlying fine cells at level crse_lev
 void
-ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
+ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_and_momenta) // NOLINT
 {
-    if (solverChoice.anelastic[crse_lev]) {
-        AMREX_ALWAYS_ASSERT(scomp == 1);
+    if (do_perturbational_and_momenta) {
+        if (solverChoice.anelastic[crse_lev]) {
+            AMREX_ALWAYS_ASSERT(scomp == 1);
+        } else {
+            AMREX_ALWAYS_ASSERT(scomp == 0);
+        }
+        AMREX_ALWAYS_ASSERT(ncomp == vars_new[crse_lev][Vars::cons].nComp() - scomp);
     } else {
-        AMREX_ALWAYS_ASSERT(scomp == 0);
+        AMREX_ALWAYS_ASSERT(scomp >= 0);
+        AMREX_ALWAYS_ASSERT(ncomp > 0);
+        AMREX_ALWAYS_ASSERT(scomp + ncomp <= vars_new[crse_lev][Vars::cons].nComp());
     }
-
-    AMREX_ALWAYS_ASSERT(ncomp == vars_new[crse_lev][Vars::cons].nComp() - scomp);
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
 
     // ******************************************************************************************
@@ -73,7 +78,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 
     int fine_lev = crse_lev+1;
 
-    if (interpolation_type == StateInterpType::Perturbational) {
+    if (do_perturbational_and_momenta && interpolation_type == StateInterpType::Perturbational) {
         // Make the fine rho and (rho theta) be perturbational
         MultiFab::Divide(vars_new[fine_lev][Vars::cons],vars_new[fine_lev][Vars::cons],
                          Rho_comp,RhoTheta_comp,1,IntVect{0});
@@ -98,7 +103,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         // const auto dx = geom[fine_lev].CellSize();
         // Setting cell_vol to the exact value may cause round-off errors in volume average.
         // const Real cell_vol = dx[0]*dx[1]*dx[2];
-        constexpr Real cell_vol = 1.0;
+        constexpr Real cell_vol = one;
         const BoxArray& ba = vars_new[fine_lev][IntVars::cons].boxArray();
         const DistributionMapping& dm = vars_new[fine_lev][IntVars::cons].DistributionMap();
         MultiFab vol_fine(ba, dm, 1, 0);
@@ -108,7 +113,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                     scomp, ncomp, refRatio(crse_lev));
     }
 
-    if (interpolation_type == StateInterpType::Perturbational) {
+    if (do_perturbational_and_momenta && interpolation_type == StateInterpType::Perturbational) {
         // Restore the fine data to what it was
         MultiFab::Add(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
                       BaseState::r0_comp,Rho_comp,1,IntVect{0});
@@ -163,13 +168,15 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
                 ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
-                    if (detJ_arr(i,j,k) == 0.0) {
+                    if (detJ_arr(i,j,k) == zero) {
                         cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
                     }
                 });
             } // mfi
         } // lev
     }
+
+    if (!do_perturbational_and_momenta) return;
 
     // ******************************************************************************************
     // Now average down momenta.
@@ -226,5 +233,22 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                         Geom(lev).Domain(),
                         domain_bcs_type,
                         c_vfrac);
+    }
+}
+
+// Conservation-preserving fine→coarse average of moist state components only.
+// Uses the same detJ/mfac weighting as AverageDownTo, but skips the perturbational
+// and momenta blocks since they pertain to Rho/RhoTheta and velocities.
+void
+ERF::AverageDownMoistStateTo (int crse_lev)
+{
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
+    AMREX_ALWAYS_ASSERT(crse_lev >= 0 && crse_lev < finest_level);
+
+    AverageDownTo(crse_lev, RhoTheta_comp, 1, false);
+
+    const int n_moist = (micro) ? micro->Get_Qstate_Size() : 0;
+    if (n_moist > 0) {
+        AverageDownTo(crse_lev, RhoQ1_comp, n_moist, false);
     }
 }

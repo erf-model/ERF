@@ -17,7 +17,7 @@ using namespace amrex;
  *
  * See Tucker, P. G. (2003). Differential equation-based wall distance
  * computation for DES and RANS. Journal of Computational Physics,
- * 190(1), 229–248. https://doi.org/10.1016/S0021-9991(03)00272-9
+ * 190(1), 229–Real(248.) https://doi.org/Real(10.1016)/S0021-9991(03)00272-9
  */
 void ERF::poisson_wall_dist (int lev)
 {
@@ -49,7 +49,7 @@ void ERF::poisson_wall_dist (int lev)
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
+                    dist_arr(i, j, k) = prob_lo[2] + (k + myhalf) * dx[2];
                 });
             }
             return;
@@ -262,13 +262,13 @@ void ERF::poisson_wall_dist (int lev)
     //   \nabla \cdot (h_zeta T (T^T \nabla \phi)) = -h_zeta
     // where T = inv(J), T^T is the transpose of inv(J)
     // ****************************************************************************
-    constexpr Real constA = 0.0;
-    constexpr Real constB = -1.0;
+    constexpr Real constA = zero;
+    constexpr Real constB = -one;
 
     MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
 
     mlabec.setScalars(constA, constB);
-    mlabec.setACoeffs(0, 0.0);
+    mlabec.setACoeffs(0, zero);
 #if 1
     // Set beta coefficients at faces
     Array<MultiFab, AMREX_SPACEDIM> beta;
@@ -293,7 +293,7 @@ void ERF::poisson_wall_dist (int lev)
         beta1_arr[b](i, j, k) = Compute_h_zeta_AtJface(i, j, k, dxinv, zphys_arr[b]);;
     });
     ParallelFor(beta[2], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
-        Real inv_h_zeta = 1.0 / Compute_h_zeta_AtKface(i, j, k, dxinv, zphys_arr[b]);
+        Real inv_h_zeta = one / Compute_h_zeta_AtKface(i, j, k, dxinv, zphys_arr[b]);
         Real h_xi = Compute_h_xi_AtKface(i, j, k, dxinv, zphys_arr[b]);
         Real h_eta = Compute_h_eta_AtKface(i, j, k, dxinv, zphys_arr[b]);
         beta2_arr[b](i, j, k) = inv_h_zeta * (1 + h_xi*h_xi + h_eta*h_eta);
@@ -307,7 +307,7 @@ void ERF::poisson_wall_dist (int lev)
         rhs_arr[b](i, j, k) = -Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
     });
 #else
-    mlabec.setBCoeffs(0, 1.0);
+    mlabec.setBCoeffs(0, one);
 #endif
 
     mlabec.setDomainBC(bc3d_lo, bc3d_hi);
@@ -445,33 +445,33 @@ void ERF::poisson_wall_dist (int lev)
             // Update RHS source term to explicitly include cross-terms
             if (n_corr > 0) {
                 // d/dxi ( h_xi * dphi/dzeta )
-                Real phi_zeta_xlo = 0.25 * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
+                Real phi_zeta_xlo = fourth * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
                                                       + phi_arr[b](i-1, j, k+1) - phi_arr[b](i-1, j, k-1) );
-                Real phi_zeta_xhi = 0.25 * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
+                Real phi_zeta_xhi = fourth * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
                                                       + phi_arr[b](i+1, j, k+1) - phi_arr[b](i+1, j, k-1) );
                 Real h_xi_xlo = Compute_h_xi_AtIface(i  , j, k, dxinv, zphys_arr[b]);
                 Real h_xi_xhi = Compute_h_xi_AtIface(i+1, j, k, dxinv, zphys_arr[b]);
 
                 // d/deta ( h_eta * dphi/dzeta )
-                Real phi_zeta_ylo = 0.25 * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
+                Real phi_zeta_ylo = fourth * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
                                                       + phi_arr[b](i, j-1, k+1) - phi_arr[b](i, j-1, k-1) );
-                Real phi_zeta_yhi = 0.25 * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
+                Real phi_zeta_yhi = fourth * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
                                                       + phi_arr[b](i, j+1, k+1) - phi_arr[b](i, j+1, k-1) );
                 Real h_eta_ylo = Compute_h_eta_AtJface(i, j  , k, dxinv, zphys_arr[b]);
                 Real h_eta_yhi = Compute_h_eta_AtJface(i, j+1, k, dxinv, zphys_arr[b]);
 
                 // d/dzeta ( h_xi * dphi/dxi )
-                Real phi_xi_zlo = 0.25 * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
+                Real phi_xi_zlo = fourth * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
                                                     + phi_arr[b](i+1, j, k-1) - phi_arr[b](i-1, j, k-1) );
-                Real phi_xi_zhi = 0.25 * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
+                Real phi_xi_zhi = fourth * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
                                                     + phi_arr[b](i+1, j, k+1) - phi_arr[b](i-1, j, k+1) );
                 Real h_xi_zlo = Compute_h_xi_AtKface(i, j, k  , dxinv, zphys_arr[b]);
                 Real h_xi_zhi = Compute_h_xi_AtKface(i, j, k+1, dxinv, zphys_arr[b]);
 
                 // d/dzeta ( h_eta * dphi/deta )
-                Real phi_eta_zlo = 0.25 * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
+                Real phi_eta_zlo = fourth * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
                                                      + phi_arr[b](i, j+1, k-1) - phi_arr[b](i, j-1, k-1) );
-                Real phi_eta_zhi = 0.25 * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
+                Real phi_eta_zhi = fourth * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
                                                      + phi_arr[b](i, j+1, k+1) - phi_arr[b](i, j-1, k+1) );
                 Real h_eta_zlo = Compute_h_eta_AtKface(i, j, k  , dxinv, zphys_arr[b]);
                 Real h_eta_zhi = Compute_h_eta_AtKface(i, j, k+1, dxinv, zphys_arr[b]);

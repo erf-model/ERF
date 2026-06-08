@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SDM_Congestus3D"
+
 stop_time = 8500
 max_step = 20
 
@@ -27,7 +29,6 @@ erf.most.zref   = 200.0
 
 # INITIALIZATION
 erf.init_type = input_sounding
-erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
@@ -92,7 +93,7 @@ erf.buoyancy_type   = 1
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.coalescence_kernel = "Halls"
 super_droplets_moisture.aerosols = NH42SO4

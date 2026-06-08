@@ -8,6 +8,7 @@
 #include <ERF_SLM.H>
 #include <ERF_MM5.H>
 #include <ERF_LSM_Types.H>
+#include <ERF_OceanSurf.H>
 
 #if ERF_USE_NOAHMP
 #include <ERF_NOAHMP.H>
@@ -59,10 +60,12 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
+             const amrex::Real& time,
              const amrex::Real& dt_advance,
              const int& nstep)
     {
-        m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in, hfx3_out, qfx3_out, dt_advance, nstep);
+        m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
+                                             hfx3_out, qfx3_out, time, dt_advance, nstep);
     }
 
     void
@@ -127,6 +130,7 @@ public:
     {
         int nlev = m_lsm_model.size();
         int nvar = this->Get_Data_Size();
+        int nlev_valid = finest_level+1;
         amrex::Vector<std::string> varnames;
 
         // // Only write if we have valid pointers
@@ -168,18 +172,18 @@ public:
 
         if (nlev > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
         {
-            // for (int lev(0); lev<nlev; ++lev) {
+            // for (int lev(0); lev<nlev_valid; ++lev) {
+            amrex::Vector<amrex::MultiFab> fab_2d(finest_level+1);
+            amrex::Vector<amrex::Geometry> geom_2d(finest_level+1);
+            amrex::Vector<std::string> varnames;
+            std::string plotfilename_2d = amrex::Concatenate(plot_file_lsm + "2D_", level_steps[0], 5);
             for (int lev = 0; lev <= finest_level; ++lev) {
-                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0], lev);
+                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0], lev, finest_level, fab_2d[lev], geom_2d[lev], varnames);
+            }
+            if (plotfile_type == PlotFileType::Amrex) {
+                amrex::WriteMultiLevelPlotfile(plotfilename_2d, finest_level+1, GetVecOfConstPtrs(fab_2d), varnames, geom_2d, time, level_steps, ref_ratio);
             }
         }
-    }
-
-    void set_LSM_flux_inputs (const int& lev,
-                              const amrex::MultiFab* sw_lw_fluxes_in,
-                              const amrex::MultiFab* zenith_in)
-    {
-        m_lsm_model[lev]->set_flux_inputs(sw_lw_fluxes_in, zenith_in);
     }
 
     void set_LSM_precip_input (const int& lev,

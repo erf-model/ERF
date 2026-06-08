@@ -30,6 +30,9 @@ stages:
   tags:
     - shell
     - dane
+  variables:
+    # Limit build parallelism for matrix jobs
+    CMAKE_BUILD_PARALLEL_LEVEL: 16
 
 .job_on_dane:
   extends: .on_dane
@@ -40,7 +43,7 @@ stages:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"s
-    - srun --jobid=${JOBID} -N 1 -v --overlap ${TEST_SCRIPT}
+    - srun --jobid=${JOBID} -N 1 -v --overlap --mpi=none ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
@@ -67,7 +70,7 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 30
+    ALLOC_TIME: 60
   extends: .on_dane
   stage: allocate-resources
   script:

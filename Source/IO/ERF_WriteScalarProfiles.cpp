@@ -12,7 +12,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::sum_integrated_quantities (Real time)
+ERF::sum_integrated_quantities (double time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
@@ -23,10 +23,10 @@ ERF::sum_integrated_quantities (Real time)
     Real mass_sl;
 
     // Multilevel sums
-    Real mass_ml = 0.0;
-    Real rhth_ml = 0.0;
-    Real scal_ml = 0.0;
-    Real mois_ml = 0.0;
+    Real mass_ml = zero;
+    Real rhth_ml = zero;
+    Real scal_ml = zero;
+    Real mois_ml = zero;
 
     bool local = true;
 
@@ -45,10 +45,10 @@ ERF::sum_integrated_quantities (Real time)
 
     Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,dJ0,mfx0,mfy0,false);
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,dJ0,mfx0,mfy0,false);
-    Real mois_sl = 0.0;
+    Real mois_sl = zero;
     if (solverChoice.moisture_type != MoistureType::None) {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-        for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
@@ -60,8 +60,8 @@ ERF::sum_integrated_quantities (Real time)
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
         if (solverChoice.moisture_type != MoistureType::None) {
-            int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-            for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
             }
         }
@@ -84,9 +84,9 @@ ERF::sum_integrated_quantities (Real time)
         h_avg_olen[0]  /= area_z;
 
     } else {
-        h_avg_ustar[0] = 0.;
-        h_avg_tstar[0] = 0.;
-        h_avg_olen[0]  = 0.;
+        h_avg_ustar[0] = zero;
+        h_avg_tstar[0] = zero;
+        h_avg_olen[0]  = zero;
     }
 
     const int nfoo = 8;
@@ -136,7 +136,7 @@ ERF::sum_integrated_quantities (Real time)
             int n_d = 0;
             std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
-                if (time == 0.0) {
+                if (time == zero) {
                     data_log1 << std::setw(datwidth) << "          time";
                     data_log1 << std::setw(datwidth) << "          u_star";
                     data_log1 << std::setw(datwidth) << "          t_star";
@@ -174,7 +174,7 @@ ERF::sum_integrated_quantities (Real time)
 }
 
 void
-ERF::sum_derived_quantities (Real time)
+ERF::sum_derived_quantities (double time)
 {
     if (verbose <= 0 || NumDerDataLogs() <= 0) return;
 
@@ -218,10 +218,11 @@ ERF::sum_derived_quantities (Real time)
         auto& src_fab = mf_cc_vel[mfi];
 
         auto& dest1_fab = unwted_magvelsq[mfi];
-        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+        // NOTE: we send in src_fab where we should
+        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
 
         auto& dest2_fab = enstrophysq[mfi];
-        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
     }
 
     // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
@@ -287,7 +288,7 @@ ERF::sum_derived_quantities (Real time)
 
         std::ostream& data_log_der = DerDataLog(0);
 
-        if (time == 0.0) {
+        if (time == zero) {
             data_log_der << std::setw(datwidth) << "          time";
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
@@ -309,7 +310,7 @@ ERF::sum_derived_quantities (Real time)
 }
 
 void
-ERF::sum_energy_quantities (Real time)
+ERF::sum_energy_quantities (double time)
 {
     if ( (verbose <= 0) || (tot_e_datalog.size() < 1) ) { return; }
 
@@ -362,13 +363,13 @@ ERF::sum_energy_quantities (Real time)
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : 0.0;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : 0.0;
+            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
+            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
             Real Qt   = Qv + Qc;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
-            Real Rhot = Rhod * (1.0 + Qt);
+            Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
-            Real TKE  = 0.5 * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+            Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
             Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
@@ -379,7 +380,7 @@ ERF::sum_energy_quantities (Real time)
 
             tot_mass_arr(i,j,k)   = Rhot;
             tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
-                                           + (1.0 + Qt)*TKE + (1.0 + Qt)*CONST_GRAV*zval );
+                                           + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
 
@@ -430,7 +431,7 @@ ERF::sum_energy_quantities (Real time)
 
         std::ostream& data_log_energy = *tot_e_datalog[0];
 
-        if (time == 0.0) {
+        if (time == zero) {
             data_log_energy << std::setw(datwidth) << "          time";
             data_log_energy << std::setw(datwidth) << "      tot_mass";
             data_log_energy << std::setw(datwidth) << "    tot_energy";
@@ -448,7 +449,7 @@ ERF::sum_energy_quantities (Real time)
 }
 
 Real
-ERF::cloud_fraction (Real /*time*/)
+ERF::cloud_fraction (double /*time*/)
 {
     BL_PROFILE("ERF::cloud_fraction()");
 
@@ -508,7 +509,7 @@ ERF::cloud_fraction (Real /*time*/)
     ParallelDescriptor::ReduceLongSum(num_cloudy);
 #endif
 
-    Real num_total = qc_2d.box().d_numPts();
+    Real num_total = Real(qc_2d.box().d_numPts());
 
     Real cloud_frac = num_cloudy / num_total;
 
@@ -650,12 +651,12 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action (int nstep, Real time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, double time, Real dtlev, int action_interval, Real action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 
   bool per_test = false;
-  if (action_per > 0.0) {
+  if (action_per > zero) {
     const int num_per_old = static_cast<int>(amrex::Math::floor((time - dtlev) / action_per));
     const int num_per_new = static_cast<int>(amrex::Math::floor((time) / action_per));
 

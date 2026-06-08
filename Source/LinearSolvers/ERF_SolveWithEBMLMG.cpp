@@ -19,7 +19,7 @@ FillZeroAreaFaceFluxes (MultiFab& phi,
 
 /**
  * Solve the Poisson equation using EB_enabled MLMG
- * Note that the level may or may not be level 0.
+ * Note that the level may or may not be level zero
  *
  * Important: we solve on the whole level even if there are disjoint regions
  *
@@ -78,7 +78,7 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     // the operator A alpha - b del dot beta grad to b
     // becomes  - del dot beta grad
     //
-    mleb.setScalars(0.0, 1.0);
+    mleb.setScalars(zero, one);
 
     Array<MultiFab,AMREX_SPACEDIM> bcoef;
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -108,7 +108,7 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     //
     // This arises because we solve MINUS del dot beta grad phi = div (rho u)
     //
-    fluxes[0][0].mult(-1.);
-    fluxes[0][1].mult(-1.);
-    fluxes[0][2].mult(-1.);
+    fluxes[0][0].mult(-one);
+    fluxes[0][1].mult(-one);
+    fluxes[0][2].mult(-one);
 }

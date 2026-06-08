@@ -3,7 +3,17 @@
 Building ERF
 ============
 
-ERF supports two build systems: GNUMake and CMake. Most users should start with GNUMake. When on Cray HPC platforms like Perlmutter, CMake provides automated detection to simplify configuration. This page provides quick-start commands; comprehensive documentation follows in the sections below.
+ERF supports two build systems: GNUMake and CMake.
+
+To use GNU Make, cd into ``ERF/Exec`` and type ``make``.
+(Developers adding new features may wish to work in problem- or feature-specific directories in ``ERF/.Exec_dev`` instead;
+for these cases one would build in that directory in ``ERF/.Exec_dev``.)
+
+When on Cray HPC platforms like Perlmutter, CMake provides automated detection to simplify configuration.
+To use cmake, one typically creates an ``ERF/build`` directory, copies an cmake file from ``ERF/Build``, and runs
+cmake in ``ERF/build``.
+
+This page provides quick-start commands; comprehensive documentation follows in the sections below.
 
 **Where to start:**
 
@@ -42,6 +52,7 @@ Quick Start
 * :ref:`sec:build:quickstart` - **Quick start**: Copyable clone-build-run commands for common scenarios
 * :ref:`sec:build:overview` - **Concepts**: Prerequisites, choosing build systems, and general workflow
 * :ref:`sec:build:systems` - **Complete guide**: Detailed step-by-step instructions from cloning to executable with custom configurations
-* :ref:`sec:build:hpc` - **HPC platforms**: Cray detection, machine profiles, and job submission scripts
+* :ref:`sec:build:hpc` - **HPC concepts**: Cray detection, machine profiles, and build script references
+* :ref:`sec:hpc:guides` - **HPC system guides**: Perlmutter, Kestrel, and Aurora build/run walkthroughs
 * :ref:`sec:build:library` - **Dependencies**: Configuring I/O libraries (NetCDF, HDF5) and physics packages (SHOC, P3, RRTMGP)
 * :ref:`sec:build:troubleshooting` - **Help**: Common build errors, debugging tools, and getting assistance

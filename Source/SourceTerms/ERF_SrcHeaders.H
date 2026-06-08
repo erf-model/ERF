@@ -114,6 +114,7 @@ void make_mom_sources (amrex::Real time,
                              LargeScaleForcingData &lsf_data,
                              std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
                              std::unique_ptr<amrex::MultiFab>& nudge_data,
+                       const eb_& ebfact,
                              bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
@@ -153,7 +154,10 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Array4<amrex::Real>& cell_rhs,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<const amrex::Real>& r0,
-                              const amrex::Array4<const amrex::Real>& z_phys_cc);
+                              const amrex::Array4<const amrex::Real>& th0,
+                              const amrex::Array4<const amrex::Real>& qv0,
+                              const amrex::Array4<const amrex::Real>& z_phys_cc,
+                              int n_qstate);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Geometry geom,

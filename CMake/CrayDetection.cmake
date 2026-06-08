@@ -461,19 +461,19 @@ endif()
 if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
-    set(E3SM_EXPECTED_PATH "${CMAKE_SOURCE_DIR}/external/E3SM")
+    set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
 
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
+    if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
         message(FATAL_ERROR
             "E3SM provides eamxx required for SHOC/P3 but not found.\n"
             "\n"
             "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
             "\n"
             "Option 1 - Use provided script (recommended):\n"
-            "  ${CMAKE_SOURCE_DIR}/Build/eamxx_clone.sh\n"
+            "  ${PROJECT_SOURCE_DIR}/Build/eamxx_clone.sh\n"
             "\n"
             "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
-            "  ln -s /path/to/your/E3SM ${CMAKE_SOURCE_DIR}/external/E3SM\n"
+            "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
             "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
@@ -1027,7 +1027,7 @@ endif()
 # Generate Concise Config File
 # ==============================================================================
 
-set(CRAY_CONFIG_FILE "${CMAKE_BINARY_DIR}/cray_detected_config.cmake")
+set(CRAY_CONFIG_FILE "${PROJECT_BINARY_DIR}/cray_detected_config.cmake")
 
 file(WRITE ${CRAY_CONFIG_FILE}
 "# ==============================================================================
@@ -1041,10 +1041,10 @@ file(WRITE ${CRAY_CONFIG_FILE}
 # To use this config manually:
 #
 #   From build directory:
-#     cmake -C ${CRAY_CONFIG_FILE} ${CMAKE_SOURCE_DIR}
+#     cmake -C ${CRAY_CONFIG_FILE} ${PROJECT_SOURCE_DIR}
 #
 #   From source directory:
-#     cmake -C ${CRAY_CONFIG_FILE} -B ${CMAKE_BINARY_DIR}
+#     cmake -C ${CRAY_CONFIG_FILE} -B ${PROJECT_BINARY_DIR}
 #
 # ==============================================================================
 
@@ -1158,7 +1158,7 @@ add_custom_target(show-cray-config
     COMMAND ${CMAKE_COMMAND} -E cat ${CRAY_CONFIG_FILE}
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "To use this config manually:"
-    COMMAND ${CMAKE_COMMAND} -E echo "  cmake -C ${CRAY_CONFIG_FILE} ${CMAKE_SOURCE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E echo "  cmake -C ${CRAY_CONFIG_FILE} ${PROJECT_SOURCE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
     DEPENDS ${CRAY_CONFIG_FILE}
     COMMENT "Showing Cray configuration from ${CRAY_CONFIG_FILE}"

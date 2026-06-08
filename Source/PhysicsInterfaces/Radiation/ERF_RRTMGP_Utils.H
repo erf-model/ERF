@@ -22,12 +22,12 @@ mixing_ratio_to_cloud_mass (View1 const& mixing_ratio  ,
     {
         // Compute in-cloud mixing ratio (mixing ratio of the cloudy part of the layer)
         // NOTE: these thresholds (from E3SM) seem arbitrary, but included here for consistency
-        // This limits in-cloud mixing ratio to 0.005 kg/kg. According to note in cloud_diagnostics
+        // This limits in-cloud mixing ratio to amrex::Real(0.005) kg/kg. According to note in cloud_diagnostics
         // in EAM, this is consistent with limits in MG2. Is this true for P3?
         if (cloud_fraction(icol,ilay) > 0) {
             // Compute layer-integrated cloud mass (per unit area)
             auto incloud_mixing_ratio = std::min(mixing_ratio(icol,ilay) /
-                                                 std::max(0.0001, cloud_fraction(icol,ilay)), 0.005);
+                                                 std::max(amrex::Real(0.0001), cloud_fraction(icol,ilay)), amrex::Real(0.005));
             cloud_mass(icol,ilay) = incloud_mixing_ratio * rho(icol,ilay) * dz(icol,ilay);
         } else {
             cloud_mass(icol,ilay) = 0;
@@ -70,8 +70,8 @@ limit_to_bounds_2d (InT const& arr_in,
 // computed as net flux into a layer, converted to a heating rate. It is
 // the responsibility of the user to ensure fields are passed with the
 // proper units. I.e., pressure at level interfaces should be in Pa,
-// fluxes in W m-2, Cpair in J kg-1 K-1, gravit in m s-2. This will give
-// heating in units of K s-1.
+// fluxes in W m-2, Cpair in J kg-1 K-1, gravit in m s-two This will give
+// heating in units of K s-one
 // TODO: we should probably update this to use the pseudo-density pdel instead
 // of approximating pdel by differencing the level interface pressures.
 // We are leaving this for the time being for consistency with SCREAMv0,

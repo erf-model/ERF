@@ -84,16 +84,16 @@ struct DiffChoice {
     MolecDiffType molec_diff_type = MolecDiffType::Constant;
 
     // Diffusive/viscous coefficients [m2/s]
-    amrex::Real alpha_T = 0.0;
-    amrex::Real alpha_C = 0.0;
+    amrex::Real alpha_T = zero;
+    amrex::Real alpha_C = zero;
 
     // Density for computation of rhoAlpha (which is assumed constant) [kg/m3]
-    amrex::Real rho0_trans = 1.0;
+    amrex::Real rho0_trans = one;
 
     // Dynamic diffusion coefficients [kg/(m-s)]
-    amrex::Real rhoAlpha_T = 0.0;
-    amrex::Real rhoAlpha_C = 0.0;
-    amrex::Real dynamic_viscosity = 0.0;
+    amrex::Real rhoAlpha_T = zero;
+    amrex::Real rhoAlpha_C = zero;
+    amrex::Real dynamic_viscosity = zero;
     bool eb_diff_constraint_x = false;
     bool eb_diff_constraint_y = false;
     bool eb_diff_constraint_z = false;

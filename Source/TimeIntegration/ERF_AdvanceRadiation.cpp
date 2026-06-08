@@ -31,14 +31,23 @@ void ERF::advance_radiation (int lev,
             // TODO: rename SLM variables to match those expected by RRMTGP
             //       for now, pointers are directly returned without name lookup
             lsm_input_ptrs = lsm.get_model_lev<SLM>(lev)->export_to_RRTMGP();
+            auto slm_output_name_map = lsm.get_model_lev<SLM>(lev)->get_rad_output_map();
+            Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
+            lsm_output_ptrs = Vector<MultiFab*>(lsm_output_names.size(),nullptr);
+            for (int i(0); i<lsm_output_ptrs.size(); ++i) {
+                std::string slm_name = slm_output_name_map[lsm_output_names[i]];
+                if (slm_name == "") continue;
 
-            // TODO: no lsm_output_ptrs defined, existing coupling via sw_lw_fluxes and solar_zenith works for now
+                int varIdx = lsm.Get_DataIdx(lev,slm_name);
+                if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
+            }
+
         } else {
             Vector<std::string> lsm_input_names = rad[lev]->get_lsm_input_varnames();
             Vector<MultiFab*> lsm_input_ptrs(lsm_input_names.size(),nullptr);
             for (int i(0); i<lsm_input_ptrs.size(); ++i) {
                 int varIdx = lsm.Get_DataIdx(lev,lsm_input_names[i]);
-                lsm_input_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx);
+                if (varIdx >= 0) { lsm_input_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
             }
 
             // RRTMGP output names and pointers
@@ -46,17 +55,16 @@ void ERF::advance_radiation (int lev,
             Vector<MultiFab*> lsm_output_ptrs(lsm_output_names.size(),nullptr);
             for (int i(0); i<lsm_output_ptrs.size(); ++i) {
                 int varIdx = lsm.Get_DataIdx(lev,lsm_output_names[i]);
-                lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx);
+                if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
             }
         }
 
         // Enter radiation class driver
-        amrex::Real time_for_rad = t_new[lev] + start_time;
-        amrex::Print() << " AdvanceRadiation - start_time = " << start_time << " t_new = " << t_new[lev] << " time_for_rad = " << time_for_rad << std::endl;
+        amrex::Real time_for_rad = t_old[lev] + start_time;
+        amrex::Print() << " AdvanceRadiation - start_time = " << start_time << " t_old = " << t_old[lev] << " time_for_rad = " << time_for_rad << std::endl;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
                       cons.boxArray(), geom[lev], &(cons),
                       lmask_lev[lev][0].get(), t_surf,
-                      sw_lw_fluxes[lev].get(), solar_zenith[lev].get(),
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr);

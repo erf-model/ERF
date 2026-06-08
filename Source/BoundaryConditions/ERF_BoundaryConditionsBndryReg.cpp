@@ -23,7 +23,8 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    // Boundary-plane files are indexed by absolute simulation time.
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time + start_time);
 
     const BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -70,7 +71,6 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
             if (var_idx == Vars::xvel) bx_xlo.setBig(0,dom_lo.x);
 
             Box bx_xhi(bx); bx_xhi.setSmall(0,dom_hi.x+1);
-            if (var_idx == Vars::xvel) bx_xhi.setSmall(0,dom_hi.x);
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -100,7 +100,6 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
             if (var_idx == Vars::yvel) bx_ylo.setBig(1,dom_lo.y);
 
             Box bx_yhi(bx); bx_yhi.setSmall(1,dom_hi.y+1);
-            if (var_idx == Vars::yvel) bx_yhi.setSmall(1,dom_hi.y);
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {

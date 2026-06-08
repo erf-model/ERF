@@ -16,7 +16,7 @@ function(erf_suggest_machine_profile)
         ERROR_QUIET
     )
 
-    file(GLOB profiles "${CMAKE_SOURCE_DIR}/Build/machines/*_erf.profile")
+    file(GLOB profiles "${PROJECT_SOURCE_DIR}/Build/machines/*_erf.profile")
 
     message(STATUS "  Load modules from your machine profile:")
     message(STATUS "")
@@ -32,7 +32,7 @@ function(erf_suggest_machine_profile)
             endif()
         endforeach()
     else()
-        message(STATUS "    No profiles found in ${CMAKE_SOURCE_DIR}/Build/machines/")
+        message(STATUS "    No profiles found in ${PROJECT_SOURCE_DIR}/Build/machines/")
     endif()
 endfunction()
 
@@ -96,7 +96,7 @@ else()
 endif()
 
 # Find Cray Fortran compiler wrapper (if needed)
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
     find_program(ERF_CRAY_FC ftn)
     if(ERF_CRAY_FC)
         set(CMAKE_Fortran_COMPILER "${ERF_CRAY_FC}" CACHE FILEPATH "Fortran compiler")

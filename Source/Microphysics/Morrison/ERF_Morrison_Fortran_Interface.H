@@ -46,7 +46,7 @@ void mp_morr_two_moment_c(
     // WRF-Chem
     bool f_qndrop, double* qndrop,
     // Terrain height
-    double* ht,
+    // double* ht,
     // Domain dimensions
     int ids, int ide, int jds, int jde, int kds, int kde,
     int ims, int ime, int jms, int jme, int kms, int kme,

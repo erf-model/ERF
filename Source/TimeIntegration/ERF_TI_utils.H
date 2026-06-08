@@ -40,7 +40,7 @@
 
           amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : 0.0;
+              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
       } // mfi
@@ -53,13 +53,13 @@
     {
         BL_PROFILE("make_qt()");
 
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
 
         // All moisture models are guaranteed to have RhoQ1_comp
         MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, qt.nGrowVect());
 
         // Sum up each component
-        for (int n(1); n<n_qstate_moist; ++n) {
+        for (int n(1); n<n_qstate_into_total; ++n) {
             MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, qt.nGrowVect());
         }
 
@@ -209,7 +209,7 @@
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
             make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-            Real inv_dt  = 1./slow_dt;
+            Real inv_dt  = one/slow_dt;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -226,7 +226,7 @@
                 amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     // Evaluate between RK stages assuming the geometry is linear between old and new time
-                    z_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                    z_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
@@ -266,7 +266,7 @@
         make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
         make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-        Real inv_dt   = 1./dtau;
+        Real inv_dt   = one/dtau;
 
         z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
@@ -284,7 +284,7 @@
             amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Evaluate between RK stages assuming the geometry is linear between old and new time
-                zp_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                zp_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                   +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                   +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                   +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));

@@ -6,15 +6,15 @@ module use /soft/modulefiles
 module load spack-pe-gnu
 
 # add cuda
-module load cuda/12.6
-module load cudatoolkit-standalone/12.6
+module load cuda/12.9
+module load cudatoolkit-standalone/12.9
 module load craype-accel-nvidia80
 
 # required dependencies
 module load cmake
 
 # default gcc-native too new for cuda/12.6
-module load gcc-native/13.2
+module load gcc-native
 
 module load cray-hdf5-parallel
 module load cray-libsci/25.03.0
