@@ -1,7 +1,6 @@
 #include <AMReX_GpuContainers.H>
 #include "ERF_Morrison.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_PlaneAverage.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
 

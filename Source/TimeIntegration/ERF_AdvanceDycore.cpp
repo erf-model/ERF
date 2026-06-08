@@ -52,7 +52,6 @@ void ERF::advance_dycore (int level,
 
     DiffChoice dc    = solverChoice.diffChoice;
     TurbChoice tc    = solverChoice.turbChoice[level];
-    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse (base_state[level], make_alias, BaseState::p0_comp , 1);
@@ -84,7 +83,7 @@ void ERF::advance_dycore (int level,
     Real* d_sinesq_stag_at_lev = (use_rayleigh)  ? d_sinesq_stag_ptrs[level].data() : nullptr;
 
     Vector<Real*> d_sponge_ptrs_at_lev;
-    if (sc.sponge_type == SpongeType::Input_Sponge)
+    if (SpongeChoice::sponge_type == SpongeType::Input_Sponge)
     {
         d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
         d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();

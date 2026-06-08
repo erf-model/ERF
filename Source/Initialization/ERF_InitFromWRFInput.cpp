@@ -1192,7 +1192,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
             } else {
                 Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
-                if (P_STRAT > Real(0.) && Pd <= P_STRAT) { Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT); }
+                if (P_STRAT > Real(0.) && Pd <= P_STRAT) {
+                    Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
+                }
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
                 Rd  = getRhogivenThetaPress (Thd, Pd, l_rdOcp);
             }
