@@ -76,10 +76,10 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
                                 RhoQ10_comp, RhoQ11_comp};
     Vector<Vector<int>> bnd_ind_map;
-    ind_map.push_back( bnd_cons_map );
-    ind_map.push_back( {BCVars::xvel_bc} ); // xvel
-    ind_map.push_back( {BCVars::yvel_bc} ); // yvel
-    ind_map.push_back( {0} );               // zvel
+    bnd_ind_map.push_back( bnd_cons_map );
+    bnd_ind_map.push_back( {BCVars::xvel_bc} ); // xvel
+    bnd_ind_map.push_back( {BCVars::yvel_bc} ); // yvel
+    bnd_ind_map.push_back( {0} );               // zvel
     Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
     if (m_r2d) {
         // Index is [plane orientation] and [level]
