@@ -115,6 +115,14 @@ namespace WSM6SedCellScratch {
         tmp1,
         tmp2,
         tmp3,
+        workr_col,
+        worka_col,
+        denqrs1_col,
+        denqrs2_col,
+        denqrs3_col,
+        qsum_col,
+        work1c_col,
+        denqci_col,
         NumComps
     };
 }
@@ -822,17 +830,15 @@ void wsm6_nislfv_rain_plm6 (int im, int km,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void wsm6_nislfv_rain_plm_scratch (int im, int km,
-                                   const Real* denl, const Real* denfacl,
-                                   const Real* tkl, const Real* dzl,
-                                   Real* wwl, Real* rql,
+void wsm6_nislfv_rain_plm_scratch (int km,
+                                   int ww_comp,
+                                   int rq_comp,
                                    Real* precip, Real dt,
-                                   int id, int iter,
+                                   int iter,
                                    Array4<Real> const& sed_cell,
                                    Array4<Real> const& sed_node,
                                    int i_s, int j_s, int klo_s)
 {
-    static_cast<void>(id);
     auto DZ = [&](int k) -> amrex::Real& {
         return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::dz);
     };
@@ -920,205 +926,197 @@ void wsm6_nislfv_rain_plm_scratch (int im, int km,
     const Real rsloper3max = rsloper2max * rslopermax;
     const Real pvtr = WSM6::avtr * rgmma(Real(4.0) + WSM6::bvtr) / Real(6.0);
 
-    for (int i = 0; i < im; ++i) {
-        Real allold = Real(0.0);
-        for (int k = 0; k < km; ++k) {
-            const int idx = i * km + k;
-            DZ(k) = dzl[idx];
-            QQ(k) = rql[idx];
-            WW(k) = wwl[idx];
-            WD(k) = WW(k);
-            DEN(k) = denl[idx];
-            DENFAC(k) = denfacl[idx];
-            TK(k) = tkl[idx];
-            allold += QQ(k);
+    Real allold = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        QQ(k) = sed_cell(i_s, j_s, klo_s + k, rq_comp);
+        WW(k) = sed_cell(i_s, j_s, klo_s + k, ww_comp);
+        WD(k) = WW(k);
+        allold += QQ(k);
+    }
+
+    precip[0] = Real(0.0);
+    if (allold <= Real(0.0)) {
+        return;
+    }
+
+    ZI(0) = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        ZI(k + 1) = ZI(k) + DZ(k);
+    }
+
+    auto update_wind_and_state = [&](void) {
+        WI(0) = WW(0);
+        WI(km) = WW(km - 1);
+        for (int k = 1; k < km; ++k) {
+            WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
         }
 
-        precip[i] = Real(0.0);
-        if (allold <= Real(0.0)) {
-            continue;
+        WI(0) = WW(0);
+        WI(1) = Real(0.5) * (WW(1) + WW(0));
+        for (int k = 2; k < km - 1; ++k) {
+            WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
+                  - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
         }
-
-        ZI(0) = Real(0.0);
-        for (int k = 0; k < km; ++k) {
-            ZI(k + 1) = ZI(k) + DZ(k);
-        }
-
-        auto update_wind_and_state = [&](void) {
-            WI(0) = WW(0);
+        if (km > 1) {
+            WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
             WI(km) = WW(km - 1);
-            for (int k = 1; k < km; ++k) {
-                WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
-            }
-
-            WI(0) = WW(0);
-            WI(1) = Real(0.5) * (WW(1) + WW(0));
-            for (int k = 2; k < km - 1; ++k) {
-                WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
-                      - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
-            }
-            if (km > 1) {
-                WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
-                WI(km) = WW(km - 1);
-            }
-
-            for (int k = 1; k < km; ++k) {
-                if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
-            }
-
-            const Real con1 = Real(0.05);
-            for (int k = km - 1; k >= 0; --k) {
-                const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
-                if (decfl > con1) {
-                    WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
-                }
-            }
-
-            for (int k = 0; k <= km; ++k) {
-                ZA(k) = ZI(k) - WI(k) * dt;
-            }
-
-            for (int k = 0; k < km; ++k) {
-                DZA(k) = ZA(k + 1) - ZA(k);
-                if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
-            }
-            DZA(km) = ZI(km) - ZA(km);
-            if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
-            for (int k = 0; k < km; ++k) {
-                QA(k) = QQ(k) * DZ(k) / DZA(k);
-                QR(k) = QA(k) / DEN(k);
-            }
-            QA(km) = Real(0.0);
-        };
-
-        update_wind_and_state();
-
-        if (iter > 0) {
-            for (int k = 0; k < km; ++k) {
-                wsm6_slope_rain_cell(QR(k), DEN(k), DENFAC(k), pidn0r,
-                                     WSM6::qcrmin,
-                                     rslopermax, rsloperbmax, rsloper2max,
-                                     rsloper3max, WSM6::bvtr, pvtr,
-                                     TMP(k), TMP1(k), TMP2(k), TMP3(k), WA(k));
-            }
-            for (int k = 0; k < km; ++k) {
-                WW(k) = Real(0.5) * (WD(k) + WA(k));
-                WAS(k) = WA(k);
-            }
-            update_wind_and_state();
         }
 
         for (int k = 1; k < km; ++k) {
-            const Real dip = (QA(k + 1) - QA(k)) / (DZA(k + 1) + DZA(k));
-            const Real dim = (QA(k) - QA(k - 1)) / (DZA(k - 1) + DZA(k));
-            if (dip * dim <= Real(0.0)) {
-                QMI(k) = QA(k);
+            if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
+        }
+
+        const Real con1 = Real(0.05);
+        for (int k = km - 1; k >= 0; --k) {
+            const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
+            if (decfl > con1) {
+                WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
+            }
+        }
+
+        for (int k = 0; k <= km; ++k) {
+            ZA(k) = ZI(k) - WI(k) * dt;
+        }
+
+        for (int k = 0; k < km; ++k) {
+            DZA(k) = ZA(k + 1) - ZA(k);
+            if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
+        }
+        DZA(km) = ZI(km) - ZA(km);
+        if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
+        for (int k = 0; k < km; ++k) {
+            QA(k) = QQ(k) * DZ(k) / DZA(k);
+            QR(k) = QA(k) / DEN(k);
+        }
+        QA(km) = Real(0.0);
+    };
+
+    update_wind_and_state();
+
+    if (iter > 0) {
+        for (int k = 0; k < km; ++k) {
+            wsm6_slope_rain_cell(QR(k), DEN(k), DENFAC(k), pidn0r,
+                                 WSM6::qcrmin,
+                                 rslopermax, rsloperbmax, rsloper2max,
+                                 rsloper3max, WSM6::bvtr, pvtr,
+                                 TMP(k), TMP1(k), TMP2(k), TMP3(k), WA(k));
+        }
+        for (int k = 0; k < km; ++k) {
+            WW(k) = Real(0.5) * (WD(k) + WA(k));
+            WAS(k) = WA(k);
+        }
+        update_wind_and_state();
+    }
+
+    for (int k = 1; k < km; ++k) {
+        const Real dip = (QA(k + 1) - QA(k)) / (DZA(k + 1) + DZA(k));
+        const Real dim = (QA(k) - QA(k - 1)) / (DZA(k - 1) + DZA(k));
+        if (dip * dim <= Real(0.0)) {
+            QMI(k) = QA(k);
+            QPI(k) = QA(k);
+        } else {
+            QPI(k) = QA(k) + Real(0.5) * (dip + dim) * DZA(k);
+            QMI(k) = Real(2.0) * QA(k) - QPI(k);
+            if (QPI(k) < Real(0.0) || QMI(k) < Real(0.0)) {
                 QPI(k) = QA(k);
-            } else {
-                QPI(k) = QA(k) + Real(0.5) * (dip + dim) * DZA(k);
-                QMI(k) = Real(2.0) * QA(k) - QPI(k);
-                if (QPI(k) < Real(0.0) || QMI(k) < Real(0.0)) {
-                    QPI(k) = QA(k);
-                    QMI(k) = QA(k);
-                }
+                QMI(k) = QA(k);
             }
         }
-        QPI(0) = QA(0);
-        QMI(0) = QA(0);
-        QMI(km) = QA(km);
-        QPI(km) = QA(km);
+    }
+    QPI(0) = QA(0);
+    QMI(0) = QA(0);
+    QMI(km) = QA(km);
+    QPI(km) = QA(km);
 
-        for (int k = 0; k < km; ++k) {
-            QN(k) = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        QN(k) = Real(0.0);
+    }
+
+    int kb = 0;
+    int kt = 0;
+    for (int k = 0; k < km; ++k) {
+        kb = amrex::max(kb - 1, 0);
+        kt = amrex::max(kt - 1, 0);
+
+        if (ZI(k) >= ZA(km)) {
+            break;
         }
 
-        int kb = 0;
-        int kt = 0;
-        for (int k = 0; k < km; ++k) {
-            kb = amrex::max(kb - 1, 0);
-            kt = amrex::max(kt - 1, 0);
-
-            if (ZI(k) >= ZA(km)) {
-                break;
-            }
-
-            for (int kk = kb; kk < km; ++kk) {
-                if (ZI(k) <= ZA(kk + 1)) {
-                    kb = kk;
-                    break;
-                }
-            }
-
-            for (int kk = kt; kk < km; ++kk) {
-                if (ZI(k + 1) <= ZA(kk)) {
-                    kt = kk;
-                    break;
-                }
-            }
-            kt = amrex::max(kt - 1, 0);
-
-            if (kt == kb) {
-                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
-                const Real th = (ZI(k + 1) - ZA(kb)) / DZA(kb);
-                const Real tl2 = tl * tl;
-                const Real th2 = th * th;
-                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
-                const Real qqh = qqd * th2 + QMI(kb) * th;
-                const Real qql = qqd * tl2 + QMI(kb) * tl;
-                QN(k) = (qqh - qql) / (th - tl);
-            } else if (kt > kb) {
-                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
-                const Real tl2 = tl * tl;
-                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
-                const Real qql = qqd * tl2 + QMI(kb) * tl;
-                const Real dql = QA(kb) - qql;
-                Real zsum = (Real(1.0) - tl) * DZA(kb);
-                Real qsum = dql * DZA(kb);
-                if (kt - kb > 1) {
-                    for (int m = kb + 1; m < kt; ++m) {
-                        zsum += DZA(m);
-                        qsum += QA(m) * DZA(m);
-                    }
-                }
-                const Real th = (ZI(k + 1) - ZA(kt)) / DZA(kt);
-                const Real th2 = th * th;
-                const Real dqh = Real(0.5) * (QPI(kt) - QMI(kt)) * th2 + QMI(kt) * th;
-                zsum += th * DZA(kt);
-                qsum += dqh * DZA(kt);
-                QN(k) = qsum / zsum;
-            }
-        }
-
-        for (int k = 0; k < km; ++k) {
-            if (ZA(k) < Real(0.0) && ZA(k + 1) < Real(0.0)) {
-                precip[i] += QA(k) * DZA(k);
-            } else if (ZA(k) < Real(0.0) && ZA(k + 1) >= Real(0.0)) {
-                precip[i] += QA(k) * (Real(0.0) - ZA(k));
-                break;
-            } else {
+        for (int kk = kb; kk < km; ++kk) {
+            if (ZI(k) <= ZA(kk + 1)) {
+                kb = kk;
                 break;
             }
         }
 
-        for (int k = 0; k < km; ++k) {
-            rql[i * km + k] = QN(k);
-            wwl[i * km + k] = WW(k);
+        for (int kk = kt; kk < km; ++kk) {
+            if (ZI(k + 1) <= ZA(kk)) {
+                kt = kk;
+                break;
+            }
         }
+        kt = amrex::max(kt - 1, 0);
+
+        if (kt == kb) {
+            const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+            const Real th = (ZI(k + 1) - ZA(kb)) / DZA(kb);
+            const Real tl2 = tl * tl;
+            const Real th2 = th * th;
+            const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+            const Real qqh = qqd * th2 + QMI(kb) * th;
+            const Real qql = qqd * tl2 + QMI(kb) * tl;
+            QN(k) = (qqh - qql) / (th - tl);
+        } else if (kt > kb) {
+            const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+            const Real tl2 = tl * tl;
+            const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+            const Real qql = qqd * tl2 + QMI(kb) * tl;
+            const Real dql = QA(kb) - qql;
+            Real zsum = (Real(1.0) - tl) * DZA(kb);
+            Real qsum = dql * DZA(kb);
+            if (kt - kb > 1) {
+                for (int m = kb + 1; m < kt; ++m) {
+                    zsum += DZA(m);
+                    qsum += QA(m) * DZA(m);
+                }
+            }
+            const Real th = (ZI(k + 1) - ZA(kt)) / DZA(kt);
+            const Real th2 = th * th;
+            const Real dqh = Real(0.5) * (QPI(kt) - QMI(kt)) * th2 + QMI(kt) * th;
+            zsum += th * DZA(kt);
+            qsum += dqh * DZA(kt);
+            QN(k) = qsum / zsum;
+        }
+    }
+
+    for (int k = 0; k < km; ++k) {
+        if (ZA(k) < Real(0.0) && ZA(k + 1) < Real(0.0)) {
+            precip[0] += QA(k) * DZA(k);
+        } else if (ZA(k) < Real(0.0) && ZA(k + 1) >= Real(0.0)) {
+            precip[0] += QA(k) * (Real(0.0) - ZA(k));
+            break;
+        } else {
+            break;
+        }
+    }
+
+    for (int k = 0; k < km; ++k) {
+        sed_cell(i_s, j_s, klo_s + k, rq_comp) = QN(k);
+        sed_cell(i_s, j_s, klo_s + k, ww_comp) = WW(k);
     }
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void wsm6_nislfv_rain_plm6_scratch (int im, int km,
-                                    const Real* denl, const Real* denfacl,
-                                    const Real* tkl, const Real* dzl,
-                                    Real* wwl, Real* rql, Real* rql2,
+void wsm6_nislfv_rain_plm6_scratch (int km,
+                                    int ww_comp,
+                                    int rq_comp,
+                                    int rq2_comp,
                                     Real* precip1, Real* precip2, Real dt,
-                                    int id, int iter,
+                                    int iter,
                                     Array4<Real> const& sed_cell,
                                     Array4<Real> const& sed_node,
                                     int i_s, int j_s, int klo_s)
 {
-    static_cast<void>(id);
     auto DZ = [&](int k) -> amrex::Real& {
         return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::dz);
     };
@@ -1234,228 +1232,221 @@ void wsm6_nislfv_rain_plm6_scratch (int im, int km,
     const Real pvts = WSM6::avts * rgmma(Real(4.0) + WSM6::bvts) / Real(6.0);
     const Real pvtg = avtg * rgmma(Real(4.0) + bvtg) / Real(6.0);
 
-    for (int i = 0; i < im; ++i) {
-        Real allold = Real(0.0);
-        for (int k = 0; k < km; ++k) {
-            const int idx = i * km + k;
-            DZ(k) = dzl[idx];
-            QQ(k) = rql[idx];
-            QQ2(k) = rql2[idx];
-            WW(k) = wwl[idx];
-            WD(k) = WW(k);
-            DEN(k) = denl[idx];
-            DENFAC(k) = denfacl[idx];
-            TK(k) = tkl[idx];
-            allold += QQ(k) + QQ2(k);
+    Real allold = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        QQ(k) = sed_cell(i_s, j_s, klo_s + k, rq_comp);
+        QQ2(k) = sed_cell(i_s, j_s, klo_s + k, rq2_comp);
+        WW(k) = sed_cell(i_s, j_s, klo_s + k, ww_comp);
+        WD(k) = WW(k);
+        allold += QQ(k) + QQ2(k);
+    }
+
+    precip1[0] = Real(0.0);
+    precip2[0] = Real(0.0);
+    if (allold <= Real(0.0)) {
+        return;
+    }
+
+    ZI(0) = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        ZI(k + 1) = ZI(k) + DZ(k);
+    }
+
+    auto update_wind_and_state = [&](void) {
+        WI(0) = WW(0);
+        WI(km) = WW(km - 1);
+        for (int k = 1; k < km; ++k) {
+            WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
         }
 
-        precip1[i] = Real(0.0);
-        precip2[i] = Real(0.0);
-        if (allold <= Real(0.0)) {
-            continue;
+        WI(0) = WW(0);
+        WI(1) = Real(0.5) * (WW(1) + WW(0));
+        for (int k = 2; k < km - 1; ++k) {
+            WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
+                  - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
         }
-
-        ZI(0) = Real(0.0);
-        for (int k = 0; k < km; ++k) {
-            ZI(k + 1) = ZI(k) + DZ(k);
-        }
-
-        auto update_wind_and_state = [&](void) {
-            WI(0) = WW(0);
+        if (km > 1) {
+            WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
             WI(km) = WW(km - 1);
-            for (int k = 1; k < km; ++k) {
-                WI(k) = (WW(k) * DZ(k - 1) + WW(k - 1) * DZ(k)) / (DZ(k - 1) + DZ(k));
-            }
-
-            WI(0) = WW(0);
-            WI(1) = Real(0.5) * (WW(1) + WW(0));
-            for (int k = 2; k < km - 1; ++k) {
-                WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
-                      - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
-            }
-            if (km > 1) {
-                WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
-                WI(km) = WW(km - 1);
-            }
-
-            for (int k = 1; k < km; ++k) {
-                if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
-            }
-
-            const Real con1 = Real(0.05);
-            for (int k = km - 1; k >= 0; --k) {
-                const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
-                if (decfl > con1) {
-                    WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
-                }
-            }
-
-            for (int k = 0; k <= km; ++k) {
-                ZA(k) = ZI(k) - WI(k) * dt;
-            }
-
-            for (int k = 0; k < km; ++k) {
-                DZA(k) = ZA(k + 1) - ZA(k);
-                if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
-            }
-            DZA(km) = ZI(km) - ZA(km);
-            if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
-            for (int k = 0; k < km; ++k) {
-                QA(k) = QQ(k) * DZ(k) / DZA(k);
-                QA2(k) = QQ2(k) * DZ(k) / DZA(k);
-                QR(k) = QA(k) / DEN(k);
-                QR2(k) = QA2(k) / DEN(k);
-            }
-            QA(km) = Real(0.0);
-            QA2(km) = Real(0.0);
-        };
-
-        update_wind_and_state();
-
-        if (iter > 0) {
-            Real n0sfac_dummy;
-            for (int k = 0; k < km; ++k) {
-                wsm6_slope_snow_cell(QR(k), DEN(k), DENFAC(k), TK(k), pidn0s,
-                                     Real(0.12), Real(1.0e11), Real(2.0e6),
-                                     Real(273.15), Real(WSM6::qcrmin),
-                                     rslopesmax, rslopesbmax, rslopes2max,
-                                     rslopes3max, WSM6::bvts, pvts,
-                                     TMP(k), TMP1(k), TMP2(k), TMP3(k),
-                                     WA(k), n0sfac_dummy);
-                wsm6_slope_graup_cell(QR2(k), DEN(k), DENFAC(k), pidn0g,
-                                      Real(WSM6::qcrmin), rslopegmax,
-                                      rslopegbmax, rslopeg2max, rslopeg3max,
-                                      Real(0.8), pvtg,
-                                      TMP(k), TMP1(k), TMP2(k), TMP3(k),
-                                      WA2(k));
-            }
-            for (int k = 0; k < km; ++k) {
-                const Real tmpq = amrex::max(QR(k) + QR2(k), Real(1.0e-15));
-                if (tmpq > Real(1.0e-15)) {
-                    WA(k) = (WA(k) * QR(k) + WA2(k) * QR2(k)) / tmpq;
-                } else {
-                    WA(k) = Real(0.0);
-                }
-            }
-            for (int k = 0; k < km; ++k) {
-                WW(k) = Real(0.5) * (WD(k) + WA(k));
-                WAS(k) = WA(k);
-            }
-            update_wind_and_state();
         }
 
-        for (int ist = 0; ist < 2; ++ist) {
-            const int qn_comp = (ist == 0)
-                ? WSM6SedCellScratch::qn
-                : WSM6SedCellScratch::qn2;
-            const int qa_comp = (ist == 0)
-                ? WSM6SedNodeScratch::qa
-                : WSM6SedNodeScratch::qa2;
-            auto QN_DST = [&](int k) -> Real& {
-                return sed_cell(i_s,j_s,klo_s+k,qn_comp);
-            };
-            auto QA_SRC = [&](int k) -> Real& {
-                return sed_node(i_s,j_s,klo_s+k,qa_comp);
-            };
-            Real* precip_dst = (ist == 0) ? &precip1[i] : &precip2[i];
+        for (int k = 1; k < km; ++k) {
+            if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
+        }
 
-            for (int k = 1; k < km; ++k) {
-                const Real dip = (QA_SRC(k + 1) - QA_SRC(k)) / (DZA(k + 1) + DZA(k));
-                const Real dim = (QA_SRC(k) - QA_SRC(k - 1)) / (DZA(k - 1) + DZA(k));
-                if (dip * dim <= Real(0.0)) {
-                    QMI(k) = QA_SRC(k);
-                    QPI(k) = QA_SRC(k);
-                } else {
-                    QPI(k) = QA_SRC(k) + Real(0.5) * (dip + dim) * DZA(k);
-                    QMI(k) = Real(2.0) * QA_SRC(k) - QPI(k);
-                    if (QPI(k) < Real(0.0) || QMI(k) < Real(0.0)) {
-                        QPI(k) = QA_SRC(k);
-                        QMI(k) = QA_SRC(k);
-                    }
-                }
+        const Real con1 = Real(0.05);
+        for (int k = km - 1; k >= 0; --k) {
+            const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
+            if (decfl > con1) {
+                WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
             }
-            QPI(0) = QA_SRC(0);
-            QMI(0) = QA_SRC(0);
-            QMI(km) = QA_SRC(km);
-            QPI(km) = QA_SRC(km);
+        }
 
-            for (int k = 0; k < km; ++k) {
-                QN_DST(k) = Real(0.0);
-            }
-
-            int kb = 0;
-            int kt = 0;
-            for (int k = 0; k < km; ++k) {
-                if (ZI(k) >= ZA(km)) {
-                    break;
-                }
-
-                for (int kk = kb; kk < km; ++kk) {
-                    if (ZI(k) <= ZA(kk + 1)) {
-                        kb = kk;
-                        break;
-                    }
-                }
-
-                for (int kk = kt; kk < km; ++kk) {
-                    if (ZI(k + 1) <= ZA(kk)) {
-                        kt = kk;
-                        break;
-                    }
-                }
-                kt = amrex::max(kt - 1, 0);
-
-                if (kt == kb) {
-                    const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
-                    const Real th = (ZI(k + 1) - ZA(kb)) / DZA(kb);
-                    const Real tl2 = tl * tl;
-                    const Real th2 = th * th;
-                    const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
-                    const Real qqh = qqd * th2 + QMI(kb) * th;
-                    const Real qql = qqd * tl2 + QMI(kb) * tl;
-                    QN_DST(k) = (qqh - qql) / (th - tl);
-                } else if (kt > kb) {
-                    const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
-                    const Real tl2 = tl * tl;
-                    const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
-                    const Real qql = qqd * tl2 + QMI(kb) * tl;
-                    const Real dql = QA_SRC(kb) - qql;
-                    Real zsum = (Real(1.0) - tl) * DZA(kb);
-                    Real qsum = dql * DZA(kb);
-                    if (kt - kb > 1) {
-                        for (int m = kb + 1; m < kt; ++m) {
-                            zsum += DZA(m);
-                            qsum += QA_SRC(m) * DZA(m);
-                        }
-                    }
-                    const Real th = (ZI(k + 1) - ZA(kt)) / DZA(kt);
-                    const Real th2 = th * th;
-                    const Real dqh = Real(0.5) * (QPI(kt) - QMI(kt)) * th2 + QMI(kt) * th;
-                    zsum += th * DZA(kt);
-                    qsum += dqh * DZA(kt);
-                    QN_DST(k) = qsum / zsum;
-                }
-            }
-
-            Real precip = Real(0.0);
-            for (int k = 0; k < km; ++k) {
-                if (ZA(k) < Real(0.0) && ZA(k + 1) < Real(0.0)) {
-                    precip += QA_SRC(k) * DZA(k);
-                } else if (ZA(k) < Real(0.0) && ZA(k + 1) >= Real(0.0)) {
-                    precip += QA_SRC(k) * (Real(0.0) - ZA(k));
-                    break;
-                } else {
-                    break;
-                }
-            }
-            *precip_dst = precip;
+        for (int k = 0; k <= km; ++k) {
+            ZA(k) = ZI(k) - WI(k) * dt;
         }
 
         for (int k = 0; k < km; ++k) {
-            rql[i * km + k] = QN(k);
-            rql2[i * km + k] = QN2(k);
-            wwl[i * km + k] = WW(k);
+            DZA(k) = ZA(k + 1) - ZA(k);
+            if (DZA(k) <= Real(0.0)) DZA(k) = DZ(k);
         }
+        DZA(km) = ZI(km) - ZA(km);
+        if (DZA(km) <= Real(0.0)) DZA(km) = DZ(km > 0 ? km - 1 : 0);
+        for (int k = 0; k < km; ++k) {
+            QA(k) = QQ(k) * DZ(k) / DZA(k);
+            QA2(k) = QQ2(k) * DZ(k) / DZA(k);
+            QR(k) = QA(k) / DEN(k);
+            QR2(k) = QA2(k) / DEN(k);
+        }
+        QA(km) = Real(0.0);
+        QA2(km) = Real(0.0);
+    };
+
+    update_wind_and_state();
+
+    if (iter > 0) {
+        Real n0sfac_dummy;
+        for (int k = 0; k < km; ++k) {
+            wsm6_slope_snow_cell(QR(k), DEN(k), DENFAC(k), TK(k), pidn0s,
+                                 Real(0.12), Real(1.0e11), Real(2.0e6),
+                                 Real(273.15), Real(WSM6::qcrmin),
+                                 rslopesmax, rslopesbmax, rslopes2max,
+                                 rslopes3max, WSM6::bvts, pvts,
+                                 TMP(k), TMP1(k), TMP2(k), TMP3(k),
+                                 WA(k), n0sfac_dummy);
+            wsm6_slope_graup_cell(QR2(k), DEN(k), DENFAC(k), pidn0g,
+                                  Real(WSM6::qcrmin), rslopegmax,
+                                  rslopegbmax, rslopeg2max, rslopeg3max,
+                                  Real(0.8), pvtg,
+                                  TMP(k), TMP1(k), TMP2(k), TMP3(k),
+                                  WA2(k));
+        }
+        for (int k = 0; k < km; ++k) {
+            const Real tmpq = amrex::max(QR(k) + QR2(k), Real(1.0e-15));
+            if (tmpq > Real(1.0e-15)) {
+                WA(k) = (WA(k) * QR(k) + WA2(k) * QR2(k)) / tmpq;
+            } else {
+                WA(k) = Real(0.0);
+            }
+        }
+        for (int k = 0; k < km; ++k) {
+            WW(k) = Real(0.5) * (WD(k) + WA(k));
+            WAS(k) = WA(k);
+        }
+        update_wind_and_state();
+    }
+
+    for (int ist = 0; ist < 2; ++ist) {
+        const int qn_comp = (ist == 0)
+            ? WSM6SedCellScratch::qn
+            : WSM6SedCellScratch::qn2;
+        const int qa_comp = (ist == 0)
+            ? WSM6SedNodeScratch::qa
+            : WSM6SedNodeScratch::qa2;
+        auto QN_DST = [&](int k) -> Real& {
+            return sed_cell(i_s,j_s,klo_s+k,qn_comp);
+        };
+        auto QA_SRC = [&](int k) -> Real& {
+            return sed_node(i_s,j_s,klo_s+k,qa_comp);
+        };
+        Real* precip_dst = (ist == 0) ? &precip1[0] : &precip2[0];
+
+        for (int k = 1; k < km; ++k) {
+            const Real dip = (QA_SRC(k + 1) - QA_SRC(k)) / (DZA(k + 1) + DZA(k));
+            const Real dim = (QA_SRC(k) - QA_SRC(k - 1)) / (DZA(k - 1) + DZA(k));
+            if (dip * dim <= Real(0.0)) {
+                QMI(k) = QA_SRC(k);
+                QPI(k) = QA_SRC(k);
+            } else {
+                QPI(k) = QA_SRC(k) + Real(0.5) * (dip + dim) * DZA(k);
+                QMI(k) = Real(2.0) * QA_SRC(k) - QPI(k);
+                if (QPI(k) < Real(0.0) || QMI(k) < Real(0.0)) {
+                    QPI(k) = QA_SRC(k);
+                    QMI(k) = QA_SRC(k);
+                }
+            }
+        }
+        QPI(0) = QA_SRC(0);
+        QMI(0) = QA_SRC(0);
+        QMI(km) = QA_SRC(km);
+        QPI(km) = QA_SRC(km);
+
+        for (int k = 0; k < km; ++k) {
+            QN_DST(k) = Real(0.0);
+        }
+
+        int kb = 0;
+        int kt = 0;
+        for (int k = 0; k < km; ++k) {
+            if (ZI(k) >= ZA(km)) {
+                break;
+            }
+
+            for (int kk = kb; kk < km; ++kk) {
+                if (ZI(k) <= ZA(kk + 1)) {
+                    kb = kk;
+                    break;
+                }
+            }
+
+            for (int kk = kt; kk < km; ++kk) {
+                if (ZI(k + 1) <= ZA(kk)) {
+                    kt = kk;
+                    break;
+                }
+            }
+            kt = amrex::max(kt - 1, 0);
+
+            if (kt == kb) {
+                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+                const Real th = (ZI(k + 1) - ZA(kb)) / DZA(kb);
+                const Real tl2 = tl * tl;
+                const Real th2 = th * th;
+                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+                const Real qqh = qqd * th2 + QMI(kb) * th;
+                const Real qql = qqd * tl2 + QMI(kb) * tl;
+                QN_DST(k) = (qqh - qql) / (th - tl);
+            } else if (kt > kb) {
+                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+                const Real tl2 = tl * tl;
+                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+                const Real qql = qqd * tl2 + QMI(kb) * tl;
+                const Real dql = QA_SRC(kb) - qql;
+                Real zsum = (Real(1.0) - tl) * DZA(kb);
+                Real qsum = dql * DZA(kb);
+                if (kt - kb > 1) {
+                    for (int m = kb + 1; m < kt; ++m) {
+                        zsum += DZA(m);
+                        qsum += QA_SRC(m) * DZA(m);
+                    }
+                }
+                const Real th = (ZI(k + 1) - ZA(kt)) / DZA(kt);
+                const Real th2 = th * th;
+                const Real dqh = Real(0.5) * (QPI(kt) - QMI(kt)) * th2 + QMI(kt) * th;
+                zsum += th * DZA(kt);
+                qsum += dqh * DZA(kt);
+                QN_DST(k) = qsum / zsum;
+            }
+        }
+
+        Real precip = Real(0.0);
+        for (int k = 0; k < km; ++k) {
+            if (ZA(k) < Real(0.0) && ZA(k + 1) < Real(0.0)) {
+                precip += QA_SRC(k) * DZA(k);
+            } else if (ZA(k) < Real(0.0) && ZA(k + 1) >= Real(0.0)) {
+                precip += QA_SRC(k) * (Real(0.0) - ZA(k));
+                break;
+            } else {
+                break;
+            }
+        }
+        *precip_dst = precip;
+    }
+
+    for (int k = 0; k < km; ++k) {
+        sed_cell(i_s, j_s, klo_s + k, rq_comp) = QN(k);
+        sed_cell(i_s, j_s, klo_s + k, rq2_comp) = QN2(k);
+        sed_cell(i_s, j_s, klo_s + k, ww_comp) = WW(k);
     }
 }
 
@@ -1966,19 +1957,38 @@ WSM6::Advance(const Real& dt_advance,
             // G5a-G5e: sedimentation setup, nislfv calls, and flux updates
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
-                if (km_local > WSM6_MAX_LEVELS) return;
 
                 constexpr Real qsum_min = Real(1.0e-15);
-                Real den_col[WSM6_MAX_LEVELS];
-                Real denfac_col[WSM6_MAX_LEVELS];
-                Real t_col[WSM6_MAX_LEVELS];
-                Real dz_col[WSM6_MAX_LEVELS];
-                Real workr_col[WSM6_MAX_LEVELS];
-                Real worka_col[WSM6_MAX_LEVELS];
-                Real denqrs1_col[WSM6_MAX_LEVELS];
-                Real denqrs2_col[WSM6_MAX_LEVELS];
-                Real denqrs3_col[WSM6_MAX_LEVELS];
-                Real qsum_col[WSM6_MAX_LEVELS];
+                auto den_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::den);
+                };
+                auto denfac_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denfac);
+                };
+                auto t_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::tk);
+                };
+                auto dz_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::dz);
+                };
+                auto workr_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::workr_col);
+                };
+                auto worka_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::worka_col);
+                };
+                auto denqrs1_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denqrs1_col);
+                };
+                auto denqrs2_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denqrs2_col);
+                };
+                auto denqrs3_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denqrs3_col);
+                };
+                auto qsum_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::qsum_col);
+                };
                 Real delqrs1_col = Real(0.0);
                 Real delqrs2_col = Real(0.0);
                 Real delqrs3_col = Real(0.0);
@@ -1986,75 +1996,79 @@ WSM6::Advance(const Real& dt_advance,
                 // G5a: pack sedimentation work arrays
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    den_col[kk]    = den_arr(i,j,k);
-                    denfac_col[kk] = denfac_arr(i,j,k);
-                    t_col[kk]      = t_arr(i,j,k);
-                    dz_col[kk]     = delz_tmp_arr(i,j,k);
-                    workr_col[kk]  = work1_r_arr(i,j,k);
-                    qsum_col[kk]   = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), qsum_min);
-                    if (qsum_col[kk] > qsum_min) {
-                        worka_col[kk] = (work1_s_arr(i,j,k) * qs_arr(i,j,k)
+                    den_col(kk)    = den_arr(i,j,k);
+                    denfac_col(kk) = denfac_arr(i,j,k);
+                    t_col(kk)      = t_arr(i,j,k);
+                    dz_col(kk)     = delz_tmp_arr(i,j,k);
+                    workr_col(kk)  = work1_r_arr(i,j,k);
+                    qsum_col(kk)   = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), qsum_min);
+                    if (qsum_col(kk) > qsum_min) {
+                        worka_col(kk) = (work1_s_arr(i,j,k) * qs_arr(i,j,k)
                                        + work1_g_arr(i,j,k) * qg_arr(i,j,k))
-                                      / qsum_col[kk];
+                                      / qsum_col(kk);
                     } else {
-                        worka_col[kk] = Real(0.0);
+                        worka_col(kk) = Real(0.0);
                     }
-                    denqrs1_col[kk] = den_col[kk] * qr_arr(i,j,k);
-                    denqrs2_col[kk] = den_col[kk] * qs_arr(i,j,k);
-                    denqrs3_col[kk] = den_col[kk] * qg_arr(i,j,k);
+                    denqrs1_col(kk) = den_col(kk) * qr_arr(i,j,k);
+                    denqrs2_col(kk) = den_col(kk) * qs_arr(i,j,k);
+                    denqrs3_col(kk) = den_col(kk) * qg_arr(i,j,k);
                     if (qr_arr(i,j,k) <= Real(0.0)) {
-                        workr_col[kk] = Real(0.0);
+                        workr_col(kk) = Real(0.0);
                     }
                 }
 
                 // G5b: rain sedimentation
                 wsm6_nislfv_rain_plm_scratch(
-                    1, km_local, den_col, denfac_col, t_col, dz_col,
-                    workr_col, denqrs1_col, &delqrs1_col, dtcld, 1, 1,
+                    km_local,
+                    WSM6SedCellScratch::workr_col,
+                    WSM6SedCellScratch::denqrs1_col,
+                    &delqrs1_col, dtcld, 1,
                     sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
                 // Strict Rule 30 snapshot: immediately after G5b
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    nislfv_r_diag_arr(i,j,k,0) = amrex::max(denqrs1_col[kk] / den_col[kk], Real(0.0));
-                    nislfv_r_diag_arr(i,j,k,1) = denqrs1_col[kk] * workr_col[kk] / delz_arr(i,j,k);
-                    nislfv_r_diag_arr(i,j,k,2) = workr_col[kk];
-                    nislfv_r_diag_arr(i,j,k,3) = denqrs1_col[kk];
-                    nislfv_r_diag_arr(i,j,k,4) = den_col[kk];
-                    nislfv_r_diag_arr(i,j,k,5) = denfac_col[kk];
+                    nislfv_r_diag_arr(i,j,k,0) = amrex::max(denqrs1_col(kk) / den_col(kk), Real(0.0));
+                    nislfv_r_diag_arr(i,j,k,1) = denqrs1_col(kk) * workr_col(kk) / delz_arr(i,j,k);
+                    nislfv_r_diag_arr(i,j,k,2) = workr_col(kk);
+                    nislfv_r_diag_arr(i,j,k,3) = denqrs1_col(kk);
+                    nislfv_r_diag_arr(i,j,k,4) = den_col(kk);
+                    nislfv_r_diag_arr(i,j,k,5) = denfac_col(kk);
                 }
 
                 // G5c: snow + graupel sedimentation
                 wsm6_nislfv_rain_plm6_scratch(
-                    1, km_local, den_col, denfac_col, t_col, dz_col,
-                    worka_col, denqrs2_col, denqrs3_col,
-                    &delqrs2_col, &delqrs3_col, dtcld, 1, 1,
+                    km_local,
+                    WSM6SedCellScratch::worka_col,
+                    WSM6SedCellScratch::denqrs2_col,
+                    WSM6SedCellScratch::denqrs3_col,
+                    &delqrs2_col, &delqrs3_col, dtcld, 1,
                     sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
                 // Strict Rule 30 snapshot: immediately after G5c
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    nislfv_sg_diag_arr(i,j,k,0) = amrex::max(denqrs2_col[kk] / den_col[kk], Real(0.0));
-                    nislfv_sg_diag_arr(i,j,k,1) = amrex::max(denqrs3_col[kk] / den_col[kk], Real(0.0));
-                    nislfv_sg_diag_arr(i,j,k,2) = denqrs2_col[kk] * worka_col[kk] / delz_arr(i,j,k);
-                    nislfv_sg_diag_arr(i,j,k,3) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
-                    nislfv_sg_diag_arr(i,j,k,4) = denqrs2_col[kk];
-                    nislfv_sg_diag_arr(i,j,k,5) = denqrs3_col[kk];
+                    nislfv_sg_diag_arr(i,j,k,0) = amrex::max(denqrs2_col(kk) / den_col(kk), Real(0.0));
+                    nislfv_sg_diag_arr(i,j,k,1) = amrex::max(denqrs3_col(kk) / den_col(kk), Real(0.0));
+                    nislfv_sg_diag_arr(i,j,k,2) = denqrs2_col(kk) * worka_col(kk) / delz_arr(i,j,k);
+                    nislfv_sg_diag_arr(i,j,k,3) = denqrs3_col(kk) * worka_col(kk) / delz_arr(i,j,k);
+                    nislfv_sg_diag_arr(i,j,k,4) = denqrs2_col(kk);
+                    nislfv_sg_diag_arr(i,j,k,5) = denqrs3_col(kk);
                 }
 
                 // G5d: update species and fall speeds
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    qsum_arr(i,j,k) = qsum_col[kk];
-                    workr_arr(i,j,k) = workr_col[kk];
-                    worka_arr(i,j,k) = worka_col[kk];
-                    denqrs1_arr(i,j,k) = denqrs1_col[kk];
-                    denqrs2_arr(i,j,k) = denqrs2_col[kk];
-                    denqrs3_arr(i,j,k) = denqrs3_col[kk];
-                    qr_arr(i,j,k) = amrex::max(denqrs1_col[kk] / den_col[kk], Real(0.0));
-                    qs_arr(i,j,k) = amrex::max(denqrs2_col[kk] / den_col[kk], Real(0.0));
-                    qg_arr(i,j,k) = amrex::max(denqrs3_col[kk] / den_col[kk], Real(0.0));
-                    fall_r_arr(i,j,k) = denqrs1_col[kk] * workr_col[kk] / delz_arr(i,j,k);
-                    fall_s_arr(i,j,k) = denqrs2_col[kk] * worka_col[kk] / delz_arr(i,j,k);
-                    fall_g_arr(i,j,k) = denqrs3_col[kk] * worka_col[kk] / delz_arr(i,j,k);
+                    qsum_arr(i,j,k) = qsum_col(kk);
+                    workr_arr(i,j,k) = workr_col(kk);
+                    worka_arr(i,j,k) = worka_col(kk);
+                    denqrs1_arr(i,j,k) = denqrs1_col(kk);
+                    denqrs2_arr(i,j,k) = denqrs2_col(kk);
+                    denqrs3_arr(i,j,k) = denqrs3_col(kk);
+                    qr_arr(i,j,k) = amrex::max(denqrs1_col(kk) / den_col(kk), Real(0.0));
+                    qs_arr(i,j,k) = amrex::max(denqrs2_col(kk) / den_col(kk), Real(0.0));
+                    qg_arr(i,j,k) = amrex::max(denqrs3_col(kk) / den_col(kk), Real(0.0));
+                    fall_r_arr(i,j,k) = denqrs1_col(kk) * workr_col(kk) / delz_arr(i,j,k);
+                    fall_s_arr(i,j,k) = denqrs2_col(kk) * worka_col(kk) / delz_arr(i,j,k);
+                    fall_g_arr(i,j,k) = denqrs3_col(kk) * worka_col(kk) / delz_arr(i,j,k);
                 }
 
                 // G5e: slab fall fluxes at the lower boundary
@@ -2179,53 +2193,49 @@ WSM6::Advance(const Real& dt_advance,
 
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 const int km_local = khi - klo + 1;
-#ifdef AMREX_USE_GPU
-                if (km_local > WSM6_MAX_LEVELS) return;
-#endif
-#ifndef AMREX_USE_GPU
-                amrex::Vector<Real> den_col_v(km_local);
-                amrex::Vector<Real> denfac_col_v(km_local);
-                amrex::Vector<Real> t_col_v(km_local);
-                amrex::Vector<Real> dz_col_v(km_local);
-                amrex::Vector<Real> work1c_col_v(km_local);
-                amrex::Vector<Real> denqci_col_v(km_local);
-                Real* den_col = den_col_v.data();
-                Real* denfac_col = denfac_col_v.data();
-                Real* t_col = t_col_v.data();
-                Real* dz_col = dz_col_v.data();
-                Real* work1c_col = work1c_col_v.data();
-                Real* denqci_col = denqci_col_v.data();
-#else
-                Real den_col[WSM6_MAX_LEVELS];
-                Real denfac_col[WSM6_MAX_LEVELS];
-                Real t_col[WSM6_MAX_LEVELS];
-                Real dz_col[WSM6_MAX_LEVELS];
-                Real work1c_col[WSM6_MAX_LEVELS];
-                Real denqci_col[WSM6_MAX_LEVELS];
-#endif
+                auto den_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::den);
+                };
+                auto denfac_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denfac);
+                };
+                auto t_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::tk);
+                };
+                auto dz_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::dz);
+                };
+                auto work1c_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::work1c_col);
+                };
+                auto denqci_col = [&](int k) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + k, WSM6SedCellScratch::denqci_col);
+                };
                 Real delqi_col = Real(0.0);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    den_col[kk]    = den_arr(i,j,k);
-                    denfac_col[kk] = denfac_arr(i,j,k);
-                    t_col[kk]      = t_arr(i,j,k);
-                    dz_col[kk]     = delz_tmp_arr(i,j,k);
-                    work1c_col[kk]  = work1c_arr(i,j,k);
-                    denqci_col[kk]  = denqci_arr(i,j,k);
+                    den_col(kk)    = den_arr(i,j,k);
+                    denfac_col(kk) = denfac_arr(i,j,k);
+                    t_col(kk)      = t_arr(i,j,k);
+                    dz_col(kk)     = delz_tmp_arr(i,j,k);
+                    work1c_col(kk) = work1c_arr(i,j,k);
+                    denqci_col(kk) = denqci_arr(i,j,k);
                 }
 
                 wsm6_nislfv_rain_plm_scratch(
-                    1, km_local, den_col, denfac_col, t_col, dz_col,
-                    work1c_col, denqci_col, &delqi_col, dtcld, (i - ilo + 1), 0,
+                    km_local,
+                    WSM6SedCellScratch::work1c_col,
+                    WSM6SedCellScratch::denqci_col,
+                    &delqi_col, dtcld, 0,
                     sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
 
                 for (int k = klo; k <= khi; ++k) {
                     const int kk = k - klo;
-                    work1c_arr(i,j,k) = work1c_col[kk];
-                    denqci_arr(i,j,k) = denqci_col[kk];
+                    work1c_arr(i,j,k) = work1c_col(kk);
+                    denqci_arr(i,j,k) = denqci_col(kk);
                     qi_arr(i,j,k) = amrex::max(
-                        denqci_col[kk] / den_col[kk], Real(0.0));
+                        denqci_col(kk) / den_col(kk), Real(0.0));
                 }
 
                 delqi_arr(i,j,0) = delqi_col / delz_arr(i,j,klo) / dtcld;
