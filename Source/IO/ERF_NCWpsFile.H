@@ -54,42 +54,16 @@ struct NDArray
 
    // constructor
    explicit NDArray (const std::string vname, const std::vector<size_t>& vshape)
-                    : name{vname}, shape{vshape}, ref_counted{1}, owned{true} {
-      data = new DType [this->ndim()];
-   }
+                    : name{vname}, shape{vshape},
+                      data{std::shared_ptr<DType[]>(new DType[this->ndim()],
+                                                   std::default_delete<DType[]>())} {}
 
    // default constructor
-   NDArray () : name{"null"}, ref_counted{1}, owned{false}, data{nullptr} {}
-
-   // copy constructor
-   NDArray (const NDArray& array) {
-     name  = array.name;
-     shape = array.shape;
-     data  = array.data;
-     owned = false;
-     ref_counted.fetch_add(1, std::memory_order_relaxed);
-   }
-
-   // copy assignment
-   NDArray& operator=(const NDArray& array) {
-      name  = array.name;
-      shape = array.shape;
-      data  = array.data;
-      owned = false;
-      ref_counted.fetch_add(1, std::memory_order_relaxed);
-      return *this;
-    }
-
-   // destructor
-   ~NDArray () {
-     ref_counted.fetch_sub(1, std::memory_order_acq_rel);
-     if (ref_counted == 1 && owned) delete[] data;
-   }
+   NDArray () : name{"null"}, data{nullptr} {}
 
    // get the data pointer
    decltype(auto) get_data () {
-     ref_counted.fetch_add(1, std::memory_order_relaxed);
-     return data;
+     return data.get();
    }
 
    // get the variable name
@@ -118,9 +92,7 @@ struct NDArray
  private:
    std::string name;
    std::vector<size_t> shape;
-   mutable std::atomic<size_t> ref_counted;
-   bool owned;
-   DType* data;
+   std::shared_ptr<DType[]> data;
 };
 
 int BuildFABsFromWRFBdyFile (const std::string &fname,

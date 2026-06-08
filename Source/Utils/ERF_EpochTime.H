@@ -5,10 +5,29 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <cctype>
 
 #ifdef _WIN32
 #define timegm _mkgmtime
 #endif
+
+AMREX_GPU_HOST AMREX_FORCE_INLINE
+bool
+parse_fixed_width_int (const char*& dt, int width, int& value)
+{
+    value = 0;
+
+    for (int idx = 0; idx < width; ++idx) {
+        unsigned char ch = static_cast<unsigned char>(dt[idx]);
+        if (ch == '\0' || !std::isdigit(ch)) {
+            return false;
+        }
+        value = 10 * value + (dt[idx] - '0');
+    }
+
+    dt += width;
+    return true;
+}
 
 AMREX_GPU_HOST AMREX_FORCE_INLINE
 std::time_t
@@ -22,33 +41,33 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
     while (*fmt && *dt) {
         if (*fmt == '%') {
             ++fmt;
+            int parsed_value = 0;
             switch (*fmt) {
             case 'Y': // 4-digit year
-                tmTime.tm_year = (dt[0]-'0')*1000 + (dt[1]-'0')*100
-                               + (dt[2]-'0')*10   + (dt[3]-'0');
+                if (!parse_fixed_width_int(dt, 4, parsed_value)) return -1;
+                tmTime.tm_year = parsed_value;
                 tmTime.tm_year -= 1900;
-                dt += 4;
                 break;
             case 'm': // 2-digit month
-                tmTime.tm_mon = (dt[0]-'0')*10 + (dt[1]-'0');
+                if (!parse_fixed_width_int(dt, 2, parsed_value)) return -1;
+                tmTime.tm_mon = parsed_value;
                 tmTime.tm_mon -= 1; // struct tm expects 0-11
-                dt += 2;
                 break;
             case 'd': // 2-digit day
-                tmTime.tm_mday = (dt[0]-'0')*10 + (dt[1]-'0');
-                dt += 2;
+                if (!parse_fixed_width_int(dt, 2, parsed_value)) return -1;
+                tmTime.tm_mday = parsed_value;
                 break;
             case 'H': // 2-digit hour
-                tmTime.tm_hour = (dt[0]-'0')*10 + (dt[1]-'0');
-                dt += 2;
+                if (!parse_fixed_width_int(dt, 2, parsed_value)) return -1;
+                tmTime.tm_hour = parsed_value;
                 break;
             case 'M': // 2-digit minute
-                tmTime.tm_min = (dt[0]-'0')*10 + (dt[1]-'0');
-                dt += 2;
+                if (!parse_fixed_width_int(dt, 2, parsed_value)) return -1;
+                tmTime.tm_min = parsed_value;
                 break;
             case 'S': // 2-digit second
-                tmTime.tm_sec = (dt[0]-'0')*10 + (dt[1]-'0');
-                dt += 2;
+                if (!parse_fixed_width_int(dt, 2, parsed_value)) return -1;
+                tmTime.tm_sec = parsed_value;
                 break;
             default:
                 // Unsupported format specifier
@@ -62,6 +81,18 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
             ++dt;
         }
         ++fmt;
+    }
+
+    if (*fmt != '\0' || *dt != '\0') {
+        return -1;
+    }
+
+    if (tmTime.tm_mon < 0 || tmTime.tm_mon > 11 ||
+        tmTime.tm_mday < 1 || tmTime.tm_mday > 31 ||
+        tmTime.tm_hour < 0 || tmTime.tm_hour > 23 ||
+        tmTime.tm_min < 0 || tmTime.tm_min > 59 ||
+        tmTime.tm_sec < 0 || tmTime.tm_sec > 60) {
+        return -1;
     }
 
     return timegm(&tmTime);

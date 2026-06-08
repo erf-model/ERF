@@ -103,7 +103,7 @@ main_main()
     const Vector<std::string>& varnames = pf_data.varNames();
 
     Vector<int> istep{3};
-    Real time = 0.;
+    Real time = pf_data.time();
 
     int max_grid_size = 64;
 

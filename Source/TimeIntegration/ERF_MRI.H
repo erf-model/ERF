@@ -75,8 +75,8 @@ private:
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_slow = T_store[1].get();
         // initializing to zero
-        for (long idx = 0; idx < S_sum->size(); idx++) { (*S_sum)[idx].setVal(0.0); }
-        for (long idx = 0; idx < F_slow->size(); idx++) { (*F_slow)[idx].setVal(0.0); }
+        for (long idx = 0; idx < S_sum->size(); idx++) { (*S_sum)[idx].setVal(0); }
+        for (long idx = 0; idx < F_slow->size(); idx++) { (*F_slow)[idx].setVal(0); }
     }
 
 public:
@@ -236,19 +236,19 @@ public:
 
             if (nrk == 0) {
                 if (force_stage1_single_substep || no_substepping) {
-                    nsubsteps = 1;               dtau = timestep / 3.0;
+                    nsubsteps = 1;               dtau = timestep / three;
                 } else {
                     nsubsteps = substep_ratio/3; dtau = sub_timestep  ;
                 }
-                time_stage = time + timestep / 3.0;
+                time_stage = time + timestep / three;
             }
             if (nrk == 1) {
                 if (no_substepping) {
-                    nsubsteps =               1; dtau = 0.5 * timestep;
+                    nsubsteps =               1; dtau = myhalf * timestep;
                 } else {
                     nsubsteps = substep_ratio/2; dtau =   sub_timestep;
                 }
-                time_stage = time + timestep / 2.0;
+                time_stage = time + timestep / two;
             }
             if (nrk == 2) {
                 if (no_substepping) {
@@ -269,7 +269,7 @@ public:
 
             slow_rhs_pre(*F_slow, S_old, S_new, time, old_time_stage, time_stage, nrk);
 
-            amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
+            amrex::Real inv_fac = one / static_cast<amrex::Real>(nsubsteps);
 
             // ****************************************************
             // Acoustic substepping

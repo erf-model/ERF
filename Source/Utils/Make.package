@@ -14,7 +14,6 @@ CEXE_headers += ERF_EpochTime.H
 CEXE_headers += ERF_ParFunctions.H
 CEXE_headers += ERF_MoistUtils.H
 CEXE_headers += ERF_SatMethods.H
-CEXE_headers += ERF_WaterVaporSaturation.H
 CEXE_headers += ERF_DirectionSelector.H
 CEXE_headers += ERF_StormDiagnostics.H
 CEXE_headers += ERF_HurricaneDiagnostics.H

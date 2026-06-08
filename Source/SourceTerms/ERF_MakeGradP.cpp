@@ -62,7 +62,7 @@ void make_gradp_pert (int level,
             const Array4<      Real>& pptemp_arr = p.array(mfi);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
+                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : zero;
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
             });
         }
@@ -154,7 +154,7 @@ compute_gradp (const MultiFab& p,
                         gpz_hi  = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
                         gpz_lo  = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                     }
-                    Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
+                    Real gpx_metric = met_h_xi * myhalf * (gpz_hi + gpz_lo);
                     gpx -= gpx_metric;
                 }
                 gpx_arr(i,j,k) = gpx;
@@ -188,7 +188,7 @@ compute_gradp (const MultiFab& p,
                         gpz_hi  = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
                         gpz_lo  = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                     }
-                    Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
+                    Real gpy_metric = met_h_eta * myhalf * (gpz_hi + gpz_lo);
                     gpy -= gpy_metric;
                 }
                 gpy_arr(i,j,k) = gpy;
@@ -237,7 +237,7 @@ compute_gradp (const MultiFab& p,
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    if (u_volfrac(i,j,k) > 0.0) {
+                    if (u_volfrac(i,j,k) > zero) {
 
                         if (u_cellflg(i,j,k).isSingleValued()) {
 
@@ -251,12 +251,12 @@ compute_gradp (const MultiFab& p,
                         }
 
                     } else {
-                        gpx_arr(i,j,k) = 0.0;
+                        gpx_arr(i,j,k) = zero;
                     }
                 },
                 [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    if (v_volfrac(i,j,k) > 0.0) {
+                    if (v_volfrac(i,j,k) > zero) {
 
                         if (v_cellflg(i,j,k).isSingleValued()) {
 
@@ -269,12 +269,12 @@ compute_gradp (const MultiFab& p,
                             gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                         }
                     } else {
-                        gpy_arr(i,j,k) = 0.0;
+                        gpy_arr(i,j,k) = zero;
                     }
                 },
                 [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    if (w_volfrac(i,j,k) > 0.0) {
+                    if (w_volfrac(i,j,k) > zero) {
 
                         if (w_cellflg(i,j,k).isSingleValued()) {
 
@@ -287,7 +287,7 @@ compute_gradp (const MultiFab& p,
                             gpz_arr(i,j,k) = dxInv[2] * (p_arr(i,j,k) - p_arr(i,j,k-1));
                         }
                     } else {
-                        gpz_arr(i,j,k) = 0.0;
+                        gpz_arr(i,j,k) = zero;
                     }
                 });
 
@@ -298,44 +298,44 @@ compute_gradp (const MultiFab& p,
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (u_volfrac(i,j,k) > 0.0) {
+                    if (u_volfrac(i,j,k) > zero) {
                         if (cellflg(i,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - 3.*p_arr(i-2,j,k) + 2.*p_arr(i-1,j,k));
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three*p_arr(i-2,j,k) + two*p_arr(i-1,j,k));
                         } else if (cellflg(i-1,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (3.*p_arr(i+1,j,k) - p_arr(i+2,j,k) - 2.*p_arr(i,j,k));
+                            gpx_arr(i,j,k) = dxInv[0] * (three*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two*p_arr(i,j,k));
                         } else {
                             gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         }
                     } else {
-                        gpx_arr(i,j,k) = 0.0;
+                        gpx_arr(i,j,k) = zero;
                     }
                 },
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (v_volfrac(i,j,k) > 0.0) {
+                    if (v_volfrac(i,j,k) > zero) {
                         if (cellflg(i,j,k).isCovered()) {
-                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - 3.*p_arr(i,j-2,k) + 2.*p_arr(i,j-1,k));
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three*p_arr(i,j-2,k) + two*p_arr(i,j-1,k));
                         } else if (cellflg(i,j-1,k).isCovered()) {
-                            gpy_arr(i,j,k) = dxInv[1] * (3.*p_arr(i,j+1,k) - p_arr(i,j+2,k) - 2.*p_arr(i,j,k));
+                            gpy_arr(i,j,k) = dxInv[1] * (three*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two*p_arr(i,j,k));
                         } else {
                             gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                         }
                     } else {
-                        gpy_arr(i,j,k) = 0.0;
+                        gpy_arr(i,j,k) = zero;
                     }
                 },
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (w_volfrac(i,j,k) > 0.0) {
+                    if (w_volfrac(i,j,k) > zero) {
                         if (cellflg(i,j,k).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-3) - 3.*p_arr(i,j,k-2) + 2.*p_arr(i,j,k-1) );
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-3) - three*p_arr(i,j,k-2) + two*p_arr(i,j,k-1) );
                         } else if (cellflg(i,j,k-1).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( 3.*p_arr(i,j,k+1) - p_arr(i,j,k+2) - 2.*p_arr(i,j,k) );
+                            gpz_arr(i,j,k) = dxInv[2] * ( three*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two*p_arr(i,j,k) );
                         } else {
                             gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
                         }
                     } else {
-                        gpz_arr(i,j,k) = 0.0;
+                        gpz_arr(i,j,k) = zero;
                     }
                 });
 
@@ -399,7 +399,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i-1,j,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
+                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     if (k==domain_klo) {
@@ -454,7 +454,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i,j-1,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
+                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     if (k==domain_klo) {

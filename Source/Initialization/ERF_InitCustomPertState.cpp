@@ -42,13 +42,6 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-    // If the initial condition needs to have spatially correlated perturbations superimposed onto
-    // the base state, then populate the "pert" multifabs with random perturbations,
-    // and then apply a Gaussian smoothing to make the perturbations spatially correlated
-    if(solverChoice.is_init_with_correlated_pert) {
-        create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
-        apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
-    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -84,7 +77,42 @@ ERF::init_custom (int lev)
                                     xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                     z_nd_arr, geom[lev].data(), mf_u, mf_v,
                                     solverChoice, lev);
+
+        // Zero out perturbations in covered cells in EB
+        if (solverChoice.terrain_type == TerrainType::EB) {
+
+            Array4<const EBCellFlag> c_cellflg = (get_eb(lev).get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> u_cellflg = (get_eb(lev).get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> v_cellflg = (get_eb(lev).get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const EBCellFlag> w_cellflg = (get_eb(lev).get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+            ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (c_cellflg(i,j,k).isCovered()) {
+                    cons_pert_arr(i,j,k,RhoTheta_comp) = 0.0;
+                }
+            });
+
+            ParallelFor(xbx, ybx, zbx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (u_cellflg(i,j,k).isCovered()) {
+                    xvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (v_cellflg(i,j,k).isCovered()) {
+                    yvel_pert_arr(i,j,k) = 0.0;
+                }
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (w_cellflg(i,j,k).isCovered()) {
+                    zvel_pert_arr(i,j,k) = 0.0;
+                }
+            });
+        }
+
     } //mfi
+
 
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density
     if (!solverChoice.fixed_density[lev]) {
@@ -93,8 +121,11 @@ ERF::init_custom (int lev)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp,        1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,NSCALARS, cons_pert.nGrow());
 
-    // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, or MYNN with PBL
+    // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, MYJ, SHOC, MYNN2.5 or MYNN-EDMF
+    // Here we initialize TKE to the tke_min value and then add problem-specific perturbations
     if (solverChoice.turbChoice[lev].use_tke) {
+        lev_new[Vars::cons].setVal(solverChoice.turbChoice[lev].tke_min, RhoKE_comp, 1);
+        MultiFab::Multiply(lev_new[Vars::cons],lev_new[Vars::cons],Rho_comp,RhoKE_comp,1,lev_new[Vars::cons].nGrowVect());
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 
@@ -106,107 +137,28 @@ ERF::init_custom (int lev)
         }
     }
 
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
-}
-
-void
-ERF::create_random_perturbations(const int lev,
-                                 MultiFab& cons_pert,
-                                 MultiFab& xvel_pert,
-                                 MultiFab& yvel_pert,
-                                 MultiFab& zvel_pert)
-{
-    ignore_unused(cons_pert);
-    ignore_unused(yvel_pert);
-    ignore_unused(zvel_pert);
-
-    auto& lev_new = vars_new[lev];
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto &xvel_pert_arr = xvel_pert.array(mfi);
-        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
-        ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
-        {
-            xvel_pert_arr(i, j, k) = amrex::Random(engine);
-        });
-    }
-}
-
-void
-ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
-                                               MultiFab& cons_pert,
-                                               MultiFab& xvel_pert,
-                                               MultiFab& yvel_pert,
-                                               MultiFab& zvel_pert)
-{
-    ignore_unused(cons_pert);
-    ignore_unused(yvel_pert);
-    ignore_unused(zvel_pert);
-
-    const Geometry& gm = geom[lev];
-    const Real dx = gm.CellSize(0);
-    const Real dy = gm.CellSize(1);
-
-    const Real dmesh = std::min(dx, dy);
-    // ---- User choices ----
-    const Real sigma = solverChoice.pert_correlated_radius; // e.g. 2 km correlation length
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);  // stencil radius
-
-    // ---- Precompute Gaussian weights on host ----
-    const int wsize = 2*r + 1;
-    Vector<Real> w_host(wsize * wsize);
-
-    Real Z = 0.0;
-    for (int m = -r; m <= r; ++m) {
-        for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)/(2.0*sigma*sigma));
-            w_host[(m+r)*wsize + (n+r)] = val;
-            Z += val;
-        }
-    }
-    for (auto& v : w_host) {
-        v = v/Z;
+    // Should we initialize the velocities from a checkpoint file?
+    static std::string init_vels_from_checkpoint;
+    ParmParse pp("erf");
+    if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
+        ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
+    } else {
+        MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
     }
 
-    Gpu::DeviceVector<Real> w_dev;
-    w_dev.resize(w_host.size());
-    Gpu::copy(Gpu::hostToDevice, w_host.begin(), w_host.end(), w_dev.begin());
+    // If initializing for ensemble simluations, then
+    // 1. Create cell-centered random perturbations
+    // 2. Create cell-centered spatially correlated perturbations
+    // 3. Read in the coarse background state from the coarse data file,
+    //    interpolate the state data onto the current mesh, and
+    //    add the perturbations to the background state and then populate the "pert variables
 
-    Real const* w = w_dev.data();
-
-    // 1. Define ngrow_big using the actual dimension macro
-    IntVect ngrow_big(AMREX_D_DECL(r, r, 0));
-
-    // 2. Create the copy
-    MultiFab xvel_pert_copy(xvel_pert.boxArray(),
-                        xvel_pert.DistributionMap(),
-                        1, ngrow_big);
-    //MultiFab::Copy(xvel_pert_copy, xvel_pert, 0, 0, 1, 0);
-
-    // 3. Use the built-in copy that includes ghost cell logic
-    // Copy(dst, src, src_comp, dst_comp, num_comp, ngrow)
-    // Setting ngrow to 0 ensures we only take valid data from the original
-    xvel_pert_copy.ParallelCopy(xvel_pert, 0, 0, 1, IntVect(0), ngrow_big, gm.periodicity());
-
-    for (MFIter mfi(xvel_pert, TileNoZ()); mfi.isValid(); ++mfi)
-    {
-        const Box& tbx = mfi.tilebox();
-
-        auto const& in  = xvel_pert_copy.array(mfi);
-        auto const& out = xvel_pert.array(mfi);
-
-        ParallelFor(tbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real sum = 0.0;
-            for (int m = -r; m <= r; ++m) {
-                for (int n = -r; n <= r; ++n) {
-                    Real wij = w[(m+r)*wsize + (n+r)];
-                    sum += wij * in(i+m, j+n, k);
-                }
-            }
-            out(i,j,k) = sum;
-        });
+    if(solverChoice.is_init_for_ensemble) {
+        MultiFab mf_cc_pert;
+        create_random_perturbations(lev, mf_cc_pert);
+        apply_gaussian_smoothing_to_perturbations(lev, mf_cc_pert);
+        create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]);
     }
 }

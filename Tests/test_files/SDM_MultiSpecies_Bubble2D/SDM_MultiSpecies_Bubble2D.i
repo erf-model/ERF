@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "MultiSpecies Bubble"
+
 max_step  = 1
 stop_time = 3600.0
 
@@ -117,14 +119,13 @@ erf.buoyancy_type   = 1
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T          = 0.0 # [m^2/s]
 erf.alpha_C          = 0.0
 
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.coalescence_kernel = "Halls"
 super_droplets_moisture.species = water agua

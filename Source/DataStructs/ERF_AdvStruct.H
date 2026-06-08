@@ -43,7 +43,7 @@ struct AdvChoice {
              (dycore_horiz_adv_string == "Blended_5th6th") )
         {
             pp.query("dycore_horiz_upw_frac" , dycore_horiz_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((dycore_horiz_upw_frac >= 0.) && (dycore_horiz_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((dycore_horiz_upw_frac >= zero) && (dycore_horiz_upw_frac <= one),
                                       "The dycore horizontal upwinding fraction must be between 0 and 1");
         }
 
@@ -51,7 +51,7 @@ struct AdvChoice {
              (dycore_vert_adv_string == "Blended_5th6th") )
         {
             pp.query("dycore_vert_upw_frac" , dycore_vert_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((dycore_vert_upw_frac >= 0.) && (dycore_vert_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((dycore_vert_upw_frac >= zero) && (dycore_vert_upw_frac <= one),
                                       "The dycore vertical upwinding fraction must be between 0 and 1");
         }
 
@@ -59,7 +59,7 @@ struct AdvChoice {
              (dryscal_horiz_adv_string == "Blended_5th6th") )
         {
             pp.query("dryscal_horiz_upw_frac" , dryscal_horiz_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((dryscal_horiz_upw_frac >= 0.) && (dryscal_horiz_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((dryscal_horiz_upw_frac >= zero) && (dryscal_horiz_upw_frac <= one),
                                       "The dry scalar horizontal upwinding fraction must be between 0 and 1");
         }
 
@@ -67,7 +67,7 @@ struct AdvChoice {
              (dryscal_vert_adv_string == "Blended_5th6th") )
         {
             pp.query("dryscal_vert_upw_frac" , dryscal_vert_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((dryscal_vert_upw_frac >= 0.) && (dryscal_vert_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((dryscal_vert_upw_frac >= zero) && (dryscal_vert_upw_frac <= one),
                                       "The dry scalar vertical upwinding fraction must be between 0 and 1");
         }
 
@@ -75,7 +75,7 @@ struct AdvChoice {
              (moistscal_horiz_adv_string == "Blended_5th6th") )
         {
             pp.query("moistscal_horiz_upw_frac" , moistscal_horiz_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((moistscal_horiz_upw_frac >= 0.) && (moistscal_horiz_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((moistscal_horiz_upw_frac >= zero) && (moistscal_horiz_upw_frac <= one),
                                       "The moist scalar horizontal upwinding fraction must be between 0 and 1");
         }
 
@@ -83,7 +83,7 @@ struct AdvChoice {
              (moistscal_vert_adv_string == "Blended_5th6th") )
         {
             pp.query("moistscal_vert_upw_frac" , moistscal_vert_upw_frac);
-            AMREX_ASSERT_WITH_MESSAGE((moistscal_vert_upw_frac >= 0.) && (moistscal_vert_upw_frac <= 1.),
+            AMREX_ASSERT_WITH_MESSAGE((moistscal_vert_upw_frac >= zero) && (moistscal_vert_upw_frac <= one),
                                       "The moist scalar vertical upwinding fraction must be between 0 and 1");
         }
 
@@ -426,12 +426,12 @@ struct AdvChoice {
     // Blending between upwind and the next-highest order central scheme
     // Note: This is used by both Upwind_* and Blended_* schemes -- the default
     //       is a pure upwind scheme
-    amrex::Real dycore_horiz_upw_frac    = 1.0;
-    amrex::Real dycore_vert_upw_frac     = 1.0;
-    amrex::Real dryscal_horiz_upw_frac   = 1.0;
-    amrex::Real dryscal_vert_upw_frac    = 1.0;
-    amrex::Real moistscal_horiz_upw_frac = 1.0;
-    amrex::Real moistscal_vert_upw_frac  = 1.0;
+    amrex::Real dycore_horiz_upw_frac    = one;
+    amrex::Real dycore_vert_upw_frac     = one;
+    amrex::Real dryscal_horiz_upw_frac   = one;
+    amrex::Real dryscal_vert_upw_frac    = one;
+    amrex::Real moistscal_horiz_upw_frac = one;
+    amrex::Real moistscal_vert_upw_frac  = one;
 
     // Thin immersed bodies
     amrex::Vector<amrex::IntVect> zero_xflux;

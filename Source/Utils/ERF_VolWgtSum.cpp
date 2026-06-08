@@ -25,7 +25,7 @@ ERF::volWgtSumMF (int lev,
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
-    Real sum = 0.0;
+    Real sum = zero;
     MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where

@@ -7,6 +7,8 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 #include "ERF_SuperDropletPCDefinitions.H"
+#include "ERF_SuperDropletPCProcess.H"
+#include <AMReX_StructOfArrays.H>
 
 class SuperDropletPC : public ERFPC
 {
@@ -25,8 +27,8 @@ class SuperDropletPC : public ERFPC
         {
             define( a_species_mat,
                     a_aerosol_mat,
-                    a_gdb->ParticleBoxArray(m_lev),
-                    a_gdb->ParticleDistributionMap(m_lev),
+                    a_gdb->ParticleBoxArray(0),
+                    a_gdb->ParticleDistributionMap(0),
                     a_dt );
         }
 
@@ -55,10 +57,9 @@ class SuperDropletPC : public ERFPC
         AMREX_FORCE_INLINE
         virtual void setSpeciesMaterial ( const Species::Name& a_name )
         {
-            if (a_name == Species::Name::H2O) {
-                m_idx_w = m_species_mat.size();
-            }
+            if (a_name == Species::Name::H2O) { m_idx_w = m_species_mat.size(); }
             m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
+            m_device_props_initialized = false;
         }
 
         /*! \brief Set species material */
@@ -84,6 +85,7 @@ class SuperDropletPC : public ERFPC
         virtual void setAerosolMaterial ( const Species::Name& a_name )
         {
             m_aerosol_mat.push_back(std::make_unique<MaterialProperties>(a_name));
+            m_device_props_initialized = false;
         }
 
         /*! \brief Set aerosol material */
@@ -91,6 +93,52 @@ class SuperDropletPC : public ERFPC
         virtual void setAerosolMaterial ( const std::vector<Species::Name>& a_names )
         {
             for (auto& name : a_names) { setAerosolMaterial(name); }
+        }
+
+        /*! \brief Update device properties if material properties change */
+        void updateDeviceProperties();
+
+        /*! \brief Setup species and aerosol mass pointers from SOA */
+        template<typename SOAType>
+        void setupMassPointers(SOAType& soa, SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
+                               SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
+        {
+            for (int i = 0; i < m_num_species; i++) {
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i, m_num_aerosols, m_num_species)).data();
+            }
+            for (int i = 0; i < m_num_aerosols; i++) {
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i, m_num_aerosols, m_num_species)).data();
+            }
+        }
+
+        /*! \brief Update particle radius and total mass from species/aerosol masses */
+        AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+        static void updateParticleAttributes(
+            int particle_idx,
+            amrex::ParticleReal* radius_ptr,
+            amrex::ParticleReal* mass_ptr,
+            int idx_w,
+            amrex::ParticleReal rho_w,
+            int num_sp, int num_ae,
+            const int* sp_sol_arr,
+            const int* ae_sol_arr,
+            const SDPCDefn::SDSpeciesMassArr sp_mass_ptrs,
+            const SDPCDefn::SDAerosolMassArr ae_mass_ptrs,
+            const amrex::ParticleReal* sp_rho_arr,
+            const amrex::ParticleReal* ae_rho_arr)
+        {
+            // Update effective radius
+            radius_ptr[particle_idx] = SD_effective_radius(
+                particle_idx, idx_w, rho_w,
+                num_sp, num_ae,
+                sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs,
+                sp_rho_arr, ae_rho_arr);
+
+            // Update total mass
+            mass_ptr[particle_idx] = SD_total_mass(
+                particle_idx, num_sp, num_ae,
+                sp_mass_ptrs, ae_mass_ptrs);
         }
 
         /*! \brief Get real-type particle attribute names */
@@ -102,26 +150,31 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute mesh variable from particles */
         virtual void computeMeshVar( const std::string&,
                                      amrex::MultiFab&,
+                                     const amrex::MultiFab&,
                                      const int ) const override;
 
-        /*! \brief Initialize super-droplets in domain */
-        virtual void InitializeParticles (const amrex::Real, const MFPtr& a_ptr) override;
+        /*! \brief Initialize super-droplets in domain at AMR level a_lev */
+        void InitializeParticles (const int a_lev, const amrex::Real a_t, const MFPtr& a_ptr);
+
+        using ERFPC::InitializeParticles;
 
         /*! \brief Inject super-droplets in domain */
         virtual void InjectParticles (const amrex::Real, const MFPtr& a_ptr, const amrex::Real);
 
         /*! \brief add particles for a given set of initialization parameters */
-        void addParticles ( const MFPtr&, const SDInitProperties& );
+        void addParticles ( int a_lev, const MFPtr&, const SDInitProperties& );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
-        void setNumSDBoxDistribution( amrex::iMultiFab&,
+        void setNumSDBoxDistribution( int a_lev,
+                                      amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
                                       const amrex::RealBox&,
                                       const bool );
 
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
-        void setNumSDBubbleDistribution( amrex::iMultiFab&,
+        void setNumSDBubbleDistribution( int a_lev,
+                                      amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
                                       const amrex::RealBox&,
@@ -146,18 +199,7 @@ class SuperDropletPC : public ERFPC
             amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
         }
 
-        /*! \brief Advect particles for one time step
-         * \param[in] a_lev AMR level
-         * \param[in] a_time Current simulation time
-         * \param[in] a_dt Timestep for advection
-         * \param[in] a_flow_vel Array of face-based velocities
-         * \param[in] a_density Density field
-         * \param[in] a_pressure Pressure field
-         * \param[in] a_temperature Temperature field
-         * \param[in] a_z_phys_nd Array of terrain heights
-         * \param[in] a_bctypes Array of boundary condition types
-         * \param[in] a_recycle Flag to enable particle recycling
-         */
+        /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int a_lev,
                                          amrex::Real a_time,
                                          amrex::Real a_dt,
@@ -169,17 +211,7 @@ class SuperDropletPC : public ERFPC
                                          const BCTypeArr& a_bctypes,
                                          const bool a_recycle);
 
-        /*! \brief Grow/shrink particles for one time step
-         * \param[in] a_lev AMR level
-         * \param[in] a_dt Timestep for mass change
-         * \param[in] a_vap_name Name of the vapour species undergoing phase change
-         * \param[in] a_temperature Temperature field
-         * \param[in] a_pressure Pressure field
-         * \param[in] a_sat_pressure Saturation pressure field
-         * \param[in] a_sat_ratio Saturation ratio field
-         * \param[in] a_z_phys_nd Array of terrain heights
-         * \param[in] a_is_water Flag indicating if this is water species
-         */
+        /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int a_lev,
                                     amrex::Real a_dt,
                                     const Species::Name& a_vap_name,
@@ -190,24 +222,13 @@ class SuperDropletPC : public ERFPC
                                     const amrex::Vector<MFPtr>& a_z_phys_nd,
                                     const bool a_is_water);
 
-        /*! \brief Coalescence of super-droplets
-         * \param[in] a_lev AMR level
-         * \param[in] a_dt Timestep for coalescence
-         * \param[in] a_pressure Pressure field used in coalescence calculation
-         * \param[in] a_temperature Temperature field used in coalescence calculation
-         */
+        /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int a_lev,
                                     amrex::Real a_dt,
                                     const amrex::MultiFab& a_pressure,
                                     const amrex::MultiFab& a_temperature);
 
-        /*! \brief Recycle super-droplets
-         * \param[in] a_lev AMR level
-         * \param[in] a_z_phys_nd Array of terrain heights
-         * \param[in] a_iter Current iteration number
-         * \param[in] a_dt Timestep size
-         * \param[in] a_recycle Flag to enable recycling
-         */
+        /*! \brief Recycle super-droplets */
         virtual void Recycle ( const int a_lev,
                                const amrex::Vector<MFPtr>& a_z_phys_nd,
                                const int a_iter,
@@ -228,60 +249,62 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (int, amrex::Real, bool);
+        virtual void Diagnostics (int, int, amrex::Real, bool);
         /*! \brief Compute mass density distribution */
-        virtual void ComputeDistributions (  int,
+        virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,
                                              amrex::ParticleReal );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         /*! \brief Compute binned size distributions */
-        virtual void ComputeBinnedDistributions ( int );
+        virtual void ComputeBinnedDistributions ( int, int );
         /*! \brief Compute cell-wise binned size distributions */
-        virtual void ComputeBinnedDistributionsCell ( int, amrex::Real );
+        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real );
 #endif
 
         /*! \brief Compute the SD number density on a mesh */
-        virtual void SDNumberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
+        virtual void SDNumberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle number density on a mesh */
-        virtual void numberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
+        virtual void numberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
+        virtual void massDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int& a_lev, const int& a_comp=0 ) const override;
         /*! \brief Compute the mass flux component on a mesh */
-        virtual void massFlux ( amrex::MultiFab&, const int, const int a_comp=0 ) const;
+        virtual void massFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
 
-        /*! \brief Compute the condensate mass density on a mesh */
-        virtual void speciesMassDensity ( amrex::MultiFab& a_mf, const int a_i ) const
-        {
-            speciesMassDensity(a_mf, a_i, 0.0, DBL_MAX);
-        }
-        /*! \brief Compute the condensate mass density on a mesh */
+        /*! \brief Compute the species mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab&,
-                                          const int,
-                                          const amrex::Real,
-                                          const amrex::Real,
+                                          const amrex::MultiFab& a_z_phys_nd,
+                                          int a_lev,
+                                          int,
                                           const int a_comp = 0) const;
-        /*! \brief Compute the condensate mass flux component on a mesh */
-        virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
+
+        /*! \brief Compute the cloud/rain mass density on a mesh */
+        virtual void cloudRainDensity ( amrex::MultiFab&,
+                                        const amrex::MultiFab& a_z_phys_nd,
+                                        int a_lev,
+                                        amrex::Real,
+                                        amrex::Real,
+                                        const int a_comp = 0) const;
+
+        /*! \brief Compute the species mass flux component on a mesh */
+        virtual void speciesMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the aerosol mass density on a mesh */
-        virtual void aerosolMassDensity ( amrex::MultiFab&, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
-        virtual void aerosolMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the particle effective radius on a mesh */
-        virtual void effectiveRadius ( amrex::MultiFab&, const int a_comp=0 ) const;
+        virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
     protected:
 
-        const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
-
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
 
-        SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
+        SDTerminalVelocityType m_term_vel_type_w; /*!< Terminal velocity model for water droplets */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_density_scaling; /*!< Scale initial number density with air density */
@@ -347,13 +370,27 @@ class SuperDropletPC : public ERFPC
         std::mt19937 m_rndeng;
 
         /*! species index of water */
-        int m_idx_w;
+        int m_idx_w = -1;
 
         /*! inactive particles threshold */
         amrex::Real m_deac_threshold;
 
         /*! save inactive particles to file */
         bool m_save_inactive;
+
+        /*! Persistent device vectors for material properties */
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;
+        amrex::Gpu::DeviceVector<int> m_sp_solubility;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_ionization;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_mol_weight;
+
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_density;
+        amrex::Gpu::DeviceVector<int> m_ae_solubility;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_ionization;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_mol_weight;
+
+        /*! Flag to track if device properties are initialized */
+        bool m_device_props_initialized = false;
 
         /* recycled particle position bounds */
         amrex::Real m_recyc_xmin;
@@ -362,6 +399,133 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_recyc_ymax;
         amrex::Real m_recyc_zmin;
         amrex::Real m_recyc_zmax;
+
+        /*! Method to initialize device properties */
+        void initializeDeviceProperties();
+
+        /*! \brief Build ProcessContext with geometry and species info */
+        SDProcess::ProcessContext buildProcessContext(int a_lev) const
+        {
+            SDProcess::ProcessContext ctx;
+            const amrex::Geometry& geom = m_gdb->Geom(a_lev);
+            ctx.plo = geom.ProbLoArray();
+            ctx.phi = geom.ProbHiArray();
+            ctx.dxi = geom.InvCellSizeArray();
+            ctx.dx = geom.CellSizeArray();
+            ctx.domain = geom.Domain();
+            for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                ctx.is_periodic[d] = geom.isPeriodic(d) ? 1 : 0;
+            }
+            const auto cell_size = geom.CellSize();
+            ctx.cell_volume = AMREX_D_TERM(cell_size[0], *cell_size[1], *cell_size[2]);
+            ctx.num_species = m_num_species;
+            ctx.num_aerosols = m_num_aerosols;
+            ctx.idx_water = m_idx_w;
+            ctx.rho_water = m_species_mat[m_idx_w]->m_density;
+            return ctx;
+        }
+
+        /*! \brief Setup particle attribute pointers for a tile */
+        template<typename SOAType, typename AOSType>
+        void setupParticlePointers(
+            SOAType& soa,
+            AOSType& aos,
+            SDProcess::ParticlePointers& ptrs) const
+        {
+            using namespace SDPCDefn;
+
+            constexpr int rtoff_i = SuperDropletsIntIdx::ncomps;
+            constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
+
+            ptrs.num_particles = aos.numParticles();
+            ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdx::mass).data();
+            ptrs.radius_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::radius).data();
+            ptrs.active_ptr = soa.GetIntData(rtoff_i + SuperDropletsIntIdxSoA_RT::active).data();
+            ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdx::vx).data();
+            ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdx::vy).data();
+            ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdx::vz).data();
+            ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
+            ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
+            setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
+            if (!m_device_props_initialized) {
+                const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
+            }
+            ptrs.sp_rho_arr = m_sp_density.data();
+            ptrs.sp_sol_arr = m_sp_solubility.data();
+            ptrs.sp_ion_arr = m_sp_ionization.data();
+            ptrs.sp_mw_arr = m_sp_mol_weight.data();
+            ptrs.ae_rho_arr = m_ae_density.data();
+            ptrs.ae_sol_arr = m_ae_solubility.data();
+            ptrs.ae_ion_arr = m_ae_ionization.data();
+            ptrs.ae_mw_arr = m_ae_mol_weight.data();
+        }
+
+        /*! \brief Common body for forEachParticleTile iterations */
+        template<typename TileFunc>
+        void forEachParticleTileBody(
+            ParIterType& pti, int a_lev,
+            const SDProcess::ProcessContext& ctx,
+            TileFunc&& func)
+        {
+            int grid = pti.index();
+            auto& ptile = ParticlesAt(a_lev, pti);
+            auto& aos = ptile.GetArrayOfStructs();
+            auto& soa = ptile.GetStructOfArrays();
+            if (aos.numParticles() == 0) { return; }
+            auto* p_pbox = aos().data();
+            SDProcess::ParticlePointers ptrs;
+            setupParticlePointers(soa, aos, ptrs);
+            func(pti, grid, p_pbox, ptrs, ctx);
+        }
+
+        /*! \brief Iterate over particle tiles with common setup (parallel) */
+        template<typename TileFunc>
+        AMREX_FORCE_INLINE
+        void forEachParticleTile(
+            int a_lev,
+            const SDProcess::ProcessContext& ctx,
+            TileFunc&& func)
+        {
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+                forEachParticleTileBody(pti, a_lev, ctx, std::forward<TileFunc>(func));
+            }
+        }
+
+        /*! \brief Iterate over particle tiles WITHOUT OpenMP (serial)
+         *  Use when per-tile operations are not thread-safe (e.g., DenseBins).
+         */
+        template<typename TileFunc>
+        AMREX_FORCE_INLINE
+        void forEachParticleTileSerial(int a_lev, const SDProcess::ProcessContext& ctx, TileFunc&& func)
+        {
+            for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+                forEachParticleTileBody(pti, a_lev, ctx, std::forward<TileFunc>(func));
+            }
+        }
+
+        /*! \brief Lightweight iteration (no ProcessContext) */
+        template<typename TileFunc>
+        void forEachParticleTile(int a_lev, TileFunc&& func)
+        {
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+                int grid = pti.index();
+                auto& ptile = ParticlesAt(a_lev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                auto& soa = ptile.GetStructOfArrays();
+                const int num_particles = aos.numParticles();
+                if (num_particles == 0) { continue; }
+                auto* p_pbox = aos().data();
+                SDProcess::ParticlePointers ptrs;
+                setupParticlePointers(soa, aos, ptrs);
+                func(pti, grid, p_pbox, ptrs, num_particles);
+            }
+        }
 
         /*! \brief read inputs from file */
         virtual void readInputs () override
@@ -386,9 +550,6 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
-
-        /* do not use */
-        using ERFPC::massDensity;
 
 };
 

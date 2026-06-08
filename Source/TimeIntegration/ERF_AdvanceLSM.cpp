@@ -6,6 +6,7 @@ void ERF::advance_lsm (int lev,
                        MultiFab& cons_in,
                        MultiFab& xvel_in,
                        MultiFab& yvel_in,
+                       const Real& time,
                        const Real& dt_advance)
 {
     if (solverChoice.lsm_type != LandSurfaceType::None) {
@@ -14,9 +15,6 @@ void ERF::advance_lsm (int lev,
         yvel_in.FillBoundary(geom[lev].periodicity());
 
         lsm.Update_Lsm_Vars_Lev(lev, cons_in, xvel_in, yvel_in);
-        if (solverChoice.rad_type != RadiationType::None) {
-            lsm.set_LSM_flux_inputs(lev, sw_lw_fluxes[lev].get(), solar_zenith[lev].get());
-        }
         const bool use_moist = solverChoice.moisture_type != MoistureType::None && solverChoice.moisture_type != MoistureType::Kessler_NoRain && solverChoice.moisture_type != MoistureType::SatAdj;
         int rain_comp = 0;
         if (use_moist) {
@@ -42,7 +40,9 @@ void ERF::advance_lsm (int lev,
 
         lsm.set_LSM_terrain_inputs(lev, tsk_lev, lmask_lev);
         if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
-            lsm.Advance(lev, cons_in, xvel_in, yvel_in, SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(), dt_advance, istep[0]);
+            lsm.Advance(lev, cons_in, xvel_in, yvel_in,
+                        SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
+                        time, dt_advance, istep[0]);
         } else {
             lsm.Advance(lev, dt_advance, t_new[lev], start_time);
         }

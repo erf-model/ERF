@@ -6,7 +6,7 @@
  * The original code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * Please reference to the following paper,
- *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
+ *                        https://agupubs.onlinelibrary.wiley.com/doi/amrex::Real(10.1029)/2019MS001621
  * NOTE: we use the C++ version of RTE-RRTMGP, which is the implementation of the original Fortran
  * code using C++ KOKKOS for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
@@ -54,6 +54,10 @@ public:
     // Destructor
     ~Radiation ()
     {
+        // Release k-distribution data and memory pool
+        if (rrtmgp::initialized) {
+            rrtmgp::rrtmgp_finalize();
+        }
         // Note that Kokkos is now finalized in main.cpp
     }
 
@@ -83,6 +87,8 @@ public:
             m_col_offsets[mfi.index()] = m_ncol;
             m_ncol += nx * ny;
         }
+
+        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk);
     };
 
     virtual
@@ -96,8 +102,6 @@ public:
          amrex::MultiFab* cons_in,
          amrex::iMultiFab* lmask,
          amrex::MultiFab*  t_surf,
-         amrex::MultiFab* lsm_fluxes,
-         amrex::MultiFab* lsm_zenith,
          const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
          const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
@@ -107,8 +111,8 @@ public:
          amrex::MultiFab* lon_ptr) override
     {
         set_grids(level, step, time, dt, ba, geom,
-                  cons_in, lmask, t_surf, lsm_fluxes,
-                  lsm_zenith, lsm_input_ptrs, qheating_rates,
+                  cons_in, lmask, t_surf,
+                  lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr);
         rad_run_impl(lsm_output_ptrs);
     }
@@ -124,8 +128,6 @@ public:
                amrex::MultiFab* cons_in,
                amrex::iMultiFab* lmask,
                amrex::MultiFab*  t_surf,
-               amrex::MultiFab* lsm_fluxes,
-               amrex::MultiFab* lsm_zenith,
                const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* rad_fluxes,
@@ -250,7 +252,10 @@ private:
                                                     "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
 
     // List of output parameter names
-    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"};
+    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle"  , "sw_flux_dn"        ,
+                                                     "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
+                                                     "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                                                     "lw_flux_dn"};
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
@@ -272,12 +277,8 @@ private:
     amrex::MultiFab* m_lon = nullptr;
 
     // Constant lat/lon if the above MFs are not valid
-    amrex::Real m_lat_cons =  39.809860;
-    amrex::Real m_lon_cons = -98.555183;
-
-    // Pointer to output data for LSM
-    amrex::MultiFab* m_lsm_fluxes = nullptr;
-    amrex::MultiFab* m_lsm_zenith = nullptr;
+    amrex::Real m_lat_cons =  amrex::Real(39.809860);
+    amrex::Real m_lon_cons = -amrex::Real(98.555183);
 
     // Holds output from KOKKOS views used in the datalog
     amrex::MultiFab datalog_mf;
@@ -297,19 +298,19 @@ private:
     int m_ngas = 8;
     const std::vector<std::string> m_gas_names = {"H2O", "CO2", "O3", "N2O",
                                                   "CO" , "CH4", "O2", "N2" };
-    const std::vector<amrex::Real> m_mol_weight_gas = {18.01528, 44.00950, 47.9982, 44.0128,
-                                                       28.01010, 16.04246, 31.9980, 28.0134}; // g/mol
+    const std::vector<amrex::Real> m_mol_weight_gas = {amrex::Real(18.01528), amrex::Real(44.00950), amrex::Real(47.9982), amrex::Real(44.0128),
+                                                       amrex::Real(28.01010), amrex::Real(16.04246), amrex::Real(31.9980), amrex::Real(28.0134)}; // g/mol
 
     // Prescribed greenhouse gas surface concentrations in moles / moles air
-    amrex::Real m_co2vmr = 388.717e-6;
+    amrex::Real m_co2vmr = amrex::Real(388.717e-6);
     amrex::Vector<amrex::Real> m_o3vmr;
-    amrex::Real m_n2ovmr = 323.141e-9;
-    amrex::Real m_covmr  = 1.0e-7;
-    amrex::Real m_ch4vmr = 1807.851e-9;
-    amrex::Real m_o2vmr  = 0.209448;
-    amrex::Real m_n2vmr  = 0.7906;
-    //amrex::Real m_f11vmr = 768.7644e-12;
-    //amrex::Real m_f12vmr = 531.2820e-12;
+    amrex::Real m_n2ovmr = amrex::Real(323.141e-9);
+    amrex::Real m_covmr  = amrex::Real(1.0e-7);
+    amrex::Real m_ch4vmr = amrex::Real(1807.851e-9);
+    amrex::Real m_o2vmr  = amrex::Real(0.209448);
+    amrex::Real m_n2vmr  = amrex::Real(0.7906);
+    //amrex::Real m_f11vmr = amrex::Real(768.7644e-12);
+    //amrex::Real m_f12vmr = amrex::Real(531.2820e-12);
 
     int m_o3_size;
     real1d_k  m_gas_mol_weights;
@@ -327,8 +328,11 @@ private:
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
 
-    // Whether we use aerosol forcing in radiation
-    bool m_do_aerosol_rad = true;
+    // Whether we use aerosol forcing in radiation.
+    // Aerosol plumbing is currently not implemented; this hook is retained so a
+    // future aerosol scheme can wire in without reintroducing the parameter.
+    // Setting it true today triggers an abort in the Radiation constructor.
+    bool m_do_aerosol_rad = false;
 
     // Whether we do extra aerosol forcing calls
     bool m_extra_clnsky_diag    = false;
@@ -351,18 +355,18 @@ private:
     // If >= 0, bypass computation based on orbital year and use fixed parameters
     // If <  0, compute based on orbital year, specified above
     bool m_fixed_orbital_year   = false;
-    amrex::Real m_orbital_eccen = -9999.;  // Eccentricity
-    amrex::Real m_orbital_obliq = -9999.;  // Obliquity
-    amrex::Real m_orbital_mvelp = -9999.;  // Vernal Equinox Mean Longitude of Perihelion
+    amrex::Real m_orbital_eccen = -amrex::Real(9999.);  // Eccentricity
+    amrex::Real m_orbital_obliq = -amrex::Real(9999.);  // Obliquity
+    amrex::Real m_orbital_mvelp = -amrex::Real(9999.);  // Vernal Equinox Mean Longitude of Perihelion
 
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance
     // at TOA).  Used for idealized experiments such as RCE. This is only used when a
     // positive value is supplied.
-    amrex::Real m_fixed_total_solar_irradiance = -9999.;
+    amrex::Real m_fixed_total_solar_irradiance = -amrex::Real(9999.);
 
     // Fixed solar zenith angle to use for shortwave calculations
     // This is only used if a positive value is supplied
-    amrex::Real m_fixed_solar_zenith_angle = -9999.;
+    amrex::Real m_fixed_solar_zenith_angle = -amrex::Real(9999.);
 
     // Dimensions to be read from lookup data
     int m_nswbands;
@@ -372,6 +376,9 @@ private:
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
+
+    // Number of columns to process per RRTMGP chunk (controls peak memory)
+    int m_ncol_chunk = 1024;
 
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;
@@ -452,21 +459,16 @@ private:
     real2d_k sfc_alb_dir;
     real2d_k sfc_alb_dif;
 
-    // 2d size (ncol, nlwbands)
-    real2d_k emis_sfc;
-
+    // Aerosol optical properties. Dormant scaffolding kept so a future aerosol
+    // coupling (e.g. SPA, prescribed aerosol climatology) can populate these
+    // without re-adding members. Only allocated when m_do_aerosol_rad is true,
+    // which currently aborts in the constructor; when aerosol coupling is
+    // wired in, remove the abort and pass these into rrtmgp_main.
+    //
     // 3d size (ncol, nlay, n[sw,lw]bands)
     real3d_k aero_tau_sw;
     real3d_k aero_ssa_sw;
     real3d_k aero_g_sw;
     real3d_k aero_tau_lw;
-
-    // 3d size (ncol, nlay, n[sw,lw]bnds)
-    real3d_k cld_tau_sw_bnd;
-    real3d_k cld_tau_lw_bnd;
-
-    // 3d size (ncol, nlay, n[sw,lw]gpts)
-    real3d_k cld_tau_sw_gpt;
-    real3d_k cld_tau_lw_gpt;
 };
 #endif

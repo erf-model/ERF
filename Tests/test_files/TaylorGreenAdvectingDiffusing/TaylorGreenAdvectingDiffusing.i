@@ -50,5 +50,4 @@ erf.alpha_C           = 0.0
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
 prob.V_0 = 1.0

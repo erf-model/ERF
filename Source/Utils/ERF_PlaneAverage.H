@@ -106,8 +106,10 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
 
+    // Domain guarantees enough space and we usually average in z-dir (spans domain)
     m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1 + m_ixtype[m_axis];
 
+    // First estimate is with domain (updated with MFiter later)
     m_ncell_plane = 1;
     auto period = m_geom.periodicity();
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
@@ -115,11 +117,11 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
        if (i != m_axis) m_ncell_plane *= (dom_hi[i] - dom_lo[i] + 1 + p_fac*m_ixtype[i]);
     }
 
-    m_line_average.resize(static_cast<size_t>(m_ncell_line) * m_ncomp, 0.0);
+    m_line_average.resize(static_cast<size_t>(m_ncell_line) * m_ncomp, zero);
     m_line_xcentroid.resize(m_ncell_line);
 
     for (int i = 0; i < m_ncell_line; ++i) {
-       m_line_xcentroid[i] = m_xlo + (i + 0.5) * m_dx;
+       m_line_xcentroid[i] = m_xlo + (i + myhalf) * m_dx;
     }
 }
 
@@ -128,23 +130,23 @@ PlaneAverage::line_average_interpolated (amrex::Real x, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
-    amrex::Real c = 0.0;
+    amrex::Real c = zero;
     int ind = 0;
 
-    if (x > m_xlo + 0.5 * m_dx) {
-        ind = static_cast<int>(floor((x - m_xlo) / m_dx - 0.5));
-        const amrex::Real x1 = m_xlo + (ind + 0.5) * m_dx;
+    if (x > m_xlo + myhalf * m_dx) {
+        ind = static_cast<int>(floor((x - m_xlo) / m_dx - myhalf));
+        const amrex::Real x1 = m_xlo + (ind + myhalf) * m_dx;
         c = (x - x1) / m_dx;
     }
 
     if (ind + 1 >= m_ncell_line) {
         ind = m_ncell_line - 2;
-        c = 1.0;
+        c = one;
     }
 
     AMREX_ALWAYS_ASSERT(ind >= 0 && ind + 1 < m_ncell_line);
 
-    return m_line_average[m_ncomp * ind + comp] * (1.0 - c) +
+    return m_line_average[m_ncomp * ind + comp] * (one - c) +
            m_line_average[m_ncomp * (ind + 1) + comp] * c;
 }
 
@@ -153,14 +155,15 @@ PlaneAverage::line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
-    for (int i = 0; i < m_ncell_line; i++)
+    for (int i = 0; i < m_ncell_line; i++) {
         l_vec[i] = m_line_average[m_ncomp * i + comp];
+    }
 }
 
 void
 PlaneAverage::operator()()
 {
-    std::fill(m_line_average.begin(), m_line_average.end(), 0.0);
+    std::fill(m_line_average.begin(), m_line_average.end(), zero);
     switch (m_axis) {
     case 0:
         compute_averages(XDir(), *m_field);
@@ -181,8 +184,10 @@ template <typename IndexSelector>
 void
 PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
-    const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane;
+    amrex::Vector<amrex::Real> cnt_h(m_ncell_line,zero);
+    amrex::AsyncArray<amrex::Real> cnt_d(cnt_h.data(), cnt_h.size());
     amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());
+    amrex::Real* cnt_avg  = cnt_d.data();
     amrex::Real* line_avg = lavg.data();
     const int ncomp = m_ncomp;
 
@@ -218,13 +223,14 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k) + offset;
+                        // NOTE: This factor is to avoid an if statement that will break
+                        //       the devicereducesum since all threads won't participate.
+                        //       This more performant than Gpu::Atomic::Add.
+                        amrex::Real fac = (mask_arr(i,j,k)) ? one : zero;
+                        amrex::Gpu::deviceReduceSum(&cnt_avg[ind], fac, handler);
                         for (int n = 0; n < ncomp; ++n) {
-                            // NOTE: This factor is to avoid an if statement that will break
-                            //       the devicereducesum since all threads won't participate.
-                            //       This more performant than Gpu::Atomic::Add.
-                            amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
-                                                            fab_arr(i, j, k, n) * denom * fac, handler);
+                                                        fab_arr(i, j, k, n) * fac, handler);
                         }
                     }
                 }
@@ -232,7 +238,15 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
         });
     }
 
+    cnt_d.copyToHost(cnt_h.data(), cnt_h.size());
     lavg.copyToHost(m_line_average.data(), m_line_average.size());
+    amrex::ParallelDescriptor::ReduceRealSum(cnt_h.data(), cnt_h.size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
+    for (int ind(0); ind<m_ncell_line; ++ind) {
+        for (int n(0); n<ncomp; ++n) {
+            m_line_average[ncomp*ind + n] /= cnt_h[ind];
+        }
+    }
+    m_ncell_plane = static_cast<int>(cnt_h[0]);
 }
 #endif /* ERF_PlaneAverage.H */

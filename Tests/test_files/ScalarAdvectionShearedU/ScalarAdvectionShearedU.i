@@ -25,7 +25,6 @@ erf.cfl            = 0.9
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed

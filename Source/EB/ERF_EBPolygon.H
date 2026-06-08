@@ -18,25 +18,25 @@ class polygon_ {
       , m_eb_normal(a_normal)
       , m_defined(0)
       , m_num_vertices(0)
-      , m_area(0.)
+      , m_area(zero)
       , m_sorted(0)
-      , m_vertices({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
-                  amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
-      , m_zdir(0.)
+      , m_vertices({amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero),
+                  amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero)})
+      , m_zdir(zero)
     {}
 
     AMREX_GPU_HOST_DEVICE
     polygon_ ( )
       : m_cell_face(0)
-      , m_eb_point(0.)
-      , m_eb_normal(0.)
+      , m_eb_point(zero)
+      , m_eb_normal(zero)
       , m_defined(0)
       , m_num_vertices(0)
-      , m_area(0.)
+      , m_area(zero)
       , m_sorted(0)
-      , m_vertices({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
-                  amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
-      , m_zdir(0.)
+      , m_vertices({amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero),
+                  amrex::RealVect(zero), amrex::RealVect(zero), amrex::RealVect(zero)})
+      , m_zdir(zero)
     {}
 
     AMREX_GPU_HOST_DEVICE
@@ -75,7 +75,7 @@ class polygon_ {
       // If they are outside, this face doesn't belong to the volume.
       if ( m_cell_face ) {
         for ( int i(0); i<m_num_vertices; ++i) {
-          if ((m_eb_normal.dotProduct(m_vertices[i] - m_eb_point)) >= 0.) {
+          if ((m_eb_normal.dotProduct(m_vertices[i] - m_eb_point)) >= zero) {
           } else {
           }
         }
@@ -93,7 +93,7 @@ class polygon_ {
       // Compute the normal vector m_zdir by cross product of two vectors in vertex_cent.
       // Choose the vectors with the largest cross-product magnitude.
       amrex::RealVect v_normal;
-      amrex::Real max_norm2 = -1.0;
+      amrex::Real max_norm2 = -one;
       const amrex::RealVect& vertex_cent_0 = vertex_cent[0];
 
       for (int i = 1; i < m_num_vertices; ++i)
@@ -107,7 +107,7 @@ class polygon_ {
           v_normal = v_cross;
         }
       }
-      if (!amrex::almostEqual(max_norm2, 0.0))
+      if (!amrex::almostEqual(max_norm2, zero))
       {
           v_normal /= std::sqrt(max_norm2);
       }
@@ -115,13 +115,13 @@ class polygon_ {
 
       //
 
-      m_theta[0] = 0.0;
+      m_theta[0] = zero;
       for ( int i(1); i<m_num_vertices; ++i) {
 
         m_theta[i] = std::atan2(m_zdir.dotProduct( vertex_cent[0].crossProduct(vertex_cent[i]) ),
                               vertex_cent[0].dotProduct(vertex_cent[i]));
 
-        m_theta[i] += ((m_theta[i] >= 0.) ? 0.0 : 2.0*PI);
+        m_theta[i] += ((m_theta[i] >= zero) ? zero : two*PI);
       }
 
       // Sort counter clockwise based on theta.
@@ -141,14 +141,14 @@ class polygon_ {
       for (int i(0); i<m_num_vertices; ++i) {
         int const j( (i+1 == m_num_vertices) ? 0 : i+1 );
         amrex::RealVect vi_cross_vj = vertex_cent[i].crossProduct(vertex_cent[j]);
-        m_area += 0.5*vi_cross_vj.vectorLength();
+        m_area += myhalf*vi_cross_vj.vectorLength();
       }
-      AMREX_ALWAYS_ASSERT( m_area > 0. ); // <------------------------------- TODO remove ALWAYS
+      AMREX_ALWAYS_ASSERT( m_area > zero ); // <------------------------------- TODO remove ALWAYS
     } // void define
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int ok ( ) const noexcept
-    { return ((m_area > 0. || (m_area == 0. && m_defined == 1)) ? 1 : 0); }
+    { return ((m_area > zero || (m_area == zero && m_defined == 1)) ? 1 : 0); }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real area ( ) const noexcept {
@@ -167,18 +167,18 @@ class polygon_ {
     // Centroid of the polygon based on the sub-triangulation
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect get_centroid ( ) const noexcept {
-      amrex::RealVect cent(0.);
+      amrex::RealVect cent(zero);
       if (m_num_vertices==3) {
-        cent = (m_vertices[0] + m_vertices[1] + m_vertices[2]) / 3.0;
+        cent = (m_vertices[0] + m_vertices[1] + m_vertices[2]) / three;
       } else {
         // Loop over sub-triangles
-        amrex::Real area(0.);
+        amrex::Real area(zero);
         for ( int i(0); i<m_num_vertices-2; ++i) {
           amrex::RealVect const v0 (m_vertices[i+1] - m_vertices[0]);
           amrex::RealVect const v1 (m_vertices[i+2] - m_vertices[0]);
           amrex::RealVect v0_cross_v1 = v0.crossProduct(v1);
-          amrex::Real area_tri = 0.5 * v0_cross_v1.vectorLength();
-          amrex::RealVect cent_tri = (m_vertices[0] + m_vertices[i+1] + m_vertices[i+2]) / 3.0;
+          amrex::Real area_tri = myhalf * v0_cross_v1.vectorLength();
+          amrex::RealVect cent_tri = (m_vertices[0] + m_vertices[i+1] + m_vertices[i+2]) / three;
           area += area_tri;
           cent += area_tri * cent_tri;
         }
@@ -211,7 +211,7 @@ class polygon_ {
       amrex::Print() << "\nvc: " << "  " << centroid << "\n";
 
       amrex::Real const dist = distance( a_v0 );
-      // amrex::Real const vol  = ok() ? m_area * dist : 0.;
+      // amrex::Real const vol  = ok() ? m_area * dist : zero;
 
       amrex::Print() << "\narea:     " << m_area
                      << "\ndistance: " << dist

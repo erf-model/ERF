@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 max_step = 10
 stop_time = 5.0
 
@@ -81,7 +82,7 @@ erf.buoyancy_type   = 1
 # Super Droplets Options
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.advect_with_flow = false
 super_droplets_moisture.advect_with_gravity = false

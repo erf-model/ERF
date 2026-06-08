@@ -12,8 +12,8 @@
 #include "ERF_TileNoZ.H"
 
 struct ProbParmDefaults {
-    amrex::Real rho_0 = 1.0;
-    amrex::Real T_0 = 300.0;
+    amrex::Real rho_0 = one;
+    amrex::Real T_0 = amrex::Real(300.0);
 };
 
 template <typename T>
@@ -63,16 +63,18 @@ public:
      * @param[in] geom container for geometric information
     */
     virtual void
-    erf_init_dens_hse (amrex::MultiFab& /*rho_hse*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
-                       amrex::Geometry const& /*geom*/)
+    erf_init_dens_hse_dry (amrex::MultiFab& /*rho_hse*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                           amrex::Geometry const& /*geom*/,
+                           const amrex::Vector<amrex::Real>& /*stretched_dz_h*/,
+                           bool /*is_constant_dz*/, bool /*is_stretched_dz*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
             << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
-        amrex::Error("Should never call this version of erf_init_dens_hse for "+name()+" problem");
+        amrex::Error("Should never call this version of erf_init_dens_hse_dry for "+name()+" problem");
     }
 
     virtual void
@@ -87,6 +89,15 @@ public:
                                    amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/)
     {
         amrex::Error("Should never call this version of erf_init_const_dens_and_th_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
+                                           amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                           amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/,
+                                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_and_linear_th_hse for "+name()+" problem");
     }
 
     virtual void
@@ -185,9 +196,9 @@ public:
             // src is a spatial function if erf.spatial_rhotheta_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
-                src_arr(i, j, k) = 0.0;
+                src_arr(i, j, k) = zero;
             });
         }
     }
@@ -217,9 +228,9 @@ public:
             // src is a spatial function if erf.spatial_moisture_forcing = true
             // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
                 // set RHS term of RhoQ1 equation based on time, z_cc here
-                qsrc_arr(i, j, k) = 0.0;
+                qsrc_arr(i, j, k) = zero;
             });
         }
     }
@@ -253,9 +264,9 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set vertical velocity profile based on time, z_cc here
-            wbar[k] = 0.0;
+            wbar[k] = zero;
         }
 
         // Copy from host version to device version
@@ -289,10 +300,10 @@ public:
         // const auto dx              = geom.CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // const amrex::Real z_cc = prob_lo[2] + (k+myhalf)* dx[2];
             // set RHS term of RhoTheta equation based on time, z_cc here
-            u_geos[k] = 0.0;
-            v_geos[k] = 0.0;
+            u_geos[k] = zero;
+            v_geos[k] = zero;
         }
 
         // Copy from host version to device version
@@ -389,13 +400,13 @@ public:
                 amrex::Real lat_min, lon_min;
 
                 file >> lon_min >> lat_min;
-                 if(std::fabs(lon_min) > 180.0) {
+                 if(std::fabs(lon_min) > amrex::Real(180.0)) {
                     amrex::Error("The value of longitude for entry in the first line in " + fname
-                                 + " should not exceed 180. It is " + std::to_string(lon_min));
+                                 + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
                 }
-                 if(std::fabs(lat_min) > 90.0) {
+                 if(std::fabs(lat_min) > amrex::Real(90.0)) {
                     amrex::Error("The value of latitude for entry in the first line in " + fname
-                                 + " should not exceed 90. It is " + std::to_string(lat_min));
+                                 + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
                 }
 
                 file >> nx >> ny;
@@ -485,8 +496,8 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
+            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
+            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;
@@ -637,7 +648,7 @@ public:
 
         } else {
             amrex::Print() << "Initializing flat terrain" << std::endl;
-            terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+            terrain_fab.template setVal<amrex::RunOn::Device>(0);
 
             if (SolverChoice::mesh_type == MeshType::VariableDz) {
                 SolverChoice::set_mesh_type(MeshType::StretchedDz);
@@ -682,7 +693,11 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.query("prob_name",prob_name); return prob_name; }
+    std::string name() {
+        std::string prob_name;
+        amrex::ParmParse pp("erf");
+        pp.get("prob_name",prob_name); return prob_name;
+    }
 };
 
 

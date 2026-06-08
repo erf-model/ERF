@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
 max_step  = 50
 stop_time = 3600.0
 
@@ -104,7 +106,7 @@ super_droplets_moisture.include_phase_change = false
 super_droplets_moisture.include_coalescence = false
 super_droplets_moisture.advect_with_gravity = false
 
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 100
 super_droplets_moisture.multiplicity_type = "constant"
 super_droplets_moisture.recycle_particles = false
