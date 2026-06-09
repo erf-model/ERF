@@ -326,7 +326,6 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
@@ -335,7 +334,7 @@
                 Real total_time = start_time + old_stage_time;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,

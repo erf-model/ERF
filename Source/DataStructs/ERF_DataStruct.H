@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -202,8 +202,9 @@ struct SolverChoice {
                 RhoQ4_comp   // rain
             );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain) ||
-                    (moisture_type == MoistureType::SatAdj) ) {
+                    (moisture_type == MoistureType::Kessler_NoRain)     ||
+                    (moisture_type == MoistureType::SatAdj)             ||
+                    (moisture_type == MoistureType::MoistNoCondensation) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
@@ -341,15 +342,6 @@ struct SolverChoice {
             amrex::Error("Please add a string for init_type to your inputs file or command line");
         }
 
-        if (use_real_bcs) {
-            pp.query("upwind_real_bcs",upwind_real_bcs);
-        }
-
-        // Check for rebalancing with wrfinput
-        if (init_type == InitType::WRFInput) {
-            pp.query("rebalance_wrfinput",rebalance_wrfinput);
-        }
-
         // How to interpret input_sounding
         if (init_type == InitType::Input_Sounding) {
             pp.query_enum_case_insensitive("sounding_type",sounding_type);
@@ -425,12 +417,6 @@ struct SolverChoice {
             }
         }
 
-        // *******************************************************************************
-
-        if (!upwind_real_bcs && anelastic[0]) {
-            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
-            upwind_real_bcs = true;
-        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -1127,9 +1113,6 @@ struct SolverChoice {
     bool use_real_bcs = false;
 
     inline static
-    bool upwind_real_bcs = false;
-
-    inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
     static
@@ -1287,9 +1270,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{zero};
-
-    // Rebalance wrfinput
-    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;
