@@ -67,6 +67,14 @@ public:
         lsm_fab_data[0]->setVal(m_default_tsurf);
     }
 
+    void
+    Advance (const amrex::Real& dt) override
+    {
+        // OceanSurf currently does not evolve internal state here; keep the
+        // latest timestep for bookkeeping so this stays aligned with other LSMs.
+        m_dt = dt;
+    }
+
     amrex::MultiFab*
     Lsm_Data_Ptr (const int& varIdx) override
     {
@@ -75,8 +83,20 @@ public:
         return lsm_fab_data[lsmIdx].get();
     }
 
+    amrex::MultiFab*
+    Lsm_Flux_Ptr (const int& /*varIdx*/) override
+    {
+        return nullptr;
+    }
+
+    amrex::Geometry
+    Lsm_Geom () override { return m_lsm_geom; }
+
     int
     Lsm_Data_Size () override { return OceanSurf::m_lsm_size; }
+
+    int
+    Lsm_Flux_Size () override { return 0; }
 
     std::string
     Lsm_DataName (const int& varIdx) override
@@ -84,6 +104,12 @@ public:
         int lsmIdx = LsmVarMap[varIdx];
         AMREX_ALWAYS_ASSERT(lsmIdx < OceanSurf::m_lsm_size && lsmIdx>=0);
         return LsmVarName[lsmIdx];
+    }
+
+    std::string
+    Lsm_FluxName (const int& /*varIdx*/) override
+    {
+        return "";
     }
 
     int
@@ -97,14 +123,15 @@ public:
     }
 
     int
-    Lsm_Flux_Size () override { return 0; }
-
-    amrex::Geometry
-    Lsm_Geom () override { return m_lsm_geom; }
+    Lsm_FluxIndex (std::string /*varname*/) override
+    {
+        return -1;
+    }
 
     void
     SetOceanState (const amrex::Vector<amrex::MultiFab*>* ocean_state)
     {
+        // This pointer is currently packed and filled by ERF_Coupling.cpp.
         m_ocean_state = ocean_state;
     }
 
