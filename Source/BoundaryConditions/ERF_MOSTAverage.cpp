@@ -1735,7 +1735,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real u_tangent = u_cc - v_dot_n * nx;
                     Real v_tangent = v_cc - v_dot_n * ny;
                     Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
-                    
+
                     // Area-weighted sum
                     Real val_u = u_tangent * area;
                     Real val_v = v_tangent * area;

@@ -200,7 +200,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real nz = u_bnorm(i,j,k,2);
 
                     if (l_surface_layer) {
-                        
+
                         // Average v and w onto the x-face
                         Real velx = u_arr(i,j,k);
                         Real vely = (v_volfrac(i-1,j  ,k) * v_arr(i-1,j  ,k) + v_volfrac(i,j  ,k) * v_arr(i,j  ,k)
@@ -242,7 +242,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     if (l_no_slip) {
 
-                        dudn = - mu_eff * (nx * tau11_eb + ny * tau12_eb + nz * tau13_eb);    
+                        dudn = - mu_eff * (nx * tau11_eb + ny * tau12_eb + nz * tau13_eb);
 
                     } else if (l_surface_layer) {
 
@@ -257,7 +257,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                             + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
-                    }                    
+                    }
                 }
 
                 rho_u_rhs(i,j,k) -= barea * dudn / (vol * u_volfrac(i,j,k));
