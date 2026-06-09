@@ -17,7 +17,7 @@ using namespace amrex;
  * @param[out] mfs_mom Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
  */
 void
-ERF::FillPatchFineLevel (int lev, Real time,
+ERF::FillPatchFineLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                          const MultiFab& old_base_state,
@@ -27,6 +27,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     BL_PROFILE_VAR("ERF::FillPatchFineLevel()",ERF_FillPatchFineLevel);
 
     AMREX_ALWAYS_ASSERT(lev > 0);
+
+    Real time = static_cast<Real>(time_d);
 
     Interpolater* mapper = nullptr;
 
@@ -285,13 +287,15 @@ ERF::FillPatchFineLevel (int lev, Real time,
 }
 
 void
-ERF::FillPatchCrseLevel (int lev, Real time,
+ERF::FillPatchCrseLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          bool cons_only)
 {
     BL_PROFILE_VAR("ERF::FillPatchCrseLevel()",ERF_FillPatchCrseLevel);
 
     AMREX_ALWAYS_ASSERT(lev == 0);
+
+    Real time = static_cast<Real>(time_d);
 
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();

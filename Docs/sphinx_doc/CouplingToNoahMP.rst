@@ -33,6 +33,11 @@ Currently, Noah-MP may only be utilized for simulations that are initialized fro
 for Noah-MP initialization: ``namelist.erf`` and ``NoahmpTable.TBL``. Sample files are provided for
 the :download:`namelist.erf <namelist.erf>` and :download:`NoahmpTable.TBL <NoahmpTable.TBL>`.
 
+To improve computational efficiency, the Noah-MP timestep, specified via ``NOAH_TIMESTEP``
+in the **namelist.erf** file, may be set larger than the ERF timestep to allow subcycling
+in time. For example, if an 4s timestep is utilized for ERF and a 40s timestep is utilized for
+Noah-MP, then Noah-MP will be updated every 10 steps.
+
 Files Overview
 --------------
 

@@ -67,7 +67,7 @@ public:
                            std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                            std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
                            amrex::Geometry const& /*geom*/,
-                           const amrex::Gpu::DeviceVector<amrex::Real>& /*stretched_dz_d*/,
+                           const amrex::Vector<amrex::Real>& /*stretched_dz_h*/,
                            bool /*is_constant_dz*/, bool /*is_stretched_dz*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"

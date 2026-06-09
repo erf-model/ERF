@@ -50,7 +50,6 @@ void ERF::build_fft_solvers (int lev)
             auto const sub_hi = ubound(subdomain);
 
             auto dx    = geom[lev].CellSizeArray();
-            auto dxInv = geom[lev].InvCellSizeArray();
 
             auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain,solverChoice.use_real_bcs);
 

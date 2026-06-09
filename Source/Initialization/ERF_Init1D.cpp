@@ -101,7 +101,7 @@ ERF::initHSE (int lev)
         {
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_dens_hse_dry(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev], stretched_dz_d[lev],
+            prob->erf_init_dens_hse_dry(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev], stretched_dz_h[lev],
                                         is_constant_dz, is_stretched_dz);
         }
 
@@ -161,7 +161,7 @@ ERF::initHSE (int lev)
             prob->erf_init_const_dens_and_th_hse(new_r_hse,new_p_hse,new_pi_hse,new_th_hse,new_qv_hse,solverChoice.rdOcp);
 
         } else {
-            prob->erf_init_dens_hse_dry(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev], stretched_dz_d[lev],
+            prob->erf_init_dens_hse_dry(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev], stretched_dz_h[lev],
                                         is_constant_dz, is_stretched_dz);
         }
 

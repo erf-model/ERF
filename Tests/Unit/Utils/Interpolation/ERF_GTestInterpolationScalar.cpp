@@ -190,12 +190,15 @@ void fill_upwind_direct_box (amrex::FArrayBox& qty,
                              const CenteredFaceStencil7& stencil)
 {
     auto qty_arr = qty.array();
-    qty_arr(-2, 0, 0, 0) = stencil.qm2;
-    qty_arr(-1, 0, 0, 0) = stencil.qm1;
-    qty_arr( 0, 0, 0, 0) = stencil.q0;
-    qty_arr( 1, 0, 0, 0) = stencil.q1;
-    qty_arr( 2, 0, 0, 0) = stencil.q2;
-    qty_arr( 3, 0, 0, 0) = stencil.q3;
+    amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+        qty_arr(-2, 0, 0, 0) = stencil.qm2;
+        qty_arr(-1, 0, 0, 0) = stencil.qm1;
+        qty_arr( 0, 0, 0, 0) = stencil.q0;
+        qty_arr( 1, 0, 0, 0) = stencil.q1;
+        qty_arr( 2, 0, 0, 0) = stencil.q2;
+        qty_arr( 3, 0, 0, 0) = stencil.q3;
+    });
+    gpu_sync();
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -300,12 +303,15 @@ amrex::Real evaluate_upwindall_with_fraction_on_device (const CenteredFaceStenci
 {
     amrex::FArrayBox qty(amrex::Box(amrex::IntVect(0, 0, -2), amrex::IntVect(0, 0, 3)), 1);
     auto qty_arr = qty.array();
-    qty_arr(0, 0, -2, 0) = stencil.qm2;
-    qty_arr(0, 0, -1, 0) = stencil.qm1;
-    qty_arr(0, 0,  0, 0) = stencil.q0;
-    qty_arr(0, 0,  1, 0) = stencil.q1;
-    qty_arr(0, 0,  2, 0) = stencil.q2;
-    qty_arr(0, 0,  3, 0) = stencil.q3;
+    amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+        qty_arr(0, 0, -2, 0) = stencil.qm2;
+        qty_arr(0, 0, -1, 0) = stencil.qm1;
+        qty_arr(0, 0,  0, 0) = stencil.q0;
+        qty_arr(0, 0,  1, 0) = stencil.q1;
+        qty_arr(0, 0,  2, 0) = stencil.q2;
+        qty_arr(0, 0,  3, 0) = stencil.q3;
+    });
+    gpu_sync();
 
     const auto qty_const_arr = qty.const_array();
     amrex::Gpu::DeviceVector<amrex::Real> device_result(1, amrex::Real(0.0));

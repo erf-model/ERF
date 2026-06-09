@@ -60,13 +60,10 @@ void fill_directional_qty (amrex::FArrayBox& qty)
     auto qty_arr = qty.array();
     const amrex::Box box = qty.box();
 
-    for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-        for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-            for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                qty_arr(i, j, k, 0) = directional_field_value(i, j, k);
-            }
-        }
-    }
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        qty_arr(i, j, k, 0) = directional_field_value(i, j, k);
+    });
+    gpu_sync();
 }
 
 std::string sample_trace (const AdvType adv_type,
@@ -169,8 +166,15 @@ TEST(InterpolationPolicyKernel, PolicyStructWrappersMatchIndependentReference)
     launch_policy_struct_cases(eval_box(), qty.const_array(), device_cases.data(),
                                static_cast<int>(cases.size()), output.array());
 
-    const auto qty_arr = qty.const_array();
-    const auto output_arr = output.const_array();
+    amrex::FArrayBox host_qty(qty.box(), qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     qty.dataPtr(0), qty.dataPtr(0) + qty.size(), host_qty.dataPtr(0));
+    amrex::FArrayBox host_output(output.box(), output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(), host_output.dataPtr(0));
+
+    const auto qty_arr = host_qty.const_array();
+    const auto output_arr = host_output.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {
@@ -209,8 +213,15 @@ TEST(InterpolationPolicyKernel, UpwindAllMatchesDedicatedZPolicy)
     launch_upwindall_cases(eval_box(), qty.const_array(), device_cases.data(),
                            static_cast<int>(cases.size()), output.array());
 
-    const auto qty_arr = qty.const_array();
-    const auto output_arr = output.const_array();
+    amrex::FArrayBox host_qty(qty.box(), qty.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     qty.dataPtr(0), qty.dataPtr(0) + qty.size(), host_qty.dataPtr(0));
+    amrex::FArrayBox host_output(output.box(), output.nComp(), amrex::The_Pinned_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     output.dataPtr(0), output.dataPtr(0) + output.size(), host_output.dataPtr(0));
+
+    const auto qty_arr = host_qty.const_array();
+    const auto output_arr = host_output.const_array();
     int sample_index = 0;
 
     for (int n = 0; n < static_cast<int>(cases.size()); ++n) {

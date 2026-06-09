@@ -15,7 +15,11 @@ namespace HSEutils
 
     // to control Newton iterations in init_isentropic_hse*
     const int MAX_ITER = 10;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real TOL = Real(1.e-6);
+#else
     const amrex::Real TOL = Real(1.e-8);
+#endif
 
     /**
      * Function to calculate the hydrostatic density and pressure
@@ -203,7 +207,7 @@ namespace HSEutils
                                       const amrex::Real& theta,
                                       amrex::Real* r,
                                       amrex::Real* p,
-                                      const Gpu::DeviceVector<Real>& stretched_dz_d,
+                                      const amrex::Real* stretched_dz,
                                       const int klo, const int khi)
     {
       int kstart;
@@ -212,7 +216,7 @@ namespace HSEutils
 
       // Initial guess
       r[klo] = r_sfc;
-      p[klo] = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+      p[klo] = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
 
       if (klo == 0)
       {
@@ -225,14 +229,14 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+              p_hse = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
               p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
               Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
-              Real drho = A / (dpdr + myhalf*stretched_dz_d[klo] * CONST_GRAV);
+              Real drho = A / (dpdr + myhalf*stretched_dz[klo] * CONST_GRAV);
 
               r[klo] = r[klo] + drho;
               p[klo] = getPgivenRTh(r[klo]*theta);
@@ -267,7 +271,7 @@ namespace HSEutils
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
               Real  r_avg = myhalf * (r[k-1]+r[k]);
-              Real dz_avg = myhalf * (stretched_dz_d[k-1] + stretched_dz_d[k]);
+              Real dz_avg = myhalf * (stretched_dz[k-1] + stretched_dz[k]);
               p_hse = p[k-1] -  dz_avg * r_avg * CONST_GRAV;
               p_eos = getPgivenRTh(r[k]*theta);
 
@@ -475,16 +479,22 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
                           const int which_zone, const Real scaled_height)
 {
     Real T_b = Real(200.0), delta_T; // Initial guess
+
+#ifdef AMREX_USE_FLOAT
+    Real eps = Real(1.e-6) * T_b;
+#else
+    Real eps = Real(1.e-10) * T_b;
+#endif
     for (int iter=0; iter<20; iter++)
     {
-        Real F         = compute_F_for_temp_in_zone(T_b      , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_plus_dF = compute_F_for_temp_in_zone(T_b+Real(1e-10), p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        Real F_prime   = (F_plus_dF - F)/Real(1e-10);
+        Real F         = compute_F_for_temp_in_zone(T_b    , p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F_plus_dF = compute_F_for_temp_in_zone(T_b+eps, p_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
+        Real F_prime   = (F_plus_dF - F)/eps;
         delta_T = -F/F_prime;
         T_b = T_b + delta_T;
     }
 
-    if(std::fabs(delta_T) > 1e-8){
+    if (std::fabs(delta_T) > TOL * T_b) {
          amrex::Abort("Newton Raphson for temperature could not converge");
     }
 
@@ -586,10 +596,8 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 
 #ifdef AMREX_USE_FLOAT
     Real eps = Real(1e-6);
-    Real tol = Real(1e-8);
 #else
     Real eps = Real(1e-10);
-    Real tol = Real(1e-8);
 #endif
 
     for(int iter=0; iter<20; iter++)
@@ -605,7 +613,7 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
         p_k            = p_k + delta_p_k;
     }
 
-    if (std::fabs(delta_p_k) > tol) {
+    if (std::fabs(delta_p_k) > TOL) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 

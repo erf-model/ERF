@@ -46,8 +46,24 @@ SAM::Precip (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
+    const SAMPrecipConfig precip_config{
+        SAM_moisture_type,
+        true,
+        dtn,
+        rdOcp,
+        fac_cond,
+        fac_fus,
+        fac_sub,
+        eps,
+        powr1,
+        pows1,
+        powg1,
+        powr2,
+        pows2,
+        powg2};
     // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
@@ -69,143 +85,50 @@ SAM::Precip (const SolverChoice& sc)
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //------- Autoconversion/accretion
-            Real omn, omp, omg;
-            Real qsat, qsatw, qsati;
+            SAMCellState state{};
+            state.rho = rho_array(i,j,k);
+            state.theta = theta_array(i,j,k);
+            state.tabs = tabs_array(i,j,k);
+            state.pres_mbar = pres_array(i,j,k);
+            state.qv = qv_array(i,j,k);
+            state.qcl = qcl_array(i,j,k);
+            state.qci = qci_array(i,j,k);
+            state.qn = qn_array(i,j,k);
+            state.qt = qt_array(i,j,k);
+            state.qpr = qpr_array(i,j,k);
+            state.qps = qps_array(i,j,k);
+            state.qpg = qpg_array(i,j,k);
+            state.qp = qp_array(i,j,k);
 
-            Real qcc, qii, qpr, qps, qpg;
-            Real dqc, dqca, dqi, dqia, dqp;
-            Real dqpr, dqps, dqpg;
+            const SAMCoefficientRow coeffs{
+                accrrc_t(k),
+                accrsi_t(k),
+                accrsc_t(k),
+                coefice_t(k),
+                evaps1_t(k),
+                evaps2_t(k),
+                accrgi_t(k),
+                accrgc_t(k),
+                evapg1_t(k),
+                evapg2_t(k),
+                evapr1_t(k),
+                evapr2_t(k)};
 
-            // Work to be done for autoc/accr or evap
-            if (qn_array(i,j,k)+qp_array(i,j,k) > zero) {
-                if (SAM_moisture_type == 2) {
-                    omn = Real(1);
-                    omp = Real(1);
-                    omg = Real(0);
-                } else {
-                    omn = sam_cloud_liquid_fraction(SAM_moisture_type,
-                                                    tabs_array(i,j,k), a_bg, tbgmin * a_bg);
-                    omp = sam_precip_rain_fraction(SAM_moisture_type,
-                                                   tabs_array(i,j,k));
-                    omg = sam_graupel_fraction(SAM_moisture_type,
-                                               tabs_array(i,j,k));
-                }
+            // The scalar helper owns the local held-pressure source update;
+            // this public kernel handles state staging and coefficient lookup.
+            state = sam_precip_cell_update(state, coeffs, precip_config);
 
-                qcc = qcl_array(i,j,k);
-                qii = qci_array(i,j,k);
-
-                qpr = qpr_array(i,j,k);
-                qps = qps_array(i,j,k);
-                qpg = qpg_array(i,j,k);
-
-                //==================================================
-                // Autoconversion (A30/A31) and accretion (A27)
-                //==================================================
-                if (qn_array(i,j,k) > zero) {
-                    SAMPrecipSources source_terms =
-                        sam_autoconversion_rates(dtn, qcc, qii, coefice_t(k));
-                    const SAMPrecipSources accretion_terms =
-                        sam_accretion_rates(dtn, qcc, qii, qpr, qps, qpg,
-                                            powr1, pows1, powg1,
-                                            omp, omg,
-                                            accrrc_t(k), accrsc_t(k), accrsi_t(k),
-                                            accrgc_t(k), accrgi_t(k));
-                    source_terms.dprc = accretion_terms.dprc;
-                    source_terms.dpsc = accretion_terms.dpsc;
-                    source_terms.dpgc = accretion_terms.dpgc;
-                    source_terms.dpsi = accretion_terms.dpsi;
-                    source_terms.dpgi = accretion_terms.dpgi;
-                    source_terms = sam_rescale_cloud_sinks(qcl_array(i,j,k), qci_array(i,j,k),
-                                                           eps, source_terms);
-
-                    // NOTE: Autoconversion of cloud water and ice are sources
-                    //       to qp, while accretion is a source to an individual
-                    //       precipitating component (e.g., qpr/qps/qpg). So we
-                    //       only split autoconversion with omega. The omega
-                    //       splitting does imply a latent heat source.
-
-                    // Partition formed precip componentss
-                    source_terms = sam_partition_autoconverted_precip(source_terms, omp, omg);
-                    dqca = source_terms.dqca;
-                    dqia = source_terms.dqia;
-                    dqc = source_terms.dqc;
-                    dqi = source_terms.dqi;
-                    dqpr = source_terms.dqpr;
-                    dqps = source_terms.dqps;
-                    dqpg = source_terms.dqpg;
-
-                    // Update the primitive state variables
-                    qcl_array(i,j,k) -= dqc;
-                    qci_array(i,j,k) -= dqi;
-                    qpr_array(i,j,k) += dqpr;
-                    qps_array(i,j,k) += dqps;
-                    qpg_array(i,j,k) += dqpg;
-
-                    // Update the primitive derived vars
-                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
-                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                    // Update temperature
-                    tabs_array(i,j,k) += fac_fus * ( dqca * (one - omp) - dqia * omp );
-
-                    // Update theta
-                    theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
-                                                                                     pres_array(i,j,k), rdOcp);
-                }
-
-                //==================================================
-                // Evaporation (A24)
-                //==================================================
-                erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
-                erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
-                qsat = sam_mixed_qsat(omn, qsatw, qsati);
-                if((qp_array(i,j,k) > zero) && (qv_array(i,j,k) < qsat)) {
-
-                    SAMPrecipSources evaporation_terms =
-                        sam_precip_evaporation_rates(qpr, qps, qpg,
-                                                     powr2, pows2, powg2,
-                                                     evapr1_t(k), evapr2_t(k),
-                                                     evaps1_t(k), evaps2_t(k),
-                                                     evapg1_t(k), evapg2_t(k));
-
-                    // NOTE: This is always a sink for precipitating comps
-                    //       since qv<qsat and thus (1 - qv/qsat)>zero If we are
-                    //       in a super-saturated state (qv>qsat) the Newton
-                    //       iterations in Cloud() will have handled condensation.
-                    evaporation_terms.dqpr *= dtn * (one - qv_array(i,j,k)/qsat);
-                    evaporation_terms.dqps *= dtn * (one - qv_array(i,j,k)/qsat);
-                    evaporation_terms.dqpg *= dtn * (one - qv_array(i,j,k)/qsat);
-
-                    // Limit to avoid negative moisture fractions
-                    evaporation_terms = sam_apply_precip_evaporation_limiter(qpr_array(i,j,k),
-                                                                             qps_array(i,j,k),
-                                                                             qpg_array(i,j,k),
-                                                                             evaporation_terms);
-                    dqpr = evaporation_terms.dqpr;
-                    dqps = evaporation_terms.dqps;
-                    dqpg = evaporation_terms.dqpg;
-                    dqp  = evaporation_terms.dqp;
-
-                    // Update the primitive state variables
-                     qv_array(i,j,k) += dqp;
-                    qpr_array(i,j,k) -= dqpr;
-                    qps_array(i,j,k) -= dqps;
-                    qpg_array(i,j,k) -= dqpg;
-
-                    // Update the primitive derived vars
-                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                    // Update temperature
-                    tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
-
-                    // Update theta
-                    theta_array(i,j,k) = sam_theta_from_stored_mbar_converted_to_pa(tabs_array(i,j,k),
-                                                                                     pres_array(i,j,k), rdOcp);
-                }
-            }
+            theta_array(i,j,k) = state.theta;
+            tabs_array(i,j,k) = state.tabs;
+            qv_array(i,j,k) = state.qv;
+            qcl_array(i,j,k) = state.qcl;
+            qci_array(i,j,k) = state.qci;
+            qn_array(i,j,k) = state.qn;
+            qt_array(i,j,k) = state.qt;
+            qpr_array(i,j,k) = state.qpr;
+            qps_array(i,j,k) = state.qps;
+            qpg_array(i,j,k) = state.qpg;
+            qp_array(i,j,k) = state.qp;
         });
     }
 }

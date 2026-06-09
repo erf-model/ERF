@@ -35,10 +35,17 @@ Radiation::Radiation (const int& lev,
     ParmParse pp("erf");
 
     // Must specify a surface temp (LSM can overwrite)
-    pp.get("rad_t_sfc",m_rad_t_sfc);
+    pp.get("rad_t_sfc", m_rad_t_sfc);
 
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
+
+    // Get nvar if specified
+    pp.query("rad_nvar", m_rad_nvar);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_rad_nvar >= 0,
+        "erf.rad_nvar must be greater than 0. "
+        "It controls the amount of memory allocated for temporaries with RRTMGP; "
+        "a value of 0 would allocate no memory.");
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
     pp.query("rad_ncol_chunk", m_ncol_chunk);
@@ -1037,7 +1044,8 @@ Radiation::initialize_impl ()
         gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
-                                  rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
+                                  rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw,
+                                  m_rad_nvar);
         gas_concs_pool.reset();
     }
 }
@@ -1088,9 +1096,11 @@ Radiation::run_impl ()
     // H2O is obtained from qv.
     // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
+    Vector<real2d_k> vmr_full_vec(m_ngas);
     for (int igas(0); igas < m_ngas; ++igas) {
-        auto tmp2d = Kokkos::View<RealT**,layout_t,KokkosDefaultMem>("tmp2d", ncol, nlay);
         auto name = m_gas_names[igas];
+        vmr_full_vec[igas] = real2d_k("vmr_full_" + name, ncol, nlay);
+        auto tmp2d = vmr_full_vec[igas];
         auto gas_mol_weight = m_mol_weight_gas[igas];
         if (name == "H2O") {
             auto qv_lay_d = qv_lay;
@@ -1176,14 +1186,6 @@ Radiation::run_impl ()
     // -----------------------------------------------------------------------
     const int ncol_chunk = std::min(m_ncol_chunk, ncol);
     const int kbot = 0;
-
-    // Pre-fetch full-domain VMR arrays outside the chunk loop to avoid
-    // repeatedly allocating and filling full-size views for every chunk.
-    Vector<real2d_k> vmr_full_vec(m_ngas);
-    for (int igas = 0; igas < m_ngas; ++igas) {
-        vmr_full_vec[igas] = real2d_k("vmr_full_" + std::to_string(igas), ncol, nlay);
-        m_gas_concs.get_vmr(m_gas_names[igas], vmr_full_vec[igas]);
-    }
 
     for (int col_s = 0; col_s < ncol; col_s += ncol_chunk) {
         const int ncol_c = std::min(ncol_chunk, ncol - col_s);

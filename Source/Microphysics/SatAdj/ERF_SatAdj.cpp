@@ -3,10 +3,15 @@
 using namespace amrex;
 
 /**
- * Compute Precipitation-related Microphysics quantities.
+ * AdvanceSatAdj is a local valid-cell update over MFIter tileboxes.
+ * It uses pressure diagnosed in Copy_State_to_Micro and holds that pressure
+ * fixed inside each cell adjustment.
+ * There are no stencils, face fluxes, or ghost-cell reads in this kernel.
  */
 void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 {
+    // Saturation adjustment can be disabled by solver choice, e.g. when SHOC
+    // owns moist thermodynamics instead of the standalone SatAdj module.
     if (!m_do_cond) { return; }
 
     auto tabs  = mic_fab_vars[MicVar_SatAdj::tabs];
@@ -15,7 +20,6 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
     Real d_fac_cond = m_fac_cond;
     Real rdOcp      = m_rdOcp;
 
-    // get the temperature, density, theta, qt and qc from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         auto tbx = mfi.tilebox();
