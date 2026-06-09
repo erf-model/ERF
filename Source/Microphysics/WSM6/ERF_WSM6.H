@@ -248,6 +248,4 @@ namespace WSM6Ind {
     };
 }
 
-constexpr int WSM6_MAX_LEVELS = 256;
-
 #endif
