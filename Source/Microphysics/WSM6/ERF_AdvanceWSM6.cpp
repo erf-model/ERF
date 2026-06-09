@@ -254,9 +254,6 @@ void wsm6_nislfv_rain_plm_scratch (int km,
     auto DENFAC = [&](int k) -> amrex::Real& {
         return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::denfac);
     };
-    auto TK = [&](int k) -> amrex::Real& {
-        return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::tk);
-    };
     auto QN = [&](int k) -> amrex::Real& {
         return sed_cell(i_s, j_s, klo_s + k, WSM6SedCellScratch::qn);
     };
