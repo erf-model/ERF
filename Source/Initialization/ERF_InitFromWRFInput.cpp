@@ -1065,13 +1065,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // as needed during the time stepping procedure
         // *******************************************************************************************
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
         for (int itime = 0; itime < ntimes; itime++)
         {
             read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                          wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                          lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         geom[0], use_moist, real_width, bdy_time_interval);
+                                         r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                         real_width, bdy_time_interval);
         } // itime
 
         //
