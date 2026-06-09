@@ -117,7 +117,8 @@ struct MoistureComponentIndices {
     int ng = -1;  // number concentration for graupel
 
     // Constructor for easy initialization
-    MoistureComponentIndices (int qv_comp, int qc_comp,
+    MoistureComponentIndices (int qv_comp,
+                              int qc_comp=-1,
                               int qi_comp=-1,
                               int qr_comp=-1,
                               int qs_comp=-1,
