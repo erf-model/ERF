@@ -208,6 +208,10 @@ struct SolverChoice {
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
             );
+        } else if (moisture_type == MoistureType::MoistNoCondensation) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp  // water vapor
+            );
         } else if (moisture_type == MoistureType::Kessler) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
