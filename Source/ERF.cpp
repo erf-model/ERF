@@ -1132,24 +1132,26 @@ ERF::InitData_post ()
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
                 int itime = 0;
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                             real_width, bdy_time_interval);
+                                             real_width, bdy_time_interval, is_anelastic);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                             real_width, bdy_time_interval);
+                                             real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
 

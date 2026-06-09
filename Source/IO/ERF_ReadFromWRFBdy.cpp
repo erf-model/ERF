@@ -469,7 +469,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const bool& use_moist,
                               const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, Real bdy_time_interval,
-                              bool do_conversion)
+                              bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -485,7 +485,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                      wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                      xvel, yvel, cons, rho0, area_vec, geom,
                                      use_moist, domain_bcs_type_h, real_width, bdy_time_interval,
-                                     false);
+                                     is_anelastic, false);
     }
 
     // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
@@ -899,17 +899,19 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
         convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
 
-        if (do_tendency) {
-            enforceInOutSolvability_bdy(rho0,
-                                        bdy_data_xlo[itime-1][WRFBdyVars::U], bdy_data_xhi[itime-1][WRFBdyVars::U],
-                                        bdy_data_ylo[itime-1][WRFBdyVars::V], bdy_data_yhi[itime-1][WRFBdyVars::V],
-                                        area_vec, geom, domain_bcs_type_h);
-        }
+        if (is_anelastic) {
+            if (do_tendency) {
+                enforceInOutSolvability_bdy(rho0,
+                                            bdy_data_xlo[itime-1][WRFBdyVars::U], bdy_data_xhi[itime-1][WRFBdyVars::U],
+                                            bdy_data_ylo[itime-1][WRFBdyVars::V], bdy_data_yhi[itime-1][WRFBdyVars::V],
+                                            area_vec, geom, domain_bcs_type_h);
+            }
 
-        enforceInOutSolvability_bdy(rho0,
-                                    bdy_data_xlo[itime][WRFBdyVars::U], bdy_data_xhi[itime][WRFBdyVars::U],
-                                    bdy_data_ylo[itime][WRFBdyVars::V], bdy_data_yhi[itime][WRFBdyVars::V],
-                                    area_vec, geom, domain_bcs_type_h);
-    }
+            enforceInOutSolvability_bdy(rho0,
+                                        bdy_data_xlo[itime][WRFBdyVars::U], bdy_data_xhi[itime][WRFBdyVars::U],
+                                        bdy_data_ylo[itime][WRFBdyVars::V], bdy_data_yhi[itime][WRFBdyVars::V],
+                                        area_vec, geom, domain_bcs_type_h);
+        } // anelastic
+    } // do_conversion
 }
 #endif // ERF_USE_NETCDF

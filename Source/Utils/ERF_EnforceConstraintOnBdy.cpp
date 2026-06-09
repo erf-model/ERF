@@ -280,12 +280,11 @@ void enforceInOutSolvability_bdy (const MultiFab& rho0,
             correct_bdy_outflow_on_face(bdy_data_yhi, 1, false, domain, alpha_fcf, n);
 
             // For diagnostic purposes.
-            Real influx_lev = zero, outflux_lev = zero;
-            compute_influx_outflux_bdy(bdy_data_xlo, bdy_data_xhi,
-                                       bdy_data_ylo, bdy_data_yhi,
-                                       area_vec, geom, influx, outflux, n);
-            // amrex::Print() << " TOTAL BDY INFLUX / OUTFLOW AT WIDTH " << n << " " << influx << " " << outflux << "\n";
-            amrex::Print() << " " << std::endl;
+            // Real influx_dbg = zero, outflux_dbg = zero;
+            // compute_influx_outflux_bdy(bdy_data_xlo, bdy_data_xhi,
+            //                            bdy_data_ylo, bdy_data_yhi,
+            //                            area_vec, geom, influx_dbg, outflux_dbg, n);
+            // amrex::Print() << " TOTAL BDY INFLUX / OUTFLOW AT WIDTH " << n << " " << influx_dbg << " " << outflux_dbg << "\n";
         }
     }
 

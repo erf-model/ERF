@@ -1066,6 +1066,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // *******************************************************************************************
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+        bool is_anelastic = (solverChoice.anelastic[0] == 1);
         for (int itime = 0; itime < ntimes; itime++)
         {
             read_and_convert_from_wrfbdy(itime, nc_bdy_file,
@@ -1073,7 +1074,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                          wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                          lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                          r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                         real_width, bdy_time_interval);
+                                         real_width, bdy_time_interval, is_anelastic);
         } // itime
 
         //

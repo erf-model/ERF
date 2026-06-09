@@ -34,7 +34,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const amrex::Geometry& geom, const bool& use_moist,
                               const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                               int real_width, amrex::Real bdy_time_interval,
-                              bool do_conversion = true);
+                              bool is_anelastic, bool do_conversion = true);
 
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,
