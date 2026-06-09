@@ -35,10 +35,17 @@ Radiation::Radiation (const int& lev,
     ParmParse pp("erf");
 
     // Must specify a surface temp (LSM can overwrite)
-    pp.get("rad_t_sfc",m_rad_t_sfc);
+    pp.get("rad_t_sfc", m_rad_t_sfc);
 
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
+
+    // Get nvar if specified
+    pp.query("rad_nvar", m_rad_nvar);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_rad_nvar >= 0,
+        "erf.rad_nvar must be greater than 0. "
+        "It controls the amount of memory allocated for temporaries with RRTMGP; "
+        "a value of 0 would allocate no memory.");
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
     pp.query("rad_ncol_chunk", m_ncol_chunk);
@@ -1037,7 +1044,8 @@ Radiation::initialize_impl ()
         gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
-                                  rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
+                                  rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw,
+                                  m_rad_nvar);
         gas_concs_pool.reset();
     }
 }

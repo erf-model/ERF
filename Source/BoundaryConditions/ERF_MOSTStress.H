@@ -266,7 +266,11 @@ struct adiabatic_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
@@ -347,7 +351,11 @@ struct adiabatic_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
@@ -1360,7 +1368,11 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol   = amrex::Real(1.0e-3);
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real alpha = myhalf;
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
@@ -1518,7 +1530,11 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol   = amrex::Real(1.0e-3);
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real alpha = myhalf;
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
