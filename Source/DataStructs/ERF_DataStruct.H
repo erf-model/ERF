@@ -341,11 +341,6 @@ struct SolverChoice {
             amrex::Error("Please add a string for init_type to your inputs file or command line");
         }
 
-        // Check for rebalancing with wrfinput
-        if (init_type == InitType::WRFInput) {
-            pp.query("rebalance_wrfinput",rebalance_wrfinput);
-        }
-
         // How to interpret input_sounding
         if (init_type == InitType::Input_Sounding) {
             pp.query_enum_case_insensitive("sounding_type",sounding_type);
@@ -1274,9 +1269,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{zero};
-
-    // Rebalance wrfinput
-    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;
