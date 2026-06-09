@@ -8,6 +8,8 @@
  * source terms due to macro- or microphysics.
  */
 
+#include "ERF_NullMoist.H"
+
 class MoistNoCondensation : public NullMoist {
 
 public:
