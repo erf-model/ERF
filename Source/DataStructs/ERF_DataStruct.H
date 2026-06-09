@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
