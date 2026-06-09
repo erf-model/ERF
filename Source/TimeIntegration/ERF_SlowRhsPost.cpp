@@ -136,9 +136,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type  == PBLType::YSU ||
                                     tc.pbl_type  == PBLType::MRF );
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
-    const bool do_upwind        = solverChoice.upwind_real_bcs;
     const bool l_do_scalar      = (solverChoice.transport_scalar);
-    amrex::ignore_unused(do_upwind);
     amrex::ignore_unused(m_r2d);
 
     const Box& domain = geom.Domain();
@@ -487,8 +485,9 @@ void erf_slow_rhs_post (int level, int finest_level,
             //
             moist_set_rhs(geom, tbx, new_cons_const, cell_rhs,
                           old_stage_time_total, dt, start_bdy_time, final_bdy_time, bdy_time_interval,
-                          bdy_factor, width, do_upwind, domain,
-                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                          bdy_factor, width, domain,
+                          bdy_data_xlo, bdy_data_xhi,
+                          bdy_data_ylo, bdy_data_yhi,
                           m_r2d);
         }
 #endif

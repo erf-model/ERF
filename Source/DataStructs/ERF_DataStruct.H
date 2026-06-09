@@ -341,10 +341,6 @@ struct SolverChoice {
             amrex::Error("Please add a string for init_type to your inputs file or command line");
         }
 
-        if (use_real_bcs) {
-            pp.query("upwind_real_bcs",upwind_real_bcs);
-        }
-
         // Check for rebalancing with wrfinput
         if (init_type == InitType::WRFInput) {
             pp.query("rebalance_wrfinput",rebalance_wrfinput);
@@ -425,12 +421,6 @@ struct SolverChoice {
             }
         }
 
-        // *******************************************************************************
-
-        if (!upwind_real_bcs && anelastic[0]) {
-            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
-            upwind_real_bcs = true;
-        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -1125,9 +1115,6 @@ struct SolverChoice {
 
     inline static
     bool use_real_bcs = false;
-
-    inline static
-    bool upwind_real_bcs = false;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;
