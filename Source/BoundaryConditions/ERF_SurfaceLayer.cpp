@@ -280,7 +280,6 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
     const bool l_use_eb = (m_terrain_type == TerrainType::EB);
-    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
     IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
@@ -322,7 +321,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                                                        Array4<int> {};
 
         // Get EB flags if needed
-        const auto flag_arr = (l_use_eb) ? cc_flags[mfi].const_array() : Array4<const EBCellFlag>{};
+        const auto flag_arr = (l_use_eb) ? m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab()[mfi].const_array() : Array4<const EBCellFlag>{};
 
         if (!l_use_eb) {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
