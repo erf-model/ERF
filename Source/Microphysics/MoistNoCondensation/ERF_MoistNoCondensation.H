@@ -28,7 +28,7 @@ public:
 private:
 
     // Number of qstate variables
-    int n_qstate_moist_size = 1;
+    int n_qstate_moist_size = 2;
 
     // Number of qstate variables that are number concentrations
     int n_qstate_moist_numconc_size = 0;

@@ -209,9 +209,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     }
 
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-    bool has_qc    = (solverChoice.moisture_type != MoistureType::MoistNoCondensation);
-    bool has_rain  = (solverChoice.moisture_type != MoistureType::MoistNoCondensation &&
-                      solverChoice.moisture_type != MoistureType::SatAdj);
     bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
 
     // *** FArrayBox's at this level for holding the INITIAL data
@@ -241,8 +238,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("XLONG_U");   // 22
     if (use_moist) {
         NC_names.push_back("QVAPOR"); // 23
-        if (has_qc)   { NC_names.push_back("QCLOUD"); } // 24
-        if (has_rain) { NC_names.push_back("QRAIN");  } // 25
+        NC_names.push_back("QCLOUD"); // 24
+        NC_names.push_back("QRAIN");  // 25
     }
     NC_names.push_back("IVGTYP");     // 26
     NC_names.push_back("ISLTYP");     // 27

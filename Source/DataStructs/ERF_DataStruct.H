@@ -117,8 +117,7 @@ struct MoistureComponentIndices {
     int ng = -1;  // number concentration for graupel
 
     // Constructor for easy initialization
-    MoistureComponentIndices (int qv_comp,
-                              int qc_comp=-1,
+    MoistureComponentIndices (int qv_comp, int qc_comp,
                               int qi_comp=-1,
                               int qr_comp=-1,
                               int qs_comp=-1,
@@ -203,15 +202,12 @@ struct SolverChoice {
                 RhoQ4_comp   // rain
             );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain) ||
-                    (moisture_type == MoistureType::SatAdj) ) {
+                    (moisture_type == MoistureType::Kessler_NoRain)     ||
+                    (moisture_type == MoistureType::SatAdj)             ||
+                    (moisture_type == MoistureType::MoistNoCondensation) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
-            );
-        } else if (moisture_type == MoistureType::MoistNoCondensation) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp  // water vapor
             );
         } else if (moisture_type == MoistureType::Kessler) {
             moisture_indices = MoistureComponentIndices(
