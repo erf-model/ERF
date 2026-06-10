@@ -1244,7 +1244,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
-                Real Factor;
                 Real dz, F, C;
                 Real rho_tot_hi, rho_tot_lo;
                 Real z_lo, z_hi;
@@ -1285,8 +1284,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                                  P_hi, R_hi, F);
 
                     // At first cell center
-                    r_hse_arr(i,j,klo) = R_hi;
-                    p_hse_arr(i,j,klo) = P_hi;
+                     r_hse_arr(i,j,klo) = R_hi;
+                     p_hse_arr(i,j,klo) = P_hi;
+                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
 
                     P_lo = P_hi;
                     z_lo = z_hi;
@@ -1317,8 +1317,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                                P_hi, R_hi, F);
 
                   // Assign data
-                  r_hse_arr(i,j,k) = R_hi;
-                  p_hse_arr(i,j,k) = P_hi;
+                   r_hse_arr(i,j,k) = R_hi;
+                   p_hse_arr(i,j,k) = P_hi;
+                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+
                   P_lo = P_hi;
                   z_lo = z_hi;
                 }

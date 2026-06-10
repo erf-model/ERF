@@ -65,7 +65,6 @@ void make_gradp_pert (int level,
 
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
             const Array4<const Real>& cell_data = S_data[Vars::cons].array(mfi);
-            const Array4<const Real>& p0_arr = p0.const_array(mfi);
             const Array4<      Real>& pp_arr = p.array(mfi);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -76,7 +75,7 @@ void make_gradp_pert (int level,
 
         // If we want to use the full pressure in the lateral gradients, call compute_gradp_xy here
         if (solverChoice.gradp_type == 0 && !l_use_pert_pres) {
-            compute_gradp_xy(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
+            compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
         }
 
         // *****************************************************************************
@@ -98,11 +97,11 @@ void make_gradp_pert (int level,
 
         // If we want to use the perturbational pressure in the lateral gradients, call compute_gradp_xy here
         if (solverChoice.gradp_type == 0 && l_use_pert_pres) {
-            compute_gradp_xy(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
+            compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
         }
 
         if (solverChoice.gradp_type == 0) {
-            compute_gradp_z(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
+            compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
         } else {
             compute_gradp_interpz(p,geom,z_phys_nd,z_phys_cc,mapfac,gradp,solverChoice);
         }
@@ -120,14 +119,13 @@ compute_gradp (const MultiFab& p,
                Vector<MultiFab>& gradp,
                const SolverChoice& solverChoice)
 {
-    compute_gradp_xy(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
-    compute_gradp_z(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
+    compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
+    compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
 }
 
 void
 compute_gradp_xy (const MultiFab& p,
                   const Geometry& geom,
-                  const MultiFab& z_phys_nd,
                   const MultiFab& z_phys_cc,
                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                   const eb_& ebfact,
@@ -151,14 +149,12 @@ compute_gradp_xy (const MultiFab& p,
         Box tby = mfi.nodaltilebox(1);
 
         // Terrain metrics
-        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
         const Array4<const Real>& p_arr = p.const_array(mfi);
 
         const Array4<      Real>& gpx_arr = gradp[GpVars::gpx].array(mfi);
         const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
-        const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
 
         const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
         const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
@@ -260,11 +256,6 @@ compute_gradp_xy (const MultiFab& p,
             Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
             Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
 
-            // EB w-factory
-            Array4<const EBCellFlag> w_cellflg = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > w_volcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
-
             if (l_fitting) {
 
                 ParallelFor(tbx, tby,
@@ -351,8 +342,6 @@ void
 compute_gradp_z (const MultiFab& p,
                  const Geometry& geom,
                  const MultiFab& z_phys_nd,
-                 const MultiFab& z_phys_cc,
-                 Vector<std::unique_ptr<MultiFab>>& mapfac,
                  const eb_& ebfact,
                  Vector<MultiFab>& gradp,
                  const SolverChoice& solverChoice)
@@ -382,16 +371,10 @@ compute_gradp_z (const MultiFab& p,
 
         // Terrain metrics
         const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
-        const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
         const Array4<const Real>& p_arr = p.const_array(mfi);
 
-        const Array4<      Real>& gpx_arr = gradp[GpVars::gpx].array(mfi);
-        const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
         const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
-
-        const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
-        const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
@@ -417,16 +400,6 @@ compute_gradp_z (const MultiFab& p,
 
             // EB factory
             Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-
-            // EB u-factory
-            Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > u_volcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
-
-            // EB v-factory
-            Array4<const EBCellFlag> v_cellflg = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
 
             // EB w-factory
             Array4<const EBCellFlag> w_cellflg = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
