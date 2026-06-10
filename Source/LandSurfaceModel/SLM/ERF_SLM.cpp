@@ -2307,6 +2307,8 @@ SLM::AdvanceSLM ()
             // canapy heat capacity: assume 0.001 m leaf thickness, basal area in sq.feet/acre=43560 m2/m2,
             // 900 kg/m3 density of leaves and wood, 2800 J/kg/K specific heat capacity.
             cp_vege_arr(i, j, 0) = (LAI_arr(i, j, 0) * leaf_thickness * 0.001 + ztop_arr(i, j, 0)*BAI_arr(i, j, 0)/43560.)*900.*2800.;
+            // NOAH MP
+			//cp_vege_arr(i, j, 0) = LAI_arr(i, j, 0) * 0.02 * cp_water; 
             cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
 
             // Add to vegetiation moisture increment from SLM::vapor_fluxes()
@@ -2400,19 +2402,19 @@ SLM::AdvanceSLM ()
             amrex::Real rhow = dref_arr(i, j, 0); // TODO: double check this
             amrex::Real cond_heat, cond_href, cond_hcnp, cond_hundercnp;
             amrex::Real cond_vapor, cond_vref, cond_vcnp, cond_vundercnp;
-            
+            amrex::Real cvh = 2 * LAI_arr(i, j, 0) / r_b_arr(i, j, 0);
             if (vegetype_arr(i, j, 0) == 1) {
                 // Compute diagnostic variables at canopy air space level
                 //   Calculate heat conductances - non-zero only for canopy land type
-                cond_heat = 1.0 / r_a_arr(i, j, 0) + 1.0 / r_b_arr(i, j, 0) + 1.0 / r_d_arr(i, j, 0);
+                cond_heat = 1.0 / r_a_arr(i, j, 0) + cvh + 1.0 / r_d_arr(i, j, 0);
                 cond_href = 1.0 / r_a_arr(i, j, 0) / cond_heat;
-                cond_hcnp = 1.0 / r_b_arr(i, j, 0) / cond_heat;
+                cond_hcnp = cvh / cond_heat;
                 cond_hundercnp = 1.0 / r_d_arr(i, j, 0) / cond_heat;
 
                 //  Calculate vapor conductances
-                cond_vapor = 1.0 / r_a_arr(i, j, 0) + wet_canop_arr(i, j, 0) / (2.0 * r_b_arr(i, j, 0)) + (1.0 - wet_canop_arr(i, j, 0))/(2.0 * r_b_arr(i, j, 0) + r_c_arr(i, j, 0)) + 1.0 / (r_d_arr(i, j, 0) + r_soil_arr(i, j, 0) + r_litter);
+                cond_vapor = 1.0 / r_a_arr(i, j, 0) + wet_canop_arr(i, j, 0) * LAI_arr(i, j, 0) / r_b_arr(i, j, 0) + (1.0 - wet_canop_arr(i, j, 0)) * LAI_arr(i, j, 0) /(r_b_arr(i, j, 0) + r_c_arr(i, j, 0)) + 1.0 / (r_d_arr(i, j, 0) + r_soil_arr(i, j, 0) + r_litter);
                 cond_vref = 1.0 / r_a_arr(i, j, 0) / cond_vapor; 
-                cond_vcnp = (wet_canop_arr(i, j, 0) / (2.0 * r_b_arr(i, j, 0)) / cond_vapor + (1.0 - wet_canop_arr(i, j, 0)) / (2.0 * r_b_arr(i, j, 0) + r_c_arr(i, j, 0)) / cond_vapor);
+                cond_vcnp = (wet_canop_arr(i, j, 0) * LAI_arr(i, j, 0) / r_b_arr(i, j, 0) / cond_vapor + (1.0 - wet_canop_arr(i, j, 0)) * LAI_arr(i, j, 0) / (r_b_arr(i, j, 0) + r_c_arr(i, j, 0)) / cond_vapor);
                 cond_vundercnp = 1.0 / (r_d_arr(i, j, 0) + r_soil_arr(i, j, 0) + r_litter) / cond_vapor;
             }
             else 
@@ -3155,6 +3157,8 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
     auto landmask_arr = landmask.const_array(mfi);
 
+    auto LAI_arr = LAI.const_array(mfi);
+    
     auto q_cas_arr = q_cas.const_array(mfi);
     auto t_sfc_arr = t_sfc.const_array(mfi);
     auto q_sfc_arr = q_sfc.const_array(mfi);
@@ -3227,7 +3231,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
             for (int iter = 0; iter < niter; iter++)
             {   
-                shf_canop_arr(i, j, 0) = (t_canop_arr(i, j, 0) - t_sfc_arr(i, j, 0)) * rhow * cp / r_b_arr(i, j, 0);
+                shf_canop_arr(i, j, 0) = (t_canop_arr(i, j, 0) - t_sfc_arr(i, j, 0)) * rhow * cp * 2.0 * LAI_arr(i, j, 0) / r_b_arr(i, j, 0);
                 shf0 += shf_canop_arr(i, j, 0);
                     
                 // Evaporation from canopy
@@ -3238,7 +3242,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
         
                 // direct evaporation from the water held on canopy
                 // evaporation/dew only possible if canopy temperature is above freezing
-                evapo_wet = std::min(mw_arr(i, j, 0)/dt_iter, ((qsat_canop - q_sfc_arr(i, j, 0))*rhow/(2.0 * r_b_arr(i, j, 0))*vege_YES_arr(i, j, 0)));
+                evapo_wet = std::min(mw_arr(i, j, 0)/dt_iter, ((qsat_canop - q_sfc_arr(i, j, 0)) * rhow * LAI_arr(i, j, 0) / (r_b_arr(i, j, 0))*vege_YES_arr(i, j, 0)));
         
                 // increment/decrement of the water amount held on leaves following the direct evaporation/dew formation
                 mw_inc_arr(i, j, 0) = -dt_iter*evapo_wet; // evapo_wet [kg/m2s=mm/s]
@@ -3246,7 +3250,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
                 wet_canop_arr(i, j, 0) = std::min(1.0, mw_arr(i, j, 0)/mw_mx_arr(i, j, 0));
         
                 // Transpiration - only ocurs when qsat_canop > qsfc
-                evapo_dry_arr(i, j, 0) = std::max(0.,(qsat_canop - q_sfc_arr(i, j, 0))*rhow*(1.0 - wet_canop_arr(i, j, 0))/(2.0 * r_b_arr(i, j, 0) + r_c_arr(i, j, 0))*vege_YES_arr(i, j, 0));
+                evapo_dry_arr(i, j, 0) = std::max(0.,(qsat_canop - q_sfc_arr(i, j, 0))*rhow*(1.0 - wet_canop_arr(i, j, 0))*LAI_arr(i, j, 0)/(r_b_arr(i, j, 0) + r_c_arr(i, j, 0))*vege_YES_arr(i, j, 0));
                 if (evapo_dry_arr(i, j, 0) > 0.)
                 {
                     evapo_dry_original = evapo_dry_arr(i, j, 0);
@@ -5389,7 +5393,17 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         //         = sav + (-irc) = sav - irc
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) = sav - irc;  // canopy: SW + LW
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) = sag - irg;  // ground: SW + LW
+        
+        // Downwelling shortwave for stomatal resistance calculation
+        // Total incoming SW = direct + diffuse for both visible and NIR
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) = solad[0] + solad[1] + solai[0] + solai[1];
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = (solad[0] + solad[1] + solai[0] + solai[1]) - sav;  // incoming - absorbed = reflected
 
+        // Downwelling SW reaching ground (transmitted through canopy)
+        // This could be ftdd*solad + ftid*solad + ftii*solai, but simpler approximation:
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = (solad[0] + solai[0]) * (ftdd[0] + ftid[0] + ftii[0]) +
+                                                      (solad[1] + solai[1]) * (ftdd[1] + ftid[1] + ftii[1]);
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) - sag;
         // --------------------------------------------------------------------------------------------------
         // Store albedo outputs
         // --------------------------------------------------------------------------------------------------
