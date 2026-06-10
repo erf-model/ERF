@@ -501,10 +501,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         bx.makeSlab(2,klo);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // Valid theta flux from LSM and over land
+            // Valid theta flux from LSM and over land. The LSM writes the
+            // lsm_flux_undefined sentinel for cells it did not process (sea-ice /
+            // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (lsm_t_flux_arr && is_land) {
+            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
                 Tflux = lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
@@ -528,10 +530,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (use_moisture) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid qv flux from LSM and over land
+                // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                if (lsm_q_flux_arr && is_land) {
+                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_flux_undefined) {
                     Qflux = lsm_q_flux_arr(i,j,0);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
@@ -556,10 +558,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             Box bxx = surroundingNodes(bx,0);
             ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid tau13 from LSM and over land
+                // Valid tau13 from LSM and over land. A side that is land but
+                // whose LSM flux is the sentinel (sea-ice / open water) is treated
+                // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
-                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
-                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
+                int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_flux_undefined);
+                int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_flux_undefined);
                 if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
                     stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
@@ -588,10 +594,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             Box bxy = surroundingNodes(bx,1);
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid tau13 from LSM and over land
+                // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
-                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
-                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
+                int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_flux_undefined);
+                int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_flux_undefined);
                 if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
                     stressy = zero;
                     if (!is_land_hi || !is_land_lo) {
@@ -775,7 +783,12 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (is_land) {
+            // Skip cells the LSM did not flux (sea-ice / open water -> the LSM
+            // wrote the lsm_flux_undefined sentinel). They keep the u*/T*/q*/L
+            // from the MOST iteration (computed from the surface temperature).
+            // Using the sentinel here would give u_star ~ sqrt(1e30) and blow up
+            // the PBL on the next step.
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
