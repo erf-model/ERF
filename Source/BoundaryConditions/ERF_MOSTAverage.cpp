@@ -417,13 +417,9 @@ MOSTAverage::set_eb_normalization (const int& lev)
 
     // Get EB data - need both cell-centered and face-centered flags
     const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
-    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
 
     // Get area fractions for different centerings
     auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();  // Cell-centered area fractions (Array of 3 MultiCutFab*)
-    auto u_afrac = m_eb_vec[lev]->get_u_const_factory()->getAreaFrac();  // X-face area fractions
-    auto v_afrac = m_eb_vec[lev]->get_v_const_factory()->getAreaFrac();  // Y-face area fractions
 
     // Initialize storage
     m_total_bndry_area.resize(m_maxlev);
