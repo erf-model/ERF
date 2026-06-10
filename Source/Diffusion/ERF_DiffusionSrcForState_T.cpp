@@ -86,7 +86,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
-    const Real explicit_fac = 1.0 - implicit_fac;
+    const Real explicit_fac = one - implicit_fac;
 
 #include "ERF_SetupDiff.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
@@ -111,10 +111,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
 
@@ -124,9 +124,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
-            Real idz_lo = 1.0 / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
+            Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -143,10 +143,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
 
@@ -155,9 +155,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
-            Real idz_lo = 1.0 / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
+            Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -174,10 +174,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -186,8 +186,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim) )
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
@@ -196,12 +196,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
                 Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
                 Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -210,12 +210,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
                 Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
                 Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
@@ -224,10 +224,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -238,7 +242,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -251,8 +255,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
 
@@ -261,9 +265,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
-            Real idz_lo = 1.0 / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
+            Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -280,8 +284,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
 
@@ -290,9 +294,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
-            Real idz_lo = 1.0 / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
+            Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -309,8 +313,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -319,8 +323,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
@@ -329,12 +333,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
                 Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
                 Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -343,12 +347,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
                 Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
                 Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
@@ -357,10 +361,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -371,7 +379,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -384,7 +392,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
@@ -394,9 +402,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
-            Real idz_lo = 1.0 / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
+            Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -412,7 +420,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
@@ -422,9 +430,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
-            Real idz_lo = 1.0 / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
+            Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -440,7 +448,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real GradCz;
@@ -450,8 +458,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
@@ -460,12 +468,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
                 Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
                 Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -474,12 +482,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
                 Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
                 Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
@@ -488,10 +496,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -502,7 +514,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -523,9 +535,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
-            Real idz_lo = 1.0 / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
+            Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i-1, j, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -550,9 +562,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
 
-            Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
-            Real idz_lo = 1.0 / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
-            Real GradCz =    0.5 * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
+            Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
+            Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
+            Real GradCz =    myhalf * ( cell_prim(i, j, k+1, prim_index)*idz_hi + cell_prim(i, j-1, k+1, prim_index)*idz_lo
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -578,8 +590,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
@@ -588,12 +600,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
                 Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
                 Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -602,12 +614,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
                 Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
                 Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
-                Real idz0 = 1.0 / dz0;
-                Real f    = (dz1 / dz0) + 2.0;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = 2.0 / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(1.0-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
@@ -616,10 +628,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -630,11 +646,21 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k);
+                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+        });
+    }
+
+    // NOTE: With terrain, we implicitly treat the leading order vertical gradient (no metric terms)
+    // This allows us to do semi-implicit discretization of the vertical diffusive terms
+    if (qty_index == RhoTheta_comp ||
+        qty_index == RhoQ1_comp) {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            zflux(i,j,k) *= explicit_fac;
         });
     }
 
@@ -647,49 +673,55 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     //-----------------------------------------------------------------------------------
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_xi_lo  = Compute_h_xi_AtKface (i,j,k  ,cellSizeInv,z_nd);
-        Real met_h_xi_hi  = Compute_h_xi_AtKface (i,j,k+1,cellSizeInv,z_nd);
-
-        Real met_h_eta_lo = Compute_h_eta_AtKface(i,j,k  ,cellSizeInv,z_nd);
-        Real met_h_eta_hi = Compute_h_eta_AtKface(i,j,k+1,cellSizeInv,z_nd);
-
         Real xfluxbar_lo, yfluxbar_lo;
+        Real met_h_xi_lo  = Compute_h_xi_AtKface (i,j,k  ,cellSizeInv,z_nd);
+        Real met_h_eta_lo = Compute_h_eta_AtKface(i,j,k  ,cellSizeInv,z_nd);
         if (k == dom_lo.z) {
-            Real xfluxlo  = 0.5 * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
-            Real xfluxhi  = 0.5 * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
-            xfluxbar_lo = 1.5*xfluxlo - 0.5*xfluxhi;
+            Real xfluxlo  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            Real xfluxhi  = myhalf * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
+            xfluxbar_lo = Real(1.5)*xfluxlo - myhalf*xfluxhi;
 
-            Real yfluxlo  = 0.5 * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
-            Real yfluxhi  = 0.5 * ( yflux(i,j,k+1) + yflux(i,j+1,k+1) );
-            yfluxbar_lo = 1.5*yfluxlo - 0.5*yfluxhi;
+            Real yfluxlo  = myhalf * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            Real yfluxhi  = myhalf * ( yflux(i,j,k+1) + yflux(i,j+1,k+1) );
+            yfluxbar_lo = Real(1.5)*yfluxlo - myhalf*yfluxhi;
         } else {
-            xfluxbar_lo = 0.25 * ( xflux(i,j,k  ) + xflux(i+1,j  ,k  )
-                                 + xflux(i,j,k-1) + xflux(i+1,j  ,k-1) );
-            yfluxbar_lo = 0.25 * ( yflux(i,j,k  ) + yflux(i  ,j+1,k  )
-                                 + yflux(i,j,k-1) + yflux(i  ,j+1,k-1) );
+            xfluxbar_lo = fourth * ( xflux(i,j,k  ) + xflux(i+1,j  ,k  )
+                                   + xflux(i,j,k-1) + xflux(i+1,j  ,k-1) );
+            yfluxbar_lo = fourth * ( yflux(i,j,k  ) + yflux(i  ,j+1,k  )
+                                   + yflux(i,j,k-1) + yflux(i  ,j+1,k-1) );
         }
 
         Real xfluxbar_hi, yfluxbar_hi;
+        Real met_h_xi_hi  = Compute_h_xi_AtKface (i,j,k+1,cellSizeInv,z_nd);
+        Real met_h_eta_hi = Compute_h_eta_AtKface(i,j,k+1,cellSizeInv,z_nd);
         if (k == dom_hi.z) {
-            Real xfluxlo  = 0.5 * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
-            Real xfluxhi  = 0.5 * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
-            xfluxbar_hi = 1.5*xfluxhi - 0.5*xfluxlo;
+            Real xfluxlo  = myhalf * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
+            Real xfluxhi  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            xfluxbar_hi = Real(1.5)*xfluxhi - myhalf*xfluxlo;
 
-            Real yfluxlo  = 0.5 * ( yflux(i,j,k-1) + yflux(i,j+1,k-1) );
-            Real yfluxhi  = 0.5 * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
-            yfluxbar_hi = 1.5*yfluxhi - 0.5*yfluxlo;
+            Real yfluxlo  = myhalf * ( yflux(i,j,k-1) + yflux(i,j+1,k-1) );
+            Real yfluxhi  = myhalf * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            yfluxbar_hi = Real(1.5)*yfluxhi - myhalf*yfluxlo;
         } else {
-            xfluxbar_hi = 0.25 * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
-                                 + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );
-            yfluxbar_hi = 0.25 * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
-                                 + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
+            xfluxbar_hi = fourth * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
+                                   + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );
+            yfluxbar_hi = fourth * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
+                                   + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
         }
 
         // Allow semi-implicit discretization of the vertical diffusive terms
-        Real zflux_lo = explicit_fac * zflux(i,j,k  )
-                      - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
-                      - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
-        Real zflux_hi = explicit_fac * zflux(i,j,k+1)
+        Real zflux_lo;
+        if ( use_SurfLayer &&
+             k == dom_lo.z &&
+             qty_index != RhoTheta_comp &&
+             qty_index != RhoQ1_comp ) {
+            zflux_lo = zero;
+        } else {
+            zflux_lo = zflux(i,j,k  )
+                     - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
+                     - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
+        }
+        Real zflux_hi = zflux(i,j,k+1)
                       - met_h_xi_hi  * mf_mx(i,j,0) * xfluxbar_hi
                       - met_h_eta_hi * mf_my(i,j,0) * yfluxbar_hi;
 

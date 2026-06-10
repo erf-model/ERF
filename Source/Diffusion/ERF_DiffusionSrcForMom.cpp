@@ -63,7 +63,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mfsq // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mfsq // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv );     // Contribution to x-mom eqn from diffusive flux in z-dir;
-            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
+            diffContrib      /= myhalf*(detJ(i,j,k) + detJ(i-1,j,k));
             rho_u_rhs(i,j,k) -= diffContrib;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -74,7 +74,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau21(i+1, j  , k  ) - tau21(i  , j  , k  )) * dxinv * mfsq // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv * mfsq // Contribution to y-mom eqn from diffusive flux in y-dir
                                 + (tau23(i  , j  , k+1) - tau23(i  , j  , k  )) * dzinv );     // Contribution to y-mom eqn from diffusive flux in z-dir;
-            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
+            diffContrib      /= myhalf*(detJ(i,j,k) + detJ(i,j-1,k));
             rho_v_rhs(i,j,k) -= diffContrib;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -85,7 +85,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv * mfsq // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv * mfsq // Contribution to z-mom eqn from diffusive flux in y-dir
                                 + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1)) * dzinv );     // Contribution to z-mom eqn from diffusive flux in z-dir;
-            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+            diffContrib      /= myhalf*(detJ(i,j,k) + detJ(i,j,k-1));
             rho_w_rhs(i,j,k) -= diffContrib;
         });
 
@@ -119,8 +119,8 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             // Note: We don't compute a source term for z-momentum on the bottom or top domain boundary (from erf_slow_rhs_pre)
-            //Real dzinv_loc = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
-            Real dzinv_loc = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            //Real dzinv_loc = (k == 0) ? one / dz_ptr[k] : two / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dzinv_loc = two / (dz_ptr[k] + dz_ptr[k-1]);
 
             Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv * mfsq // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv * mfsq // Contribution to z-mom eqn from diffusive flux in y-dir
@@ -138,10 +138,10 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
             // Area corrections
-            Real Imfy_hi = 1. / mf_my(i  ,j,0);
-            Real Imfy_lo = 1. / mf_my(i-1,j,0);
-            Real Imfx_hi = 1. / (0.5 * (mf_vx(i,j+1,0) + mf_vx(i-1,j+1,0)));
-            Real Imfx_lo = 1. / (0.5 * (mf_vx(i,j  ,0) + mf_vx(i-1,j  ,0)));
+            Real Imfy_hi = one / mf_my(i  ,j,0);
+            Real Imfy_lo = one / mf_my(i-1,j,0);
+            Real Imfx_hi = one / (myhalf * (mf_vx(i,j+1,0) + mf_vx(i-1,j+1,0)));
+            Real Imfx_lo = one / (myhalf * (mf_vx(i,j  ,0) + mf_vx(i-1,j  ,0)));
             rho_u_rhs(i,j,k) -= ( (tau11(i  , j  , k  )*Imfy_hi - tau11(i-1, j  ,k  )*Imfy_lo) * dxinv * mfsq   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  )*Imfx_hi - tau12(i  , j  ,k  )*Imfx_lo) * dyinv * mfsq   // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1)         - tau13(i  , j  ,k  )        ) * dzinv );       // Contribution to x-mom eqn from diffusive flux in z-dir;
@@ -152,10 +152,10 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
             // Area corrections
-            Real Imfy_hi = 1. / (0.5 * (mf_uy(i+1,j,0) + mf_uy(i+1,j-1,0)));
-            Real Imfy_lo = 1. / (0.5 * (mf_uy(i  ,j,0) + mf_uy(i  ,j-1,0)));
-            Real Imfx_hi = 1. / mf_mx(i  ,j,0);
-            Real Imfx_lo = 1. / mf_mx(i-1,j,0);
+            Real Imfy_hi = one / (myhalf * (mf_uy(i+1,j,0) + mf_uy(i+1,j-1,0)));
+            Real Imfy_lo = one / (myhalf * (mf_uy(i  ,j,0) + mf_uy(i  ,j-1,0)));
+            Real Imfx_hi = one / mf_mx(i  ,j,0);
+            Real Imfx_lo = one / mf_mx(i-1,j,0);
             rho_v_rhs(i,j,k) -= ( (tau12(i+1, j  , k  )*Imfy_hi - tau12(i  , j  , k  )*Imfy_lo) * dxinv * mfsq  // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  )*Imfx_hi - tau22(i  , j-1, k  )*Imfx_lo) * dyinv * mfsq  // Contribution to y-mom eqn from diffusive flux in y-dir
                                 + (tau23(i  , j  , k+1)         - tau23(i  , j  , k  )        ) * dzinv );      // Contribution to y-mom eqn from diffusive flux in z-dir;
@@ -166,10 +166,10 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             // Area corrections
-            Real Imfy_hi = 1. / mf_uy(i+1,j  ,0);
-            Real Imfy_lo = 1. / mf_uy(i  ,j  ,0);
-            Real Imfx_hi = 1. / mf_vx(i  ,j+1,0);
-            Real Imfx_lo = 1. / mf_vx(i  ,j  ,0);
+            Real Imfy_hi = one / mf_uy(i+1,j  ,0);
+            Real Imfy_lo = one / mf_uy(i  ,j  ,0);
+            Real Imfx_hi = one / mf_vx(i  ,j+1,0);
+            Real Imfx_lo = one / mf_vx(i  ,j  ,0);
             rho_w_rhs(i,j,k) -= ( (tau13(i+1, j  , k  )*Imfy_hi - tau13(i  , j  , k  )*Imfy_lo) * dxinv * mfsq  // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau23(i  , j+1, k  )*Imfx_hi - tau23(i  , j  , k  )*Imfx_lo) * dyinv * mfsq  // Contribution to z-mom eqn from diffusive flux in y-dir
                                 + (tau33(i  , j  , k  )         - tau33(i  , j  , k-1)        ) * dzinv );      // Contribution to z-mom eqn from diffusive flux in z-dir;

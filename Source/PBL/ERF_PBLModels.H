@@ -39,7 +39,7 @@ ComputeDiffusivityMYJ (amrex::Real dt,
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Mellor-Yamada-Nakanishi-Niino Level 2.5 PBL scheme
+ * Mellor-Yamada-Nakanishi-Niino Level amrex::Real(2.5) PBL scheme
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
@@ -72,7 +72,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Mellor-Yamada-Nakanishi-Niino Level 2.5 PBL scheme
+ * Mellor-Yamada-Nakanishi-Niino Level amrex::Real(2.5) PBL scheme
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
@@ -197,36 +197,36 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                const MoistureComponentIndices& moisture_indices)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(       -GetThetav(i,j,k-1,cell_data,moisture_indices)
-                              - 3.0 * GetThetav(i,j,k  ,cell_data,moisture_indices)
-                              + 4.0 * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = (one/three)*(       -GetThetav(i,j,k-1,cell_data,moisture_indices)
+                              - three * GetThetav(i,j,k  ,cell_data,moisture_indices)
+                              + amrex::Real(4.0) * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*(        GetThetav(i,j,k+1,cell_data,moisture_indices)
-                              + 3.0 * GetThetav(i,j,k  ,cell_data,moisture_indices)
-                              - 4.0 * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = (one/three)*(        GetThetav(i,j,k+1,cell_data,moisture_indices)
+                              + three * GetThetav(i,j,k  ,cell_data,moisture_indices)
+                              - amrex::Real(4.0) * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     } else {
-        dthetadz = 0.5*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
+        dthetadz = myhalf*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
                         - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
-        dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                         + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
+        dudz = (one/amrex::Real(6.0))*( (-uvel(i  ,j,k-1) - three * uvel(i  ,j,k  ) + amrex::Real(4.0) * uvel(i  ,j,k+1))
+                         + (-uvel(i+1,j,k-1) - three * uvel(i+1,j,k  ) + amrex::Real(4.0) * uvel(i+1,j,k+1)) )*dz_inv;
     } else if ( k==izmin && u_ext_dir_on_zlo ) {
-        dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                         + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
+        dudz = (one/amrex::Real(6.0))*( (uvel(i  ,j,k+1) + three * uvel(i  ,j,k  ) - amrex::Real(4.0) * uvel(i  ,j,k-1))
+                         + (uvel(i+1,j,k+1) + three * uvel(i+1,j,k  ) - amrex::Real(4.0) * uvel(i+1,j,k-1)) )*dz_inv;
     } else {
-        dudz = 0.25*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
+        dudz = fourth*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
     }
 
     if ( k==izmax && v_ext_dir_on_zhi ) {
-        dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                         + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
+        dvdz = (one/amrex::Real(6.0))*( (-vvel(i,j  ,k-1) - three * vvel(i,j  ,k  ) + amrex::Real(4.0) * vvel(i,j  ,k+1))
+                         + (-vvel(i,j+1,k-1) - three * vvel(i,j+1,k  ) + amrex::Real(4.0) * vvel(i,j+1,k+1)) )*dz_inv;
     } else if ( k==izmin && v_ext_dir_on_zlo ) {
-        dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                         + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
+        dvdz = (one/amrex::Real(6.0))*( (vvel(i,j  ,k+1) + three * vvel(i,j  ,k  ) - amrex::Real(4.0) * vvel(i,j  ,k-1))
+                         + (vvel(i,j+1,k+1) + three * vvel(i,j+1,k  ) - amrex::Real(4.0) * vvel(i,j+1,k-1)) )*dz_inv;
     } else {
-        dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
+        dvdz = fourth*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
     }
 }
 
@@ -263,11 +263,11 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
                        bool v_ext_dir_on_zhi,
-                       const amrex::Real met_h_zeta=1.0)
+                       const amrex::Real met_h_zeta=one)
 {
     // Compute some relevant derivatives
     amrex::Real dthetadz, dudz, dvdz;
-    amrex::Real source_term = 0.0;
+    amrex::Real source_term = zero;
 
     amrex::Real dz_inv = cellSizeInv[2];
     int izmin = domain.smallEnd(2);
@@ -282,7 +282,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   moisture_indices);
 
     // Notes:
-    // - We transport TKE = 0.5*QKE rather than QKE, so the RHS terms do not
+    // - We transport TKE = myhalf*QKE rather than QKE, so the RHS terms do not
     //   have a factor of two.
     // - Transport terms due to turbulence and pressure are included when
     //   DiffusionSrcForState_* is called from ERF_slow_rhs_post.
@@ -299,9 +299,9 @@ ComputeQKESourceTerms (int i, int j, int k,
     source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation (NN09, Eqn. 12)
-    amrex::Real qke = 2.0 * cell_prim(i,j,k,PrimKE_comp);
-    if (std::abs(qke) > 0.0) {
-        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+    amrex::Real qke = two * cell_prim(i,j,k,PrimKE_comp);
+    if (std::abs(qke) > zero) {
+        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,amrex::Real(1.5)) /
                        (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
     }
 

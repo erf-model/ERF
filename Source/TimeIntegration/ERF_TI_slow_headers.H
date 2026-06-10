@@ -13,7 +13,6 @@
 #include "ERF_Advection.H"
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
-#include "ERF_PlaneAverage.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
@@ -70,6 +69,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab* zmom_crse_rhs,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_EB,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,
@@ -80,6 +80,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab* Q1fx3,
                             amrex::MultiFab* Q2fx3,
                             amrex::MultiFab* Diss,
+                            amrex::MultiFab* Hfx3_EB,
                       const amrex::Geometry geom,
                       const SolverChoice& solverChoice,
                       std::unique_ptr<SurfaceLayer>& SurfLayer,

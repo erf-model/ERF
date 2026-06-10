@@ -26,9 +26,9 @@ public:
     /*! \brief Default destructor */
     virtual ~NullMoistLagrangian () = default;
 
-    /*! \brief Initialize particles */
+    /*! \brief Initialize particles at AMR level */
     virtual
-    void InitParticles ( std::unique_ptr<amrex::MultiFab>& ) { }
+    void InitParticles ( const int, std::unique_ptr<amrex::MultiFab>& ) { }
 
     /*! \brief Restart particles */
     virtual
@@ -51,10 +51,17 @@ public:
                              amrex::MultiFab&, /* Conserved state variable */
                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*terrain*/) {}
 
+    /*! \brief average down moisture multifabs from finest_level to 0 */
+    virtual void AverageDownMicroVars (const int /*finest_level*/) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
     }
+
+    void SetCurrentLevel (const int&) override {}
+    void InitLevel (const int, const amrex::MultiFab&) override {}
+    int getDiagnosticsInterval () const override { return 0; }
 
     /*! \brief advance the moisture model by one time step */
     virtual void

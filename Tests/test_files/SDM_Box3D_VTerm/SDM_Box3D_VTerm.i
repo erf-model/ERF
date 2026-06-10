@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 max_step  = 1
 stop_time = 3600.0
 
@@ -13,7 +14,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0.   0.   0.
 geometry.prob_hi     =  8.   8.   4.
 amr.n_cell           =  8    8    4
-geometry.is_periodic =  1 1 1
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.00125
@@ -73,14 +76,13 @@ erf.buoyancy_type   = 1
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T          = 0.0 # [m^2/s]
 erf.alpha_C          = 0.0
 
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
 super_droplets_moisture.place_randomly_in_cells = false
-super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.include_coalescence = false
 super_droplets_moisture.include_phase_change = false
@@ -96,11 +98,3 @@ super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
 super_droplets_moisture.initial_particles_per_cell = 1
 
 # PROBLEM PARAMETERS (optional)
-prob.U_0    = 0.0
-prob.T_pert = 0.0 # theta pert magnitude
-prob.x_c    = 200.0
-prob.z_c    = 200.0
-prob.x_r    = 100.0
-prob.z_r    = 100.0
-prob.do_moist_bubble = false
-prob.T_pert_is_airtemp = false # Perturb theta

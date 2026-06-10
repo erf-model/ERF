@@ -97,8 +97,8 @@ MODULE MODULE_MP_MORR_TWO_MOMENT
 
    IMPLICIT NONE
 
-   REAL(C_DOUBLE), PARAMETER :: PI = 3.1415926535897932384626434
-   REAL(C_DOUBLE), PARAMETER :: xxx = 0.9189385332046727417803297
+   REAL(C_DOUBLE), PARAMETER :: PI = 3.1415926535897932384626434D0
+   REAL(C_DOUBLE), PARAMETER :: xxx = 0.9189385332046727417803297D0
 
    PUBLIC  ::  MP_MORR_TWO_MOMENT
    PUBLIC  ::  POLYSVP
@@ -599,7 +599,8 @@ END SUBROUTINE SET_MORRISON_NDCNST
 
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
-                RHO, PII, P, DT_IN, DZ, HT, W,          &
+                ! RHO, PII, P, DT_IN, DZ, HT, W,          &
+                RHO, PII, P, DT_IN, DZ, W,          &
                 RAINNC, RAINNCV, SR,                    &
                 SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV,    & ! hm added 7/13/13
                 refl_10cm, diagflag, do_radar_ref,      & ! GT added for reflectivity calcs
@@ -688,11 +689,11 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
    REAL(C_DOUBLE), INTENT(IN):: dt_in
    INTEGER, INTENT(IN):: ITIMESTEP
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
-!   REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme         ), INTENT(INOUT) :: RAINNC, RAINNCV, SR, SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
+   REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
+   REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
+!  REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme         ), INTENT(INOUT) :: RAINNC, RAINNCV, SR, SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:kme, kms:jme), INTENT(INOUT) :: refl_10cm
-   REAL(C_DOUBLE), DIMENSION(ims:ime ,jms:jme         ), INTENT(IN   ) :: ht
+!  REAL(C_DOUBLE), DIMENSION(ims:ime ,jms:jme         ), INTENT(IN   ) :: ht
 
    LOGICAL, optional, INTENT(IN) :: wetscav_on
 
@@ -757,13 +758,13 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
    ! Currently mixing of number concentrations also is neglected (not coupled with PBL schemes)
 
-   print *,'IMS IME ',ims,ime
-   print *,'JMS JME ',jms,jme
-   print *,'KMS KME ',kms,kme
+   ! print *,'IMS IME ',ims,ime
+   ! print *,'JMS JME ',jms,jme
+   ! print *,'KMS KME ',kms,kme
 
-   print *,'ITS ITE ',its,ite
-   print *,'JTS JTE ',jts,jte
-   print *,'KTS KTE ',kts,kte
+   ! print *,'ITS ITE ',its,ite
+   ! print *,'JTS JTE ',jts,jte
+   ! print *,'KTS KTE ',kts,kte
 
    DO I=ITS,ITE
    DO J=JTS,JTE
@@ -4205,32 +4206,32 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 !----------------------------------------------------------------------
 !  MATHEMATICAL CONSTANTS
 !----------------------------------------------------------------------
-      DATA ONE,HALF,TWELVE,TWO,ZERO/1.0E0,0.5E0,12.0E0,2.0E0,0.0E0/
+      DATA ONE,HALF,TWELVE,TWO,ZERO/1.0D0,0.5D0,12.0D0,2.0D0,0.0D0/
 
 
 !----------------------------------------------------------------------
 !  MACHINE DEPENDENT PARAMETERS
 !----------------------------------------------------------------------
-      DATA XBIG,XMININ,EPS/35.040E0,1.18E-38,1.19E-7/,XINF/3.4E38/
+      DATA XBIG,XMININ,EPS/35.040D0,1.18D-38,1.19D-7/,XINF/3.4D38/
 !----------------------------------------------------------------------
 !  NUMERATOR AND DENOMINATOR COEFFICIENTS FOR RATIONAL MINIMAX
 !     APPROXIMATION OVER (1,2).
 !----------------------------------------------------------------------
-      DATA P/-1.71618513886549492533811E+0,2.47656508055759199108314E+1,  &
-             -3.79804256470945635097577E+2,6.29331155312818442661052E+2,  &
-             8.66966202790413211295064E+2,-3.14512729688483675254357E+4,  &
-             -3.61444134186911729807069E+4,6.64561438202405440627855E+4/
-      DATA Q/-3.08402300119738975254353E+1,3.15350626979604161529144E+2,  &
-             -1.01515636749021914166146E+3,-3.10777167157231109440444E+3, &
-              2.25381184209801510330112E+4,4.75584627752788110767815E+3,  &
-            -1.34659959864969306392456E+5,-1.15132259675553483497211E+5/
+      DATA P/-1.71618513886549492533811D+0,2.47656508055759199108314D+1,  &
+             -3.79804256470945635097577D+2,6.29331155312818442661052D+2,  &
+             8.66966202790413211295064D+2,-3.14512729688483675254357D+4,  &
+             -3.61444134186911729807069D+4,6.64561438202405440627855D+4/
+      DATA Q/-3.08402300119738975254353D+1,3.15350626979604161529144D+2,  &
+             -1.01515636749021914166146D+3,-3.10777167157231109440444D+3, &
+              2.25381184209801510330112D+4,4.75584627752788110767815D+3,  &
+            -1.34659959864969306392456D+5,-1.15132259675553483497211D+5/
 !----------------------------------------------------------------------
 !  COEFFICIENTS FOR MINIMAX APPROXIMATION OVER (12, INF).
 !----------------------------------------------------------------------
-      DATA C/-1.910444077728E-03,8.4171387781295E-04,                      &
-           -5.952379913043012E-04,7.93650793500350248E-04,                                 &
-           -2.777777777777681622553E-03,8.333333333333333331554247E-02,    &
-            5.7083835261E-03/
+      DATA C/-1.910444077728D-03,8.4171387781295D-04,                      &
+           -5.952379913043012D-04,7.93650793500350248D-04,                                 &
+           -2.777777777777681622553D-03,8.333333333333333331554247D-02,    &
+            5.7083835261D-03/
 !----------------------------------------------------------------------
 !  STATEMENT FUNCTIONS FOR CONVERSION BETWEEN INTEGER AND FLOAT
 !----------------------------------------------------------------------

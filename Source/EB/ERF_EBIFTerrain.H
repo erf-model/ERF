@@ -45,7 +45,7 @@ public:
         amrex::Real y2{};
         amrex::Real w1{};
         amrex::Real w2{};
-        amrex::Real terr_z{0.};
+        amrex::Real terr_z{amrex::Real(0.0)};
 
         // z_stretched
         const int k1 = static_cast<int>(std::floor((z-prob_lo_z) / dz));

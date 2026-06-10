@@ -65,4 +65,3 @@ erf.c_p = 1004.0
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
-prob.U_0 = 0.0

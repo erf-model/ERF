@@ -1,0 +1,124 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
+max_step  = 20
+stop_time = 3600.0
+
+amrex.fpe_trap_invalid = 1
+erf.fix_random_seed = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 9600.0 9600.0  4800.0
+amr.n_cell           = 48     48      24
+geometry.is_periodic = 0 0 0
+xlo.type = "SlipWall"
+xhi.type = "SlipWall"    
+ylo.type = "SlipWall"
+yhi.type = "SlipWall"    
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 4
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk       # root name of checkpoint file
+erf.check_int       = -1        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 5          # number of timesteps between plotfiles
+erf.plot_vars_1     = density \
+                      rhotheta \
+                      x_velocity \
+                      y_velocity \
+                      z_velocity \
+                      pressure \
+                      theta \
+                      scalar \
+                      temp \
+                      pres_hse \
+                      dens_hse \
+                      pert_pres \
+                      pert_dens \
+                      super_droplets_moisture_number_density \
+                      super_droplets_moisture_sd_number_density \
+                      super_droplets_moisture_mass_density
+particles.disable_plt = true
+
+# SOLVER CHOICES
+erf.use_gravity          = true
+
+erf.dycore_horiz_adv_type    = "Upwind_5th"
+erf.dycore_vert_adv_type     = "Upwind_5th"
+erf.dryscal_horiz_adv_type   = "Upwind_5th"
+erf.dryscal_vert_adv_type    = "Upwind_5th"     
+
+# PHYSICS OPTIONS
+erf.les_type        = "None"
+erf.pbl_type        = "None"
+erf.buoyancy_type   = 1
+erf.init_type       = Isentropic
+
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+erf.alpha_T           = 0.0 # [m^2/s]
+erf.alpha_C           = 0.0
+
+# PROBLEM PARAMETERS (optional)
+# warm bubble input
+prob.T_pert =  100.0 # theta pert magnitude
+prob.x_c    = 4800.0
+prob.y_c    = 4800.0
+prob.z_c    = 1000.0
+prob.x_r    =  960.0
+prob.y_r    =  960.0
+prob.z_r    =  960.0
+prob.T_0    =  300.0
+prob.do_moist_bubble = false    
+prob.T_pert_is_airtemp = false # Perturb theta
+
+# SDM
+erf.moisture_model  = "SuperDroplets"
+super_droplets_moisture.stable_redistribute = true
+super_droplets_moisture.place_randomly_in_cells = false
+super_droplets_moisture.initial_distribution_type = "bubble"
+super_droplets_moisture.particle_bubble_center = 4800 4800 1000
+super_droplets_moisture.particle_bubble_radius = 480  480  480
+super_droplets_moisture.diagnostics_interval = 1
+super_droplets_moisture.include_phase_change = false
+super_droplets_moisture.include_coalescence = false
+super_droplets_moisture.advect_with_gravity = false
+super_droplets_moisture.recycle_particles = false
+super_droplets_moisture.aerosols = NaCl
+super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-19 #kg
+super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
+super_droplets_moisture.initial_particles_per_cell = 4
+
+# Refinement indicators - refine where cloud water is present
+amr.max_level       = 1   # maximum level number allowed (one refinement level)
+amr.ref_ratio       = 2   # refinement ratio: 2x in x, y, and z directions
+amr.n_error_buf     = 5
+amr.grid_eff        = 0.3
+amr.blocking_factor = 4 
+erf.regrid_int      = 1   # regrid interval (check every 10 timesteps)
+erf.coupling_type   = "OneWay"
+
+erf.refinement_indicators = sdm_count_refine
+erf.sdm_count_refine.max_level = 1
+erf.sdm_count_refine.field_name = super_droplets_moisture_count
+erf.sdm_count_refine.value_greater = 1.0e-4  # kg/kg - refine where qc > 1e-4
+erf.sdm_count_refine.start_time = 0.0      # Don't refine before 10s
+

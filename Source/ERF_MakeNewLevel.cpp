@@ -62,19 +62,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     subdomains.resize(lev+1);
-    if ( (lev == 0) || (
-         (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) &&
-         (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        //
-        // Create subdomains at each level within the domain such that
-        // 1) all boxes in a given subdomain are "connected"
-        // 2) no boxes in a subdomain touch any boxes in any other subdomain
-        //
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    //
+    // Create subdomains at each level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -115,7 +108,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), zero, z_phys_nd[lev] ); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -317,7 +310,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
@@ -344,9 +337,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (lev == 0) {
             initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
-        } else {
-            particleData.Redistribute();
         }
+        // For lev > 0: particle redistribute is handled in timeStep() AFTER
+        // regrid() completes, not here inside MakeNewLevelFromCoarse.
     }
 #endif
 }
@@ -377,12 +370,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if ( (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -392,11 +380,34 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
     //
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_old[lev] = time - Real(1.e200);
 
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
@@ -471,7 +482,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
@@ -510,7 +521,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         if (solverChoice.init_type == InitType::Metgrid) {
             init_from_metgrid(lev);
         } else if (solverChoice.init_type == InitType::WRFInput) {
-            init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+            init_from_wrfinput(lev, *mf_PSFC[lev]);
         }
         init_zphys(lev, time);
         update_terrain_arrays(lev);
@@ -530,6 +541,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     // so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // Populate dz_min for dynamically-created fine levels (non-terrain path).
+    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
+    dz_min[lev] = geom[lev].CellSize(2);
+    if ( SolverChoice::mesh_type != MeshType::ConstantDz && detJ_cc[lev] ) {
+        dz_min[lev] *= (*detJ_cc[lev]).min(0);
+    }
 #ifdef ERF_USE_NETCDF
     }
 #endif
@@ -556,33 +574,33 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
-        Real dummy_dt = 1.0;
+        Real dummy_dt = one;
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }
 
-    //********************************************************************************************
-    // Land Surface Model
-    // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
+    // //********************************************************************************************
+    // // Land Surface Model
+    // // *******************************************************************************************
+    // int lsm_data_size  = lsm.Get_Data_Size();
+    // int lsm_flux_size  = lsm.Get_Flux_Size();
+    // lsm_data[lev].resize(lsm_data_size);
+    // lsm_data_name.resize(lsm_data_size);
+    // lsm_flux[lev].resize(lsm_flux_size);
+    // lsm_flux_name.resize(lsm_flux_size);
+    // lsm.Define(lev, solverChoice);
+    // if (solverChoice.lsm_type != LandSurfaceType::None)
+    // {
+    //     lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+    // }
+    // for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+    //     lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+    //     lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    // }
+    // for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+    //     lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+    //     lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    // }
 
     // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
@@ -598,9 +616,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
-#ifdef ERF_USE_PARTICLES
-    // particleData.Redistribute();
-#endif
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
+    }
+
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -631,9 +655,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if (solverChoice.anelastic[lev] == 1) {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    subdomains[lev].clear();
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
@@ -762,7 +785,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_old[lev] = time - Real(1.e200);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -778,7 +801,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     if (solverChoice.moisture_type != MoistureType::None)
     {
         micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
+                    grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
@@ -891,9 +914,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
-#ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
-#endif
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
+    }
+
+    // Particle redistribute handled in timeStep() after regrid() completes.
+    // Calling it here causes stale-grid crashes.
 }
 
 //
@@ -941,8 +972,10 @@ ERF::ClearLevel (int lev)
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
 
-    // Clears the flux register array
-    advflux_reg[lev]->reset();
+    // Clears the flux register array (only allocated for TwoWay coupling)
+    if (advflux_reg[lev]) {
+        advflux_reg[lev]->reset();
+    }
 
     // Clears the 2D arrays
     if (sst_lev[lev][0]) {
@@ -967,6 +1000,20 @@ ERF::ClearLevel (int lev)
     if (cosPhi_m[lev]) {
         cosPhi_m[lev].reset();
     }
+
+#ifdef ERF_USE_FFT
+    // Clear any FFT solvers built at this level
+    if (m_3D_poisson.size() > lev) {
+        for (int n = 0; n < m_3D_poisson[lev].size(); n++) {
+            m_3D_poisson[lev][n].reset();
+        }
+    }
+    if (m_2D_poisson.size() > lev) {
+        for (int n = 0; n < m_2D_poisson[lev].size(); n++) {
+            m_2D_poisson[lev][n].reset();
+        }
+    }
+#endif
 }
 
 void

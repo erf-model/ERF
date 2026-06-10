@@ -236,6 +236,7 @@ public:
 
                 const int isnature = 14; // nature cell type to use for urban cells
                 const int isurban  = 13; // urban cell type
+                const int islake   = 21; // lake cell
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     amrex::Box bx2d = mfi.tilebox();
 
@@ -300,7 +301,7 @@ public:
                         in_vegfrac_max_arr(i,j,d_khi_lsm) *= 0.01;
                         in_vegfrac_max_arr(i,j,0) = in_vegfrac_max_arr(i,j,d_khi_lsm);
 
-                        if (landtype_arr(i,j,0) == 17) {
+                        if (landtype_arr(i,j,0) == 17 || landtype_arr(i, j, 0) == islake) {
                             //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
                             landmask_arr(i,j,0) = 0;
                             landtype_arr(i,j,0) = 0;
@@ -488,10 +489,6 @@ public:
     }
 
     void
-    set_flux_inputs(const amrex::MultiFab* sw_lw_fluxes_in,
-                    const amrex::MultiFab* zenith_in) override;
-
-    void
     set_precip_input(const amrex::MultiFab* precip_in) override;
 
     void
@@ -506,7 +503,7 @@ public:
         return LSM_Type::SLM;
     }
 
-    void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step);
+    void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames);
 
     void init_from_file();
 
@@ -638,6 +635,11 @@ public:
         return slm_to_rad_vars;
     }
 
+    std::unordered_map<std::string, std::string>& get_rad_output_map()
+    {
+        return rad_output_map;
+    }
+
     // utility to skip to next line in Header
     //  -- taken from ERF_Checkpoint
     static void GotoNextLine (std::istream& is);
@@ -648,7 +650,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_data_size = 42;
+    int m_lsm_data_size = 43;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
     int m_lsm_flux_size = 5;
@@ -698,13 +700,13 @@ private:
     std::vector<amrex::Real> m_dz_lsm;
 
     // Specific heat
-    amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]
+    amrex::Real m_cp_soil =  amrex::Real(1.26e6); // [J/m^3 K]
 
     // Conductivity
-    amrex::Real m_k_soil = 0.2; // dry soil [W/m K]
+    amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = 400.0; // [K]
+    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]
@@ -983,6 +985,17 @@ private:
         {"SHDMIN", "veg_frac_min"},
         {"SHDMAX", "veg_frac_max"},
         //{"TMN", "soilt_obs"}
+    };
+
+    // map RRTMGP names to SLM names for radiation data
+    inline static std::unordered_map<std::string, std::string> rad_output_map = {
+        {"cos_zenith_angle",   "cos_zenith"},
+        {"sw_flux_dn", ""},
+        {"sw_flux_dn_dir_vis", "SW_dw_dir_vis"},
+        {"sw_flux_dn_dir_nir", "SW_dw_dir_nir"},
+        {"sw_flux_dn_dif_vis", "SW_dw_dif_vis"},
+        {"sw_flux_dn_dif_nir", "SW_dw_dif_nir"},
+        {"lw_flux_dn", "LW_dw"}
     };
 
     // whether to initialize SLM from inputs file or from wrfinput

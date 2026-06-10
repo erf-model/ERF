@@ -1,8 +1,7 @@
 #include <ERF.H>
+#include <ERF_InputsName.H>
 #include <ERF_EpochTime.H>
 #include <AMReX_buildInfo.H>
-
-extern std::string inputs_name;
 
 using namespace amrex;
 
@@ -36,7 +35,7 @@ ERF::writeJobInfo (const std::string& dir) const
 
     jobInfoFile << "\n";
     jobInfoFile << "CPU time used since start of simulation (CPU-hours): "
-                << getCPUTime() / 3600.0;
+                << getCPUTime() / Real(3600.0);
 
     jobInfoFile << "\n\n";
 

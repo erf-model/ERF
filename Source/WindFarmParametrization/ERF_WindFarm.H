@@ -47,8 +47,8 @@ public:
     void read_tables (std::string windfarm_loc_table,
                       std::string windfarm_spec_table,
                       bool x_y, bool lat_lon,
-                      const amrex::Real windfarm_x_shift = 0.0,
-                      const amrex::Real windfarm_y_shift = 0.0);
+                      const amrex::Real windfarm_x_shift = zero,
+                      const amrex::Real windfarm_y_shift = zero);
 
     void init_windfarm_lat_lon (const std::string windfarm_loc_table,
                                 const amrex::Real windfarm_x_shift,
@@ -58,8 +58,8 @@ public:
 
     void read_windfarm_locations_table (const std::string windfarm_loc_table,
                                         bool x_y, bool lat_lon,
-                                        const amrex::Real windfarm_x_shift = 0.0,
-                                        const amrex::Real windfarm_y_shift = 0.0);
+                                        const amrex::Real windfarm_x_shift = zero,
+                                        const amrex::Real windfarm_y_shift = zero);
 
     void read_windfarm_spec_table (const std::string windfarm_spec_table);
 

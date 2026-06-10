@@ -17,7 +17,7 @@ int closest_index (const Vector<Real>& vec, const Real value)
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
 
-    const int idx = std::distance(vec.begin(), it);
+    const int idx = static_cast<int>(std::distance(vec.begin(), it));
     return std::max(idx - 1, 0);
 }
 
@@ -101,7 +101,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datn   = (*m_data_n[ori])[lev];
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
@@ -115,7 +115,7 @@ ReadBndryPlanes::interp_in_time (const Real& time)
             for (OrientationIter oit; oit != nullptr; ++oit) {
                 auto ori = oit();
                 if (ori.coordDir() < 2) {
-                    const int nlevels = m_data_n[ori]->size();
+                    const int nlevels = static_cast<int>(m_data_n[ori]->size());
                     for (int lev = 0; lev < nlevels; ++lev) {
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         const auto& datnp2 = (*m_data_np2[ori])[lev];
@@ -152,7 +152,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
 
     last_file_read = -1;
 
-    m_tinterp = -1.;
+    m_tinterp = -one;
 
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
@@ -286,7 +286,7 @@ void ReadBndryPlanes::read_input_files (Real time,
     BoxArray ba(domain);
     DistributionMapping dm{ba};
     BndryRegister bndryn(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-    bndryn.setVal(1.0e13);
+    bndryn.setVal(Real(1.e13));
 
     // The first time we enter this routine we read the first three files
     if (last_file_read == -1)
@@ -310,8 +310,8 @@ void ReadBndryPlanes::read_input_files (Real time,
     // Compute the index such that time falls between times[idx] and times[idx+1]
     const int idx = closest_index(m_in_times, time);
 
-    // Now we need to read another file
-    if (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
+    // Advance the read window until it spans the requested time.
+    while (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
         int new_read = last_file_read+1;
 
         // We need to change which data the pointers point to before we read in the new data
@@ -384,7 +384,7 @@ void ReadBndryPlanes::read_file (const int idx,
             Array4<Real> d_arr = d.array();
             ParallelFor(
                 bx, ncomp_for_bc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                d_arr(i,j,k,n) = 0.;
+                d_arr(i,j,k,n) = zero;
             });
         }
     }
@@ -392,7 +392,7 @@ void ReadBndryPlanes::read_file (const int idx,
     // Read density for primitive to conserved conversions
     std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
     BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
-    bndry_r.setVal(1.0e13);
+    bndry_r.setVal(Real(1.e13));
     for (OrientationIter oit; oit != nullptr; ++oit) {
           auto ori = oit();
           if (ori.coordDir() < 2) {
@@ -430,7 +430,7 @@ void ReadBndryPlanes::read_file (const int idx,
         // Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
 
         BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-        bndry.setVal(1.0e13);
+        bndry.setVal(Real(1.e13));
 
         // *********************************************************
         // Read in the BndryReg for all non-z faces
@@ -485,7 +485,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                                                     0.5 * (R1*Th1 + R2*Th2);
+                                                                     myhalf * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -494,14 +494,14 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                 0.5 * ( R1 * bndry_read_arr(i, j, k, 0) +
+                                 myhalf * ( R1 * bndry_read_arr(i, j, k, 0) +
                                          R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    } else if (var_name == "density") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                    0.5 * ( bndry_read_arr(i, j, k, 0) +
+                                    myhalf * ( bndry_read_arr(i, j, k, 0) +
                                             bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    }
@@ -516,7 +516,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                                                     0.5 * (R1*Th1 + R2*Th2);
+                                                                     myhalf * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -525,7 +525,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                0.5 * (R1 * bndry_read_arr(i, j, k, 0) +
+                                myhalf * (R1 * bndry_read_arr(i, j, k, 0) +
                                        R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                   }
@@ -536,7 +536,7 @@ void ReadBndryPlanes::read_file (const int idx,
                     ParallelFor(
                         bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                                 bndry_mf_arr(i, j, k, n) = (real_bcs) ? bndry_read_arr(i, j, k, n) :
-                                  0.5 * (bndry_read_arr(i, j, k, n) +
+                                  myhalf * (bndry_read_arr(i, j, k, n) +
                                          bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
                         });
                 }

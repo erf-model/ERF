@@ -79,7 +79,8 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
         auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
-        // Get pressure, theta, temperature, density, and qt, qp
+        // getPgivenRTh returns Pa. Kessler stores pressure in mbar / hPa for the
+        // qsat helper path, so convert here after forming temperature and density.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
@@ -92,7 +93,7 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
                                                   qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
         });
     }
 }

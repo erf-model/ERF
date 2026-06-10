@@ -69,7 +69,7 @@ Hence, we have the intersected area :math:`A_{ijk}\equiv A_k^{k+1}` as
         |A_k + A_{k+1}| & \text{if } (z_k - h)(z_{k+1}-h) \le 0 \\
     \end{cases}
 
-An example of the Fitch model is in ``Exec/Fitch``
+An example of the Fitch model is in ``.Exec_dev/WindFarmTests/SingleTurbine/Fitch``
 
 .. _fig:WindFarm:
 
@@ -455,5 +455,4 @@ Outputs
 
 These `vtk` files can be visualized in both VisIt and ParaView. The `turbine_locations.vtk` can be visualized using the `Points Gaussian` feature in ParaView or the `Mesh`
 feature in VisIt. The `actuator_disks_in_dom.vtk` and `actuator_disks_all.vtk` files can be visualized using the `Wireframe` feature in ParaView or `Mesh` feature in VisIt.
-
 
