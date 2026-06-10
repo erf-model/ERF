@@ -1214,8 +1214,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
     }
 
     // **************************************************************************
-    // Rebalance the base state since state from WRFInput does not discretely satisfy
-    // dp0/dz = -rho0 g
+    // Rebalance the base state since state from WRFInput does not discretely
+    // satisfy dp0/dz = -rho0 g
     // **************************************************************************
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
@@ -1267,8 +1267,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                     // dz == height of first cell center
                     dz = z_hi - z_lo;
 
-                    Th_lo = 300.0;
-                    P_lo  = p_0;
+                    // Known surface values
+                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d)
+                    P_lo  = P00;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
