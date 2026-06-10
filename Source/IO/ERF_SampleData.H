@@ -303,7 +303,7 @@ struct LineSampler
                                                                                   &vars_new[ilev][Vars::yvel],
                                                                                   &vars_new[ilev][Vars::zvel]});
 
-                // Construct vector of MFs holding T and WSP
+                // Construct MultiFab holding requested variables
                 amrex::MultiFab mf_cc_data;
                 mf_cc_data.define(ba, dm, ncomp, 1);
 
@@ -628,6 +628,51 @@ struct PlaneSampler
 
             // Allocate space for MF pointers
             m_ps_mf.resize(n_plane_lo);
+
+            // Get requested vars
+            if (pp.countval("plane_sampling_vars") > 0) {
+                m_varnames.clear();
+                amrex::Vector<std::string> requested_vars;
+                pp.queryarr("plane_sampling_vars",requested_vars);
+                amrex::Print() << "Selected plane sampling vars :";
+                if (containerHasElement(requested_vars, "density")) {
+                    m_varnames.push_back("density");
+                    amrex::Print() << " " << "density";
+                }
+                if (containerHasElement(requested_vars, "x_velocity")) {
+                    m_varnames.push_back("x_velocity");
+                    amrex::Print() << " " << "x_velocity";
+                }
+                if (containerHasElement(requested_vars, "y_velocity")) {
+                    m_varnames.push_back("y_velocity");
+                    amrex::Print() << " " << "y_velocity";
+                }
+                if (containerHasElement(requested_vars, "z_velocity")) {
+                    m_varnames.push_back("z_velocity");
+                    amrex::Print() << " " << "z_velocity";
+                }
+                if (containerHasElement(requested_vars, "magvel")) {
+                    m_varnames.push_back("magvel");
+                    amrex::Print() << " " << "magvel";
+                }
+                if (containerHasElement(requested_vars, "theta")) {
+                    m_varnames.push_back("theta");
+                    amrex::Print() << " " << "theta";
+                }
+                if (containerHasElement(requested_vars, "qv")) {
+                    m_varnames.push_back("qv");
+                    amrex::Print() << " " << "qv";
+                }
+                if (containerHasElement(requested_vars, "qc")) {
+                    m_varnames.push_back("qc");
+                    amrex::Print() << " " << "qc";
+                }
+                if (containerHasElement(requested_vars, "pressure")) {
+                    m_varnames.push_back("pressure");
+                    amrex::Print() << " " << "pressure";
+                }
+                amrex::Print() << std::endl;
+            }
         }
     }
 
@@ -654,8 +699,10 @@ struct PlaneSampler
     {
         int nlev   = static_cast<int>(vars_new.size());
         int nplane = static_cast<int>(m_bnd_rbx.size());
-        int ncomp  = 2;
+        int ncomp  = static_cast<int>(m_varnames.size());
         bool interpolate = true;
+
+        int qv_comp = -1;
 
         // Loop over each plane
         for (int iplane(0); iplane<nplane; ++iplane) {
@@ -676,25 +723,136 @@ struct PlaneSampler
                                                                                   &vars_new[ilev][Vars::yvel],
                                                                                   &vars_new[ilev][Vars::zvel]});
 
-                // Construct vector of MFs holding T and WSP
+                // Construct MultiFab holding requested variables
                 amrex::MultiFab mf_cc_data;
                 mf_cc_data.define(ba, dm, ncomp, 1);
+
+                int mf_comp = 0;
+
+                if (containerHasElement(m_varnames, "density")) {
+                    amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "x_velocity")) {
+                    amrex::MultiFab::Copy(mf_cc_data, mf_cc_vel, 0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(m_varnames, "y_velocity")) {
+                    amrex::MultiFab::Copy(mf_cc_data, mf_cc_vel, 1, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(m_varnames, "z_velocity")) {
+                    amrex::MultiFab::Copy(mf_cc_data, mf_cc_vel, 2, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "magvel")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const amrex::Box& tbx = mfi.tilebox();
-                    auto const& dfab = mf_cc_data.array(mfi);
-                    auto const& tfab = vars_new[ilev][Vars::cons].array(mfi);
-                    auto const& wfab = mf_cc_vel.array(mfi);
-                    amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        dfab(i,j,k,0) = tfab(i,j,k,1)/tfab(i,j,k,0);
-                        dfab(i,j,k,1) = std::sqrt(wfab(i,j,k,0)*wfab(i,j,k,0)
-                                                + wfab(i,j,k,1)*wfab(i,j,k,1)
-                                                + wfab(i,j,k,2)*wfab(i,j,k,2)) ;
-                    });
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& vfab = mf_cc_vel.array(mfi);
 
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = std::sqrt(vfab(i,j,k,0)*vfab(i,j,k,0)
+                                                           + vfab(i,j,k,1)*vfab(i,j,k,1)
+                                                           + vfab(i,j,k,2)*vfab(i,j,k,2));
+                        });
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "theta")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoTheta_comp) / cfab(i,j,k,Rho_comp);
+                        });
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "qv")) {
+                    // if qv is requested, assume that we have moisture
+                    if (qv_comp >= 0) AMREX_ALWAYS_ASSERT(qv_comp == mf_comp);
+                    qv_comp = mf_comp;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
+                        });
+                    }
+                    mf_comp += 1;
+                }
+                if (containerHasElement(m_varnames, "qc")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ2_comp) / cfab(i,j,k,Rho_comp);
+                        });
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "pressure") && (qv_comp >= 0)) {
+                    // pressure with moisture
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
+                                                                dfab(i,j,k,qv_comp));
+                        });
+                    }
+                    mf_comp += 1;
+                }
+                else if (containerHasElement(m_varnames, "pressure")) {
+                    // pressure requested w/o qv, assume dry
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp));
+                        });
+                    }
+                    mf_comp += 1;
                 }
 
                   m_lev[iplane] = ilev;
@@ -716,8 +874,6 @@ struct PlaneSampler
                        amrex::Vector<amrex::IntVect>& ref_ratio,
                        amrex::Vector<amrex::Geometry>& geom)
     {
-        amrex::Vector<std::string> varnames = {"T", "Wsp"};
-
         int nplane = m_ps_mf.size();
         for (int iplane(0); iplane<nplane; ++iplane) {
             // Data members that can be used as-is
@@ -752,7 +908,7 @@ struct PlaneSampler
 
             // Write each plane
             WriteMultiLevelPlotfile(plotfilename, 1, mf,
-                                    varnames, m_geom, m_time,
+                                    m_varnames, m_geom, m_time,
                                     m_level_steps, m_ref_ratio);
         } // iplane
     }
@@ -762,5 +918,7 @@ struct PlaneSampler
     amrex::Vector<amrex::RealBox> m_bnd_rbx;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_ps_mf;
     amrex::Vector<std::string> m_name;
+
+    amrex::Vector<std::string> m_varnames {"magvel","theta"};
 };
 #endif
