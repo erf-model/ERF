@@ -1712,9 +1712,10 @@ ERF::InitData_post ()
             gradp_temp[0].setVal(0.);
             gradp_temp[1].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::yvel].DistributionMap(), 1, 0);
             gradp_temp[1].setVal(0.);
-            gradp_temp[2].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
+            gradp_temp[2].define(vars_new[lev][Vars::zvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
             gradp_temp[2].setVal(0.);
 
+            MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
             MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
 
             int comp = 0;
@@ -1726,6 +1727,24 @@ ERF::InitData_post ()
 
             amrex::Print() << "Maximum value of y-gradient of base state pressure is " << gradp_temp[1].max(comp) <<
                               " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
+
+            const Real grav = solverChoice.gravity;
+
+            MultiFab rho0_on_zface(gradp_temp[2].boxArray(), gradp_temp[2].DistributionMap(), 1, 0);
+            for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
+                Box bx = mfi.validbox(); bx.growHi(2,-1);
+                auto const rhse_arr  = r_hse.const_array(mfi);
+                auto const dpdz_arr  = gradp_temp[2].const_array(mfi);
+                auto       rhse_on_z = rho0_on_zface.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    rhse_on_z(i,j,k) = myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
+                });
+            }
+
+            MultiFab::Saxpy(gradp_temp[2], solverChoice.gravity, rho0_on_zface, 0, 0, 1, 0);
+
+            amrex::Print() << "Maximum value of (dp0/dz + rho0 g) is " << gradp_temp[2].max(comp) <<
+                              " and occurs at face " << gradp_temp[2].maxIndex(comp) << std::endl;
         }
     }
 

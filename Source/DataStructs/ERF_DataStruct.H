@@ -162,6 +162,10 @@ struct SolverChoice {
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
+        // For the lateral pressure gradient to be used in the momentum equation, should we
+        // take the x- and y-derivatives of the perturbational pressure or the full pressure?
+        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -1166,6 +1170,8 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
 
     int         gradp_type             = 0;
+
+    bool        use_pert_pres_gradient = true;
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
