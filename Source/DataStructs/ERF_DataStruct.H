@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -202,8 +202,9 @@ struct SolverChoice {
                 RhoQ4_comp   // rain
             );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain) ||
-                    (moisture_type == MoistureType::SatAdj) ) {
+                    (moisture_type == MoistureType::Kessler_NoRain)     ||
+                    (moisture_type == MoistureType::SatAdj)             ||
+                    (moisture_type == MoistureType::MoistNoCondensation) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
@@ -339,11 +340,6 @@ struct SolverChoice {
             amrex::Print() << " Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, " << std::endl;
             amrex::Print() << " ConstantDensity, Isentropic, MoistBaseState, or HindCast " << std::endl;
             amrex::Error("Please add a string for init_type to your inputs file or command line");
-        }
-
-        // Check for rebalancing with wrfinput
-        if (init_type == InitType::WRFInput) {
-            pp.query("rebalance_wrfinput",rebalance_wrfinput);
         }
 
         // How to interpret input_sounding
@@ -1274,9 +1270,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{zero};
-
-    // Rebalance wrfinput
-    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;
