@@ -27,21 +27,11 @@ read_start_time_from_metgrid(int lev, const std::string& fname)
         Vector<int> success(1);
         ReadNetCDFFile(fname, {"Times"}, array_ts, success);
 
-        int ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        const char* time_stamp_data = array_ts[0].get_data();
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
-        }
+        std::string date(time_stamp_data, time_stamp_data + dateStrLen);
 
-        // Extract the first time entry
-        std::string date(&timeStamps[0][0], &timeStamps[0][dateStrLen-1]+1);
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  metgrid datetime 0 : " << date << " " << epochTime << std::endl;
         NC_epochTime = static_cast<Real>(epochTime);
@@ -1192,7 +1182,11 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Expose for GPU
     Real grav = CONST_GRAV;
     const int maxiter = 20;
+#ifdef AMREX_USE_FLOAT
+    const Real tol    = Real(1.0e-6);
+#else
     const Real tol    = Real(1.0e-10);
+#endif
 
     //***********************************************************************************
     // Set the HSE base state only
@@ -1210,7 +1204,6 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Real TLP       = Real(50.0);
         const Real TISO      = Real(200.0);
         const Real TLP_STRAT = Real(-11.0);
-        const Real P_STRAT   = Real(0.);
 
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
@@ -1227,12 +1220,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
                                        + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
             Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
-            Real Td_lo;
-            if (P_STRAT > zero && Pd_lo < P_STRAT) {
-                Td_lo = TISO + TLP_STRAT * std::log(Pd_lo/P_STRAT);
-            } else {
-                Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
-            }
+            Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
 
             Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
             for (int k(klo); k<=khi; ++k) {
@@ -1255,22 +1243,13 @@ init_base_state_from_metgrid (const bool use_moisture,
                 while (std::fabs(F)>tol && niter<maxiter) {
                     Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
                     Real Pd_plus = Pd_hi + dP;
-                    Real Td_plus;
-                    if (P_STRAT > zero && Pd_plus < P_STRAT) {
-                        Td_plus = TISO + TLP_STRAT * std::log(Pd_plus/P_STRAT);
-                    } else {
-                        Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
-                    }
+                    Real Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
                     Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
                     Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
                     Real dFdP    = (F_plus - F) / dP;
 
                     Pd_hi -= F / dFdP;
-                    if (P_STRAT > zero && Pd_hi < P_STRAT) {
-                        Td_hi = TISO + TLP_STRAT * std::log(Pd_hi/P_STRAT);
-                    } else {
-                        Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
-                    }
+                    Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
                     Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
                     F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
