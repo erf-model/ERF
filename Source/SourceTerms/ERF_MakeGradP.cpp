@@ -382,8 +382,6 @@ compute_gradp_z (const MultiFab& p,
             {
                 Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
-                if (i == 199 and j == 0 and k >= 171) amrex::Print() << "P " << k << " " << p_arr(i,j,k) << " " << p_arr(i,j,k-1) << std::endl;
-                if (i == 199 and j == 0 and k >= 171) amrex::Print() << "MET " << k << " " << met_h_zeta << " " << dxInv[2] << std::endl;
             });
 
         } else {
