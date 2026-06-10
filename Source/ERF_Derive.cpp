@@ -575,14 +575,13 @@ erf_dermaxreflectivity ( const Box& bx,
                          const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
 
     auto const dat = datfab.array(); // cell-centered state vector
     auto rfab      = derfab.array(); // cell-centered max reflectivity
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
 
@@ -655,6 +654,7 @@ erf_derhelicity ( const Box& bx,
                   const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
 
     auto const dat = datfab.array();  // cell-centered velocity
     auto dfab      = derfab.array();  // integral of local helicity
@@ -664,9 +664,7 @@ erf_derhelicity ( const Box& bx,
     const Real dy = geomdata.CellSize(1);
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
@@ -710,36 +708,34 @@ erf_derprecipitable ( const Box& bx,
                       const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
 
     auto const dat = datfab.array(); // cell-centered state vector
     auto dfab      = derfab.array(); // integral of qv to define precipitable water
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
+        Real integral_qv = Real(0.0);
 
-        Real int_qv = Real(0.0);
-
-        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
+        for (int k = 0; k <= bx.bigEnd(2); ++k)
         {
-            Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
-            Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
+            Real z_hi = myhalf * (z_arr(i,j,k+1) + z_arr(i,j,k));
+            Real z_lo = myhalf * (z_arr(i,j,k-1) + z_arr(i,j,k));
             Real dz = z_hi - z_lo;
 
             Real rhoQ1 = dat(i, j, k, RhoQ1_comp);
 
-            int_qv += rhoQ1 * dz;
+            integral_qv += rhoQ1 * dz;
         }
 
         // Store vertical integral into *all* levels for this (i,j)
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-            dfab(i, j, k, dcomp) = int_qv;
+            dfab(i, j, k, dcomp) = integral_qv;
         }
     });
 }

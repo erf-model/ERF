@@ -54,21 +54,20 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 
         ntimes = array_ts[0].get_vshape()[0];
 
-        auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        Vector<std::string> timeStamps;
+        timeStamps.reserve(ntimes);
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
+        const char* data = array_ts[0].get_data();
+        auto dateStrLen  = array_ts[0].get_vshape()[1];
+
+        for (int nt = 0; nt < ntimes; ++nt) {
+            const char* begin = data + nt * dateStrLen;
+            timeStamps.emplace_back(begin, begin + dateStrLen);
         }
 
         Vector<std::time_t> epochTimes;
         for (int nt(0); nt < ntimes; nt++) {
-            std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
+            std::string date = timeStamps[nt];
             auto epochTime = getEpochTime(date, dateTimeFormat);
             Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
@@ -80,7 +79,9 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             }
         }
         start_bdy_time = static_cast<Real>(epochTimes[0]);
-        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1]);
+        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1] + timeInterval);
+        Print() << "  start_bdy_time " << start_bdy_time << std::endl;
+        Print() << "  final_bdy_time " << final_bdy_time << std::endl;
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
@@ -89,31 +90,404 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
     // Our outermost loop is time
-    bdy_data_xlo.resize(ntimes);
-    bdy_data_xhi.resize(ntimes);
-    bdy_data_ylo.resize(ntimes);
-    bdy_data_yhi.resize(ntimes);
-
-    // Make sure all processors know timeInterval
-    ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
+    bdy_data_xlo.resize(ntimes+1);
+    bdy_data_xhi.resize(ntimes+1);
+    bdy_data_ylo.resize(ntimes+1);
+    bdy_data_yhi.resize(ntimes+1);
 
     // Return the number of seconds between the boundary plane data
     return timeInterval;
 }
 
 void
-read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& domain,
-                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                  int real_width)
+convert_wrfbdy_data (const int itime,
+                     const Box& domain,
+                     Vector<Vector<FArrayBox>>& bdy_data,
+                     std::unique_ptr<MultiFab>& wrf_MUB,
+                     std::unique_ptr<MultiFab>& wrf_C1H,
+                     std::unique_ptr<MultiFab>& wrf_C2H,
+                     std::unique_ptr<MultiFab>& wrf_PHB,
+                     const iMultiFab* mask_u,
+                     const iMultiFab* mask_v,
+                     const iMultiFab* mask_c,
+                     const bool& use_moist)
+{
+    // Temporary bdy data structures for global reductions
+    int vsize = bdy_data[itime].size() - 3; // Don't do PH, MU, or PC
+    amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
+        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
+    }
+
+    // Temporary bdy data structures for interpolation
+    amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
+        bdy_data_int[ivar].template setVal<RunOn::Device>(0);
+    }
+
+    // Temporary "NEW" heights (this is the source array)
+    amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
+    bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_new.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_new.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_src = bdy_c_z_new.array();
+    Array4<Real> bdy_u_z_src = bdy_u_z_new.array();
+    Array4<Real> bdy_v_z_src = bdy_v_z_new.array();
+
+    // Temporary "OLD" heights (these are the heights to interpolate to at itime=0)
+    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
+    bdy_c_z_old.resize(bdy_data[0][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_u_z_old.resize(bdy_data[0][WRFBdyVars::U].box(),1,The_Managed_Arena());
+    bdy_v_z_old.resize(bdy_data[0][WRFBdyVars::V].box(),1,The_Managed_Arena());
+    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
+    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
+    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
+
+    // BDY data
+    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
+    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
+    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
+    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
+    Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
+
+    // For height interpolation (removes averaging error)
+    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
+    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
+
+    // Bounds limiting
+    int ilo  = domain.smallEnd()[0];
+    int ihi  = domain.bigEnd()[0];
+    int jlo  = domain.smallEnd()[1];
+    int jhi  = domain.bigEnd()[1];
+    int klo  = domain.smallEnd()[2];
+    int khi  = domain.bigEnd()[2];
+
+    // PH bounds limiting
+    Box ph_bx  = bdy_data[itime][WRFBdyVars::PH].box();
+    int ilo_ph = ph_bx.smallEnd()[0];
+    int ihi_ph = ph_bx.bigEnd()[0];
+    int jlo_ph = ph_bx.smallEnd()[1];
+    int jhi_ph = ph_bx.bigEnd()[1];
+
+    for ( MFIter mfi(*mask_c); mfi.isValid(); ++mfi )
+    {
+        Box tbx = mfi.tilebox();
+        Box xbx = mfi.nodaltilebox(0);
+        Box ybx = mfi.nodaltilebox(1);
+
+        const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
+        const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
+        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
+        const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
+
+        // TMP BDY data
+        Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
+        Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
+
+        // TMP INTERP BDY data
+        Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
+        Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
+
+        // Mask data
+        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
+        const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
+        const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
+
+        // Populated from read wrfinput
+        Array4<Real const> c1h_arr = wrf_C1H->const_array(mfi);
+        Array4<Real const> c2h_arr = wrf_C2H->const_array(mfi);
+        Array4<Real const> mub_arr = wrf_MUB->const_array(mfi);
+        Array4<Real>       PHB_arr = wrf_PHB->array(mfi);
+
+        // New z values
+        ParallelFor(bx_t, bx_u, bx_v,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Mass coupling
+            Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
+            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
+
+            // Pert and base geopotential
+            Real P     = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
+            Real P_kp  = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
+            Real P0    = PHB_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
+            Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
+
+            // New heights
+            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
+            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
+
+            // Mass coupling
+            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
+            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
+            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
+            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
+
+            // Pert and base geopotential
+            Real P        = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
+            Real P_im     = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
+            Real P_kp     = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
+            Real P_im_kp  = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
+            Real P0       = PHB_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
+            Real P0_im    = PHB_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
+            Real P0_kp    = PHB_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
+            Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
+
+            // New heights
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Prevent averaging outside domain and match init from WRF input
+            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
+            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
+
+            // Mass coupling
+            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
+            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
+            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
+            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
+
+            // Pert and base geopotential
+            Real P        = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
+            Real P_jm     = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
+            Real P_kp     = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
+            Real P_jm_kp  = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
+            Real P0       = PHB_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
+            Real P0_jm    = PHB_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
+            Real P0_kp    = PHB_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
+            Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
+
+            // New heights
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
+
+            // Original heights
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+        });
+
+        // Define u velocity
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                Real xmu;
+                if (i == ilo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (i > ihi) {
+                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
+                } else {
+                    xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
+                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
+                }
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
+                bdy_u_tmp(i,j,k) = new_bdy;
+            }
+        });
+
+        // Define v velocity
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                Real xmu;
+                if (j == jlo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (j > jhi) {
+                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
+                } else {
+                    xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
+                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
+                }
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
+                bdy_v_tmp(i,j,k) = new_bdy;
+            }
+        });
+
+        // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
+        const Real wrf_theta_ref = Real(300.);
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
+                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
+                new_bdy_Th      /= qv_fac;
+                bdy_t_tmp(i,j,k) = new_bdy_Th;
+            }
+        });
+
+        // Define Qv
+        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
+                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
+            }
+        });
+
+        // Interpolate in height
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_c_z_dst(i,j,k);
+                z_lo_src = bdy_c_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_c_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                } else {
+                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
+                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_u_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_u_z_dst(i,j,k);
+                z_lo_src = bdy_u_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_u_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
+                } else {
+                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
+                }
+            }
+        });
+
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_v_arr(i,j,k)) {
+                int kstart, kend;
+                Real z_dst, z_hi_src, z_lo_src;
+
+                kstart   = k - amrex::min(5,k);
+                z_dst    = bdy_v_z_dst(i,j,k);
+                z_lo_src = bdy_v_z_src(i,j,kstart);
+
+                bool found = false;
+                for (int lk(kstart+1); lk<khi; ++lk) {
+                    z_hi_src = bdy_v_z_src(i,j,lk);
+                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
+                } else {
+                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
+                }
+            }
+        });
+    } // mfi
+
+    for (int ivar(0); ivar < vsize; ++ivar) {
+        amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
+                                      bdy_data_int[ivar].size(),
+                                      ParallelContext::CommunicatorAll());
+        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_int[ivar],0,0,1);
+    }
+}
+
+void
+read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
+                              Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                              Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                              Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                              Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                              std::unique_ptr<MultiFab>& wrf_MUB,
+                              std::unique_ptr<MultiFab>& wrf_C1H,
+                              std::unique_ptr<MultiFab>& wrf_C2H,
+                              std::unique_ptr<MultiFab>& wrf_PHB,
+                              const MultiFab& xvel, const MultiFab& yvel, const MultiFab& cons,
+                              const Geometry& geom,
+                              const bool& use_moist,
+                              int real_width, Real bdy_time_interval,
+                              bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+    // If we are trying to define the bdy data at the final time, we must do it by first reading the tendency from
+    // the previous time, then adding the previous time value + dT * tendency.
+    bool do_tendency = (itime == bdy_data_xlo.size()-1);
+
+    // If we are going to extrapolate from the older time we need to re-grab it since it has been over-written already
+    if (do_tendency)
+    {
+        read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
+                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                     xvel, yvel, cons, geom,
+                                     use_moist, real_width, bdy_time_interval,
+                                     false);
+    }
 
     // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
     int nvars = WRFBdyVars::NumTypes*4;
 
+    const Box& domain = geom.Domain();
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
     const int khi = hi[2];
@@ -124,7 +498,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // ******************************************************************
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
-    // WRFBdyVars:  U, V, R, T, QV, MU, PC
+    // WRFBdyVars:  U, V, T, QV, PH, MU, PC
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
@@ -133,10 +507,17 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
-       nc_var_names.push_back(nc_var_prefix[ip] + "_BXS");
-       nc_var_names.push_back(nc_var_prefix[ip] + "_BXE");
-       nc_var_names.push_back(nc_var_prefix[ip] + "_BYS");
-       nc_var_names.push_back(nc_var_prefix[ip] + "_BYE");
+        if (do_tendency) {
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BTXS");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BTXE");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BTYS");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BTYE");
+        } else {
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BXS");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BXE");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BYS");
+            nc_var_names.push_back(nc_var_prefix[ip] + "_BYE");
+        }
     }
 
     using RARRAY = NDArray<float>;
@@ -148,7 +529,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     {
         Vector<int> success(nc_var_names.size());
 
-        ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime, nc_var_names, tslice, success);
+        int itime_to_read = (do_tendency) ? itime-1 : itime;
+        ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime_to_read, nc_var_names, tslice, success);
 
         for (auto &istat:success) {
             AMREX_ALWAYS_ASSERT(istat==1);
@@ -194,16 +576,17 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Abort("dont know this variable");
         }
 
-        std::string  last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
+        std::string last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
+        std::string last4 = nc_var_names[iv].substr(nc_var_names[iv].size()-4, 4);
         int bdyType;
 
-        if        (last3 == "BXS") {
+        if        (last3 == "BXS" || last4 == "BTXS") {
             bdyType = WRFBdyTypes::x_lo;
-        } else if (last3 == "BXE") {
+        } else if (last3 == "BXE" || last4 == "BTXE") {
             bdyType = WRFBdyTypes::x_hi;
-        } else if (last3 == "BYS") {
+        } else if (last3 == "BYS" || last4 == "BTYS") {
             bdyType = WRFBdyTypes::y_lo;
-        } else if (last3 == "BYE") {
+        } else if (last3 == "BYE" || last4 == "BTYE") {
             bdyType = WRFBdyTypes::y_hi;
         }
 
@@ -475,404 +858,42 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
         ParallelDescriptor::Bcast(bdy_data_ylo[itime][i].dataPtr(),bdy_data_ylo[itime][i].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(bdy_data_yhi[itime][i].dataPtr(),bdy_data_yhi[itime][i].box().numPts(),ioproc);
     }
-}
 
-void
-convert_wrfbdy_data (const int itime,
-                     const Box& domain,
-                     Vector<Vector<FArrayBox>>& bdy_data,
-                     const MultiFab& mf_MUB,
-                     const MultiFab& mf_C1H,
-                     const MultiFab& mf_C2H,
-                     const MultiFab& xvel,
-                     const MultiFab& yvel,
-                     const MultiFab& cons,
-                     const Geometry& geom,
-                     const bool& use_moist,
-                     std::unique_ptr<MultiFab>& wrf_PHB,
-                     std::unique_ptr<MultiFab>& z_phys_nd)
-{
-    // Owner masks for parallel reduce sum
-    std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
-    std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
+    if (do_tendency) {
+        for (int i = 0; i < n_per_time; i++)
+        {
+            // Multiply the tendency bdy_tend_prev (stored in bdy_data at itime) by dt to get difference between old and new
+            bdy_data_xlo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
+            bdy_data_xhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
+            bdy_data_ylo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
+            bdy_data_yhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
 
-    // Temporary bdy data structures for global reductions
-    int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
-    amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
-    for (int ivar(0); ivar < vsize; ++ivar) {
-        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
-        bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
+            // Add bdy_prev to dt*bdy_tend_prev to get bdy_current
+            bdy_data_xlo[itime][i].template plus<RunOn::Device>(bdy_data_xlo[itime-1][i], 0, 0, 1);
+            bdy_data_xhi[itime][i].template plus<RunOn::Device>(bdy_data_xhi[itime-1][i], 0, 0, 1);
+            bdy_data_ylo[itime][i].template plus<RunOn::Device>(bdy_data_ylo[itime-1][i], 0, 0, 1);
+            bdy_data_yhi[itime][i].template plus<RunOn::Device>(bdy_data_yhi[itime-1][i], 0, 0, 1);
+        }
     }
 
-    // Temporary bdy data structures for interpolation
-    amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
-    for (int ivar(0); ivar < vsize; ++ivar) {
-        bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
-        bdy_data_int[ivar].template setVal<RunOn::Device>(0);
-    }
-
-    // Temporary "NEW" heights (this is the source array)
-    amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
-    bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
-    bdy_u_z_new.resize(bdy_data[itime][WRFBdyVars::U].box(),1,The_Managed_Arena());
-    bdy_v_z_new.resize(bdy_data[itime][WRFBdyVars::V].box(),1,The_Managed_Arena());
-    Array4<Real> bdy_c_z_src = bdy_c_z_new.array();
-    Array4<Real> bdy_u_z_src = bdy_u_z_new.array();
-    Array4<Real> bdy_v_z_src = bdy_v_z_new.array();
-
-    // Temporary "OLD" heights (these are the heights to interpolate to at itime=0)
-    amrex::FArrayBox bdy_c_z_old, bdy_u_z_old, bdy_v_z_old;
-    bdy_c_z_old.resize(bdy_data[0][WRFBdyVars::T].box(),1,The_Managed_Arena());
-    bdy_u_z_old.resize(bdy_data[0][WRFBdyVars::U].box(),1,The_Managed_Arena());
-    bdy_v_z_old.resize(bdy_data[0][WRFBdyVars::V].box(),1,The_Managed_Arena());
-    Array4<Real> bdy_c_z_dst = bdy_c_z_old.array();
-    Array4<Real> bdy_u_z_dst = bdy_u_z_old.array();
-    Array4<Real> bdy_v_z_dst = bdy_v_z_old.array();
-
-    // BDY data
-    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
-    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
-    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
-    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
-    Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
-
-    // For height interpolation (removes averaging error)
-    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
-    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
-
-    // Bounds limiting
-    int ilo  = domain.smallEnd()[0];
-    int ihi  = domain.bigEnd()[0];
-    int jlo  = domain.smallEnd()[1];
-    int jhi  = domain.bigEnd()[1];
-    int klo  = domain.smallEnd()[2];
-    int khi  = domain.bigEnd()[2];
-
-    // PH bounds limiting
-    Box ph_bx  = bdy_data[itime][WRFBdyVars::PH].box();
-    int ilo_ph = ph_bx.smallEnd()[0];
-    int ihi_ph = ph_bx.bigEnd()[0];
-    int jlo_ph = ph_bx.smallEnd()[1];
-    int jhi_ph = ph_bx.bigEnd()[1];
-
-    for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
+    if (do_conversion)
     {
-        Box tbx = mfi.tilebox();
-        Box xbx = mfi.nodaltilebox(0);
-        Box ybx = mfi.nodaltilebox(1);
+        // Owner masks for parallel reduce sum
+        std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
+        std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
+        std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
-        const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
-        const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
-        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
-        const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
+        if (do_tendency) {
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        }
 
-        // TMP BDY data
-        Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
-        Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
-        Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
-
-        // TMP INTERP BDY data
-        Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
-        Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
-        Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
-
-        // Mask data
-        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
-        const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
-        const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
-
-        // Populated from read wrfinput
-        Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
-        Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
-        Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
-
-        Array4<Real> z_arr   = z_phys_nd->array(mfi);
-        Array4<Real> PHB_arr = wrf_PHB->array(mfi);
-
-        // New z values
-        ParallelFor(bx_t, bx_u, bx_v,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            // Mass coupling
-            Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
-            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
-
-            // Pert and base geopotential
-            Real P     = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
-            Real P_kp  = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
-            Real P0    = PHB_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
-            Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
-
-            // New heights
-            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
-
-            // Original heights
-            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            // Prevent averaging outside domain and match init from WRF input
-            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
-            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
-
-            // Mass coupling
-            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
-            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
-            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
-            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
-
-            // Pert and base geopotential
-            Real P        = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
-            Real P_im     = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
-            Real P_kp     = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
-            Real P_im_kp  = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
-            Real P0       = PHB_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
-            Real P0_im    = PHB_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
-            Real P0_kp    = PHB_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
-            Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
-
-            // New heights
-            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
-
-            // Original heights
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            // Prevent averaging outside domain and match init from WRF input
-            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
-            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
-
-            // Mass coupling
-            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
-            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
-            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
-            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
-
-            // Pert and base geopotential
-            Real P        = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
-            Real P_jm     = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
-            Real P_kp     = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
-            Real P_jm_kp  = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
-            Real P0       = PHB_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
-            Real P0_jm    = PHB_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
-            Real P0_kp    = PHB_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
-            Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
-
-            // New heights
-            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
-
-            // Original heights
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
-        });
-
-        // Define u velocity
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_u_arr(i,j,k)) {
-                Real xmu;
-                if (i == ilo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (i > ihi) {
-                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
-                } else {
-                    xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
-                }
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
-                bdy_u_tmp(i,j,k) = new_bdy;
-            }
-        });
-
-        // Define v velocity
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_v_arr(i,j,k)) {
-                Real xmu;
-                if (j == jlo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (j > jhi) {
-                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
-                } else {
-                    xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
-                }
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
-                bdy_v_tmp(i,j,k) = new_bdy;
-            }
-        });
-
-        // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
-        const Real wrf_theta_ref = Real(300.);
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
-                new_bdy_Th      /= qv_fac;
-                bdy_t_tmp(i,j,k) = new_bdy_Th;
-            }
-        });
-
-        // Define Qv
-        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
-            }
-        });
-
-        // Interpolate in height
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_c_arr(i,j,k)) {
-                int kstart, kend;
-                Real z_dst, z_hi_src, z_lo_src;
-
-                kstart   = k - amrex::min(5,k);
-                z_dst    = bdy_c_z_dst(i,j,k);
-                z_lo_src = bdy_c_z_src(i,j,kstart);
-
-                bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
-                    z_hi_src = bdy_c_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
-                        found = true;
-                        kend  = lk;
-                        break;
-                    }
-                    z_lo_src = z_hi_src;
-                    kstart   = lk;
-                }
-
-                if (found) {
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
-                    bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
-                } else {
-                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
-                    bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
-                }
-            }
-        });
-
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_u_arr(i,j,k)) {
-                int kstart, kend;
-                Real z_dst, z_hi_src, z_lo_src;
-
-                kstart   = k - amrex::min(5,k);
-                z_dst    = bdy_u_z_dst(i,j,k);
-                z_lo_src = bdy_u_z_src(i,j,kstart);
-
-                bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
-                    z_hi_src = bdy_u_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
-                        found = true;
-                        kend  = lk;
-                        break;
-                    }
-                    z_lo_src = z_hi_src;
-                    kstart   = lk;
-                }
-
-                if (found) {
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_u_int(i,j,k) = ( bdy_u_tmp(i,j,kend) -  bdy_u_tmp(i,j,kstart) ) * dz_rat +  bdy_u_tmp(i,j,kstart);
-                } else {
-                    bdy_u_int(i,j,k) =  bdy_u_tmp(i,j,k);
-                }
-            }
-        });
-
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (mask_v_arr(i,j,k)) {
-                int kstart, kend;
-                Real z_dst, z_hi_src, z_lo_src;
-
-                kstart   = k - amrex::min(5,k);
-                z_dst    = bdy_v_z_dst(i,j,k);
-                z_lo_src = bdy_v_z_src(i,j,kstart);
-
-                bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
-                    z_hi_src = bdy_v_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
-                        found = true;
-                        kend  = lk;
-                        break;
-                    }
-                    z_lo_src = z_hi_src;
-                    kstart   = lk;
-                }
-
-                if (found) {
-                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_v_int(i,j,k) = ( bdy_v_tmp(i,j,kend) -  bdy_v_tmp(i,j,kstart) ) * dz_rat +  bdy_v_tmp(i,j,kstart);
-                } else {
-                    bdy_v_int(i,j,k) =  bdy_v_tmp(i,j,k);
-                }
-            }
-        });
-    } // mfi
-
-
-
-    for (int ivar(0); ivar < vsize; ++ivar) {
-        amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
-                                      bdy_data_int[ivar].size(),
-                                      ParallelContext::CommunicatorAll());
-        bdy_data[itime][ivar].template  copy<RunOn::Device>(bdy_data_int[ivar],0,0,1);
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
     }
-}
-
-void
-convert_all_wrfbdy_data (const int itime,
-                         const Box& domain,
-                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                         const MultiFab& mf_MUB,
-                         const MultiFab& mf_C1H,
-                         const MultiFab& mf_C2H,
-                         const MultiFab& xvel,
-                         const MultiFab& yvel,
-                         const MultiFab& cons,
-                         const Geometry& geom,
-                         const bool& use_moist,
-                         std::unique_ptr<MultiFab>& wrf_PHB,
-                         std::unique_ptr<MultiFab>& z_phys_nd)
-{
-    convert_wrfbdy_data(itime, domain, bdy_data_xlo,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist,
-                        wrf_PHB, z_phys_nd);
-    convert_wrfbdy_data(itime, domain, bdy_data_xhi,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist,
-                        wrf_PHB, z_phys_nd);
-    convert_wrfbdy_data(itime, domain, bdy_data_ylo,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist,
-                        wrf_PHB, z_phys_nd);
-    convert_wrfbdy_data(itime, domain, bdy_data_yhi,
-                        mf_MUB, mf_C1H, mf_C2H,
-                        xvel, yvel, cons, geom, use_moist,
-                        wrf_PHB, z_phys_nd);
 }
 #endif // ERF_USE_NETCDF

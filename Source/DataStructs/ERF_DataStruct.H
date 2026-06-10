@@ -362,6 +362,14 @@ struct SolverChoice {
             mesh_type = MeshType::VariableDz;
         }
 
+        if ( (moisture_type == MoistureType::SAM                ||
+              moisture_type == MoistureType::SAM_NoIce          ||
+              moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
+             (mesh_type == MeshType::VariableDz) )
+        {
+            amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
+        }
+
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
@@ -489,7 +497,12 @@ struct SolverChoice {
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
+
         pp.query("if_surf_heating_rate", if_surf_heating_rate);
+
+        // Modify rate to be in units of K / s rather than K / hr
+        if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
+
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
