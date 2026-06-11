@@ -1203,7 +1203,6 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Real T00       = Real(290.0);
         const Real TLP       = Real(50.0);
         const Real TISO      = Real(200.0);
-        const Real TLP_STRAT = Real(-11.0);
 
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();

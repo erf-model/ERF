@@ -157,10 +157,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        });
 
     } else {
-       estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
+       const MultiFab& detJ = *detJ_cc[level];
+       estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
-                                  Array4<Real const> const& u) -> Real
+                                  Array4<Real const> const& u,
+                                  Array4<Real const> const& dJ) -> Real
        {
            Real new_comp_dt = -Real(1.e100);
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
@@ -169,14 +171,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
 
+                   Real idz_loc = dxinv[2] / dJ(i,j,k);
+
                    // NOTE: even when moisture is present,
                    //       we only use the partial pressure of the dry air
                    //       to compute the soundspeed
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
-                   // If we are doing implicit acoustic substepping, then the z-direction does not contribute
-                   //    to the computation of the time step
+                   // If we are doing implicit acoustic substepping, then the z-direction is not constrained
+                   //    by the speed of sound for the computation of the time step
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
@@ -187,7 +191,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                        } else {
                            // 3-D
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))  )*idz_loc ),new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
