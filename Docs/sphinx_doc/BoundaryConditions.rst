@@ -194,16 +194,12 @@ Real Domain BCs
 ----------------------
 
 When using real lateral boundary conditions, time-dependent observation data is read
-from a file. In ERF, the observation data is utilized to nudge the solution state towards
+from a file. In ERF, the observation (BDY) data is utilized to nudge the solution state towards
 the observation data in the interior of the domain. We explicitly note that the wall normal
-velocity on a domain boundary is **not** nudged toward the observation data but is computed
-from a zero normal gradient (outflow) condition that uses a one-sided difference on the domain
-interior. Therefore, a key difference between real domain BCs in ERF and WRF is that ERF allows
-the normal velocity at a domain wall to adjust, given the nudged adjacent velocities, while
-WRF imposes a Dirichlet condition; see the yellow region in Figure 8 below.
-The user may specify (in the inputs file) the total width of the interior boundary region with
-``erf.real_width = <Int>`` (yellow + blue). The real BCs are only imposed for
-:math:`\psi = \left\{ \theta; \; q_v; \; u; \; v \right\}`.
+velocity on a domain boundary are set to the observational data and the RHS for these points
+is assigned the BDY tendency. The user may specify (in the inputs file) the total
+width of the interior boundary region with ``erf.real_width = <Int>`` (yellow + blue).
+The real BCs are only imposed for :math:`\psi = \left\{ \theta; \; q_v; \; u; \; v \right\}`.
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600

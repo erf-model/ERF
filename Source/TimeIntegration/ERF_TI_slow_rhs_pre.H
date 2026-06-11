@@ -20,7 +20,8 @@
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
-            cons_to_prim(S_data[IntVars::cons], ng_cons);
+            cons_to_prim(S_data[IntVars::cons], S_prim, ng_cons);
+            make_pi_stage(S_data[IntVars::cons]);
         }
 
         if (verbose) Print() << std::setprecision(timeprecision)
@@ -63,7 +64,8 @@
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
         if (solverChoice.moisture_type != MoistureType::None) {
-            make_qt(S_data[IntVars::cons], qt);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            make_qt(S_data[IntVars::cons], qt, n_qstate_into_total);
         }
 
         MultiFab p0_to_use, base_to_use;
@@ -326,7 +328,6 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
@@ -335,7 +336,7 @@
                 Real total_time = start_time + old_stage_time;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
