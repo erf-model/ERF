@@ -1268,7 +1268,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                     dz = z_hi - z_lo;
 
                     // Known surface values
-                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d)
+                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
                     P_lo  = P00;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
                     rho_tot_lo = R_lo;
