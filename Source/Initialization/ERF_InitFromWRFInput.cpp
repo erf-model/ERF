@@ -1022,7 +1022,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     }
 
     // **************************************************************************
-    // Rebalance the base state if needed
+    // Rebalance the WRF state if needed
     // **************************************************************************
     if (solverChoice.rebalance_wrfinput) {
         Print() << "The state read from WRF is being rebalanced!\n";

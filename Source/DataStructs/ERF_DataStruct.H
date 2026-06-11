@@ -398,7 +398,7 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
-        // Rebalance wrf input?
+        // Rebalance wrf state?
         pp.query("rebalance_wrf_input", rebalance_wrf_input);
 
         // These default to true but are used for unit testing
