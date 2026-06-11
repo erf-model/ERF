@@ -216,32 +216,30 @@ void make_fast_coeffs (int /*level*/,
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
-          // If at the bottom of the grid, we will set w to a specified Dirichlet value
-          coeffA_a(i,j,lo.z) =  zero;
-          coeffB_a(i,j,lo.z) =  one;
-          coeffC_a(i,j,lo.z) =  zero;
+            // If at the bottom of the grid, we will set w to a specified Dirichlet value
+            coeffA_a(i,j,lo.z) =  zero;
+            coeffB_a(i,j,lo.z) =  one;
+            coeffC_a(i,j,lo.z) =  zero;
 
-          // If at the top of the grid, we will set w to a specified Dirichlet value
-          coeffA_a(i,j,hi.z+1) =  zero;
-          coeffB_a(i,j,hi.z+1) =  one;
-          coeffC_a(i,j,hi.z+1) =  zero;
+            // If at the top of the grid, we will set w to a specified Dirichlet value
+            coeffA_a(i,j,hi.z+1) =  zero;
+            coeffB_a(i,j,hi.z+1) =  one;
+            coeffC_a(i,j,hi.z+1) =  zero;
 
-          // UNLESS if at the top of the domain and the boundary is outflow,
-          //     we will use a homogeneous Neumann condition
-          if ( (hi.z == domhi.z) &&
-               (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
-          {
-              coeffA_a(i,j,hi.z+1) =  -one;
-          }
+            // UNLESS if at the top of the domain and the boundary is outflow,
+            //     we will use a homogeneous Neumann condition
+            if ( (hi.z == domhi.z) &&
+                 (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
+            {
+                coeffA_a(i,j,hi.z+1) =  -one;
+            }
 
-          // w = specified Dirichlet value at k = lo.z
-          Real bet = coeffB_a(i,j,lo.z);
-
-          for (int k = lo.z+1; k <= hi.z+1; k++) {
-              gam_a(i,j,k) = coeffC_a(i,j,k-1) / bet;
-              bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
-              coeffB_a(i,j,k) = bet;
-          }
+            // w = specified Dirichlet value at k = lo.z
+            gam_a(i,j,lo.z) = coeffC_a(i,j,lo.z) / coeffB_a(i,j,lo.z);
+            for (int k = lo.z+1; k <= hi.z+1; k++) {
+                coeffB_a(i,j,k) = one / ( coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k-1) );
+                gam_a(i,j,k)    = coeffC_a(i,j,k) * coeffB_a(i,j,k);
+            }
         });
 #else
         // If at the bottom of the grid, we will set w to a specified Dirichlet value
@@ -251,6 +249,7 @@ void make_fast_coeffs (int /*level*/,
                 coeffA_a(i,j,lo.z) =  zero;
                 coeffB_a(i,j,lo.z) =  one;
                 coeffC_a(i,j,lo.z) =  zero;
+                gam_a(i,j,lo.z)    = coeffC_a(i,j,lo.z) / coeffB_a(i,j,lo.z);
             }
         }
         for (int j = lo.y; j <= hi.y; ++j) {
@@ -275,22 +274,12 @@ void make_fast_coeffs (int /*level*/,
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
                 for (int i = lo.x; i <= hi.x; ++i) {
-                    gam_a(i,j,k) = coeffC_a(i,j,k-1) / coeffB_a(i,j,k-1);
-                    Real bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
-                    coeffB_a(i,j,k) = bet;
+                    coeffB_a(i,j,k) = one / ( coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k-1) );
+                    gam_a(i,j,k)    = coeffC_a(i,j,k) * coeffB_a(i,j,k);
                 }
             }
         }
 #endif
-        } // end profile
-
-        // In the end we save the inverse of the diagonal (B) coefficient
-        {
-        BL_PROFILE("make_coeffs_invert");
-            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                coeffB_a(i,j,k) = one / coeffB_a(i,j,k);
-            });
         } // end profile
     } // mfi
     } // omp

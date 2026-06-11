@@ -10,6 +10,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_EOS.H"
 #include "ERF_DataStruct.H"
+#include "ERF_Utils.H"
 #include "ERF_NCInterface.H"
 
 using namespace amrex;
@@ -462,10 +463,13 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<MultiFab>& wrf_C2H,
                               std::unique_ptr<MultiFab>& wrf_PHB,
                               const MultiFab& xvel, const MultiFab& yvel, const MultiFab& cons,
+                              const MultiFab& rho0,
+                              Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const Geometry& geom,
                               const bool& use_moist,
+                              const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, Real bdy_time_interval,
-                              bool do_conversion)
+                              bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -479,9 +483,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
                                      bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                      wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                     xvel, yvel, cons, geom,
-                                     use_moist, real_width, bdy_time_interval,
-                                     false);
+                                     xvel, yvel, cons, rho0, area_vec, geom,
+                                     use_moist, domain_bcs_type_h, real_width, bdy_time_interval,
+                                     is_anelastic, false);
     }
 
     // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
@@ -540,9 +544,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         width = tslice[0].get_vshape()[1];
 
         if (width != real_width) {
-            AMREX_ALWAYS_ASSERT(real_width < width);
             Print() << "Note: Requested boundary width is " << real_width
                 << " < " << width << " (bdy_width size in file)" << std::endl;
+            AMREX_ALWAYS_ASSERT(real_width < width);
         }
     }
     ParallelDescriptor::Bcast(&width,1,ioproc);
@@ -894,6 +898,20 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
         convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
         convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-    }
+
+        if (is_anelastic) {
+            if (do_tendency) {
+                enforceInOutSolvability_bdy(rho0,
+                                            bdy_data_xlo[itime-1][WRFBdyVars::U], bdy_data_xhi[itime-1][WRFBdyVars::U],
+                                            bdy_data_ylo[itime-1][WRFBdyVars::V], bdy_data_yhi[itime-1][WRFBdyVars::V],
+                                            area_vec, geom, domain_bcs_type_h);
+            }
+
+            enforceInOutSolvability_bdy(rho0,
+                                        bdy_data_xlo[itime][WRFBdyVars::U], bdy_data_xhi[itime][WRFBdyVars::U],
+                                        bdy_data_ylo[itime][WRFBdyVars::V], bdy_data_yhi[itime][WRFBdyVars::V],
+                                        area_vec, geom, domain_bcs_type_h);
+        } // anelastic
+    } // do_conversion
 }
 #endif // ERF_USE_NETCDF

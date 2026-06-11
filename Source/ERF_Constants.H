@@ -13,6 +13,14 @@ constexpr amrex::Real fourth       = amrex::Real(0.25);
 constexpr amrex::Real third        = amrex::Real(1.0/3.0);
 constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
+// Sentinel written into the LSM surface-flux MultiFabs for cells the land model
+// did NOT process (e.g. sea-ice / open-water points, where Noah-MP returns the
+// -9999 fill value instead of a computed flux). The surface layer detects this
+// and falls back to the Monin-Obukhov (MOST) flux for those cells -- analogous
+// to how WRF computes the atmospheric surface flux from a skin temperature via
+// the surface-layer scheme rather than taking an undefined LSM flux.
+constexpr amrex::Real lsm_flux_undefined = amrex::Real(1.0e30);
+
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
 constexpr amrex::Real PIoTwo       = PI/two;
 constexpr amrex::Real four_thirds_pi = four/three*PI;

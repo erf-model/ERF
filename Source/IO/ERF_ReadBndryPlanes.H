@@ -36,6 +36,9 @@ public:
     // Return the pointer to PlaneVectors at time "time"
     amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time (const amrex::Real& time);
 
+    // Return the pointer to PlaneVectors that have the tendency
+    amrex::Vector<std::unique_ptr<PlaneVector>>& get_tendency (const amrex::Real& time);
+
     [[nodiscard]] amrex::Real tinterp() const { return m_tinterp; }
 
     [[nodiscard]] int ingested_velocity() const {return is_velocity_read;}
@@ -64,6 +67,9 @@ private:
 
     //! Data interpolated to the time requested
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_interp;
+
+    //! Tendency between the n and np1 data
+    amrex::Vector<std::unique_ptr<PlaneVector>> m_data_tendency;
 
     //! Time for plane at interpolation
     amrex::Real m_tinterp{-one};

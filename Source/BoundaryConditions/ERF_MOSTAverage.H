@@ -10,6 +10,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_DataStruct.H"
+#include "ERF_EB.H"
 
 class MOSTAverage {
 public:
@@ -17,7 +18,8 @@ public:
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
-                          const TerrainType& m_terrain_type);
+                          const TerrainType& m_terrain_type,
+                          const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -57,15 +59,15 @@ public:
     // Compute ncells per plane
     void set_plane_normalization (const int& lev);
 
+    // Compute total boundary area over EB
+    void set_eb_normalization (const int& lev);
+
     // Compute ncells per plane
     void set_region_normalization (const int& /*lev*/)
     {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
     // Populate a 2D iMF k_indx (w/o terrain)
     void set_k_indices_N (const int& lev);
-
-    // Populate a 2D iMF k_indx (for EB)
-    void set_k_indices_EB (const int& lev);
 
     // Populate a 2D iMF k_indx (w/ terrain)
     void set_k_indices_T (const int& lev);
@@ -75,6 +77,9 @@ public:
 
     // Populate positions (w/ terrain & norm vector & interpolation)
     void set_z_positions_T (const int& lev);
+
+    // Populate positions (for EB)
+    void set_z_positions_EB (const int& lev);
 
     // Populate positions (w/ terrain & norm vector & interpolation)
     void set_norm_positions_T (const int& lev);
@@ -87,6 +92,9 @@ public:
 
     // Fill averages for policy::point
     void compute_region_averages (const int& lev);
+
+    // Fill averages for policy::EB
+    void compute_eb_averages (const int& lev);
 
     // Write k indices
     void write_k_indices (const int& lev);
@@ -231,6 +239,11 @@ protected:
     //--------------------------------------------
     bool m_interp{false};                                            // Do interpolation on destination?
     bool m_norm_vec{false};                                          // Use normal vector to find IJK?
+
+    // Vars for EB averaging policy
+    //--------------------------------------------
+    amrex::Vector<const eb_*> m_eb_vec;                              // Vector of pointers to EB objects (one per level)
+    amrex::Vector<amrex::Vector<amrex::Real>> m_total_bndry_area;   // Total EB surface areas (maxlev, navg)
 
     // Time average w/ exponential filter fun
     //--------------------------------------------

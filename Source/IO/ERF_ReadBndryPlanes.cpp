@@ -52,10 +52,11 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
         auto ori = oit();
         if (ori.coordDir() < 2) {
 
-            m_data_n[ori]      = std::make_unique<PlaneVector>();
-            m_data_np1[ori]    = std::make_unique<PlaneVector>();
-            m_data_np2[ori]    = std::make_unique<PlaneVector>();
-            m_data_interp[ori] = std::make_unique<PlaneVector>();
+            m_data_n[ori]        = std::make_unique<PlaneVector>();
+            m_data_np1[ori]      = std::make_unique<PlaneVector>();
+            m_data_np2[ori]      = std::make_unique<PlaneVector>();
+            m_data_interp[ori]   = std::make_unique<PlaneVector>();
+            m_data_tendency[ori] = std::make_unique<PlaneVector>();
 
             const auto& lo = domain.loVect();
             const auto& hi = domain.hiVect();
@@ -70,6 +71,7 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
             m_data_np1[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_np2[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_interp[ori]->push_back(FArrayBox(pbx, ncomp));
+            m_data_tendency[ori]->push_back(FArrayBox(pbx, ncomp));
         }
     }
 }
@@ -106,8 +108,9 @@ ReadBndryPlanes::interp_in_time (const Real& time)
                         const auto& datn   = (*m_data_n[ori])[lev];
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
-                        dati.linInterp<RunOn::Device>(
-                            datn, 0, datnp1, 0, m_tn, m_tnp1, m_tinterp, datn.box(), 0, dati.nComp());
+                        dati.linInterp<RunOn::Device>(datn, 0, datnp1, 0,
+                                                      m_tn, m_tnp1, m_tinterp,
+                                                      datn.box(), 0, dati.nComp());
                     }
                 }
             }
@@ -120,15 +123,73 @@ ReadBndryPlanes::interp_in_time (const Real& time)
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         const auto& datnp2 = (*m_data_np2[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
-                        dati.linInterp<RunOn::Device>(
-                            datnp1, 0, datnp2, 0, m_tnp1, m_tnp2, m_tinterp, datnp1.box(), 0,
-                            dati.nComp());
+                        dati.linInterp<RunOn::Device>(datnp1, 0, datnp2, 0,
+                                                      m_tnp1, m_tnp2, m_tinterp,
+                                                      datnp1.box(), 0, dati.nComp());
                     }
                 }
             }
         }
     }
     return m_data_interp;
+}
+
+/**
+ * Function in ReadBndryPlanes class for interpolating boundary
+ * data in time.
+ *
+ * @param time Constant specifying the time for interpolation
+ */
+Vector<std::unique_ptr<PlaneVector>>&
+ReadBndryPlanes::get_tendency (const Real& time)
+{
+    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
+
+    if (time < m_tnp1) {
+        Real idt = Real(1.0) / (m_tnp1 - m_tn);
+        for (OrientationIter oit; oit != nullptr; ++oit) {
+            auto ori = oit();
+            if (ori.coordDir() < 2) {
+                const int nlevels = static_cast<int>(m_data_n[ori]->size());
+                for (int lev = 0; lev < nlevels; ++lev) {
+                    auto& fabt = (*m_data_tendency[ori])[lev];
+                    Box bx     = fabt.box();
+                    int ncomp  = fabt.nComp();
+
+                    const auto& datt   = fabt.array();
+                    const auto& datn   = (*m_data_n[ori])[lev].array();
+                    const auto& datnp1 = (*m_data_np1[ori])[lev].array();
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        datt(i,j,k,n) = (datnp1(i,j,k,n) - datn(i,j,k,n)) * idt;
+                    });
+                }
+            }
+        }
+    } else {
+        Real idt = Real(1.0) / (m_tnp2 - m_tnp1);
+        for (OrientationIter oit; oit != nullptr; ++oit) {
+            auto ori = oit();
+            if (ori.coordDir() < 2) {
+                const int nlevels = static_cast<int>(m_data_n[ori]->size());
+                for (int lev = 0; lev < nlevels; ++lev) {
+                    auto& fabt = (*m_data_tendency[ori])[lev];
+                    Box bx     = fabt.box();
+                    int ncomp  = fabt.nComp();
+
+                    const auto& datt   = fabt.array();
+                    const auto& datnp1 = (*m_data_np1[ori])[lev].array();
+                    const auto& datnp2 = (*m_data_np2[ori])[lev].array();
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        datt(i,j,k,n) = (datnp2(i,j,k,n) - datnp1(i,j,k,n)) * idt;
+                    });
+                }
+            }
+        }
+    }
+
+    return m_data_tendency;
 }
 
 /**
@@ -193,6 +254,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     m_data_np1.resize(size);
     m_data_np2.resize(size);
     m_data_interp.resize(size);
+    m_data_tendency.resize(size);
 }
 
 /**
