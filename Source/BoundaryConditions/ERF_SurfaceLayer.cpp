@@ -936,8 +936,8 @@ void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const bool copy_all_points = (m_has_ocean_lsm_tsurf &&
-                                  amrex::toLower(m_lsm_data_name[m_lsm_tsurf_indx]) == "t_surf");
+    const bool has_sea_tsurf = (m_has_ocean_lsm_tsurf &&
+                                amrex::toLower(m_lsm_data_name[m_lsm_tsurf_indx]) == "t_surf");
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -960,7 +960,8 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-            if (copy_all_points || is_land) {
+            if ((!has_sea_tsurf && is_land) ||
+                (has_sea_tsurf && !is_land)) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
