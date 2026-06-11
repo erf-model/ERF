@@ -255,7 +255,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         }
     }
 
-    if (verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
+    if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
         amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
     }
 }
