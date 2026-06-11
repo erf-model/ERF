@@ -60,14 +60,14 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         auto        gpz_arr  = gradp_temp[2].array(mfi);
         auto const rhse_arr  = r_hse.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            gpz_arr(i,j,k) -= grav * myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
+            gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
         });
     }
 
     Real min_gpz = gradp_temp[2].min(comp);
     Real max_gpz = gradp_temp[2].max(comp);
     if (max_gpz != zero || min_gpz != zero) {
-        Print() << "Min/max value of dp0/dz - rho0*g  are " << min_gpz << " " << max_gpz <<
+        Print() << "Min/max value of dp0/dz + rho0*|g|  are " << min_gpz << " " << max_gpz <<
                     " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                            << gradp_temp[2].maxIndex(comp) << std::endl;
     } else {
@@ -134,12 +134,11 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Box bx = mfi.validbox(); bx.growHi(2,-1);
                 if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
                 auto      gpz_arr   = gradp_temp[2].array(mfi);
-                auto const  s_arr   = lev_new[Vars::cons].const_array(mfi);
-                auto const rhse_arr = r_hse.const_array(mfi);
-                auto const qt_arr   = qt.array(mfi);
+                auto const  r_arr   = rho.const_array(mfi);
+                auto const qt_arr   =  qt.const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    gpz_arr(i,j,k) -= grav * myhalf * (r_arr(i,j,k  )*(one+qt_arr(i,j,k  )) + 
+                    gpz_arr(i,j,k) += grav * myhalf * (r_arr(i,j,k  )*(one+qt_arr(i,j,k  )) + 
                                                        r_arr(i,j,k-1)*(one+qt_arr(i,j,k-1)) );
                 });
             }
@@ -147,7 +146,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             min_gpz = gradp_temp[2].min(comp);
             max_gpz = gradp_temp[2].max(comp);
             if (max_gpz != zero || min_gpz != zero) {
-                Print() << "Min/max value of moist dp/dz - rho*g  are " << min_gpz << " " << max_gpz <<
+                Print() << "Min/max value of moist dp/dz + rho*|g|  are " << min_gpz << " " << max_gpz <<
                             " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                                    << gradp_temp[2].maxIndex(comp) << std::endl;
             } else {
@@ -204,14 +203,14 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             auto     gpz_arr  = gradp_temp[2].array(mfi);
             auto const r_arr  = rho.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                gpz_arr(i,j,k) -= grav * myhalf * (r_arr(i,j,k) + r_arr(i,j,k-1));
+                gpz_arr(i,j,k) += grav * myhalf * (r_arr(i,j,k) + r_arr(i,j,k-1));
             });
         }
 
         min_gpz = gradp_temp[2].min(comp);
         max_gpz = gradp_temp[2].max(comp);
         if (max_gpz != zero || min_gpz != zero) {
-            Print() << "Min/max value of dry dp/dz - rho_d*g  are " << min_gpz << " " << max_gpz <<
+            Print() << "Min/max value of dry dp/dz + rho_d*|g|  are " << min_gpz << " " << max_gpz <<
                         " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                                << gradp_temp[2].maxIndex(comp) << std::endl;
         } else {
