@@ -1024,7 +1024,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // **************************************************************************
     // Rebalance the WRF state if needed
     // **************************************************************************
-    if (solverChoice.rebalance_wrfinput) {
+    if (solverChoice.rebalance_wrf_input) {
         Print() << "The state read from WRF is being rebalanced!\n";
         int ncomp    = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
