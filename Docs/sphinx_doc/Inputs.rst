@@ -1651,6 +1651,9 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
+|                                  | from wrf input?     |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |
 |                                  | vertical velocities |                    |                       |

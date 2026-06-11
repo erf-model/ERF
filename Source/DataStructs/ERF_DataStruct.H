@@ -398,6 +398,9 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Rebalance wrf state?
+        pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
         gravity = use_gravity? CONST_GRAV: zero;
@@ -1196,7 +1199,10 @@ struct SolverChoice {
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
-    bool        use_lagged_delta_rt    = true;
+    bool        use_lagged_delta_rt   = true;
+
+    // Flag to rebalance state from wrf input
+    bool        rebalance_wrf_input   = true;
 
     // Constants
     amrex::Real gravity;
