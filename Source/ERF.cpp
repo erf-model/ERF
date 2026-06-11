@@ -23,6 +23,7 @@
 #include "ERF_EBIFTerrain.H"
 #include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
+#include "ERF_BuoyancyUtils.H"
 
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
@@ -1711,59 +1712,8 @@ ERF::InitData_post ()
 
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
-        if (SolverChoice::mesh_type == MeshType::VariableDz) {
-            int lev = 0;
-            Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
-            gradp_temp[0].define(vars_new[lev][Vars::xvel].boxArray(), vars_new[lev][Vars::xvel].DistributionMap(), 1, 0);
-            gradp_temp[0].setVal(0.);
-            gradp_temp[1].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::yvel].DistributionMap(), 1, 0);
-            gradp_temp[1].setVal(0.);
-            gradp_temp[2].define(vars_new[lev][Vars::zvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
-            gradp_temp[2].setVal(0.);
-
-            MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
-            MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
-
-            int comp = 0;
-            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                          get_eb(lev), gradp_temp, solverChoice);
-
-            Real max_gpx = gradp_temp[0].max(comp);
-            if (max_gpx > zero) {
-                Print() << "Maximum value of x-gradient of base state pressure is " << max_gpx <<
-                            " and occurs at face " << gradp_temp[0].maxIndex(comp) << std::endl;
-            } else {
-                Print() << "Maximum value of x-gradient of base state pressure is zero " << std::endl;
-            }
-
-            Real max_gpy = gradp_temp[1].max(comp);
-            if (max_gpy > zero) {
-                Print() << "Maximum value of y-gradient of base state pressure is " << max_gpy <<
-                            " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
-            } else {
-                Print() << "Maximum value of y-gradient of base state pressure is zero " << std::endl;
-            }
-
-
-            const Real grav = solverChoice.gravity;
-            for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-                Box bx = mfi.validbox(); bx.growHi(2,-1);
-                auto        gpz_arr  = gradp_temp[2].array(mfi);
-                auto const rhse_arr  = r_hse.const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    gpz_arr(i,j,k) -= grav * myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
-                });
-            }
-
-            Real max_gpz = gradp_temp[2].max(comp);
-            if (max_gpz > zero) {
-                Print() << "Maximum value of dp0/dz - rho0*g  is " << max_gpx <<
-                            " and occurs at face " << gradp_temp[2].maxIndex(comp) << std::endl;
-            } else {
-                Print() << "Maximum value of dp0/dz - rho0*g  is zero " << std::endl;
-            }
-
-
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            compute_max_pressure_gradient_diagnostic(lev);
         }
     }
 

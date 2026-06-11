@@ -22,6 +22,12 @@ void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size
 amrex::BoxArray
 ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
 
+void
+cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
+
+void
+make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
+
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
