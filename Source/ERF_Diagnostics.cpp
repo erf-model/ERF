@@ -13,6 +13,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 {
     auto& lev_new = vars_new[lev];
 
+    int ng = (solverChoice.terrain_type == TerrainType::EB) ? 3 : 1;
+
     Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
     gradp_temp[0].define(vars_new[lev][Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
     gradp_temp[0].setVal(0.);
@@ -23,9 +25,38 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     int comp = 0;
 
+    // Use this region to take max/min of gpx without including xlo,xhi if using real_bcs
+    Box xface_domain = surroundingNodes(geom[lev].Domain(), 0);
+    int ilo = xface_domain.smallEnd(0);
+    int ihi = xface_domain.bigEnd(0);
+    if (solverChoice.use_real_bcs) {
+        xface_domain.growLo(0,-1);
+        xface_domain.growHi(0,-1);
+    }
+
+    // Use this region to take max/min of gpy without including ylo,yhi if using real_bcs
+    Box yface_domain = surroundingNodes(geom[lev].Domain(), 1);
+    int jlo = yface_domain.smallEnd(1);
+    int jhi = yface_domain.bigEnd(1);
+    if (solverChoice.use_real_bcs) {
+        yface_domain.growLo(1,-1);
+        yface_domain.growHi(1,-1);
+    }
+
+
+    // Use this region to take max/min of gpz without including top and bottom faces
+    Box zface_domain = surroundingNodes(geom[lev].Domain(), 2);
+    int klo = zface_domain.smallEnd(2);
+    int khi = zface_domain.bigEnd(2);
+
+    zface_domain.growLo(2,-1);
+    zface_domain.growHi(2,-1);
+
     // *******************************************************************************
     // First compute for base state pressure
     // *******************************************************************************
+
+    Print() << " " << std::endl;
 
     MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
@@ -33,22 +64,28 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
                   get_eb(lev), gradp_temp, solverChoice);
 
-    Real min_gpx = gradp_temp[0].min(comp);
-    Real max_gpx = gradp_temp[0].max(comp);
+    Real min_gpx = gradp_temp[0].min(xface_domain,comp);
+    Real max_gpx = gradp_temp[0].max(xface_domain,comp);
     if (max_gpx != zero || min_gpx != zero) {
-        Print() << "Min/Max value of x-gradient of base state pressure are " << min_gpx << " " << max_gpx <<
-                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
-                                           << gradp_temp[0].maxIndex(comp) << std::endl;
+        Print() << "Min/Max value of x-gradient of base state pressure are " << min_gpx << " " << max_gpx;
+        IntVect min_loc = gradp_temp[0].minIndex(comp);
+        IntVect max_loc = gradp_temp[0].maxIndex(comp);
+        if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
+        if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
+        Print() << std::endl;
     } else {
         Print() << "Min/max value of x-gradient of base state pressure are zero " << std::endl;
     }
 
-    Real min_gpy = gradp_temp[1].min(comp);
-    Real max_gpy = gradp_temp[1].max(comp);
+    Real min_gpy = gradp_temp[1].min(yface_domain,comp);
+    Real max_gpy = gradp_temp[1].max(yface_domain,comp);
     if (max_gpy != zero || min_gpy != zero) {
-        Print() << "Min/max value of y-gradient of base state pressure are " << min_gpy << " " << max_gpy <<
-                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
-                                           << gradp_temp[1].maxIndex(comp) << std::endl;
+        Print() << "Min/max value of y-gradient of base state pressure are " << min_gpy << " " << max_gpy;
+        IntVect min_loc = gradp_temp[1].minIndex(comp);
+        IntVect max_loc = gradp_temp[1].maxIndex(comp);
+        if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
+        if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
+        Print() << std::endl;
     } else {
         Print() << "Min/max value of y-gradient of base state pressure are zero " << std::endl;
     }
@@ -64,14 +101,17 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         });
     }
 
-    Real min_gpz = gradp_temp[2].min(comp);
-    Real max_gpz = gradp_temp[2].max(comp);
+    Real min_gpz = gradp_temp[2].min(zface_domain,comp);
+    Real max_gpz = gradp_temp[2].max(zface_domain,comp);
     if (max_gpz != zero || min_gpz != zero) {
-        Print() << "Min/max value of dp0/dz + rho0*|g|  are " << min_gpz << " " << max_gpz <<
-                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
-                                           << gradp_temp[2].maxIndex(comp) << std::endl;
+        IntVect min_loc = gradp_temp[2].minIndex(comp);
+        IntVect max_loc = gradp_temp[2].maxIndex(comp);
+        Print() << "Min/max value of dp0/dz + rho0*|g|                 are " << min_gpz << " " << max_gpz;
+        if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
+        if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
+        Print() << std::endl;
     } else {
-        Print() << "Min/max value of dp0/dz - rho0*g  are zero " << std::endl;
+        Print() << "Min/max value of dp0/dz + rho0*|g|  are zero " << std::endl;
     }
     Print() << " " << std::endl;
 
@@ -81,17 +121,17 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         // Now compute for full (moist) pressure
         // *******************************************************************************
 
-        MultiFab p(p_hse.boxArray(), p_hse.DistributionMap(), 1, 1);
+        MultiFab p(p_hse.boxArray(), p_hse.DistributionMap(), 1, ng);
         MultiFab rho(lev_new[Vars::cons], make_alias, Rho_comp , 1);
 
         if (solverChoice.moisture_type != MoistureType::None) {
-    
+
             for (MFIter mfi(rho); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.tilebox();
-                gbx.grow(IntVect(1,1,1));
+                gbx.grow(IntVect(ng,ng,ng));
                 if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-    
+
                 const Array4<const Real>& cell_data = lev_new[Vars::cons].array(mfi);
                 const Array4<const Real>&  r_arr = rho.array(mfi);
                 const Array4<      Real>& pp_arr = p.array(mfi);
@@ -104,29 +144,35 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             compute_gradp(p, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
                           get_eb(lev), gradp_temp, solverChoice);
 
-            min_gpx = gradp_temp[0].min(comp);
-            max_gpx = gradp_temp[0].max(comp);
+            min_gpx = gradp_temp[0].min(xface_domain,comp);
+            max_gpx = gradp_temp[0].max(xface_domain,comp);
             if (max_gpx != zero || min_gpx != zero) {
-                Print() << "Min/Max value of x-gradient of full (moist) pressure are " << min_gpx << " " << max_gpx <<
-                            " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
-                                                   << gradp_temp[0].maxIndex(comp) << std::endl;
+                Print() << "Min/Max value of x-gradient of full (moist) pressure are " << min_gpx << " " << max_gpx;
+                IntVect min_loc = gradp_temp[0].minIndex(comp);
+                IntVect max_loc = gradp_temp[0].maxIndex(comp);
+                if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
+                if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
+                Print() << std::endl;
             } else {
                 Print() << "Min/max value of x-gradient of full (moist) pressure are zero " << std::endl;
             }
 
-            min_gpy = gradp_temp[1].min(comp);
-            max_gpy = gradp_temp[1].max(comp);
+            Real min_gpy = gradp_temp[1].min(yface_domain,comp);
+            Real max_gpy = gradp_temp[1].max(yface_domain,comp);
             if (max_gpy != zero || min_gpy != zero) {
-                Print() << "Min/Max value of y-gradient of full (moist) pressure are " << min_gpy << " " << max_gpy <<
-                            " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
-                                                   << gradp_temp[1].maxIndex(comp) << std::endl;
+                Print() << "Min/Max value of y-gradient of full (moist) pressure are " << min_gpy << " " << max_gpy;
+                IntVect min_loc = gradp_temp[1].minIndex(comp);
+                IntVect max_loc = gradp_temp[1].maxIndex(comp);
+                if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
+                if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
+                Print() << std::endl;
             } else {
                 Print() << "Min/max value of y-gradient of full (moist) pressure are zero " << std::endl;
             }
 
             MultiFab qt(rho.boxArray(), rho.DistributionMap(), 1, 1);
             int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
-            make_qt(lev_new[IntVars::cons], qt, n_qstate_into_total);
+            make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
             const Real grav = solverChoice.gravity;
             for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi)
@@ -138,19 +184,22 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 auto const qt_arr   =  qt.const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    gpz_arr(i,j,k) += grav * myhalf * (r_arr(i,j,k  )*(one+qt_arr(i,j,k  )) + 
+                    gpz_arr(i,j,k) += grav * myhalf * (r_arr(i,j,k  )*(one+qt_arr(i,j,k  )) +
                                                        r_arr(i,j,k-1)*(one+qt_arr(i,j,k-1)) );
                 });
             }
 
-            min_gpz = gradp_temp[2].min(comp);
-            max_gpz = gradp_temp[2].max(comp);
+            min_gpz = gradp_temp[2].min(zface_domain,comp);
+            max_gpz = gradp_temp[2].max(zface_domain,comp);
             if (max_gpz != zero || min_gpz != zero) {
-                Print() << "Min/max value of moist dp/dz + rho*|g|  are " << min_gpz << " " << max_gpz <<
-                            " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
-                                                   << gradp_temp[2].maxIndex(comp) << std::endl;
+                IntVect min_loc = gradp_temp[2].minIndex(comp);
+                IntVect max_loc = gradp_temp[2].maxIndex(comp);
+                Print() << "Min/max value of moist dp/dz + rho_m*|g|             are " << min_gpz << " " << max_gpz;
+                if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
+                if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
+                Print() << std::endl;
             } else {
-                Print() << "Min/max value of moist dp/dz - rho*g  are zero " << std::endl;
+                Print() << "Min/max value of moist dp/dz + rho_m*|g|  are zero " << std::endl;
             }
             Print() << " " << std::endl;
         } // if moist
@@ -162,9 +211,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         for ( MFIter mfi(p); mfi.isValid(); ++mfi)
         {
             Box gbx = mfi.tilebox();
-            gbx.grow(IntVect(1,1,1));
+            gbx.grow(IntVect(ng,ng,ng));
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-    
+
             const Array4<const Real>& cell_data = lev_new[Vars::cons].array(mfi);
             const Array4<      Real>& pp_arr = p.array(mfi);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -177,22 +226,28 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         compute_gradp(p, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
                       get_eb(lev), gradp_temp, solverChoice);
 
-        min_gpx = gradp_temp[0].min(comp);
-        max_gpx = gradp_temp[0].max(comp);
+        min_gpx = gradp_temp[0].min(xface_domain,comp);
+        max_gpx = gradp_temp[0].max(xface_domain,comp);
         if (max_gpx != zero || min_gpx != zero) {
-            Print() << "Min/max value of x-gradient of full (dry) pressure are " << min_gpx << " " << max_gpx <<
-                        " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
-                                               << gradp_temp[0].maxIndex(comp) << std::endl;
+            Print() << "Min/max value of x-gradient of full (dry) pressure are " << min_gpx << " " << max_gpx;
+            IntVect min_loc = gradp_temp[0].minIndex(comp);
+            IntVect max_loc = gradp_temp[0].maxIndex(comp);
+            if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
+            if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
+            Print() << std::endl;
         } else {
             Print() << "Min/max value of x-gradient of full (dry) pressure are zero " << std::endl;
         }
 
-        min_gpy = gradp_temp[1].min(comp);
-        max_gpy = gradp_temp[1].max(comp);
+        min_gpy = gradp_temp[1].min(yface_domain,comp);
+        max_gpy = gradp_temp[1].max(yface_domain,comp);
         if (max_gpy != zero || min_gpy != zero) {
-            Print() << "Min/max value of y-gradient of full (dry) pressure are " << min_gpy << " " << max_gpy <<
-                        " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
-                                               << gradp_temp[1].maxIndex(comp) << std::endl;
+            Print() << "Min/max value of y-gradient of full (dry) pressure are " << min_gpy << " " << max_gpy;
+            IntVect min_loc = gradp_temp[1].minIndex(comp);
+            IntVect max_loc = gradp_temp[1].maxIndex(comp);
+            if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
+            if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
+            Print() << std::endl;
         } else {
             Print() << "Min/max value of y-gradient of full (dry) pressure are zero " << std::endl;
         }
@@ -207,14 +262,17 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             });
         }
 
-        min_gpz = gradp_temp[2].min(comp);
-        max_gpz = gradp_temp[2].max(comp);
+        min_gpz = gradp_temp[2].min(zface_domain,comp);
+        max_gpz = gradp_temp[2].max(zface_domain,comp);
         if (max_gpz != zero || min_gpz != zero) {
-            Print() << "Min/max value of dry dp/dz + rho_d*|g|  are " << min_gpz << " " << max_gpz <<
-                        " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
-                                               << gradp_temp[2].maxIndex(comp) << std::endl;
+            IntVect min_loc = gradp_temp[2].minIndex(comp);
+            IntVect max_loc = gradp_temp[2].maxIndex(comp);
+            Print() << "Min/max value of  dry  dp/dz + rho_d*|g|             are " << min_gpz << " " << max_gpz;
+            if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
+            if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
+            Print() << std::endl;
         } else {
-            Print() << "Min/max value of dry dp/dz - rho*g  are zero " << std::endl;
+            Print() << "Min/max value of dry dp/dz + rho_d*|g|  are zero " << std::endl;
         }
         Print() << " " << std::endl;
     } // if !anelastic
