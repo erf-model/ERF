@@ -9,7 +9,7 @@
 
 using namespace amrex;
 
-void 
+void
 ERF::compute_max_pressure_gradient_diagnostic(int lev)
 {
     auto& lev_new = vars_new[lev];
@@ -24,9 +24,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     int comp = 0;
 
-    // ******************************************************************************* 
+    // *******************************************************************************
     // First compute for base state pressure
-    // ******************************************************************************* 
+    // *******************************************************************************
 
     MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
@@ -38,7 +38,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     Real max_gpx = gradp_temp[0].max(comp);
     if (max_gpx != zero || min_gpx != zero) {
         Print() << "Min/Max value of x-gradient of base state pressure are " << min_gpx << " " << max_gpx <<
-                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
                                            << gradp_temp[0].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of x-gradient of base state pressure are zero " << std::endl;
@@ -48,7 +48,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     Real max_gpy = gradp_temp[1].max(comp);
     if (max_gpy != zero || min_gpy != zero) {
         Print() << "Min/max value of y-gradient of base state pressure are " << min_gpy << " " << max_gpy <<
-                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
                                            << gradp_temp[1].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of y-gradient of base state pressure are zero " << std::endl;
@@ -69,16 +69,16 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     Real max_gpz = gradp_temp[2].max(comp);
     if (max_gpz > zero) {
         Print() << "Min/max value of dp0/dz - rho0*g  are " << min_gpz << " " << max_gpz <<
-                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                            << gradp_temp[2].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of dp0/dz - rho0*g  are zero " << std::endl;
     }
     Print() << " " << std::endl;
 
-   // ******************************************************************************* 
+   // *******************************************************************************
    // Now compute for full (moist) pressure
-   // ******************************************************************************* 
+   // *******************************************************************************
 
     MultiFab p(p_hse.boxArray(), p_hse.DistributionMap(), 1, 1);
     MultiFab rho(lev_new[Vars::cons], make_alias, Rho_comp , 1);
@@ -107,7 +107,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         max_gpx = gradp_temp[0].max(comp);
         if (max_gpx != zero || min_gpx != zero) {
             Print() << "Min/Max value of x-gradient of full (moist) pressure are " << min_gpx << " " << max_gpx <<
-                        " and occur at faces " << gradp_temp[0].minIndex(comp) << " and " 
+                        " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
                                                << gradp_temp[0].maxIndex(comp) << std::endl;
         } else {
             Print() << "Min/max value of x-gradient of full (moist) pressure are zero " << std::endl;
@@ -117,7 +117,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         max_gpy = gradp_temp[1].max(comp);
         if (max_gpy != zero || min_gpy != zero) {
             Print() << "Min/Max value of y-gradient of full (moist) pressure are " << min_gpy << " " << max_gpy <<
-                        " and occur at faces " << gradp_temp[1].minIndex(comp) << " and " 
+                        " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
                                                << gradp_temp[1].maxIndex(comp) << std::endl;
         } else {
             Print() << "Min/max value of y-gradient of full (moist) pressure are zero " << std::endl;
@@ -146,7 +146,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         max_gpz = gradp_temp[2].max(comp);
         if (max_gpz != zero || min_gpz != zero) {
             Print() << "Min/max value of moist dp/dz - rho*g  are " << min_gpz << " " << max_gpz <<
-                        " and occur at faces " << gradp_temp[2].minIndex(comp) << " and " 
+                        " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                                << gradp_temp[2].maxIndex(comp) << std::endl;
         } else {
             Print() << "Min/max value of moist dp/dz - rho*g  are zero " << std::endl;
@@ -154,9 +154,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         Print() << " " << std::endl;
     } // if moist
 
-    // ******************************************************************************* 
+    // *******************************************************************************
     // Now compute for full (dry) pressure
-    // ******************************************************************************* 
+    // *******************************************************************************
 
     for ( MFIter mfi(p); mfi.isValid(); ++mfi)
     {
@@ -180,7 +180,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     max_gpx = gradp_temp[0].max(comp);
     if (max_gpx != zero || min_gpx != zero) {
         Print() << "Min/max value of x-gradient of full (dry) pressure are " << min_gpx << " " << max_gpx <<
-                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and "
                                            << gradp_temp[0].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of x-gradient of full (dry) pressure are zero " << std::endl;
@@ -190,7 +190,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     max_gpy = gradp_temp[1].max(comp);
     if (max_gpy != zero || min_gpy != zero) {
         Print() << "Min/max value of y-gradient of full (dry) pressure are " << min_gpy << " " << max_gpy <<
-                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and "
                                            << gradp_temp[1].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of y-gradient of full (dry) pressure are zero " << std::endl;
@@ -198,7 +198,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
 
     for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-        Box bx = mfi.validbox(); bx.growHi(2,-1); 
+        Box bx = mfi.validbox(); bx.growHi(2,-1);
         if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
         auto     gpz_arr  = gradp_temp[2].array(mfi);
         auto const r_arr  = rho.const_array(mfi);
@@ -211,7 +211,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     max_gpz = gradp_temp[2].max(comp);
     if (max_gpz != zero || min_gpz != zero) {
         Print() << "Min/max value of dry dp/dz - rho_m*g  are " << min_gpz << " " << max_gpz <<
-                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and " 
+                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and "
                                            << gradp_temp[2].maxIndex(comp) << std::endl;
     } else {
         Print() << "Min/max value of dry dp/dz - rho*g  are zero " << std::endl;
