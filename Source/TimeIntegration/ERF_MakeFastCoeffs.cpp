@@ -249,6 +249,7 @@ void make_fast_coeffs (int /*level*/,
                 coeffA_a(i,j,lo.z) =  zero;
                 coeffB_a(i,j,lo.z) =  one;
                 coeffC_a(i,j,lo.z) =  zero;
+                gam_a(i,j,lo.z)    = coeffC_a(i,j,lo.z) / coeffB_a(i,j,lo.z);
             }
         }
         for (int j = lo.y; j <= hi.y; ++j) {
@@ -269,7 +270,6 @@ void make_fast_coeffs (int /*level*/,
                 }
             }
         }
-        gam_a(i,j,lo.z) = coeffC_a(i,j,lo.z) / coeffB_a(i,j,lo.z);
         for (int k = lo.z+1; k <= hi.z+1; ++k) {
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
