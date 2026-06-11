@@ -160,6 +160,10 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 
+if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WSM6_FORT requires ERF_PRECISION=DOUBLE because the WSM6 Fortran bridge is double-precision only")
+endif()
+
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
