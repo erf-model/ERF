@@ -601,7 +601,7 @@ compute_gradp_interpz (const MultiFab& p,
                                          / (z_cc_arr(i,j-1,k  ) - z_cc_arr(i,j-1,k-1)) );
                     }
                 }
-                gpx_arr(i,j,k) = dxInv[1] * (p_hi - p_lo);
+                gpy_arr(i,j,k) = dxInv[1] * (p_hi - p_lo);
             } else {
                 gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
             }
