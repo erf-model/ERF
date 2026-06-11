@@ -1,8 +1,9 @@
 #include "ERF.H"
+#include "ERF_EpochTime.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_EpochTime.H"
+#include "ERF_Utils.H"
 
 using namespace amrex;
 
@@ -122,7 +123,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
                     if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
                         derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp" &&
+                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp"     &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -135,12 +136,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
-                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
+                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj)             ||
                             (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow qv, qc
-                    if (derived_names[i] != "qrain"  &&
-                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qp" &&
+                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain)     ||
+                            (solverChoice.moisture_type == MoistureType::MoistNoCondensation) ) { // allow qv, qc
+                    if (derived_names[i] != "qrain"  && derived_names[i] != "qi" && derived_names[i] != "qsnow" &&
+                        derived_names[i] != "qgraup" && derived_names[i] != "qp" &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -685,6 +686,26 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
 
+        if (containerHasElement(plot_var_names, "buoyancy"))
+        {
+            MultiFab     qt(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+            MultiFab      b(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+            MultiFab S_prim(mf[lev].boxArray(), mf[lev].DistributionMap(),
+                             vars_new[lev][Vars::cons].nComp()-1, 1);
+
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            qt.setVal(0.);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
+            }
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 1);
+
+            make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
+                          get_eb(lev), solverChoice.anelastic[lev]);
+            MultiFab::Copy(mf[lev], b, 0, mf_comp, 1, 0);
+            mf_comp ++;
+        }
+
         if (containerHasElement(plot_var_names, "eq_pot_temp"))
         {
 #ifdef _OPENMP
@@ -1098,7 +1119,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
                 if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 for (int n_comp(n_start); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
@@ -1207,7 +1228,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
                 if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
                 for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }

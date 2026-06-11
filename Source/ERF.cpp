@@ -23,6 +23,7 @@
 #include "ERF_EBIFTerrain.H"
 #include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
+#include "ERF_BuoyancyUtils.H"
 
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
@@ -1126,26 +1127,32 @@ ERF::InitData_post ()
 
             Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
+            MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
 
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
                 int itime = 0;
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             geom[0], use_moist, real_width, bdy_time_interval);
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             geom[0], use_moist, real_width, bdy_time_interval);
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
 
@@ -1368,15 +1375,10 @@ ERF::InitData_post ()
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                          &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            if (solverChoice.upwind_real_bcs) {
-                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                         ncomp_cons,ngvect_cons,ngvect_vels);
-            } else {
-                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                  ncomp_cons,ngvect_cons,ngvect_vels);
-            }
+            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                              ncomp_cons,ngvect_cons,ngvect_vels);
             do_fb = false;
-    }
+        }
 #endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
@@ -1565,17 +1567,26 @@ ERF::InitData_post ()
         //
         // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
         //
+        // Build vector of eb pointers for all levels
+        amrex::Vector<const eb_*> eb_ptrs;
+        eb_ptrs.resize(finest_level + 1, nullptr);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                eb_ptrs[lev] = eb[lev] ? eb[lev].get() : nullptr;
+            }
+        }
+
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
                                                         solverChoice.turbChoice[finest_level],
 #ifdef ERF_USE_NETCDF
-                                                        start_low_time, final_low_time, low_time_interval
+                                                        start_low_time, final_low_time, low_time_interval,
 #else
-                                                        zero, zero
+                                                        zero, zero, zero,
 #endif
-                                                        );
+                                                        eb_ptrs);
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
@@ -1692,27 +1703,8 @@ ERF::InitData_post ()
 
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
-        if (SolverChoice::mesh_type == MeshType::VariableDz) {
-            int lev = 0;
-            Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
-            gradp_temp[0].define(vars_new[lev][Vars::xvel].boxArray(), vars_new[lev][Vars::xvel].DistributionMap(), 1, 0);
-            gradp_temp[0].setVal(0.);
-            gradp_temp[1].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::yvel].DistributionMap(), 1, 0);
-            gradp_temp[1].setVal(0.);
-            gradp_temp[2].define(vars_new[lev][Vars::yvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
-            gradp_temp[2].setVal(0.);
-
-            MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
-
-            int comp = 0;
-            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                          get_eb(lev), gradp_temp, solverChoice);
-
-            amrex::Print() << "Maximum value of x-gradient of base state pressure is " << gradp_temp[0].max(comp) <<
-                              " and occurs at face " << gradp_temp[0].maxIndex(comp) << std::endl;
-
-            amrex::Print() << "Maximum value of y-gradient of base state pressure is " << gradp_temp[1].max(comp) <<
-                              " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            compute_max_pressure_gradient_diagnostic(lev);
         }
     }
 

@@ -47,6 +47,21 @@ void compute_gradp (const amrex::MultiFab& p,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
 
+void compute_gradp_xy (const amrex::MultiFab& p,
+                       const amrex::Geometry& geom,
+                       const amrex::MultiFab& z_phys_cc,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                       const eb_& ebfact,
+                       amrex::Vector<amrex::MultiFab>& gradp,
+                       const SolverChoice& solverChoice);
+
+void compute_gradp_z (const amrex::MultiFab& p,
+                      const amrex::Geometry& geom,
+                      const amrex::MultiFab& z_phys_nd,
+                      const eb_& ebfact,
+                      amrex::Vector<amrex::MultiFab>& gradp,
+                      const SolverChoice& solverChoice);
+
 void compute_gradp_interpz (const amrex::MultiFab& p,
                             const amrex::Geometry& geom,
                             const amrex::MultiFab& z_phys_nd,
@@ -134,7 +149,7 @@ moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Real& final_bdy_time,
                const amrex::Real& bdy_time_interval,
                const amrex::Real& nudge_factor,
-               int width, bool do_upwind,
+               int width,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
