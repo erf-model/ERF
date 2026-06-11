@@ -1728,26 +1728,42 @@ ERF::InitData_post ()
             compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
                           get_eb(lev), gradp_temp, solverChoice);
 
-            amrex::Print() << "Maximum value of x-gradient of base state pressure is " << gradp_temp[0].max(comp) <<
-                              " and occurs at face " << gradp_temp[0].maxIndex(comp) << std::endl;
+            Real max_gpx = gradp_temp[0].max(comp);
+            if (max_gpx > zero) {
+                Print() << "Maximum value of x-gradient of base state pressure is " << max_gpx <<
+                            " and occurs at face " << gradp_temp[0].maxIndex(comp) << std::endl;
+            } else {
+                Print() << "Maximum value of x-gradient of base state pressure is zero " << std::endl;
+            }
 
-            amrex::Print() << "Maximum value of y-gradient of base state pressure is " << gradp_temp[1].max(comp) <<
-                              " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
+            Real max_gpy = gradp_temp[1].max(comp);
+            if (max_gpy > zero) {
+                Print() << "Maximum value of y-gradient of base state pressure is " << max_gpy <<
+                            " and occurs at face " << gradp_temp[1].maxIndex(comp) << std::endl;
+            } else {
+                Print() << "Maximum value of y-gradient of base state pressure is zero " << std::endl;
+            }
 
-            MultiFab rho0_on_zface(gradp_temp[2].boxArray(), gradp_temp[2].DistributionMap(), 1, 0);
+
+            const Real grav = solverChoice.gravity;
             for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
                 Box bx = mfi.validbox(); bx.growHi(2,-1);
+                auto        gpz_arr  = gradp_temp[2].array(mfi);
                 auto const rhse_arr  = r_hse.const_array(mfi);
-                auto       rhse_on_z = rho0_on_zface.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    rhse_on_z(i,j,k) = myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
+                    gpz_arr(i,j,k) -= grav * myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
                 });
             }
 
-            MultiFab::Saxpy(gradp_temp[2], solverChoice.gravity, rho0_on_zface, 0, 0, 1, 0);
+            Real max_gpz = gradp_temp[2].max(comp);
+            if (max_gpz > zero) {
+                Print() << "Maximum value of dp0/dz - rho0*g  is " << max_gpx <<
+                            " and occurs at face " << gradp_temp[2].maxIndex(comp) << std::endl;
+            } else {
+                Print() << "Maximum value of dp0/dz - rho0*g  is zero " << std::endl;
+            }
 
-            amrex::Print() << "Maximum value of (dp0/dz + rho0 g) is " << gradp_temp[2].max(comp) <<
-                              " and occurs at face " << gradp_temp[2].maxIndex(comp) << std::endl;
+
         }
     }
 
