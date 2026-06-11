@@ -322,7 +322,10 @@ void ERF::advance_dycore (int level,
     apply_bcs(state_old, old_time,
               state_old[IntVars::cons].nGrow(), state_old[IntVars::xmom].nGrow(),
               fast_only, vel_and_mom_synced);
-    cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
+
+    cons_to_prim(state_old[IntVars::cons], S_prim, state_old[IntVars::cons].nGrow());
+
+    make_pi_stage(state_old[IntVars::cons]);
 
     // ***********************************************************************************************
     // Define a new MultiFab that holds q_total and fill it by summing the moisture components --
