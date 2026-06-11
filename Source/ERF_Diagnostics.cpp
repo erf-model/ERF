@@ -85,7 +85,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     if (solverChoice.moisture_type != MoistureType::None) {
 
-        for ( MFIter mfi(rho); mfi.isValid(); ++mfi)
+        for (MFIter mfi(rho); mfi.isValid(); ++mfi)
         {
             Box gbx = mfi.tilebox();
             gbx.grow(IntVect(1,1,1));
@@ -171,50 +171,50 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             Real qv_for_p = zero;
             pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p);
         });
+    }
 
-        compute_gradp(p, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                      get_eb(lev), gradp_temp, solverChoice);
+    compute_gradp(p, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
+                  get_eb(lev), gradp_temp, solverChoice);
 
-        min_gpx = gradp_temp[0].min(comp);
-        max_gpx = gradp_temp[0].max(comp);
-        if (max_gpx != zero || min_gpx != zero) {
-            Print() << "Min/max value of x-gradient of full (dry) pressure are " << min_gpx << " " << max_gpx <<
-                        " and occur at faces " << gradp_temp[0].minIndex(comp) << " and " 
-                                               << gradp_temp[0].maxIndex(comp) << std::endl;
-        } else {
-            Print() << "Min/max value of x-gradient of full (dry) pressure are zero " << std::endl;
-        }
+    min_gpx = gradp_temp[0].min(comp);
+    max_gpx = gradp_temp[0].max(comp);
+    if (max_gpx != zero || min_gpx != zero) {
+        Print() << "Min/max value of x-gradient of full (dry) pressure are " << min_gpx << " " << max_gpx <<
+                    " and occur at faces " << gradp_temp[0].minIndex(comp) << " and " 
+                                           << gradp_temp[0].maxIndex(comp) << std::endl;
+    } else {
+        Print() << "Min/max value of x-gradient of full (dry) pressure are zero " << std::endl;
+    }
 
-        min_gpy = gradp_temp[1].min(comp);
-        max_gpy = gradp_temp[1].max(comp);
-        if (max_gpy != zero || min_gpy != zero) {
-            Print() << "Min/max value of y-gradient of full (dry) pressure are " << min_gpy << " " << max_gpy <<
-                        " and occur at faces " << gradp_temp[1].minIndex(comp) << " and " 
-                                               << gradp_temp[1].maxIndex(comp) << std::endl;
-        } else {
-            Print() << "Min/max value of y-gradient of full (dry) pressure are zero " << std::endl;
-        }
+    min_gpy = gradp_temp[1].min(comp);
+    max_gpy = gradp_temp[1].max(comp);
+    if (max_gpy != zero || min_gpy != zero) {
+        Print() << "Min/max value of y-gradient of full (dry) pressure are " << min_gpy << " " << max_gpy <<
+                    " and occur at faces " << gradp_temp[1].minIndex(comp) << " and " 
+                                           << gradp_temp[1].maxIndex(comp) << std::endl;
+    } else {
+        Print() << "Min/max value of y-gradient of full (dry) pressure are zero " << std::endl;
+    }
 
 
-        for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-            Box bx = mfi.validbox(); bx.growHi(2,-1); 
-            if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
-            auto     gpz_arr  = gradp_temp[2].array(mfi);
-            auto const r_arr  = rho.const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                gpz_arr(i,j,k) -= grav * myhalf * (r_arr(i,j,k) + r_arr(i,j,k-1));
-            });
-        }
+    for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
+        Box bx = mfi.validbox(); bx.growHi(2,-1); 
+        if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+        auto     gpz_arr  = gradp_temp[2].array(mfi);
+        auto const r_arr  = rho.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            gpz_arr(i,j,k) -= grav * myhalf * (r_arr(i,j,k) + r_arr(i,j,k-1));
+        });
+    }
 
-        min_gpz = gradp_temp[2].min(comp);
-        max_gpz = gradp_temp[2].max(comp);
-        if (max_gpz != zero || min_gpz != zero) {
-            Print() << "Min/max value of dry dp/dz - rho_m*g  are " << min_gpz << " " << max_gpz <<
-                        " and occur at faces " << gradp_temp[2].minIndex(comp) << " and " 
-                                               << gradp_temp[2].maxIndex(comp) << std::endl;
-        } else {
-            Print() << "Min/max value of dry dp/dz - rho*g  are zero " << std::endl;
-        }
+    min_gpz = gradp_temp[2].min(comp);
+    max_gpz = gradp_temp[2].max(comp);
+    if (max_gpz != zero || min_gpz != zero) {
+        Print() << "Min/max value of dry dp/dz - rho_m*g  are " << min_gpz << " " << max_gpz <<
+                    " and occur at faces " << gradp_temp[2].minIndex(comp) << " and " 
+                                           << gradp_temp[2].maxIndex(comp) << std::endl;
+    } else {
+        Print() << "Min/max value of dry dp/dz - rho*g  are zero " << std::endl;
     }
     Print() << " " << std::endl;
 }
