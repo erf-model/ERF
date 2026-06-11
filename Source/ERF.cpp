@@ -1759,6 +1759,7 @@ ERF::InitData_post ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
+    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");
