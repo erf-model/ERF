@@ -364,7 +364,8 @@ struct LineSampler
                 }
 
                 if (containerHasElement(m_varnames, "qv")) {
-                    // if qv is requested, assume that we have moisture
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vars_new[ilev][Vars::cons].nComp() > RhoQ1_comp,
+                        "qv sampling requested but moisture components not present in state");
                     if (qv_comp >= 0) AMREX_ALWAYS_ASSERT(qv_comp == mf_comp);
                     qv_comp = mf_comp;
 #ifdef _OPENMP
@@ -383,6 +384,8 @@ struct LineSampler
                     mf_comp += 1;
                 }
                 if (containerHasElement(m_varnames, "qc")) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vars_new[ilev][Vars::cons].nComp() > RhoQ2_comp,
+                        "qc sampling requested but moisture components not present in state");
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -399,38 +402,39 @@ struct LineSampler
                     mf_comp += 1;
                 }
 
-                if (containerHasElement(m_varnames, "pressure") && (qv_comp >= 0)) {
-                    // if qv is requested, assume that we have moisture
+                if (containerHasElement(m_varnames, "pressure")) {
+                    if (vars_new[ilev][Vars::cons].nComp() > RhoQ1_comp) {
+                        // moist pressure: use qv from dfab if already sampled, else compute inline
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            auto const& dfab = mf_cc_data.array(mfi);
+                            auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
 
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
-                                                               dfab(i,j,k,qv_comp));
-                        });
-                    }
-                    mf_comp += 1;
-                }
-                else if (containerHasElement(m_varnames, "pressure")) {
-                    // pressure requested w/o qv, assume dry
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            {
+                                amrex::Real qv_val = (qv_comp >= 0) ? dfab(i,j,k,qv_comp)
+                                                                     : cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
+                                dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp), qv_val);
+                            });
+                        }
+                    } else {
+                        // dry pressure
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            auto const& dfab = mf_cc_data.array(mfi);
+                            auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
 
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp));
-                        });
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            {
+                                dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp));
+                            });
+                        }
                     }
                     mf_comp += 1;
                 }
@@ -784,7 +788,8 @@ struct PlaneSampler
                 }
 
                 if (containerHasElement(m_varnames, "qv")) {
-                    // if qv is requested, assume that we have moisture
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vars_new[ilev][Vars::cons].nComp() > RhoQ1_comp,
+                        "qv sampling requested but moisture components not present in state");
                     if (qv_comp >= 0) AMREX_ALWAYS_ASSERT(qv_comp == mf_comp);
                     qv_comp = mf_comp;
 #ifdef _OPENMP
@@ -803,6 +808,8 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
                 if (containerHasElement(m_varnames, "qc")) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vars_new[ilev][Vars::cons].nComp() > RhoQ2_comp,
+                        "qc sampling requested but moisture components not present in state");
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -819,38 +826,39 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
 
-                if (containerHasElement(m_varnames, "pressure") && (qv_comp >= 0)) {
-                    // pressure with moisture
+                if (containerHasElement(m_varnames, "pressure")) {
+                    if (vars_new[ilev][Vars::cons].nComp() > RhoQ1_comp) {
+                        // moist pressure: use qv from dfab if already sampled, else compute inline
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            auto const& dfab = mf_cc_data.array(mfi);
+                            auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
 
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
-                                                                dfab(i,j,k,qv_comp));
-                        });
-                    }
-                    mf_comp += 1;
-                }
-                else if (containerHasElement(m_varnames, "pressure")) {
-                    // pressure requested w/o qv, assume dry
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            {
+                                amrex::Real qv_val = (qv_comp >= 0) ? dfab(i,j,k,qv_comp)
+                                                                     : cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
+                                dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp), qv_val);
+                            });
+                        }
+                    } else {
+                        // dry pressure
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            auto const& dfab = mf_cc_data.array(mfi);
+                            auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
 
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp));
-                        });
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            {
+                                dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp));
+                            });
+                        }
                     }
                     mf_comp += 1;
                 }
