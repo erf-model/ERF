@@ -209,7 +209,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     }
 
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-    bool use_lsm = (solverChoice.lsm_type != LandSurfaceType::None);
+    bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
 
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<std::string> NC_names;
