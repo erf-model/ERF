@@ -22,8 +22,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
 erf.fixed_mri_dt_ratio = 4
-#erf.substepping_type = None
-#erf.fixed_dt = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -35,12 +33,12 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 100       # number of timesteps between checkpoints
+erf.check_int       = -100       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 100        # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens eq_pot_temp qt qv qc 
+erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup
 
 # SOLVER CHOICES
 erf.use_gravity          = true
@@ -56,7 +54,15 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd"
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
-erf.moisture_model  = "Kessler_NoRain"
+
+erf.moisture_model  = SAM__NoPrecip_NoIce
+erf.moisture_model  = SAM_NoIce
+erf.moisture_model  = SAM
+erf.moisture_model  = Morrison
+erf.moisture_model  = WSM76
+erf.moisture_model  = Kessler_NoRain
+erf.moisture_model  = Kessler
+
 erf.buoyancy_type   = 1
 
 erf.molec_diff_type   = "ConstantAlpha"

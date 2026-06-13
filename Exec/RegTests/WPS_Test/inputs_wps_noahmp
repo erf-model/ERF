@@ -14,11 +14,6 @@ amr.n_cell           = 200   		200   		176
 
 geometry.is_periodic = 0 0 0
 
-xlo.type = "Outflow"
-xhi.type = "Outflow"
-ylo.type = "Outflow"
-yhi.type = "Outflow"
-
 zlo.type = "Surface_Layer"
 zhi.type = "SlipWall"
 erf.most.zref = 1.0
