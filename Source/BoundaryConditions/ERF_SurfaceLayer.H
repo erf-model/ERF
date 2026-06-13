@@ -370,9 +370,11 @@ public:
       for (int n(0); n < ndata; ++n) {
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
-          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+          const std::string lc_name = amrex::toLower(lsm_data_name[n]);
+          if (lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              m_has_ocean_lsm_tsurf = (lc_name == "t_surf");
           }
       }
       int n_valid_lsm_flux = 0;
@@ -473,20 +475,24 @@ public:
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           amrex::Print() << "Using MOST with specified surface temperature ";
-          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
-          //       So if we have TSK, it contains everything and has been
-          //       sanity checked for valid SST values.
-          if (use_tsk) { m_ignore_sst = true; }
-          if (use_tsk) {
-              amrex::Print() << "(land: TSK, ";
+          if (m_has_ocean_lsm_tsurf) {
+              amrex::Print() << "(OceanSurf: t_surf)" << std::endl;
           } else {
-              amrex::Print() << "(land: T0, ";
-          }
-          if (use_tsk && !use_sst) {
-              amrex::Print() << "sea: TSK)" << std::endl;
-          } else {
-              amrex::Print() << "sea: SST)" << std::endl;
-              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+              // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+              //       So if we have TSK, it contains everything and has been
+              //       sanity checked for valid SST values.
+              if (use_tsk) { m_ignore_sst = true; }
+              if (use_tsk) {
+                  amrex::Print() << "(land: TSK, ";
+              } else {
+                  amrex::Print() << "(land: T0, ";
+              }
+              if (use_tsk && !use_sst) {
+                  amrex::Print() << "sea: TSK)" << std::endl;
+              } else {
+                  amrex::Print() << "sea: SST)" << std::endl;
+                  AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+              }
           }
       }
   }
@@ -588,6 +594,9 @@ public:
 
   void update_surf_temp (const amrex::Real& time)
   {
+      if (m_has_ocean_lsm_tsurf) {
+          return;
+      }
       if (surf_heating_rate != 0) {
           int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
@@ -738,6 +747,7 @@ private:
   bool use_moisture;
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
+  bool m_has_ocean_lsm_tsurf = false;
   int  m_lsm_tsurf_indx = -1;
 
   amrex::Real m_Cd = zero;

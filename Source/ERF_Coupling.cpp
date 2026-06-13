@@ -1,11 +1,13 @@
 #include <ERF.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_MicrophysicsUtils.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParmParse.H>
 
@@ -84,7 +86,6 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
        - ROMS/Nonlinear/bulk_flux.F
      This file currently implements the legacy state-passing test path only.
 */
-
 
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
@@ -185,8 +186,9 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
     }
 
-    // --- Moisture fields: from cons when available, else REMORA inputs-file constants ---
+    // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
     if (has_moisture) {
+#if 0
         if (iRH < static_cast<int>(states.size()) && states[iRH] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -194,12 +196,23 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 auto const& c = cons.const_array(mfi);
                 auto         t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = c(i,j,k,RhoQ1_comp) / c(i,j,k,Rho_comp);
+                    const Real qv = c(i,j,k,RhoQ1_comp) / c(i,j,k,Rho_comp);
+                    const Real p_pa = getPgivenRTh(c(i,j,k,RhoTheta_comp), qv);
+                    const Real temp = getTgivenRandRTh(c(i,j,k,Rho_comp), c(i,j,k,RhoTheta_comp), qv);
+                    Real qsat = Real(0.0);
+                    erf_qsatw(temp, p_pa * Real(0.01), qsat);
+                    t(i,j,k) = amrex::max(Real(0.0), amrex::min(Real(1.0),
+                                                                 qv / amrex::max(qsat, Real(1.0e-12))));
                 });
             }
             IntVect ratio = ba2d_lev.minimalBox().length() / states[iRH]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iRH], 0, 1, ratio);
         }
+#else
+        amrex::ignore_unused(iRH);
+        // Avoiding unexercised moist assumptions: retain the driver-prefilled
+        // humidity lane until live ERF->REMORA Qair semantics are made explicit.
+#endif
         if (iCloud < static_cast<int>(states.size()) && states[iCloud] != nullptr) {
             const int qc_idx = solverChoice.moisture_indices.qc;
             const int qi_idx = solverChoice.moisture_indices.qi;
@@ -228,6 +241,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
             }
         }
+#if 0
         if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
             int qr_idx = solverChoice.moisture_indices.qr;
             if (qr_idx != -1) {
@@ -244,6 +258,11 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 amrex::average_down(tmp, *states[iRain], 0, 1, ratio);
             }
         }
+#else
+        amrex::ignore_unused(iRain);
+        // Avoiding unexercised moist assumptions: retain the driver-prefilled
+        // rain lane until live ERF->REMORA rain semantics are made explicit.
+#endif
     }
     // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
 
@@ -269,26 +288,20 @@ void
 ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                              amrex::Real time)
 {
-    amrex::ignore_unused(time);
-
-    // Example (legacy state-passing): state[0] carries SST [K].
-    // We intentionally copy only one horizontal slab, derived from the
-    // interface face convention:
-    // - ocean/atmos interface face index on source: k_face = src.bigEnd(2) + 1
-    // - source cell below that face (ocean top cell): src_k = k_face - 1
-    // - destination LSM surface-facing slab uses its bottom-most k index
-    //   (for current level-0 matched-grid tests this is the interface slab).
-    // This encodes the physical alignment note from coupled discussions:
-    // ERF k=0 atmospheric cell lies above REMORA k=nz-1 ocean cell.
-    // For initial matched-grid tests, require identical horizontal BoxArray/DM.
-    if (solverChoice.lsm_type == LandSurfaceType::None) {
+    if (solverChoice.lsm_type != LandSurfaceType::OceanSurf) {
         return;
     }
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
+        const auto lsm_geom = lsm.Get_Lsm_Geom(0);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
+            lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
+            lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
+            "OceanSurf t_surf geometry lost ERF periodic flags.");
         const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
-        const int src_k  = state[0]->boxArray().minimalBox().bigEnd(2);
+        const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
         for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
             auto dst_arr = dst->array(mfi);
@@ -296,6 +309,26 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                 dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
             });
+        }
+        dst->FillBoundary(lsm_geom.periodicity());
+        amrex::Gpu::streamSynchronize();
+
+        const amrex::Real src_min = state[0]->min(0);
+        const amrex::Real src_max = state[0]->max(0);
+        const amrex::Real dst_min = dst->min(0);
+        const amrex::Real dst_max = dst->max(0);
+
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            amrex::Print() << "OceanSurf apply at t=" << time
+                           << " s from SST slab: source min/max = "
+                           << src_min << " / " << src_max
+                           << " K, cache min/max = "
+                           << dst_min << " / " << dst_max
+                           << " K" << std::endl;
+        }
+
+        if (dst_min < amrex::Real(260.0) || dst_max > amrex::Real(320.0)) {
+            amrex::Warning("OceanSurf t_surf is outside the expected [260, 320] K range");
         }
     }
 }

@@ -82,7 +82,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAHMP
+    SLM, MM5, NOAHMP, OceanSurf, None
 );
 
 AMREX_ENUM(RadiationType,
@@ -261,6 +261,17 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        read_int_string(max_level, "is_land", is_land, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (is_land[lev] == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land[lev] == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                amrex::Error("is_land should be 0 or 1");
+            }
+        }
 
         // What type of radiation model to use
         rad_type = RadiationType::None; // Default
@@ -1142,6 +1153,7 @@ struct SolverChoice {
     amrex::Vector<int> fixed_density;
     amrex::Vector<int> project_initial_velocity;
     amrex::Vector<int> buoyancy_type;
+    amrex::Vector<int> is_land;
 
     // do some extra CFL diagnostics for compressible with substepping
     bool substepping_diag = false;
