@@ -897,8 +897,9 @@ variable, with all snapshots appended to the same file over time. This is simila
 tslist output from WRF but output is provided only from the finest domain that contains
 the entire requested sampling line; velocities are also destaggered.
 
-The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+The sampled variables can be selected with the ``erf.line_sampling_vars`` and
+``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
+"density", "x_velocity", "y_velocity", "z_velocity",
 "magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
 The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
@@ -953,6 +954,9 @@ List of Parameters
 |                                   | plotfiles        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
+|                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 
