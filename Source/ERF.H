@@ -242,6 +242,8 @@ public:
     void check_for_negative_theta (amrex::MultiFab& S);
     void check_for_low_temp       (amrex::MultiFab& S);
 
+    void compute_max_pressure_gradient_diagnostic(int lev);
+
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
     bool writeNow (double cur_time, const int nstep, const int plot_int,
@@ -954,7 +956,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Diffusive fluxes for EB
-    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_EB;
+    // Tau_EB[level][component][grid_type]
+    amrex::Vector<amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>> Tau_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx3_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qfx3_EB;
 
@@ -1155,7 +1158,7 @@ private:
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp", "VPD",
+                                                    "buoyancy", "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif

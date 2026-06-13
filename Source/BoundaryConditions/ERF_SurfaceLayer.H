@@ -12,6 +12,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_EBMOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
@@ -43,13 +44,16 @@ public:
                          const TurbChoice& a_turb_choice,
                          amrex::Real start_low_time,
                          amrex::Real final_low_time,
-                         amrex::Real low_time_interval = zero)
+                         amrex::Real low_time_interval = zero,
+                         const amrex::Vector<const eb_*>& eb_vec = {})
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
     m_final_low_time(final_low_time),
     m_low_time_interval(low_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
+    m_eb_vec(eb_vec),
+    m_terrain_type(a_terrain_type),
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -404,18 +408,28 @@ public:
 
       // Attributes for MFs and FABs
       //--------------------------------------------------------
-      // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba  = mf.boxArray();
-      amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) { b.setRange(2,0); }
-      amrex::BoxArray ba2d(std::move(bl2d));
+      // Create a 2D ba for planar terrain, 3D for EB terrain
+      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba_flux;
+      amrex::IntVect ng{1,1,0};
+
+      if (m_terrain_type == TerrainType::EB) {
+          // Use full 3D BoxArray for EB terrain
+          ba_flux = ba;
+          ng = amrex::IntVect{1,1,1};  // Include z ghost cells
+      } else {
+          // Collapse to 2D for planar terrain
+          amrex::BoxList bl2d = ba.boxList();
+          for (auto& b : bl2d) { b.setRange(2,0); }
+          ba_flux = amrex::BoxArray(std::move(bl2d));
+      }
+
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-      amrex::IntVect ng{1,1,0};
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].define(ba_flux, dm, ncomp, ng);
       z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
@@ -423,28 +437,28 @@ public:
 
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
-      u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      u_star[lev]->setVal(amrex::Real(1.e34));
+      u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      u_star[lev]->setVal(1.E34);
 
-      w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      w_star[lev]->setVal(amrex::Real(1.e34));
+      w_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      w_star[lev]->setVal(1.E34);
 
-      t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      t_star[lev]->setVal(zero); // default to neutral
+      t_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      t_star[lev]->setVal(0.0); // default to neutral
 
-      q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      q_star[lev]->setVal(zero); // default to dry
+      q_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      q_star[lev]->setVal(0.0); // default to dry
 
-      olen[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      olen[lev]->setVal(amrex::Real(1.e34));
+      olen[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      olen[lev]->setVal(1.E34);
 
-      pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      pblh[lev]->setVal(amrex::Real(1.e34));
+      pblh[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      pblh[lev]->setVal(1.E34);
 
-      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       t_surf[lev]->setVal(default_land_surf_temp);
 
-      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
@@ -511,15 +525,14 @@ public:
                                 const amrex::MultiFab* z_phys);
 
   void impose_SurfaceLayer_bcs_EB (const int& lev,
-                                   amrex::Vector<const amrex::MultiFab*> mfs,
-                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
-                                   amrex::MultiFab* xheat_flux,
-                                   amrex::MultiFab* yheat_flux,
-                                   amrex::MultiFab* zheat_flux,
-                                   amrex::MultiFab* xqv_flux,
-                                   amrex::MultiFab* yqv_flux,
-                                   amrex::MultiFab* zqv_flux,
-                                   const eb_& ebfact);
+                                amrex::Vector<const amrex::MultiFab*> mfs,
+                                amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
+                                amrex::MultiFab* xheat_flux,
+                                amrex::MultiFab* yheat_flux,
+                                amrex::MultiFab* zheat_flux,
+                                amrex::MultiFab* xqv_flux,
+                                amrex::MultiFab* yqv_flux,
+                                amrex::MultiFab* zqv_flux);
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
@@ -535,16 +548,15 @@ public:
 
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs_EB (const int& lev,
-                                    amrex::Vector<const amrex::MultiFab*> mfs,
-                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
-                                    amrex::MultiFab* xheat_flux,
-                                    amrex::MultiFab* yheat_flux,
-                                    amrex::MultiFab* zheat_flux,
-                                    amrex::MultiFab* xqv_flux,
-                                    amrex::MultiFab* yqv_flux,
-                                    amrex::MultiFab* zqv_flux,
-                                    const eb_& ebfact,
-                                    const FluxCalc& flux_comp);
+                                 amrex::Vector<const amrex::MultiFab*> mfs,
+                                 amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
+                                 amrex::MultiFab* xheat_flux,
+                                 amrex::MultiFab* yheat_flux,
+                                 amrex::MultiFab* zheat_flux,
+                                 amrex::MultiFab* xqv_flux,
+                                 amrex::MultiFab* yqv_flux,
+                                 amrex::MultiFab* zqv_flux,
+                                 const FluxCalc& flux_comp);
 
   void compute_sfc_params_from_lsm_fluxes(const int& lev,
                                           amrex::MultiFab& cons_in);
@@ -734,6 +746,8 @@ private:
 
   bool m_ignore_sst = false;
 
+  amrex::Vector<const eb_*> m_eb_vec;
+  TerrainType m_terrain_type;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;

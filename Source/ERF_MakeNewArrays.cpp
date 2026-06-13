@@ -542,13 +542,20 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                             solverChoice.vert_implicit_fac[1] > 0 ||
                             solverChoice.vert_implicit_fac[2] > 0);
 
+    bool l_eb_surface_layer = (l_use_eb && solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
+
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     Tau[lev].resize(9);
     Tau_corr[lev].resize(3);
-    Tau_EB[lev].resize(2);
+
+    // Always resize Tau_EB structure, even if not used, because other code checks nullptr
+    Tau_EB[lev].resize(2);  // tau_eb13 and tau_eb23
+    for (int comp = 0; comp < 2; ++comp) {
+        Tau_EB[lev][comp].resize(3);  // xface, yface, zface
+    }
 
     if (l_use_diff) {
         //
@@ -582,15 +589,27 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau32] = nullptr;
         }
 
-        // EB diffusive stresses
-        if (l_use_eb) {
-            Tau_EB[lev][EBTauType::tau_eb13] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau_eb23] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau_eb13]->setVal(zero);
-            Tau_EB[lev][EBTauType::tau_eb23]->setVal(zero);
+        // EB diffusive stresses - allocate for all three staggered grids
+        if (l_eb_surface_layer) {
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::xface] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::yface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::zface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::xface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::yface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::zface]->setVal(0.);
+
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::xface] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::yface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::zface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::xface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::yface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::zface]->setVal(0.);
         } else {
-            Tau_EB[lev][EBTauType::tau_eb13] = nullptr;
-            Tau_EB[lev][EBTauType::tau_eb23] = nullptr;
+            for (int comp = 0; comp < 2; ++comp) {
+                for (int grid = 0; grid < 3; ++grid) {
+                    Tau_EB[lev][comp][grid] = nullptr;
+                }
+            }
         }
 
         if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)

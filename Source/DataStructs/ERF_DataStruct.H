@@ -162,6 +162,10 @@ struct SolverChoice {
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
+        // For the lateral pressure gradient to be used in the momentum equation, should we
+        // take the x- and y-derivatives of the perturbational pressure or the full pressure?
+        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -393,6 +397,9 @@ struct SolverChoice {
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+
+        // Rebalance wrf state?
+        pp.query("rebalance_wrf_input", rebalance_wrf_input);
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -1167,6 +1174,8 @@ struct SolverChoice {
 
     int         gradp_type             = 0;
 
+    bool        use_pert_pres_gradient = true;
+
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
@@ -1190,7 +1199,10 @@ struct SolverChoice {
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
-    bool        use_lagged_delta_rt    = true;
+    bool        use_lagged_delta_rt   = true;
+
+    // Flag to rebalance state from wrf input
+    bool        rebalance_wrf_input   = true;
 
     // Constants
     amrex::Real gravity;

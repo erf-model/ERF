@@ -22,6 +22,12 @@ void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size
 amrex::BoxArray
 ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
 
+void
+cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
+
+void
+make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
+
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
@@ -82,6 +88,31 @@ void
 ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
                       amrex::MultiFab& xmom, amrex::MultiFab& ymom, amrex::MultiFab& zmom,
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
+ * Compute lateral boundary mass influx/outflux from base-state-density-weighted
+ * boundary normal velocities.
+ */
+void
+compute_influx_outflux_bdy (amrex::FArrayBox& bdy_data_xlo, amrex::FArrayBox& bdy_data_xhi,
+                            amrex::FArrayBox& bdy_data_ylo, amrex::FArrayBox& bdy_data_yhi,
+                            amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                            const amrex::Geometry& geom,
+                            amrex::Real& influx, amrex::Real& outflux,
+                            const int n);
+
+/*
+ * \brief Enforces solvability on lateral boundary data by scaling outflow to
+ * match with inflow.
+ */
+void enforceInOutSolvability_bdy (const amrex::MultiFab& rho0,
+                                  amrex::FArrayBox& bdy_data_xlo,
+                                  amrex::FArrayBox& bdy_data_xhi,
+                                  amrex::FArrayBox& bdy_data_ylo,
+                                  amrex::FArrayBox& bdy_data_yhi,
+                                  amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                                  const amrex::Geometry& geom,
+                                  const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
  * \brief Enforces solvability by scaling outflow to match with inflow.

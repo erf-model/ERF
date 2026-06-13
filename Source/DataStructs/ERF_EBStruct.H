@@ -16,6 +16,10 @@ enum EBTauType {
     tau_eb13, tau_eb23
 };
 
+enum EBGridType {
+    xface, yface, zface
+};
+
 /**
  * Container holding EB-related choices
  */
