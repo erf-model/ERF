@@ -263,7 +263,7 @@ Problem::update_rhotheta_sources (const Real& time,
 {
     if (src->empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
+    const int khi = geom.Domain().bigEnd()[2];
 
     // If the z coordinate varies in time and or space, then the the height
     // needs to be calculated at each time step. Here, we assume that only
