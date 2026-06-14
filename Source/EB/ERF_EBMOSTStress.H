@@ -337,7 +337,7 @@ struct moeng_flux_eb
         amrex::Real wsp_mean = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
-        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (qv_mean-qv_surf);
         amrex::Real num2    = wsp_mean * (qv-qv_mean);
 
@@ -407,7 +407,7 @@ struct moeng_flux_eb
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Use tangential velocity magnitude instead of Cartesian
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
 
@@ -613,7 +613,7 @@ struct moeng_flux_eb
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
         //       modifies the denominator from what is in Moeng amrex::Real(1984.)
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx_tangent-umean);
 
@@ -818,7 +818,7 @@ struct moeng_flux_eb
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
         //       modifies the denominator from what is in Moeng amrex::Real(1984.)
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely_tangent-vmean);
 
@@ -829,7 +829,11 @@ struct moeng_flux_eb
     }
 
 private:
-    const amrex::Real     eps = 1e-15;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real     eps = amrex::Real(1e-6);
+#else
+    const amrex::Real     eps = amrex::Real(1e-12);
+#endif
     const amrex::Real   WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 #endif
