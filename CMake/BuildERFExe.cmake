@@ -397,6 +397,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplyBndryForcing_Forecast.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_AddMoistNudgingTerms.cpp
        ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
