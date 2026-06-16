@@ -32,8 +32,11 @@ public:
     void
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
+          const amrex::MultiFab& u_in,
+          const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override
+          const amrex::Real& dt,
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd_in) override
     {
         m_dt = dt;
         m_lsm_geom = geom;
@@ -68,7 +71,9 @@ public:
     }
 
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const amrex::Real& dt,
+             const amrex::Real& t_new,
+             const amrex::Real& t_start) override
     {
         // OceanSurf currently does not evolve internal state here; keep the
         // latest timestep for bookkeeping so this stays aligned with other LSMs.
