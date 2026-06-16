@@ -3221,21 +3221,69 @@ ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real p
 }
 
 void
-ERF::check_state_for_nans(MultiFab const& S)
+ERF::check_state_for_nans (MultiFab const& S)
 {
-    bool any_have_nans = false;
+    amrex::Gpu::DeviceScalar<int> d_found(0);
 
-    for (int i = 0; i < S.nComp(); i++) {
+    // comp, i, j, k
+    amrex::Gpu::DeviceVector<int> d_info(4, -1);
 
-        if (S.contains_nan(i,1,0))
+    for (MFIter mfi(S,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        auto const& s_arr = S.const_array(mfi);
+
+        const int ncomp = S.nComp();
+
+        int* found = d_found.dataPtr();
+        int* info  = d_info.dataPtr();
+
+        ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
-            any_have_nans = true;
-        }
+            // Somebody already found a NaN
+            if (*found) return;
+
+            for (int n = 0; n < ncomp; ++n)
+            {
+                Real val = s_arr(i,j,k,n);
+
+                if (val != val) // NaN test
+                {
+                    // Only one thread wins
+                    if (amrex::Gpu::Atomic::CAS(found,0,1) == 0)
+                    {
+                        info[0] = n;
+                        info[1] = i;
+                        info[2] = j;
+                        info[3] = k;
+                    }
+                    return;
+                }
+            }
+        });
     }
 
-    if (any_have_nans) {
-        exit(0);
+    amrex::Gpu::streamSynchronize();
+
+    if (d_found.dataValue())
+    {
+        amrex::Vector<int> h_info(4);
+        amrex::Print() << "Found flag = " << d_found.dataValue() << "\n";
+
+        amrex::Gpu::copy(
+            amrex::Gpu::deviceToHost,
+            d_info.begin(),
+            d_info.end(),
+            h_info.begin());
+
+        std::cout << "NaN found in component " << h_info[0]
+            << " at (i,j,k) = ("
+            << h_info[1] << ", "
+            << h_info[2] << ", "
+            << h_info[3] << ")\n";
+
+        amrex::Abort("NaN detected in state");
     }
 }
 
