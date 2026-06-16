@@ -31,7 +31,7 @@ cons_to_prim(const MultiFab& cons_state, MultiFab& S_prim, int ng)
            }
        });
     } // mfi
-};
+}
 
 void
 make_qt(const MultiFab& cons_state, MultiFab& qt, int n_qstate_into_total)

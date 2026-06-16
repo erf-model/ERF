@@ -15,6 +15,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     int ng = (solverChoice.terrain_type == TerrainType::EB) ? 3 : 1;
 
+    const Real grav = solverChoice.gravity;
+
     Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
     gradp_temp[0].define(vars_new[lev][Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
     gradp_temp[0].setVal(0.);
@@ -90,7 +92,6 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         Print() << "Min/max value of y-gradient of base state pressure are zero " << std::endl;
     }
 
-    const Real grav = solverChoice.gravity;
     for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
         Box bx = mfi.validbox(); bx.growHi(2,-1);
         if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
@@ -157,8 +158,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Print() << "Min/max value of x-gradient of full (moist) pressure are zero " << std::endl;
             }
 
-            Real min_gpy = gradp_temp[1].min(yface_domain,comp);
-            Real max_gpy = gradp_temp[1].max(yface_domain,comp);
+            min_gpy = gradp_temp[1].min(yface_domain,comp);
+            max_gpy = gradp_temp[1].max(yface_domain,comp);
             if (max_gpy != zero || min_gpy != zero) {
                 Print() << "Min/Max value of y-gradient of full (moist) pressure are " << min_gpy << " " << max_gpy;
                 IntVect min_loc = gradp_temp[1].minIndex(comp);
@@ -174,7 +175,6 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-            const Real grav = solverChoice.gravity;
             for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi)
             {
                 Box bx = mfi.validbox(); bx.growHi(2,-1);

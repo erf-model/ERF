@@ -146,18 +146,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
-#if defined(ERF_USE_NETCDF)
-                       const bool& moist_zero,
-                       const amrex::Real& old_stage_time_total,
-                       const amrex::Real& start_bdy_time,
-                       const amrex::Real& final_bdy_time,
-                       const amrex::Real& bdy_time_interval,
-                       int  width,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-#endif
 #ifdef ERF_USE_SHOC
                       std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
