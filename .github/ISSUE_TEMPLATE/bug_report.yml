@@ -13,8 +13,8 @@ body:
     id: summary
     attributes:
       label: Summary
-      description: What went wrong?
-      placeholder: "The code crashes when..."
+      description: What went wrong? What results do I have?
+      placeholder: "The code crashes when... My plots show..."
     validations:
       required: true
 
