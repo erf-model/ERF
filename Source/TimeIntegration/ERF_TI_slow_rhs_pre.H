@@ -113,6 +113,23 @@
                      input_sounding_data, turbPert, true);
 
         // *****************************************************************************
+        // Add nudging terms on moist variables if we have a non-zero relaxation region
+        // *****************************************************************************
+#if defined(ERF_USE_NETCDF)
+        if ( solverChoice.use_real_bcs && (level==0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
+        {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, slow_dt,
+                                    start_time+old_stage_time,
+                                    start_bdy_time, final_bdy_time, bdy_time_interval,
+                                    bdy_factor, real_width, geom[level],
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    m_r2d);
+        }
+#endif
+
+        // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,

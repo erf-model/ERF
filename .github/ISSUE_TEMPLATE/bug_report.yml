@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please provide enough detail for us to reproduce it.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong? What results do I have?
+      placeholder: "The code crashes when... My plots show..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal reproducer.
+      placeholder: |
+        1. Build with ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: "I expected..."
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Git commit hash
+      description: Output of 'git rev-parse HEAD'
+      placeholder: "e.g. 421f94..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Compiler, OS, GPU/CPU, package version, etc.
+      placeholder: |
+        OS:
+        Compiler:
+        Build options:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      render: shell
