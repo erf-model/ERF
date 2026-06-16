@@ -69,7 +69,7 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
               phys_bc_type[ori] = ERF_BC::symmetry;
             domain_bc_type[ori] = "Symmetry";
         }
-        else if (bc_type == "outflow")
+        else if ( (ori.coordDir() != 2 && solverChoice.use_real_bcs) || (bc_type == "outflow") )
         {
             // Print() << bcid << " set to outflow.\n";
               phys_bc_type[ori] = ERF_BC::outflow;
@@ -279,8 +279,12 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 
         if (phys_bc_type[ori] == ERF_BC::undefined)
         {
-             Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
-             Abort("This BC type is unknown");
+             if (solverChoice.use_real_bcs) {
+                 Print() << "We are using real bc's so don't need to set lateral bc's" << std::endl;
+             } else {
+                 Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
+                 Abort("This BC type is unknown");
+             }
         }
     };
 

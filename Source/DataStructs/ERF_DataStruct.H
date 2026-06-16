@@ -82,7 +82,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAHMP
+    SLM, MM5, NOAHMP, OceanSurf, None
 );
 
 AMREX_ENUM(RadiationType,
@@ -161,6 +161,10 @@ struct SolverChoice {
         // 1: gradient of vertically interpolated p, see Klemp 2011
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+
+        // For the lateral pressure gradient to be used in the momentum equation, should we
+        // take the x- and y-derivatives of the perturbational pressure or the full pressure?
+        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
 
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
@@ -259,6 +263,17 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        read_int_string(max_level, "is_land", is_land, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (is_land[lev] == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land[lev] == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                amrex::Error("is_land should be 0 or 1");
+            }
+        }
 
         // What type of radiation model to use
         rad_type = RadiationType::None; // Default
@@ -395,6 +410,9 @@ struct SolverChoice {
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+
+        // Rebalance wrf state?
+        pp.query("rebalance_wrf_input", rebalance_wrf_input);
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -1148,6 +1166,7 @@ struct SolverChoice {
     amrex::Vector<int> fixed_density;
     amrex::Vector<int> project_initial_velocity;
     amrex::Vector<int> buoyancy_type;
+    amrex::Vector<int> is_land;
 
     // do some extra CFL diagnostics for compressible with substepping
     bool substepping_diag = false;
@@ -1180,6 +1199,8 @@ struct SolverChoice {
 
     int         gradp_type             = 0;
 
+    bool        use_pert_pres_gradient = true;
+
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
@@ -1203,7 +1224,10 @@ struct SolverChoice {
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
-    bool        use_lagged_delta_rt    = true;
+    bool        use_lagged_delta_rt   = true;
+
+    // Flag to rebalance state from wrf input
+    bool        rebalance_wrf_input   = true;
 
     // Constants
     amrex::Real gravity;

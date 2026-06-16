@@ -9,11 +9,6 @@ amr.n_cell           =   140     80  100
 
 geometry.is_periodic = 0 0 0
 
-xlo.type = "Outflow"
-xhi.type = "Outflow"
-ylo.type = "Outflow"
-yhi.type = "Outflow"
-#zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 zlo.type = "surface_layer"
