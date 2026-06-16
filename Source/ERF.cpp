@@ -2901,6 +2901,50 @@ ERF::ReadParameters ()
     ParameterSanityChecks();
 }
 
+void CheckForDuplicateInputs ()
+{
+    amrex::ParmParse pp;
+    const auto& tbl = pp.table();
+
+    bool found = false;
+
+    for (const auto& [full_name, entry] : tbl)
+    {
+        std::string prefix;
+        std::string name;
+
+        auto pos = full_name.find('.');
+
+        if (pos != std::string::npos)
+        {
+            prefix = full_name.substr(0, pos);
+            name   = full_name.substr(pos + 1);
+        }
+        else
+        {
+            prefix = "global";
+            name   = full_name;
+        }
+
+        if (entry.m_vals.size() > 1)
+        {
+            found = true;
+
+            amrex::Print() << "Duplicate input: ";
+
+            if (prefix == "global")
+                amrex::Print() << name;
+            else
+                amrex::Print() << prefix << "." << name;
+
+            amrex::Print() << " (" << entry.m_vals.size() << " occurrences)\n";
+        }
+    }
+
+    if (found)
+        amrex::Abort("Duplicate inputs detected");
+}
+
 // Read in some parameters from inputs file
 void
 ERF::ParameterSanityChecks ()
@@ -2966,6 +3010,8 @@ ERF::ParameterSanityChecks ()
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
         Abort("For two-way coupling you must set cf_width = 0");
     }
+
+    CheckForDuplicateInputs();
 }
 
 // Create horizontal average quantities for 5 variables:
