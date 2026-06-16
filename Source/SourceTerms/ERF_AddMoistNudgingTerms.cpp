@@ -26,13 +26,14 @@ using namespace amrex;
 
 void add_moist_nudging_terms (const MultiFab& S_data,
                                     MultiFab & source,
+                              const int n_qstate,
                               const Real& dt,
                               const Real& old_stage_time_total,
                               const Real& start_bdy_time,
                               const Real& final_bdy_time,
                               const Real& bdy_time_interval,
                               const Real& bdy_factor,
-                              int  width,
+                              const int width,
                               const Geometry& geom,
                               Vector<Vector<FArrayBox>>& bdy_data_xlo,
                               Vector<Vector<FArrayBox>>& bdy_data_xhi,
@@ -54,7 +55,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         // Note that old_stage_time_total = start_time+old_stage_time is total time
         //           start_bdy_time and final_bdy_time are total time
         //
-        moist_set_rhs(geom, tbx, new_cons_const, src_arr,
+        moist_set_rhs(geom, tbx, new_cons_const, src_arr, n_qstate,
                       old_stage_time_total, dt,
                       start_bdy_time, final_bdy_time, bdy_time_interval,
                       bdy_factor, width, domain,

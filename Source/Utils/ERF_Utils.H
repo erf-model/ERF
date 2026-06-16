@@ -243,7 +243,11 @@ realbdy_compute_relaxation (const int& icomp,
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
     amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
-    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+
+    int nq = num_var;
+
+    amrex::ParallelFor( bx_xlo, bx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -255,13 +259,23 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
-        amrex::Real Factor = std::max(xi*xi,eta*eta);
+        amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-        amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+	if (icomp == RhoQ1_comp) {
+            amrex::Real delta = arr_xlo(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+            for (int n = 1; n < nq; n++) {
+                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	} else {
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_xlo(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	}
     },
-    bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -273,36 +287,67 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
-        amrex::Real Factor = std::max(xi*xi,eta*eta);
+        amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-        amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+	if (icomp == RhoQ1_comp) {
+            amrex::Real delta = arr_xhi(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+            for (int n = 1; n < nq; n++) {
+                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	} else {
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_xhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	}
     });
 
-    amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    amrex::ParallelFor( bx_ylo, bx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
-        amrex::Real Factor = eta*eta;
+        amrex::Real Factor = eta*eta * F1;
 
-        amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+	if (icomp == RhoQ1_comp) {
+            amrex::Real delta = arr_ylo(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+            for (int n = 1; n < nq; n++) {
+                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	} else {
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_ylo(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	}
     },
-    bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
-        amrex::Real Factor = eta*eta;
+        amrex::Real Factor = eta*eta * F1;
 
-        amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+	if (icomp == RhoQ1_comp) {
+            amrex::Real delta = arr_yhi(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+            for (int n = 1; n < nq; n++) {
+                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+	} else {
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_yhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
+            }
+        }
     });
 }
 
