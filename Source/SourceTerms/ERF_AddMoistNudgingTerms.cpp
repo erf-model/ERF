@@ -1,14 +1,6 @@
-#include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_TableData.H>
-#include <AMReX_GpuContainers.H>
+#if defined(ERF_USE_NETCDF)
 
-#include <ERF_NumericalDiffusion.H>
-#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
-#include <ERF_TI_slow_headers.H>
-#include <ERF_MOSTStress.H>
 
 using namespace amrex;
 
@@ -71,3 +63,4 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                       m_r2d);
     }
 }
+#endif

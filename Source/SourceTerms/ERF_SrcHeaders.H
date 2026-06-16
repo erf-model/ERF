@@ -94,6 +94,7 @@ void make_sources (int level, int nrk,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
 
+#if defined(ERF_USE_NETCDF)
 void
 add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
@@ -110,6 +111,7 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
                          std::unique_ptr<ReadBndryPlanes>& m_r2d);
+#endif
 
 void make_mom_sources (amrex::Real time,
                        amrex::Real dt,
