@@ -585,7 +585,7 @@ erf_dermaxreflectivity ( const Box& bx,
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
 
-        Real max_dbz = Real(-1.0e30);
+        Real max_dbz = -bogus_large_value;
 
         // find max reflectivity over k
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {

@@ -609,28 +609,28 @@ ERF::ReadCheckpointFile ()
             int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
 
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-        vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-        vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-        vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 
         if (solverChoice.anelastic[lev] == 1) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
@@ -1091,17 +1091,17 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
     MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
     VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
     MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
     MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
     VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
     MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
     MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
     VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
     MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 }
 
 /**

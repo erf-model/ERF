@@ -42,7 +42,7 @@ struct adiabatic_eb
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) / std::log(zref_arr(i,j,0) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -106,7 +106,9 @@ struct surface_temp_eb
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.E34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1000);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -237,7 +239,7 @@ struct surface_flux_eb
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.E34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);

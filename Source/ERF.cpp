@@ -61,7 +61,7 @@ Real ERF::cfl            = Real(0.8);
 Real ERF::sub_cfl        = one;
 Real ERF::init_shrink    = one;
 Real ERF::change_max     = Real(1.1);
-Real ERF::dt_max_initial = Real(2.0e100);
+Real ERF::dt_max_initial = bogus_large_value;
 Real ERF:: dt_max        = Real(1.0e9);
 
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -268,8 +268,8 @@ ERF::ERF_shared ()
     // Get lo/hi indices for massflux calc
     if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
-            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-1e34));
-            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( 1e34));
+            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-bogus_large_value));
+            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( bogus_large_value));
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
             const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
             const Real dz = geom[0].CellSize(2);
@@ -312,8 +312,8 @@ ERF::ERF_shared ()
     // But the arrays for them have been resized.
 
     t_new.resize(nlevs_max, zero);
-    t_old.resize(nlevs_max, -Real(1.e100));
-    dt.resize(nlevs_max, std::min(Real(1.e100),dt_max_initial));
+    t_old.resize(nlevs_max, -bogus_large_value);
+    dt.resize(nlevs_max, std::min(bogus_large_value,dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
@@ -2255,7 +2255,7 @@ void
 ERF::init_only (int lev, Real elapsed_time)
 {
     t_new[lev] = elapsed_time;
-    t_old[lev] = elapsed_time - Real(1.e200);
+    t_old[lev] = elapsed_time - bogus_large_value;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
