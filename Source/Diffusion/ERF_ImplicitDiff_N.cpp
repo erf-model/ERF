@@ -36,7 +36,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                           const Array4<const Real>& scalar_zflux,
                           const Array4<const Real>& mu_turb,
-                          const SolverChoice &solverChoice,
+                          const SolverChoice& solverChoice,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac)
@@ -129,7 +129,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
                 RHS_a(i,j,k)    = cell_data(i,j,k,n); // NOTE: this is rho*phi; solution is phi
 
@@ -147,7 +147,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
                 RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (neumann_on_zhi) {
