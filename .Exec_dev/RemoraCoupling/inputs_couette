@@ -15,6 +15,7 @@ geometry.is_periodic = 1 1 0
 
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "bulk_coeff"
+# Ocean-like bulk transfer coefficients for two-way SST feedback runs.
 erf.most.Cd  = 0.001 # ustar
 erf.most.Ch  = 0.001 # theta flux
 erf.most.Cq  = 0.001 # qv    flux
@@ -24,6 +25,11 @@ erf.most.z0     = 0.1
 erf.most.zref   = 50.0
 
 zhi.type = "SlipWall"
+
+# Expect these to be set in two-way coupled runs in the driver input file
+# Route imported REMORA SST through ERF's OceanSurf surface model.
+#erf.land_surface_model = OceanSurf
+#erf.is_land = 0
 
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0
