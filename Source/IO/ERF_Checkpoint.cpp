@@ -896,22 +896,7 @@ ERF::ReadCheckpointFile ()
                 }
             }
         } else {
-            // Allow idealized cases over water, used to set lmask
-            ParmParse pp("erf");
-            int is_land;
-            if (pp.query("is_land", is_land, lev)) {
-                if (is_land == 1) {
-                    amrex::Print() << "Level " << lev << " is land" << std::endl;
-                } else if (is_land == 0) {
-                    amrex::Print() << "Level " << lev << " is water" << std::endl;
-                } else {
-                    Error("is_land should be 0 or 1");
-                }
-                lmask_lev[lev][0]->setVal(is_land);
-            } else {
-                // Default to land everywhere if not specified
-                lmask_lev[lev][0]->setVal(1);
-            }
+            lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
