@@ -164,8 +164,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                     const Real& final_bdy_time,
                                     const Real& bdy_time_interval,
                                     const Real& nudge_factor,
-                                    int  width,
-                                    bool do_upwind,
+                                    int width,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
                                     Vector<MultiFab>& S_cur_data,
@@ -177,22 +176,29 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
-    // HACK HACK HACK
-    // Get bndry data
-    Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
+    // Get bndry data if we have it
+    Vector<int>  bnd_map = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
     Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    Array4<Real> btenxlo, btenxhi, btenylo, btenyhi;
     if (m_r2d) {
+        // Index is [plane orientation] and [level]
         Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
         bdatxlo = (*bndry_data[0])[0].array();
         bdatylo = (*bndry_data[1])[0].array();
         bdatxhi = (*bndry_data[3])[0].array();
         bdatyhi = (*bndry_data[4])[0].array();
-    }
 
-    //
-    // Note that time (= start_time+old_stage_time)  is measured as total time
-    //           start_bdy_time and final_bdy_time are also measured as total time
-    //
+        Vector<std::unique_ptr<PlaneVector>>& bndry_tend = m_r2d->get_tendency(time);
+        btenxlo = (*bndry_tend[0])[0].array();
+        btenylo = (*bndry_tend[1])[0].array();
+        btenxhi = (*bndry_tend[3])[0].array();
+        btenyhi = (*bndry_tend[4])[0].array();
+    }
 
     // Relaxation constants
     Real F1 = one/(nudge_factor*delta_t);
@@ -220,8 +226,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
 
     // Variable index map (WRFBdyVars -> Vars)
-    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons,    Vars::cons};
-    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
+    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons   };
+    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons};
 
     // Variable icomp map
     Vector<int> comp_map = {0, 0, RhoTheta_comp};
@@ -287,7 +293,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         const auto& dom_hi = ubound(domain);
 
         // BndryReg idx and limiting
-        int bdy_comp = ind_map2[ivar];
+        int bdy_comp = bnd_map[ivar];
         const auto& dom_cc_lo = lbound(geom.Domain());
         const auto& dom_cc_hi = ubound(geom.Domain());
 
@@ -340,10 +346,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             ParallelFor(tbx_xlo, tbx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_lo.x+offset);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_hi.y);
+                int ii = std::max(i , dom_lo.x); ii = std::min(ii, dom_lo.x+offset);
+                int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
@@ -365,10 +369,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int ii = std::max(i , dom_hi.x-offset);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_hi.y);
+                int ii = std::max(i , dom_hi.x-offset); ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);        jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
@@ -392,10 +394,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             ParallelFor(tbx_ylo, tbx_yhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_lo.y+offset);
+                int ii = std::max(i , dom_lo.x); ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_lo.y+offset);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
@@ -417,10 +417,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_hi.y-offset);
-                    jj = std::min(jj, dom_hi.y);
+                int ii = std::max(i , dom_lo.x);        ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_hi.y-offset); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
@@ -449,6 +447,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     auto dx = geom.CellSizeArray();
     auto ProbLo = geom.ProbLoArray();
     auto ProbHi = geom.ProbHiArray();
+
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
         int ivar_idx = ivar_map[ivar];
         int icomp    = comp_map[ivar];
@@ -460,7 +459,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
             Box tbx = mfi.tilebox();
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(tbx, domain, width,
@@ -490,104 +490,124 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 continue;
             }
 
-            Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-            Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
-            Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
-
             realbdy_compute_relaxation(icomp, 1,
-                                       width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+                                       width, dx, ProbLo, ProbHi, F1,
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                       data_arr, rhs_arr, do_upwind);
+                                       data_arr, rhs_arr);
         } // mfi
     } // ivar
 
     // Set normal velocity RHS at the boundary
     //==========================================================
+    Box domain  = geom.Domain();
+    Box domainx = convert(domain, IntVect(1,0,0));
+    Box domainy = convert(domain, IntVect(0,1,0));
+
+    int ilo = domainx.smallEnd(0);
+    int ihi = domainx.bigEnd(0);
+    int jlo = domainy.smallEnd(1);
+    int jhi = domainy.bigEnd(1);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(S_cur_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            Box tbx = mfi.nodaltilebox(0);
-            Box tby = mfi.nodaltilebox(1);
+    for (MFIter mfi(S_cur_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box tbx = mfi.nodaltilebox(0);
+        Box tbx_lo, tbx_hi;
+        if (tbx.smallEnd(0) == ilo) {
+            tbx_lo = makeSlab(tbx,0,ilo);
+        }
+        if (tbx.bigEnd(0) == ihi) {
+            tbx_hi = makeSlab(tbx,0,ihi);
+        }
 
-            Box domain  = geom.Domain();
-            Box domainx = convert(domain, IntVect(1,0,0));
-            Box domainy = convert(domain, IntVect(0,1,0));
+        Box tby = mfi.nodaltilebox(1);
+        Box tby_lo, tby_hi;
+        if (tby.smallEnd(1) == jlo) {
+            tby_lo = makeSlab(tby,1,jlo);
+        }
+        if (tby.bigEnd(1) == jhi) {
+            tby_hi = makeSlab(tby,1,jhi);
+        }
 
-            int ilo = domainx.smallEnd(0);
-            int ihi = domainx.bigEnd(0);
-            int jlo = domainy.smallEnd(1);
-            int jhi = domainy.bigEnd(1);
+        Array4<Real> rhs_xmom  = S_rhs[IntVars::xmom].array(mfi);
+        Array4<Real> rhs_ymom  = S_rhs[IntVars::ymom].array(mfi);
 
-            Box tbx_lo, tbx_hi;
-            if (tbx.smallEnd(0) == ilo) {
-                tbx_lo = makeSlab(tbx,0,ilo);
-            } else if (tbx.bigEnd(0) == ihi) {
-                tbx_hi = makeSlab(tbx,0,ihi);
+        Array4<const Real> rhs_cons = S_rhs[IntVars::cons].const_array(mfi);
+        Array4<const Real> cons_arr = S_cur_data[IntVars::cons].const_array(mfi);
+
+        const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivarU].const_array();
+        const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivarU].const_array();
+        const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivarU].const_array();
+        const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivarU].const_array();
+
+        const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivarV].const_array();
+        const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivarV].const_array();
+        const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivarV].const_array();
+        const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivarV].const_array();
+
+        ParallelFor(tbx_lo, tbx_hi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_tend = rhs_cons(i,j,k);
+            Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
+            Real u_tend, u_val;
+            if (btenxlo) {
+                u_tend   = btenxlo(i,j,k,BCVars::xvel_bc);
+                u_val    = bdatxlo(i,j,k,BCVars::xvel_bc);
+            } else {
+                u_tend   = (bdatxlo_np1(i,j,k) - bdatxlo_n(i,j,k)) / bdy_time_interval;
+                u_val    = oma * bdatxlo_n(i,j,k) + alpha * bdatxlo_np1(i,j,k);
             }
-
-            Box tby_lo, tby_hi;
-            if (tby.smallEnd(1) == jlo) {
-                tby_lo = makeSlab(tby,1,jlo);
-            } else if (tby.bigEnd(1) == jhi) {
-                tby_hi = makeSlab(tby,1,jhi);
-            }
-
-            Array4<Real> rhs_xmom  = S_rhs[IntVars::xmom].array(mfi);
-            Array4<Real> rhs_ymom  = S_rhs[IntVars::ymom].array(mfi);
-
-            Array4<const Real> rhs_cons = S_rhs[IntVars::cons].const_array(mfi);
-            Array4<const Real> cons_arr = S_cur_data[IntVars::cons].const_array(mfi);
-
-            const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivarU].const_array();
-            const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivarU].const_array();
-            const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivarU].const_array();
-            const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivarU].const_array();
-
-            const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivarV].const_array();
-            const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivarV].const_array();
-            const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivarV].const_array();
-            const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivarV].const_array();
-
-            ParallelFor(tbx_lo, tbx_hi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_tend = rhs_cons(i,j,k);
-                Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
-                Real u_tend   = (bdatxlo_np1(i,j,k) - bdatxlo_n(i,j,k)) / bdy_time_interval;
-                Real u_val    = oma * bdatxlo_n(i,j,k) + alpha * bdatxlo_np1(i,j,k);
                 rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_tend = rhs_cons(i,j,k);
-                Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
-                Real u_tend   = (bdatxhi_np1(i,j,k) - bdatxhi_n(i,j,k)) / bdy_time_interval;
-                Real u_val    = oma * bdatxhi_n(i,j,k) + alpha * bdatxhi_np1(i,j,k);
-                rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
-            });
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_tend = rhs_cons(i,j,k);
+            Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
+            Real u_tend, u_val;
+            if (btenxhi) {
+                u_tend   = btenxhi(i,j,k,BCVars::xvel_bc);
+                u_val    = bdatxhi(i,j,k,BCVars::xvel_bc);
+            } else {
+                u_tend   = (bdatxhi_np1(i,j,k) - bdatxhi_n(i,j,k)) / bdy_time_interval;
+                u_val    = oma * bdatxhi_n(i,j,k) + alpha * bdatxhi_np1(i,j,k);
+            }
+            rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
+        });
 
-            ParallelFor(tby_lo, tby_hi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_tend = rhs_cons(i,j,k);
-                Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
-                Real v_tend   = (bdatylo_np1(i,j,k) - bdatylo_n(i,j,k)) / bdy_time_interval;
-                Real v_val    = oma * bdatylo_n(i,j,k) + alpha * bdatylo_np1(i,j,k);
-                rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_tend = rhs_cons(i,j,k);
-                Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
-                Real v_tend   = (bdatyhi_np1(i,j,k) - bdatyhi_n(i,j,k)) / bdy_time_interval;
-                Real v_val    = oma * bdatyhi_n(i,j,k) + alpha * bdatyhi_np1(i,j,k);
-                rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
-            });
-
-        } // mfi
+        ParallelFor(tby_lo, tby_hi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_tend = rhs_cons(i,j,k);
+            Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
+            Real v_tend, v_val;
+            if (btenylo) {
+                v_tend   = btenylo(i,j,k,BCVars::yvel_bc);
+                v_val    = bdatylo(i,j,k,BCVars::yvel_bc);
+            } else {
+                v_tend   = (bdatylo_np1(i,j,k) - bdatylo_n(i,j,k)) / bdy_time_interval;
+                v_val    = oma * bdatylo_n(i,j,k) + alpha * bdatylo_np1(i,j,k);
+            }
+            rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_tend = rhs_cons(i,j,k);
+            Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
+            Real v_tend, v_val;
+            if (btenyhi) {
+                v_tend   = btenyhi(i,j,k,BCVars::yvel_bc);
+                v_val    = bdatyhi(i,j,k,BCVars::yvel_bc);
+            } else {
+                v_tend   = (bdatyhi_np1(i,j,k) - bdatyhi_n(i,j,k)) / bdy_time_interval;
+                v_val    = oma * bdatyhi_n(i,j,k) + alpha * bdatyhi_np1(i,j,k);
+            }
+            rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
+        });
+    } // mfi
 }
 
 /**

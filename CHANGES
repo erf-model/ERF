@@ -1,3 +1,16 @@
+#26.06
+    -- LSM + PBL coupling (#3246)
+
+    -- Substep ERF with NOAH-MP (#3258)
+
+    -- WSM6 model (#3247)
+
+    -- BDY vertical interpolation (#3226)
+
+    -- FOEXTRAP scalars with SL BC (#3240)
+
+    -- RRTMGP chunking and nvar parse (#3224,3278)
+
 #26.05
     -- Progress towards data assimilation (#3142)
 

@@ -600,6 +600,7 @@ void erf_substep_T (int step, int /*nrk*/,
             // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
+            // Transform the RHS from r_i -> rho_i
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
@@ -607,6 +608,7 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
 
+            // Back sweep to obtain the solution
             for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }

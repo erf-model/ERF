@@ -355,15 +355,27 @@ NOAHMP::Advance_With_State (const int& lev,
             int ii = std::min(std::max(i,i_lo),i_hi);
             int jj = std::min(std::max(j,j_lo),j_hi);
 
-            // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,k)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx)/(CONS(ii,jj,k,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,k)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
-
-            // NOTE: The following fluxes are nodal in xz/yz.
-            //       The 2D MFs have 1 ghost cell so we can average these
-            //       when using them in the surface layer class.
-            tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
-            tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+            // SurfaceLayer fluxes at CC.
+            // Noah-MP returns the -9999 fill value for cells it does NOT process
+            // (sea-ice / open-water points, which still have LANDMASK=1). Applying
+            // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
+            // lowest cell to ~200 K. Detect the fill and instead write the
+            // lsm_flux_undefined sentinel; the surface layer then falls back to
+            // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
+            // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
+            //       so the surface layer can average them.
+            Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
+            if (hfx_lsm > Real(-9990.0)) {
+                t_flux_arr(i,j,k) = hfx_lsm/(CONS(ii,jj,k,Rho_comp)*Cp_d);
+                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
+                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
+                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+            } else {
+                t_flux_arr(i,j,k) = lsm_flux_undefined;
+                q_flux_arr(i,j,k) = lsm_flux_undefined;
+                tau13_arr(i,j,k)  = lsm_flux_undefined;
+                tau23_arr(i,j,k)  = lsm_flux_undefined;
+            }
 
             // RRTMGP variables
             TSK(i,j,0)           = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);

@@ -5,6 +5,7 @@
 #include <AMReX_GpuContainers.H>
 
 #include <ERF_NumericalDiffusion.H>
+#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_MOSTStress.H>
@@ -97,12 +98,13 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    bool compute_averages = false;
-    compute_averages = compute_averages ||
-        ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
+    bool compute_averages = ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
 
     if (compute_averages)
     {
+        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
+
         //
         // The call to "compute_averages" currently does all the components in one call
         // We can then extract each component separately with the "line_average" call

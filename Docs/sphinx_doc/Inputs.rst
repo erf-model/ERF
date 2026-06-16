@@ -897,8 +897,9 @@ variable, with all snapshots appended to the same file over time. This is simila
 tslist output from WRF but output is provided only from the finest domain that contains
 the entire requested sampling line; velocities are also destaggered.
 
-The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+The sampled variables can be selected with the ``erf.line_sampling_vars`` and
+``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
+"density", "x_velocity", "y_velocity", "z_velocity",
 "magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
 The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
@@ -953,6 +954,9 @@ List of Parameters
 |                                   | plotfiles        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
+|                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 
@@ -1651,6 +1655,9 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
+|                                  | from wrf input?     |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |
 |                                  | vertical velocities |                    |                       |
@@ -1865,7 +1872,8 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "MM5", "SLM"       |             |
+|                                | fluxes                     | "MM5", "OceanSurf",|             |
+|                                |                            | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
@@ -1920,7 +1928,8 @@ List of Parameters
 |                                 |                          |  "Morrison",          |            |
 |                                 |                          |  "Morrison_NoIce",    |            |
 |                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce", "P3"    |            |
+|                                 |                          |  "SAM_NoIce", "P3",   |            |
+|                                 |                          |  "MoistNoCondensation"|            |
 +---------------------------------+--------------------------+-----------------------+------------+
 | **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
 |                                 | microphysics after every |                       |            |
@@ -1956,13 +1965,15 @@ List of Parameters
 +=====================================+========================================+===================+===================================+
 | **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
 |                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
-|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
+|                                     | radiation in batches of this size.     |                   | kernel launch overhead.           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+

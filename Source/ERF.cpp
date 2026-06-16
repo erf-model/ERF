@@ -22,6 +22,8 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
 #include "ERF_HurricaneDiagnostics.H"
+#include "ERF_SrcHeaders.H"
+#include "ERF_BuoyancyUtils.H"
 
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
@@ -1125,26 +1127,32 @@ ERF::InitData_post ()
 
             Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
+            MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
 
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
                 int itime = 0;
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             geom[0], use_moist, real_width, bdy_time_interval);
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             geom[0], use_moist, real_width, bdy_time_interval);
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
 
@@ -1367,15 +1375,10 @@ ERF::InitData_post ()
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                          &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            if (solverChoice.upwind_real_bcs) {
-                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                         ncomp_cons,ngvect_cons,ngvect_vels);
-            } else {
-                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                  ncomp_cons,ngvect_cons,ngvect_vels);
-            }
+            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                              ncomp_cons,ngvect_cons,ngvect_vels);
             do_fb = false;
-    }
+        }
 #endif
 
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
@@ -1512,24 +1515,6 @@ ERF::InitData_post ()
 
     }
 
-    // Allow idealized cases over water, used to set lmask
-    ParmParse pp("erf");
-    int is_land;
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        if (pp.query("is_land", is_land, lev)) {
-            if (is_land == 1) {
-                amrex::Print() << "Level " << lev << " is land" << std::endl;
-            } else if (is_land == 0) {
-                amrex::Print() << "Level " << lev << " is water" << std::endl;
-            } else {
-                Error("is_land should be 0 or 1");
-            }
-            lmask_lev[lev][0]->setVal(is_land);
-            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
-        }
-    }
-
     // If lev > 0, we need to fill bc's by interpolation from coarser grid
     for (int lev = 1; lev <= finest_level; ++lev)
     {
@@ -1582,17 +1567,26 @@ ERF::InitData_post ()
         //
         // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
         //
+        // Build vector of eb pointers for all levels
+        amrex::Vector<const eb_*> eb_ptrs;
+        eb_ptrs.resize(finest_level + 1, nullptr);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                eb_ptrs[lev] = eb[lev] ? eb[lev].get() : nullptr;
+            }
+        }
+
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
                                                         solverChoice.turbChoice[finest_level],
 #ifdef ERF_USE_NETCDF
-                                                        start_low_time, final_low_time, low_time_interval
+                                                        start_low_time, final_low_time, low_time_interval,
 #else
-                                                        zero, zero
+                                                        zero, zero, zero,
 #endif
-                                                        );
+                                                        eb_ptrs);
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
@@ -1660,7 +1654,7 @@ ERF::InitData_post ()
 #else
                 Real elapsed_time_since_start_low = t_new[lev] + start_time;
 #endif
-                m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
+                m_SurfaceLayer->update_fluxes(lev, t_new[lev], elapsed_time_since_start_low,
                                               vars_new[lev][Vars::cons],
                                               z_phys_nd[lev],
                                               walldist[lev]);
@@ -1706,6 +1700,13 @@ ERF::InitData_post ()
         particleData.Redistribute(z_phys_nd);
     }
 #endif
+
+    // Print max values of lateral gradients of base state pressure at level 0
+    if (verbose > 0) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            compute_max_pressure_gradient_diagnostic(lev);
+        }
+    }
 
     // check for additional plotting variables that are available after particle containers
     // are setup.
@@ -1758,6 +1759,7 @@ ERF::InitData_post ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
+    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");
@@ -1953,7 +1955,6 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
-
 }
 
 void
@@ -2886,6 +2887,9 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
+    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
+        lsm.SetModel<OceanSurf>();
+        Print() << "OceanSurf land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";

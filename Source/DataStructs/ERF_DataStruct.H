@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -82,7 +82,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAHMP
+    SLM, MM5, NOAHMP, OceanSurf, None
 );
 
 AMREX_ENUM(RadiationType,
@@ -162,6 +162,10 @@ struct SolverChoice {
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
+        // For the lateral pressure gradient to be used in the momentum equation, should we
+        // take the x- and y-derivatives of the perturbational pressure or the full pressure?
+        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -202,8 +206,9 @@ struct SolverChoice {
                 RhoQ4_comp   // rain
             );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain) ||
-                    (moisture_type == MoistureType::SatAdj) ) {
+                    (moisture_type == MoistureType::Kessler_NoRain)     ||
+                    (moisture_type == MoistureType::SatAdj)             ||
+                    (moisture_type == MoistureType::MoistNoCondensation) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
@@ -256,6 +261,17 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        read_int_string(max_level, "is_land", is_land, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (is_land[lev] == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land[lev] == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                amrex::Error("is_land should be 0 or 1");
+            }
+        }
 
         // What type of radiation model to use
         rad_type = RadiationType::None; // Default
@@ -341,15 +357,6 @@ struct SolverChoice {
             amrex::Error("Please add a string for init_type to your inputs file or command line");
         }
 
-        if (use_real_bcs) {
-            pp.query("upwind_real_bcs",upwind_real_bcs);
-        }
-
-        // Check for rebalancing with wrfinput
-        if (init_type == InitType::WRFInput) {
-            pp.query("rebalance_wrfinput",rebalance_wrfinput);
-        }
-
         // How to interpret input_sounding
         if (init_type == InitType::Input_Sounding) {
             pp.query_enum_case_insensitive("sounding_type",sounding_type);
@@ -358,6 +365,14 @@ struct SolverChoice {
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
+        }
+
+        if ( (moisture_type == MoistureType::SAM                ||
+              moisture_type == MoistureType::SAM_NoIce          ||
+              moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
+             (mesh_type == MeshType::VariableDz) )
+        {
+            amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
@@ -394,6 +409,9 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Rebalance wrf state?
+        pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
         gravity = use_gravity? CONST_GRAV: zero;
@@ -417,12 +435,6 @@ struct SolverChoice {
             }
         }
 
-        // *******************************************************************************
-
-        if (!upwind_real_bcs && anelastic[0]) {
-            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
-            upwind_real_bcs = true;
-        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -1119,9 +1131,6 @@ struct SolverChoice {
     bool use_real_bcs = false;
 
     inline static
-    bool upwind_real_bcs = false;
-
-    inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
     static
@@ -1144,6 +1153,7 @@ struct SolverChoice {
     amrex::Vector<int> fixed_density;
     amrex::Vector<int> project_initial_velocity;
     amrex::Vector<int> buoyancy_type;
+    amrex::Vector<int> is_land;
 
     // do some extra CFL diagnostics for compressible with substepping
     bool substepping_diag = false;
@@ -1176,6 +1186,8 @@ struct SolverChoice {
 
     int         gradp_type             = 0;
 
+    bool        use_pert_pres_gradient = true;
+
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
@@ -1199,7 +1211,10 @@ struct SolverChoice {
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
-    bool        use_lagged_delta_rt    = true;
+    bool        use_lagged_delta_rt   = true;
+
+    // Flag to rebalance state from wrf input
+    bool        rebalance_wrf_input   = true;
 
     // Constants
     amrex::Real gravity;
@@ -1279,9 +1294,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{zero};
-
-    // Rebalance wrfinput
-    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;

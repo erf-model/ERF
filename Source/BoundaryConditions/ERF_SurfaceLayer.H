@@ -12,6 +12,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_EBMOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
@@ -43,13 +44,16 @@ public:
                          const TurbChoice& a_turb_choice,
                          amrex::Real start_low_time,
                          amrex::Real final_low_time,
-                         amrex::Real low_time_interval = zero)
+                         amrex::Real low_time_interval = zero,
+                         const amrex::Vector<const eb_*>& eb_vec = {})
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
     m_final_low_time(final_low_time),
     m_low_time_interval(low_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
+    m_eb_vec(eb_vec),
+    m_terrain_type(a_terrain_type),
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -366,15 +370,21 @@ public:
       for (int n(0); n < ndata; ++n) {
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
-          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+          const std::string lc_name = amrex::toLower(lsm_data_name[n]);
+          if (lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              m_has_ocean_lsm_tsurf = (lc_name == "t_surf");
           }
       }
+      int n_valid_lsm_flux = 0;
       for (int n(0); n < nflux; ++n) {
           m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
+          if (m_lsm_flux_lev[lev][n]) { ++n_valid_lsm_flux; }
       }
+      AMREX_ALWAYS_ASSERT((n_valid_lsm_flux==0 || n_valid_lsm_flux>=4));
+      if (n_valid_lsm_flux>=4) { m_has_lsm_fluxes = true; }
 
       // Check if there is a user-specified roughness file to be read
       std::string fname;
@@ -400,18 +410,28 @@ public:
 
       // Attributes for MFs and FABs
       //--------------------------------------------------------
-      // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba  = mf.boxArray();
-      amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) { b.setRange(2,0); }
-      amrex::BoxArray ba2d(std::move(bl2d));
+      // Create a 2D ba for planar terrain, 3D for EB terrain
+      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba_flux;
+      amrex::IntVect ng{1,1,0};
+
+      if (m_terrain_type == TerrainType::EB) {
+          // Use full 3D BoxArray for EB terrain
+          ba_flux = ba;
+          ng = amrex::IntVect{1,1,1};  // Include z ghost cells
+      } else {
+          // Collapse to 2D for planar terrain
+          amrex::BoxList bl2d = ba.boxList();
+          for (auto& b : bl2d) { b.setRange(2,0); }
+          ba_flux = amrex::BoxArray(std::move(bl2d));
+      }
+
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-      amrex::IntVect ng{1,1,0};
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].define(ba_flux, dm, ncomp, ng);
       z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
@@ -419,28 +439,28 @@ public:
 
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
-      u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      u_star[lev]->setVal(amrex::Real(1.e34));
+      u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      u_star[lev]->setVal(1.E34);
 
-      w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      w_star[lev]->setVal(amrex::Real(1.e34));
+      w_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      w_star[lev]->setVal(1.E34);
 
-      t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      t_star[lev]->setVal(zero); // default to neutral
+      t_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      t_star[lev]->setVal(0.0); // default to neutral
 
-      q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      q_star[lev]->setVal(zero); // default to dry
+      q_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      q_star[lev]->setVal(0.0); // default to dry
 
-      olen[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      olen[lev]->setVal(amrex::Real(1.e34));
+      olen[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      olen[lev]->setVal(1.E34);
 
-      pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      pblh[lev]->setVal(amrex::Real(1.e34));
+      pblh[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      pblh[lev]->setVal(1.E34);
 
-      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      t_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       t_surf[lev]->setVal(default_land_surf_temp);
 
-      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
@@ -455,26 +475,31 @@ public:
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           amrex::Print() << "Using MOST with specified surface temperature ";
-          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
-          //       So if we have TSK, it contains everything and has been
-          //       sanity checked for valid SST values.
-          if (use_tsk) { m_ignore_sst = true; }
-          if (use_tsk) {
-              amrex::Print() << "(land: TSK, ";
+          if (m_has_ocean_lsm_tsurf) {
+              amrex::Print() << "(OceanSurf: t_surf)" << std::endl;
           } else {
-              amrex::Print() << "(land: T0, ";
-          }
-          if (use_tsk && !use_sst) {
-              amrex::Print() << "sea: TSK)" << std::endl;
-          } else {
-              amrex::Print() << "sea: SST)" << std::endl;
-              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+              // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+              //       So if we have TSK, it contains everything and has been
+              //       sanity checked for valid SST values.
+              if (use_tsk) { m_ignore_sst = true; }
+              if (use_tsk) {
+                  amrex::Print() << "(land: TSK, ";
+              } else {
+                  amrex::Print() << "(land: T0, ";
+              }
+              if (use_tsk && !use_sst) {
+                  amrex::Print() << "sea: TSK)" << std::endl;
+              } else {
+                  amrex::Print() << "sea: SST)" << std::endl;
+                  AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+              }
           }
       }
   }
 
   void
   update_fluxes (const int& lev,
+                 const amrex::Real& elapsed_time,
                  const amrex::Real& elapsed_time_since_start_low,
                  amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -507,14 +532,13 @@ public:
 
   void impose_SurfaceLayer_bcs_EB (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
-                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
                                 amrex::MultiFab* xheat_flux,
                                 amrex::MultiFab* yheat_flux,
                                 amrex::MultiFab* zheat_flux,
                                 amrex::MultiFab* xqv_flux,
                                 amrex::MultiFab* yqv_flux,
-                                amrex::MultiFab* zqv_flux,
-                                const eb_& ebfact);
+                                amrex::MultiFab* zqv_flux);
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
@@ -531,15 +555,17 @@ public:
   template <typename FluxCalc>
   void compute_SurfaceLayer_bcs_EB (const int& lev,
                                  amrex::Vector<const amrex::MultiFab*> mfs,
-                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                 amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_lev,
                                  amrex::MultiFab* xheat_flux,
                                  amrex::MultiFab* yheat_flux,
                                  amrex::MultiFab* zheat_flux,
                                  amrex::MultiFab* xqv_flux,
                                  amrex::MultiFab* yqv_flux,
                                  amrex::MultiFab* zqv_flux,
-                                 const eb_& ebfact,
                                  const FluxCalc& flux_comp);
+
+  void compute_sfc_params_from_lsm_fluxes(const int& lev,
+                                          amrex::MultiFab& cons_in);
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
@@ -568,6 +594,9 @@ public:
 
   void update_surf_temp (const amrex::Real& time)
   {
+      if (m_has_ocean_lsm_tsurf) {
+          return;
+      }
       if (surf_heating_rate != 0) {
           int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
@@ -716,7 +745,9 @@ private:
   amrex::Real rico_qsat_z0{amrex::Real(0.001)};
 
   bool use_moisture;
+  bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
+  bool m_has_ocean_lsm_tsurf = false;
   int  m_lsm_tsurf_indx = -1;
 
   amrex::Real m_Cd = zero;
@@ -725,6 +756,8 @@ private:
 
   bool m_ignore_sst = false;
 
+  amrex::Vector<const eb_*> m_eb_vec;
+  TerrainType m_terrain_type;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;
