@@ -1579,24 +1579,6 @@ ERF::InitData_post ()
 
     }
 
-    // Allow idealized cases over water, used to set lmask
-    ParmParse pp("erf");
-    int is_land;
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        if (pp.query("is_land", is_land, lev)) {
-            if (is_land == 1) {
-                amrex::Print() << "Level " << lev << " is land" << std::endl;
-            } else if (is_land == 0) {
-                amrex::Print() << "Level " << lev << " is water" << std::endl;
-            } else {
-                Error("is_land should be 0 or 1");
-            }
-            lmask_lev[lev][0]->setVal(is_land);
-            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
-        }
-    }
-
     // If lev > 0, we need to fill bc's by interpolation from coarser grid
     for (int lev = 1; lev <= finest_level; ++lev)
     {
@@ -1950,6 +1932,7 @@ ERF::InitData_post ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
+    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");
@@ -3080,6 +3063,9 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
+    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
+        lsm.SetModel<OceanSurf>();
+        Print() << "OceanSurf land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
@@ -3414,21 +3400,69 @@ ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real p
 }
 
 void
-ERF::check_state_for_nans(MultiFab const& S)
+ERF::check_state_for_nans (MultiFab const& S)
 {
-    bool any_have_nans = false;
+    amrex::Gpu::DeviceScalar<int> d_found(0);
 
-    for (int i = 0; i < S.nComp(); i++) {
+    // comp, i, j, k
+    amrex::Gpu::DeviceVector<int> d_info(4, -1);
 
-        if (S.contains_nan(i,1,0))
+    for (MFIter mfi(S,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        auto const& s_arr = S.const_array(mfi);
+
+        const int ncomp = S.nComp();
+
+        int* found = d_found.dataPtr();
+        int* info  = d_info.dataPtr();
+
+        ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
-            any_have_nans = true;
-        }
+            // Somebody already found a NaN
+            if (*found) return;
+
+            for (int n = 0; n < ncomp; ++n)
+            {
+                Real val = s_arr(i,j,k,n);
+
+                if (val != val) // NaN test
+                {
+                    // Only one thread wins
+                    if (amrex::Gpu::Atomic::CAS(found,0,1) == 0)
+                    {
+                        info[0] = n;
+                        info[1] = i;
+                        info[2] = j;
+                        info[3] = k;
+                    }
+                    return;
+                }
+            }
+        });
     }
 
-    if (any_have_nans) {
-        exit(0);
+    amrex::Gpu::streamSynchronize();
+
+    if (d_found.dataValue())
+    {
+        amrex::Vector<int> h_info(4);
+        amrex::Print() << "Found flag = " << d_found.dataValue() << "\n";
+
+        amrex::Gpu::copy(
+            amrex::Gpu::deviceToHost,
+            d_info.begin(),
+            d_info.end(),
+            h_info.begin());
+
+        std::cout << "NaN found in component " << h_info[0]
+            << " at (i,j,k) = ("
+            << h_info[1] << ", "
+            << h_info[2] << ", "
+            << h_info[3] << ")\n";
+
+        amrex::Abort("NaN detected in state");
     }
 }
 
