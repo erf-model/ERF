@@ -163,7 +163,6 @@ convert_wrfbdy_data (const int itime,
     int ihi  = domain.bigEnd()[0];
     int jlo  = domain.smallEnd()[1];
     int jhi  = domain.bigEnd()[1];
-    int klo  = domain.smallEnd()[2];
     int khi  = domain.bigEnd()[2];
 
     // PH bounds limiting
