@@ -359,7 +359,7 @@ convert_wrfbdy_data (const int itime,
                 z_lo_src = bdy_c_z_src(i,j,kstart);
 
                 bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_c_z_src(i,j,lk);
                     if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
                         found = true;
@@ -392,7 +392,7 @@ convert_wrfbdy_data (const int itime,
                 z_lo_src = bdy_u_z_src(i,j,kstart);
 
                 bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_u_z_src(i,j,lk);
                     if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
                         found = true;
@@ -423,7 +423,7 @@ convert_wrfbdy_data (const int itime,
                 z_lo_src = bdy_v_z_src(i,j,kstart);
 
                 bool found = false;
-                for (int lk(kstart+1); lk<khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_v_z_src(i,j,lk);
                     if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
                         found = true;
