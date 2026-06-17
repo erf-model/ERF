@@ -4,6 +4,7 @@
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_BCRec.H"
+#include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
@@ -207,7 +208,6 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
  * @param[in] dom_lo low bound of domain
  * @param[in] dom_hi high bound of domain
  * @param[in] F1 drift relaxation parameter
- * @param[in] F2 Laplacian relaxation parameter
  * @param[in] bx_xlo box for low x relaxation
  * @param[in] bx_xhi box for high x relaxation
  * @param[in] bx_ylo box for low y relaxation
@@ -244,6 +244,10 @@ realbdy_compute_relaxation (const int& icomp,
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
     amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
 
+    // These are defined in ERF_Constants.H 
+    amrex::Real cond_fac = lcond; // condensation
+    amrex::Real  sub_fac = lsub;  // sublimation
+
     int nq = num_var;
 
     amrex::ParallelFor( bx_xlo, bx_xhi,
@@ -262,12 +266,22 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
 	if (icomp == RhoQ1_comp) {
+            // qv
             amrex::Real delta = arr_xlo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
-            for (int n = 1; n < nq; n++) {
-                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
-                rhs_arr(i,j,k,n+icomp) += Factor*delta;
-            }
+
+            // qc and heat source term due to evaporation
+            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+
+            for (int n = 2; n < nq; n++) {
+                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                }
+            } // n
 	} else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xlo(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -290,12 +304,22 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
 	if (icomp == RhoQ1_comp) {
+            // qv
             amrex::Real delta = arr_xhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
-            for (int n = 1; n < nq; n++) {
-                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
-                rhs_arr(i,j,k,n+icomp) += Factor*delta;
-            }
+
+            // qc and heat source term due to evaporation
+            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+
+            for (int n = 2; n < nq; n++) {
+                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                }
+            } // n
 	} else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -314,12 +338,22 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real Factor = eta*eta * F1;
 
 	if (icomp == RhoQ1_comp) {
+            // qv
             amrex::Real delta = arr_ylo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
-            for (int n = 1; n < nq; n++) {
-                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
-                rhs_arr(i,j,k,n+icomp) += Factor*delta;
-            }
+
+            // qc and heat source term due to evaporation
+            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+
+            for (int n = 2; n < nq; n++) {
+                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                }
+            } // n
 	} else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_ylo(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -336,12 +370,22 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real Factor = eta*eta * F1;
 
 	if (icomp == RhoQ1_comp) {
+            // qv
             amrex::Real delta = arr_yhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
-            for (int n = 1; n < nq; n++) {
-                delta = -data_arr(i,j,k,n+icomp); // This effectively nudges to 0
-                rhs_arr(i,j,k,n+icomp) += Factor*delta;
-            }
+
+            // qc and heat source term due to evaporation
+            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+
+            for (int n = 2; n < nq; n++) {
+                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                }
+            } // n
 	} else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_yhi(i,j,k,n) - data_arr(i,j,k,n+icomp);

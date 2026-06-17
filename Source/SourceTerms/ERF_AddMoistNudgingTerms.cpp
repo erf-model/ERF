@@ -194,13 +194,14 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                               + alpha * bdatyhi_np1(ii,jj,k) );
        });
 
-       // Compute RHS in relaxation region
-       //==========================================================
        realbdy_interior_bxs_xy(tbx, domain, width,
                                tbx_xlo, tbx_xhi,
                                tbx_ylo, tbx_yhi,
                                ng_vect);
 
+       //
+       // Add relaxation terms for moist variables and (rho theta) to existing source terms
+       //
        realbdy_compute_relaxation(RhoQ1_comp, n_qstate,
                                   width, dx, ProbLo, ProbHi, F1,
                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
