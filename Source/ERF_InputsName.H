@@ -1,7 +1,12 @@
 #ifndef ERF_INPUTS_NAME_H_
 #define ERF_INPUTS_NAME_H_
 
+#include <AMReX.H>
+#include <AMReX_Print.H>
+
+#include <fstream>
 #include <string>
+#include <unordered_map>
 
 extern std::string inputs_name;
 
