@@ -197,6 +197,41 @@ public:
         return varIdx;
     }
 
+    // Expose NoahMP itimestep so it can be checkpointed and restored on restart
+    int
+    Get_LSM_Step () const override
+    {
+        return noahmpio_vect.empty() ? 0 : noahmpio_vect[0].itimestep;
+    }
+
+    void
+    Set_LSM_Step (int step) override
+    {
+        for (auto& noahmpio : noahmpio_vect) {
+            noahmpio.itimestep = step;
+        }
+    }
+
+    // Write/read the full NoahMP prognostic state (soil, snow incl. layers,
+    // canopy, aquifer, albedo history, ...) to/from a NetCDF restart directory
+    // so a restart reproduces a cold-start trajectory bitwise (issue #3255).
+    // Each local block writes its tile into the global-domain file collectively.
+    void
+    Write_Lsm_Restart (const std::string& dir) const override
+    {
+        for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
+            const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
+        }
+    }
+
+    void
+    Read_Lsm_Restart (const std::string& dir) override
+    {
+        for (NoahmpIO_type& noahmpio : noahmpio_vect) {
+            noahmpio.ReadRestart(dir);
+        }
+    }
+
 private:
     // number of lsm data variables
     int m_lsm_data_size = LsmData_NOAHMP::NumVars;
