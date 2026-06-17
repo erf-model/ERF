@@ -117,9 +117,9 @@ ERF::FillIntermediatePatch (int lev, Real time,
         MultiFab mf(mfs_vel[Vars::cons]->boxArray(),mfs_vel[Vars::cons]->DistributionMap(),
                     mfs_vel[Vars::cons]->nComp()   ,mfs_vel[Vars::cons]->nGrowVect());
         //
-        // Set all components to 1.789e19, then copy just the density from *mfs_vel[Vars::cons]
+        // Set all components to bogus_large_value, then copy just the density from *mfs_vel[Vars::cons]
         //
-        mf.setVal(Real(1.789e19));
+        mf.setVal(bogus_large_value);
         MultiFab::Copy(mf,*mfs_vel[Vars::cons],Rho_comp,Rho_comp,1,mf.nGrowVect());
 
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
@@ -193,7 +193,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                 // Set values in the cells outside the domain boundary so that we can do the Add
                 //     without worrying about uninitialized values outside the domain -- these
                 //     will be filled in the physbcs call
-                mf.setDomainBndry(Real(1.234e20),Rho_comp,1,geom[lev]);
+                mf.setDomainBndry(bogus_large_value,Rho_comp,1,geom[lev]);
 
                 // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
                 MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});

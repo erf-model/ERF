@@ -46,14 +46,14 @@ Real ERF::start_time    = zero;
 Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
 #ifdef ERF_USE_NETCDF
-Real ERF::start_bdy_time     =  zero;
-Real ERF::final_bdy_time     = -one;
+double ERF::start_bdy_time     =  zero;
+double ERF::final_bdy_time     = -one;
 
-Real ERF::start_low_time     =  zero;
-Real ERF::final_low_time     = -one;
+double ERF::start_low_time     =  zero;
+double ERF::final_low_time     = -one;
 
-Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
-Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+double ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
+double ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
 #endif
 
 // Time step control
@@ -61,7 +61,7 @@ Real ERF::cfl            = Real(0.8);
 Real ERF::sub_cfl        = one;
 Real ERF::init_shrink    = one;
 Real ERF::change_max     = Real(1.1);
-Real ERF::dt_max_initial = Real(2.0e100);
+Real ERF::dt_max_initial = bogus_large_value;
 Real ERF:: dt_max        = Real(1.0e9);
 
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -268,8 +268,8 @@ ERF::ERF_shared ()
     // Get lo/hi indices for massflux calc
     if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
-            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-1e34));
-            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( 1e34));
+            const bool zlo_unset = (solverChoice.const_massflux_layer_lo == amrex::Real(-bogus_large_value));
+            const bool zhi_unset = (solverChoice.const_massflux_layer_hi == amrex::Real( bogus_large_value));
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
             const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
             const Real dz = geom[0].CellSize(2);
@@ -312,8 +312,8 @@ ERF::ERF_shared ()
     // But the arrays for them have been resized.
 
     t_new.resize(nlevs_max, zero);
-    t_old.resize(nlevs_max, -Real(1.e100));
-    dt.resize(nlevs_max, std::min(Real(1.e100),dt_max_initial));
+    t_old.resize(nlevs_max, -bogus_large_value);
+    dt.resize(nlevs_max, std::min(bogus_large_value,dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
@@ -871,7 +871,7 @@ ERF::post_timestep (int nstep, double time, Real dt_lev0)
         if ( rad_datalog_int > 0 &&
              (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
             if (rad[0]->hasDatalog()) {
-                rad[0]->WriteDataLog(time+start_time);
+                rad[0]->WriteDataLog(static_cast<Real>(time+start_time));
             }
         }
     }
@@ -1125,7 +1125,7 @@ ERF::InitData_post ()
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                        start_bdy_time, final_bdy_time);
 
-            Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
@@ -1164,7 +1164,7 @@ ERF::InitData_post ()
             sst_lev[lev].resize(low_data_zlo.size());
             tsk_lev[lev].resize(low_data_zlo.size());
 
-            Real time_since_start_low = t_new[0] + start_time - start_low_time;
+            double time_since_start_low = t_new[0] + start_time - start_low_time;
             int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
@@ -2003,7 +2003,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             sst_lev[lev].resize(sst_lev[lev-1].size());
         }
 #ifdef ERF_USE_NETCDF
-        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        double time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
 #else
@@ -2030,7 +2030,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             tsk_lev[lev].resize(tsk_lev[lev-1].size());
         }
 #ifdef ERF_USE_NETCDF
-        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        double time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
 #else
@@ -2107,7 +2107,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     if (sst_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
 #ifdef ERF_USE_NETCDF
-        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        double time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
 #else
@@ -2131,7 +2131,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     if (tsk_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
 #ifdef ERF_USE_NETCDF
-        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        double time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
 #else
@@ -2255,7 +2255,7 @@ void
 ERF::init_only (int lev, Real elapsed_time)
 {
     t_new[lev] = elapsed_time;
-    t_old[lev] = elapsed_time - Real(1.e200);
+    t_old[lev] = elapsed_time - bogus_large_value;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];

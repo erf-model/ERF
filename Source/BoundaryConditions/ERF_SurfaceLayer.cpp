@@ -945,7 +945,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             // Skip cells the LSM did not flux (sea-ice / open water -> the LSM
             // wrote the lsm_flux_undefined sentinel). They keep the u*/T*/q*/L
             // from the MOST iteration (computed from the surface temperature).
-            // Using the sentinel here would give u_star ~ sqrt(1e30) and blow up
+            // Using the sentinel here would give u_star ~ sqrt(bogus_large_value) and blow up
             // the PBL on the next step.
             if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);

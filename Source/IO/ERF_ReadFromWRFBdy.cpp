@@ -26,14 +26,14 @@ namespace WRFBdyTypes {
     };
 }
 
-Real
+double
 read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                        Real& start_bdy_time,
-                        Real& final_bdy_time)
+                        double& start_bdy_time,
+                        double& final_bdy_time)
 {
     Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -467,7 +467,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const Geometry& geom,
                               const bool& use_moist,
                               const Vector<BCRec>& domain_bcs_type_h,
-                              int real_width, Real bdy_time_interval,
+                              int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank

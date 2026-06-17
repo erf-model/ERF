@@ -1210,7 +1210,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
                     << " from wrfbdy but note that time variable in simulation is elapsed time" << std::endl;
             t_new[lev] = zero;
-            t_old[lev] = -Real(1.e200);
+            t_old[lev] = -bogus_large_value;
         } else {
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
@@ -1471,11 +1471,11 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     //
     // For the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> Max_h(3,-Real(1.0e16));
+    Gpu::HostVector  <Real> Max_h(3,-bogus_large_value);
     Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(2, Real(1.0e16));
+    Gpu::HostVector  <Real> Min_h(2, bogus_large_value);
     Gpu::DeviceVector<Real> Min_d(2);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
