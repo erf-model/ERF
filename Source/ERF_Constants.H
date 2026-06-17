@@ -17,15 +17,22 @@ constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
 // Safe overly large value to fill data so that it is not uninitialized
 //      but we can easily identify if the value is used in a computation
-inline const amrex::Real bogus_large_value = std::sqrt(std::numeric_limits<amrex::Real>::max());
+// Would like to use the following but std::sqrt will not be allowable
+//       in constexpr until C++26
+// const amrex::Real bogus_large_value = std::sqrt(std::numeric_limits<amrex::Real>::max());
+#ifdef AMREX_USE_FLOAT
+constexpr amrex::Real bogus_large_value = 1.e18;
+#else
+constexpr amrex::Real bogus_large_value = 1.e150;
+#endif
 
-// Sentinel written into the LSM surface-flux MultiFabs for cells the land model
-// did NOT process (e.g. sea-ice / open-water points, where Noah-MP returns the
+// lsm_flux_undefined: sentinel written into the LSM surface-flux MultiFabs for cells
+// the land model did NOT process (e.g. sea-ice / open-water points, where Noah-MP returns the
 // -9999 fill value instead of a computed flux). The surface layer detects this
 // and falls back to the Monin-Obukhov (MOST) flux for those cells -- analogous
 // to how WRF computes the atmospheric surface flux from a skin temperature via
 // the surface-layer scheme rather than taking an undefined LSM flux.
-const amrex::Real lsm_flux_undefined = bogus_large_value;
+constexpr amrex::Real lsm_flux_undefined = bogus_large_value;
 
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
 constexpr amrex::Real PIoTwo       = PI/two;
