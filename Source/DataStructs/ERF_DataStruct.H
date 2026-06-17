@@ -916,14 +916,14 @@ struct SolverChoice {
             l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
         }
         bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
-        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
-                                vert_implicit_fac[1] > 0 ||
-                                vert_implicit_fac[2] > 0);
+        bool l_implicit_diff = (vert_implicit_fac[0] > zero ||
+                                vert_implicit_fac[1] > zero ||
+                                vert_implicit_fac[2] > zero);
         if (l_implicit_diff && !l_use_diff) {
             amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
-            vert_implicit_fac[0] = 0;
-            vert_implicit_fac[1] = 0;
-            vert_implicit_fac[2] = 0;
+            vert_implicit_fac[0] = zero;
+            vert_implicit_fac[1] = zero;
+            vert_implicit_fac[2] = zero;
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
@@ -953,14 +953,14 @@ struct SolverChoice {
         amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
                                                            << vert_implicit_fac[1] << " "
                                                            << vert_implicit_fac[2];
-        if (vert_implicit_fac[0] > 0 ||
-            vert_implicit_fac[0] > 1 ||
-            vert_implicit_fac[0] > 2)
+        if (vert_implicit_fac[0] > zero ||
+            vert_implicit_fac[1] > zero ||
+            vert_implicit_fac[2] > zero)
         {
-            amrex::Print() << " (theta=   " << implicit_thermal_diffusion
-                           << ", moisture=" << implicit_moisture_diffusion
-                           << ", tke=     " << implicit_ke_diffusion
-                           << ", momenta= " << implicit_momentum_diffusion;
+            amrex::Print() << " (theta = " << implicit_thermal_diffusion
+                           << ", moisture = " << implicit_moisture_diffusion
+                           << ", tke = " << implicit_ke_diffusion
+                           << ", momenta = " << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
             amrex::Print() << ", including w";
 #endif
