@@ -54,7 +54,7 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domhi_z = domain.bigEnd(2) + 1;
 
     // Just in case ...
-    z_phys_nd.setDomainBndry(Real(1.234e20),0,1,geom);
+    z_phys_nd.setDomainBndry(bogus_large_value,0,1,geom);
 
     // ****************************************************************************
 
@@ -358,7 +358,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
             unsigned maxIter = 50; // M_k in paper
             unsigned iter    = 0;
             Real threshold   = gamma_m;
-            Real diff        = Real(1.e20);
+            Real diff        = bogus_large_value;
             while (iter < maxIter && diff > threshold)
             {
 

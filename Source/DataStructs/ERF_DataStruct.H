@@ -1340,8 +1340,8 @@ struct SolverChoice {
     amrex::Real const_massflux_u = zero;
     amrex::Real const_massflux_v = zero;
     amrex::Real const_massflux_tau = one;
-    amrex::Real const_massflux_layer_lo = amrex::Real(-1e34);
-    amrex::Real const_massflux_layer_hi = amrex::Real( 1e34);
+    amrex::Real const_massflux_layer_lo = amrex::Real(-bogus_large_value);
+    amrex::Real const_massflux_layer_hi = amrex::Real( bogus_large_value);
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 

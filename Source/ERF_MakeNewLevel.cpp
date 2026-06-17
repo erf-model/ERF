@@ -306,7 +306,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - Real(1.e200);
+    t_old[lev] = time - bogus_large_value;
 
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
@@ -684,7 +684,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - Real(1.e200);
+    t_old[lev] = time - bogus_large_value;
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms

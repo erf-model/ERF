@@ -930,7 +930,7 @@ ERF::FindInitialEye(int levc,
 
     // Broadcast coordinates if found
     if (h_found[0] > 0) {
-        Vector<Real> h_coords(2,-1e10);
+        Vector<Real> h_coords(2,-bogus_large_value);
         Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
 
         ParallelAllReduce::Sum(h_coords.data(), h_coords.size(), ParallelContext::CommunicatorAll());
@@ -940,8 +940,8 @@ ERF::FindInitialEye(int levc,
 
     } else {
         // Random large negative numbers so we don't trigger refinement in this case
-        eye_x = -Real(1.e20);
-        eye_y = -Real(1.e20);
+        eye_x = -bogus_large_value;
+        eye_y = -bogus_large_value;
     }
 
     return (h_found[0] > 0);
