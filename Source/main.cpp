@@ -128,6 +128,7 @@ return code;
 #else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
+    CheckForDuplicateInputs(argv[1]);
 
 #ifdef ERF_USE_KOKKOS
     // Initialize kokkos
