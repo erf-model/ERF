@@ -286,6 +286,8 @@ Problem::update_rhotheta_sources (const Real& time,
 
     if (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateRhoThetaSources_Bomex.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
+#include "Prob/ERF_UpdateRhoThetaSources_Constant.H"
     } else if (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateRhoThetaSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
