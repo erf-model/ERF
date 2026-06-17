@@ -14,7 +14,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
                             const amrex::Real alpha_interp, const int alpha_size)
 {
-    amrex::Real beta_interp = -bogus_large_value;
+    // We put this value here so beta_interp is initialized but the logic
+    // below is such that it will always be assigned some other value.
+    amrex::Real beta_interp = 0.0;
 
     // If the interpolation point already exists in the array,
     // just return it
