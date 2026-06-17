@@ -1,6 +1,8 @@
 #ifndef ERF_CONSTANTS_H_
 #define ERF_CONSTANTS_H_
 
+#include <cmath>
+#include <limits>
 #include <AMReX_REAL.H>
 
 constexpr amrex::Real zero         = amrex::Real(0.0);
@@ -13,13 +15,17 @@ constexpr amrex::Real fourth       = amrex::Real(0.25);
 constexpr amrex::Real third        = amrex::Real(1.0/3.0);
 constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
+// Safe overly large value to fill data so that it is not uninitialized
+//      but we can easily identify if the value is used in a computation
+inline const amrex::Real bogus_large_value = std::sqrt(std::numeric_limits<amrex::Real>::max());
+
 // Sentinel written into the LSM surface-flux MultiFabs for cells the land model
 // did NOT process (e.g. sea-ice / open-water points, where Noah-MP returns the
 // -9999 fill value instead of a computed flux). The surface layer detects this
 // and falls back to the Monin-Obukhov (MOST) flux for those cells -- analogous
 // to how WRF computes the atmospheric surface flux from a skin temperature via
 // the surface-layer scheme rather than taking an undefined LSM flux.
-constexpr amrex::Real lsm_flux_undefined = amrex::Real(1.0e30);
+const amrex::Real lsm_flux_undefined = bogus_large_value;
 
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
 constexpr amrex::Real PIoTwo       = PI/two;

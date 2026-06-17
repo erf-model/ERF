@@ -348,7 +348,7 @@ void ReadBndryPlanes::read_input_files (Real time,
     BoxArray ba(domain);
     DistributionMapping dm{ba};
     BndryRegister bndryn(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-    bndryn.setVal(Real(1.e13));
+    bndryn.setVal(bogus_large_value);
 
     // The first time we enter this routine we read the first three files
     if (last_file_read == -1)
@@ -454,7 +454,7 @@ void ReadBndryPlanes::read_file (const int idx,
     // Read density for primitive to conserved conversions
     std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
     BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
-    bndry_r.setVal(Real(1.e13));
+    bndry_r.setVal(bogus_large_value);
     for (OrientationIter oit; oit != nullptr; ++oit) {
           auto ori = oit();
           if (ori.coordDir() < 2) {
@@ -492,7 +492,7 @@ void ReadBndryPlanes::read_file (const int idx,
         // Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
 
         BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-        bndry.setVal(Real(1.e13));
+        bndry.setVal(bogus_large_value);
 
         // *********************************************************
         // Read in the BndryReg for all non-z faces

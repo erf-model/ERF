@@ -34,7 +34,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
                           const Gpu::DeviceVector<Real>& stretched_dz_d,
                           const Array4<const Real>& scalar_zflux,
                           const Array4<const Real>& mu_turb,
-                          const SolverChoice &solverChoice,
+                          const SolverChoice& solverChoice,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac)

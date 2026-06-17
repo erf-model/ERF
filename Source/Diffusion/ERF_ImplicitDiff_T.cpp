@@ -38,7 +38,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                           const Array4<const Real>& scalar_zflux,
                           const Array4<const Real>& mu_turb,
-                          const SolverChoice &solverChoice,
+                          const SolverChoice& solverChoice,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac)

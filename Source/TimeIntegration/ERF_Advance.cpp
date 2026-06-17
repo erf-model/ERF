@@ -37,9 +37,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // We need to set these because otherwise in the first call to erf_advance we may
     //    read uninitialized data on ghost values in setting the bc's on the velocities
-    U_new.setVal(Real(1.e34),U_new.nGrowVect());
-    V_new.setVal(Real(1.e34),V_new.nGrowVect());
-    W_new.setVal(Real(1.e34),W_new.nGrowVect());
+    U_new.setVal(bogus_large_value,U_new.nGrowVect());
+    V_new.setVal(bogus_large_value,V_new.nGrowVect());
+    W_new.setVal(bogus_large_value,W_new.nGrowVect());
 
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
@@ -47,7 +47,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     //
     if (lev > 0) {
         // Set ghost cells to bogus values so they aren't uninitialized
-        W_old.setBndry(Real(1.234e20));
+        W_old.setBndry(bogus_large_value);
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
                            {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
                            base_state[lev], base_state[lev]);

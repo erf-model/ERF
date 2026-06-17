@@ -119,7 +119,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         walldist[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-        walldist[lev]->setVal(Real(1.234e10));
+        walldist[lev]->setVal(bogus_large_value);
     } else {
         walldist[lev] = nullptr;
     }
@@ -166,10 +166,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
     // Set these to avoid operations on uninitialized data
-    lev_new[Vars::xvel].setVal(Real(1.234e10));
-    lev_old[Vars::xvel].setVal(Real(1.234e10));
-    lev_new[Vars::yvel].setVal(Real(1.234e10));
-    lev_old[Vars::yvel].setVal(Real(1.234e10));
+    lev_new[Vars::xvel].setVal(bogus_large_value);
+    lev_old[Vars::xvel].setVal(bogus_large_value);
+    lev_new[Vars::yvel].setVal(bogus_large_value);
+    lev_old[Vars::yvel].setVal(bogus_large_value);
 
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
@@ -228,12 +228,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // We do this here just so they won't be undefined in the initial FillPatch
-    rU_old[lev].setVal(Real(1.234e10));
-    rV_old[lev].setVal(Real(1.234e10));
-    rW_old[lev].setVal(Real(1.234e10));
-    rU_new[lev].setVal(Real(1.234e10));
-    rV_new[lev].setVal(Real(1.234e10));
-    rW_new[lev].setVal(Real(1.234e10));
+    rU_old[lev].setVal(bogus_large_value);
+    rV_old[lev].setVal(bogus_large_value);
+    rW_old[lev].setVal(bogus_large_value);
+    rU_new[lev].setVal(bogus_large_value);
+    rV_new[lev].setVal(bogus_large_value);
+    rW_new[lev].setVal(bogus_large_value);
 
     // ********************************************************************************************
     // These are just time averaged fields for diagnostics
