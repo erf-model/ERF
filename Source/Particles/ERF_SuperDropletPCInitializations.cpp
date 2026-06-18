@@ -476,7 +476,7 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
             auto iv = getParticleCell(p, plo, dxi, domain);
 
             auto rho_air = density(iv[0],iv[1],iv[2],0);
-            ptrs.mult_ptr[i] *= rho_air;
+            ptrs.mult_ptr[i] = std::ceil(ptrs.mult_ptr[i]*rho_air);
         });
     }); // end forEachParticleTile
 }
