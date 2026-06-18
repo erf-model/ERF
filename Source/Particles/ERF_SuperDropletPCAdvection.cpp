@@ -168,8 +168,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                         auto r_eq   = std::cbrt( m_w / (four_thirds_pi * ctx.rho_water) );
                         auto v_rain = term_vel.CloudRainShima( r_eq, density, pressure, temperature );
                         auto ell    = m_water / m_w;
-                        auto psi    = ParticleReal(0.246)*ell + ParticleReal(0.754)*ell*ell*ell*ell*ell*ell*ell;
-                        terminal_vel = v_ice + (v_rain - v_ice) * psi;
+                        terminal_vel = term_vel.MixedPhaseVterm( v_ice, v_rain, ell );
                     } else {
                         terminal_vel = v_ice;
                     }

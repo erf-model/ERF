@@ -195,6 +195,26 @@ struct TerminalVelocity
         return vterm;
     }
 
+    /*! \brief Frick et al. (2013, Geosci. Model Dev. 6, Eq. 15) liquid-water-fraction
+     *  weight for the fall speed of a melting (mixed) particle. Rises from 0 (dry
+     *  ice) to 1 (fully melted) as the meltwater mass fraction a_ell goes 0 -> 1. */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT MeltBlendWeight ( const RT a_ell /*!< meltwater (liquid) mass fraction in [0,1] */ ) const noexcept
+    {
+        return RT(0.246)*a_ell + RT(0.754)*a_ell*a_ell*a_ell*a_ell*a_ell*a_ell*a_ell;
+    }
+
+    /*! \brief Terminal velocity of a melting (mixed) ice-water particle, interpolated
+     *  between the dry-ice (Bohm) fall speed and the equivalent-raindrop fall speed by
+     *  the meltwater mass fraction (Frick et al. 2013, Eq. 14). */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT MixedPhaseVterm ( const RT a_v_ice,  /*!< dry-ice (Bohm) fall speed of the ice core */
+                         const RT a_v_rain, /*!< fall speed of the equivalent raindrop */
+                         const RT a_ell     /*!< meltwater (liquid) mass fraction in [0,1] */ ) const noexcept
+    {
+        return a_v_ice + (a_v_rain - a_v_ice) * MeltBlendWeight(a_ell);
+    }
+
 };
 
 #endif
