@@ -63,7 +63,7 @@ struct TerminalVelocity
         RT tb4l = RT(293.15);     // base temperature[20C] for mean free path of air molecules
 
         RT P_hPa = a_P / RT(100.0);           // [Pa] -> [hPa]
-        RT diameter_cm = RT(2.0)*a_r*RT(100.0);   // [m] -> [cm]
+        RT diameter_cm = RT(2.0)*std::min(a_r,0.004)*RT(100.0);   // [m] -> [cm]
         RT rho_mat_cgs = m_rho_w/RT(1000.0);  // [kg/m^3] -> [g/cm^3]
         RT rho_air_cgs = a_rho/RT(1000.0);    // [kg/m^3] -> [g/cm^3]
         RT grav_cgs = CONST_GRAV * RT(100);   // [m/s^2] -> [cm/s^2]
