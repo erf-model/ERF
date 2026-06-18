@@ -708,6 +708,14 @@ struct SolverChoice {
                     }
                 }
 
+                // Do not allow implicit vertical diff with EB
+                if (terrain_type == TerrainType::EB && do_vert_implicit) {
+                    amrex::Print() << "Implicit diffusion is not supported with EB; turning off." << "\n";
+                    vert_implicit_fac[0] = zero;
+                    vert_implicit_fac[1] = zero;
+                    vert_implicit_fac[2] = zero;
+                }
+
                 if (!implicit_thermal_diffusion  &&
                     !implicit_moisture_diffusion &&
                     !implicit_ke_diffusion       &&
@@ -1341,7 +1349,7 @@ struct SolverChoice {
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -one;
-    amrex::Real turb_disk_angle = -one;
+    amrex::Real turb_disk_angle  = -one;
     amrex::Real windfarm_x_shift = -one;
     amrex::Real windfarm_y_shift = -one;
 
