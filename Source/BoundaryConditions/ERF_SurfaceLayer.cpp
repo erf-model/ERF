@@ -1149,8 +1149,31 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
-    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
-        amrex::Error("YSU/MRF PBLH calc not implemented yet");
+    } else if (pblh_type == PBLHeightCalcType::YSU) {
+        // Scheme-native YSU bulk-Ri PBL height. Needs the MOST surface-layer
+        // state (t_surf, the reference-height averages, z0) plus the horizontal
+        // velocities. zref is the actual MOST reference height for this grid
+        // (get_zref -> the snapped lowest-cell-center height, NOT hard-coded to
+        // 10 m); the bulk-Ri reconstruction is self-consistent at that height.
+        YSUPBLH estimator(m_pbl_ysu_land_Ribcr, m_pbl_ysu_coriolis_freq,
+                          m_pbl_ysu_force_over_water, get_zref(lev));
+        estimator.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(),
+                               vars[lev][Vars::cons],
+                               vars[lev][Vars::xvel], vars[lev][Vars::yvel],
+                               *t_surf[lev],
+                               *get_mac_avg(lev,2),   // t10av
+                               *get_mac_avg(lev,5),   // ws10av
+                               z_0[lev],
+                               m_lmask_lev[lev][0]);
+    } else if (pblh_type == PBLHeightCalcType::MRF) {
+        // Scheme-native MRF bulk-Ri PBL height (predictor + thermal-excess
+        // corrector). Needs u*, t*, Obukhov length and the 10 m temperature.
+        MRFPBLH estimator(m_pbl_mrf_Ribcr, m_pbl_mrf_const_b, m_pbl_mrf_sf);
+        estimator.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(),
+                               vars[lev][Vars::cons],
+                               vars[lev][Vars::xvel], vars[lev][Vars::yvel],
+                               *u_star[lev], *t_star[lev], *olen[lev],
+                               *get_mac_avg(lev,2));   // t10av
     }
 }
 

@@ -109,8 +109,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
             m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
-            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                        solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
             Real elapsed_time_since_start_low = time + (start_time - start_low_time);
@@ -119,6 +117,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 #endif
             m_SurfaceLayer->update_fluxes(lev, time, elapsed_time_since_start_low,
                                           S_old, z_phys_nd[lev], walldist[lev]);
+
+            // PBL height AFTER fluxes so the YSU/MRF estimators see the current
+            // step's MOST surface-layer state (u*, t*, Obukhov length, t_surf,
+            // 10 m averages). MYNN only needs cons, so this order is safe for it.
+            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                        solverChoice.moisture_indices);
         }
     }
 

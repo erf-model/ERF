@@ -15,6 +15,7 @@
 #include "ERF_EBMOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_PBLHeightYSU_MRF.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
@@ -268,6 +269,15 @@ public:
           inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
       }
+
+      // Stash the YSU/MRF PBL-height tunables so update_pblh (which has no
+      // TurbChoice access) can build the scheme-native PBLH estimators.
+      m_pbl_ysu_land_Ribcr      = a_turb_choice.pbl_ysu_land_Ribcr;
+      m_pbl_ysu_coriolis_freq   = a_turb_choice.pbl_ysu_coriolis_freq;
+      m_pbl_ysu_force_over_water= a_turb_choice.pbl_ysu_force_over_water;
+      m_pbl_mrf_Ribcr           = a_turb_choice.pbl_mrf_Ribcr;
+      m_pbl_mrf_const_b         = a_turb_choice.pbl_mrf_const_b;
+      m_pbl_mrf_sf              = a_turb_choice.pbl_mrf_sf;
 
   } // constructor
 
@@ -782,6 +792,14 @@ private:
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
+
+  // YSU/MRF PBL-height diagnostic tunables (mirrored from TurbChoice at level 0)
+  amrex::Real m_pbl_ysu_land_Ribcr      = amrex::Real(0.25);
+  amrex::Real m_pbl_ysu_coriolis_freq   = amrex::Real(1.0e-4);
+  bool        m_pbl_ysu_force_over_water= false;
+  amrex::Real m_pbl_mrf_Ribcr           = amrex::Real(0.5);
+  amrex::Real m_pbl_mrf_const_b         = amrex::Real(7.8);
+  amrex::Real m_pbl_mrf_sf              = amrex::Real(0.1);
 };
 
 #endif /* SURFACELAYER_H */

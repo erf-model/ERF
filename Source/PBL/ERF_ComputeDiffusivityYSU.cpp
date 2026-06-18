@@ -33,18 +33,23 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 
     const Real most_zref = SurfLayer->get_zref(level);
 
-    // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
-    bool invalid_zref = false;
-    if (use_terrain_fitted_coords) {
-        invalid_zref = most_zref != Real(10.0);
-    } else {
-        // zref gets reset to nearest cell center, so assert that zref is in the same cell as the 10m point
-        Real dz = geom.CellSize(2);
-        invalid_zref = int((most_zref - myhalf*dz)/dz) != int((Real(10.0) - myhalf*dz)/dz);
-    }
-    if (invalid_zref) {
+    // The YSU surface bulk-Richardson reconstruction uses the wind speed and
+    // temperature that MOST provides at its reference height most_zref. WRF
+    // supplies these at a 10 m diagnostic height, but on a vertically-stretched
+    // or terrain-fitted grid MOST snaps zref to the lowest cell center, which
+    // may be well above 10 m (e.g. ~20 m). The calculation is self-consistent at
+    // whatever height MOST actually reports (most_zref, ws10av, t10av are all at
+    // that same height), so we use the actual zref rather than requiring exactly
+    // 10 m. We only guard against a clearly unphysical surface reference height.
+    if (most_zref <= Real(0.0) || most_zref > Real(200.0)) {
         Print() << "most_zref = " << most_zref << std::endl;
-        Abort("MOST Zref must be 10m for YSU PBL scheme");
+        Abort("MOST Zref is unphysical (must be in (0, 200] m) for YSU PBL scheme");
+    }
+    static bool warned_zref = false;
+    if (!warned_zref && std::abs(most_zref - Real(10.0)) > Real(1.0)) {
+        Print() << "Note: YSU PBL using MOST zref = " << most_zref
+                << " m (not 10 m); bulk-Ri reconstruction uses this height.\n";
+        warned_zref = true;
     }
 
 #ifdef _OPENMP
