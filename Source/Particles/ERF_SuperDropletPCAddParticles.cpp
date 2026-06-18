@@ -535,7 +535,11 @@ void SuperDropletPC::addParticles ( int a_lev,
             auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
             const auto idx_i = m_idx_i;
-            const Real rho_i = m_species_mat[m_idx_i]->m_density;
+            // Apparent density of the seeded ice particle: a prescribed bulk
+            // density (e.g. a low-density snowflake) when set, else solid ice.
+            const Real rho_i = (a_init.m_ice_app_density > Real(0.0)
+                                ? a_init.m_ice_app_density
+                                : m_species_mat[m_idx_i]->m_density);
 
             // INAS parameterization for sampling freezing temperature
             INAS_Niemand2012 inas_params;

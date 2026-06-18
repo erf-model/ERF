@@ -87,6 +87,7 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     pp.query(std::string(a_key+"distribution_type").c_str(), m_type);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("multiplicity_type", m_mult_type);
+    pp.query("ice_apparent_density", m_ice_app_density);
 
     pp.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
 

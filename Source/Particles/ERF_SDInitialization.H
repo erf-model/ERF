@@ -162,6 +162,9 @@ class SDInitProperties
         amrex::Real m_numdens = -1;
         /*!< Maximum multiplicity */
         amrex::Real m_max_multiplicity = 1000000;
+        /*!< Apparent (bulk) density of initialized ice particles [kg m^-3];
+             <= 0 means use the solid-ice material density (a solid sphere) */
+        amrex::Real m_ice_app_density = -1;
 
         /*! Minimum species mass */
         std::vector<amrex::Real> m_mass_species_min;
