@@ -9,7 +9,7 @@
 	shallow = true
 [submodule "Submodules/Noah-MP"]
 	path = Submodules/Noah-MP
-	url = git@github.com:demetresfytanides/noahmp.git
+	url = git@github.com:erf-model/noahmp.git
 	shallow = false
 [submodule "Submodules/WW3"]
 	path = Submodules/WW3
