@@ -69,50 +69,57 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     Real min_gpx = gradp_temp[0].min(xface_domain,comp);
     Real max_gpx = gradp_temp[0].max(xface_domain,comp);
     if (max_gpx != zero || min_gpx != zero) {
-        Print() << "Min/Max value of x-gradient of base state pressure are " << min_gpx << " " << max_gpx;
+        Print() << "Min/max value of dp0/dx            are " << min_gpx << " " << max_gpx << std::endl;
         IntVect min_loc = gradp_temp[0].minIndex(comp);
         IntVect max_loc = gradp_temp[0].maxIndex(comp);
         if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
         if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
         Print() << std::endl;
     } else {
-        Print() << "Min/max value of x-gradient of base state pressure are zero " << std::endl;
+        Print() << "Min/max value of dp0/dx            are zero " << std::endl;
     }
 
     Real min_gpy = gradp_temp[1].min(yface_domain,comp);
     Real max_gpy = gradp_temp[1].max(yface_domain,comp);
     if (max_gpy != zero || min_gpy != zero) {
-        Print() << "Min/max value of y-gradient of base state pressure are " << min_gpy << " " << max_gpy;
+        Print() << "Min/max value of dp0/dy            are " << min_gpy << " " << max_gpy << std::endl;
         IntVect min_loc = gradp_temp[1].minIndex(comp);
         IntVect max_loc = gradp_temp[1].maxIndex(comp);
         if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
         if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
         Print() << std::endl;
     } else {
-        Print() << "Min/max value of y-gradient of base state pressure are zero " << std::endl;
+        Print() << "Min/max value of dp0/dy            are zero " << std::endl;
     }
 
     for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
         Box bx = mfi.validbox(); bx.growHi(2,-1);
         if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
         auto        gpz_arr  = gradp_temp[2].array(mfi);
-        auto const rhse_arr  = r_hse.const_array(mfi);
+        auto const  rhse_arr  =  r_hse.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k) + rhse_arr(i,j,k-1));
+            gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k  )  +rhse_arr(i,j,k-1));
         });
     }
 
+#ifdef AMREX_USE_FLOAT
+    Real tol = 1.e-6;
+#else
+    Real tol = 1.e-10;
+#endif
+
     Real min_gpz = gradp_temp[2].min(zface_domain,comp);
     Real max_gpz = gradp_temp[2].max(zface_domain,comp);
-    if (max_gpz != zero || min_gpz != zero) {
+
+    if (std::abs(max_gpz) > tol || std::abs(min_gpz) > tol) {
         IntVect min_loc = gradp_temp[2].minIndex(comp);
         IntVect max_loc = gradp_temp[2].maxIndex(comp);
-        Print() << "Min/max value of dp0/dz + rho0*|g|                 are " << min_gpz << " " << max_gpz;
+        Print() << "Min/max value of dp0/dz + rho0*|g| are " << min_gpz << " " << max_gpz;
         if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
         if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
-        Print() << std::endl;
+        amrex::Abort("Base state is too far out of HSE");
     } else {
-        Print() << "Min/max value of dp0/dz + rho0*|g|  are zero " << std::endl;
+        Print() << "Min/max value of dp0/dz + rho0*|g| are less than " << tol << std::endl;
     }
     Print() << " " << std::endl;
 
