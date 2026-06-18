@@ -701,6 +701,12 @@ struct SolverChoice {
                 //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
                 // The default is true (i.e. that it happens before the acoustic substepping).
                 pp.query("implicit_before_substep", implicit_before_substep);
+                for (int lev = 0; lev <= max_level; lev++) {
+                    if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
+                        amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
+                        implicit_before_substep = true;
+                    }
+                }
 
                 if (!implicit_thermal_diffusion  &&
                     !implicit_moisture_diffusion &&
