@@ -4,6 +4,14 @@ Compare ERF model output to observations using **event aggregates** (max / total
 over the event) so the comparison is robust to the very different cadences
 (ERF 30 min, MRMS 2 min, NEXRAD ~5 min, ASOS ~5 min).
 
+> **Before launching ANY run:** gate the inputs with `check_sst_zero.py` — must
+> report ALL CLEAN. A water cell with `SST <= 0` -> `t_surf = 0 K` -> coastal
+> blow-up. Full story + the source fix in **[SST_ZERO_PREVENTION.md](SST_ZERO_PREVENTION.md)**.
+> ```
+> module load frameworks
+> python check_sst_zero.py wrfinput_d01 wrflowinp_d01 --mask wrfinput_d01
+> ```
+
 | Quantity            | ERF field      | Obs source                        |
 |---------------------|----------------|-----------------------------------|
 | peak 10 m wind      | `wspd10max`    | ASOS peak gust / 2-min wind       |
