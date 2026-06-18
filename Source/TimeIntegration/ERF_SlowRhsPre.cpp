@@ -212,7 +212,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
 #ifdef ERF_USE_SHOC
         if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23
+            // Zero out the surface stresses of tau13/tau23/hfx/qfx
             shoc_lev->set_diff_stresses();
         } else if (l_use_SurfLayer) {
             // Set surface shear stresses, update heat and moisture fluxes

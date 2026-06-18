@@ -649,62 +649,70 @@ struct SolverChoice {
         if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
 
         // Implicit vertical diffusion (not available with Shoc)
-        if (!use_shoc) {
+        if (use_shoc) {
+            amrex::Print() << "Turning off native vertical implicit solve with SHOC PBL scheme." << std::endl;
+            vert_implicit_fac[0] = zero;
+            vert_implicit_fac[1] = zero;
+            vert_implicit_fac[2] = zero;
+        } else {
             // This controls the time-centering of the vertical differences in the diffusive term
-             bool do_vert_implicit = false;
-             if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
-                 // set to default here
-                 vert_implicit_fac[0] = one;
-                 vert_implicit_fac[1] = one;
-                 vert_implicit_fac[2] = zero;
-             }
+            bool do_vert_implicit = true;
+            pp.query("vert_implicit", do_vert_implicit);
 
-             // This may be one value for all RK stages or a different value in each stage
-             int n_impfac = pp.countval("vert_implicit_fac");
-             AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
-             if (n_impfac > 0 && do_vert_implicit) {
-                 amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
-             }
+            if (!do_vert_implicit) {
+                amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag." << std::endl;
+                vert_implicit_fac[0] = zero;
+                vert_implicit_fac[1] = zero;
+                vert_implicit_fac[2] = zero;
+            } else {
 
-             if (n_impfac == 1) {
-                 amrex::Real fac_in;
-                 pp.get("vert_implicit_fac", fac_in);
-                 for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
-             } else if (n_impfac == 3) {
-                 pp.getarr("vert_implicit_fac", vert_implicit_fac);
-             }
+                // This may be one value for all RK stages or a different value in each stage
+                int n_impfac = pp.countval("vert_implicit_fac");
+                AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+                if (n_impfac > 0 && do_vert_implicit) {
+                    amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
+                }
 
-             // If true (default), include implicit contributions to vertical
-             // thermal diffusion
-             pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+                if (n_impfac == 1) {
+                    amrex::Real fac_in;
+                    pp.get("vert_implicit_fac", fac_in);
+                    for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
+                } else if (n_impfac == 3) {
+                    pp.getarr("vert_implicit_fac", vert_implicit_fac);
+                }
 
-             // If true (default), include implicit contributions to vertical
-             // moisture diffusion
-             pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
+                // If true (default), include implicit contributions to vertical
+                // thermal diffusion
+                pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
-             // If true (default), include implicit contributions to vertical
-             // KE diffusion
-             pp.query("implicit_ke_diffusion", implicit_ke_diffusion);
+                // If true (default), include implicit contributions to vertical
+                // moisture diffusion
+                pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
 
-             // If true (default), include implicit contributions in tau13, tau23,
-             // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-             pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+                // If true (default), include implicit contributions to vertical
+                // KE diffusion
+                pp.query("implicit_ke_diffusion", implicit_ke_diffusion);
 
-             if (!implicit_thermal_diffusion  &&
-                 !implicit_moisture_diffusion &&
-                 !implicit_ke_diffusion       &&
-                 !implicit_momentum_diffusion) {
-                 amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
-                 vert_implicit_fac[0] = zero;
-                 vert_implicit_fac[1] = zero;
-                 vert_implicit_fac[2] = zero;
-             }
+                // If true (default), include implicit contributions in tau13, tau23,
+                // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
+                pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
-             // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
-             // The default is true (i.e. that it happens before the acoustic substepping).
-             pp.query("implicit_before_substep", implicit_before_substep);
-         }
+                // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+                //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
+                // The default is true (i.e. that it happens before the acoustic substepping).
+                pp.query("implicit_before_substep", implicit_before_substep);
+
+                if (!implicit_thermal_diffusion  &&
+                    !implicit_moisture_diffusion &&
+                    !implicit_ke_diffusion       &&
+                    !implicit_momentum_diffusion) {
+                    amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are all turned off; turning off vertical implicit solve." << std::endl;
+                    vert_implicit_fac[0] = zero;
+                    vert_implicit_fac[1] = zero;
+                    vert_implicit_fac[2] = zero;
+                }
+            } // do_vert_implicit
+        } // use_shoc
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -908,14 +916,14 @@ struct SolverChoice {
             l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
         }
         bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
-        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
-                                vert_implicit_fac[1] > 0 ||
-                                vert_implicit_fac[2] > 0);
+        bool l_implicit_diff = (vert_implicit_fac[0] > zero ||
+                                vert_implicit_fac[1] > zero ||
+                                vert_implicit_fac[2] > zero);
         if (l_implicit_diff && !l_use_diff) {
             amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
-            vert_implicit_fac[0] = 0;
-            vert_implicit_fac[1] = 0;
-            vert_implicit_fac[2] = 0;
+            vert_implicit_fac[0] = zero;
+            vert_implicit_fac[1] = zero;
+            vert_implicit_fac[2] = zero;
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
@@ -945,13 +953,14 @@ struct SolverChoice {
         amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
                                                            << vert_implicit_fac[1] << " "
                                                            << vert_implicit_fac[2];
-        if (vert_implicit_fac[0] > 0 ||
-            vert_implicit_fac[0] > 1 ||
-            vert_implicit_fac[0] > 2)
+        if (vert_implicit_fac[0] > zero ||
+            vert_implicit_fac[1] > zero ||
+            vert_implicit_fac[2] > zero)
         {
-            amrex::Print() << " (theta="    << implicit_thermal_diffusion
-                           << ", moisture=" << implicit_moisture_diffusion
-                           << ", momenta="  << implicit_momentum_diffusion;
+            amrex::Print() << " (theta = " << implicit_thermal_diffusion
+                           << ", moisture = " << implicit_moisture_diffusion
+                           << ", tke = " << implicit_ke_diffusion
+                           << ", momenta = " << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
             amrex::Print() << ", including w";
 #endif
@@ -1171,7 +1180,7 @@ struct SolverChoice {
     // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
     // 1: fully implicit
-    amrex::Vector<amrex::Real> vert_implicit_fac = {zero, zero, zero}; // one value per RK stage
+    amrex::Vector<amrex::Real> vert_implicit_fac = {one, one, zero}; // one value per RK stage
     // if any vert_implicit_fac > 0, then the following apply:
     bool implicit_thermal_diffusion  = true;
     bool implicit_moisture_diffusion = true;
