@@ -517,8 +517,30 @@ where:
 - :math:`R_i` is the radius of the droplet
 - :math:`\mathbf{x}_i` is the position of the super-droplet
 
-The terminal velocity can be computed using several empirical models, including the Rogers-Yau formula,
-Atlas-Ulbrich formula, or the cloud-rain formula from Shima et al.
+The terminal velocity :math:`v_\infty` depends on the particle phase. Liquid drops follow the three-regime
+cloud-and-rain parameterization of Beard (1976) (as implemented in SCALE-SDM), in which the velocity is recovered
+from the Reynolds number :math:`N_{Re}` of the falling drop:
+
+.. math::
+   v_\infty = \frac{\mu\, N_{Re}}{\rho\, d}, \qquad d = 2R,
+
+where :math:`\mu` is the dynamic viscosity of air, :math:`\rho` is the air density, and :math:`d` is the drop
+diameter. Small cloud droplets (:math:`d \lesssim 19\,\mu\mathrm{m}`) follow Stokes' law with a Cunningham slip
+correction:
+
+.. math::
+   v_\infty = \frac{(\rho_w - \rho)\, g\, d^2}{18\,\mu}\left(1 + 2.51\,\frac{\lambda}{d}\right),
+
+with :math:`\lambda` the mean free path of air. For larger drops the Reynolds number is recovered from the Davies
+(Best) number :math:`N_{Da} = 4\rho(\rho_w-\rho)g\,d^3/(3\mu^2)`, for cloud droplets and small raindrops, or from
+the Bond number :math:`N_{Bo} = 4(\rho_w-\rho)g\,d^2/(3\sigma)` together with a physical-property group, for large
+raindrops, through the empirical fits of Beard (1976); here :math:`\sigma` is the surface tension of water.
+
+The measured fall speed of raindrops levels off toward a plateau rather than increasing without bound (Gunn and
+Kinzer, 1949). The drop radius is therefore capped at :math:`R \le 4\,\mathrm{mm}` when evaluating the liquid-drop
+fall speed, holding the speed at this plateau and avoiding the unphysical divergence of the large-drop fit at very
+large radii. The simpler Rogers-Yau and Atlas-Ulbrich formulae are also available. Frozen and mixed-phase particles
+fall at the Böhm ice speed and a meltwater-weighted blend, described among the cold microphysical processes below.
 
 Condensation and Evaporation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -692,10 +714,25 @@ For sublimation, the particle density is preserved: :math:`\rho_{sbl} = \rho^i_i
 
 **Melting**
 
-When the ambient temperature rises above 0°C, ice particles melt instantaneously. The resulting droplet radius is:
+When the ambient temperature rises above :math:`0^\circ\mathrm{C}`, the ice core melts gradually, following the
+time-dependent heat balance of Seifert and Beheng (2006). The melt rate of the ice core is:
 
 .. math::
-   r'_i = \left(\frac{a^2_i c_i \rho^i_i}{\rho_w}\right)^{1/3}
+   \frac{dm_i}{dt} = -\frac{4\pi C}{L_f}\left[ K\, f_{vnt}\, (T - T_0)
+       + \frac{L_v D_v}{R_v}\, f_{vnt} \left(\frac{e_\infty}{T} - \frac{e_{s,w}(T_0)}{T_0}\right) \right],
+
+where :math:`C(a,c)` is the capacitance of the spheroid, :math:`L_f` and :math:`L_v` are the latent heats of fusion
+and vaporization, :math:`K` is the thermal conductivity of air, :math:`D_v` is the vapor diffusivity, :math:`R_v` is
+the vapor gas constant, :math:`T_0 = 273.15` K is the melting point, :math:`e_\infty` is the ambient vapor pressure,
+and :math:`e_{s,w}(T_0)` is the saturation pressure over water at :math:`T_0`. The two bracketed terms are the
+sensible heat conducted from the warm air and the latent heat carried by the vapor flux to the wet surface.
+
+The meltwater accumulates on the ice rather than being shed immediately, so the super-droplet becomes a mixed
+(wet) ice-water particle. The ice core shrinks while its aspect ratio and apparent density are preserved, and the
+accumulated water is released as a pure raindrop only once the ice core has melted completely. A mixed particle
+that re-enters subfreezing air refreezes its liquid film back onto the core. This gradual treatment retains, for
+each particle, the mixed-phase state through which it falls, and differs from the instantaneous melting of earlier
+super-droplet ice schemes (Shima et al., 2020).
 
 **Riming**
 
@@ -725,16 +762,50 @@ apparent density is interpolated between a minimum density (assuming no shape ch
 volume-weighted average density (assuming complete compaction), based on how close the initial density is to a critical
 compaction density :math:`\rho^i_{crt} = 10` kg m\ :sup:`-3`.
 
-**Ice Particle Terminal Velocity**
+**Terminal Velocity of Ice and Mixed Particles**
 
-Terminal velocities are computed using the Böhm (1989, 1992, 1999) formula based on the maximum dimension
-:math:`D_i = 2\max(a_i, c_i)` and area ratio :math:`q_i`. The projected area accounts for porosity:
+The fall speed of a frozen particle uses the Böhm (1989, 1992, 1999) drag relation in the porous-spheroid form of
+Shima et al. (2020). As for liquid drops, the velocity follows from the Reynolds number,
 
 .. math::
-   A_i = A^{ce}_i \left(\frac{\rho^i_i}{\rho^i_{true}}\right)^{\kappa(\phi_i)}
+   v_\infty = \frac{\mu\, N_{Re}}{\rho\, d}, \qquad d = 2 a_i,
 
-where :math:`A^{ce}_i = \pi a_i \max(a_i, c_i)` is the circumscribed ellipse area and :math:`\kappa(\phi_i) = \exp(-\phi_i)`
-is an exponent that varies with aspect ratio.
+where the characteristic diameter :math:`d = 2 a_i` is the equatorial extent of the spheroid (Böhm's definition).
+The Reynolds number is recovered from the Best (Davies) number
+
+.. math::
+   X = \frac{8\, m\, g\, \rho}{\pi\, \mu^2\, \max(\phi_i, 1)\, \max(q_i^{1/4}, q_i)},
+
+where :math:`m` is the particle mass, :math:`g` is gravity, :math:`\phi_i = c_i/a_i` is the aspect ratio, and
+:math:`q_i = A_i/A^{ce}_i` is the area ratio. The projected area :math:`A_i` accounts for porosity,
+
+.. math::
+   A_i = A^{ce}_i \left(\frac{\rho^i_i}{\rho^i_{true}}\right)^{\kappa(\phi_i)}, \qquad \kappa(\phi_i) = \exp(-\phi_i),
+
+with :math:`A^{ce}_i = \pi a_i \max(a_i, c_i)` the circumscribed ellipse area, so that
+:math:`q_i = (\rho^i_i/\rho^i_{true})^{\exp(-\phi_i)}`. At large values the Best number is corrected as
+
+.. math::
+   X' = X\,\frac{1 + (X/X_0)^2}{1 + 1.6\,(X/X_0)^2}, \qquad X_0 = 2.8\times 10^6,
+
+and :math:`N_{Re}(X')` then follows from the Böhm drag law, whose coefficients depend on :math:`\phi_i` and
+:math:`q_i`. The dependence on mass, aspect ratio, and porosity captures the slower fall of non-spherical,
+low-density ice.
+
+A mixed (partially melted) particle carries both an ice core and a liquid film, and falls faster than its dry ice
+frame but slower than the equivalent raindrop. Following Frick et al. (2013, Geosci. Model Dev., 6: 1925-1939), its
+terminal velocity is interpolated between these two limits by the liquid mass fraction :math:`\ell = m_w/(m_w + m_i)`:
+
+.. math::
+   v_\infty = v^{ice}_\infty + \left(v^{rain}_\infty - v^{ice}_\infty\right)\Psi(\ell), \qquad
+   \Psi(\ell) = 0.246\,\ell + 0.754\,\ell^7,
+
+where :math:`m_w` and :math:`m_i` are the meltwater and ice masses, :math:`v^{ice}_\infty` is the Böhm fall speed
+evaluated for the ice core alone (mass :math:`m_i`), :math:`v^{rain}_\infty` is the Beard (1976) fall speed of a
+raindrop of the combined mass :math:`m_w + m_i`, and the weight :math:`\Psi(\ell)` is an empirical fit to the
+wind-tunnel data of Mitra et al. (1990). The weight rises from zero for dry ice to unity once the core has melted.
+Evaluating the ice fall speed from the ice-core mass alone keeps the mass consistent with the drag area of the
+spheroid as the core melts, so the fall speed stays bounded.
 
 Coupling with Eulerian Dynamics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1528,6 +1599,22 @@ References
 - Böhm, J. P., 1999: Revision and clarification of "A general hydrodynamic theory for mixed-phase microphysics".
   Atmos. Res., 52: 167-176.
 
+- Beard, K. V., 1976: Terminal velocity and shape of cloud and precipitation drops aloft. J. Atmos. Sci., 33:
+  851-864, https://doi.org/10.1175/1520-0469(1976)033<0851:TVASOC>2.0.CO;2.
+
+- Gunn, R., and G. D. Kinzer, 1949: The terminal velocity of fall for water droplets in stagnant air. J. Meteorol.,
+  6: 243-248, https://doi.org/10.1175/1520-0469(1949)006<0243:TTVOFF>2.0.CO;2.
+
 - Niemand, M., O. Möhler, B. Vogel, H. Vogel, C. Hoose, P. Connolly, H. Klein, H. Bingemer, P. DeMott, J. Skrotzki, and T. Leisner, 2012:
   A particle-surface-area-based parameterization of immersion freezing on desert dust particles. J. Atmos. Sci., 69: 3077-3092,
   https://doi.org/10.1175/JAS-D-11-0249.1.
+
+- Seifert, A., and K. D. Beheng, 2006: A two-moment cloud microphysics parameterization for mixed-phase clouds.
+  Part 1: Model description. Meteorol. Atmos. Phys., 92: 45-66, https://doi.org/10.1007/s00703-005-0112-4.
+
+- Mitra, S. K., O. Vohl, M. Ahr, and H. R. Pruppacher, 1990: A wind tunnel and theoretical study of the melting
+  behavior of atmospheric ice particles. IV: Experiment and theory for snow flakes. J. Atmos. Sci., 47: 584-591,
+  https://doi.org/10.1175/1520-0469(1990)047<0584:AWTATS>2.0.CO;2.
+
+- Frick, C., A. Seifert, and H. Wernli, 2013: A bulk parametrization of melting snowflakes with explicit liquid
+  water fraction for the COSMO model. Geosci. Model Dev., 6: 1925-1939, https://doi.org/10.5194/gmd-6-1925-2013.
