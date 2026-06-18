@@ -83,9 +83,9 @@ ImplicitDiffForStateLU_T (const Box& bx,
     amrex::ignore_unused(foextrap_on_zlo, foextrap_on_zhi);
 
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
-                              "Unexpected lower BC used with implicit vertical diffusion");
+                              "Unexpected lower BC for scalars used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
-                              "Unexpected upper BC used with implicit vertical diffusion");
+                              "Unexpected upper BC for scalars used with implicit vertical diffusion");
 
     Real Fact = implicit_fac * dt * dz_inv;
 
@@ -282,16 +282,14 @@ ImplicitDiffForMomLU_T (const Box& bx,
                             bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
     bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
                             bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
+    bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     amrex::ignore_unused(foextrap_on_zhi);
 
-    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
-                              "Unexpected lower BC used with implicit vertical diffusion");
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || ext_dir_on_zlo || use_SurfLayer,
+                              "Unexpected lower BC for momentum used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || ext_dir_on_zhi,
-                              "Unexpected upper BC used with implicit vertical diffusion");
-    if (stagdir < 2 && (ext_dir_on_zlo || ext_dir_on_zhi)) {
-        amrex::Warning("No-slip walls have not been fully tested");
-    }
+                              "Unexpected upper BC for momentum used with implicit vertical diffusion");
 
     Real Fact = implicit_fac * dt * dz_inv;
 
@@ -368,6 +366,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
                       c_tmp = zero;
                       RHS_a(i,j,klo) = zero;
                   } else {
+                      // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
                       RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv / met_h_zeta_lo;
                   }
@@ -375,6 +374,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo));
                   RHS_a(i,j,klo) += Fact * tau(i,j,klo);
+              } else {
+                  // NOTE: FOEXTRAP has zero lower flux (nothing to add to RHS)
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
@@ -436,6 +438,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
                       a_tmp = zero;
                       RHS_a(i,j,khi) = zero;
                   } else {
+                      // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
                       RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv / met_h_zeta_hi;
                   }
