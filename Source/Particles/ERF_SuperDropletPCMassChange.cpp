@@ -345,11 +345,21 @@ void SuperDropletPC::MassChange_SL (  int                                       
             if (par_phase == SDPhase::water) {
                 // SD is liquid water, check for freezing
                 if ((temperature <= ptrs.Tfz_ptr[i]) && (sat_ratio > one)) {
-                    ptrs.sp_mass_ptrs[ctx.idx_ice][i] = ptrs.sp_mass_ptrs[ctx.idx_water][i];
-                    ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
-                    ptrs.a_ptr[i] = ptrs.c_ptr[i] = std::cbrt(ptrs.sp_mass_ptrs[ctx.idx_ice][i]/(four_thirds_pi*ctx.rho_ice));
-                    ptrs.mrime_ptr[i] = zero;
-                    ptrs.nmono_ptr[i] = one;
+                    auto m_water_i = ptrs.sp_mass_ptrs[ctx.idx_water][i];
+                    if (m_water_i < ice_mass_min) {
+                        // Too little water to make a resolvable ice crystal -- e.g. an
+                        // essentially dry aerosol carrying only the trace initial water.
+                        // Leave it as a dry aerosol instead of seeding a sub-floor ice
+                        // particle (which would settle at a spurious IceBohm speed); it
+                        // re-activates by condensation when it reaches supersaturation.
+                        ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
+                    } else {
+                        ptrs.sp_mass_ptrs[ctx.idx_ice][i] = m_water_i;
+                        ptrs.sp_mass_ptrs[ctx.idx_water][i] = zero;
+                        ptrs.a_ptr[i] = ptrs.c_ptr[i] = std::cbrt(m_water_i/(four_thirds_pi*ctx.rho_ice));
+                        ptrs.mrime_ptr[i] = zero;
+                        ptrs.nmono_ptr[i] = one;
+                    }
                 }
 
             } else {
