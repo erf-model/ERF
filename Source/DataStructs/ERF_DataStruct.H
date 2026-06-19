@@ -612,6 +612,14 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
+        vert_implicit_fac.resize(max_level+1);
+        for (int lev = 0; lev <= max_level; lev++) {
+            vert_implicit_fac[lev].resize(3);
+            vert_implicit_fac[lev][0] = one;
+            vert_implicit_fac[lev][1] = one;
+            vert_implicit_fac[lev][2] = zero;
+        }
+
         // YSU PBL: use consistent coriolis frequency
         for (int lev = 0; lev <= max_level; lev++) {
             if (turbChoice[lev].pbl_ysu_use_consistent_coriolis) {
@@ -650,21 +658,34 @@ struct SolverChoice {
 
         // Implicit vertical diffusion (not available with Shoc)
         if (use_shoc) {
-            amrex::Print() << "Turning off native vertical implicit solve with SHOC PBL scheme." << std::endl;
-            vert_implicit_fac[0] = zero;
-            vert_implicit_fac[1] = zero;
-            vert_implicit_fac[2] = zero;
+            amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC PBL scheme." << std::endl;
+            for (int lev = 0; lev <= max_level; lev++) {
+               vert_implicit_fac[lev][0] = zero;
+               vert_implicit_fac[lev][1] = zero;
+               vert_implicit_fac[lev][2] = zero;
+            }
         } else {
             // This controls the time-centering of the vertical differences in the diffusive term
             bool do_vert_implicit = true;
             pp.query("vert_implicit", do_vert_implicit);
 
             if (!do_vert_implicit) {
-                amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag." << std::endl;
-                vert_implicit_fac[0] = zero;
-                vert_implicit_fac[1] = zero;
-                vert_implicit_fac[2] = zero;
+                for (int lev = 0; lev <= max_level; lev++) {
+                   amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag at level " << lev << std::endl;
+                   vert_implicit_fac[lev][0] = zero;
+                   vert_implicit_fac[lev][1] = zero;
+                   vert_implicit_fac[lev][2] = zero;
+                }
             } else {
+
+                for (int lev = 0; lev <= max_level; lev++) {
+                   if (anelastic[lev]) {
+                       amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev << std::endl;
+                       vert_implicit_fac[lev][0] = zero;
+                       vert_implicit_fac[lev][1] = zero;
+                       vert_implicit_fac[lev][2] = zero;
+                    }
+                }
 
                 // This may be one value for all RK stages or a different value in each stage
                 int n_impfac = pp.countval("vert_implicit_fac");
@@ -676,9 +697,15 @@ struct SolverChoice {
                 if (n_impfac == 1) {
                     amrex::Real fac_in;
                     pp.get("vert_implicit_fac", fac_in);
-                    for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        for (int i=0; i<3; ++i) {
+                            vert_implicit_fac[lev][i] = fac_in;
+                        }
+                    }
                 } else if (n_impfac == 3) {
-                    pp.getarr("vert_implicit_fac", vert_implicit_fac);
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        pp.getarr("vert_implicit_fac", vert_implicit_fac[lev]);
+                    }
                 }
 
                 // If true (default), include implicit contributions to vertical
@@ -709,11 +736,16 @@ struct SolverChoice {
                 }
 
                 // Do not allow implicit vertical diff with EB
-                if (terrain_type == TerrainType::EB && do_vert_implicit) {
-                    amrex::Print() << "Implicit diffusion is not supported with EB; turning off." << "\n";
-                    vert_implicit_fac[0] = zero;
-                    vert_implicit_fac[1] = zero;
-                    vert_implicit_fac[2] = zero;
+
+                if (terrain_type == TerrainType::EB) {
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        if (do_vert_implicit) {
+                            amrex::Print() << "Implicit diffusion is not supported with EB; turning off at level " << lev << "\n";
+                            vert_implicit_fac[lev][0] = zero;
+                            vert_implicit_fac[lev][1] = zero;
+                            vert_implicit_fac[lev][2] = zero;
+                        }
+                    }
                 }
 
                 if (!implicit_thermal_diffusion  &&
@@ -721,9 +753,11 @@ struct SolverChoice {
                     !implicit_ke_diffusion       &&
                     !implicit_momentum_diffusion) {
                     amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are all turned off; turning off vertical implicit solve." << std::endl;
-                    vert_implicit_fac[0] = zero;
-                    vert_implicit_fac[1] = zero;
-                    vert_implicit_fac[2] = zero;
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        vert_implicit_fac[lev][0] = zero;
+                        vert_implicit_fac[lev][1] = zero;
+                        vert_implicit_fac[lev][2] = zero;
+                    }
                 }
             } // do_vert_implicit
         } // use_shoc
@@ -930,14 +964,17 @@ struct SolverChoice {
             l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
         }
         bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
-        bool l_implicit_diff = (vert_implicit_fac[0] > zero ||
-                                vert_implicit_fac[1] > zero ||
-                                vert_implicit_fac[2] > zero);
-        if (l_implicit_diff && !l_use_diff) {
-            amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
-            vert_implicit_fac[0] = zero;
-            vert_implicit_fac[1] = zero;
-            vert_implicit_fac[2] = zero;
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            bool l_implicit_diff = (vert_implicit_fac[lev][0] > zero ||
+                                    vert_implicit_fac[lev][1] > zero ||
+                                    vert_implicit_fac[lev][2] > zero);
+            if (l_implicit_diff && !l_use_diff) {
+                amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve at level " << lev << std::endl;
+                vert_implicit_fac[lev][0] = zero;
+                vert_implicit_fac[lev][1] = zero;
+                vert_implicit_fac[lev][2] = zero;
+            }
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
@@ -964,21 +1001,23 @@ struct SolverChoice {
            }
         }
 
-        amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
-                                                           << vert_implicit_fac[1] << " "
-                                                           << vert_implicit_fac[2];
-        if (vert_implicit_fac[0] > zero ||
-            vert_implicit_fac[1] > zero ||
-            vert_implicit_fac[2] > zero)
-        {
-            amrex::Print() << " (theta = " << implicit_thermal_diffusion
-                           << ", moisture = " << implicit_moisture_diffusion
-                           << ", tke = " << implicit_ke_diffusion
-                           << ", momenta = " << implicit_momentum_diffusion;
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "vert_implicit_fac at level  : " << lev << " " << vert_implicit_fac[lev][0] << " "
+                                                                             << vert_implicit_fac[lev][1] << " "
+                                                                             << vert_implicit_fac[lev][2];
+            if (vert_implicit_fac[lev][0] > zero ||
+                vert_implicit_fac[lev][1] > zero ||
+                vert_implicit_fac[lev][2] > zero)
+            {
+                amrex::Print() << " (theta = " << implicit_thermal_diffusion
+                               << ", moisture = " << implicit_moisture_diffusion
+                               << ", tke = " << implicit_ke_diffusion
+                               << ", momenta = " << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
-            amrex::Print() << ", including w";
+                amrex::Print() << ", including w";
 #endif
-            amrex::Print() << ")";
+                amrex::Print() << ")";
+            }
         }
         amrex::Print() << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
@@ -1194,7 +1233,8 @@ struct SolverChoice {
     // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
     // 1: fully implicit
-    amrex::Vector<amrex::Real> vert_implicit_fac = {one, one, zero}; // one value per RK stage
+    amrex::Vector<amrex::Vector<amrex::Real>> vert_implicit_fac; // one value per RK stage
+
     // if any vert_implicit_fac > 0, then the following apply:
     bool implicit_thermal_diffusion  = true;
     bool implicit_moisture_diffusion = true;

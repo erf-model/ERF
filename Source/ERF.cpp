@@ -1047,13 +1047,16 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_IMPLICIT_W
-    if (SolverChoice::mesh_type == MeshType::VariableDz &&
-        (solverChoice.vert_implicit_fac[0] > 0 ||
-         solverChoice.vert_implicit_fac[1] > 0 ||
-         solverChoice.vert_implicit_fac[2] > 0  )       &&
-        solverChoice.implicit_momentum_diffusion)
-    {
-        Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    if ( (SolverChoice::mesh_type == MeshType::VariableDz) &&
+         (solverChoice.implicit_momentum_diffusion) ) {
+        for (int lev = 0; lev <= finest_level; lev++) {
+            if ( (solverChoice.vert_implicit_fac[lev][0] > 0) ||
+                 (solverChoice.vert_implicit_fac[lev][1] > 0) ||
+                 (solverChoice.vert_implicit_fac[lev][2] > 0) )
+            {
+                Warning("Doing implicit solve for u, v, and w with terrain at level " << lev << " -- this has not been tested");
+            }
+        }
     }
 #endif
 
@@ -1704,7 +1707,9 @@ ERF::InitData_post ()
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            compute_max_pressure_gradient_diagnostic(lev);
+            if ( (lev == 0) && (solverChoice.terrain_type != TerrainType::EB) ) {
+                compute_max_pressure_gradient_diagnostic(lev);
+            }
         }
     }
 
