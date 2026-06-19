@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -101,4 +102,63 @@ TEST(TerminalVelocityScalar, DumpCurvesForPlotting)
 
     f.close();
     EXPECT_TRUE(f.good());
+}
+
+// Motivation: evaluate the production phase-routed fall speed for arbitrary
+// (m_ice, m_water, a, c, rho_air, p, T) tuples, replicating the SD advection step
+// (ERF_SuperDropletPCAdvection.cpp): water -> CloudRainShima; pure ice -> IceBohm
+// on the ice core; mixed -> Frick blend of the two. Used to Monte-Carlo which
+// attribute/flow combinations produce anomalously large terminal velocities.
+// Reads the input CSV named by ERF_TV_EVAL_IN (columns m_ice,m_water,a,c,rho,p,T)
+// and writes m_ice,...,T,vterm,phase to ERF_TV_EVAL_OUT; skipped otherwise.
+TEST(TerminalVelocityScalar, EvalFromCsv)
+{
+    const char* in  = std::getenv("ERF_TV_EVAL_IN");
+    const char* out = std::getenv("ERF_TV_EVAL_OUT");
+    if (in == nullptr || out == nullptr || in[0] == '\0' || out[0] == '\0') {
+        GTEST_SKIP() << "set ERF_TV_EVAL_IN and ERF_TV_EVAL_OUT to evaluate a CSV";
+    }
+    std::ifstream fi(in);
+    std::ofstream fo(out);
+    ASSERT_TRUE(fi.is_open() && fo.is_open());
+
+    const TerminalVelocity<amrex::Real> tv{kRhoWater, kRhoIce};
+    const amrex::Real f43pi = four_thirds_pi;
+
+    std::string line;
+    std::getline(fi, line);  // header
+    fo << "m_ice,m_water,a,c,rho,p,T,vterm,phase\n";
+    fo.precision(8);
+    while (std::getline(fi, line)) {
+        if (line.empty()) { continue; }
+        amrex::Real m_ice, m_water, a, c, rho, p, T;
+        char comma;
+        std::istringstream ss(line);
+        ss >> m_ice >> comma >> m_water >> comma >> a >> comma >> c >> comma
+           >> rho >> comma >> p >> comma >> T;
+
+        amrex::Real vterm; int phase;
+        if (m_ice <= amrex::Real(0.0)) {              // water
+            const amrex::Real r = std::cbrt(m_water / (f43pi * kRhoWater));
+            vterm = tv.CloudRainShima(r, rho, p, T);
+            phase = 0;
+        } else {
+            const amrex::Real rho_app = m_ice / (f43pi * a * a * c);
+            const amrex::Real v_ice = tv.IceBohm(m_ice, a, c, rho_app, rho, T);
+            if (m_water > amrex::Real(0.0)) {          // mixed (Frick blend)
+                const amrex::Real m_w = m_ice + m_water;
+                const amrex::Real r_eq = std::cbrt(m_w / (f43pi * kRhoWater));
+                const amrex::Real v_rain = tv.CloudRainShima(r_eq, rho, p, T);
+                vterm = tv.MixedPhaseVterm(v_ice, v_rain, m_water / m_w);
+                phase = 2;
+            } else {                                   // pure ice
+                vterm = v_ice;
+                phase = 1;
+            }
+        }
+        fo << m_ice << ',' << m_water << ',' << a << ',' << c << ',' << rho << ','
+           << p << ',' << T << ',' << vterm << ',' << phase << '\n';
+    }
+    fo.close();
+    EXPECT_TRUE(fo.good());
 }
