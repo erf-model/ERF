@@ -3,7 +3,7 @@
         // *****************************************************************************
         const bool l_do_implicit_ke    = solverChoice.implicit_ke_diffusion;
         const bool l_do_implicit_moist = solverChoice.implicit_moisture_diffusion;
-        const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+        const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
         if ( l_vert_implicit_fac > zero ) {
 
             const bool l_use_turb         = solverChoice.turbChoice[level].use_kturb;
