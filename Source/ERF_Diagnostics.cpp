@@ -103,9 +103,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     }
 
 #ifdef AMREX_USE_FLOAT
-    Real tol = 1.e-6;
+    Real tol = 1.e-4;
 #else
-    Real tol = 1.e-10;
+    Real tol = 1.e-8;
 #endif
 
     Real min_gpz = gradp_temp[2].min(zface_domain,comp);
