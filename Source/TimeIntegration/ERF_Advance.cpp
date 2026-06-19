@@ -123,6 +123,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             // 10 m averages). MYNN only needs cons, so this order is safe for it.
             m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
                                         solverChoice.moisture_indices);
+
+            // Surface diagnostics (10 m wind, 2 m T/q, running peak-wind swath)
+            // for obs validation -- also after fluxes for live u*/t*/Obukhov.
+            // Composite-reflectivity max needs precip species (Morrison/SAM).
+            bool do_refl = (solverChoice.moisture_type == MoistureType::Morrison ||
+                            solverChoice.moisture_type == MoistureType::SAM);
+            m_SurfaceLayer->update_surf_diagnostics(lev, vars_old[lev][Vars::cons], do_refl);
         }
     }
 

@@ -1677,6 +1677,13 @@ ERF::InitData_post ()
                 // for it too.
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
+
+                // Surface diagnostics (10 m wind, 2 m T/q, peak-wind swath,
+                // running composite-reflectivity max). Reflectivity needs precip
+                // species (Morrison/SAM).
+                bool do_refl_init = (solverChoice.moisture_type == MoistureType::Morrison ||
+                                     solverChoice.moisture_type == MoistureType::SAM);
+                m_SurfaceLayer->update_surf_diagnostics(lev, vars_new[lev][Vars::cons], do_refl_init);
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)

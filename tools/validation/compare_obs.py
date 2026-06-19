@@ -410,9 +410,11 @@ def wind_panels(erf_npz, asos_event_csv, out="compare_wind_panels.png", which="g
     # Panel 1: ASOS points
     deco(axs[0])
     sc=axs[0].scatter(lo,la,c=val,cmap="turbo",vmin=vmin,vmax=vmax,
-                      s=120,edgecolor="k",linewidth=0.6,transform=proj,zorder=5)
-    for s,x,y in zip(st,lo,la): axs[0].annotate(s,(x,y),fontsize=7,
-                      xytext=(3,3),textcoords="offset points",transform=proj,zorder=6)
+                      s=70,edgecolor="k",linewidth=0.5,transform=proj,zorder=5)
+    # Label stations only when the network is sparse enough to read.
+    if len(st) <= 30:
+        for s,x,y in zip(st,lo,la): axs[0].annotate(s,(x,y),fontsize=7,
+                          xytext=(3,3),textcoords="offset points",transform=proj,zorder=6)
     axs[0].set_title(f"ASOS observed peak {('gust' if which=='gust' else '2-min wind')} [m/s]")
     fig.colorbar(sc,ax=axs[0],shrink=0.8,label="m/s")
     # Panel 2: ERF wspd10max map

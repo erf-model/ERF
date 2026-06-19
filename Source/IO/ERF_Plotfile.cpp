@@ -2422,6 +2422,38 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         }
+
+        // ASOS-validation surface diagnostics (2D). Order MUST match
+        // derived_names_2d in ERF.H: u10, v10, wspd10, wspd10max, t2, q2.
+        {
+            const char* sd_names[7] = {"u10","v10","wspd10","wspd10max","t2","q2","cmpref_max"};
+            for (int sdi = 0; sdi < 7; ++sdi) {
+                if (!containerHasElement(plot_var_names, std::string(sd_names[sdi]))) { continue; }
+                if (m_SurfaceLayer) {
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        const auto& derdat = mf[lev].array(mfi);
+                        const MultiFab* src =
+                            (sdi==0) ? m_SurfaceLayer->get_u10(lev) :
+                            (sdi==1) ? m_SurfaceLayer->get_v10(lev) :
+                            (sdi==2) ? m_SurfaceLayer->get_wspd10(lev) :
+                            (sdi==3) ? m_SurfaceLayer->get_wspd10max(lev) :
+                            (sdi==4) ? m_SurfaceLayer->get_t2(lev) :
+                            (sdi==5) ? m_SurfaceLayer->get_q2(lev) :
+                                       m_SurfaceLayer->get_cmpref_max(lev);
+                        const auto& sarr = src->const_array(mfi);
+                        const int comp = mf_comp;
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                            derdat(i, j, k, comp) = sarr(i, j, 0);
+                        });
+                    }
+                } else {
+                    mf[lev].setVal(-999,mf_comp,1,0);
+                }
+                mf_comp++;
+            }
+        }
     } // lev
 
     std::string plotfilename;

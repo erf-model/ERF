@@ -1201,7 +1201,8 @@ private:
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv"
+        "surf_pres", "integrated_qv",
+        "u10", "v10", "wspd10", "wspd10max", "t2", "q2", "cmpref_max"
     };
 
     // **************************************************************************************

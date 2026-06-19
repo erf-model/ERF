@@ -348,6 +348,45 @@ ERF::WriteCheckpointFile () const
             src = m_SurfaceLayer->get_z0(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+
+            // WindSpeed10Max (cumulative event peak-wind swath -- persist so a
+            // chained/restarted run keeps the true event maximum)
+            src = m_SurfaceLayer->get_wspd10max(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "WindSpeed10Max"));
+
+            // CmpRefMax (cumulative event-max composite reflectivity swath)
+            src = m_SurfaceLayer->get_cmpref_max(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "CmpRefMax"));
+
+            // Instantaneous surface diagnostics (u10,v10,wspd10,t2,q2). These are
+            // recomputed every step by update_surf_diagnostics, which is NOT called
+            // on restart (it would need update_fluxes' mac averages, deliberately
+            // skipped on restart). Persisting them means the restart-step plotfile
+            // shows the correct values instead of zeros -- otherwise the chained
+            // run's evolution time series shows a spurious dip-to-zero at every
+            // segment boundary. (wspd10max/cmpref_max above are persisted because
+            // they are cumulative; these are persisted to avoid the restart gap.)
+            src = m_SurfaceLayer->get_u10(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "U10"));
+
+            src = m_SurfaceLayer->get_v10(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "V10"));
+
+            src = m_SurfaceLayer->get_wspd10(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wspd10"));
+
+            src = m_SurfaceLayer->get_t2(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "T2"));
+
+            src = m_SurfaceLayer->get_q2(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Q2"));
         }
 
         if (sst_lev[lev][0]) {
@@ -1260,6 +1299,59 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         if (amrex::FileExists(Z0FileName)) {
             dst = m_SurfaceLayer->get_z0(lev);
             VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // WindSpeed10Max (restore the cumulative event peak so a chained run
+        // keeps the true maximum; absent in older checkpoints -> stays 0)
+        std::string W10MaxFileName(restart_chkfile + "/Level_0/WindSpeed10Max_H");
+        if (amrex::FileExists(W10MaxFileName)) {
+            dst = m_SurfaceLayer->get_wspd10max(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "WindSpeed10Max"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // CmpRefMax (cumulative event-max composite reflectivity)
+        std::string CmpRefFileName(restart_chkfile + "/Level_0/CmpRefMax_H");
+        if (amrex::FileExists(CmpRefFileName)) {
+            dst = m_SurfaceLayer->get_cmpref_max(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "CmpRefMax"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // Instantaneous surface diagnostics (u10,v10,wspd10,t2,q2). update_surf_
+        // diagnostics is skipped on restart, so restore these from the checkpoint
+        // (each independently existence-checked for backward compatibility) to
+        // avoid a spurious dip-to-zero at segment boundaries in the time series.
+        // They are recomputed on the first post-restart step anyway.
+        std::string U10FileName(restart_chkfile + "/Level_0/U10_H");
+        if (amrex::FileExists(U10FileName)) {
+            dst = m_SurfaceLayer->get_u10(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "U10"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+        std::string V10FileName(restart_chkfile + "/Level_0/V10_H");
+        if (amrex::FileExists(V10FileName)) {
+            dst = m_SurfaceLayer->get_v10(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "V10"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+        std::string Wspd10FileName(restart_chkfile + "/Level_0/Wspd10_H");
+        if (amrex::FileExists(Wspd10FileName)) {
+            dst = m_SurfaceLayer->get_wspd10(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wspd10"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+        std::string T2FileName(restart_chkfile + "/Level_0/T2_H");
+        if (amrex::FileExists(T2FileName)) {
+            dst = m_SurfaceLayer->get_t2(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "T2"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+        std::string Q2FileName(restart_chkfile + "/Level_0/Q2_H");
+        if (amrex::FileExists(Q2FileName)) {
+            dst = m_SurfaceLayer->get_q2(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Q2"));
             MultiFab::Copy(*dst,m_var,0,0,1,ng);
         }
     }
