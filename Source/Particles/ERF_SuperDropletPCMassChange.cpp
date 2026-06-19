@@ -509,49 +509,58 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto mass_new = mass_old;
             ti.fe(mass_new, success);
             AMREX_ALWAYS_ASSERT(success);
-            mass_new = std::max(mass_new, amrex::ParticleReal(3.8403e-24)); // lower limit: 1nm spherical ice particle
-            auto d_mass = mass_new - mass_old;
 
-            // compute new volume
-            auto d_vol = dmdt.dVolume(  d_mass, ptrs.a_ptr[i], ptrs.c_ptr[i], rhoi_old,
-                                        sat_ratio, temperature,  e_sat, e_sat_ratio_wi,
-                                        coeff_moldiff );
-            auto vol_new = vol_old + d_vol;
-            vol_new = std::max(vol_new, mass_new/mat_prop_core.m_density);
-            d_vol = vol_new - vol_old;
-            auto rhoi_new = mass_new / vol_new;
+            // Fully sublimated: release the ice back to a (dry) aerosol particle
+            // instead of pinning a 1 nm "ice" sphere. A sub-resolution pinned
+            // crystal would otherwise be given a spurious IceBohm fall speed (the
+            // d = 2a characteristic length -> 0) and settle out unphysically; as a
+            // water/aerosol particle its effective radius is set by the aerosol
+            // mass, so it advects with the flow and can re-condense or re-freeze
+            // when it reaches favourable conditions. Mirrors the full-melt path.
+            const auto ice_mass_min = amrex::ParticleReal(3.8403e-24); // ~1 nm ice sphere
+            if (mass_new <= ice_mass_min) {
+                ptrs.sp_mass_ptrs[ctx.idx_ice][i] = zero;
+                ptrs.a_ptr[i] = ptrs.c_ptr[i] = zero;
+                ptrs.mrime_ptr[i] = zero;
+                ptrs.nmono_ptr[i] = zero;
+            } else {
+                auto d_mass = mass_new - mass_old;
 
-            // compute growth ratio and new radii
-            auto gr_star = dmdt.growthRatioStar( d_mass,
-                                                 ptrs.a_ptr[i], ptrs.c_ptr[i], ptrs.vterm_ptr[i],
-                                                 moist_density, temperature, coeff_moldiff );
-            auto d_loga = dmdt.dLogRadius(gr_star, std::log(vol_new/vol_old));
-            auto a_new = ptrs.a_ptr[i] * std::exp(d_loga);
-            auto c_new = ptrs.c_ptr[i] * std::exp(gr_star*d_loga);
+                // compute new volume
+                auto d_vol = dmdt.dVolume(  d_mass, ptrs.a_ptr[i], ptrs.c_ptr[i], rhoi_old,
+                                            sat_ratio, temperature,  e_sat, e_sat_ratio_wi,
+                                            coeff_moldiff );
+                auto vol_new = vol_old + d_vol;
+                vol_new = std::max(vol_new, mass_new/mat_prop_core.m_density);
+                auto rhoi_new = mass_new / vol_new;
 
-            // Smaller than 1 um --> sphere with true ice density
-            if (std::min(a_new,c_new) <= amrex::Real(1.0e-6)) {
-                rhoi_new = mat_prop_core.m_density;
-                vol_new = mass_new / rhoi_new;
-                c_new = a_new = std::cbrt(vol_new/four_thirds_pi);
+                // compute growth ratio and new radii
+                auto gr_star = dmdt.growthRatioStar( d_mass,
+                                                     ptrs.a_ptr[i], ptrs.c_ptr[i], ptrs.vterm_ptr[i],
+                                                     moist_density, temperature, coeff_moldiff );
+                auto d_loga = dmdt.dLogRadius(gr_star, std::log(vol_new/vol_old));
+                auto a_new = ptrs.a_ptr[i] * std::exp(d_loga);
+                auto c_new = ptrs.c_ptr[i] * std::exp(gr_star*d_loga);
+
+                // Smaller than 1 um --> sphere with true ice density. (Full
+                // sublimation, where the size would otherwise fall below 1 nm, is
+                // handled above by releasing the particle to an aerosol.)
+                if (std::min(a_new,c_new) <= amrex::Real(1.0e-6)) {
+                    rhoi_new = mat_prop_core.m_density;
+                    vol_new = mass_new / rhoi_new;
+                    c_new = a_new = std::cbrt(vol_new/four_thirds_pi);
+                }
+
+                // rime mass
+                auto mrime_new = ptrs.mrime_ptr[i];
+                if (d_mass <= zero) { mrime_new = ptrs.mrime_ptr[i] * mass_new/mass_old; }
+
+                // update attributes
+                ptrs.a_ptr[i] = a_new;
+                ptrs.c_ptr[i] = c_new;
+                ptrs.mrime_ptr[i] = mrime_new;
+                ptrs.sp_mass_ptrs[ctx.idx_ice][i] = mass_new;
             }
-            // limit particle size to 1 nm
-            if (std::min(a_new,c_new) <= amrex::Real(1.0e-9) ) {
-                c_new = a_new = amrex::Real(1.0e-9);
-                rhoi_new = mat_prop_core.m_density;
-                vol_new = four_thirds_pi*a_new*a_new*c_new;
-                mass_new = vol_new * rhoi_new;
-            }
-
-            // rime mass
-            auto mrime_new = ptrs.mrime_ptr[i];
-            if (d_mass <= zero) { mrime_new = ptrs.mrime_ptr[i] * mass_new/mass_old; }
-
-            // update attributes
-            ptrs.a_ptr[i] = a_new;
-            ptrs.c_ptr[i] = c_new;
-            ptrs.mrime_ptr[i] = mrime_new;
-            ptrs.sp_mass_ptrs[ctx.idx_ice][i] = mass_new;
 
             // update particle attributes
             SuperDropletPC::updateParticleAttributes(
