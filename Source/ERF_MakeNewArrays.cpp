@@ -538,9 +538,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
-    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
-                            solverChoice.vert_implicit_fac[1] > 0 ||
-                            solverChoice.vert_implicit_fac[2] > 0);
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][1] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][2] > 0);
 
     bool l_eb_surface_layer = (l_use_eb && solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
