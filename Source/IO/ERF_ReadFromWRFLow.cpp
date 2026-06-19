@@ -17,10 +17,10 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-Real
+double
 read_times_from_wrflow (const std::string& nc_low_file,
                         Vector<Vector<FArrayBox>>& low_data_zlo,
-                        Real& start_low_time, Real& final_low_time)
+                        double& start_low_time, double& final_low_time)
 {
     Print() << "Loading lower boundary data from NetCDF file " << std::endl;
 

@@ -256,7 +256,7 @@ ERF::init_from_metgrid (int lev)
                 Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
                         << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
                 t_new[lev] = zero;
-                t_old[lev] = -Real(1.e200);
+                t_old[lev] = -bogus_large_value;
             } else {
                 // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
                 AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
