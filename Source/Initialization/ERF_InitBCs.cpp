@@ -299,7 +299,8 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 void ERF::init_bcs ()
 {
     bool rho_read = false;
-    bool read_prim_theta = true;
+    bool read_prim_theta  = true;
+    bool use_surfacelayer = false;
 
     init_phys_bcs(rho_read, read_prim_theta);
 
@@ -449,6 +450,7 @@ void ERF::init_bcs ()
             }
             else if ( bct == ERF_BC::surface_layer )
             {
+                use_surfacelayer = true;
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
                 domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
@@ -686,6 +688,43 @@ void ERF::init_bcs ()
                     domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
                 }
             }
+        }
+    }
+
+    // Sanity check that implicit diffusion is consistent with the BC types.
+    // Turn off implicit diffusion for a component if its BCs don't match
+    // those allowed by the tridiagonal solver.
+    const BCRec* bc_ptr = domain_bcs_type.data();
+    Vector<int> cc_comp_map = {BCVars::RhoTheta_bc_comp, BCVars::RhoKE_bc_comp, BCVars::RhoQ1_bc_comp};
+    Vector<std::string> cc_comp_name = {"Theta", "KE", "Qv"};
+    for (int icomp(0); icomp < cc_comp_map.size(); ++icomp) {
+        int bc_comp = cc_comp_map[icomp];
+        bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
+        bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
+        bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
+        bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+        if ( (!foextrap_on_zlo && !neumann_on_zlo && !use_surfacelayer) ||
+             (!foextrap_on_zhi && !neumann_on_zhi) ) {
+            Print() << "WARNING: Selected BCs for " << cc_comp_name[icomp] << " are not supported with implicit diffusion. Turning off implicit diffusion for this component." << "\n";
+            if (bc_comp == BCVars::RhoTheta_bc_comp) { solverChoice.implicit_thermal_diffusion  = false; }
+            if (bc_comp == BCVars::RhoKE_bc_comp)    { solverChoice.implicit_ke_diffusion       = false; }
+            if (bc_comp == BCVars::RhoQ1_bc_comp)    { solverChoice.implicit_moisture_diffusion = false; }
+        }
+    }
+    Vector<int> vel_comp_map = {BCVars::xvel_bc, BCVars::yvel_bc};
+    Vector<std::string> vel_comp_name = {"xvel", "yvel"};
+    for (int icomp(0); icomp < vel_comp_map.size(); ++icomp) {
+        int bc_comp = vel_comp_map[icomp];
+        bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+                                bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
+        bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
+                                bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
+        bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
+        bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
+        if ( (!foextrap_on_zlo && !ext_dir_on_zlo && !use_surfacelayer) ||
+             (!foextrap_on_zhi && !ext_dir_on_zhi) ) {
+            Print() << "WARNING: Selected BCs for " << vel_comp_name[icomp] << " are not supported with implicit diffusion. Turning off implicit diffusion for this component." << "\n";
+            solverChoice.implicit_momentum_diffusion  = false;
         }
     }
 
