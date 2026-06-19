@@ -297,7 +297,7 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
     const int ncomp = AMREX_SPACEDIM;
 
     amrex::Real* d_val_max_ptr;
-    amrex::Gpu::DeviceVector<amrex::Real> d_val_max(1, -amrex::Real(1.0e30));
+    amrex::Gpu::DeviceVector<amrex::Real> d_val_max(1, -bogus_large_value);
     d_val_max_ptr = d_val_max.data();
 
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
@@ -330,10 +330,10 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
 
     amrex::Gpu::synchronize();
 
-    amrex::Real h_val_max_local = -amrex::Real(1.0e30);
+    amrex::Real h_val_max_local = -bogus_large_value;
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_val_max.begin(), d_val_max.end(), &h_val_max_local);
 
-    amrex::Real h_val_max_global = -amrex::Real(1.0e30);
+    amrex::Real h_val_max_global = -bogus_large_value;
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     #else
@@ -355,7 +355,7 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
 {
 
     amrex::Real* d_val_min_ptr;
-    amrex::Gpu::DeviceVector<amrex::Real> d_val_min(1, amrex::Real(1.0e30));
+    amrex::Gpu::DeviceVector<amrex::Real> d_val_min(1, bogus_large_value);
     d_val_min_ptr = d_val_min.data();
 
     const amrex::Real x_last = hurricane_eye_track_xy.back()[0];
@@ -386,10 +386,10 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
 
     amrex::Gpu::synchronize();
 
-    amrex::Real h_val_min_local = amrex::Real(1.0e30);
+    amrex::Real h_val_min_local = bogus_large_value;
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_val_min.begin(), d_val_min.end(), &h_val_min_local);
 
-    amrex::Real h_val_min_global = amrex::Real(1.0e30);
+    amrex::Real h_val_min_global = bogus_large_value;
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_min_local, &h_val_min_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     #else

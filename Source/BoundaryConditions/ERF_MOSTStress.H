@@ -170,7 +170,7 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(zref_arr(i,j,k) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -257,7 +257,7 @@ struct adiabatic_charnock
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -342,7 +342,7 @@ struct adiabatic_mod_charnock
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -403,7 +403,7 @@ struct adiabatic_donelan
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real z0    = zero;
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         }
         do {
@@ -417,7 +417,7 @@ struct adiabatic_donelan
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -490,7 +490,7 @@ struct adiabatic_wave_coupled
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -560,7 +560,7 @@ struct surface_flux
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -670,7 +670,7 @@ struct surface_flux_charnock
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -788,7 +788,7 @@ struct surface_flux_mod_charnock
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -896,7 +896,7 @@ struct surface_flux_donelan
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1009,7 +1009,7 @@ struct surface_flux_wave_coupled
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1126,7 +1126,7 @@ struct surface_temp
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1266,7 +1266,9 @@ struct surface_temp_charnock
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1.0e3);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1435,7 +1437,9 @@ struct surface_temp_mod_charnock
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1000);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1592,7 +1596,7 @@ struct surface_temp_donelan
         amrex::Real Oleno = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1715,7 +1719,7 @@ struct surface_temp_wave_coupled
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);

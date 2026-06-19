@@ -61,8 +61,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
-    Real estdt_comp = Real(1.e20);
-    Real estdt_lowM = Real(1.e20);
+    Real estdt_comp = bogus_large_value;
+    Real estdt_lowM = bogus_large_value;
 
     // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
     const int nxc = geom[0].Domain().length(0);
@@ -104,7 +104,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                    Array4<Real const> const& u,
                                    Array4<Real const> const& vf) -> Real
         {
-           Real new_comp_dt = -Real(1.e100);
+           Real new_comp_dt = -bogus_large_value;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                if (vf(i,j,k) > zero)
@@ -164,7 +164,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                   Array4<Real const> const& u,
                                   Array4<Real const> const& dJ) -> Real
        {
-           Real new_comp_dt = -Real(1.e100);
+           Real new_comp_dt = -bogus_large_value;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                {
@@ -221,13 +221,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
     // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
-    estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : Real(1.e20);
+    estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : bogus_large_value;
 
      Real estdt_lowM_inv = ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& u) -> Real
        {
-           Real new_lm_dt = -Real(1.e100);
+           Real new_lm_dt = -bogus_large_value;
            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
            {
                new_lm_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
@@ -248,7 +248,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     Array4<Real const> const& s,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_comp_dt = -Real(1.e100);
+             Real new_comp_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
              {
                  {
@@ -272,7 +272,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_lowM_dt = -Real(1.e100);
+             Real new_lowM_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_lowM_dt] (int i, int j, int k) noexcept
              {
                  new_lowM_dt = amrex::max((amrex::Math::abs(u(i,j,k,2))) * dzinv, new_lowM_dt);
