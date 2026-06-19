@@ -464,7 +464,7 @@ List of Parameters
 |                                     | each RK stage?       | "None"         | compressible,       |
 |                                     |                      |                | "None" if anelastic |
 +-------------------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compresible |
+| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compressible|
 |                                     | solve for diffusion  |                | false if anelastic  |
 |                                     | of u, v, theta, KE,  |                |                     |
 |                                     | and qv with default  |                |                     |
