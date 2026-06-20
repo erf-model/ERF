@@ -244,7 +244,7 @@ realbdy_compute_relaxation (const int& icomp,
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
     amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
 
-    // These are defined in ERF_Constants.H 
+    // These are defined in ERF_Constants.H
     amrex::Real cond_fac = lcond; // condensation
     amrex::Real  sub_fac = lsub;  // sublimation
 
