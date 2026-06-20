@@ -58,6 +58,13 @@ Files Overview
 -  **Submodules/Noah-MP/drivers/erf/NoahmpIO_fi.F90**: Fortran module
    responsible for managing mapping data between C++ and Fortran.
 
+-  **Submodules/Noah-MP/drivers/erf/NoahmpWriteRestartMod.F90** and
+   **NoahmpReadRestartMod.F90**: Fortran modules that serialize and restore the
+   full Noah-MP prognostic state (soil, snow, canopy, aquifer, albedo history,
+   ...) to/from a NetCDF restart file. They are exposed to C++ through the
+   ``WriteRestart``/``ReadRestart`` methods of ``NoahmpIO_type`` and are used by
+   ERF's checkpoint/restart capability (see :ref:`noahmp-checkpoint-restart`).
+
 NOAHMP Class
 ------------
 
@@ -76,7 +83,9 @@ NOAH-MP through C++ and Fortran interoperation. Contains various
 variables for domain, memory, and tile configuration. Also, contains
 arrays for geographic variables. At present this type exposes only a
 select set of variables. More variables should be exposed as needed by
-applications in ERF. The process of adding new variables is as follows:
+applications in ERF. This can be done automatically with CodeScribe (see
+`Generating Fortran–C++ Bindings using CodeScribe`_), or manually using the
+following process:
 
 #. In **Submodules/Noah-MP/drivers/erf/NoahmpIO.H** add pointers to
    the desired variable and set their initialization for
@@ -118,8 +127,61 @@ initialization sequence is followed within the simulation setup. The
 interplay between C++ and Fortran necessitates careful memory and data
 handling, which is crucial for ensuring performance and correctness in
 simulations. The interface is designed to mimic the Fortran interface
-from documentation(https://dx.doi.org/10.5065/ew8g-yr95), therefore
-similar practices should be followed.
+described in the Noah-MP documentation, therefore similar practices should
+be followed.
+
+.. _noahmp-checkpoint-restart:
+
+Checkpoint and Restart
+----------------------
+
+Noah-MP participates in ERF's standard checkpoint/restart capability (see
+:ref:`sec:Checkpoint` for the general ``erf.check_file``, ``erf.check_int``,
+``erf.check_per``, and ``amr.restart`` controls). No additional input options
+are required to checkpoint or restart a Noah-MP simulation; whenever a
+checkpoint is written, the land-surface state is written alongside the
+atmospheric state, and it is read back automatically on restart.
+
+A Noah-MP restart is **bitwise reproducible**: restarting from a checkpoint
+reproduces the trajectory of an equivalent cold-start run exactly. Achieving
+this requires persisting two pieces of state in addition to the regular ERF
+MultiFab data:
+
+#. **The land-surface substep counter** (Noah-MP's ``itimestep``). When the
+   Noah-MP timestep is larger than the ERF timestep (subcycling via
+   ``NOAH_TIMESTEP``; see `Building and Running with Noah-MP`_), the counter
+   determines when Noah-MP fires relative to the ERF steps. It is written to
+   ``<chkfile>/lsm_step`` (one value per AMR level) and restored on restart so
+   that the firing schedule, and hence the LSM-to-atmosphere flux timing, is
+   preserved.
+
+#. **The full Noah-MP prognostic state.** The complete land state — soil
+   temperature and moisture, the snowpack (including the active snow layers and
+   the layer count), canopy and vegetation variables, the aquifer, albedo
+   history, phenology, and accumulators — is serialized at the model's working
+   precision to ``<chkfile>/noahmp_restart/Level_<lev>.nc`` using
+   ``NoahmpWriteRestart``/``NoahmpReadRestart``. Each local block writes its
+   tile into the global-domain NetCDF file collectively.
+
+On restart, ERF first cold-initializes the land state from the WRF input file
+and tables (as it would for a fresh run) and then overwrites it with the
+checkpointed state; Noah-MP's per-step input transfer pulls the restored state
+into the physics on the first ``Advance``.
+
+.. note::
+
+   These per-level files (``lsm_step`` and ``noahmp_restart/``) are written into
+   the checkpoint directory and are not AMReX MultiFabs. If you copy or archive a
+   checkpoint manually, make sure these are included.
+
+.. note::
+
+   **Legacy checkpoints.** Checkpoints written before this capability was added
+   do not contain the ``lsm_step`` file or the ``noahmp_restart`` directory. ERF
+   detects their absence and falls back to the previous behavior — the substep
+   counter resets to zero and the Noah-MP state is cold-initialized from the WRF
+   input — printing a warning that the restarted land trajectory will differ from
+   a cold start. Such restarts are therefore not bitwise reproducible.
 
 Generating Fortran–C++ Bindings using CodeScribe
 ================================================
@@ -153,12 +215,13 @@ model (e.g., OpenAI, Argo, etc.). Tutorials are available at
        -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
-3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP** directory:
+3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP** directory.
+   Note that the interface specification for this directory lives under ``specs/``:
 
 .. code-block:: bash
 
    code-scribe update ERF_NOAHMP.cpp \
-       -p prompts/noahmpio_update.toml \
+       -p specs/noahmpio_update.toml \
        -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
