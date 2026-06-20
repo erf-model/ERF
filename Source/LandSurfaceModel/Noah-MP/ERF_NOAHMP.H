@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <limits>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -197,16 +198,19 @@ public:
         return varIdx;
     }
 
-    // Expose NoahMP itimestep so it can be checkpointed and restored on restart
+    // Checkpoint/restore the NoahMP substep counter. Uses the class member
+    // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on
+    // land-free ranks).
     int
     Get_LSM_Step () const override
     {
-        return noahmpio_vect.empty() ? 0 : noahmpio_vect[0].itimestep;
+        return m_itimestep;
     }
 
     void
     Set_LSM_Step (int step) override
     {
+        m_itimestep = step;
         for (auto& noahmpio : noahmpio_vect) {
             noahmpio.itimestep = step;
         }
@@ -259,6 +263,15 @@ private:
 
     // timestep
     amrex::Real m_dt;
+
+    // Authoritative NoahMP substep counter, kept on the class so the firing
+    // decision in Advance_With_State is identical on every rank (including
+    // land-free ranks, whose noahmpio_vect is empty).
+    int m_itimestep = 0;
+
+    // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
+    // decision is well-defined on land-free ranks too.
+    amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;

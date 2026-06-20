@@ -1,6 +1,7 @@
 
 #include<iostream>
 #include<string>
+#include<limits>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -106,8 +107,11 @@ NOAHMP::Init (const int& lev,
 
     Print() << "Noah-MP initialization started" << std::endl;
 
-    // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size(), lev);
+    // Size noahmpio_vect to the local blocks (boxes). A rank owning no boxes
+    // leaves it empty and relies on the class-level m_itimestep/m_dtbl instead.
+    if (cons_in.local_size() > 0) {
+        noahmpio_vect.resize(cons_in.local_size(), lev);
+    }
 
     // Allocate pinned buffer space for all the boxes
     noahmp_input_tmp.resize(cons_in.local_size());
@@ -214,7 +218,20 @@ NOAHMP::Init (const int& lev,
         Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
         noahmpio->WriteLand(0);
     }
-    AMREX_ALWAYS_ASSERT(m_dt <= noahmpio_vect[0].DTBL);
+
+    // Broadcast DTBL and the initial substep counter to every rank so the firing
+    // decision in Advance_With_State is identical everywhere. Land-free ranks use
+    // sentinels that lose the max-reduction to any real value.
+    m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<Real>::lowest()
+                                        : static_cast<Real>(noahmpio_vect[0].DTBL);
+    m_itimestep = noahmpio_vect.empty() ? std::numeric_limits<int>::lowest()
+                                        : noahmpio_vect[0].itimestep;
+    ParallelDescriptor::ReduceRealMax(m_dtbl);
+    ParallelDescriptor::ReduceIntMax(m_itimestep);
+
+    // Guard against a degenerate decomposition in which no rank owns a land box.
+    AMREX_ALWAYS_ASSERT(m_dtbl > Real(0.0));
+    AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
 
     Print() << "Noah-MP initialization completed" << std::endl;
 
@@ -239,9 +256,14 @@ NOAHMP::Advance_With_State (const int& lev,
                             const Real& dt,
                             const int& nstep)
 {
-    // Verify we need to take another LSM step
-    Real NOAH_time = static_cast<Real>(noahmpio_vect[0].itimestep-1) * static_cast<Real>(noahmpio_vect[0].DTBL);
+    // Verify we need to take another LSM step. Use the class-level counter/dtbl
+    // (valid on land-free ranks) so every rank decides identically -- the
+    // FillBoundary at the end of this routine is collective.
+    Real NOAH_time = static_cast<Real>(m_itimestep-1) * m_dtbl;
     if (elapsed_time < NOAH_time) { return; }
+
+    // Advance the counter once per firing, in lockstep on every rank.
+    m_itimestep += 1;
 
     Box domain = m_geom.Domain();
 
@@ -330,7 +352,8 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Call the noahmpio driver code. This runs the land model forcing for
         // each object in noahmpio_vect that represent a block in the domain.
-        noahmpio->itimestep += 1;
+        // Mirror the authoritative counter into each block.
+        noahmpio->itimestep = m_itimestep;
         noahmpio->DriverMain();
 
         // Copy results from NoahmpIO back to temporary arrays
