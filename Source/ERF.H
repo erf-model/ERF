@@ -144,6 +144,10 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Tag cells in a given box
+    void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
+    void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const amrex::Real time);
+
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
