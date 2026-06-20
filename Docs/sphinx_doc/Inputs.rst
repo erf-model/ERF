@@ -464,15 +464,15 @@ List of Parameters
 |                                     | each RK stage?       | "None"         | compressible,       |
 |                                     |                      |                | "None" if anelastic |
 +-------------------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true                |
-|                                     | solve for diffusion  |                |                     |
+| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compressible|
+|                                     | solve for diffusion  |                | false if anelastic  |
 |                                     | of u, v, theta, KE,  |                |                     |
 |                                     | and qv with default  |                |                     |
 |                                     | time-centering in    |                |                     |
 |                                     | each stage           |                |                     |
 +-------------------------------------+----------------------+----------------+---------------------+
 | **erf.vert_implicit_fac**           | How much implicit    | Real >= 0      | 1.0, 1.0, 0.0       |
-|                                     | vertical diffusion   | (explicit) and | (fully explicit)    |
+|                                     | vertical diffusion   | (explicit) and |                     |
 |                                     | to include in each   | <= 1 (implicit)|                     |
 |                                     | RK stage?            |                |                     |
 |                                     |                      |                |                     |
