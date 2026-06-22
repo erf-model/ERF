@@ -41,6 +41,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                               Vector<Vector<FArrayBox>>& bdy_data_ylo,
                               Vector<Vector<FArrayBox>>& bdy_data_yhi,
                               std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                              const Real& c_p,
                               const Real& rdOcp)
 {
     BL_PROFILE_REGION("erf_add_moist_nudging_terms()");
@@ -207,7 +208,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                   width, dx, ProbLo, ProbHi, F1,
                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                  cons_arr, src_arr, rdOcp);
+                                  cons_arr, src_arr, c_p, rdOcp);
    } // mfi
 }
 #endif

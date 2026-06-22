@@ -121,6 +121,7 @@
         {
             Real bdy_factor = solverChoice.bdy_nudge_factor;
             Real l_rdOcp    = solverChoice.rdOcp;
+            Real l_c_p      = solverChoice.c_p;
             int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             AMREX_ALWAYS_ASSERT(solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
                                 solverChoice.moisture_type != MoistureType::SAM_NoIce);
@@ -129,7 +130,7 @@
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    m_r2d, l_rdOcp);
+                                    m_r2d, l_c_p, l_rdOcp);
         }
 #endif
 

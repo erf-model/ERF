@@ -169,7 +169,8 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
                                          std::unique_ptr<ReadBndryPlanes>& m_r2d,
-                                         amrex::Real rdOcp);
+                                         const amrex::Real& c_p,
+                                         const amrex::Real& rdOcp);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
@@ -240,7 +241,8 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& arr_yhi,
                             const amrex::Array4<const amrex::Real>& data_arr,
                             const amrex::Array4<amrex::Real>& rhs_arr,
-                            const amrex::Real rdOcp)
+                            const amrex::Real& c_p,
+                            const amrex::Real& rdOcp)
 {
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
@@ -248,8 +250,8 @@ realbdy_compute_relaxation (const int& icomp,
 
     // These are defined in ERF_Constants.H
     amrex::Real l_rdOcp  = rdOcp;
-    amrex::Real cond_fac = lcond / rdOcp; // condensation
-    amrex::Real  sub_fac = lsub  / rdOcp;  // sublimation
+    amrex::Real cond_fac = lcond / c_p; // condensation
+    amrex::Real  sub_fac = lsub  / c_p;  // sublimation
 
     int nq = num_var;
 
