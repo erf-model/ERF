@@ -111,7 +111,8 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
+                         std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                         const amrex::Real& rdOcp);
 #endif
 
 void make_mom_sources (amrex::Real time,
