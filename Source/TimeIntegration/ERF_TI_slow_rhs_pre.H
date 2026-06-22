@@ -354,13 +354,14 @@
                 //           start_bdy_time and final_bdy_time are total time
                 //
                 Real total_time = start_time + old_stage_time;
+                Real l_rdOcp    = solverChoice.rdOcp;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
                                                    bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d, solverChoice.rdOcp);
+                                                   m_r2d, l_rdOcp);
             }
         }
 #endif
