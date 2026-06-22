@@ -204,7 +204,7 @@ public:
     Lsm_Set_Lev0_Flux_Ptr (const int& varIdx,
                            amrex::MultiFab* lev0_flux_ptr) override
     {
-        lsm_lev0_flux[varIdx] = std::make_shared(lev0_flux_ptr);
+        lsm_lev0_flux[varIdx] = lev0_flux_ptr;
     }
 
 private:
@@ -260,7 +260,7 @@ private:
     amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_fab_flux;
 
     // LSM flux variables at level 0
-    amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
+    amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;

@@ -248,19 +248,32 @@ NOAHMP::Advance_With_State (const int& lev,
                             const int& nstep)
 {
     if (lev>0) {
-        // NOTE: This will interpolate water regions where the flux data is
-        //       has a bogus value of -9999. Some sanitizing of the input
-        //       crse data or the output fine data is needed.
-
-        // Interpolate from lev 0 to obtain the lsm fluxes
         for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
+            // Interpolate from lev 0 to obtain the lsm fluxes
             InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
                                   IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                                   *lsm_lev0_flux[ivar], 0, 0, 1,
                                   m_geom0, m_geom,
                                   m_refRatio, &cell_cons_interp,
                                   m_domain_bcs_type, BCVars::cons_bc);
-        }
+
+            // NOTE: The above interpolation over water regions will touch cells that
+            //       have a bogus value of "lsm_flux_undefined". Here, we sanitize the
+            //       output by checking the coarse data.
+            IntVect refRatio = m_refRatio;
+            for (MFIter mfi(*lsm_fab_flux[ivar]); mfi.isValid(); ++mfi) {
+                Box vbx = mfi.validbox();
+                const Array4<      Real>& fine_arr = lsm_fab_flux[ivar]->array(mfi);
+                const Array4<const Real>& crse_arr = lsm_lev0_flux[ivar]->const_array(mfi);
+                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int ic = i/refRatio[0];
+                    int jc = j/refRatio[1];
+                    int kc = k/refRatio[2];
+                    if (crse_arr(ic,jc,kc) == lsm_flux_undefined) { fine_arr(i,j,k) = lsm_flux_undefined; }
+                });
+            } //mfi
+        } // ivar
     } else {
         // Verify we need to take another LSM step
         Real NOAH_time = static_cast<Real>(noahmpio_vect[0].itimestep-1) * static_cast<Real>(noahmpio_vect[0].DTBL);
