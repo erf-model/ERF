@@ -5,6 +5,8 @@
 #include <vector>
 #include <memory>
 
+#include <AMReX_Interpolater.H>
+#include <AMReX_FillPatchUtil.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
