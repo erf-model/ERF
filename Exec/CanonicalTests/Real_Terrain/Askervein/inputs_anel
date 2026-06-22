@@ -11,10 +11,10 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo        = -3000  -3000.  0.
 geometry.prob_hi        =  3000   3000.  440.   # uniform computational grid (physical zhi ~ 770 m due to stretching)
-amr.n_cell              =  300    300    22     # stretching ratio: 1.05
+#amr.n_cell              =  300    300    22     # stretching ratio: 1.05
 amr.n_cell              =  300    300    18     # stretching ratio: 1.08
 
-erf.grid_stretching_ratio = 1.05
+#erf.grid_stretching_ratio = 1.05
 erf.grid_stretching_ratio = 1.08
 erf.initial_dz = 20.0
 
@@ -69,7 +69,7 @@ erf.cfl = 0.45
 erf.sum_interval    = 1       # timesteps between computing mass
 erf.v               = 1       # verbosity in ERF.cpp
 amr.v               = 1       # verbosity in Amr.cpp
-erf.mg_v            = 1       # linear solver verbosity
+#erf.mg_v            = 1       # linear solver verbosity
 erf.mg_v            = 2       # linear solver verbosity
 
 # REFINEMENT / REGRIDDING
