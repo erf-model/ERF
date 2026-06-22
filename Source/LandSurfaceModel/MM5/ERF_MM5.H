@@ -48,6 +48,9 @@ public:
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
+          const amrex::Geometry& /*geom0*/,
+          amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+          amrex::IntVect& /*refRatio*/,
           const amrex::Real& dt) override;
 
     // Wrapper to do all the updating

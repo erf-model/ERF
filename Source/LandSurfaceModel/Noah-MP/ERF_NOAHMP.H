@@ -104,6 +104,9 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
+          const amrex::Geometry& geom0,
+          amrex::Vector<amrex::BCRec>& domain_bcs_type,
+          amrex::IntVect& refRatio,
           const amrex::Real& dt) override;
 
     // Wrapper to do all the updating
@@ -197,6 +200,13 @@ public:
         return varIdx;
     }
 
+    void
+    Lsm_Set_Lev0_Flux_Ptr (const int& varIdx,
+                           amrex::MultiFab* lev0_flux_ptr) override
+    {
+        lsm_lev0_flux[varIdx] = std::make_shared(lev0_flux_ptr);
+    }
+
 private:
     // number of lsm data variables
     int m_lsm_data_size = LsmData_NOAHMP::NumVars;
@@ -219,8 +229,17 @@ private:
     // geometry for atmosphere
     amrex::Geometry m_geom;
 
+    // geometry for atmosphere at lev==0
+    amrex::Geometry m_geom0;
+
     // geometry for lsm
     amrex::Geometry m_lsm_geom;
+
+    // refinement ratio
+    amrex::IntVect m_refRatio;
+
+    // domain bc types
+    amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
     // timestep
     amrex::Real m_dt;
@@ -237,8 +256,11 @@ private:
     // LSM data variables
     amrex::Array<FabPtr, LsmData_NOAHMP::NumVars> lsm_fab_data;
 
-    // LSM data variables
+    // LSM flux variables
     amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_fab_flux;
+
+    // LSM flux variables at level 0
+    amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;

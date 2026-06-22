@@ -7,6 +7,9 @@ void
 SLM::Init (const int& /*lev*/,
            const MultiFab& cons_in,
            const Geometry& geom,
+           const Geometry& /*geom0*/,
+           Vector<BCRec>& /*domain_bcs_type*/,
+           IntVect& /*refRatio*/,
            const Real& dt)
 {
     m_dt = dt;
