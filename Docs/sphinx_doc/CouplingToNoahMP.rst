@@ -355,13 +355,14 @@ Follow the instructions in the `CodeScribe repository <https://github.com/akashd
 to configure your LLM environment. You will need API access for your preferred
 model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 `https://github.com/akashdhruv/codescribe-tutorial <https://github.com/akashdhruv/codescribe-tutorial>`_.
-The interface specification lives under
-**Source/LandSurfaceModel/Noah-MP/specs/noahmpio_update.toml**:
+The driver's design specifications — the component-indexed field enums, the
+GPU-aware state exchange, the lifecycle, and the contract a code-update must
+respect — live as developer specs under
+**Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``):
 
 .. code-block:: bash
 
    code-scribe update ERF_NOAHMP.cpp ERF_NOAHMP.H \
-       -p specs/noahmpio_update.toml \
        -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
