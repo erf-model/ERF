@@ -206,7 +206,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                   width, dx, ProbLo, ProbHi, F1,
                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                  cons_arr, src_arr);
+                                  cons_arr, src_arr, solverChoice,rdOcp);
    } // mfi
 }
 #endif
