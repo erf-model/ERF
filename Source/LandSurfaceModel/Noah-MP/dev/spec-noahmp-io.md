@@ -66,10 +66,14 @@ restored state into the physics on the first `Advance`.
 ## 2. Per-step land output
 
 `Plot_Landfile(nstep)` fans out `noahmpio.WriteLand(nstep)` over the boxes to emit
-the per-timestep NetCDF land diagnostics. The output cadence is governed by
-`erf.plot_int_1`, parsed into `m_plot_int_1` in `Init()`. The initial land file is
-written during `Init()` itself with tag `0` (`WriteLand(0)`). Which fields appear
-in that file is controlled Fortran-side in `NoahmpWriteLandMod.F90`.
+the per-timestep NetCDF land diagnostics. The cadence is owned by the caller, not
+the driver: ERF's time loop calls `Plot_Landfile` for every level whenever it
+writes the level-1 3-D plotfile (governed by `erf.plot_int_1`/`erf.plot_per_1`;
+see `ERF.cpp`). `Init()` does `pp.query("plot_int_1", m_plot_int_1)`, but
+`m_plot_int_1` is currently unused — the driver does not gate output itself. The
+initial land file is written during `Init()` itself with tag `0` (`WriteLand(0)`).
+Which fields appear in that file is controlled Fortran-side in
+`NoahmpWriteLandMod.F90`.
 
 ## 3. Static inputs read during `Init()`
 

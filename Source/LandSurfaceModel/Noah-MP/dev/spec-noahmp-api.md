@@ -46,9 +46,11 @@ These are the fields ERF's other components read from / write to the LSM, via th
 
 Direction matters: some `LsmData` entries flow *into* Noah-MP as forcing
 (`sw_flux_dn`, `lw_flux_dn`, `cos_zenith_angle`), the rest flow *out* of Noah-MP
-as results (`t_sfc`, `sfc_emis`, albedos). Radiation runs first each step, so the
-forcing fields are pre-seeded to sane values in `Init()` (`t_sfc = 300 K`,
-`sfc_emis = 0.9`, albedos `= 0.06`).
+as results (`t_sfc`, `sfc_emis`, albedos). Radiation runs first each step and
+reads the *result* fields before Noah-MP has produced them, so those are
+pre-seeded to sane values in `Init()` (`t_sfc = 300 K`, `sfc_emis = 0.9`,
+albedos `= 0.06`); the remaining fields, including the forcing fields, are left
+at zero.
 
 Each enum has a `NumVars` sentinel. `Init()` builds parallel
 `LsmDataMap`/`LsmDataName` (and the flux equivalents) so ERF can look fields up
@@ -97,16 +99,16 @@ how these components are written and read live in
    x/y decomposition as `cons_in` (every box ranged to `k = 0`).
 3. **Registers the coupling fields** — fills `LsmDataMap`/`LsmDataName` and the
    flux equivalents, allocates `lsm_fab_data[]` / `lsm_fab_flux[]`, and seeds the
-   radiation-forcing fields (§2a).
+   result fields radiation reads before Noah-MP has produced them (§2a).
 4. **Sizes the per-box state** — `noahmpio_vect.resize(local_size, lev)` (a rank
    owning no boxes leaves it empty), and allocates the pinned staging buffers
    `noahmp_input_tmp[]` / `noahmp_output_tmp[]` (one per box; see
    [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md)).
-5. **Initializes each `NoahmpIO_type`** in the boundary-box loop: set the
-   domain/memory/tile bounds, `ScalarInitDefault()`, `ReadNamelist()`,
-   `ReadLandHeader()`, `VarInitDefault()`, `ReadTable()`, `ReadLandMain()`,
-   `InitMain()`, then `WriteLand(0)`. (Method semantics belong to the submodule's
-   API spec.)
+5. **Initializes each `NoahmpIO_type`** in the boundary-box loop:
+   `ScalarInitDefault()`, `ReadNamelist()`, `ReadLandHeader()`, set the
+   domain/memory/tile bounds, `VarInitDefault()`, `ReadTable()`,
+   `ReadLandMain()`, `InitMain()`, then `WriteLand(0)`. (Method semantics belong
+   to the submodule's API spec.)
 6. **Broadcasts the firing parameters** so the schedule is well-defined on every
    rank, including land-free ranks. `m_dtbl` (Noah-MP's `DTBL`) and `m_itimestep`
    are reduced with `ReduceRealMax`/`ReduceIntMax`; land-free ranks seed
