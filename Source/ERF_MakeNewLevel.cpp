@@ -777,16 +777,18 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
-        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                   Qr_prim[lev], z_phys_nd[lev],
-                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    if (m_SurfaceLayer != nullptr) {
+        if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+            int nlevs = finest_level+1;
+            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+                                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                       Qr_prim[lev], z_phys_nd[lev],
+                                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                       lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                       sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+        }
     }
 
     // ********************************************************************************************
