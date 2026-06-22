@@ -634,8 +634,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
                         stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
-                                                                  cons_arr, velx_arr, vely_arr,
-                                                                  umm_arr, um_arr, u_star_arr);
+                                                                     cons_arr, velx_arr, vely_arr,
+                                                                     umm_arr, um_arr, u_star_arr);
                     }
                     if (is_land_hi) {
                         stressx += myhalf * lsm_tau13_arr(i  ,j,0);

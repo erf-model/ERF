@@ -259,12 +259,19 @@ NOAHMP::Advance_With_State (const int& lev,
 
             // NOTE: The above interpolation over water regions will touch cells that
             //       have a bogus value of "lsm_flux_undefined". Here, we sanitize the
-            //       output by checking the coarse data.
-            IntVect refRatio = m_refRatio;
+            //       output by enforcing a bogus value, inherited from the coarse data,
+            //       so that the surface layer will cycle the flux.
+            IntVect refRatio   = m_refRatio;
+            const IntVect ngc  = lsm_lev0_flux[ivar]->nGrowVect();
+            const BoxArray baf = lsm_fab_flux[ivar]->boxArray();
+            const DistributionMapping dmf = lsm_fab_flux[ivar]->DistributionMap();
+            MultiFab mf_crse_patch(amrex::coarsen(baf,m_refRatio), dmf, 1, IntVect(1,1,0));
+            mf_crse_patch.ParallelCopy(*lsm_lev0_flux[ivar], 0, 0, 1,
+                                       ngc, ngc, m_geom0.periodicity());
             for (MFIter mfi(*lsm_fab_flux[ivar]); mfi.isValid(); ++mfi) {
                 Box vbx = mfi.validbox();
                 const Array4<      Real>& fine_arr = lsm_fab_flux[ivar]->array(mfi);
-                const Array4<const Real>& crse_arr = lsm_lev0_flux[ivar]->const_array(mfi);
+                const Array4<const Real>& crse_arr = mf_crse_patch.const_array(mfi);
                 ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     int ic = i/refRatio[0];
