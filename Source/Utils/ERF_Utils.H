@@ -238,15 +238,17 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& arr_ylo,
                             const amrex::Array4<const amrex::Real>& arr_yhi,
                             const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
+                            const amrex::Array4<amrex::Real>& rhs_arr,
+                            const amrex::Real rdOcp)
 {
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
     amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
 
     // These are defined in ERF_Constants.H
-    amrex::Real cond_fac = lcond; // condensation
-    amrex::Real  sub_fac = lsub;  // sublimation
+    amrex::Real l_rdOcp  = rdOcp;
+    amrex::Real cond_fac = lcond / rdOcp; // condensation
+    amrex::Real  sub_fac = lsub  / rdOcp;  // sublimation
 
     int nq = num_var;
 
@@ -265,7 +267,11 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-	if (icomp == RhoQ1_comp) {
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+
             // qv
             amrex::Real delta = arr_xlo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
@@ -273,21 +279,21 @@ realbdy_compute_relaxation (const int& icomp,
             // qc and heat source term due to evaporation
             delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
             rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
             for (int n = 2; n < nq; n++) {
                 delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
                 rhs_arr(i,j,k,icomp+n) += Factor*delta;
                 if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
                 }
             } // n
-	} else {
+        } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xlo(i,j,k,n) - data_arr(i,j,k,n+icomp);
                 rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
-	}
+        }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -303,7 +309,11 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-	if (icomp == RhoQ1_comp) {
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+
             // qv
             amrex::Real delta = arr_xhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
@@ -311,21 +321,21 @@ realbdy_compute_relaxation (const int& icomp,
             // qc and heat source term due to evaporation
             delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
             rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
             for (int n = 2; n < nq; n++) {
                 delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
                 rhs_arr(i,j,k,icomp+n) += Factor*delta;
                 if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
                 }
             } // n
-	} else {
+        } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
                 rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
-	}
+        }
     });
 
     amrex::ParallelFor( bx_ylo, bx_yhi,
@@ -337,7 +347,10 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
         amrex::Real Factor = eta*eta * F1;
 
-	if (icomp == RhoQ1_comp) {
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
             // qv
             amrex::Real delta = arr_ylo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
@@ -345,21 +358,21 @@ realbdy_compute_relaxation (const int& icomp,
             // qc and heat source term due to evaporation
             delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
             rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
             for (int n = 2; n < nq; n++) {
                 delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
                 rhs_arr(i,j,k,icomp+n) += Factor*delta;
                 if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
                 }
             } // n
-	} else {
+        } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_ylo(i,j,k,n) - data_arr(i,j,k,n+icomp);
                 rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
-	}
+        }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -369,7 +382,10 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
         amrex::Real Factor = eta*eta * F1;
 
-	if (icomp == RhoQ1_comp) {
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
             // qv
             amrex::Real delta = arr_yhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
@@ -377,16 +393,16 @@ realbdy_compute_relaxation (const int& icomp,
             // qc and heat source term due to evaporation
             delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
             rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac;
+            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
             for (int n = 2; n < nq; n++) {
                 delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
                 rhs_arr(i,j,k,icomp+n) += Factor*delta;
                 if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
                 }
             } // n
-	} else {
+        } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_yhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
                 rhs_arr(i,j,k,n+icomp) += Factor*delta;
