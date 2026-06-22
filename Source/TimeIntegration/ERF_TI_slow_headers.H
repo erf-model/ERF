@@ -13,7 +13,6 @@
 #include "ERF_Advection.H"
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
-#include "ERF_PlaneAverage.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
@@ -70,7 +69,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab* zmom_crse_rhs,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_EB,
+                      amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& Tau_EB,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,
@@ -147,18 +146,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
-#if defined(ERF_USE_NETCDF)
-                       const bool& moist_zero,
-                       const amrex::Real& old_stage_time_total,
-                       const amrex::Real& start_bdy_time,
-                       const amrex::Real& final_bdy_time,
-                       const amrex::Real& bdy_time_interval,
-                       int  width,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-#endif
 #ifdef ERF_USE_SHOC
                       std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif

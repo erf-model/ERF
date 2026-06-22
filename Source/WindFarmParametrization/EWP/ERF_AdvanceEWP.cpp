@@ -38,7 +38,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-     const int n_spec_table = wind_speed.size();
+     const int n_spec_table = static_cast<int>(wind_speed.size());
 
      Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
      Gpu::DeviceVector<Real> d_power(wind_speed.size());
@@ -171,7 +171,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
 
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
-        const int n_spec_table = d_wind_speed.size();
+        const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -191,12 +191,12 @@ EWP::source_terms_cellcentered (const Geometry& geom,
 
             Real L_wake = std::pow(dx[0]*dx[1],myhalf)/two;
             Real sigma_e = Vabs/(three*K_turb*L_wake)*
-                           (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - std::pow(sigma_0,3));
+                           (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - amrex::Math::powi<3>(sigma_0));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*std::pow(d_rotor_rad,2)*
-                        std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*
-                        std::exp(-myhalf*std::pow((z - d_hub_height)/sigma_e,2));
+            Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
+                        amrex::Math::powi<2>(Vabs)/(dx[0]*dx[1]*sigma_e)*
+                        std::exp(-myhalf*amrex::Math::powi<2>((z - d_hub_height)/sigma_e));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = C_TKE*zero;

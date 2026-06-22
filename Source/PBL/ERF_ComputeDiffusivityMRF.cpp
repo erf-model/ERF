@@ -117,7 +117,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Fallback to first cell
             const Real pblh_emp = (use_terrain_fitted_coords)
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : gdata.ProbLo(2) + myhalf * gdata.CellSize(2);
+                                : myhalf * gdata.CellSize(2);
 
             // Initial PBL Height
             // Avoiding detailed interpolation here
@@ -150,7 +150,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
@@ -168,7 +168,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
@@ -194,7 +194,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Fallback to first cell
                 pblh_corr_arr(i, j, 0) = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                       : gdata.ProbLo(2) + myhalf * gdata.CellSize(2);
+                                       : myhalf * gdata.CellSize(2);
                      pbli_arr(i, j, 0) = klo + 1;
             }
 
@@ -228,7 +228,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         {
             const Real zval = (use_terrain_fitted_coords)
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
-                            : gdata.ProbLo(2) + (k + myhalf) * gdata.CellSize(2);
+                            : (k + myhalf) * gdata.CellSize(2);
             const Real rho = cell_data(i, j, k, Rho_comp);
             const Real met_h_zeta = (use_terrain_fitted_coords)
                                   ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;

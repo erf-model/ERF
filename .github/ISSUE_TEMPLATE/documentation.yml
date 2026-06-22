@@ -1,0 +1,26 @@
+name: Documentation issue
+description: Report missing, confusing, or incorrect documentation
+title: "[Docs]: "
+labels: ["documentation"]
+
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Affected page or section
+      placeholder: "URL, file path, or heading"
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is unclear or incorrect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional, but very helpful.

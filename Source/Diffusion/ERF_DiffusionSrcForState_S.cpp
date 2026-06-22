@@ -99,7 +99,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -143,7 +143,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -186,7 +186,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -239,10 +239,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -269,7 +273,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -321,7 +325,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
@@ -372,7 +376,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -430,17 +434,17 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
-            }
-            // /*
-            else if ((SurfLayer_on_xlo || SurfLayer_on_xhi || SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
+            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi || SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = 0.0;
-            }
-            // */
-            else {
+            } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
 
@@ -598,10 +602,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -757,10 +765,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }

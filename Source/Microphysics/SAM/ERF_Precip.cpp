@@ -1,5 +1,6 @@
 #include "ERF_SAM.H"
 #include "ERF_EOS.H"
+#include "ERF_SAMUtils.H"
 
 using namespace amrex;
 
@@ -9,8 +10,7 @@ using namespace amrex;
 void
 SAM::Precip (const SolverChoice& sc)
 {
-
-    if (sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
+    if (sam_is_no_precip(sc.moisture_type)) return;
 
     Real powr1 = (three + b_rain) / Real(4.0);
     Real powr2 = (Real(5.0) + b_rain) / Real(8.0);
@@ -46,14 +46,24 @@ SAM::Precip (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
-    auto domain = m_geom.Domain();
-    int i_lo = domain.smallEnd(0);
-    int i_hi = domain.bigEnd(0);
-    int j_lo = domain.smallEnd(1);
-    int j_hi = domain.bigEnd(1);
-
+    const SAMPrecipConfig precip_config{
+        SAM_moisture_type,
+        true,
+        dtn,
+        rdOcp,
+        fac_cond,
+        fac_fus,
+        fac_sub,
+        eps,
+        powr1,
+        pows1,
+        powg1,
+        powr2,
+        pows2,
+        powg2};
     // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
@@ -72,175 +82,53 @@ SAM::Precip (const SolverChoice& sc)
         auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
 
         auto tbx = mfi.tilebox();
-        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
-        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
-        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
-        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //------- Autoconversion/accretion
-            Real omn, omp, omg;
-            Real qsat, qsatw, qsati;
+            SAMCellState state{};
+            state.rho = rho_array(i,j,k);
+            state.theta = theta_array(i,j,k);
+            state.tabs = tabs_array(i,j,k);
+            state.pres_mbar = pres_array(i,j,k);
+            state.qv = qv_array(i,j,k);
+            state.qcl = qcl_array(i,j,k);
+            state.qci = qci_array(i,j,k);
+            state.qn = qn_array(i,j,k);
+            state.qt = qt_array(i,j,k);
+            state.qpr = qpr_array(i,j,k);
+            state.qps = qps_array(i,j,k);
+            state.qpg = qpg_array(i,j,k);
+            state.qp = qp_array(i,j,k);
 
-            Real qcc, qii, qpr, qps, qpg;
-            Real dprc, dpsc, dpgc;
-            Real dpsi, dpgi;
+            const SAMCoefficientRow coeffs{
+                accrrc_t(k),
+                accrsi_t(k),
+                accrsc_t(k),
+                coefice_t(k),
+                evaps1_t(k),
+                evaps2_t(k),
+                accrgi_t(k),
+                accrgc_t(k),
+                evapg1_t(k),
+                evapg2_t(k),
+                evapr1_t(k),
+                evapr2_t(k)};
 
-            Real dqc, dqca, dqi, dqia, dqp;
-            Real dqpr, dqps, dqpg;
+            // The scalar helper owns the local held-pressure source update;
+            // this public kernel handles state staging and coefficient lookup.
+            state = sam_precip_cell_update(state, coeffs, precip_config);
 
-            Real auto_r, autos;
-            Real accrcr, accrcs, accris, accrcg, accrig;
-
-            // Work to be done for autoc/accr or evap
-            if (qn_array(i,j,k)+qp_array(i,j,k) > zero) {
-                if (SAM_moisture_type == 2) {
-                    omn = Real(1);
-                    omp = Real(1);
-                    omg = Real(0);
-                } else {
-                    omn = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tbgmin)*a_bg));
-                    omp = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tprmin)*a_pr));
-                    omg = std::max(Real(0),std::min(Real(1),(tabs_array(i,j,k)-tgrmin)*a_gr));
-                }
-
-                qcc = qcl_array(i,j,k);
-                qii = qci_array(i,j,k);
-
-                qpr = qpr_array(i,j,k);
-                qps = qps_array(i,j,k);
-                qpg = qpg_array(i,j,k);
-
-                //==================================================
-                // Autoconversion (A30/A31) and accretion (A27)
-                //==================================================
-                if (qn_array(i,j,k) > zero) {
-                    accrcr = zero;
-                    accrcs = zero;
-                    accris = zero;
-                    accrcg = zero;
-                    accrig = zero;
-
-                    if (qcc > qcw0) {
-                        auto_r = alphaelq;
-                    } else {
-                        auto_r = zero;
-                    }
-
-                    if (qii > qci0) {
-                        autos = betaelq*coefice_t(k);
-                    } else {
-                        autos = zero;
-                    }
-
-                    if (omp > Real(0.001)) {
-                        accrcr = accrrc_t(k);
-                    }
-
-                    if (omp < Real(0.999) && omg < Real(0.999)) {
-                        accrcs = accrsc_t(k);
-                        accris = accrsi_t(k);
-                    }
-
-                    if (omp < Real(0.999) && omg > Real(0.001)) {
-                        accrcg = accrgc_t(k);
-                        accrig = accrgi_t(k);
-                    }
-
-                    // Autoconversion & accretion (sink for cloud comps)
-                    dqca = dtn * auto_r  * (qcc-qcw0);
-                    dprc = dtn * accrcr * qcc * std::pow(qpr, powr1);
-                    dpsc = dtn * accrcs * qcc * std::pow(qps, pows1);
-                    dpgc = dtn * accrcg * qcc * std::pow(qpg, powg1);
-
-                    dqia = dtn * autos  * (qii-qci0);
-                    dpsi = dtn * accris * qii * std::pow(qps, pows1);
-                    dpgi = dtn * accrig * qii * std::pow(qpg, powg1);
-
-                    // Rescale sinks to avoid negative cloud fractions
-                    dqc  = dqca + dprc + dpsc + dpgc;
-                    dqi  = dqia + dpsi + dpgi;
-                    Real scalec = std::min(qcl_array(i,j,k),dqc) / (dqc + eps);
-                    Real scalei = std::min(qci_array(i,j,k),dqi) / (dqi + eps);
-                    dqca *= scalec; dprc *= scalec; dpsc *= scalec; dpgc *= scalec;
-                    dqia *= scalei; dpsi *= scalei; dpgi *= scalei;
-                    dqc   = dqca + dprc + dpsc + dpgc;
-                    dqi   = dqia + dpsi + dpgi;
-
-                    // NOTE: Autoconversion of cloud water and ice are sources
-                    //       to qp, while accretion is a source to an individual
-                    //       precipitating component (e.g., qpr/qps/qpg). So we
-                    //       only split autoconversion with omega. The omega
-                    //       splitting does imply a latent heat source.
-
-                    // Partition formed precip componentss
-                    dqpr = (dqca + dqia) * omp + dprc;
-                    dqps = (dqca + dqia) * (one - omp) * (one - omg) + dpsc + dpsi;
-                    dqpg = (dqca + dqia) * (one - omp) * omg         + dpgc + dpgi;
-
-                    // Update the primitive state variables
-                    qcl_array(i,j,k) -= dqc;
-                    qci_array(i,j,k) -= dqi;
-                    qpr_array(i,j,k) += dqpr;
-                    qps_array(i,j,k) += dqps;
-                    qpg_array(i,j,k) += dqpg;
-
-                    // Update the primitive derived vars
-                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
-                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                    // Update temperature
-                    tabs_array(i,j,k) += fac_fus * ( dqca * (one - omp) - dqia * omp );
-
-                    // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
-                }
-
-                //==================================================
-                // Evaporation (A24)
-                //==================================================
-                erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
-                erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
-                qsat = qsatw * omn + qsati * (one-omn);
-                if((qp_array(i,j,k) > zero) && (qv_array(i,j,k) < qsat)) {
-
-                    dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
-                    dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
-                    dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
-
-                    // NOTE: This is always a sink for precipitating comps
-                    //       since qv<qsat and thus (1 - qv/qsat)>zero If we are
-                    //       in a super-saturated state (qv>qsat) the Newton
-                    //       iterations in Cloud() will have handled condensation.
-                    dqpr *= dtn * (one - qv_array(i,j,k)/qsat);
-                    dqps *= dtn * (one - qv_array(i,j,k)/qsat);
-                    dqpg *= dtn * (one - qv_array(i,j,k)/qsat);
-
-                    // Limit to avoid negative moisture fractions
-                    dqpr = std::min(qpr_array(i,j,k),dqpr);
-                    dqps = std::min(qps_array(i,j,k),dqps);
-                    dqpg = std::min(qpg_array(i,j,k),dqpg);
-                    dqp  = dqpr + dqps + dqpg;
-
-                    // Update the primitive state variables
-                     qv_array(i,j,k) += dqp;
-                    qpr_array(i,j,k) -= dqpr;
-                    qps_array(i,j,k) -= dqps;
-                    qpg_array(i,j,k) -= dqpg;
-
-                    // Update the primitive derived vars
-                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                    // Update temperature
-                    tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
-
-                    // Update theta
-                    theta_array(i,j,k) = getThgivenTandP(tabs_array(i,j,k), Real(100.0)*pres_array(i,j,k), rdOcp);
-                }
-            }
+            theta_array(i,j,k) = state.theta;
+            tabs_array(i,j,k) = state.tabs;
+            qv_array(i,j,k) = state.qv;
+            qcl_array(i,j,k) = state.qcl;
+            qci_array(i,j,k) = state.qci;
+            qn_array(i,j,k) = state.qn;
+            qt_array(i,j,k) = state.qt;
+            qpr_array(i,j,k) = state.qpr;
+            qps_array(i,j,k) = state.qps;
+            qpg_array(i,j,k) = state.qpg;
+            qp_array(i,j,k) = state.qp;
         });
     }
 }

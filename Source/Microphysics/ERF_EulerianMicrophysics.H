@@ -11,6 +11,7 @@
 #include "ERF_Morrison.H"
 #include "ERF_WSM6.H"
 #include "ERF_SatAdj.H"
+#include "ERF_MoistNoCondensation.H"
 #include "ERF_Microphysics.H"
 
 /*! \brief Eulerian microphysics interface */
@@ -44,6 +45,8 @@ public:
             SetModel<WSM6>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
+        } else if (a_model_type == MoistureType::MoistNoCondensation) {
+            SetModel<MoistNoCondensation>();
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
         } else {
@@ -98,9 +101,10 @@ public:
 
     /*! \brief update ERF state variables from microphysics variables */
     void Update_State_Vars_Lev (const int& lev, /*!< AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab& z_phys_nd /*!< Nodal terrain heights */) override
     {
-        m_moist_model[lev]->Update_State_Vars(cons_in);
+        m_moist_model[lev]->Update_State_Vars(cons_in, z_phys_nd);
     }
 
     /*! \brief get pointer to a moisture variable */
@@ -120,6 +124,12 @@ public:
     int Get_Qstate_Moist_Size () override
     {
         return m_moist_model[0]->Qstate_Moist_Size();
+    }
+
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables that are number concentrations */
+    int Get_Qstate_Moist_NumConc_Size () override
+    {
+        return m_moist_model[0]->Qstate_Moist_NumConc_Size();
     }
 
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
@@ -157,13 +167,6 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model[a_lev]->Set_dzmin(dz_min);
-    }
-
-    /*! \brief Populates real_width in micro model for box limiting */
-    virtual void Set_RealWidth (const int a_lev,
-                                const int real_width) const override
-    {
-        m_moist_model[a_lev]->Set_RealWidth(real_width);
     }
 
 protected:

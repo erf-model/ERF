@@ -62,6 +62,8 @@ erf.Ce       = 0.93
 erf.Pr_t     = 0.3333
 erf.theta_ref = 290.0 # used in buoyancy term
 
+erf.tke_min = 0.0
+
 # INITIAL PROFILES
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding" # with linear wind profile

@@ -85,7 +85,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
-                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                       Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -145,7 +145,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_need_SmnSmn    = tc.use_keqn;
 
     const Real l_vert_implicit_fac = (solverChoice.implicit_thermal_diffusion) ?
-                                     solverChoice.vert_implicit_fac[nrk] : 0.0;
+                                     solverChoice.vert_implicit_fac[nrk] : zero;
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
 
@@ -224,7 +224,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
 #ifdef ERF_USE_SHOC
         if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23
+            // Zero out the surface stresses of tau13/tau23/hfx/qfx
             shoc_lev->set_diff_stresses();
         } else if (l_use_SurfLayer) {
             // Set surface shear stresses, update heat and moisture fluxes
@@ -259,8 +259,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer[Orientation(Direction::z,Orientation::low)]->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
                                                    Hfx1, Hfx2, Hfx3_EB,
-                                                   Q1fx1, Q1fx2, Q1fx3,
-                                                   ebfact);
+                                                   Q1fx1, Q1fx2, Q1fx3);
             }
         }
 #endif
@@ -516,10 +515,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
        tau31 = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
        tau32 = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
 
-        Array4<Real> tau_eb13{}, tau_eb23{};
-        if (l_use_eb && Tau_EB[EBTauType::tau_eb13] && Tau_EB[EBTauType::tau_eb23]) {
-            tau_eb13 = Tau_EB[EBTauType::tau_eb13]->array(mfi);
-            tau_eb23 = Tau_EB[EBTauType::tau_eb23]->array(mfi);
+        // EB surface layer fluxes
+        Array4<Real> u_tau_eb13, u_tau_eb23;
+        Array4<Real> v_tau_eb13, v_tau_eb23;
+        Array4<Real> w_tau_eb13, w_tau_eb23;
+        if (l_use_eb) {
+            EBChoice ebChoice = solverChoice.ebChoice;
+            if (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer) {
+                u_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+                u_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::xface]->array(mfi);
+                v_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::yface]->array(mfi);
+                v_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+                w_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::zface]->array(mfi);
+                w_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::zface]->array(mfi);
+            }
         }
 
         // Strain magnitude
@@ -747,7 +756,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     u, v, w,
                     tau11, tau22, tau33,
                     tau12, tau13, tau23,
-                    tau_eb13, tau_eb23,
+                    u_tau_eb13, u_tau_eb23, v_tau_eb13, v_tau_eb23, w_tau_eb13, w_tau_eb23,
                     dx, dxInv,
                     mf_mx, mf_ux, mf_vx,
                     mf_my, mf_uy, mf_vy,

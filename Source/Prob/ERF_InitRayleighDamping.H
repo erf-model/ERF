@@ -27,9 +27,11 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
         rayleigh_ptrs[Rayleigh::thetabar][k] = T_0;
     }
 
-    amrex::ParmParse pp("erf");
-    std::string prob_name; pp.get("prob_name",prob_name);
-    if (prob_name == "Moving Terrain") {
+    amrex::ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+
+    if (my_prob_name_ci == "moving terrain") {
         for (int k = 60; k <= khi; k++)
         {
             rayleigh_ptrs[Rayleigh::ubar][k]     = two;

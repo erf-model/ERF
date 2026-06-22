@@ -62,19 +62,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     subdomains.resize(lev+1);
-    if ( (lev == 0) || (
-         (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) &&
-         (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        //
-        // Create subdomains at each level within the domain such that
-        // 1) all boxes in a given subdomain are "connected"
-        // 2) no boxes in a subdomain touch any boxes in any other subdomain
-        //
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    //
+    // Create subdomains at each level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -299,12 +292,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if ( (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) ) {
-        BoxArray dom(geom[lev].Domain());
-        subdomains[lev].push_back(dom);
-    } else {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     if (lev == 0) init_bcs();
 
@@ -318,7 +306,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - Real(1.e200);
+    t_old[lev] = time - bogus_large_value;
 
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
@@ -432,7 +420,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         if (solverChoice.init_type == InitType::Metgrid) {
             init_from_metgrid(lev);
         } else if (solverChoice.init_type == InitType::WRFInput) {
-            init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+            init_from_wrfinput(lev, *mf_PSFC[lev]);
         }
         init_zphys(lev, time);
         update_terrain_arrays(lev);
@@ -452,6 +440,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     // so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // Populate dz_min for dynamically-created fine levels (non-terrain path).
+    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
+    dz_min[lev] = geom[lev].CellSize(2);
+    if ( SolverChoice::mesh_type != MeshType::ConstantDz && detJ_cc[lev] ) {
+        dz_min[lev] *= (*detJ_cc[lev]).min(0);
+    }
 #ifdef ERF_USE_NETCDF
     }
 #endif
@@ -562,9 +557,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if (solverChoice.anelastic[lev] == 1) {
-        make_subdomains(ba.simplified_list(), subdomains[lev]);
-    }
+    subdomains[lev].clear();
+    make_subdomains(ba.simplified_list(), subdomains[lev]);
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
@@ -693,7 +687,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that t_new = time here is elapsed time
     //
     t_new[lev] = time;
-    t_old[lev] = time - Real(1.e200);
+    t_old[lev] = time - bogus_large_value;
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -859,8 +853,10 @@ ERF::ClearLevel (int lev)
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
 
-    // Clears the flux register array
-    advflux_reg[lev]->reset();
+    // Clears the flux register array (only allocated for TwoWay coupling)
+    if (advflux_reg[lev]) {
+        advflux_reg[lev]->reset();
+    }
 
     // Clears the 2D arrays
     if (sst_lev[lev][0]) {
@@ -885,6 +881,20 @@ ERF::ClearLevel (int lev)
     if (cosPhi_m[lev]) {
         cosPhi_m[lev].reset();
     }
+
+#ifdef ERF_USE_FFT
+    // Clear any FFT solvers built at this level
+    if (m_3D_poisson.size() > lev) {
+        for (int n = 0; n < m_3D_poisson[lev].size(); n++) {
+            m_3D_poisson[lev][n].reset();
+        }
+    }
+    if (m_2D_poisson.size() > lev) {
+        for (int n = 0; n < m_2D_poisson[lev].size(); n++) {
+            m_2D_poisson[lev][n].reset();
+        }
+    }
+#endif
 }
 
 void

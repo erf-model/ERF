@@ -52,7 +52,6 @@ void ERF::advance_dycore (int level,
 
     DiffChoice dc    = solverChoice.diffChoice;
     TurbChoice tc    = solverChoice.turbChoice[level];
-    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse (base_state[level], make_alias, BaseState::p0_comp , 1);
@@ -84,7 +83,7 @@ void ERF::advance_dycore (int level,
     Real* d_sinesq_stag_at_lev = (use_rayleigh)  ? d_sinesq_stag_ptrs[level].data() : nullptr;
 
     Vector<Real*> d_sponge_ptrs_at_lev;
-    if(sc.sponge_type=="input_sponge")
+    if (SpongeChoice::sponge_type == SpongeType::Input_Sponge)
     {
         d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
         d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
@@ -328,7 +327,10 @@ void ERF::advance_dycore (int level,
     apply_bcs(state_old, old_time,
               state_old[IntVars::cons].nGrow(), state_old[IntVars::xmom].nGrow(),
               fast_only, vel_and_mom_synced);
-    cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
+
+    cons_to_prim(state_old[IntVars::cons], S_prim, state_old[IntVars::cons].nGrow());
+
+    make_pi_stage(state_old[IntVars::cons]);
 
     // ***********************************************************************************************
     // Define a new MultiFab that holds q_total and fill it by summing the moisture components --

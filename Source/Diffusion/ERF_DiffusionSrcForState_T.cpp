@@ -114,7 +114,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
 
@@ -164,7 +164,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
 
@@ -213,7 +213,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -261,10 +261,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -291,7 +295,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
+                                 + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
 
@@ -338,7 +342,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
+                                 + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
 
@@ -385,7 +389,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+                                 + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -433,10 +437,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -602,10 +610,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -769,10 +781,14 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,k);
-            } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,k);
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,k);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,k);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -812,13 +828,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     //-----------------------------------------------------------------------------------
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_xi_lo  = Compute_h_xi_AtKface (i,j,k  ,cellSizeInv,z_nd);
-        Real met_h_xi_hi  = Compute_h_xi_AtKface (i,j,k+1,cellSizeInv,z_nd);
-
-        Real met_h_eta_lo = Compute_h_eta_AtKface(i,j,k  ,cellSizeInv,z_nd);
-        Real met_h_eta_hi = Compute_h_eta_AtKface(i,j,k+1,cellSizeInv,z_nd);
-
         Real xfluxbar_lo, yfluxbar_lo;
+        Real met_h_xi_lo  = Compute_h_xi_AtKface (i,j,k  ,cellSizeInv,z_nd);
+        Real met_h_eta_lo = Compute_h_eta_AtKface(i,j,k  ,cellSizeInv,z_nd);
         if (k == dom_lo.z) {
             Real xfluxlo  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
             Real xfluxhi  = myhalf * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
@@ -835,6 +847,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         }
 
         Real xfluxbar_hi, yfluxbar_hi;
+        Real met_h_xi_hi  = Compute_h_xi_AtKface (i,j,k+1,cellSizeInv,z_nd);
+        Real met_h_eta_hi = Compute_h_eta_AtKface(i,j,k+1,cellSizeInv,z_nd);
         if (k == dom_hi.z) {
             Real xfluxlo  = myhalf * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
             Real xfluxhi  = myhalf * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
@@ -851,9 +865,17 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         }
 
         // Allow semi-implicit discretization of the vertical diffusive terms
-        Real zflux_lo = zflux(i,j,k  )
-                      - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
-                      - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
+        Real zflux_lo;
+        if ( use_SurfLayer &&
+             k == dom_lo.z &&
+             qty_index != RhoTheta_comp &&
+             qty_index != RhoQ1_comp ) {
+            zflux_lo = zero;
+        } else {
+            zflux_lo = zflux(i,j,k  )
+                     - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
+                     - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
+        }
         Real zflux_hi = zflux(i,j,k+1)
                       - met_h_xi_hi  * mf_mx(i,j,0) * xfluxbar_hi
                       - met_h_eta_hi * mf_my(i,j,0) * yfluxbar_hi;

@@ -69,6 +69,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
                     bool l_reflux,
+                    bool l_real_bc,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef)
 {
@@ -77,6 +78,11 @@ void erf_substep_T (int step, int /*nrk*/,
     const Box& domain = geom.Domain();
     auto const domlo = lbound(domain);
     auto const domhi = ubound(domain);
+
+    int ilo = domlo.x;
+    int ihi = domhi.x + 1;
+    int jlo = domlo.y;
+    int jhi = domhi.y + 1;
 
     Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
@@ -288,10 +294,12 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
                 Real gp_zeta_on_iface = (k == 0) ?
                    myhalf  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
+                                   - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
                    fourth * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                 -theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
-                Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+                                  - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
+                Real gpx = (l_real_bc && (level==0) && (i==ilo || i==ihi)) ? Real(0.) :
+                  gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+
                 gpx *= mf_ux(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
@@ -320,10 +328,12 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
+                                    - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
                     fourth * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                  -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
-                Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+                                   - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
+                Real gpy = (l_real_bc && (level==0) && (j==jlo || j==jhi)) ? Real(0.) :
+                  gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+
                 gpy *= mf_vy(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
@@ -590,6 +600,7 @@ void erf_substep_T (int step, int /*nrk*/,
             // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
+            // Transform the RHS from r_i -> rho_i
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
@@ -597,6 +608,7 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
 
+            // Back sweep to obtain the solution
             for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }

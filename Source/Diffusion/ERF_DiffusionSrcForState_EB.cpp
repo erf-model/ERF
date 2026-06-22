@@ -46,7 +46,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const Array4<const Real>& ay_arr,
                         const Array4<const Real>& az_arr,
                         const Array4<const Real>& detJ,
-                        const Array4<const Real>& barea_arr,
+                        [[maybe_unused]] const Array4<const Real>& barea_arr,
                         [[maybe_unused]] const Array4<const Real>& bcent_arr,
                         const Real* dx_arr,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -69,7 +69,9 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
     const bool l_surface_layer = (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
     const Real dz_inv = cellSizeInv[2];
-    const Real dx = dx_arr[0], dy = dx_arr[1], dz = dx_arr[2];
+    const Real dx = dx_arr[0];
+    const Real dy = dx_arr[1];
+    const Real dz = dx_arr[2];
     const Real vol = dx * dy * dz;
 
     for (int n(0); n<num_comp; ++n) {
@@ -91,7 +93,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i  , j, k, eddy_x)
-                                  + mu_turb(i-1, j, k, eddy_x) );
+                                     + mu_turb(i-1, j, k, eddy_x) );
             }
 
             bool ext_dir_on_xlo = ( (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir)      ||
@@ -133,7 +135,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i, j  , k, eddy_y)
-                                  + mu_turb(i, j-1, k, eddy_y) );
+                                     + mu_turb(i, j-1, k, eddy_y) );
             }
 
             bool ext_dir_on_ylo = ( (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir)      ||
@@ -175,7 +177,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
                 rhoAlpha += myhalf * ( mu_turb(i, j, k  , eddy_z)
-                                  + mu_turb(i, j, k-1, eddy_z) );
+                                     + mu_turb(i, j, k-1, eddy_z) );
             }
 
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
@@ -209,7 +211,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                                             - two*cell_prim(i, j, k, prim_index) ) * dz_inv;
                 } else {
                     zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index)
-                                            - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+                                              - cell_prim(i, j, k-1, prim_index)) * dz_inv;
                 }
             }
 
@@ -245,7 +247,20 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             {
                 if (cfg_arr(i,j,k).isSingleValued()) {
 
-                    cell_rhs(i,j,k,qty_index) += barea_arr(i,j,k) * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
+                    Real axm = ax_arr(i  ,j  ,k  );
+                    Real axp = ax_arr(i+1,j  ,k  );
+                    Real aym = ay_arr(i  ,j  ,k  );
+                    Real ayp = ay_arr(i  ,j+1,k  );
+                    Real azm = az_arr(i  ,j  ,k  );
+                    Real azp = az_arr(i  ,j  ,k+1);
+
+                    Real adx = (axm-axp) * dy * dz;
+                    Real ady = (aym-ayp) * dx * dz;
+                    Real adz = (azm-azp) * dx * dy;
+
+                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    cell_rhs(i,j,k,qty_index) += barea * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
                 }
             });
         }

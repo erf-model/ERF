@@ -158,6 +158,11 @@ include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
 
+ERF_MOISTURE_MNOC_DIR = $(ERF_SOURCE_DIR)/Microphysics/MoistNoCondensation
+include $(ERF_MOISTURE_MNOC_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_MNOC_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_MNOC_DIR)
+
 ERF_MOISTURE_SUPERDROPLETSMOIST_DIR = $(ERF_SOURCE_DIR)/Microphysics/SuperDropletsMoist
 include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
@@ -222,6 +227,11 @@ ERF_LSM_SLM_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/SLM
 include $(ERF_LSM_SLM_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_SLM_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_SLM_DIR)
+
+ERF_LSM_OCEANSURF_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/OceanSurf
+include $(ERF_LSM_OCEANSURF_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_OCEANSURF_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_OCEANSURF_DIR)
 
 ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
 include $(ERF_LSM_MM5_DIR)/Make.package
@@ -391,6 +401,25 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
+
+# ---- LAPACK support ----
+USE_LAPACK ?= FALSE
+
+ifeq ($(USE_LAPACK), TRUE)
+  DEFINES += -DUSE_LAPACK  
+  # Try pkg-config first (works on many systems)
+  has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
+  ifeq ($(has_lapack),0)
+    includes  += $(shell pkg-config --cflags lapack)
+    LIBRARIES += $(shell pkg-config --libs lapack)
+  else
+    # Fallback guesses
+    # Linux (generic)
+    LIBRARIES += -llapack -lblas
+  endif
+
+endif
+# ------------------------
 
 
 include $(AMREX_HOME)/Src/Base/Make.package

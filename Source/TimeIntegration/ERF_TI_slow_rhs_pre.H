@@ -20,7 +20,8 @@
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
-            cons_to_prim(S_data[IntVars::cons], ng_cons);
+            cons_to_prim(S_data[IntVars::cons], S_prim, ng_cons);
+            make_pi_stage(S_data[IntVars::cons]);
         }
 
         if (verbose) Print() << std::setprecision(timeprecision)
@@ -63,7 +64,8 @@
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
         if (solverChoice.moisture_type != MoistureType::None) {
-            make_qt(S_data[IntVars::cons], qt);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            make_qt(S_data[IntVars::cons], qt, n_qstate_into_total);
         }
 
         MultiFab p0_to_use, base_to_use;
@@ -111,6 +113,23 @@
                      input_sounding_data, turbPert, true);
 
         // *****************************************************************************
+        // Add nudging terms on moist variables if we have a non-zero relaxation region
+        // *****************************************************************************
+#if defined(ERF_USE_NETCDF)
+        if ( solverChoice.use_real_bcs && (level==0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
+        {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, slow_dt,
+                                    start_time+old_stage_time,
+                                    start_bdy_time, final_bdy_time, bdy_time_interval,
+                                    bdy_factor, real_width, geom[level],
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    m_r2d);
+        }
+#endif
+
+        // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
@@ -121,8 +140,9 @@
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
+        int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      micro->Get_Qstate_Moist_Size(), get_eb(level), solverChoice.anelastic[level]);
+                      num_q, get_eb(level), solverChoice.anelastic[level]);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
@@ -325,7 +345,6 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
@@ -334,7 +353,7 @@
                 Real total_time = start_time + old_stage_time;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,

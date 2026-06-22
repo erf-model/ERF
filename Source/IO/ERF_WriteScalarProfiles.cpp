@@ -12,7 +12,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::sum_integrated_quantities (Real time)
+ERF::sum_integrated_quantities (double time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
@@ -47,8 +47,8 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,dJ0,mfx0,mfy0,false);
     Real mois_sl = zero;
     if (solverChoice.moisture_type != MoistureType::None) {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-        for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
@@ -60,8 +60,8 @@ ERF::sum_integrated_quantities (Real time)
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
         if (solverChoice.moisture_type != MoistureType::None) {
-            int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-            for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
             }
         }
@@ -175,7 +175,7 @@ ERF::sum_integrated_quantities (Real time)
 }
 
 void
-ERF::sum_derived_quantities (Real time)
+ERF::sum_derived_quantities (double time)
 {
     if (verbose <= 0 || NumDerDataLogs() <= 0) return;
 
@@ -311,7 +311,7 @@ ERF::sum_derived_quantities (Real time)
 }
 
 void
-ERF::sum_energy_quantities (Real time)
+ERF::sum_energy_quantities (double time)
 {
     if ( (verbose <= 0) || (tot_e_datalog.size() < 1) ) { return; }
 
@@ -450,7 +450,7 @@ ERF::sum_energy_quantities (Real time)
 }
 
 Real
-ERF::cloud_fraction (Real /*time*/)
+ERF::cloud_fraction (double /*time*/)
 {
     BL_PROFILE("ERF::cloud_fraction()");
 
@@ -510,7 +510,7 @@ ERF::cloud_fraction (Real /*time*/)
     ParallelDescriptor::ReduceLongSum(num_cloudy);
 #endif
 
-    Real num_total = qc_2d.box().d_numPts();
+    Real num_total = Real(qc_2d.box().d_numPts());
 
     Real cloud_frac = num_cloudy / num_total;
 
@@ -652,7 +652,7 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action (int nstep, Real time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, double time, Real dtlev, int action_interval, Real action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 
