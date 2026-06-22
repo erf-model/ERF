@@ -41,8 +41,9 @@ These are the fields ERF's other components read from / write to the LSM, via th
   (`sw_flux_dn*`, `lw_flux_dn`). Stored in `lsm_fab_data[]`.
 - **`LsmFlux_NOAHMP`** — turbulent fluxes handed to the **surface layer**:
   `t_flux`, `q_flux`, and the momentum stresses `tau13`/`tau23`. Stored in
-  `lsm_fab_flux[]` with one ghost cell so the surface layer can average the
-  nodal stresses.
+  `lsm_fab_flux[]` with one ghost cell — a one-wide halo of copied neighbor
+  values — so the surface layer can average the stresses, which are staggered onto
+  cell faces rather than cell centers.
 
 Direction matters: some `LsmData` entries flow *into* Noah-MP as forcing
 (`sw_flux_dn`, `lw_flux_dn`, `cos_zenith_angle`), the rest flow *out* of Noah-MP
@@ -115,17 +116,20 @@ how these components are written and read live in
    sentinels (`lowest()`) that lose the max. Asserts `m_dtbl > 0` and
    `m_dt <= m_dtbl`.
 
-> **Invariant — size once.** `noahmpio_vect` is sized exactly once. The
-> `NoahmpIO_type` objects are self-referential (Fortran points back at C++
-> scalars); relocating them would dangle those pointers. Do not `push_back`/
-> resize it later.
+> **Invariant — size once.** `noahmpio_vect` is sized exactly once. Each
+> `NoahmpIO_type` object is self-referential — the Fortran side holds pointers
+> back to the C++ scalars — so moving one in memory (which any later resize would
+> do) leaves those pointers aimed at freed memory. Do not `push_back`/resize it
+> later.
 
 ## 5. Firing schedule & time subcycling
 
 The Noah-MP timestep (`NOAH_TIMESTEP` in `namelist.erf`, surfaced as `DTBL`) may
 be larger than the ERF timestep, so Noah-MP subcycles: it fires once every
-`DTBL/dt` ERF steps. The decision must be **identical on every rank** because
-`Advance_With_State` ends in a collective `FillBoundary`.
+`DTBL/dt` ERF steps. The decision must be **identical on every MPI rank**, because
+`Advance_With_State` ends in a `FillBoundary` ghost-cell exchange that every rank
+must enter together (a *collective* operation). If one rank fired and another did
+not, the run would deadlock at that exchange.
 
 That is why the counter and `DTBL` are *class members broadcast to all ranks*
 (`m_itimestep`, `m_dtbl`) rather than read from `noahmpio_vect[0]` (absent on

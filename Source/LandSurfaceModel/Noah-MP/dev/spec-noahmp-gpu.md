@@ -7,16 +7,16 @@
 
 ## 1. The problem
 
-ERF state lives in device memory and is touched with `ParallelFor` kernels.
-Noah-MP is a host-only Fortran library: its `NoahmpIO_type` arrays are host
-memory and `DriverMain()` runs on the CPU. Every step the driver must move
-forcing fields *device → host*, run Noah-MP, then move results *host → device* —
-without per-variable allocations and without stalling the device more than
-necessary.
+ERF state lives in device (GPU) memory and is updated by GPU kernels (AMReX
+`ParallelFor` loops). Noah-MP is a host-only Fortran library: its `NoahmpIO_type`
+arrays live in host (CPU) memory and `DriverMain()` runs on the CPU. Every step
+the driver must move forcing fields *device → host*, run Noah-MP, then move
+results *host → device* — without allocating a fresh buffer per variable and
+without stalling the GPU more than necessary.
 
 The solution is a pair of **pinned, multi-component staging buffers per box**.
-Pinned (host-accessible) memory can be written by a device `ParallelFor` and read
-by host code, which lets a single buffer bridge the two worlds.
+"Pinned" host memory is page-locked so the GPU can write to it directly and the
+CPU can read it; a single such buffer therefore bridges the two worlds.
 
 ## 2. The staging buffers
 
@@ -33,7 +33,7 @@ coupled field per component, indexed by `NoahmpInputComp` / `NoahmpOutputComp`
 per-variable `FArrayBox`** — adding a field means adding a component, not an
 allocation, and the buffers size themselves off `NumComps`.
 
-## 3. The five-stage dataflow (per box, per firing)
+## 3. The six-step dataflow (per box, per firing)
 
 `Advance_With_State` loops over boxes (`idb`) and, for each surface box, runs:
 
@@ -97,8 +97,9 @@ silently corrupts the column.
   ghost cells get values; indices are clamped to the valid box
   (`ii = clamp(i, i_lo, i_hi)`, likewise `jj`) so the ghost ring copies the
   nearest interior result. After the box loop, `lsm_fab_flux[*]->FillBoundary`
-  reconciles the ghost cells across boxes (`tau13`/`tau23` are nodal and need the
-  one-cell halo so the surface layer can average them).
+  reconciles the ghost cells across boxes (`tau13`/`tau23` are staggered onto cell
+  faces, so the surface layer needs the one-cell halo to average them back to cell
+  centers).
 - **Fill-value guard (fluxes only).** Noah-MP returns `-9999` for cells it does
   not process (sea-ice / open-water points that still carry `LANDMASK=1`).
   Applying that as a flux (`-9999/(rho*Cp)`) would crash the lowest cell to

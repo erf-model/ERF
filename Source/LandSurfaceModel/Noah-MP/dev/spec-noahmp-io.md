@@ -17,8 +17,9 @@
 
 Noah-MP participates in ERF's standard checkpoint/restart (`erf.check_file`,
 `erf.check_int`, `amr.restart`) with no extra input options. A restart is
-**bitwise reproducible** with an equivalent cold start, which requires persisting
-two pieces of state beyond the ordinary ERF `MultiFab`s.
+**bitwise reproducible** — the restarted run matches an uninterrupted run to the
+last bit — which requires persisting two pieces of state beyond the ordinary ERF
+`MultiFab`s.
 
 ### 1a. The substep counter
 
@@ -44,7 +45,8 @@ accumulators — is serialized at the model's working precision to
 - `Write_Lsm_Restart(dir)` → `noahmpio.WriteRestart(dir)` for each box.
 - `Read_Lsm_Restart(dir)`  → `noahmpio.ReadRestart(dir)` for each box.
 
-Each local box writes its tile into the global-domain NetCDF file collectively.
+Each local box writes its own tile into the single global-domain NetCDF file, in a
+collective operation that every rank must enter together.
 
 ### 1c. Restart ordering
 
