@@ -1,4 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Baseline ERF-side shear deck for ERFtoREMORA state passing.
+# Ocean SST is not intended to feed back into ERF in this profile, so the
+# bulk transfer coefficients are left at zero on purpose.
 erf.prob_name = "Undefined"
 
 stop_time = 3600.0

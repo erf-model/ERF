@@ -281,10 +281,10 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
        ${SRC_DIR}/ERF_ReadWaves.cpp
-       ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
@@ -394,10 +394,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/Refinement/ERF_Tagging.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplyBndryForcing_Forecast.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_AddMoistNudgingTerms.cpp
        ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
@@ -423,6 +427,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
+       ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
@@ -431,6 +436,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Utils/ERF_Utils.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
        ${SRC_DIR}/Utils/ERF_SurfaceDataInterpolation.cpp
@@ -511,6 +517,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WSM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)
@@ -520,6 +527,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/OceanSurf>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
 

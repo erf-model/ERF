@@ -456,76 +456,86 @@ which means it is determined by the fluid speed rather than the sound speed and 
 List of Parameters
 ------------------
 
-+----------------------------+----------------------+----------------+---------------------+
-| Parameter                  | Definition           | Acceptable     | Default             |
-|                            |                      | Values         |                     |
-+============================+======================+================+=====================+
-| **erf.substepping_type**   | Should we substep in | "Implicit" or  | "Implicit" if       |
-|                            | each RK stage?       | "None"         | compressible,       |
-|                            |                      |                | "None" if anelastic |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit**      | Do vertical implicit | Boolean        | false               |
-|                            | solve for diffusion  |                |                     |
-|                            | of u, v, and theta   |                |                     |
-|                            | with default         |                |                     |
-|                            | time-centering in    |                |                     |
-|                            | each stage           |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
-|                            | vertical diffusion   | (explicit) and | (fully explicit)    |
-|                            | to include in each   | <= 1 (implicit)|                     |
-|                            | RK stage? Currently, |                |                     |
-|                            | only applies to      |                |                     |
-|                            | rho*theta component. |                |                     |
-|                            |                      |                |                     |
-|                            | Specify either one   |                |                     |
-|                            | (the same for all    |                |                     |
-|                            | stages) or three     |                |                     |
-|                            | values, one per stage|                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8                 |
-|                            | compute level 0 dt   | <= 1           |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0                 |
-|                            | compute the number   | <= 1           |                     |
-|                            | of substeps          |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not       |
-|                            | as this value        |                | set                 |
-|                            | regardless of        |                |                     |
-|                            | cfl or other         |                |                     |
-|                            | settings             |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       |                     |
-|                            | as this value        |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant if    |
-|                            | as slow dt /         |                | substepping_type    |
-|                            | this ratio           |                | is not None         |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.init_shrink**        | factor by which      | Real > 0 and   | 1.0                 |
-|                            | to shrink the        | <= 1           |                     |
-|                            | initial dt           |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.change_max**         | factor by which      | Real >= 1      | 1.1                 |
-|                            | dt can grow          |                |                     |
-|                            | in subsequent        |                |                     |
-|                            | steps                |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.dt_max**             | maximum adaptive     | Real > 0       | 1e9                 |
-|                            | timestep             |                |                     |
-|                            | allowed by time      |                |                     |
-|                            | stepping             |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0                 |
-|                            | timestep             |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
-| **erf.dt_ref_ratio**       | ratio of coarse      | Integer >= 1   | same as             |
-|                            | to fine grid         | (one per level)| maximum over        |
-|                            | time steps between   |                | directions of       |
-|                            | subsequent           |                | ref_ratio           |
-|                            | levels               |                |                     |
-+----------------------------+----------------------+----------------+---------------------+
++-------------------------------------+----------------------+----------------+---------------------+
+| Parameter                           | Definition           | Acceptable     | Default             |
+|                                     |                      | Values         |                     |
++=====================================+======================+================+=====================+
+| **erf.substepping_type**            | Should we substep in | "Implicit" or  | "Implicit" if       |
+|                                     | each RK stage?       | "None"         | compressible,       |
+|                                     |                      |                | "None" if anelastic |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compressible|
+|                                     | solve for diffusion  |                | false if anelastic  |
+|                                     | of u, v, theta, KE,  |                |                     |
+|                                     | and qv with default  |                |                     |
+|                                     | time-centering in    |                |                     |
+|                                     | each stage           |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit_fac**           | How much implicit    | Real >= 0      | 1.0, 1.0, 0.0       |
+|                                     | vertical diffusion   | (explicit) and |                     |
+|                                     | to include in each   | <= 1 (implicit)|                     |
+|                                     | RK stage?            |                |                     |
+|                                     |                      |                |                     |
+|                                     | Specify either one   |                |                     |
+|                                     | (the same for all    |                |                     |
+|                                     | stages) or three     |                |                     |
+|                                     | values, one per stage|                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.implicit_thermal_diffusion**  | Do vertical implicit | Boolean        | true                |
+|                                     | for theta?           |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.implicit_moisture_diffusion** | Do vertical implicit | Boolean        | true                |
+|                                     | for Qv?              |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.implicit_ke_diffusion**       | Do vertical implicit | Boolean        | true                |
+|                                     | for KE?              |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.implicit_momentum_diffusion** | Do vertical implicit | Boolean        | true                |
+|                                     | for U & V?           |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.cfl**                         | CFL number used to   | Real > 0 and   | 0.8                 |
+|                                     | compute level 0 dt   | <= 1           |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.substepping_cfl**             | CFL number used to   | Real > 0 and   | 1.0                 |
+|                                     | compute the number   | <= 1           |                     |
+|                                     | of substeps          |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_dt**                    | set level 0 dt       | Real > 0       | unused if not       |
+|                                     | as this value        |                | set                 |
+|                                     | regardless of        |                |                     |
+|                                     | cfl or other         |                |                     |
+|                                     | settings             |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_fast_dt**               | set fast dt          | Real > 0       |                     |
+|                                     | as this value        |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_mri_dt_ratio**          | set fast dt          | even int > 0   | only relevant if    |
+|                                     | as slow dt /         |                | substepping_type    |
+|                                     | this ratio           |                | is not None         |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.init_shrink**                 | factor by which      | Real > 0 and   | 1.0                 |
+|                                     | to shrink the        | <= 1           |                     |
+|                                     | initial dt           |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.change_max**                  | factor by which      | Real >= 1      | 1.1                 |
+|                                     | dt can grow          |                |                     |
+|                                     | in subsequent        |                |                     |
+|                                     | steps                |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.dt_max**                      | maximum adaptive     | Real > 0       | 1e9                 |
+|                                     | timestep             |                |                     |
+|                                     | allowed by time      |                |                     |
+|                                     | stepping             |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.dt_max_initial**              | maximum initial      | Real > 0       | 1.0                 |
+|                                     | timestep             |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
+| **erf.dt_ref_ratio**                | ratio of coarse      | Integer >= 1   | same as             |
+|                                     | to fine grid         | (one per level)| maximum over        |
+|                                     | time steps between   |                | directions of       |
+|                                     | subsequent           |                | ref_ratio           |
+|                                     | levels               |                |                     |
++-------------------------------------+----------------------+----------------+---------------------+
 
 Notes
 -----------------
@@ -910,8 +920,9 @@ variable, with all snapshots appended to the same file over time. This is simila
 tslist output from WRF but output is provided only from the finest domain that contains
 the entire requested sampling line; velocities are also destaggered.
 
-The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+The sampled variables can be selected with the ``erf.line_sampling_vars`` and
+``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
+"density", "x_velocity", "y_velocity", "z_velocity",
 "magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
 The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
@@ -966,6 +977,9 @@ List of Parameters
 |                                   | plotfiles        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
+|                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 
@@ -1664,6 +1678,9 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
+|                                  | from wrf input?     |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |
 |                                  | vertical velocities |                    |                       |
@@ -1878,7 +1895,8 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "MM5", "SLM"       |             |
+|                                | fluxes                     | "MM5", "OceanSurf",|             |
+|                                |                            | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
@@ -1933,7 +1951,8 @@ List of Parameters
 |                                 |                          |  "Morrison",          |            |
 |                                 |                          |  "Morrison_NoIce",    |            |
 |                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce", "P3"    |            |
+|                                 |                          |  "SAM_NoIce", "P3",   |            |
+|                                 |                          |  "MoistNoCondensation"|            |
 +---------------------------------+--------------------------+-----------------------+------------+
 | **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
 |                                 | microphysics after every |                       |            |
@@ -1969,13 +1988,15 @@ List of Parameters
 +=====================================+========================================+===================+===================================+
 | **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
 |                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
-|                                     | radiation in batches of this size.      |                   | kernel launch overhead.           |
+|                                     | radiation in batches of this size.     |                   | kernel launch overhead.           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+

@@ -90,7 +90,8 @@ get_subsampled_clouds (const int ncol,
 void
 rrtmgp_initialize (gas_concs_t& gas_concs,
                    const std::string& coefficients_file_sw, const std::string& coefficients_file_lw,
-                   const std::string& cloud_optics_file_sw, const std::string& cloud_optics_file_lw);
+                   const std::string& cloud_optics_file_sw, const std::string& cloud_optics_file_lw,
+                   const int& nvar);
 
 
 void

@@ -11,6 +11,7 @@
 #include "ERF_Morrison.H"
 #include "ERF_WSM6.H"
 #include "ERF_SatAdj.H"
+#include "ERF_MoistNoCondensation.H"
 #include "ERF_Microphysics.H"
 
 /*! \brief Eulerian microphysics interface */
@@ -44,6 +45,8 @@ public:
             SetModel<WSM6>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
+        } else if (a_model_type == MoistureType::MoistNoCondensation) {
+            SetModel<MoistNoCondensation>();
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
         } else {

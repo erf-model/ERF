@@ -34,71 +34,58 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
     if (solverChoice.use_real_bcs && (lev==0))
     {
+        MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+
         int ntimes = bdy_data_xlo.size();
-        Real time_since_start_bdy = time + start_time - start_bdy_time;
+        double time_since_start_bdy = time + start_time - start_bdy_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
 
-        // Handle erfbdy files (AMReX native format).
-        if (use_erfbdy) {
-            for (int itime = 0; itime < ntimes; itime++)
-            {
-                bool clear_itime = (itime < n_time_old);
+        for (int itime = 0; itime < ntimes; itime++)
+        {
+            /*
+            if (bdy_data_xlo[itime].size() > 0) {
+                amrex::Print() << "HAVE  BDY DATA AT TIME " << itime << std::endl;
+            } else {
+                amrex::Print() << " NO   BDY DATA AT TIME " << itime << std::endl;
+            }
+            */
 
-                if (clear_itime && bdy_data_xlo[itime].size() > 0) {
-                    bdy_data_xlo[itime].clear();
-                    bdy_data_xhi[itime].clear();
-                    bdy_data_ylo[itime].clear();
-                    bdy_data_yhi[itime].clear();
-                }
+            // Note that we never release itime == 0 because it is used for the spatial interpolation at later times
+            bool clear_itime = (itime > 0 && itime < n_time_old);
 
-                bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
+            if (clear_itime && bdy_data_xlo[itime].size() > 0) {
+                bdy_data_xlo[itime].clear();
+                bdy_data_xhi[itime].clear();
+                bdy_data_ylo[itime].clear();
+                bdy_data_yhi[itime].clear();
+                //amrex::Print() << "CLEAR BDY DATA AT TIME " << itime << std::endl;
+            }
 
+            bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
+            //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
+
+            // Handle erfbdy files (AMReX native format).
+            if (use_erfbdy) {
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                     read_from_erfbdy(itime, erfbdy_file,
                                      bdy_data_xlo, bdy_data_xhi,
                                      bdy_data_ylo, bdy_data_yhi,
                                      nvars_erfbdy, real_width);
                 }
-            } // itime
-        }
-        // Handle wrfbdy files (NetCDF format).
-        else {
-            for (int itime = 0; itime < ntimes; itime++)
-            {
-                /*
-                if (bdy_data_xlo[itime].size() > 0) {
-                    amrex::Print() << "HAVE  BDY DATA AT TIME " << itime << std::endl;
-                } else {
-                    amrex::Print() << " NO   BDY DATA AT TIME " << itime << std::endl;
-                }
-                */
-
-                bool clear_itime = (itime < n_time_old);
-
-                if (clear_itime && bdy_data_xlo[itime].size() > 0) {
-                    bdy_data_xlo[itime].clear();
-                    bdy_data_xhi[itime].clear();
-                    bdy_data_ylo[itime].clear();
-                    bdy_data_yhi[itime].clear();
-                    //amrex::Print() << "CLEAR BDY DATA AT TIME " << itime << std::endl;
-                }
-
-                bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
-                //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
-
+            // Handle wrfbdy files (NetCDF format).
+            } else {
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                    read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                     bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                     real_width);
-
-                    convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                            *mf_MUB, *mf_C1H, *mf_C2H,
-                                            vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                            geom[lev], use_moist, wrf_PHB, z_phys_nd[lev]);
-               }
-            } // itime
-        } // use_erfbdy
+                    bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                    read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                                 vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+                }
+            } // use_erfbdy
+        } // itime
     } // use_real_bcs && lev == 0
 
     if (!nc_low_file.empty() && (lev==0))
@@ -239,7 +226,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         }
     }
 
-    if (verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
+    if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
         amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
     }
 }

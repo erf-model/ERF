@@ -5,6 +5,7 @@
 #include <AMReX_GpuContainers.H>
 
 #include <ERF_NumericalDiffusion.H>
+#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_MOSTStress.H>
@@ -97,12 +98,13 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    bool compute_averages = false;
-    compute_averages = compute_averages ||
-        ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
+    bool compute_averages = ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
 
     if (compute_averages)
     {
+        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
+
         //
         // The call to "compute_averages" currently does all the components in one call
         // We can then extract each component separately with the "line_average" call
@@ -401,28 +403,26 @@ void make_sources (int level,
         // *************************************************************************************
         // Real(6.) Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
-        if (l_use_ndiff && is_slow_step) {
-            int sc;
-            int nc;
-
+        if (l_use_ndiff && is_slow_step)
+        {
             const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
             const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
             // Rho is a special case
-            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, 0, 1, dt, solverChoice.num_diff_coeff,
                                     cell_data, cell_data, cell_src, mf_mx, mf_my);
 
             // Other scalars proceed as normal
-            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, 1, 1, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_mx, mf_my);
 
 
             if (l_use_KE && l_diff_KE) {
-                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
+                NumericalDiffusion_Scal(bx, RhoKE_comp, 1, dt, solverChoice.num_diff_coeff,
                                         cell_prim, cell_data, cell_src, mf_mx, mf_my);
             }
 
-            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
+            NumericalDiffusion_Scal(bx, RhoScalar_comp, NSCALARS, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_mx, mf_my);
         }
 
@@ -516,7 +516,10 @@ void make_sources (int level,
             const Real z0                 = solverChoice.if_z0;
             const Real tflux              = solverChoice.if_surf_temp_flux;
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+
+            // Note this has been converted to K / s when it was read in;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
+
             const Real Olen_in            = solverChoice.if_Olen_in;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -533,7 +536,7 @@ void make_sources (int level,
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > zero) {
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
                         cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
                     }
@@ -614,6 +617,8 @@ void make_sources (int level,
             const Real min_t_blank      = Real(0.005);
 
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+
+            // Note this has been converted to K / s when it was read in;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -637,7 +642,7 @@ void make_sources (int level,
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > zero) {
-                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                     if (t_blank > 0 && (t_blank_above == zero) && (t_blank_below == one)) { // building roof
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;

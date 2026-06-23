@@ -207,7 +207,7 @@ namespace HSEutils
                                       const amrex::Real& theta,
                                       amrex::Real* r,
                                       amrex::Real* p,
-                                      const Gpu::DeviceVector<Real>& stretched_dz_d,
+                                      const amrex::Real* stretched_dz,
                                       const int klo, const int khi)
     {
       int kstart;
@@ -216,7 +216,7 @@ namespace HSEutils
 
       // Initial guess
       r[klo] = r_sfc;
-      p[klo] = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+      p[klo] = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
 
       if (klo == 0)
       {
@@ -229,14 +229,14 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - myhalf*stretched_dz_d[klo] * r[klo] * CONST_GRAV;
+              p_hse = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
               p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
               Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
-              Real drho = A / (dpdr + myhalf*stretched_dz_d[klo] * CONST_GRAV);
+              Real drho = A / (dpdr + myhalf*stretched_dz[klo] * CONST_GRAV);
 
               r[klo] = r[klo] + drho;
               p[klo] = getPgivenRTh(r[klo]*theta);
@@ -271,7 +271,7 @@ namespace HSEutils
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
               Real  r_avg = myhalf * (r[k-1]+r[k]);
-              Real dz_avg = myhalf * (stretched_dz_d[k-1] + stretched_dz_d[k]);
+              Real dz_avg = myhalf * (stretched_dz[k-1] + stretched_dz[k]);
               p_hse = p[k-1] -  dz_avg * r_avg * CONST_GRAV;
               p_eos = getPgivenRTh(r[k]*theta);
 

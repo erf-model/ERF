@@ -160,6 +160,10 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 
+if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WSM6_FORT requires ERF_PRECISION=DOUBLE because the WSM6 Fortran bridge is double-precision only")
+endif()
+
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
@@ -559,6 +563,10 @@ if(ERF_ENABLE_NOAHMP)
      message(VERBOSE "Noah-MP source: ${NOAHMP_HOME}")
      message(VERBOSE "Noah-MP binary: ${NOAHMP_BIN}")
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
+
+     if(ERF_PRECISION STREQUAL "DOUBLE")
+        target_compile_definitions(noahmp PUBLIC DOUBLE_PREC)
+     endif()
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()

@@ -13,7 +13,7 @@ amr.n_cell           =  41     41        4
 
 geometry.is_periodic = 1 1 0
 
-zlo.type = "NoSlipWall"
+#zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL

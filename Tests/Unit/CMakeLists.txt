@@ -60,6 +60,7 @@ target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
 include(GoogleTest)
 gtest_discover_tests(${erf_exe_name}
   DISCOVERY_MODE POST_BUILD
+  DISCOVERY_TIMEOUT 30
   PROPERTIES
     LABELS "unit"
 )

@@ -55,9 +55,9 @@ struct MYNNLevel25 {
 
     // Clipping (defaults from WRF v4.5.0 onward)
     amrex::Real SMmin = zero;
-    amrex::Real SMmax = amrex::Real(1.0e34);
+    amrex::Real SMmax = bogus_large_value;
     amrex::Real SHmin = zero;
-    amrex::Real SHmax = amrex::Real(4.0);
+    amrex::Real SHmax = amrex::Real(4);
 
     MYNNConfigType config;
 

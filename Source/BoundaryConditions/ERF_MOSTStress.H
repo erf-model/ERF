@@ -170,7 +170,7 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(zref_arr(i,j,k) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -257,7 +257,7 @@ struct adiabatic_charnock
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -266,7 +266,11 @@ struct adiabatic_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
@@ -338,7 +342,7 @@ struct adiabatic_mod_charnock
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -347,7 +351,11 @@ struct adiabatic_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
@@ -395,7 +403,7 @@ struct adiabatic_donelan
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real z0    = zero;
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         }
         do {
@@ -409,7 +417,7 @@ struct adiabatic_donelan
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -482,7 +490,7 @@ struct adiabatic_wave_coupled
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -552,7 +560,7 @@ struct surface_flux
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -662,7 +670,7 @@ struct surface_flux_charnock
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -780,7 +788,7 @@ struct surface_flux_mod_charnock
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -888,7 +896,7 @@ struct surface_flux_donelan
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1001,7 +1009,7 @@ struct surface_flux_wave_coupled
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1118,7 +1126,7 @@ struct surface_temp
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1258,7 +1266,9 @@ struct surface_temp_charnock
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1.0e3);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1360,7 +1370,11 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol   = amrex::Real(1.0e-3);
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real alpha = myhalf;
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
@@ -1423,7 +1437,9 @@ struct surface_temp_mod_charnock
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1000);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -1518,7 +1534,11 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol   = amrex::Real(1.0e-3);
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real tol_z = amrex::Real(1.0e-6);
+#else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
+#endif
     const amrex::Real alpha = myhalf;
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
@@ -1576,7 +1596,7 @@ struct surface_temp_donelan
         amrex::Real Oleno = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1699,7 +1719,7 @@ struct surface_temp_wave_coupled
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.e34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -1871,7 +1891,7 @@ struct moeng_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real umean    = um_arr(i,j,0);
@@ -1907,7 +1927,7 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2011,7 +2031,7 @@ struct donelan_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real Cd       = amrex::Real(0.001);
@@ -2046,7 +2066,7 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2145,7 +2165,7 @@ struct custom_flux
     {
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = (fluxes_include_rho) ? one : myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar   = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
@@ -2171,7 +2191,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = (fluxes_include_rho) ? one : myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2280,7 +2300,7 @@ struct bulk_coeff_flux
         amrex::Real rho   = myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                     + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real wsp   = std::sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<u'w'> = -K dudz
@@ -2305,7 +2325,7 @@ struct bulk_coeff_flux
     {
         amrex::Real rho   = myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real wsp   = std::sqrt(velx*velx+vely*vely);
 
@@ -2403,7 +2423,7 @@ struct rico_flux
     {
         amrex::Real velx = velx_arr(i,j,k);
         amrex::Real vely = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                  + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                                    + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho  = myhalf * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
@@ -2429,7 +2449,7 @@ struct rico_flux
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                                     + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = myhalf * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
