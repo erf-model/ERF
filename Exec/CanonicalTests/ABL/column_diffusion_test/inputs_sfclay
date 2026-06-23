@@ -4,8 +4,8 @@ erf.prob_name = "ABL"
 stop_time = 3600.0
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  40   40  1000
-amr.n_cell           =   4    4    51
+#geometry.prob_extent =  40   40  1000
+#amr.n_cell           =   4    4    51
 
 geometry.is_periodic = 1 1 0
 
@@ -40,14 +40,14 @@ erf.input_sounding_file = "input_sounding_U0"
 #erf.fixed_mri_dt_ratio = 4
 erf.substepping_type = None
 
-erf.vert_implicit_fac  = 0.0  # fully explicit (default)
-erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
+#erf.vert_implicit_fac  = 0.0  # fully explicit (default)
+#erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
 
-erf.vert_implicit_fac  = 0.5
-erf.fixed_dt           = 30.0
+#erf.vert_implicit_fac  = 0.5
+#erf.fixed_dt           = 30.0
 
-erf.vert_implicit_fac  = 1.0  # fully implicit
-erf.fixed_dt           = 60.0
+#erf.vert_implicit_fac  = 1.0  # fully implicit
+#erf.fixed_dt           = 60.0
 
 erf.vert_implicit_fac  = 1.0 1.0 0.0  # implicit in first two stages, explicit in last RK stage
 erf.fixed_dt           = 60.0

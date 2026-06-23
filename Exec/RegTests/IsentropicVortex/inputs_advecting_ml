@@ -12,7 +12,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -12  -12  -1
 geometry.prob_hi     =  12   12   1
-amr.n_cell           =  48   48   4
+#amr.n_cell           =  48   48   4
 amr.n_cell           =  96   96   4
 
 geometry.is_periodic = 1 1 0
@@ -22,8 +22,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.substepping_type = None
-erf.fixed_dt         = 0.0005
-erf.fixed_dt         = 0.00025
+#erf.fixed_dt         = 0.0005
+#erf.fixed_dt         = 0.00025
 erf.fixed_dt         = 0.000125
 
 # DIAGNOSTICS & VERBOSITY
@@ -31,7 +31,7 @@ erf.sum_interval    = 1       # timesteps between computing mass
 erf.v               = 1       # verbosity in ERF.cpp
 amr.v               = 1       # verbosity in Amr.cpp
 
-amr.max_level = 0
+#amr.max_level = 0
 
 ################################ MULTILEVEL ################################
 amr.max_level = 2
