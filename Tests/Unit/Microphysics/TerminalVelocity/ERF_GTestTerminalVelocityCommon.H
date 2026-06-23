@@ -37,7 +37,7 @@ constexpr amrex::Real kRhoAirR  = amrex::Real(1.2);      // [kg m^-3]
 constexpr amrex::Real kTice     = amrex::Real(273.15);   // [K]
 constexpr amrex::Real kRhoAirI  = amrex::Real(1.1);      // [kg m^-3]
 
-constexpr int kNumMetrics = 18;
+constexpr int kNumMetrics = 19;
 
 // Uniform absolute tolerance: each metric is built so that a satisfied property
 // returns mathematically zero (equalities, monotonicity gaps, in-band distances),
@@ -153,8 +153,8 @@ amrex::Real terminal_velocity_metric (const int i) noexcept
                     - ice_vterm_D(tv, amrex::Real(5.0e-3), amrex::Real(1.0), kRhoIce));
     case 7:  // hail (10 mm solid sphere) ~10 m/s in Boehm Fig. 3d
         return band_violation(v_hail, amrex::Real(6.0), amrex::Real(15.0));
-    case 8:  // lump graupel (2 mm, 400 kg m^-3) ~2 m/s in Boehm Fig. 3a
-        return band_violation(v_grp, amrex::Real(1.0), amrex::Real(4.0));
+    case 8:  // graupel (2 mm, 400 kg m^-3 sphere): Boehm 1992 gives ~4 m/s
+        return band_violation(v_grp, amrex::Real(3.0), amrex::Real(6.0));
     case 9:  // at fixed mass, a strongly aspherical column falls slower than a sphere
         return nonneg(ice_vterm_m(tv, amrex::Real(1.0e-7), amrex::Real(20.0), kRhoIce)
                     - ice_vterm_m(tv, amrex::Real(1.0e-7), amrex::Real(1.0),  kRhoIce));
@@ -183,6 +183,19 @@ amrex::Real terminal_velocity_metric (const int i) noexcept
         const amrex::Real vb = tv.MixedPhaseVterm(vi, vr, amrex::Real(0.5));
         return band_violation(vb, vi, vr);
     }
+    // --- Stokes regime: the small-ice limit that exercises viscosity directly ---
+    case 17: // 40 um ice sphere (Re ~ 0.1): the Boehm speed must track Stokes' law
+             // v = (2/9)(rho_p - rho_a) g a^2 / mu. A viscosity unit slip (CGS poise
+             // vs SI Pa.s) leaves high-Re ice untouched but makes small ice ~10x slow.
+    {
+        const amrex::Real a = amrex::Real(4.0e-5), rho_app = amrex::Real(100.0);
+        const amrex::Real v = ice_vterm_D(tv, amrex::Real(2.0)*a, amrex::Real(1.0), rho_app);
+        const amrex::Real mu = amrex::Real(1.718e-5); // dynamic viscosity at 0 C [Pa s]
+        const amrex::Real v_stokes = (amrex::Real(2.0)/amrex::Real(9.0))
+                                   * (rho_app - kRhoAirI) * amrex::Real(CONST_GRAV) * a*a / mu;
+        return band_violation(v / v_stokes, amrex::Real(0.7), amrex::Real(1.5));
+    }
+
     default: // blend hits the endpoints exactly at ell = 0 and ell = 1
     {
         const amrex::Real vi = amrex::Real(2.0), vr = amrex::Real(9.0);
@@ -203,7 +216,7 @@ inline std::string metric_label (const int i)
     case 5:  return "rain: positive fall speed";
     case 6:  return "ice: solid sphere monotone in size";
     case 7:  return "ice: 10 mm hail in [6,15] m/s (Boehm Fig.3)";
-    case 8:  return "ice: 2 mm graupel in [1,4] m/s (Boehm Fig.3)";
+    case 8:  return "ice: 2 mm graupel in [3,6] m/s (Boehm 1992)";
     case 9:  return "ice: column slower than sphere at fixed mass";
     case 10: return "Frick: Psi(0) = 0";
     case 11: return "Frick: Psi(1) = 1";
@@ -212,6 +225,7 @@ inline std::string metric_label (const int i)
     case 14: return "Mitra: < ~30% speed-up by 70% melt";
     case 15: return "Mitra: steepest rise in final decile";
     case 16: return "blend stays between ice and rain speeds";
+    case 17: return "ice: Stokes-regime small sphere matches Stokes' law";
     default: return "blend hits endpoints at ell = 0,1";
     }
 }
