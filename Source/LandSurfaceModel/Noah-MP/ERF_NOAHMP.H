@@ -215,6 +215,8 @@ public:
                            amrex::MultiFab* lev0_flux_ptr) override
     {
         lsm_lev0_flux[varIdx] = lev0_flux_ptr;
+    }
+
     // Checkpoint/restore the NoahMP substep counter. Uses the class member
     // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on
     // land-free ranks).
