@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
 
-max_step = 4000
+#max_step = 4000
 max_step = 10
 
 amrex.fpe_trap_invalid = 1
@@ -9,9 +9,9 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # ORIGINAL PROBLEM SIZE & GEOMETRY
-geometry.prob_lo =    0.    0.     0.
-geometry.prob_hi = 1024. 1024.  1024.
-amr.n_cell       =   32    32     32
+#geometry.prob_lo =    0.    0.     0.
+#geometry.prob_hi = 1024. 1024.  1024.
+#amr.n_cell       =   32    32     32
 
 # THIS PROBLEM SIZE & GEOMETRY
 geometry.prob_lo =  256.  256.     0.
