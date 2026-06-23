@@ -128,6 +128,25 @@ class NullSurf {
                            amrex::MultiFab* /*lev0_flux_ptr*/)
     {}
 
+    // Scalar LSM step counter (NoahMP itimestep). Persisted in checkpoint so
+    // the LSM substepping schedule survives restart. 0 means "uninitialized".
+    virtual
+    int
+    Get_LSM_Step () const { return 0; }
+
+    virtual
+    void
+    Set_LSM_Step (int /*step*/) { }
+
+    // Full LSM prognostic-state restart I/O. No-op for models that carry no
+    // persistent prognostic state beyond their checkpointed MultiFabs.
+    virtual
+    void
+    Write_Lsm_Restart (const std::string& /*dir*/) const { }
+
+    virtual
+    void
+    Read_Lsm_Restart (const std::string& /*dir*/) { }
 
  private:
     int m_lsm_size = 0;
