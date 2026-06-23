@@ -163,7 +163,7 @@ struct TerminalVelocity
                  const RT a_rho,    /*!< density */
                  const RT a_T       /*!< temperature */) const noexcept
     {
-        RT mu = viscCoeff(a_T);
+        RT mu = RT(0.1) * viscCoeff(a_T); // viscCoeff is CGS poise; IceBohm is SI -> Pa.s
 
         auto phi = a_c / a_a; // aspect ratio
         auto d = RT(2.0) * a_a; // characteristic length
