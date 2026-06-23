@@ -248,6 +248,28 @@ NOAHMP::Advance_With_State (const int& lev,
                             const int& nstep)
 {
     if (lev>0) {
+        for (int ivar(0); ivar<LsmData_NOAHMP::NumVars; ++ivar) {
+            // Interpolate from lev 0 to obtain the lsm data
+            InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
+                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                                  *lsm_lev0_data[ivar], 0, 0, 1,
+                                  m_geom0, m_geom,
+                                  m_refRatio, &cell_cons_interp,
+                                  m_domain_bcs_type, BCVars::cons_bc);
+        }
+
+        // NOTE: The below interpolation over water regions will touch cells that
+        //       have a bogus value of "lsm_flux_undefined". Here, we sanitize the
+        //       output by enforcing a bogus value, inherited from the coarse data,
+        //       so that the surface layer will cycle the flux. The checks are done
+        //       with lsm_t_flux for consistency with level 0.
+        IntVect refRatio   = m_refRatio;
+        const IntVect ngc  = lsm_lev0_flux[LsmFlux_NOAHMP::t_flux]->nGrowVect();
+        const BoxArray baf = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->boxArray();
+        const DistributionMapping dmf = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->DistributionMap();
+        MultiFab mf_crse_patch(amrex::coarsen(baf,m_refRatio), dmf, 1, IntVect(1,1,0));
+        mf_crse_patch.ParallelCopy(*lsm_lev0_flux[LsmFlux_NOAHMP::t_flux], 0, 0, 1,
+                                   ngc, ngc, m_geom0.periodicity());
         for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
             // Interpolate from lev 0 to obtain the lsm fluxes
             InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
@@ -257,17 +279,6 @@ NOAHMP::Advance_With_State (const int& lev,
                                   m_refRatio, &cell_cons_interp,
                                   m_domain_bcs_type, BCVars::cons_bc);
 
-            // NOTE: The above interpolation over water regions will touch cells that
-            //       have a bogus value of "lsm_flux_undefined". Here, we sanitize the
-            //       output by enforcing a bogus value, inherited from the coarse data,
-            //       so that the surface layer will cycle the flux.
-            IntVect refRatio   = m_refRatio;
-            const IntVect ngc  = lsm_lev0_flux[ivar]->nGrowVect();
-            const BoxArray baf = lsm_fab_flux[ivar]->boxArray();
-            const DistributionMapping dmf = lsm_fab_flux[ivar]->DistributionMap();
-            MultiFab mf_crse_patch(amrex::coarsen(baf,m_refRatio), dmf, 1, IntVect(1,1,0));
-            mf_crse_patch.ParallelCopy(*lsm_lev0_flux[ivar], 0, 0, 1,
-                                       ngc, ngc, m_geom0.periodicity());
             for (MFIter mfi(*lsm_fab_flux[ivar]); mfi.isValid(); ++mfi) {
                 Box vbx = mfi.validbox();
                 const Array4<      Real>& fine_arr = lsm_fab_flux[ivar]->array(mfi);

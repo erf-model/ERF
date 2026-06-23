@@ -203,6 +203,13 @@ public:
     }
 
     void
+    Lsm_Set_Lev0_Data_Ptr (const int& varIdx,
+                           amrex::MultiFab* lev0_data_ptr) override
+    {
+        lsm_lev0_data[varIdx] = lev0_data_ptr;
+    }
+
+    void
     Lsm_Set_Lev0_Flux_Ptr (const int& varIdx,
                            amrex::MultiFab* lev0_flux_ptr) override
     {
@@ -260,6 +267,9 @@ private:
 
     // LSM flux variables
     amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_fab_flux;
+
+    // LSM data variables at level 0
+    amrex::Array<amrex::MultiFab*, LsmData_NOAHMP::NumVars> lsm_lev0_data;
 
     // LSM flux variables at level 0
     amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;

@@ -44,48 +44,45 @@ SurfaceLayer::update_fluxes (const int& lev,
     m_ma.compute_averages(lev);
 
     // NOTE: Do iterations to seed variables on the first step (LSM called post step)
+    //       as well as compute values where invalid LSM fluxes may reside
     //*******************************************************************************
-    // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes && elapsed_time > zero) {
-        compute_sfc_params_from_lsm_fluxes(lev, cons_in);
-    } else {
-        // ***************************************************************
-        // Iterate the fluxes if moeng type
-        // First iterate over land -- the only model for surface roughness
-        // over land is RoughCalcType::CONSTANT
-        // ***************************************************************
-        if (flux_type == FluxCalcType::MOENG ||
-            flux_type == FluxCalcType::ROTATE) {
-            bool is_land = true;
-            // Do we have a constant flux for moisture over land?
-            bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
-                                (moist_type == MoistCalcType::ADIABATIC) );
-            if (m_terrain_type != TerrainType::EB) {
+    // ***************************************************************
+    // Iterate the fluxes if moeng type
+    // First iterate over land -- the only model for surface roughness
+    // over land is RoughCalcType::CONSTANT
+    // ***************************************************************
+    if (flux_type == FluxCalcType::MOENG ||
+        flux_type == FluxCalcType::ROTATE) {
+        bool is_land = true;
+        // Do we have a constant flux for moisture over land?
+        bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                            (moist_type == MoistCalcType::ADIABATIC) );
+        if (m_terrain_type != TerrainType::EB) {
             if (theta_type == ThetaCalcType::HEAT_FLUX) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
-                } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
-                } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                        (moist_type == MoistCalcType::ADIABATIC)) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        adiabatic most_flux(surf_temp_flux, surf_moist_flux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
                 } else {
-                    amrex::Abort("Unknown value for theta_type");
+                    amrex::Abort("Unknown value for rough_type_land");
                 }
+            } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                       (moist_type == MoistCalcType::ADIABATIC)) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    adiabatic most_flux(surf_temp_flux, surf_moist_flux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else {
+                amrex::Abort("Unknown value for theta_type");
+            }
         // EB
         } else {
             if (theta_type == ThetaCalcType::HEAT_FLUX) {
@@ -103,7 +100,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                     amrex::Abort("Unknown value for rough_type_land");
                 }
             } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                    (moist_type == MoistCalcType::ADIABATIC)) {
+                       (moist_type == MoistCalcType::ADIABATIC)) {
                 if (rough_type_land == RoughCalcType::CONSTANT) {
                     adiabatic_eb most_flux(surf_temp_flux, surf_moist_flux);
                     compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
@@ -113,9 +110,13 @@ SurfaceLayer::update_fluxes (const int& lev,
             } else {
                 amrex::Abort("Unknown value for theta_type");
             }
-        }
-        } // MOENG -- LAND
-    } // has_lsm_fluxes
+        } // EB
+    } // MOENG -- LAND
+
+    // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
+    if (m_has_lsm_fluxes && elapsed_time > zero) {
+        compute_sfc_params_from_lsm_fluxes(lev, cons_in);
+    }
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
@@ -942,11 +943,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            // Skip cells the LSM did not flux (sea-ice / open water -> the LSM
-            // wrote the lsm_flux_undefined sentinel). They keep the u*/T*/q*/L
-            // from the MOST iteration (computed from the surface temperature).
-            // Using the sentinel here would give u_star ~ sqrt(bogus_large_value) and blow up
-            // the PBL on the next step.
+            // Skip cells the LSM did not have a valid flux (lsm_flux_undefined).
             if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;

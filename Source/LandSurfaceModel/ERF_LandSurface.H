@@ -115,6 +115,20 @@ public:
     int
     Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
 
+    void
+    Set_Lev0_Data_Ptr (const int& lev) {
+        // Ensure the same type of model for copy in place of flux data
+        if ( (lev > 0) && typeid(m_lsm_model[lev]) == typeid(m_lsm_model[0]) ) {
+            int ndata = this->Get_Data_Size();
+            for (int varIdx(0); varIdx<ndata; ++varIdx) {
+                amrex::MultiFab* Lev0_Data_Ptr = this->Get_Data_Ptr(0, varIdx);
+                m_lsm_model[lev]->Lsm_Set_Lev0_Data_Ptr(varIdx, Lev0_Data_Ptr);
+            }
+        } else {
+            amrex::Abort("Differing types of land surface models across levels is not supported!");
+        }
+    }
+
     std::string
     Get_FluxName (const int& varIdx) { return m_lsm_model[0]->Lsm_FluxName(varIdx); }
 
@@ -122,7 +136,7 @@ public:
     Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
 
     void
-    Get_Lev0_Flux_Data (const int& lev) {
+    Set_Lev0_Flux_Ptr (const int& lev) {
         // Ensure the same type of model for copy in place of flux data
         if ( (lev > 0) && typeid(m_lsm_model[lev]) == typeid(m_lsm_model[0]) ) {
             int nflux = this->Get_Flux_Size();

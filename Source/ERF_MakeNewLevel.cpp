@@ -118,7 +118,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
     if (lev>0) {
-        lsm.Get_Lev0_Flux_Data(lev);
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
     }
 
     // ********************************************************************************************
@@ -504,7 +505,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
     if (lev>0) {
-        lsm.Get_Lev0_Flux_Data(lev);
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
     }
 
     // ********************************************************************************************

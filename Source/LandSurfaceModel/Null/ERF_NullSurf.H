@@ -118,6 +118,12 @@ class NullSurf {
 
     virtual
     void
+    Lsm_Set_Lev0_Data_Ptr (const int& /*varIdx*/,
+                           amrex::MultiFab* /*lev0_data_ptr*/)
+    {}
+
+    virtual
+    void
     Lsm_Set_Lev0_Flux_Ptr (const int& /*varIdx*/,
                            amrex::MultiFab* /*lev0_flux_ptr*/)
     {}
