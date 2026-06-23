@@ -739,7 +739,7 @@ ERF::Evolve ()
     BL_PROFILE_VAR_STOP(evolve);
 }
 
-void 
+void
 ERF::WriteAtFinalTime()
 {
     // Write plotfiles at final time
