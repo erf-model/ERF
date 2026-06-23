@@ -258,18 +258,9 @@ NOAHMP::Advance_With_State (const int& lev,
                                   m_domain_bcs_type, BCVars::cons_bc);
         }
 
-        // NOTE: The below interpolation over water regions will touch cells that
-        //       have a bogus value of "lsm_flux_undefined". Here, we sanitize the
-        //       output by enforcing a bogus value, inherited from the coarse data,
-        //       so that the surface layer will cycle the flux. The checks are done
-        //       with lsm_t_flux for consistency with level 0.
-        IntVect refRatio   = m_refRatio;
-        const IntVect ngc  = lsm_lev0_flux[LsmFlux_NOAHMP::t_flux]->nGrowVect();
-        const BoxArray baf = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->boxArray();
-        const DistributionMapping dmf = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->DistributionMap();
-        MultiFab mf_crse_patch(amrex::coarsen(baf,m_refRatio), dmf, 1, IntVect(1,1,0));
-        mf_crse_patch.ParallelCopy(*lsm_lev0_flux[LsmFlux_NOAHMP::t_flux], 0, 0, 1,
-                                   ngc, ngc, m_geom0.periodicity());
+        // NOTE: The surface layer class wrote into the noah flux data structures
+        //       where lsm_undefined values existed. This makes the noah flux
+        //       complete on the coarse grid and we can safely interpolate.
         for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
             // Interpolate from lev 0 to obtain the lsm fluxes
             InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
@@ -278,19 +269,6 @@ NOAHMP::Advance_With_State (const int& lev,
                                   m_geom0, m_geom,
                                   m_refRatio, &cell_cons_interp,
                                   m_domain_bcs_type, BCVars::cons_bc);
-
-            for (MFIter mfi(*lsm_fab_flux[ivar]); mfi.isValid(); ++mfi) {
-                Box vbx = mfi.validbox();
-                const Array4<      Real>& fine_arr = lsm_fab_flux[ivar]->array(mfi);
-                const Array4<const Real>& crse_arr = mf_crse_patch.const_array(mfi);
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int ic = i/refRatio[0];
-                    int jc = j/refRatio[1];
-                    int kc = k/refRatio[2];
-                    if (crse_arr(ic,jc,kc) == lsm_flux_undefined) { fine_arr(i,j,k) = lsm_flux_undefined; }
-                });
-            } //mfi
         } // ivar
     } else {
         // Verify we need to take another LSM step
@@ -409,13 +387,12 @@ NOAHMP::Advance_With_State (const int& lev,
                 int ii = std::min(std::max(i,i_lo),i_hi);
                 int jj = std::min(std::max(j,j_lo),j_hi);
 
-                // SurfaceLayer fluxes at CC.
+                // SurfaceLayer fluxes and data at CC.
                 // Noah-MP returns the -9999 fill value for cells it does NOT process
-                // (sea-ice / open-water points, which still have LANDMASK=1). Applying
-                // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
-                // lowest cell to ~200 K. Detect the fill and instead write the
-                // lsm_flux_undefined sentinel; the surface layer then falls back to
-                // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
+                // (sea-ice / open-water points, which still have LANDMASK=1).
+                // Detect the fill and instead write the lsm_undefined sentinel;
+                // the surface layer then falls back to the MOST flux for those cells
+                // (see ERF_SurfaceLayer.cpp).
                 // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
                 //       so the surface layer can average them.
                 Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
@@ -425,19 +402,29 @@ NOAHMP::Advance_With_State (const int& lev,
                     tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
                     tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
                 } else {
-                    t_flux_arr(i,j,k) = lsm_flux_undefined;
-                    q_flux_arr(i,j,k) = lsm_flux_undefined;
-                    tau13_arr(i,j,k)  = lsm_flux_undefined;
-                    tau23_arr(i,j,k)  = lsm_flux_undefined;
+                    t_flux_arr(i,j,k) = lsm_undefined;
+                    q_flux_arr(i,j,k) = lsm_undefined;
+                    tau13_arr(i,j,k)  = lsm_undefined;
+                    tau23_arr(i,j,k)  = lsm_undefined;
                 }
 
                 // RRTMGP variables
-                TSK(i,j,0)           = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);
-                EMISS(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::emiss);
-                ALBSFCDIR_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_vis);
-                ALBSFCDIR_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_nir);
-                ALBSFCDIF_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_vis);
-                ALBSFCDIF_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_nir);
+                Real tsk_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);
+                if (tsk_lsm > Real(-9990.0)) {
+                    TSK(i,j,0)           = tsk_lsm;
+                    EMISS(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::emiss);
+                    ALBSFCDIR_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_vis);
+                    ALBSFCDIR_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_nir);
+                    ALBSFCDIF_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_vis);
+                    ALBSFCDIF_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_nir);
+                } else {
+                    TSK(i,j,0)           = lsm_undefined;
+                    EMISS(i,j,0)         = lsm_undefined;
+                    ALBSFCDIR_VIS(i,j,0) = lsm_undefined;
+                    ALBSFCDIR_NIR(i,j,0) = lsm_undefined;
+                    ALBSFCDIF_VIS(i,j,0) = lsm_undefined;
+                    ALBSFCDIF_NIR(i,j,0) = lsm_undefined;
+                }
             });
         }
 

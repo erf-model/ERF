@@ -567,17 +567,20 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Valid theta flux from LSM and over land. The LSM writes the
-            // lsm_flux_undefined sentinel for cells it did not process (sea-ice /
+            // lsm_undefined sentinel for cells it did not process (sea-ice /
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
+            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
                 Tflux = lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
+                if (lsm_t_flux_arr) {
+                    lsm_t_flux_arr(i,j,0) = Tflux;
+                }
 
             }
 
@@ -598,13 +601,16 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_flux_undefined) {
+                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_undefined) {
                     Qflux = lsm_q_flux_arr(i,j,0);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
                                                      cons_arr, velx_arr, vely_arr,
                                                      umm_arr, qm_arr, u_star_arr,
                                                      q_star_arr, q_surf_arr);
+                    if (lsm_q_flux_arr) {
+                        lsm_q_flux_arr(i,j,0) = Qflux;
+                    }
                 }
 
                 // Do scalar flux rotations?
@@ -628,15 +634,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
                 int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_flux_undefined);
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_undefined);
                 int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_flux_undefined);
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_undefined);
                 if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
                     stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
                         stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
                                                                      cons_arr, velx_arr, vely_arr,
                                                                      umm_arr, um_arr, u_star_arr);
+                        if (!is_land_hi) {
+                            lsm_tau13_arr(i  ,j,0) = two * stressx;
+                        }
+                        if (!is_land_lo) {
+                            lsm_tau13_arr(i-1,j,0) = two * stressx;
+                        }
                     }
                     if (is_land_hi) {
                         stressx += myhalf * lsm_tau13_arr(i  ,j,0);
@@ -648,6 +660,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, um_arr, u_star_arr);
+                    if (lsm_tau13_arr) {
+                        lsm_tau13_arr(i  ,j,0) = stressx;
+                        lsm_tau13_arr(i-1,j,0) = stressx;
+                    }
                 }
 
                 t13_arr(i,j,k) = stressx;
@@ -662,15 +678,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
                 int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_flux_undefined);
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_undefined);
                 int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_flux_undefined);
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_undefined);
                 if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
                     stressy = zero;
                     if (!is_land_hi || !is_land_lo) {
                         stressy += myhalf * flux_comp.compute_v_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, vm_arr, u_star_arr);
+                        if (!is_land_hi) {
+                            lsm_tau23_arr(i,j  ,0) = two * stressy;
+                        }
+                        if (!is_land_lo) {
+                            lsm_tau23_arr(i,j-1,0) = two * stressy;
+                        }
                     }
                     if (is_land_hi) {
                         stressy += myhalf * lsm_tau23_arr(i,j  ,0);
@@ -682,6 +704,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, vm_arr, u_star_arr);
+                    if (lsm_tau23_arr) {
+                        lsm_tau23_arr(i,j  ,0) = stressy;
+                        lsm_tau23_arr(i,j-1,0) = stressy;
+                    }
                 }
 
                 t23_arr(i,j,k) = stressy;
@@ -943,8 +969,8 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            // Skip cells the LSM did not have a valid flux (lsm_flux_undefined).
-            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
+            // Skip cells the LSM did not have a valid flux (lsm_undefined).
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;

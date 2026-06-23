@@ -639,8 +639,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
                     // Check if valid LSM data
-                    bool valid_lsm_data{false};
-                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) >= Real(0.)); }
+                    bool valid_lsm_data = (lsm_in_arr(i,j,k) < lsm_undefined);
 
                     // Have LSM and are over land
                     if (is_land && valid_lsm_data) {
