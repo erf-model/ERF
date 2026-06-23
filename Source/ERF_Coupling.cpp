@@ -29,6 +29,10 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
 
     post_timestep(step, cur_time, dt[0]);
 
+    // ****************************************************************************************
+    // Write plotfiles at intermediate times
+    // ****************************************************************************************
+
     if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
         last_plot3d_file_step_1 = step+1;
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
@@ -63,6 +67,8 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
         WriteCheckpointFile();
         if (m_check_per > amrex::Real(0.0)) {last_check_file_time += m_check_per;}
     }
+
+    WriteAtFinalTime();
 
     return dt[0];
 }

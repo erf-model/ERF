@@ -736,6 +736,12 @@ ERF::Evolve ()
         if (start_time+cur_time >= stop_time - Real(1.e-6)*dt[0]) break;
     }
 
+    BL_PROFILE_VAR_STOP(evolve);
+}
+
+void 
+ERF::WriteAtFinalTime()
+{
     // Write plotfiles at final time
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero) && istep[0] > last_plot3d_file_step_1 ) {
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
@@ -765,8 +771,6 @@ ERF::Evolve ()
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
-
-    BL_PROFILE_VAR_STOP(evolve);
 }
 
 // Called after every coarse timestep

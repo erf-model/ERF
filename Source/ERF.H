@@ -256,6 +256,9 @@ public:
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, amrex::Real dt_lev);
 
+    // Do whatever writing needs to be done after time-stepping is complete
+    void WriteAtFinalTime();
+
     // Diagnostics
     void sum_integrated_quantities (double time);
     void sum_derived_quantities (double time);
