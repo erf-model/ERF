@@ -38,8 +38,8 @@ NOAHMP::Init (const int& lev,
     }();
     amrex::ignore_unused(noahmp_fatal_installed);
 
-    m_dt   = dt;
-    m_geom = geom;
+    m_dt    = dt;
+    m_geom  = geom;
     m_geom0 = geom0;
     m_domain_bcs_type = domain_bcs_type;
     m_refRatio = refRatio;
@@ -101,28 +101,14 @@ NOAHMP::Init (const int& lev,
     for (auto ivar = 0; ivar < LsmData_NOAHMP::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_data[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
-
-        // NOTE: Radiation steps first so we set values
-        //       to reasonable initialization for coupling
-        Real val_to_set = zero;
-        if (ivar == LsmData_NOAHMP::t_sfc) {
-            val_to_set = Real(300.0);
-        } else if (ivar == LsmData_NOAHMP::sfc_emis) {
-            val_to_set = Real(0.9);
-        } else if ( (ivar>=LsmData_NOAHMP::sfc_alb_dir_vis) &&
-                    (ivar<=LsmData_NOAHMP::sfc_alb_dif_nir) ) {
-            val_to_set = Real(0.06);
-        } else {
-            val_to_set = zero;
-        }
-        lsm_fab_data[ivar]->setVal(val_to_set);
+        lsm_fab_data[ivar]->setVal(lsm_undefined);
     }
 
     // Create the fluxes
     for (auto ivar = 0; ivar < LsmFlux_NOAHMP::NumVars; ++ivar) {
         // NOTE: Fluxes are CC with ghost cells for averaging
         lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, IntVect(1,1,0));
-        lsm_fab_flux[ivar]->setVal(0.);
+        lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
     if (lev==0) {
@@ -446,9 +432,8 @@ NOAHMP::Advance_With_State (const int& lev,
                 }
 
                 // RRTMGP variables
-                Real tsk_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);
-                if (tsk_lsm > Real(-9990.0)) {
-                    TSK(i,j,0)           = tsk_lsm;
+                if (hfx_lsm > Real(-9990.0)) {
+                    TSK(i,j,0)           = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);
                     EMISS(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::emiss);
                     ALBSFCDIR_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_vis);
                     ALBSFCDIR_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_nir);

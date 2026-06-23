@@ -614,7 +614,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             Real(0.06), Real(0.06)};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
-            auto rrtmgp_to_fill_k = rrtmgp_in_vars[ivar];
+            auto rrtmgp_to_fill_k   = rrtmgp_in_vars[ivar];
             amrex::Table1D<amrex::Real> rrtmgp_to_fill(rrtmgp_to_fill_k.data(),
                                                        0, rrtmgp_to_fill_k.extent(0));
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
@@ -624,12 +624,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const int imin   = vbx.smallEnd(0);
                 const int jmin   = vbx.smallEnd(1);
                 const int offset = m_col_offsets[mfi.index()];
-                const Array4<const int>& lmask_arr  = (lmask)   ? lmask->const_array(mfi) :
-                                                                  Array4<const int> {};
+                const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
+                                                                   Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
                                                                   Array4<const Real> {};
-                const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :
-                                                                                Array4<const Real> {};
+                const Array4<      Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->array(mfi) :
+                                                                                Array4<      Real> {};
                 ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -639,7 +639,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
                     // Check if valid LSM data
-                    bool valid_lsm_data = (lsm_in_arr(i,j,k) < lsm_undefined);
+                    bool valid_lsm_data = (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined));
 
                     // Have LSM and are over land
                     if (is_land && valid_lsm_data) {
@@ -648,10 +648,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     // We have a SurfLayer (enforce consistency with temperature)
                     else if (tsurf_arr && (ivar==0)) {
                         rrtmgp_to_fill(icol) = tsurf_arr(i,j,k);
+                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = tsurf_arr(i,j,k); }
                     }
                     // Use the default value
                     else {
                         rrtmgp_to_fill(icol) = rrtmgp_default_val;
+                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = rrtmgp_default_val; }
                     }
                 });
             } //mfi
