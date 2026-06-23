@@ -24,12 +24,12 @@ NOAHMP::Init (const int& lev,
 
     // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
     // Init across all levels). Noah-MP carries no MPI/AMReX dependency of its own
-    // and instead calls noahmp::fatal(); routing that through amrex::Abort makes a
+    // and instead calls NoahmpIO_fatal(); routing that through amrex::Abort makes a
     // fatal error on any rank -- from either the C++ or the Fortran coupling side
     // -- propagate to all ranks via MPI_Abort, rather than deadlocking peers in
     // the next collective. See NoahmpFatal.H.
     static const bool noahmp_fatal_installed = []() {
-        noahmp::set_fatal_handler([](const char* msg){
+        NoahmpIO_set_fatal_handler([](const char* msg){
             amrex::Abort(msg ? msg : "Noah-MP fatal error");
         });
         return true;
