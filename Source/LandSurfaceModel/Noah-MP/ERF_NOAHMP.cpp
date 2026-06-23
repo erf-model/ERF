@@ -427,10 +427,9 @@ NOAHMP::Advance_With_State (const int& lev,
                 // SurfaceLayer fluxes at CC.
                 // Noah-MP returns the -9999 fill value for cells it does NOT process
                 // (sea-ice / open-water points, which still have LANDMASK=1). Applying
-                // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
-                // lowest cell to ~200 K. Detect the fill and instead write the
-                // lsm_flux_undefined sentinel; the surface layer then falls back to
-                // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
+                // Detect the fill and instead write the lsm_undefined sentinel;
+                // the surface layer then falls back to the MOST flux for those cells
+                // (see ERF_SurfaceLayer.cpp).
                 // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
                 //       so the surface layer can average them.
                 Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
@@ -440,10 +439,10 @@ NOAHMP::Advance_With_State (const int& lev,
                     tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
                     tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
                 } else {
-                    t_flux_arr(i,j,k) = lsm_flux_undefined;
-                    q_flux_arr(i,j,k) = lsm_flux_undefined;
-                    tau13_arr(i,j,k)  = lsm_flux_undefined;
-                    tau23_arr(i,j,k)  = lsm_flux_undefined;
+                    t_flux_arr(i,j,k) = lsm_undefined;
+                    q_flux_arr(i,j,k) = lsm_undefined;
+                    tau13_arr(i,j,k)  = lsm_undefined;
+                    tau23_arr(i,j,k)  = lsm_undefined;
                 }
 
                 // RRTMGP variables
