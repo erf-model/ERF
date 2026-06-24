@@ -219,7 +219,7 @@ public:
     }
 
     bool
-    Get_Update_Status () override { return m_update; }
+    Get_Update_Status () override { return m_updated; }
 
     // Checkpoint/restore the NoahMP substep counter. Uses the class member
     // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on

@@ -278,7 +278,7 @@ NOAHMP::Advance_With_State (const int& lev,
                                       m_refRatio, &cell_cons_interp,
                                       m_domain_bcs_type, BCVars::cons_bc);
             } // ivar
-            
+
             // NOTE: The surface layer class wrote into the noah flux data structures
             //       where lsm_undefined values existed. This makes the noah flux
             //       complete on the coarse grid and we can safely interpolate.
