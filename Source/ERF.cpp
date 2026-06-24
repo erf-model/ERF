@@ -736,10 +736,12 @@ ERF::Evolve ()
         if (start_time+cur_time >= stop_time - Real(1.e-6)*dt[0]) break;
     }
 
+    WriteAtFinalTime();
+
     BL_PROFILE_VAR_STOP(evolve);
 }
 
-void 
+void
 ERF::WriteAtFinalTime()
 {
     // Write plotfiles at final time
