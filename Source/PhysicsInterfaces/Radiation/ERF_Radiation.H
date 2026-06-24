@@ -174,7 +174,7 @@ public:
 
     // Wrapper for implementation steps
     void
-    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptr)
+    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
             amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
