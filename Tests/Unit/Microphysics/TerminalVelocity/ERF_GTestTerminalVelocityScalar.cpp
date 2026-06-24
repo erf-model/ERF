@@ -82,6 +82,38 @@ TEST(TerminalVelocityScalar, DumpCurvesForPlotting)
         }
     }
 
+    // Locatelli & Hobbs (1974) graupel habits at their measured mass-dimension
+    // relations (M[mg] = c D[mm]^b), the basis for the Boehm (1989) Fig. 3
+    // graupel curves. Apparent density rho = M / ((pi/6) D^3) falls with D; the
+    // particle is treated as a sphere (phi = 1). This overlays ERF's Boehm speed
+    // on the Fig. 3 read-offs at matching density (instead of a fixed 400 sphere).
+    struct LHHabit { const char* name; amrex::Real c_mg; amrex::Real b; };
+    const LHHabit lh_habits[] = {
+        {"lh_lump_graupel",      amrex::Real(0.078), amrex::Real(2.8)}, // L-H Fig.6 (0.1-0.2 Mg m^-3)
+        {"lh_conical_graupel",   amrex::Real(0.073), amrex::Real(2.6)}, // L-H Fig.9
+        {"lh_hexagonal_graupel", amrex::Real(0.044), amrex::Real(2.9)}  // L-H Fig.9
+    };
+    for (const LHHabit& h : lh_habits) {
+        for (int k = 0; k < n; ++k) {
+            const amrex::Real D = log_point(amrex::Real(3.0e-4), amrex::Real(5.0e-3), k, n);
+            const amrex::Real D_mm = amrex::Real(1.0e3) * D;
+            const amrex::Real m = h.c_mg * amrex::Real(1.0e-6) * std::pow(D_mm, h.b); // [kg]
+            const amrex::Real rho_app = m / ((PI / amrex::Real(6.0)) * D*D*D);
+            f << h.name << ',' << D_mm << ','
+              << ice_vterm_D(tv, D, amrex::Real(1.0), rho_app) << '\n';
+        }
+    }
+
+    // A fixed-density (100 kg m^-3) ice sphere swept from the Stokes regime upward.
+    // Plotted with the analytic Stokes law v = (2/9)(rho_p - rho_a) g a^2 / mu so the
+    // figure shows the small-ice limit (Re << 1) where Boehm reduces to Stokes -- the
+    // viscosity-controlled regime exercised by the Stokes assertion.
+    for (int k = 0; k < n; ++k) {
+        const amrex::Real D = log_point(amrex::Real(2.0e-5), amrex::Real(5.0e-3), k, n);
+        f << "ice_sphere100," << amrex::Real(1.0e3) * D << ','
+          << ice_vterm_D(tv, D, amrex::Real(1.0), amrex::Real(100.0)) << '\n';
+    }
+
     // Melting graupel: a fixed-total-mass particle (equivalent radius 1.5 mm,
     // apparent ice-core density 400 kg m^-3) sweeping liquid mass fraction ell.
     // v_mixed blends the shrinking ice core's Boehm speed toward the equivalent
