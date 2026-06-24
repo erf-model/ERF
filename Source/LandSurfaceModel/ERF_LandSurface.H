@@ -64,10 +64,12 @@ public:
              amrex::MultiFab* qfx3_out,
              const amrex::Real& time,
              const amrex::Real& dt_advance,
-             const int& nstep)
+             const int& nstep,
+             const bool updated_lev0)
     {
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
-                                             hfx3_out, qfx3_out, time, dt_advance, nstep);
+                                             hfx3_out, qfx3_out, time, dt_advance,
+                                             nstep, updated_lev0);
     }
 
     void
@@ -148,6 +150,9 @@ public:
             amrex::Abort("Differing types of land surface models across levels is not supported!");
         }
     }
+
+    bool
+    Get_LSM_Update_Status (const int& lev) { return m_lsm_model[lev]->Get_Update_Status(); }
 
     std::unordered_map<std::string,std::string>&
     Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }

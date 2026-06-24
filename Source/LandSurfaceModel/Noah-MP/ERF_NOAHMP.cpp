@@ -262,44 +262,58 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab* /*qfx3_out*/,
                             const Real& elapsed_time,
                             const Real& dt,
-                            const int& nstep)
+                            const int& nstep,
+                            const bool updated_lev0)
 {
-    if (lev>0) {
-        for (int ivar(0); ivar<LsmData_NOAHMP::NumVars; ++ivar) {
-            // Interpolate from lev 0 to obtain the lsm data
-            InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
-                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                                  *lsm_lev0_data[ivar], 0, 0, 1,
-                                  m_geom0, m_geom,
-                                  m_refRatio, &cell_cons_interp,
-                                  m_domain_bcs_type, BCVars::cons_bc);
-        } // ivar
-
-        // NOTE: The surface layer class wrote into the noah flux data structures
-        //       where lsm_undefined values existed. This makes the noah flux
-        //       complete on the coarse grid and we can safely interpolate.
-        for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-            // Interpolate from lev 0 to obtain the lsm fluxes
-            InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
-                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                                  *lsm_lev0_flux[ivar], 0, 0, 1,
-                                  m_geom0, m_geom,
-                                  m_refRatio, &cell_cons_interp,
-                                  m_domain_bcs_type, BCVars::cons_bc);
-        } // ivar
+    if (lev>0)
+        if (!updated_lev0) {
+            Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
+            m_updated = true;
+            for (int ivar(0); ivar<LsmData_NOAHMP::NumVars; ++ivar) {
+                // Interpolate from lev 0 to obtain the lsm data
+                InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
+                                      IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                                      *lsm_lev0_data[ivar], 0, 0, 1,
+                                      m_geom0, m_geom,
+                                      m_refRatio, &cell_cons_interp,
+                                      m_domain_bcs_type, BCVars::cons_bc);
+            } // ivar
+            
+            // NOTE: The surface layer class wrote into the noah flux data structures
+            //       where lsm_undefined values existed. This makes the noah flux
+            //       complete on the coarse grid and we can safely interpolate.
+            for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
+                // Interpolate from lev 0 to obtain the lsm fluxes
+                InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
+                                      IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                                      *lsm_lev0_flux[ivar], 0, 0, 1,
+                                      m_geom0, m_geom,
+                                      m_refRatio, &cell_cons_interp,
+                                      m_domain_bcs_type, BCVars::cons_bc);
+            } // ivar
+            Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;
+        } else {
+            m_updated = false;
+        }
     } else {
         // Verify we need to take another LSM step. Use the class-level counter/dtbl
         // (valid on land-free ranks) so every rank decides identically -- the
         // FillBoundary at the end of this routine is collective.
         Real NOAH_time = static_cast<Real>(m_itimestep-1) * m_dtbl;
-        if (elapsed_time < NOAH_time) { return; }
+        if (elapsed_time < NOAH_time) {
+            m_updated = false;
+            return;
+        }
+
+        // We are updating
+        m_updated = true;
 
         // Advance the counter once per firing, in lockstep on every rank.
         m_itimestep += 1;
 
         Box domain = m_geom.Domain();
 
-        Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
+        Print () << "Noah-MP driver at level " << lev << " started at time step: " << nstep+1 << std::endl;
 
         bool is_moist = (cons_in.nComp() > RhoQ1_comp);
 
@@ -454,6 +468,6 @@ NOAHMP::Advance_With_State (const int& lev,
         for (auto ivar = 0; ivar < LsmFlux_NOAHMP::NumVars; ++ivar) {
             lsm_fab_flux[ivar]->FillBoundary(m_geom.periodicity());
         }
-        Print () << "Noah-MP driver completed" << std::endl;
+        Print () << "Noah-MP driver at level " << lev << " completed" << std::endl;
     } // lev == 0
 };

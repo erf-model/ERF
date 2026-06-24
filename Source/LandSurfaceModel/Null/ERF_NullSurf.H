@@ -40,7 +40,8 @@ class NullSurf {
                         amrex::MultiFab* /*qfx3_out*/,
                         const amrex::Real& /*elapsed_time*/,
                         const amrex::Real& /*dt_advance*/,
-                        const int& /*nstep*/) { }
+                        const int& /*nstep*/,
+                        const bool /*updated_lev0*/) { }
 
     virtual
     void
@@ -128,6 +129,10 @@ class NullSurf {
     Lsm_Set_Lev0_Flux_Ptr (const int& /*varIdx*/,
                            amrex::MultiFab* /*lev0_flux_ptr*/)
     {}
+
+    virtual
+    bool
+    Get_Update_Status () { return false; }
 
     // Scalar LSM step counter (NoahMP itimestep). Persisted in checkpoint so
     // the LSM substepping schedule survives restart. 0 means "uninitialized".

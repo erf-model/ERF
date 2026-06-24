@@ -122,7 +122,8 @@ public:
                         amrex::MultiFab* qfx3_out,
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
-                        const int& nstep) override;
+                        const int& nstep,
+                        const bool updated_lev0) override;
 
     void
     Plot_Landfile (const int& nstep) override;
@@ -216,6 +217,9 @@ public:
     {
         lsm_lev0_flux[varIdx] = lev0_flux_ptr;
     }
+
+    bool
+    Get_Update_Status () override { return m_update; }
 
     // Checkpoint/restore the NoahMP substep counter. Uses the class member
     // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on
@@ -331,5 +335,8 @@ private:
 
     // Plot frequency
     int m_plot_int_1 = -1;
+
+    // Update status
+    bool m_updated = false;
 };
 #endif
