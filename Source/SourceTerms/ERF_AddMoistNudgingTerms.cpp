@@ -44,11 +44,24 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     const Box domain = geom.Domain();
 
+    // Temporary MF so we can nudge qv + qc to the bdy data
+    int nc = S_data.nComp();
+    IntVect ng  = S_data.nGrowVect();
+    BoxArray ba = S_data.boxArray();
+    DistributionMapping dm = S_data.DistributionMap();
+    MultiFab S_tmp(ba, dm, nc, ng);
+    MultiFab::Copy(S_tmp, S_data, Rho_comp  , Rho_comp  , 1, ng);
+    MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
+    MultiFab::Add (S_tmp, S_data, RhoQ2_comp, RhoQ1_comp, 1, ng);
+    if (nc > RhoQ6_comp) {
+        MultiFab::Add (S_tmp, S_data, RhoQ3_comp, RhoQ1_comp, 1, ng);
+    }
+
     for (MFIter mfi(S_data,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         Box tbx  = mfi.tilebox();
 
-        const Array4<const Real>& new_cons_const = S_data.const_array(mfi);
+        const Array4<const Real>& new_cons_const = S_tmp.const_array(mfi);
         const Array4<      Real>& src_arr        = source.array(mfi);
         //
         // Note that old_stage_time_total = start_time+old_stage_time is total time
