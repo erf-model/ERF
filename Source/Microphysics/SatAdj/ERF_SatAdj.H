@@ -104,7 +104,7 @@ public:
     {
         dt = dt_advance;
 
-    //    this->AdvanceSatAdj(solverChoice);
+        this->AdvanceSatAdj(solverChoice);
     }
 
     amrex::MultiFab*
