@@ -273,6 +273,87 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
+    BL_PROFILE("slow_rhs_making_omega");
+    for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        Box bx  = mfi.tilebox();
+
+        IntVect nGrowVect = (l_use_eb)
+                            ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
+        Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
+
+        const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
+        const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
+        const Array4<      Real>& omega_arr = Omega.array(mfi);
+
+        //
+        // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
+        // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
+        // out of the projection
+        //
+        if (!l_use_terrain_fitted_coords) {
+            ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                omega_arr(i,j,k) = rho_w(i,j,k);
+            });
+
+        } else {
+
+            Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
+            int lo_z_face = domain.smallEnd(2);
+            if (gbxo_lo.smallEnd(2) <= lo_z_face) {
+                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = zero;
+                });
+            }
+            Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+            int hi_z_face = domain.bigEnd(2)+1;
+                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
+                ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+            }
+
+            const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+            const Array4<const Real>& mf_ux     = mapfac[MapFacType::u_x]->const_array(mfi);
+            const Array4<const Real>& mf_vy     = mapfac[MapFacType::v_y]->const_array(mfi);
+
+            if (z_t_mf) { // Note we never do anelastic with moving terrain
+                Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                // Array4<const Real> z_t;
+                      Array4<const Real> z_t        = z_t_mf->array(mfi);
+                const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
+                ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
+                    Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                    omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                  rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
+                        rho_at_face * z_t(i,j,k);
+                });
+            } else {
+                Box gbxo_mid = gbxo;
+                if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) {
+                    gbxo_mid.setSmall(2,1);
+                }
+                if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
+                    gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                }
+                ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                  rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv);
+                });
+            }
+        }
+    } // mfi
+    } // OMP
+
+    // We need extra values of Omega in the vertical if grids are decomposed vertically
+    Omega.FillBoundary(geom.periodicity());
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    {
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -408,66 +489,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flx_w_arr[dir] = flux_w[dir].array();
             }
         }
-
-        // *****************************************************************************
-        // Contravariant flux field
-        // *****************************************************************************
-        {
-        BL_PROFILE("slow_rhs_making_omega");
-            IntVect nGrowVect = (l_use_eb)
-                                ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
-            Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
-            //
-            // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
-            // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
-            // out of the projection
-            //
-            if (!l_use_terrain_fitted_coords) {
-                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
-
-            } else {
-
-                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
-                int lo_z_face = domain.smallEnd(2);
-                if (gbxo_lo.smallEnd(2) <= lo_z_face) {
-                    ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = zero;
-                    });
-                }
-                Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                int hi_z_face = domain.bigEnd(2)+1;
-                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
-                    ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
-                }
-
-                if (z_t) { // Note we never do anelastic with moving terrain
-                    Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
-                        Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
-                            rho_at_face * z_t(i,j,k);
-                    });
-                } else {
-                    Box gbxo_mid = gbxo;
-                    if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) {
-                        gbxo_mid.setSmall(2,1);
-                    }
-                    if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
-                        gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    }
-                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv);
-                    });
-                }
-            }
-        } // end profile
 
         // *****************************************************************************
         // Diffusive terms (pre-computed above)

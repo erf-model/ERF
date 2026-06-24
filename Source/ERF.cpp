@@ -686,44 +686,7 @@ ERF::Evolve ()
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
-            last_plot3d_file_step_1 = step+1;
-            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
-            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-            if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
-        }
-        if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
-            last_plot3d_file_step_2 = step+1;
-            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
-            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-            if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
-        }
-
-        if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
-            last_plot2d_file_step_1 = step+1;
-            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
-            if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
-        }
-
-        if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
-            last_plot2d_file_step_2 = step+1;
-            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
-            if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
-        }
-
-        for (int i = 0; i < m_subvol_int.size(); i++) {
-            if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
-                last_subvol_step[i] = step+1;
-                WriteSubvolume(i,subvol3d_var_names);
-                if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
-            }
-        }
-
-        if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
-            last_check_file_step = step+1;
-            WriteCheckpointFile();
-            if (m_check_per > zero) {last_check_file_time += m_check_per;}
-        }
+        WriteAtIntermediateTime(step, cur_time);
 
 #ifdef AMREX_MEM_PROFILING
         {
@@ -739,6 +702,49 @@ ERF::Evolve ()
     WriteAtFinalTime();
 
     BL_PROFILE_VAR_STOP(evolve);
+}
+
+void
+ERF::WriteAtIntermediateTime(int step, double cur_time)
+{
+    if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
+        last_plot3d_file_step_1 = step+1;
+        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
+    }
+    if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
+        last_plot3d_file_step_2 = step+1;
+        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
+    }
+
+    if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
+        last_plot2d_file_step_1 = step+1;
+        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+    }
+
+    if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
+        last_plot2d_file_step_2 = step+1;
+        Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+        if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+    }
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+            last_subvol_step[i] = step+1;
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
+        }
+    }
+
+    if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
+        last_check_file_step = step+1;
+        WriteCheckpointFile();
+        if (m_check_per > zero) {last_check_file_time += m_check_per;}
+    }
 }
 
 void

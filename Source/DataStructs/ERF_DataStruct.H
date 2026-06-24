@@ -1128,16 +1128,17 @@ struct SolverChoice {
 
         coriolis_factor = two * two * PI / rot_time_period;
 
-        amrex::Real latitude = amrex::Real(90.0);
-        pp.query("latitude", latitude);
-
         pp.query("coriolis_3d", coriolis_3d);
 
         // Convert to radians
-        latitude *= (PI/amrex::Real(180.));
-        sinphi = std::sin(latitude);
+        amrex::Real latitude_for_coriolis = amrex::Real(90.0);
+        pp.query("latitude", latitude_for_coriolis);
+        latitude_for_coriolis *= (PI/amrex::Real(180.));
+        sinphi = std::sin(latitude_for_coriolis);
+
+        // Note: cosphi defaults to 0
         if (coriolis_3d) {
-            cosphi = std::cos(latitude);
+            cosphi = std::cos(latitude_for_coriolis);
         }
 
         amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
