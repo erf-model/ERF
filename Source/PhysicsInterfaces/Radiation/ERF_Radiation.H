@@ -108,13 +108,14 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
-         amrex::MultiFab* lon_ptr) override
+         amrex::MultiFab* lon_ptr,
+         const bool updated_lsm) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr);
-        rad_run_impl(lsm_output_ptrs);
+        rad_run_impl(lsm_output_ptrs, updated_lsm);
     }
 
     // Set the grid info for columnar data in KOKKOS
@@ -171,9 +172,10 @@ public:
 
     // Wrapper for implementation steps
     void
-    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
+    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+                  const bool updated_lsm)
     {
-        if (m_update_rad) {
+        if (m_update_rad || updated_lsm) {
             amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
                 << m_orbital_mon << '-' << m_orbital_day << ' ' << m_orbital_sec << " ...";
             this->initialize_impl();
