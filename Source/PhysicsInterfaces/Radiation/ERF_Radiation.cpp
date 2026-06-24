@@ -169,7 +169,8 @@ Radiation::set_grids (int& level,
                       MultiFab* rad_fluxes,
                       MultiFab* z_phys,
                       MultiFab* lat,
-                      MultiFab* lon)
+                      MultiFab* lon,
+                      const bool updated_lsm)
 
 {
     // Set data members that may change
@@ -201,7 +202,7 @@ Radiation::set_grids (int& level,
 
     // Only allocate and proceed if we are going to update radiation
     m_update_rad = false;
-    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
+    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) || updated_lsm); }
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay
