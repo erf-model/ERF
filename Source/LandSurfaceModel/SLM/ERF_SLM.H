@@ -134,12 +134,36 @@ namespace SLM_Diag {
      precip = 0,
      precip_in,
      precip_sfc, // saved in prsfc too, but 3D
-     //run_off_sfc,
+     run_off_sfc,
      drain,
      drain_flux,
      evapo_wet,
      evapo_dry,
      grflux,
+     fabd_vis,     // absorbed fraction for direct visible radiation
+     fabd_nir,     // absorbed fraction for direct NIR radiation
+     fabi_vis,     // absorbed fraction for diffuse visible radiation
+     fabi_nir,     // absorbed fraction for diffuse NIR radiation
+     gdir,         // projected leaf+stem area in solar direction
+     gap,          // total gap fraction for beam
+     ftdd_vis,     // direct flux transmitted to ground (VIS)
+     ftdd_nir,     // direct flux transmitted to ground (NIR)
+     albd_vis,     // surface albedo for direct (VIS)
+     albd_nir,     // surface albedo for direct (NIR)
+     xl_diag,      // leaf angle distribution parameter (for debugging)
+     chil_diag,    // intermediate chil (for debugging)
+     phi1_diag,    // intermediate phi1 (for debugging)
+     phi2_diag,    // intermediate phi2 (for debugging)
+     fre_vis,      // reflected flux (VIS)
+     fre_nir,      // reflected flux (NIR)
+     ftd_vis,      // transmitted direct flux (VIS) - note: same as ftdd
+     ftd_nir,      // transmitted direct flux (NIR) - note: same as ftdd
+     fti_vis,      // transmitted diffuse flux (VIS)
+     fti_nir,      // transmitted diffuse flux (NIR)
+     albgrd_vis,   // ground albedo for direct (VIS) - note: same as albd
+     albgrd_nir,   // ground albedo for direct (NIR) - note: same as albd
+     albgri_vis,   // ground albedo for diffuse (VIS)
+     albgri_nir,   // ground albedo for diffuse (NIR)
      NumVars
    };
 }
@@ -586,7 +610,8 @@ public:
                                  int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
                                  amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
                                  amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                                 amrex::Real& bgap, amrex::Real& wgap);
+                                 amrex::Real& bgap, amrex::Real& wgap,
+                                 amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out);
 
     void transfer_coeff(const amrex::MFIter &mfi);
 
@@ -949,6 +974,7 @@ private:
     // NOTE: NOAHMP parameter "hvt" (top of canopy height) uses existing ztop from init_landtype()
     amrex::Gpu::PinnedVector<amrex::Real> hvb_rad;       // bottom of canopy (m) - NOAHMP name: HVB
     amrex::Gpu::PinnedVector<amrex::Real> den_rad;       // tree density (no. of trunks per m2) - NOAHMP name: DEN
+    amrex::Gpu::PinnedVector<amrex::Real> cwpvt;         // canopy wind extinction parameter - NOAHMP name: CWPVT
 
     // MultiFabs to store NOAHMP radiation state variables
     amrex::MultiFab albold_noahmp;  // snow albedo at last time step (for CLASS option)
@@ -1091,7 +1117,32 @@ private:
         "drain",
         "drain_flux",
         "evapo_wet",
-        "grflux"
+        "evapo_dry",
+        "grflux",
+        "fabd_vis",
+        "fabd_nir",
+        "fabi_vis",
+        "fabi_nir",
+        "gdir",
+        "gap",
+        "ftdd_vis",
+        "ftdd_nir",
+        "albd_vis",
+        "albd_nir",
+        "xl_diag",
+        "chil_diag",
+        "phi1_diag",
+        "phi2_diag",
+        "fre_vis",
+        "fre_nir",
+        "ftd_vis",
+        "ftd_nir",
+        "fti_vis",
+        "fti_nir",
+        "albgrd_vis",
+        "albgrd_nir",
+        "albgri_vis",
+        "albgri_nir"
     };
 
     inline static const std::vector<std::string> soilt_var_names = {

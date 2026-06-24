@@ -597,6 +597,10 @@ void SLM::init_from_file()
                     den_rad.resize(varsize);
                     Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
                                    h_veg_rad_params[i].second.data()+varsize, den_rad.data());
+                } else if (pname == "cwpvt") {
+                    cwpvt.resize(varsize);
+                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
+                                   h_veg_rad_params[i].second.data()+varsize, cwpvt.data());
                 }
             }
         }
@@ -1039,7 +1043,7 @@ void SLM::init_landtype()
                     albedovis_s_arr(i, j, 0) = 0.06;
                     albedonir_s_arr(i, j, 0) = 0.06;
                     break;
-                case 1: // evergreen needleaf forest
+                case 1: // evergreen needleleaf forest
                     albedovis_v_arr(i, j, 0) = 0.094;
                     albedonir_v_arr(i, j, 0) = 0.161;
                     albedovis_s_arr(i, j, 0) = 0.208;
@@ -1924,11 +1928,41 @@ void SLM::init_from_params()
     const int d_khi_lsm = khi_lsm;
     const int d_klo_lsm = klo_lsm;
 
-    // Get pointers to GPU parameter values
+    // Get pointers to GPU soil parameter values
     const amrex::Real *d_param_poro = d_soil_params["maxsmc"]->data();
     const amrex::Real *d_param_theta_FC = d_soil_params["refsmc"]->data();
 	const amrex::Real *d_param_theta_WP = d_soil_params["wltsmc"]->data();
 	const amrex::Real *d_param_m_pot_sat = d_soil_params["satpsi"]->data();
+
+    // Get pointers to GPU vegetation parameter values from NoahMP table
+    const amrex::Real *d_param_rs = nullptr;
+    const amrex::Real *d_param_rgl = nullptr;
+    const amrex::Real *d_param_xl = nullptr;
+    const amrex::Real *d_param_hs = nullptr;
+
+    // Check if vegetation parameters are available
+    bool has_rs = false, has_rgl = false, has_xl = false, has_hs = false;
+    if (d_veg_params.find("rs") != d_veg_params.end()) {
+        d_param_rs = d_veg_params.at("rs")->data();
+        has_rs = true;
+        amrex::Print() << " SLM: Using RS (minimum stomatal resistance) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("rgl") != d_veg_params.end()) {
+        d_param_rgl = d_veg_params.at("rgl")->data();
+        has_rgl = true;
+        amrex::Print() << " SLM: Using RGL (radiation stress parameter) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("xl") != d_veg_params.end()) {
+        d_param_xl = d_veg_params.at("xl")->data();
+        has_xl = true;
+        amrex::Print() << " SLM: Using XL (leaf/stem orientation index) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("hs") != d_veg_params.end()) {
+        d_param_hs = d_veg_params.at("hs")->data();
+        has_hs = true;
+        amrex::Print() << " SLM: Using HS (VPD sensitivity parameter) from NoahMP parameter file" << std::endl;
+        amrex::Print() << " SLM: Note - VPD formula changed to match NoahMP: 1/(1+HS*VPD)" << std::endl;
+    }
 
     for ( amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx2d = mfi.tilebox();
@@ -1943,20 +1977,48 @@ void SLM::init_from_params()
         auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->array(mfi);
         auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->array(mfi);
 
+        // Get vegetation parameter arrays
+        auto Rc_min_arr = Rc_min.array(mfi);
+        auto Rgl_arr = Rgl.array(mfi);
+        auto Khai_L_arr = Khai_L.array(mfi);
+        auto hs_rc_arr = hs_rc.array(mfi);
+
         amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
 
                 const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> index 0-19)
                 const int stype = soiltype_arr(i,j,d_khi_lsm) - 1;
 
-                // set soil porosity from parameter file value
-                // amrex::Print() << " i = " << i << " j = " << j << " ltype = " << ltype << " stype = " << stype << " poro = " << d_param_poro[stype] << std::endl;
-
+                // Set soil parameters from parameter file
                 for (int k = d_khi_lsm; k >= d_klo_lsm; k--) {
                     poro_soil_arr(i, j, k) = d_param_poro[stype];
                     theta_FC_arr(i, j, k) = d_param_theta_FC[stype];
                     theta_WP_arr(i, j, k) = d_param_theta_WP[stype];
                     m_pot_sat_arr(i, j, k) = d_param_m_pot_sat[stype];
+                }
+
+                // Set vegetation parameters from NoahMP table if available
+                // Only update for valid vegetation types (ltype >= 0)
+                if (ltype >= 0 && vegetype_arr(i,j,0) == 1) {
+                    if (has_rs && d_param_rs != nullptr) {
+                        // RS = minimum stomatal resistance [s/m]
+                        Rc_min_arr(i, j, 0) = d_param_rs[ltype];
+                    }
+                    if (has_rgl && d_param_rgl != nullptr) {
+                        // RGL = radiation stress parameter [W/m2]
+                        Rgl_arr(i, j, 0) = d_param_rgl[ltype];
+                    }
+                    if (has_xl && d_param_xl != nullptr) {
+                        // XL = leaf/stem orientation index (dimensionless)
+                        // Directly maps to Khai_L in SLM
+                        Khai_L_arr(i, j, 0) = d_param_xl[ltype];
+                    }
+                    if (has_hs && d_param_hs != nullptr) {
+                        // HS = VPD sensitivity parameter (dimensionless)
+                        // NOTE: This only works with the hyperbolic VPD formula: 1/(1+HS*VPD)
+                        // If using exponential formula exp(-hs*VPD), HS values are NOT compatible
+                        hs_rc_arr(i, j, 0) = d_param_hs[ltype];
+                    }
                 }
             }
         });
@@ -2985,6 +3047,8 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->const_array(mfi);
 
     auto ztop_arr = ztop.const_array(mfi);
+    auto disp_hgt_arr = disp_hgt.const_array(mfi);
+    auto z0_sfc_arr = z0_sfc.const_array(mfi);
     auto Rgl_arr = Rgl.const_array(mfi);
     auto Rc_min_arr = Rc_min.const_array(mfi);
     auto hs_rc_arr = hs_rc.const_array(mfi);
@@ -2994,9 +3058,13 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto r_b_arr = r_b.array(mfi);
     auto r_c_arr = r_c.array(mfi);
     auto r_d_arr = r_d.array(mfi);
-        
+
     auto phi_1_arr = phi_1.array(mfi);
     auto phi_2_arr = phi_2.array(mfi);
+
+    // Get CWPVT parameter (canopy wind extinction factor) if available
+    const amrex::Real* d_cwpvt = (cwpvt.size() > 0) ? cwpvt.data() : nullptr;
+    const amrex::Real d_cwpvt_default = 1.0;  // default value if not from table
 
     ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
@@ -3019,7 +3087,57 @@ void SLM::resistances(const amrex::MFIter &mfi)
             amrex::Real rc_fac_rad, rc_fac_vpd, rc_fac_t, rc_fac_sw, d_root, tmp_radf;
             amrex::Real k_beer, f_shade, lai_sun, lai_shade, sw_sun, sw_shade, tmp_sun, tmp_shade, rc_fac_sun, rc_fac_shade;
 
+            // ===================================================
             // Aerodynamic resistance for heat and vapor transfer under canopy space : r_d
+            // ===================================================
+            // NoahMP method: ResistanceLeafToGroundMod.F90
+            // Reference: Niu et al. (2011), He et al. (2023)
+
+            const amrex::Real MPE = 1.0e-6;
+            const amrex::Real CONST_VON_KARMAN = 0.4;
+            amrex::Real temp_diff = t_cas_arr(i, j, 0) - soilt_arr(i, j, d_khi_lsm);
+
+            // Get CWPVT (canopy wind extinction parameter) for this vegetation type
+            int veg_idx = static_cast<int>(vegetype_arr(i, j, 0)) - 1;  // Convert to 0-based index
+            amrex::Real CanopyWindExtFac = (d_cwpvt != nullptr && veg_idx >= 0) ? d_cwpvt[veg_idx] : d_cwpvt_default;
+
+            // Stability correction for undercanopy (MoStabCorrShUndCan)
+            amrex::Real MoStabCorrShUndCan = 1.0;  // Initialize to neutral
+            amrex::Real HeatSenGrdTmp = 0.0;  // Will be computed in flux calculation
+            // For now, use simple stability correction based on temperature difference
+            if (temp_diff < 0.0) {
+                // Unstable: (1 - 15*z/L)^(-0.25)
+                amrex::Real zeta = std::min(0.0, -0.1);  // Assume moderately unstable
+                MoStabCorrShUndCan = std::pow(1.0 - 15.0 * zeta, -0.25);
+            } else {
+                // Stable: 1 + 4.7*z/L
+                amrex::Real zeta = std::min(1.0, 0.1);  // Assume moderately stable
+                MoStabCorrShUndCan = 1.0 + 4.7 * zeta;
+            }
+
+            // Wind extinction coefficient
+            amrex::Real VegAreaIndEff = std::min(6.0, LAI_arr(i, j, 0));  // Effective LAI (capped at 6.0)
+            amrex::Real CanopyHeight = ztop_arr(i, j, 0);
+            amrex::Real WindExtCoeffCanopy = std::sqrt(CanopyWindExtFac * VegAreaIndEff * CanopyHeight * MoStabCorrShUndCan);
+
+            // Roughness lengths
+            amrex::Real RoughLenShVegGrd = d_z0_soil;  // Ground roughness for heat under canopy
+            amrex::Real RoughLenShCanopy = z0_sfc_arr(i, j, 0);  // Canopy roughness for heat
+            amrex::Real ZeroPlaneDispSfc = disp_hgt_arr(i, j, 0);  // Zero plane displacement
+
+            // Exponential wind profile terms
+            amrex::Real TMP1 = std::exp(-WindExtCoeffCanopy * RoughLenShVegGrd / CanopyHeight);
+            amrex::Real TMP2 = std::exp(-WindExtCoeffCanopy * (RoughLenShCanopy + ZeroPlaneDispSfc) / CanopyHeight);
+            amrex::Real TMPRAH2 = CanopyHeight * std::exp(WindExtCoeffCanopy) / WindExtCoeffCanopy * (TMP1 - TMP2);
+
+            // Turbulent transfer coefficient KH
+            amrex::Real KH = std::max(CONST_VON_KARMAN * ustar_arr(i, j, 0) * (CanopyHeight - ZeroPlaneDispSfc), MPE);
+
+            // Undercanopy aerodynamic resistance
+            r_d_arr(i, j, 0) = TMPRAH2 / KH;
+
+            // Original SLM method (commented out for comparison)
+            /*
             // temp_diff > 0 : stable undercanopy
             // temp_diff < 0 : unstable undercanopy
             amrex::Real temp_diff = t_cas_arr(i, j, 0) - soilt_arr(i, j, d_khi_lsm);
@@ -3049,20 +3167,30 @@ void SLM::resistances(const amrex::MFIter &mfi)
             // and baresoil turbulent transfer coefficient and friction velocity
             //   Reference: [Oleson et al., 2004] [Zeng et al., 2005]
             r_d_arr(i, j, 0) = std::min(400., 1.0 / ustar_arr(i, j, 0) / Cs); // prevent r_d from getting too large under stable condition
+            */
 
             // ===================================================
             // Leaf boundary layer resistance : r_b
             // ===================================================
+            // Simple empirical relationship from IFS
+            r_b_arr(i, j, 0) = 0.5 * r_a_arr(i, j, 0);
+
+            // Original SLM Method 1 (commented out for reference)
             // turbulent transfer coefficient between canopy surface and canopy air : Cv = 0.01m/s^-0.5
-            // characteristic dimension of the elaves in the direction of wind flux : d_leaf = 0.04m
-            //r_b_arr(i, j, 0) = 1.0 / 0.01 * std::pow( ustar_arr(i, j, 0) / 0.04, -0.5) / std::max(0.1, LAI_arr(i, j, 0));
-            // Above equation seems to overestimate LHF, so follow the equation (below) from IFS
-            r_b_arr(i, j, 0) = 0.5 * r_a_arr(i, j, 0); 
+            // characteristic dimension of the leaves in the direction of wind flux : d_leaf = 0.04m
+            // r_b_arr(i, j, 0) = 1.0 / 0.01 * std::pow( ustar_arr(i, j, 0) / 0.04, -0.5) / std::max(0.1, LAI_arr(i, j, 0));
+            // Above equation seems to overestimate LHF 
 
             // ===================================================
             // Stomatal resistance : r_c
             // ===================================================
-            // radiation factor
+            // radiation factor (Noah/NoahMP Jarvis bulk formulation)
+            // Reference: Noah LSM CANRES subroutine, Chen et al. (1996, 2001)
+            amrex::Real RadFac = 0.55 * net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) * 2.0 / Rgl_arr(i, j, 0) / LAI_arr(i, j, 0);
+            rc_fac_rad = (Rc_min_arr(i, j, 0) / d_Rc_max + RadFac) / (1.0 + RadFac);
+            rc_fac_rad = std::max(rc_fac_rad, 0.0001);
+
+            /* Original SLM sunlit/shaded approach (commented out to match Noah bulk approach)
             // TODO: check if this is the correct downwelling SW to use
             //amrex::Real tmp_radf = 0.55 * net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) * 2.0 / Rgl_arr(i, j, 0) / LAI_arr(i, j, 0);
             //rc_fac_rad = (Rc_min_arr(i, j, 0) / d_Rc_max + tmp_radf) / (1.0 + tmp_radf);
@@ -3072,31 +3200,40 @@ void SLM::resistances(const amrex::MFIter &mfi)
 
             // partition LAI into sunlit and shaded components
             lai_sun = std::max(1.e-6, (1. - std::exp(-1.0 * k_beer * LAI_arr(i, j, 0))) / k_beer);
-            lai_shade = std::max(0., LAI_arr(i, j, 0) - lai_sun); 
+            lai_shade = std::max(0., LAI_arr(i, j, 0) - lai_sun);
 
             // Radiation reaching to sunlit and shaded leaves
             sw_sun = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1);
             sw_shade = f_shade * sw_sun;
 
-            // compute radiation factors
-            tmp_sun = 0.55 * sw_sun * 2. / Rgl_arr(i, j, 0) / lai_sun;
-            tmp_shade = 0.55 * sw_shade * 2. / Rgl_arr(i, j, 0) / std::max(1.e-6, lai_shade);
+            // compute radiation factors (NoahMP Jarvis form - no LAI division)
+            tmp_sun = 0.55 * sw_sun * 2. / Rgl_arr(i, j, 0);
+            tmp_shade = 0.55 * sw_shade * 2. / Rgl_arr(i, j, 0);
             rc_fac_sun   = (Rc_min_arr(i,j,0) / d_Rc_max + tmp_sun) / (1.0 + tmp_sun);
             rc_fac_shade = (Rc_min_arr(i,j,0) / d_Rc_max + tmp_shade) / (1.0 + tmp_shade);
 
             // combine weighted by LAI
             rc_fac_rad = (lai_sun * rc_fac_sun + lai_shade * rc_fac_shade) / LAI_arr(i, j, 0);
+            *///
 
 
-            // vapor pressure deficit factor
-            //amrex::Real qsatw;
-            //erf_qsatw(t_cas_arr(i, j, 0), pref_arr(i, j, 0), qsatw);
-            //rc_fac_vpd = 1.0 / (1.0 + hs_rc_arr(i, j, 0) * (qsatw - q_cas_arr(i, j, 0)));
+            // vapor pressure deficit factor (Noah/NoahMP Jarvis formulation)
+            // Noah uses VPD in mixing ratio units (kg/kg), not vapor pressure (hPa)
+            // Reference: Noah LSM CANRES subroutine, Chen et al. (1996, 2001)
+            amrex::Real qsatw;
+            erf_qsatw(t_cas_arr(i, j, 0), pref_arr(i, j, 0), qsatw);
+            amrex::Real VPD_mixratio = qsatw - q_cas_arr(i, j, 0); // VPD in mixing ratio [kg/kg]
+            rc_fac_vpd = 1.0 / (1.0 + hs_rc_arr(i, j, 0) * VPD_mixratio);
+            rc_fac_vpd = std::max(rc_fac_vpd, 0.01);
+
+            /* Original SLM VPD calculation using vapor pressure in hPa (commented out)
             // Above is modified following changes in gSAM-SLM
             amrex::Real e_cas, es_cas;
             e_cas = q_cas_arr(i, j, 0) * pref_arr(i, j ,0)/(0.622+0.388*q_cas_arr(i, j, 0)); //vapor pressure in hPa (mb)
             es_cas = erf_esatw(t_cas_arr(i, j, 0));
-            rc_fac_vpd = std::exp(-1 * hs_rc_arr(i, j, 0) * (es_cas - e_cas));
+            // NoahMP Jarvis form: hyperbolic response to VPD
+            rc_fac_vpd = 1.0 / (1.0 + hs_rc_arr(i, j, 0) * (es_cas - e_cas));
+            *///
 
             // temperature factor
             rc_fac_t = std::max(0., 1.0 - 0.0016 * std::pow(d_T_opt - t_cas_arr(i, j, 0), 2));
@@ -4299,6 +4436,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     mf_data.push_back(&lhf_air);
     mf_data.push_back(&lhf_canop);
     mf_data.push_back(&lhf_soil);
+    mf_data.push_back(&cp_vege);
 
     //mf_data.push_back(&ustar);
     //mf_data.push_back(&tstar);
@@ -4331,7 +4469,8 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
 
     IntVect ng(0, 0, 0);
 
-    // Total number of output MFs: net_rad components + mf_data size - 1
+    // Total number of output MFs: net_rad components + mf_data size - 1 + diag vars + olen
+    // Note: SLM_Diag::NumVars already includes the 4 new absorption fraction fields
     const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars + 1;
     fab.define(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
@@ -4378,6 +4517,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("lhf_air");
     varnames.push_back("lhf_canop");
     varnames.push_back("lhf_soil");
+    varnames.push_back("cp_vege");
 
     //varnames.push_back("ustar");
     //varnames.push_back("tstar");
@@ -4616,7 +4756,8 @@ void SLM::twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::
                            int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
                            amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
                            amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                           amrex::Real& bgap, amrex::Real& wgap)
+                           amrex::Real& bgap, amrex::Real& wgap,
+                           amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -4728,6 +4869,12 @@ void SLM::twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::
     phi1   = 0.5 - 0.633*chil - 0.330*chil*chil;
     phi2   = 0.877 * (1.0-2.0*phi1);
     gdir   = phi1 + phi2*coszi;
+
+    // Output diagnostics
+    xl_out = xl;
+    chil_out = chil;
+    phi1_out = phi1;
+    phi2_out = phi2;
     ext    = gdir/coszi;
     avmu   = ( 1.0 - phi1/phi2 * std::log((phi1+phi2)/phi1) ) / phi2;
     omegal = rho[ib] + tau[ib];
@@ -5001,6 +5148,9 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
     // Net radiation arrays for output
     auto net_rad_arr = net_rad.array(mfi);
 
+    // Diagnostic arrays for output
+    auto slm_diag_arr = slm_diag.array(mfi);
+
     // Incoming longwave radiation
     auto lwref_arr = lsm_fab_vars[LsmVar_SLM::lwref]->const_array(mfi);
 
@@ -5101,6 +5251,7 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         amrex::Real bgap, wgap;
         amrex::Real gdir;   //average projected leaf/stem area in solar direction
         amrex::Real ext;    //optical depth direct beam per unit leaf + stem area
+        amrex::Real xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val; //diagnostic outputs
 
         amrex::Real rho[2];      //leaf/stem reflectance weighted by fraction LAI and SAI
         amrex::Real tau[2];      //leaf/stem transmittance weighted by fraction LAI and SAI
@@ -5222,15 +5373,48 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
                                 rho, tau, fveg, ist,
                                 Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
                                 d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
-                                fabd, albd, ftdd, ftid, gdir, frevd, fregd, bgap, wgap);
+                                fabd, albd, ftdd, ftid, gdir, frevd, fregd, bgap, wgap,
+                                xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
 
                 // diffuse (IC=1)
                 twostream_noahmp(ib, 1, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
                                 rho, tau, fveg, ist,
                                 Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
                                 d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
-                                fabi, albi, ftdi, ftii, gdir, frevi, fregi, bgap, wgap);
+                                fabi, albi, ftdi, ftii, gdir, frevi, fregi, bgap, wgap,
+                                xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
             }
+            // Compute gap for diagnostics (matches twostream calculation at line 4705)                               
+            Real gap = std::min(1.0-fveg, bgap+wgap);
+            // Store absorbed fractions for diagnostics
+            slm_diag_arr(i, j, 0, SLM_Diag::fabd_vis) = fabd[0];
+            slm_diag_arr(i, j, 0, SLM_Diag::fabd_nir) = fabd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::fabi_vis) = fabi[0];
+            slm_diag_arr(i, j, 0, SLM_Diag::fabi_nir) = fabi[1];
+
+            // Store intermediate radiation variables for diagnostics
+            slm_diag_arr(i, j, 0, SLM_Diag::gdir) = gdir;
+            slm_diag_arr(i, j, 0, SLM_Diag::gap) = gap;
+            slm_diag_arr(i, j, 0, SLM_Diag::ftdd_vis) = ftdd[0];
+            slm_diag_arr(i, j, 0, SLM_Diag::ftdd_nir) = ftdd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::albd_vis) = albd[0];
+            slm_diag_arr(i, j, 0, SLM_Diag::albd_nir) = albd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::xl_diag) = xl_diag_val;
+            slm_diag_arr(i, j, 0, SLM_Diag::chil_diag) = chil_diag_val;
+            slm_diag_arr(i, j, 0, SLM_Diag::phi1_diag) = phi1_diag_val;
+            slm_diag_arr(i, j, 0, SLM_Diag::phi2_diag) = phi2_diag_val;
+
+            // Store components of fabd calculation for debugging
+            slm_diag_arr(i, j, 0, SLM_Diag::fre_vis) = albd[0];  // reflected direct (same as albd from twostream)
+            slm_diag_arr(i, j, 0, SLM_Diag::fre_nir) = albd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::ftd_vis) = ftdd[0];  // transmitted direct (same as ftdd)
+            slm_diag_arr(i, j, 0, SLM_Diag::ftd_nir) = ftdd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::fti_vis) = ftid[0];  // transmitted diffuse
+            slm_diag_arr(i, j, 0, SLM_Diag::fti_nir) = ftid[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::albgrd_vis) = albgrd[0];  // ground albedo direct
+            slm_diag_arr(i, j, 0, SLM_Diag::albgrd_nir) = albgrd[1];
+            slm_diag_arr(i, j, 0, SLM_Diag::albgri_vis) = albgri[0];  // ground albedo diffuse
+            slm_diag_arr(i, j, 0, SLM_Diag::albgri_nir) = albgri[1];
 
             // sunlit fraction of canopy. set FSUN = 0 if FSUN < 0.01.
             ext = gdir/cosz * std::sqrt(1.0-rho[0]-tau[0]);
