@@ -33,6 +33,9 @@ void ERF::advance_radiation (int lev,
             if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx); }
         }
 
+        // Force radiation update to sync with lsm?
+        bool lsm_updated = (lev==0) ? lsm.Get_LSM_Update_Status(lev) : false;
+
         // Enter radiation class driver
         amrex::Real time_for_rad = t_old[lev] + start_time;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
@@ -41,6 +44,6 @@ void ERF::advance_radiation (int lev,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
-                      lsm.Get_LSM_Update_Status(lev));
+                      lsm_updated);
     }
 }
