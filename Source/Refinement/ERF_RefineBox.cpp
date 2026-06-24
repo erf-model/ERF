@@ -39,7 +39,7 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
     } else if (num_indx_lo > 0 || num_indx_lo_crse > 0) {
         ppr.get("max_level",lev_for_box);
     }
-    num_boxes_at_level[lev_for_box].clear();
+    num_boxes_at_level[lev_for_box] = 0;
     boxes_at_level[lev_for_box].clear();
 
     if (num_real_lo > 0) {
