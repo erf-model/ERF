@@ -404,6 +404,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
