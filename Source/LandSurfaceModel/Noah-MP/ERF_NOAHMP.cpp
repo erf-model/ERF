@@ -265,7 +265,7 @@ NOAHMP::Advance_With_State (const int& lev,
                             const int& nstep,
                             const bool updated_lev0)
 {
-    if (lev>0)
+    if (lev>0) {
         if (!updated_lev0) {
             Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
             m_updated = true;
