@@ -105,7 +105,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k  )  +rhse_arr(i,j,k-1));
             });
-        }   
+        }
     // EB case: check HSE only for uncovered cells
     } else {
         for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
@@ -114,7 +114,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             Array4<const Real> w_volfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
-            
+
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (w_volfrac(i,j,k) > zero) {
                     gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k  )  +rhse_arr(i,j,k-1));
