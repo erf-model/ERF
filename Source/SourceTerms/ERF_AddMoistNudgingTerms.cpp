@@ -59,15 +59,16 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     if (bdy_moist_nudge_type == 0) {
 
-       // This is our original approach in which we only nudge qv
-       // based on the difference between qv and the values of qv in the bdy files
+        // This is our original approach in which we only nudge qv
+        // based on the difference between qv and the values of qv in the bdy files
+        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
 
     } else if (bdy_moist_nudge_type == 1) {
 
-       // This is a new approach in which we only nudge qv but
-       // the amount by which it is nudged is  based on the difference
-       // between (qv+qc+qi) and the values of qv in the bdy files
-       // There is no associated heating/cooling.
+        // This is a new approach in which we only nudge qv but
+        // the amount by which it is nudged is  based on the difference
+        // between (qv+qc+qi) and the values of qv in the bdy files
+        // There is no associated heating/cooling.
 
         MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
         MultiFab::Add (S_tmp, S_data, RhoQ2_comp, RhoQ1_comp, 1, ng);
@@ -82,6 +83,10 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        // and also nudge qc (and qi) to 0.   The removal of qc (and qi) is treated
        // as if it is converted into qv to generate a source term for (rho theta),
        // but qv itself is not increased by the change in qc (and qi).
+        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 2, ng);
+        if (S_data.nComp() > RhoQ6_comp) {
+            MultiFab::Copy(S_tmp, S_data, RhoQ3_comp, RhoQ3_comp, 1, ng);
+        }
 
     }
 
@@ -245,7 +250,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                   width, dx, ProbLo, ProbHi, F1,
                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                  cons_arr, src_arr, c_p, rdOcp);
+                                  cons_arr, src_arr, c_p, rdOcp,
+                                  bdy_moist_nudge_type);
    } // mfi
 }
 #endif

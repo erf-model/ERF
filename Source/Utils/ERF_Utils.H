@@ -242,7 +242,8 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& data_arr,
                             const amrex::Array4<amrex::Real>& rhs_arr,
                             const amrex::Real& c_p,
-                            const amrex::Real& rdOcp)
+                            const amrex::Real& rdOcp,
+                            const int bdy_moist_nudge_type=0)
 {
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
@@ -279,18 +280,20 @@ realbdy_compute_relaxation (const int& icomp,
             amrex::Real delta = arr_xlo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
-            // qc and heat source term due to evaporation
-            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-            for (int n = 2; n < nq; n++) {
-                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                }
-            } // n
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xlo(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -321,18 +324,20 @@ realbdy_compute_relaxation (const int& icomp,
             amrex::Real delta = arr_xhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
-            // qc and heat source term due to evaporation
-            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-            for (int n = 2; n < nq; n++) {
-                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                }
-            } // n
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_xhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -358,18 +363,20 @@ realbdy_compute_relaxation (const int& icomp,
             amrex::Real delta = arr_ylo(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
-            // qc and heat source term due to evaporation
-            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-            for (int n = 2; n < nq; n++) {
-                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                }
-            } // n
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_ylo(i,j,k,n) - data_arr(i,j,k,n+icomp);
@@ -393,18 +400,20 @@ realbdy_compute_relaxation (const int& icomp,
             amrex::Real delta = arr_yhi(i,j,k,0) - data_arr(i,j,k,icomp);
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
-            // qc and heat source term due to evaporation
-            delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-            rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
-            rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-            for (int n = 2; n < nq; n++) {
-                delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                }
-            } // n
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
                 amrex::Real delta = arr_yhi(i,j,k,n) - data_arr(i,j,k,n+icomp);

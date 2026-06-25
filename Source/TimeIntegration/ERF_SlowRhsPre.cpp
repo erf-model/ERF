@@ -423,7 +423,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
-        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
