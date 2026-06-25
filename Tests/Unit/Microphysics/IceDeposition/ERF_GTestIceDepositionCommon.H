@@ -112,6 +112,27 @@ CrystalState grow_crystal (const amrex::Real T_K, const amrex::Real t_total = kG
     return { mass, a, c };
 }
 
+// Net ice mass rate dm/dt at saturation ratio S over ice, for a fixed 50 um ice
+// sphere -- the deposition/sublimation branch of the production routine
+// (dMdt::rhs_func, proportional to S-1). Positive grows the crystal (deposition),
+// negative shrinks it (sublimation).
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real deposition_mass_rate (const amrex::Real T_K, const amrex::Real S) noexcept
+{
+    const MaterialPropertiesCore ice = ice_material();
+    const dMdt<amrex::Real> dmdt{ amrex::Real(2.8342e6), therco, R_v, kRhoIce };
+    const TerminalVelocity<amrex::Real> tv{ amrex::Real(1000.0), kRhoIce };
+
+    const amrex::Real a = amrex::Real(5.0e-5), c = amrex::Real(5.0e-5);
+    const amrex::Real mass  = kRhoIce * four_thirds_pi * a * a * c;
+    const amrex::Real e_si  = erf_esati(T_K) * amrex::Real(100.0);
+    const amrex::Real rhom  = kP / (R_d * T_K);
+    const amrex::Real D     = ice.coeffMolecularDiffusion(T_K, kP);
+    const amrex::Real vterm = tv.IceBohm(mass, a, c, kRhoIce, rhom, T_K);
+
+    return dmdt.rhs_func(a, c, vterm, S, rhom, T_K, e_si, D);
+}
+
 // Convenience reductions.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real aspect_ratio (const CrystalState& x) noexcept { return x.c / x.a; }
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real mass_ug      (const CrystalState& x) noexcept { return x.mass * amrex::Real(1.0e9); }

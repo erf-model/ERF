@@ -42,6 +42,22 @@ TEST(IceDepositionScalar, DendriteRegimeGrowsLargest)
     EXPECT_GT(mass_ug(d15), mass_ug(d23));
 }
 
+// Motivation: deposition and sublimation are the two branches of the same
+// production routine (dMdt::rhs_func), whose mass rate is proportional to S-1.
+// The crystal grows when the air is supersaturated over ice and sublimates
+// (loses mass) when subsaturated, with magnitude scaling with |S-1|.
+TEST(IceDepositionScalar, SublimationShrinksAtSubsaturation)
+{
+    const amrex::Real T = amrex::Real(273.15 - 15.0);
+    const amrex::Real dep = deposition_mass_rate(T, amrex::Real(1.05));
+    EXPECT_GT(dep, amrex::Real(0.0));                                   // deposition
+    EXPECT_LT(deposition_mass_rate(T, amrex::Real(0.95)), amrex::Real(0.0));  // sublimation
+    EXPECT_NEAR(deposition_mass_rate(T, amrex::Real(1.0)), amrex::Real(0.0),
+                std::abs(dep) * amrex::Real(1.0e-3));                   // no exchange at S = 1
+    EXPECT_GT(std::abs(deposition_mass_rate(T, amrex::Real(0.90))),
+              std::abs(deposition_mass_rate(T, amrex::Real(0.95))));    // |rate| grows with |S-1|
+}
+
 // Motivation: emit mass, a-, c-axis, aspect ratio and apparent density vs T from
 // the production routines so they can be plotted against TH91 (Welss Fig.10).
 // Skipped unless ERF_ICEDEP_CURVES names an output CSV (no-op in CI).

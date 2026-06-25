@@ -57,6 +57,14 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceKernel.cpp
 )
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
