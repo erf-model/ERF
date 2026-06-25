@@ -65,6 +65,8 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingKernel.cpp
 )
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
