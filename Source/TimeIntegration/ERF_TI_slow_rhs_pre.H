@@ -120,12 +120,19 @@
              (solverChoice.moisture_type != MoistureType::None) )
         {
             Real bdy_factor = solverChoice.bdy_nudge_factor;
-            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, slow_dt,
+            Real l_rdOcp    = solverChoice.rdOcp;
+            Real l_c_p      = solverChoice.c_p;
+            int moist_nudge_type = solverChoice.bdy_moist_nudge_type;
+            int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            AMREX_ALWAYS_ASSERT( (solverChoice.bdy_moist_nudge_type != 2) ||
+                                 (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
+                                  solverChoice.moisture_type != MoistureType::SAM_NoIce) );
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
                                     start_time+old_stage_time,
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    m_r2d);
+                                    m_r2d, l_c_p, l_rdOcp, moist_nudge_type);
         }
 #endif
 
@@ -351,13 +358,15 @@
                 //           start_bdy_time and final_bdy_time are total time
                 //
                 Real total_time = start_time + old_stage_time;
+                Real l_rdOcp    = solverChoice.rdOcp;
+                Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
                                                    bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d);
+                                                   m_r2d, l_c_p, l_rdOcp);
             }
         }
 #endif
