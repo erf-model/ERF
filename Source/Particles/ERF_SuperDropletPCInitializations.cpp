@@ -374,13 +374,12 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const
 /*! Inject particles */
 void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const Real a_dt)
 {
-    amrex::ignore_unused(a_t);
-
     for (int i = 0; i < m_num_injections; i++) {
-        m_injections[i]->updateDt(a_dt);
-        if (    (m_injections[i]->m_inj_rate > 0)
-             && (a_t >= m_injections[i]->m_tstart)
-             && (a_t <= m_injections[i]->m_tstop) ) {
+        const bool active = (m_injections[i]->m_inj_rate > 0)
+                         && (a_t >= m_injections[i]->m_tstart)
+                         && (a_t <= m_injections[i]->m_tstop);
+        m_injections[i]->updateDt(a_dt, active);
+        if (active) {
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
             addParticles( 0, a_ptr, *(m_injections[i]) );

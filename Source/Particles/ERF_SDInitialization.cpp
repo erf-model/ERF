@@ -232,7 +232,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
 
     SDInitProperties::readInputs( a_prefix, "", a_geom, a_species_mat, a_aerosol_mat);
 
-    amrex::ignore_unused(a_geom);
+    amrex::ignore_unused(a_dt);
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
@@ -241,9 +241,11 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     pp.query("t_start", m_tstart);
     pp.query("t_stop", m_tstop);
     pp.queryarr("domain_velocity", m_domain_vel);
+    pp.query("fractional_tol", m_frac_tol);
 
-    this->m_numdens = m_inj_rate * a_dt;
-    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, one) : -1);
+    // Cell volume of the injection level, used to accumulate the per-cell count.
+    const auto dx = a_geom.CellSize();
+    m_cell_volume = dx[0]*dx[1]*dx[2];
 }
 
 void SDInitProperties::printParameters ( const MatVec& a_species_mat,
@@ -345,7 +347,8 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
             << m_domain_vel[1] << ","
             << m_domain_vel[2] << "\n"
             << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n"
-            << "    SD injection rate: " << m_sd_inj_rate << "\n";
+            << "    SD injection rate: " << m_sd_inj_rate << "\n"
+            << "    Fractional-accumulation tolerance: " << m_frac_tol << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }
 

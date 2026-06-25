@@ -242,6 +242,8 @@ if(ERF_ENABLE_PARTICLES)
     endif()
     # passive advection of particles with injection
     add_test_sdm(SDM_Bubble2D_Adv_wInjection     "" "erf_exec"  "plt00050" 5e-12 5e-12)
+    # fractional injection (sub-unity per-step multiplicity accumulates to one)
+    add_test_sdm(SDM_Bubble2D_FracInjection      "" "erf_exec"  "plt00050" 5e-12 5e-12)
     # condensation/evaporation
     add_test_sdm(SDM_Box3D_Cond                  "" "erf_exec"  "plt00010" 2e-12 3e-13)
     # ice freezing + deposition
