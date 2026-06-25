@@ -255,6 +255,13 @@ ifeq ($(USE_NOAHMP), TRUE)
   else
     DEFINES   += -DERF_USE_NOAHMP
 
+    ifneq ($(PRECISION),FLOAT)
+      DEFINES               += -DDOUBLE_PREC
+      NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
+    else
+      NOAHMP_PRECISION_FLAG :=
+    endif
+
     # Try netcdf-fortran => netcdf-fortran_parallel
     has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
     ifeq ($(has_netcdf_fortran),0)
@@ -520,7 +527,7 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
-	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
 endif
 
 all: build_noahmp $(executable)

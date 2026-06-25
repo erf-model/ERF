@@ -16,7 +16,7 @@ geometry.prob_lo = -1. -1.  0.
 geometry.prob_hi =  1.  1.  1.
 
 #coarse
-amr.n_cell       = 64  64  32
+#amr.n_cell       = 64  64  32
 
 #fine
 amr.n_cell       = 128 128 64

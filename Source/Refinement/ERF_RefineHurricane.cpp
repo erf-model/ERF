@@ -100,8 +100,6 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
             if (dist < rad_tag) {
                 tag_arr(i,j,k) = TagBox::SET;
-            } else {
-                tag_arr(i,j,k) = TagBox::CLEAR;
             }
         });
     }
@@ -118,7 +116,7 @@ ERF::HurricaneTracker(int levc,
 
     Real eye_x, eye_y;
 
-    if (time==zero) {
+    if (time==zero || hurricane_eye_track_xy.empty()) {
         is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
     } else {
         is_found = true;
