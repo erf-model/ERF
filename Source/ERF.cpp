@@ -1707,7 +1707,7 @@ ERF::InitData_post ()
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            if ( (lev == 0) && (solverChoice.terrain_type != TerrainType::EB) ) {
+            if (lev == 0) {
                 compute_max_pressure_gradient_diagnostic(lev);
             }
         }
