@@ -49,7 +49,7 @@ jobs:
              ccache-${{ github.workflow }}-${{ github.job }}-git-
 
     - name: Setup Spack
-      uses: spack/setup-spack@v2
+      uses: spack/setup-spack@v3
       with:
         path: ${{ github.workspace }}/spack_install_dir
 
