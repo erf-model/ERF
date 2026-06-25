@@ -650,6 +650,9 @@ struct SolverChoice {
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
 
+        // Which approach to nudging the moist variables in the boundary region?
+        pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+
         // Are me transporting the scalar component?
         pp.query("transport_scalar",transport_scalar);
 
@@ -1396,6 +1399,9 @@ struct SolverChoice {
 
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
+
+    // Which approach to nudging the moist variables in the boundary region?
+    int bdy_moist_nudge_type = 0;
 
     // Use forest canopy model?
     bool do_forest_drag {false};
