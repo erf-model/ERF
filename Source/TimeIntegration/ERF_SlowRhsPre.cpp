@@ -320,7 +320,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if (z_t_mf) { // Note we never do anelastic with moving terrain
                 Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                // Array4<const Real> z_t;
                       Array4<const Real> z_t        = z_t_mf->array(mfi);
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
                 ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

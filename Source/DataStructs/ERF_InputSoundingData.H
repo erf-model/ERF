@@ -76,7 +76,7 @@ public:
 
     void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag,
-                         int itime)
+                         int itime, bool is_moist)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -126,6 +126,10 @@ public:
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
+
+                // Dont read in non-zero qv if not using a moisture model
+                AMREX_ALWAYS_ASSERT(qv == zero || is_moist);
+
                 if (z == zbot) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
                     AMREX_ALWAYS_ASSERT(qv*amrex::Real(0.001) == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
@@ -134,6 +138,7 @@ public:
                 } else {
                     AMREX_ALWAYS_ASSERT(z > z_inp_sound_tmp[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
                     z_inp_sound_tmp.push_back(z);
+
                     theta_inp_sound_tmp.push_back(theta);
                     qv_inp_sound_tmp.push_back(qv*amrex::Real(0.001)); // convert from g/kg to kg/kg
                     U_inp_sound_tmp.push_back(U);

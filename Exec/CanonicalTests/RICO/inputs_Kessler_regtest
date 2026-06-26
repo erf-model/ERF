@@ -2,10 +2,6 @@
 erf.prob_name = "RICO"
 
 stop_time = 600      # 10 min
-#stop_time = 3600    #  1 hour
-#stop_time = 4800    #  1.5 hours
-#stop_time = 7200    #  2 hours
-#stop_time = 86400   #  24 hours
 
 amrex.fpe_trap_invalid = 1
 
@@ -32,18 +28,7 @@ erf.most.zref   = 20.0 # from BOMEX
 erf.most.rico.theta_z0 = 300.0
 erf.most.rico.qsat_z0 = 0.022
 
-# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type = "surface_layer"
-#erf.surface_layer.flux_type = "custom"
-#erf.most.ustar  = 0.28   # ustar
-#erf.most.tstar  = 8.0e-3 # theta flux
-#erf.most.qstar  = 5.2e-5 # qv    flux
-#erf.most.z0     = 0.1
-#erf.most.zref   = 20.0
-
-# NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
-#zhi.theta_grad = 0.00365
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
@@ -92,17 +77,10 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
 
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-
-#erf.restart = chk160000
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
@@ -112,13 +90,9 @@ erf.custom_forcing_uses_primitive_vars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-#prob.U_0_Pert_Mag = 0.01
-#prob.V_0_Pert_Mag = 0.01
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1600.0
-#prob.T_0_Pert_Mag    = 0.1
-#prob.qv_0_Pert_Mag   = 0.000025
 
 prob.pert_deltaU = 0.01
 prob.pert_deltaV = 0.01

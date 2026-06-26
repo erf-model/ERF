@@ -16,17 +16,17 @@ using namespace amrex;
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  *
+ * @param[in]  lev           level
  * @param[in]  S_data        current solution
  * @param[in]  S_prim        primitive variables (i.e. conserved variables divided by density)
+ * @param[in]  qt            total water in the state
  * @param[out] buoyancy      buoyancy term computed here
- * @param[in]  qmoist        moisture variables (in order: qv, qc, qi, ...)
- * @param[in]  qv_d          lateral average of cloud vapor
- * @param[in]  qc_d          lateral average of cloud vapor
- * @param[in]  qd_d          lateral average of cloud vapor
  * @param[in]  geom          Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  r0            Reference (hydrostatically stratified) density
+ * @param[in]  base_state    base state
  * @param[in]  n_qstate      Number of moist variables used by the current model
+ * @param[in]  ebfact        Container of EB information
+ * @param[in]  anelastic     Are we solving the anelastic equations (1 if yes, 0 if no)
  */
 
 void make_buoyancy (int lev,
@@ -127,7 +127,7 @@ void make_buoyancy (int lev,
                         // Return -rho0 g (thetaprime / theta0)
                         //
                         buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
-                                                                 r0_arr,cell_data,qt_arr);
+                                                                 r0_arr,qv0_arr,cell_data,qt_arr);
                     });
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
@@ -171,7 +171,7 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
-                                                                 r0_arr,cell_data,qt_arr);
+                                                                 r0_arr,qv0_arr,cell_data,qt_arr);
                     });
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
@@ -230,7 +230,7 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         buoyancy_fab(i, j, k) = buoyancy_rhopert_eb(i,j,k,grav_gpu[2],
-                                                                    r0_arr,cell_data,qt_arr,cellflg);
+                                                                    r0_arr,qv0_arr,cell_data,qt_arr,cellflg);
                     });
                 }
             }

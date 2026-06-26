@@ -85,10 +85,11 @@ ERF::setRayleighRefFromSounding (bool restarting)
     // If we are restarting then we haven't read the input_sounding file yet
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
+    bool is_moist = (solverChoice.moisture_type != MoistureType::None);
     if (restarting) {
         input_sounding_data.resize_arrays();
         for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n);
+            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n, is_moist);
         }
     }
 
