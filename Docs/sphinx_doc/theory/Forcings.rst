@@ -124,8 +124,22 @@ Currently the target condition to which the sponge zones should be forced toward
 
    \frac{dQ}{dt} = \mathrm{RHS} - A\xi^n(Q-Q_\mathrm{target})
 
-where RHS are the other right-hand side terms. The parameters to be set by the user are -- `A` is the sponge amplitude, `n` is the sponge strength and the :math:`Q_\mathrm{target}` -- the target solution in the sponge. :math:`\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder`` and is given below. This list of inputs specifies sponge zones in the inlet and outlet of the domain in the x-direction and the outlet of the domain in the z-direction. The `start` and `end` parameters specify the starting and ending of the sponge zones. At the inlet, the sponge starts at :math:`x=0` and at the outlet the sponge ends at :math:`x=L` -- the end of the domain. The sponge amplitude `A` has to be adjust
-ed in a problem-specific manner. In addition to the density and the :math:`x, y, z` velocities, ERF can now also relax :math:`\rho \theta` and :math:`\rho q_v` in the sponge zones. These are controlled with ``erf.sponge_rhotheta`` and ``erf.sponge_rhomoist``, respectively. If either scalar target is omitted or set to a negative value, ERF falls back to the local base-state target, i.e. :math:`\rho_0 \theta_0` for ``erf.sponge_rhotheta`` and :math:`\rho_0 q_{v,0}` for ``erf.sponge_rhomoist``.
+where RHS are the other right-hand side terms. The parameters to be set by the user are -- `A` is the sponge amplitude,
+`n` is the sponge strength and the :math:`Q_\mathrm{target}` -- the target solution in the sponge.
+:math:`\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end.
+An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder`` and is given below.
+This list of inputs specifies sponge zones in the inlet and outlet of the domain in the x-direction
+and the outlet of the domain in the z-direction. The `start` and `end` parameters specify the starting
+and ending of the sponge zones. At the inlet, the sponge starts at :math:`x=0` and at the outlet
+the sponge ends at :math:`x=L` -- the end of the domain. The sponge amplitude `A` has to be adjusted in a
+problem-specific manner.
+In addition to the density and the :math:`x, y, z` velocities, ERF can now also
+relax :math:`\rho \theta` and :math:`\rho q_v` in the sponge zones.
+These are controlled with ``erf.sponge_rhotheta`` and ``erf.sponge_rhomoist``, respectively.
+If either scalar target is omitted or set to a negative value,
+ERF falls back to the local base-state target, i.e. :math:`\rho_0 \theta_0`
+for ``erf.sponge_rhotheta`` and :math:`\rho_0 q_{v,0}` for ``erf.sponge_rhomoist``,
+where :math:`\rho_0` is the dry base-state density.
 
 ::
 

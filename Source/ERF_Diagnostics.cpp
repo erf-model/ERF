@@ -71,6 +71,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     MultiFab dp(p_hse.boxArray(), p_hse.DistributionMap(), 1, 0);
 
+    // Initialize to zero in case of EB covered cells
+    dp.setVal(0.);
+
     for (MFIter mfi(dp); mfi.isValid(); ++mfi) {
         Box bx = mfi.validbox();
         auto const  rhse_arr  =  r_hse.const_array(mfi);
@@ -143,8 +146,10 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
+            auto const qvhse_arr  = qv_hse.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k  )  +rhse_arr(i,j,k-1));
+                gpz_arr(i,j,k) += grav * myhalf * ( rhse_arr(i,j,k  ) * (one + qvhse_arr(i,j,k  ))
+                                                   +rhse_arr(i,j,k-1) * (one + qvhse_arr(i,j,k-1)) );
             });
         }
     // EB case: check HSE only for uncovered cells
@@ -154,11 +159,13 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
+            auto const qvhse_arr  = qv_hse.const_array(mfi);
             Array4<const Real> w_volfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (w_volfrac(i,j,k) > zero) {
-                    gpz_arr(i,j,k) += grav * myhalf * (rhse_arr(i,j,k  )  +rhse_arr(i,j,k-1));
+                    gpz_arr(i,j,k) += grav * myhalf * ( rhse_arr(i,j,k  ) * (one + qvhse_arr(i,j,k  ))
+                                                       +rhse_arr(i,j,k-1) * (one + qvhse_arr(i,j,k-1)) );
                 }
             });
         }

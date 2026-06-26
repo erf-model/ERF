@@ -318,7 +318,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         if (anel_assume_dry) qv_k = 0;
-        r_hse_arr (i,j,k) = rho_k_base * (one + qv_k);
+        r_hse_arr (i,j,k) = rho_k_base;
         p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp, qv_k);
         th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k_base;
