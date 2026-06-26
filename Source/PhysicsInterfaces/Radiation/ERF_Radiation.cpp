@@ -215,8 +215,10 @@ Radiation::set_grids (int& level,
         // Initialize datalog MF on first step
         if (m_first_step) {
             m_first_step = false;
-            datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
-            datalog_mf.setVal(0.0);
+            if (datalog_int > 0) {
+                datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
+                datalog_mf.setVal(0.0);
+            }
         }
     }
 }
