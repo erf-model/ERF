@@ -843,6 +843,18 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                         fab_arr(i, joff-j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 }
+
+                // Make sure that qv in the bdyfiles is >= 0
+                if (bdyVarType == WRFBdyVars::QV) {
+                    Real min_qv_xlo = bdy_data_xlo[itime][bdyVarType].min(0);
+                    Real min_qv_xhi = bdy_data_xhi[itime][bdyVarType].min(0);
+                    Real min_qv_ylo = bdy_data_ylo[itime][bdyVarType].min(0);
+                    Real min_qv_yhi = bdy_data_yhi[itime][bdyVarType].min(0);
+                    if (min_qv_xlo < zero) amrex::Warning("qv in bdy_data_xlo < 0");
+                    if (min_qv_xhi < zero) amrex::Warning("qv in bdy_data_xhi < 0");
+                    if (min_qv_ylo < zero) amrex::Warning("qv in bdy_data_ylo < 0");
+                    if (min_qv_yhi < zero) amrex::Warning("qv in bdy_data_yhi < 0");
+                }
             } // bdyVarType
         } // if ParalleDescriptor::IOProcessor()
     } // nc_var_names
