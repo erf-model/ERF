@@ -45,7 +45,12 @@ provided **erf.input_sounding_file** are used to set initial conditions and the
 base state depending on **erf.sounding_type**.
 For an ``Ideal`` sounding (default), a stratified, hydrostatically balanced base
 state is reconstructed from the 1-D input sounding data as described in
-:ref:`sec:BaseState`. The initial fields match the base state. This
+:ref:`sec:BaseState`. The stored base-state density is dry-air density
+:math:`\rho_0`; base-state pressure is computed from
+:math:`\rho_0\theta_0` and :math:`q_{v,0}` using the equation of state, while
+hydrostatic balance uses the total moist base-state density
+:math:`\rho_0(1 + q_{v,0})`. The initial dry-density,
+:math:`\rho\theta`, and water-vapor fields match the base state. This
 configuration corresponds to WRF's ideal.exe initialization.
 
 If the sounding is ``Isentropic`` or ``DryIsentropic``, a set of

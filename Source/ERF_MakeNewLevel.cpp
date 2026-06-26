@@ -181,8 +181,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             // this will interpolate the input profiles to the nominal height levels
             // (ranging from 0 to the domain top)
+            bool is_moist = (solverChoice.moisture_type != MoistureType::None);
             for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
 
             // this will calculate the hydrostatically balanced density and pressure
