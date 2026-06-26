@@ -118,6 +118,22 @@ public:
     std::unordered_map<std::string,std::string>&
     Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 
+    // Scalar LSM step counter (e.g., NoahMP itimestep) for checkpoint/restart.
+    int
+    Get_LSM_Step (const int& lev) const { return m_lsm_model[lev]->Get_LSM_Step(); }
+
+    void
+    Set_LSM_Step (const int& lev, int step) { m_lsm_model[lev]->Set_LSM_Step(step); }
+
+    // Full LSM prognostic-state restart I/O (e.g., NoahMP soil/snow/canopy).
+    // Write is const (called from the const WriteCheckpointFile); it only
+    // serializes state, it does not mutate the ERF-side model wrapper.
+    void
+    Write_Lsm_Restart (const int& lev, const std::string& dir) const { m_lsm_model[lev]->Write_Lsm_Restart(dir); }
+
+    void
+    Read_Lsm_Restart (const int& lev, const std::string& dir) { m_lsm_model[lev]->Read_Lsm_Restart(dir); }
+
     void
     Plot_Lsm_Data (amrex::Real time,
                    const amrex::Vector<int> &level_steps,

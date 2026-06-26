@@ -1,6 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "SinusoidalMassFlux"
-stop_time = 0   #  6 hours
+
+stop_time = 3600   #  1 hour
 
 amrex.fpe_trap_invalid = 1
 
@@ -9,7 +10,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     =  0.   0.    0.
 geometry.prob_hi     =  400. 400. 2975.
-amr.n_cell           =  4    4    50      # dx=dy=dz=100m
+amr.n_cell           =  4    4    50      # dx=dy=100m
 
 geometry.is_periodic = 1 1 0
 
@@ -33,22 +34,17 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = 400     # number of timesteps between checkpoints
+erf.check_int       = -1     # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 400    # number of timesteps between plotfiles
+erf.plot_int_1      = 100    # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rel_humidity super_droplets_moisture_radius super_droplets_moisture_mass_density super_droplets_moisture_number_density
 particles.disable_plt = false
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
-
 erf.use_coriolis    = false
-erf.coriolis_3d     = false
-erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
@@ -69,20 +65,20 @@ erf.Sc_t      = 0.33333333333333
 #sdm parameters
 super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 100
-super_droplets_moisture.include_coalescence = true
+super_droplets_moisture.include_coalescence = false
+super_droplets_moisture.prescribed_advection = true
 super_droplets_moisture.density_scaling = true
-super_droplets_moisture.coalescence_kernel = "Halls"
-super_droplets_moisture.advect_with_gravity = true
+super_droplets_moisture.advect_with_gravity = false
 super_droplets_moisture.dimensionality = "one_d_z"
 super_droplets_moisture.aerosols = NH42SO4
 super_droplets_moisture.num_initializations = 1
-super_droplets_moisture.0.initial_aerosol_distribution_type_NH42SO4 = "radius_lognormal_autorange"
-super_droplets_moisture.0.initial_aerosol_mean_radius_NH42SO4 = 40.0e-9 #kg (0.03 mu-m)
-super_droplets_moisture.0.initial_aerosol_min_radius_NH42SO4 = 1e-9 #kg (0.03 mu-m)
-super_droplets_moisture.0.initial_aerosol_max_radius_NH42SO4 = 5e-6 #kg (0.03 mu-m)
-super_droplets_moisture.0.initial_aerosol_std_radius_NH42SO4 = 0.336
-super_droplets_moisture.0.initial_number_density = 5.0e7 #m^{-3}
-super_droplets_moisture.0.initial_particles_per_cell = 128
+super_droplets_moisture.initial_aerosol_distribution_type_NH42SO4 = "radius_log_normal"
+super_droplets_moisture.initial_aerosol_mean_radius_NH42SO4 = 80.0e-9 # m
+super_droplets_moisture.initial_aerosol_min_radius_NH42SO4 = 1e-9 # m
+super_droplets_moisture.initial_aerosol_max_radius_NH42SO4 = 5e-6 # m
+super_droplets_moisture.initial_aerosol_std_radius_NH42SO4 = 0.146
+super_droplets_moisture.initial_number_density = 5.0e7 #m^{-3}
+super_droplets_moisture.initial_particles_per_cell = 128
 
 erf.init_type = "input_sounding"
 

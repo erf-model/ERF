@@ -160,14 +160,14 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
         }
 
         VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
-                            vars_new[lev][Vars::yvel], IntVect{0},
-                            vars_new[lev][Vars::zvel], IntVect{0},
-                            vars_new[lev][Vars::cons],
-                            mom_mf[IntVars::xmom],
-                            mom_mf[IntVars::ymom],
-                            mom_mf[IntVars::zmom],
-                            Geom(lev).Domain(),
-                            domain_bcs_type, c_vfrac);
+                           vars_new[lev][Vars::yvel], IntVect{0},
+                           vars_new[lev][Vars::zvel], IntVect{0},
+                           vars_new[lev][Vars::cons],
+                           mom_mf[IntVars::xmom],
+                           mom_mf[IntVars::ymom],
+                           mom_mf[IntVars::zmom],
+                           Geom(lev).Domain(),
+                           domain_bcs_type, c_vfrac);
     }
 
     // If !fixed_density, we must convert (rho u) which came in
