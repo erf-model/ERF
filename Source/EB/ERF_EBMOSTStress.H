@@ -42,7 +42,7 @@ struct adiabatic_eb
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        olen_arr(i,j,k)   = amrex::Real(1.0e16);
+        olen_arr(i,j,k)   = bogus_large_value;
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) / std::log(zref_arr(i,j,0) / z0_arr(i,j,k));
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
@@ -106,7 +106,9 @@ struct surface_temp_eb
         amrex::Real C        = std::log(zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == amrex::Real(1.E34)) { olen_arr(i,j,k) = amrex::Real(1.0e3); }
+        if (u_star_arr(i,j,k) == bogus_large_value) {
+            olen_arr(i,j,k) = amrex::Real(1000);
+        }
         zeta  = zref / olen_arr(i,j,k);
 
         // Water vapor in atmos and surface
@@ -237,7 +239,7 @@ struct surface_flux_eb
         amrex::Real Olen  = zero;
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        if (u_star_arr(i,j,k) == amrex::Real(1.E34)) {
+        if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
             Olen  = olen_arr(i,j,k);
@@ -337,7 +339,7 @@ struct moeng_flux_eb
         amrex::Real wsp_mean = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
-        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (qv_mean-qv_surf);
         amrex::Real num2    = wsp_mean * (qv-qv_mean);
 
@@ -407,7 +409,7 @@ struct moeng_flux_eb
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Use tangential velocity magnitude instead of Cartesian
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
 
@@ -613,7 +615,7 @@ struct moeng_flux_eb
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
         //       modifies the denominator from what is in Moeng amrex::Real(1984.)
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx_tangent-umean);
 
@@ -818,7 +820,7 @@ struct moeng_flux_eb
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
         //       modifies the denominator from what is in Moeng amrex::Real(1984.)
-        amrex::Real wsp     = sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
+        amrex::Real wsp     = std::sqrt(velx_tangent*velx_tangent+vely_tangent*vely_tangent);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely_tangent-vmean);
 
@@ -829,7 +831,11 @@ struct moeng_flux_eb
     }
 
 private:
-    const amrex::Real     eps = 1e-15;
+#ifdef AMREX_USE_FLOAT
+    const amrex::Real     eps = amrex::Real(1e-6);
+#else
+    const amrex::Real     eps = amrex::Real(1e-12);
+#endif
     const amrex::Real   WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 #endif

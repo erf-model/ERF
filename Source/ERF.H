@@ -145,6 +145,10 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Tag cells in a given box
+    void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
+    void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const amrex::Real time);
+
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
@@ -766,14 +770,14 @@ private:
                            amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    static amrex::Real start_bdy_time;
-    static amrex::Real final_bdy_time;
+    static double start_bdy_time;
+    static double final_bdy_time;
 
-    static amrex::Real start_low_time;
-    static amrex::Real final_low_time;
+    static double start_low_time;
+    static double final_low_time;
 
-    static amrex::Real bdy_time_interval;
-    static amrex::Real low_time_interval;
+    static double bdy_time_interval;
+    static double low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;

@@ -285,7 +285,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
        ${SRC_DIR}/ERF_ReadWaves.cpp
-       ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
@@ -393,10 +392,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/Refinement/ERF_Tagging.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplyBndryForcing_Forecast.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_AddMoistNudgingTerms.cpp
        ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp

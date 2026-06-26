@@ -440,22 +440,22 @@ public:
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
       u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      u_star[lev]->setVal(1.E34);
+      u_star[lev]->setVal(bogus_large_value);
 
       w_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      w_star[lev]->setVal(1.E34);
+      w_star[lev]->setVal(bogus_large_value);
 
       t_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      t_star[lev]->setVal(0.0); // default to neutral
+      t_star[lev]->setVal(zero); // default to neutral
 
       q_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      q_star[lev]->setVal(0.0); // default to dry
+      q_star[lev]->setVal(zero); // default to dry
 
       olen[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      olen[lev]->setVal(1.E34);
+      olen[lev]->setVal(bogus_large_value);
 
       pblh[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
-      pblh[lev]->setVal(1.E34);
+      pblh[lev]->setVal(bogus_large_value);
 
       t_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       t_surf[lev]->setVal(default_land_surf_temp);

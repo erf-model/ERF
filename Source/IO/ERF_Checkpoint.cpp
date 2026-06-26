@@ -609,28 +609,28 @@ ERF::ReadCheckpointFile ()
             int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
 
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-        vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-        vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-        vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 
         if (solverChoice.anelastic[lev] == 1) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
@@ -1091,17 +1091,17 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
     MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
     VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
     MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
     MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
     VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
     MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
     MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
     VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
     MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 }
 
 /**
@@ -1117,71 +1117,38 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         amrex::Print() << "Reading MOST variables" << std::endl;
 
         IntVect ng(1,1,0);
-        MultiFab  m_var(ba2d[lev],dmap[lev],1,ng);
-        MultiFab* dst = nullptr;
+
+        auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
+            const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
+            if (amrex::FileExists(mf_name + "_H")) {
+                MultiFab m_var;
+                VisMF::Read(m_var, mf_name);
+                dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+            }
+        };
 
         // U*
-        std::string UstarFileName(restart_chkfile + "/Level_0/Ustar_H");
-        if (amrex::FileExists(UstarFileName)) {
-            dst = m_SurfaceLayer->get_u_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Ustar", m_SurfaceLayer->get_u_star(lev));
 
         // W*
-        std::string WstarFileName(restart_chkfile + "/Level_0/Wstar_H");
-        if (amrex::FileExists(WstarFileName)) {
-            dst = m_SurfaceLayer->get_w_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Wstar", m_SurfaceLayer->get_w_star(lev));
 
         // T*
-        std::string TstarFileName(restart_chkfile + "/Level_0/Tstar_H");
-        if (amrex::FileExists(TstarFileName)) {
-            dst = m_SurfaceLayer->get_t_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Tstar", m_SurfaceLayer->get_t_star(lev));
 
         // Q*
-        std::string QstarFileName(restart_chkfile + "/Level_0/Qstar_H");
-        if (amrex::FileExists(QstarFileName)) {
-            dst = m_SurfaceLayer->get_q_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Qstar", m_SurfaceLayer->get_q_star(lev));
 
         // Olen
-        std::string OlenFileName(restart_chkfile + "/Level_0/Olen_H");
-        if (amrex::FileExists(OlenFileName)) {
-            dst = m_SurfaceLayer->get_olen(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Olen", m_SurfaceLayer->get_olen(lev));
 
         // Qsurf
-        std::string QsurfFileName(restart_chkfile + "/Level_0/Qsurf_H");
-        if (amrex::FileExists(QsurfFileName)) {
-            dst = m_SurfaceLayer->get_q_surf(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qsurf"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Qsurf", m_SurfaceLayer->get_q_surf(lev));
 
         // PBLH
-        std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH_H");
-        if (amrex::FileExists(PBLHFileName)) {
-            dst = m_SurfaceLayer->get_pblh(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("PBLH", m_SurfaceLayer->get_pblh(lev));
 
         // Z0
-        std::string Z0FileName(restart_chkfile + "/Level_0/Z0_H");
-        if (amrex::FileExists(Z0FileName)) {
-            dst = m_SurfaceLayer->get_z0(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
     }
 }

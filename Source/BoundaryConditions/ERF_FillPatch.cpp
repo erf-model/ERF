@@ -185,7 +185,7 @@ ERF::FillPatchFineLevel (int lev, double time_d,
         // Set values in the cells outside the domain boundary so that we can do the Add
         //     without worrying about uninitialized values outside the domain -- these
         //     will be filled in the physbcs call
-        mf_c.setDomainBndry(Real(1.234e20),0,2,geom[lev]); // Do both rho and (rho theta) together
+        mf_c.setDomainBndry(bogus_large_value,0,2,geom[lev]); // Do both rho and (rho theta) together
 
         // Add rho_0 back to rho and theta_0 back to theta
         MultiFab::Add(mf_c, new_base_state,BaseState::r0_comp,Rho_comp,1,ngvect_cons);

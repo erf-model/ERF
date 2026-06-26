@@ -277,7 +277,7 @@ Problem::update_rhotheta_sources (const Real& time,
 {
     if (src->empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
+    const int khi = geom.Domain().bigEnd()[2];
 
     // If the z coordinate varies in time and or space, then the the height
     // needs to be calculated at each time step. Here, we assume that only
@@ -302,6 +302,8 @@ Problem::update_rhotheta_sources (const Real& time,
 
     if (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateRhoThetaSources_Bomex.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
+#include "Prob/ERF_UpdateRhoThetaSources_Constant.H"
     } else if (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateRhoThetaSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {

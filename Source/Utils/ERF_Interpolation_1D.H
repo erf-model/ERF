@@ -1,6 +1,8 @@
 #ifndef Initialization_1D_H
 #define Initialization_1D_H
+
 #include <AMReX_REAL.H>
+#include "ERF_Constants.H"
 
 /**
  * Interpolates 1D array beta at the location alpha_interp in the array alpha
@@ -12,7 +14,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
                             const amrex::Real alpha_interp, const int alpha_size)
 {
-    amrex::Real beta_interp = -amrex::Real(1.0e34);
+    // We put this value here so beta_interp is initialized but the logic
+    // below is such that it will always be assigned some other value.
+    amrex::Real beta_interp = bogus_large_value;
 
     // If the interpolation point already exists in the array,
     // just return it

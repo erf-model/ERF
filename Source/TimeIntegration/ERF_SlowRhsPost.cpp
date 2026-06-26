@@ -81,18 +81,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Gpu::DeviceVector<Real>& stretched_dz_d,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
                         amrex::EBFArrayBoxFactory const& ebfact,
-#if defined(ERF_USE_NETCDF)
-                        const bool& moist_set_rhs_bool,
-                        const Real& old_stage_time_total,
-                        const Real& start_bdy_time,
-                        const Real& final_bdy_time,
-                        const Real& bdy_time_interval,
-                        int  width,
-                        Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                        Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                        Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                        Vector<Vector<FArrayBox>>& bdy_data_yhi,
-#endif
 #ifdef ERF_USE_SHOC
                         std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
@@ -434,8 +422,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (l_use_diff)
                 {
                     // Allow for implicit moisture diffusion
-                    const Real l_vert_implicit_fac = (solverChoice.implicit_moisture_diffusion) ?
-                                                     solverChoice.vert_implicit_fac[nrk] : zero;
+                    Real l_vert_implicit_fac = zero;
+                    if ( (ivar == RhoKE_comp && solverChoice.implicit_ke_diffusion      ) ||
+                         (ivar == RhoQ1_comp && solverChoice.implicit_moisture_diffusion) ) {
+                        l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
+                    }
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
@@ -473,24 +464,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                 } // use_diff
             } // valid slow var
         } // loop ivar
-
-#if defined(ERF_USE_NETCDF)
-        if (moist_set_rhs_bool)
-        {
-            Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
-            //
-            // Note that old_stage_time_total = start_time+old_stage_time is total time
-            //           start_bdy_time and final_bdy_time are total time
-            //
-            moist_set_rhs(geom, tbx, new_cons_const, cell_rhs,
-                          old_stage_time_total, dt, start_bdy_time, final_bdy_time, bdy_time_interval,
-                          bdy_factor, width, domain,
-                          bdy_data_xlo, bdy_data_xhi,
-                          bdy_data_ylo, bdy_data_yhi,
-                          m_r2d);
-        }
-#endif
 
 #ifdef ERF_USE_SHOC
         if (solverChoice.use_shoc) {

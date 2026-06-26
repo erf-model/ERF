@@ -144,7 +144,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_need_SmnSmn    = tc.use_keqn;
 
     const Real l_vert_implicit_fac = (solverChoice.implicit_thermal_diffusion) ?
-                                     solverChoice.vert_implicit_fac[nrk] : zero;
+                                     solverChoice.vert_implicit_fac[level][nrk] : zero;
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
@@ -212,7 +212,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
 #ifdef ERF_USE_SHOC
         if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23
+            // Zero out the surface stresses of tau13/tau23/hfx/qfx
             shoc_lev->set_diff_stresses();
         } else if (l_use_SurfLayer) {
             // Set surface shear stresses, update heat and moisture fluxes
