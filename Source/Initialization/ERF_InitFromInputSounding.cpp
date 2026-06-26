@@ -60,10 +60,12 @@ ERF::init_from_input_sounding (int lev)
 
         input_sounding_data.resize_arrays();
 
+        bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
         for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+            input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
         }
 
         // this will calculate the hydrostatically balanced density and pressure
@@ -321,6 +323,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp, qv_k);
         th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k_base;
         qv_hse_arr(i,j,k) = qv_k;
+
         if (l_isentropic) {
 #if 0
             if (i==0 && j==0) {

@@ -485,6 +485,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
         MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
         MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+        MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
         MultiFab pressure;
 
@@ -643,6 +644,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "theta_hse"))
         {
             MultiFab::Copy(mf[lev],th_hse,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "qv_hse"))
+        {
+            MultiFab::Copy(mf[lev],qv_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
