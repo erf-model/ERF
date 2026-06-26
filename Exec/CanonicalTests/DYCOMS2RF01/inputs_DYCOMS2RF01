@@ -1,17 +1,14 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "DYCOMS2RF01"
 
-max_step = 864000 #300
+max_step = 864000
 
 amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  1600. 1600. 1600.
-amr.n_cell           =  32    32    320    # dx=dy=dz=50 m
-
-erf.mg_v = 1
-erf.terrain_type = StaticFittedMesh
+amr.n_cell           =  32    32    320    # dx=dy=50 m, dz=5 m
 
 geometry.is_periodic = 1 1 0
 
@@ -24,7 +21,6 @@ erf.most.qstar  = 3.796e-5 # qv    flux
 erf.most.z0     = 0.0002
 erf.most.zref   = 2.5
 
-# NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
@@ -94,13 +90,13 @@ super_droplets_moisture.num_initializations = 2
 super_droplets_moisture.density_scaling = true
 
 super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 11.0e-9 #kg (0.03 mu-m)
+super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 11.0e-9 # m
 super_droplets_moisture.0.initial_aerosol_geomstd_radius_NH4HSO4 = 1.2
 super_droplets_moisture.0.initial_number_density = 12.5e7 #m^{-3}
 super_droplets_moisture.0.initial_particles_per_cell = 64
-#
+
 super_droplets_moisture.1.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 60.0e-9 #kg (0.14 mu-m)
+super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 60.0e-9 # m
 super_droplets_moisture.1.initial_aerosol_geomstd_radius_NH4HSO4 = 1.7
 super_droplets_moisture.1.initial_number_density = 6.5e7 #m^{-3}
 super_droplets_moisture.1.initial_particles_per_cell = 64

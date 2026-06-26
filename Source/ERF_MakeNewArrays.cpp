@@ -119,7 +119,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         walldist[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-        walldist[lev]->setVal(Real(1.234e10));
+        walldist[lev]->setVal(bogus_large_value);
     } else {
         walldist[lev] = nullptr;
     }
@@ -166,10 +166,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
     // Set these to avoid operations on uninitialized data
-    lev_new[Vars::xvel].setVal(Real(1.234e10));
-    lev_old[Vars::xvel].setVal(Real(1.234e10));
-    lev_new[Vars::yvel].setVal(Real(1.234e10));
-    lev_old[Vars::yvel].setVal(Real(1.234e10));
+    lev_new[Vars::xvel].setVal(bogus_large_value);
+    lev_old[Vars::xvel].setVal(bogus_large_value);
+    lev_new[Vars::yvel].setVal(bogus_large_value);
+    lev_old[Vars::yvel].setVal(bogus_large_value);
 
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
@@ -228,12 +228,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // We do this here just so they won't be undefined in the initial FillPatch
-    rU_old[lev].setVal(Real(1.234e10));
-    rV_old[lev].setVal(Real(1.234e10));
-    rW_old[lev].setVal(Real(1.234e10));
-    rU_new[lev].setVal(Real(1.234e10));
-    rV_new[lev].setVal(Real(1.234e10));
-    rW_new[lev].setVal(Real(1.234e10));
+    rU_old[lev].setVal(bogus_large_value);
+    rV_old[lev].setVal(bogus_large_value);
+    rW_old[lev].setVal(bogus_large_value);
+    rU_new[lev].setVal(bogus_large_value);
+    rV_new[lev].setVal(bogus_large_value);
+    rW_new[lev].setVal(bogus_large_value);
 
     // ********************************************************************************************
     // These are just time averaged fields for diagnostics
@@ -549,9 +549,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
-    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
-                            solverChoice.vert_implicit_fac[1] > 0 ||
-                            solverChoice.vert_implicit_fac[2] > 0);
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][1] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][2] > 0);
 
     bool l_eb_surface_layer = (l_use_eb && solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
@@ -810,8 +810,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -829,11 +830,14 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
+
     } else {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -847,8 +851,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
     }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

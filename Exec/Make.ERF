@@ -82,15 +82,20 @@ include $(ERF_SOLVERS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_SOLVERS_DIR)
 INCLUDE_LOCATIONS += $(ERF_SOLVERS_DIR)
 
-ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
-include $(ERF_UTIL_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
-INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+ERF_REFINE_DIR = $(ERF_SOURCE_DIR)/Refinement
+include $(ERF_REFINE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_REFINE_DIR)
+INCLUDE_LOCATIONS += $(ERF_REFINE_DIR)
 
 ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
 include $(ERF_PHYSICS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
 INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
+ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
+include $(ERF_UTIL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
+INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
 
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
@@ -249,6 +254,13 @@ ifeq ($(USE_NOAHMP), TRUE)
     $(error USE_NETCDF must be true for using NOAH-MP interface)
   else
     DEFINES   += -DERF_USE_NOAHMP
+
+    ifneq ($(PRECISION),FLOAT)
+      DEFINES               += -DDOUBLE_PREC
+      NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
+    else
+      NOAHMP_PRECISION_FLAG :=
+    endif
 
     # Try netcdf-fortran => netcdf-fortran_parallel
     has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
@@ -521,7 +533,7 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
-	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
 endif
 
 all: build_noahmp $(executable)

@@ -400,6 +400,7 @@ class SuperDropletPC : public ERFPC
         bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
         bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
+        amrex::Real m_prescribed_w = 0.0; /*!< constant prescribed updraft [m/s]; 0 -> sinusoidal pulse */
         bool m_split_merge_amr = false; /*!< split/merge particles across AMR level boundaries */
 
         int m_num_species; /*!< Number of vapour/condensate species */

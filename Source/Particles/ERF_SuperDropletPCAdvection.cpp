@@ -58,6 +58,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
     const bool prescribed_advection = m_prescribed_advection;
+    const Real prescribed_w = m_prescribed_w;
 
     const auto vterm_type_w = m_term_vel_type_w;
     const auto vterm_type_i = m_term_vel_type_i;
@@ -115,7 +116,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             const auto temperature = fv[static_cast<int>(InterpFieldsAdv::temperature)];
 
             if (prescribed_advection) {
-               if (a_time < 600) {
+               if (prescribed_w != Real(0.0)) {
+                   v[2] = static_cast<ParticleReal>(prescribed_w);   // steady prescribed updraft
+               } else if (a_time < 600) {
                    v[2] = two*sin(PI*a_time/600)/density;
                } else {
                    v[2] = zero;

@@ -60,10 +60,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 erf.use_gravity = true
 erf.les_type = "None"
 
-# MULTILEVEL
-amr.max_level = 0
-
-
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
