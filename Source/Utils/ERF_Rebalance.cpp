@@ -4,7 +4,7 @@
 using namespace amrex;
 
 void
-rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, const Geometry& geom)
+rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv, const MultiFab& qt, const MultiFab* z_phys, const Geometry& geom)
 {
 
 #ifdef AMREX_USE_FLOAT
@@ -14,19 +14,22 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
 #endif
     Real grav = CONST_GRAV;
 
-    int ncomp    = cons.nComp();
+    // int ncomp    = cons.nComp();
     int k_dom_lo = geom.Domain().smallEnd(2);
     int k_dom_hi = geom.Domain().bigEnd(2);
 
-    for ( MFIter mfi(cons,TileNoZ()); mfi.isValid(); ++mfi ) {
+    for ( MFIter mfi(rho,TileNoZ()); mfi.isValid(); ++mfi ) {
         Box bx  = mfi.tilebox();
         int klo = bx.smallEnd(2);
         int khi = bx.bigEnd(2);
         AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
         bx.makeSlab(2,klo);
 
-        const Array4<      Real>& con_arr = cons.array(mfi);
-        const Array4<const Real>&  qt_arr = qt.const_array(mfi);
+        const Array4<      Real>& rho_arr = rho.array(mfi);
+        const Array4<const Real>&  th_arr = theta.const_array(mfi);
+        const Array4<const Real>&  qv_arr =    qv.const_array(mfi);
+        const Array4<const Real>&  qt_arr =    qt.const_array(mfi);
+
         const Array4<const Real>&   z_arr = z_phys->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
@@ -51,9 +54,9 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
                 dz = z_hi - z_lo;
 
                 // Establish known constant
-                qt_lo =  qt_arr(i,j,klo);
-                qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                qt_lo = qt_arr(i,j,klo);
+                qv_lo = qv_arr(i,j,klo);
+                Th_lo = th_arr(i,j,klo);
                 P_lo  = p_0;
                 R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                 rho_tot_lo = R_lo * (one + qt_lo);
@@ -61,8 +64,8 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
 
                 // Initial guess and residual
                 qt_hi = qt_arr(i,j,klo);
-                qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                qv_hi = qv_arr(i,j,klo);
+                Th_hi = th_arr(i,j,klo);
                 P_hi  = p_0;
                 R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                 rho_tot_hi = R_hi * (one + qt_hi);
@@ -75,9 +78,9 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
                                              P_hi, R_hi, F);
 
                 // Assign data
-                Factor = R_hi / con_arr(i,j,klo,Rho_comp);
-                con_arr(i,j,klo,Rho_comp) = R_hi;
-                for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
+                // Factor = R_hi / con_arr(i,j,klo,Rho_comp);
+                rho_arr(i,j,klo) = R_hi;
+                // for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
                 P_lo = P_hi;
                 z_lo = z_hi;
             }
@@ -90,16 +93,16 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
 
               // Establish known constant
               qt_lo = qt_arr(i,j,k-1);
-              qv_lo = con_arr(i,j,k-1,RhoQ1_comp)    / con_arr(i,j,k-1,Rho_comp);
-              Th_lo = con_arr(i,j,k-1,RhoTheta_comp) / con_arr(i,j,k-1,Rho_comp);
+              qv_lo = qv_arr(i,j,k-1);
+              Th_lo = th_arr(i,j,k-1);
               R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
               rho_tot_lo = R_lo * (one + qt_lo);
               C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
               // Initial guess and residual
               qt_hi = qt_arr(i,j,k);
-              qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
-              Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+              qv_hi = qv_arr(i,j,k);
+              Th_hi = th_arr(i,j,k);
               R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
               rho_tot_hi = R_hi * (one + qt_hi);
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
@@ -111,9 +114,9 @@ rebalance_columns(MultiFab& cons, const MultiFab* z_phys, const MultiFab& qt, co
                                            P_hi, R_hi, F);
 
               // Assign data
-              Factor = R_hi / con_arr(i,j,k,Rho_comp);
-              con_arr(i,j,k,Rho_comp) = R_hi;
-              for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
+              // Factor = R_hi / con_arr(i,j,k,Rho_comp);
+              rho_arr(i,j,k) = R_hi;
+              // for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
               P_lo = P_hi;
               z_lo = z_hi;
             }

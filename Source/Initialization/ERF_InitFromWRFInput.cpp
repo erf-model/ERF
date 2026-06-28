@@ -1027,11 +1027,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     if (solverChoice.rebalance_wrf_input) {
         Print() << "The state read from WRF is being rebalanced!\n";
 
+        MultiFab rho (lev_new[Vars::cons], make_alias, Rho_comp, 1);
+
+        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 1);
+        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 1);
+        MultiFab::Divide(theta, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+
+        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 1);
+        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 1);
+        MultiFab::Divide(qv, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+
         MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        rebalance_columns(lev_new[Vars::cons], z_phys_nd[lev].get(), qt, geom[lev]);
+        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev]);
     }
 
     // **************************************************************************
