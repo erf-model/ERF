@@ -3,7 +3,7 @@ erf.prob_name = "SquallLine"
 
 erf.init_type = MoistBaseState
 
-max_step = 120
+max_step = 14400
 stop_time = 90000.0
 
 amrex.fpe_trap_invalid = 1
@@ -23,10 +23,6 @@ zlo.type = "SlipWall"
 zhi.type = "Outflow"
 
 # TIME STEP CONTROL
-# The default WSM6 SquallLine case uses dt=0.25 like the other canonical
-# moisture inputs here. A dt=1.0 variant was used separately for comparison
-# against the paper-era validation lane and should be supplied via runtime
-# override or an ad hoc copied input, not as the default tracked case.
 erf.fixed_dt           = 0.25     # fixed time step [s]
 erf.fixed_mri_dt_ratio = 6
 
@@ -39,13 +35,13 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-erf.check_file      = chk_wsm6    # root name of checkpoint file
+erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 1000       # number of timesteps between checkpoints
 #amr.restart			= chk01000
 
 # PLOTFILES
-erf.plot_file_1         = plt_wsm6   # root name of plotfile
-erf.plot_int_1          = 30         # number of timesteps between plotfiles
+erf.plot_file_1         = plt        # root name of plotfile
+erf.plot_int_1          = 60         # number of timesteps between plotfiles
 erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain qsnow qgraup rain_accum snow_accum graup_accum pert_dens
 
 # SOLVER CHOICE
@@ -59,7 +55,14 @@ erf.dynamic_viscosity = 100.0 # [kg/(m-s)]
 erf.alpha_T           = 100.0 # [m^2/s]
 erf.alpha_C           = 100.0
 
-erf.moisture_model = "WSM6"
+erf.moisture_model = "Morrison"
+#erf.moisture_model  = "SAM"
+#erf.moisture_model  = SAM_NoIce
+#erf.moisture_model  = SAM_NoPrecip_NoIce
+#erf.moisture_model  = Morrison
+#erf.moisture_model  = WSM76
+#erf.moisture_model  = Kessler_NoRain
+#erf.moisture_model  = Kessler
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
@@ -73,10 +76,24 @@ prob.x_r = 4000.0
 prob.z_r = 1500.0
 prob.theta_c = 3.0
 
-prob.rayleigh_U_0 = 2.0
-prob.rayleigh_V_0 = 1.0
-prob.rayleigh_W_0 = 0.0
-prob.rayleigh_T_0 = 300.0
-
 prob.use_empirical_psat         = true
 prob.T_from_theta_in_moist_init = true
+
+################################ MULTILEVEL ################################
+# REFINEMENT / REGRIDDING
+#amr.max_level = 1
+#amr.ref_ratio_vect = 2 2 1
+
+#erf.coupling_type = "OneWay"
+#erf.regrid_int = 2
+
+#erf.refinement_indicators = hi_qc
+#erf.hi_qc.max_level     = 1
+#erf.hi_qc.field_name    = qc
+#erf.hi_qc.value_greater = 1.e-4
+
+#erf.cf_width     = 0
+#erf.cf_set_width = 0
+
+#amr.n_error_buf  = 3 3
+#

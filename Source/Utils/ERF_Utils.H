@@ -12,6 +12,13 @@
 #include "ERF_ReadBndryPlanes.H"
 
 /*
+ * Rebalance state to satisfy both EOS and HSE one column at a time
+ */
+void
+rebalance_columns(amrex::MultiFab& cons, const amrex::MultiFab* z_phys,
+                  const amrex::MultiFab& qt, const amrex::Geometry& geom);
+
+/*
  * Create a new BoxArray in which every grid touches the bottom boundary
  */
 void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);

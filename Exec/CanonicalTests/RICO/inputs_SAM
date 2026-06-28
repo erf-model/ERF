@@ -48,8 +48,6 @@ erf.plot_int_1      = 2000    # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = true
@@ -93,15 +91,11 @@ prob.T_0_Pert_Mag    = 0.1
 prob.qv_0_Pert_Mag   = 0.000025
 
 prob.advection_heating_rate   = -2.3148E-5
-prob.source_cutoff            = 1500.0
-prob.source_cutoff_transition = 1500.0
 
-prob.advection_moisture_rate            = -1.2E-8
-prob.moisture_source_cutoff            	= 300.0
-prob.moisture_source_cutoff_transition 	= 200.0
+prob.advection_moisture_rate  = -1.2E-8
+prob.moisture_source_cutoff   = 300.0
 
 prob.wbar_sub_max    = -0.0065
 prob.wbar_cutoff_max = 1500.0
-prob.wbar_cutoff_min = 2100.0
 
 prob.custom_TKE      = true
