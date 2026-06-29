@@ -1281,6 +1281,11 @@ List of Parameters
 |                                         | modeled eddy       |                     |             |
 |                                         | diffusivity        |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.enable_mrf_countergradient**      | Enable             | bool                | 0           |
+|                                         | countergradient    |                     |             |
+|                                         | correction terms   |                     |             |
+|                                         | in MRF PBL scheme  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.

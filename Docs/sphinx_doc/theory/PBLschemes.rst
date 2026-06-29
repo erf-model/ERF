@@ -307,6 +307,10 @@ The countergradient correction term is given by:
 where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the
 surface potential temperature scale.
 
+.. note::
+
+   The countergradient correction term is now optional in ERF and can be enabled via the ``enable_mrf_countergradient`` flag in the input file. By default, it is disabled to maintain backward compatibility. Set ``erf.enable_mrf_countergradient = true`` to enable this feature.
+
 
 .. _YSUPBL:
 

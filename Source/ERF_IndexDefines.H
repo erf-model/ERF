@@ -212,6 +212,8 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
+        CounterGradient_v,  // Countergradient correction term for vertical momentum (MRF PBL)
+        CounterGradient_h,  // Countergradient correction term for horizontal momentum (MRF PBL)
         NumDiffs
     };
 }

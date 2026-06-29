@@ -133,6 +133,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
+        const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -250,6 +251,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                  * (1 - zval / pblh_corr_arr(i, j, 0))
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
+                
+                // Compute countergradient correction term if enabled: γ_c = b * (u_* * θ_*) / w_s
+                if (enable_mrf_countergradient) {
+                    // Note: wstar is already u_* / φ_m, so we don't need to divide again
+                    const Real countergradient = const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+                    K_turb(i, j, k, EddyDiff::CounterGradient_v) = countergradient;
+                } else {
+                    K_turb(i, j, k, EddyDiff::CounterGradient_v) = zero;
+                }
+                K_turb(i, j, k, EddyDiff::CounterGradient_h) = zero;
             } else {
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
@@ -287,6 +298,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
+                 
+                // No countergradient correction in free atmosphere
+                K_turb(i, j, k, EddyDiff::CounterGradient_v) = zero;
+                K_turb(i, j, k, EddyDiff::CounterGradient_h) = zero;
             }
 
             // limit both diffusion coefficients
@@ -309,6 +324,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_arr(i, j, 0);
+            // CounterGradient terms already set above in mixed layer or free atmosphere
         });
 
         // FOEXTRAP top and bottom ghost cells
@@ -317,9 +333,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, klo-1, EddyDiff::Mom_v  ) = K_turb(i, j, klo, EddyDiff::Mom_v  );
             K_turb(i, j, klo-1, EddyDiff::Theta_v) = K_turb(i, j, klo, EddyDiff::Theta_v);
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
+            K_turb(i, j, klo-1, EddyDiff::CounterGradient_v) = K_turb(i, j, klo, EddyDiff::CounterGradient_v);
+            K_turb(i, j, klo-1, EddyDiff::CounterGradient_h) = K_turb(i, j, klo, EddyDiff::CounterGradient_h);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
+            K_turb(i, j, khi+1, EddyDiff::CounterGradient_v) = K_turb(i, j, khi, EddyDiff::CounterGradient_v);
+            K_turb(i, j, khi+1, EddyDiff::CounterGradient_h) = K_turb(i, j, khi, EddyDiff::CounterGradient_h);
         });
     }// mfi
 }
