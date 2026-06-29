@@ -256,6 +256,20 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 
+                // Moisture diffusivity: use moisture stability function if mrf_moistvars is enabled
+                // WRF uses different stability functions for moisture vs heat
+                // For moisture: Prq = phiq / phiM + const_b * KAPPA * sf
+                // phiq is the moisture scaling function (typically similar to phit but can differ)
+                if (turbChoice.mrf_moistvars) {
+                    // Use moisture-specific stability function (typically Prq ≈ Prt for most conditions)
+                    // In WRF, moisture and heat have very similar scaling, so Prq ≈ Prt
+                    const Real Prq = phit / phiM + const_b * KAPPA * sf;  // Similar to Prt
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                } else {
+                    // Default: copy from Theta_v (backward compatibility)
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
+                
                 // Compute countergradient correction term if enabled: γ_c = b * (u_* * θ_*) / w_s
                 if (enable_mrf_countergradient) {
                     // Note: wstar is already u_* / φ_m, so we don't need to divide again
@@ -325,24 +339,40 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 
-                // Check if we're at PBL top and add entrainment fluxes
-                int kpbl = pbli_arr(i, j, 0);
-                if (k == kpbl && kpbl < khi) {
-                    // Entrainment at PBL top: gradual mixing zone instead of sharp discontinuity
-                    // Entrainment is strongest at the PBL interface
-                    const Real entrainment_coeff = Real(0.1);  // Typical entrainment coefficient
-                    const Real u_star = u_star_arr(i, j, 0);
-                    
-                    // Entrainment momentum flux: ρ * w_e * Δu where w_e ~ α * u_*
-                    K_turb(i, j, k, EddyDiff::Entrainment_mom) = rho * entrainment_coeff * u_star * KAPPA * zval;
-                    
-                    // Entrainment temperature flux: similar to momentum
-                    K_turb(i, j, k, EddyDiff::Entrainment_theta) = K_turb(i, j, k, EddyDiff::Entrainment_mom) / ft;
-                    
-                    // Entrainment moisture flux
-                    K_turb(i, j, k, EddyDiff::Entrainment_q) = K_turb(i, j, k, EddyDiff::Entrainment_theta);
+                // Apply moisture-specific treatment if enabled
+                if (turbChoice.mrf_moistvars) {
+                    // For free atmosphere, moisture typically has similar diffusivity to heat
+                    // In some formulations, fq may differ slightly from ft, but WRF uses same scaling
+                    K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
                 } else {
-                    // No entrainment correction in free atmosphere away from PBL top
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
+                
+                // Check if we're at PBL top and add entrainment fluxes (if enabled)
+                if (enable_mrf_entrainment) {
+                    int kpbl = pbli_arr(i, j, 0);
+                    if (k == kpbl && kpbl < khi) {
+                        // Entrainment at PBL top: gradual mixing zone instead of sharp discontinuity
+                        // Entrainment is strongest at the PBL interface
+                        const Real entrainment_coeff = Real(0.1);  // Typical entrainment coefficient
+                        const Real u_star = u_star_arr(i, j, 0);
+                        
+                        // Entrainment momentum flux: ρ * w_e * Δu where w_e ~ α * u_*
+                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = rho * entrainment_coeff * u_star * KAPPA * zval;
+                        
+                        // Entrainment temperature flux: similar to momentum
+                        K_turb(i, j, k, EddyDiff::Entrainment_theta) = K_turb(i, j, k, EddyDiff::Entrainment_mom) / ft;
+                        
+                        // Entrainment moisture flux
+                        K_turb(i, j, k, EddyDiff::Entrainment_q) = K_turb(i, j, k, EddyDiff::Entrainment_theta);
+                    } else {
+                        // No entrainment correction in free atmosphere away from PBL top
+                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
+                        K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
+                        K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
+                    }
+                } else {
+                    // Entrainment disabled
                     K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
                     K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
                     K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
@@ -373,7 +403,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Mom_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Theta_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
-            K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+            K_turb(i, j, k, EddyDiff::Q_v) = std::max(
+                std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_arr(i, j, 0);
             // CounterGradient terms already set above in mixed layer or free atmosphere
         });
