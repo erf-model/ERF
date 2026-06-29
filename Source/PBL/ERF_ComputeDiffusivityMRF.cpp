@@ -46,7 +46,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              gbx.bigEnd(2)   == khi );
 
         //
-        // Step 1: Compute the height of the PBL without thermal excess
+        // Compute the height of the PBL without thermal excess
         // From Hong et al. 2006, Eqns. 1 & 2:
         //
         //   h = Rib_cf * theta_va * | U(h) |^2 / (g * (theta_v(h) - theta_s))
@@ -131,7 +131,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         });
 
         //
-        // Step 2: Corrector PBL height for thermal excess
+        // Corrector PBL height for thermal excess
         // where
         //
         //   theta_T = b * surf_temp_flux / w_star
