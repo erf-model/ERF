@@ -653,7 +653,7 @@ void make_mom_sources (Real time,
                                                     z_cc_arr, xmom_src_arr, ymom_src_arr,
                                                     rho_u, rho_v, d_sponge_ptrs_at_lev);
             }
-            else
+            else if (solverChoice.spongeChoice.sponge_type == SpongeType::Standard)
             {
                 ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                         xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,

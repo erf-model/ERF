@@ -9,7 +9,7 @@
 #include <AMReX_Gpu.H>
 
 AMREX_ENUM(SpongeType,
-    None, Input_Sponge
+    None, Standard, Input_Sponge
 );
 
 /**
@@ -22,18 +22,27 @@ struct SpongeChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
+        // The default type is SpongeType::Standard
+        // Here we can overwrite the default with None or Input_Sponge
         pp.query_enum_case_insensitive("sponge_type",sponge_type);
 
-        // Include sponge damping
-        if (sponge_type != SpongeType::None) {
+        if (sponge_type == SpongeType::None) return;
+
+        pp.query("sponge_strength" , sponge_strength);
+
+        // If sponge_strength == 0 then we set sponge_type to None
+        if (std::abs(sponge_strength) == zero)
+        {
+            sponge_type = SpongeType::None;
+        }
+        else
+        {
             pp.query("use_xlo_sponge_damping", use_xlo_sponge_damping);
             pp.query("use_xhi_sponge_damping", use_xhi_sponge_damping);
             pp.query("use_ylo_sponge_damping", use_ylo_sponge_damping);
             pp.query("use_yhi_sponge_damping", use_yhi_sponge_damping);
             pp.query("use_zlo_sponge_damping", use_zlo_sponge_damping);
             pp.query("use_zhi_sponge_damping", use_zhi_sponge_damping);
-
-            pp.get("sponge_strength" , sponge_strength);
 
             if (use_xlo_sponge_damping) {
                 pp.get("xlo_sponge_end"  , xlo_sponge_end);
@@ -78,7 +87,7 @@ struct SpongeChoice {
     amrex::Real sponge_strength = 0.0;
 
     inline static
-    SpongeType sponge_type = SpongeType::None;
+    SpongeType sponge_type = SpongeType::Standard;
 
     amrex::Real xlo_sponge_end, xhi_sponge_start;
     amrex::Real ylo_sponge_end, yhi_sponge_start;

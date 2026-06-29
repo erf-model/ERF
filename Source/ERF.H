@@ -189,6 +189,29 @@ public:
     void WriteLinePlot(const std::string& filename,
                        amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
+    void HurricaneEyeTracker_WRF (const SolverChoice& solverChoice);
+
+
+    void HurricaneEyeTrackerInitial_WRF (const amrex::Geometry& geom,
+                                     const amrex::Vector<amrex::MultiFab>& S_data,
+                                     const amrex::Real& hurricane_eye_latitude,
+                                     const amrex::Real& hurricane_eye_longitude);
+
+    void HurricaneEyeTrackerNotInitial_WRF (const amrex::Geometry& geom,
+                                            const amrex::Vector<amrex::MultiFab>& S_data,
+                                            MoistureType moisture_type);
+
+    void ComputeGlobalMinLocation_WRF (const amrex::Geometry& geom,
+                                   const amrex::Vector<amrex::MultiFab>& S_data,
+                                   amrex::Real* d_val_min_ptr,
+                                   int* d_i_min_ptr,
+                                   int* d_j_min_ptr,
+                                   amrex::Real& global_val_min,
+                                   int& global_i_min,
+                                   int& global_j_min);
+
+    void HurricaneTrackerCircle_WRF ();
+
     // Initialize multilevel data
     void InitData ();
 

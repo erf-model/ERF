@@ -30,15 +30,15 @@ zhi.type = "SlipWall"
 #zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
-erf.anelastic = 1
-erf.cfl = 0.5
+erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
+erf.fixed_mri_dt_ratio = 4
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 erf.data_log       = "surf" "mean" "flux" "subgrid"
-erf.profile_int    = 20     # (every minute with dt = 0.075)
+erf.profile_int    = 200     # (every minute with dt = 0.075)
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -50,13 +50,9 @@ erf.check_int       = 2000    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 2000    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qv qc qsat
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat
 
-# SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
-    
 erf.use_coriolis    = true
 erf.coriolis_3d     = false
 erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
@@ -68,11 +64,17 @@ erf.dryscal_vert_adv_type    = Upwind_3rd_SL
 erf.moistscal_horiz_adv_type = Upwind_3rd_SL
 erf.moistscal_vert_adv_type  = Upwind_3rd_SL
 
-erf.moisture_model  = "SatAdj"
-erf.buoyancy_type   = 4
+erf.moisture_model  = "SAM"
+#erf.moisture_model  = SAM_NoIce
+#erf.moisture_model  = SAM_NoPrecip_NoIce
+#erf.moisture_model  = Morrison
+#erf.moisture_model  = WSM76
+#erf.moisture_model  = Kessler_NoRain
+#erf.moisture_model  = Kessler
+
+erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
-
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
 
@@ -85,6 +87,7 @@ erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true

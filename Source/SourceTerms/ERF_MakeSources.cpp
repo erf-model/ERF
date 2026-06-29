@@ -429,7 +429,7 @@ void make_sources (int level,
         // *************************************************************************************
         // Real(7.) Add sponging
         // *************************************************************************************
-        if (!(solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) && is_slow_step){
+        if ( (solverChoice.spongeChoice.sponge_type != SpongeType::None) && is_slow_step) {
             const int n_qstate = S_data[IntVars::cons].nComp() - (NDRY + NSCALARS);
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, th0, qv0, z_cc_arr, n_qstate);
         }
