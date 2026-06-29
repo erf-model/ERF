@@ -150,6 +150,8 @@ class SDInitProperties
 {
     public:
 
+        virtual ~SDInitProperties() = default;
+
         using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
 
         /*!< Initial number of super-droplets per cell */
