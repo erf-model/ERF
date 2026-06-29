@@ -352,14 +352,23 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Check if we're at PBL top and add entrainment fluxes (if enabled)
                 if (enable_mrf_entrainment) {
                     int kpbl = pbli_arr(i, j, 0);
-                    if (k == kpbl && kpbl < khi) {
+                    const int pbl_smooth_levels = 2;  // Number of levels above and below PBL top for smoothing
+                    
+                    // Check if current level is within smoothing zone around PBL top
+                    if ((k >= kpbl - pbl_smooth_levels && k <= kpbl + pbl_smooth_levels) && kpbl < khi) {
+                        // Calculate smoothing weight: maximum at PBL top, decreasing away from it
+                        // Weight function: 1 - |k - kpbl| / pbl_smooth_levels (linear)
+                        const int dist_from_pbl = std::abs(k - kpbl);
+                        const Real smooth_weight = amrex::max(zero, one - (Real(dist_from_pbl) / Real(pbl_smooth_levels)));
+                        
                         // Entrainment at PBL top: gradual mixing zone instead of sharp discontinuity
-                        // Entrainment is strongest at the PBL interface
+                        // Entrainment is strongest at the PBL interface and smoothed over multiple levels
                         const Real entrainment_coeff = Real(0.1);  // Typical entrainment coefficient
                         const Real u_star = u_star_arr(i, j, 0);
                         
                         // Entrainment momentum flux: ρ * w_e * Δu where w_e ~ α * u_*
-                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = rho * entrainment_coeff * u_star * KAPPA * zval;
+                        // Apply smoothing weight to gradually transition entrainment across levels
+                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = smooth_weight * rho * entrainment_coeff * u_star * KAPPA * zval;
                         
                         // Entrainment temperature flux: similar to momentum
                         K_turb(i, j, k, EddyDiff::Entrainment_theta) = K_turb(i, j, k, EddyDiff::Entrainment_mom) / ft;
@@ -367,7 +376,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                         // Entrainment moisture flux
                         K_turb(i, j, k, EddyDiff::Entrainment_q) = K_turb(i, j, k, EddyDiff::Entrainment_theta);
                     } else {
-                        // No entrainment correction in free atmosphere away from PBL top
+                        // No entrainment correction outside the smoothing zone
                         K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
                         K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
                         K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
