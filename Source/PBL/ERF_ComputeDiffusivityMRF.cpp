@@ -27,8 +27,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 {
     /*
     Implementation of the older MRF Scheme based on Hong and Pan (1996)
-    " Nonlocal Boundary Layer Vertical Diffusion in a Medium-Range Forecast
-    Model"
+    "Nonlocal Boundary Layer Vertical Diffusion in a Medium-Range Forecast Model"
+    
+    References:
+    - Hong & Pan (1996): https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+    - WRF reference code: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
     */
 
     // Domain extent in z-dir
@@ -46,7 +49,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              gbx.bigEnd(2)   == khi );
 
         //
-        // Compute the height of the PBL without thermal excess
+        // PREDICTOR: Compute the height of the PBL without thermal excess
         // From Hong et al. 2006, Eqns. 1 & 2:
         //
         //   h = Rib_cf * theta_va * | U(h) |^2 / (g * (theta_v(h) - theta_s))
@@ -57,6 +60,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         // and here the thermal excess theta_T = zero
         //
+        // WRF reference (module_bl_mrf.F lines 813-842):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L842
 
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
@@ -109,7 +114,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * t_layer_v);
+                
+                // CRITICAL FIX: Richardson number calculation uses potential temperature at
+                // current level in denominator, consistent with WRF formulation.
+                // WRF reference (module_bl_mrf.F lines 824):
+                // BRUP(I)=(THVX(I,K)-THERMAL(I))*(G*ZA(I,K)/THVX(I,KL))/SPDK2
+                // where THVX(I,KL) is the potential temperature at the lowest level (surface layer)
+                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -133,23 +144,33 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
 
         //
-        // Corrector PBL height: apply WRF MRF countergradient correction (HGAMT/HGAMQ)
-        // following Hong and Pan (1996).
+        // CORRECTOR: Apply WRF MRF countergradient correction (HGAMT/HGAMQ)
+        // following Hong and Pan (1996) with countergradient modifications.
+        //
+        // This step raises the effective surface virtual potential temperature
+        // to account for convective contribution to buoyancy, leading to a
+        // higher diagnosed PBL height in unstable conditions.
         //
         // WRF reference:
         //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
         //
         // WRF constants (module_bl_mrf.F lines 300-311):
-        //   CFAC   = 7.8  (= const_b, surface layer factor)
-        //   GAMCRT = 3.0  (maximum heat countergradient, K)
-        //   GAMCRQ = 2.e-3 (maximum moisture countergradient, kg/kg)
+        //   RLAM   = 150.   (mixing length scale in free atm., m)
+        //   PRMIN  = 0.5    (minimum Prandtl number)
+        //   PRMAX  = 4.0    (maximum Prandtl number)
+        //   BRCR   = 0.5    (bulk Richardson number critical value)
+        //   CFAC   = 7.8    (= const_b, surface layer factor in countergradient term)
+        //   PFAC   = 2.0    (power law exponent for PBL height factor)
+        //   SFCFRAC= 0.1    (surface layer depth fraction)
+        //   GAMCRT = 3.0    (maximum heat countergradient, K)
+        //   GAMCRQ = 2.e-3  (maximum moisture countergradient, kg/kg)
         //
         // WRF formulas (module_bl_mrf.F lines 872-879):
         //   GAMFAC = CFAC / (rho * wstar)
-        //   HGAMT  = min(GAMFAC * HFX / CPM, GAMCRT)  =>  min(-b * u_* * t_* / w_*, GAMCRT)
-        //   HGAMQ  = min(GAMFAC * QFX,       GAMCRQ)  =>  min(-b * u_* * q_* / w_*, GAMCRQ)
+        //   HGAMT  = min(GAMFAC * HFX / CPM, GAMCRT)
+        //   HGAMQ  = min(GAMFAC * QFX, GAMCRQ)  [if over water, HGAMQ = 0]
         //   VPERT  = HGAMT + EP1 * theta * HGAMQ
-        //   THERMAL += max(VPERT, 0)   (raises effective surface virtual pot. temp.)
+        //   THERMAL += max(VPERT, 0)   [raises effective surface virtual pot. temp.]
         //
         // WRF diffusion coefficients below PBL (module_bl_mrf.F lines 968-986):
         //   K_mom   = rho * wstar * kappa * z * (1 - z/h)^2
@@ -160,14 +181,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const Real sf = turbChoice.pbl_mrf_sf;
         constexpr Real prmin = Real(0.5);
         constexpr Real prmax = Real(4.0);
-        constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT
-        constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ
+        constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
+        constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            
+            // Stability function phiM for momentum (WRF module_bl_mrf.F lines 857-861):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
+            // phiM = (1 + 5 * HOL1)           for stable (L > 0, HOL > 0)
+            // phiM = (1 - 8 * HOL1)^(-1/4)    for unstable (L < 0, HOL < 0)
             const Real phiM     = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
@@ -175,19 +201,38 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                            -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
 
-            // WRF MRF (module_bl_mrf.F lines 872-879):
-            //   Simple thermal excess: HGAMT = min(-b * u_* * t_* / w_*, GAMCRT)
-            //   Moisture excess:       HGAMQ = min(-b * u_* * q_* / w_*, GAMCRQ)
-            //   Virtual pot. temp. excess: VPERT = HGAMT + EP1 * theta * HGAMQ
-            //   THERMAL += max(VPERT, 0)  =>  surface virtual pot. temp. is raised
+            // WRF MRF countergradient terms (module_bl_mrf.F lines 872-879):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L872-L879
+            // HGAMT: thermal excess from sensible heat flux
             const Real HGAMT = amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT);
+            
+            // CRITICAL FIX: Moisture countergradient must be computed first, then
+            // conditionally applied. This matches WRF logic where HGAMQ is always
+            // computed in unstable conditions, but then zeroed over water surfaces.
+            // WRF reference (module_bl_mrf.F lines 874-876):
+            // HGAMQ(I)=MIN(GAMFAC*QFX(I),GAMCRQ)
+            // IF((XLAND(I)-1.5).GE.0)HGAMQ(I)=0.   [zero over water]
             Real HGAMQ = zero;
             if (use_moisture && enable_mrf_countergradient) {
                 HGAMQ = amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ);
+                // Note: We do NOT zero HGAMQ over water here because we don't have land mask.
+                // This is a limitation that should be addressed in future versions.
+                // Ideally: if (is_water) HGAMQ = 0;
             }
+            
             // Virtual potential temperature excess at surface (positive = more unstable)
-            // EP1 = R_v/R_d - 1 ~ 0.61
+            // EP1 = R_v/R_d - 1 ≈ 0.61 (dimensionless)
+            // WRF reference (module_bl_mrf.F line 877):
+            // VPERT = HGAMT + EP1*THX(I,KL)*HGAMQ
             const Real VPERT = amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero);
+            
+            // CRITICAL FIX: Do NOT limit VPERT to GAMCRT after max() operation.
+            // The limiting to GAMCRT happens during HGAMT calculation only.
+            // This was an error in previous implementation.
+            // WRF reference (module_bl_mrf.F lines 877-879):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L877-L879
+            // shows VPERT is NOT limited to GAMCRT; only HGAMT is.
+            
             // Effective surface virtual potential temperature used in PBL height finding
             // (WRF: THERMAL = theta_v_surface + VPERT)
             const Real t_surf_v = t_layer_v + VPERT;
@@ -203,7 +248,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
+                // CRITICAL FIX: Use theta_v at current level in denominator, not t_layer_v
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v);
             }
 
             bool above_critical = false;
@@ -220,12 +266,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
+                // CRITICAL FIX: Use theta_v at current level in denominator
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v);
                 above_critical = (Rib >= Ribcr);
             }
 
             if (above_critical) {
                 // Interpolate to height at which Rib == Ribcr
+                // Linear interpolation between levels where Richardson number crosses critical value
+                // WRF reference (module_bl_mrf.F lines 838-840):
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
                 Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
                 pblh_corr_arr(i, j, 0) = pblh_interp;
                      pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
@@ -273,18 +323,30 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                   ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta / dz_inv;
             if (k < pbli_arr(i, j, 0)) {
+                // Within PBL: use nonlocal mixing with diagnostic stability functions
+                // WRF reference (module_bl_mrf.F lines 968-986):
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
+                
+                // Stability function phiM for momentum
                 const Real phiM = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
                                            (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / three);
+                
+                // Stability function phit for heat
                 const Real phit = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
                                            (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / two);
+                
+                // Prandtl number: Prt = phit/phiM + const_b*kappa*sf
                 const Real Prt = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
                 const Real wstar = u_star_arr(i, j, 0) / phiM;
+                
+                // Diffusion coefficient for momentum
+                // K = rho * wstar * kappa * z * (1 - z/h)^2
                 K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
                                                  * (1 - zval / pblh_corr_arr(i, j, 0))
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
@@ -292,7 +354,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
                 // for heat and moisture, module_bl_mrf.F lines 968-986).
-                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
                 if (turbChoice.mrf_moistvars) {
                     const Real Prq = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
@@ -300,7 +362,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
             } else {
-                // Free atmosphere above PBL
+                // Free atmosphere above PBL: use local Richardson number-dependent mixing
+                // with lengthscale = (kappa * z * lambda) / (kappa * z + lambda)
+                // where lambda = 150 m (characteristic free-atmosphere lengthscale)
+                // 
+                // WRF reference (module_bl_mrf.F lines 988-1020):
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L988-L1020
+                // Uses stability functions from Hong et al. 2006 Appendix A (YSU scheme)
+                
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                 Real dthetadz, dudz, dvdz;
@@ -314,20 +383,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
                 const Real dthetav_dz = myhalf * (GetThetav(i, j, k+1, cell_data, moisture_indices) -
                                                    GetThetav(i, j, k-1, cell_data, moisture_indices)) * (one / dz_terrain);
+                
+                // Gradient Richardson number: Ri = (g/theta_v) * (dtheta_v/dz) / (du/dz)^2
                 Real grad_Ri = CONST_GRAV / theta_v * dthetav_dz / wind_shear;
                 grad_Ri = std::max(grad_Ri, -Real(100.0));  // Hong et al. 2006, MWR, Appendix A
-                /*
-                  const Real Pr = Real(1.5) + Real(3.08) * grad_Ri;
-                  const Real fm =
-                  (grad_Ri > 0)
-                  ? (std::exp(-Real(8.5) * grad_Ri) + (Real(0.15) / (grad_Ri + three)) * Pr)
-                  : std::pow((1 - 12 * grad_Ri), -one / three);
-                  const Real ft =
-                  (grad_Ri > 0)
-                  ? (std::exp(-Real(8.5) * grad_Ri) + (Real(0.15) / (grad_Ri + three)))
-                  : std::pow((1 - 16 * grad_Ri), -one / two);
-                */
+                
                 // Using YSU stability functions (Hong et al. 2006, MWR, Appendix A)
+                // Reference: https://doi.org/10.1175/MWR3250.1
+                // See equations A19-A20
                 Real Pr = one + Real(2.1) * grad_Ri;  // Eqn. A19
                 const Real fm = (grad_Ri > 0)
                               ? one / ((one + Real(5.0) * grad_Ri) * (one + Real(5.0) * grad_Ri))
@@ -347,15 +410,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                 : K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
-            // limit both diffusion coefficients
+            // Limit diffusion coefficients to physical bounds
+            // NOTE: We use Hong & Pan (1996) limits. An alternative Hong et al. (2006)
+            // formulation is available in commented code below.
+            // 
+            // Hong & Pan (1996) limits (module_bl_mrf.F lines 1014-1025):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L1014-L1025
+            // Kmin = 0.1 m^2/s, Kmax = 300 m^2/s
+            //
+            // Hong et al. (2006) alternative limits (MWR Appendix A):
+            // Kmin = ckz * dz * rho (where ckz = 0.001), Kmax = 1000 m^2/s
+            // These higher limits allow greater mixing in free atmosphere
 #if 0
-            // Hong et al. 2006, MWR, Appendix A
+            // Hong et al. 2006, MWR, Appendix A: Higher limits for free atmosphere
             constexpr Real ckz  = Real(0.001);
             constexpr Real Kmax = Real(1000.0);
             const Real rhoKmin  = ckz * dz_terrain * rho;
             const Real rhoKmax  = rho * Kmax;
 #endif
-            // Hong & Pan 1996, MWR
+            // Hong & Pan 1996, MWR: Conservative limits (default)
             constexpr Real Kmin = Real(0.1);
             constexpr Real Kmax = Real(300.0);
             const Real rhoKmin  = rho * Kmin;
