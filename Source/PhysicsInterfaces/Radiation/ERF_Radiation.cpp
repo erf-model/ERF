@@ -290,23 +290,23 @@ Radiation::alloc_buffers ()
     lw_clrsky_heating = real2d_k("lw_clrsky_heating", m_ncol, m_nlay);
 
     // 2d size (ncol, nlay+1)
-    d_tint                   = real2d_k("d_tint"                  , m_ncol, m_nlay+1);
-    p_lev                    = real2d_k("p_lev"                   , m_ncol, m_nlay+1);
-    t_lev                    = real2d_k("t_lev"                   , m_ncol, m_nlay+1);
+    d_tint                   = real2d_k("d_tint"               , m_ncol, m_nlay+1);
+    p_lev                    = real2d_k("p_lev"                , m_ncol, m_nlay+1);
+    t_lev                    = real2d_k("t_lev"                , m_ncol, m_nlay+1);
 
-    sw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
-    sw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
-    sw_flux_dn_dir           = real2d_k("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
+    sw_flux_up               = real2d_k("sw_flux_up"           , m_ncol, m_nlay+1);
+    sw_flux_dn               = real2d_k("sw_flux_dn"           , m_ncol, m_nlay+1);
+    sw_flux_dn_dir           = real2d_k("sw_flux_dn_dir"       , m_ncol, m_nlay+1);
 
-    lw_flux_up               = real2d_k("lw_flux_up"              , m_ncol, m_nlay+1);
-    lw_flux_dn               = real2d_k("lw_flux_dn"              , m_ncol, m_nlay+1);
+    lw_flux_up               = real2d_k("lw_flux_up"           , m_ncol, m_nlay+1);
+    lw_flux_dn               = real2d_k("lw_flux_dn"           , m_ncol, m_nlay+1);
 
     // Clear-sky flux arrays are always needed
-    sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"       , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir"   , m_ncol, m_nlay+1);
-    lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
-    lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol, m_nlay+1);
+    lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol, m_nlay+1);
+    lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
 
     // Clean-clear-sky diagnostic fluxes (only when enabled)
     if (m_extra_clnclrsky_diag) {
@@ -338,15 +338,15 @@ Radiation::alloc_buffers ()
         lw_clnsky_flux_dn        = real2d_k("lw_clnsky_flux_dn"       , 1, 1);
     }
 
-    // 3d size (ncol, nlay+1, nswbands)
-    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol, m_nlay+1, m_nswbands);
+    // 3d size (ncol_chunk, nlay+1, nswbands)
+    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol_chunk, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol_chunk, m_nlay+1, m_nswbands);
 
-    // 3d size (ncol, nlay+1, nlwbands)
-    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nlwbands);
+    // 3d size (ncol_chunk, nlay+1, nlwbands)
+    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
@@ -403,10 +403,6 @@ Radiation::dealloc_buffers ()
     eff_radius_qi     = real2d_k();
     lwp               = real2d_k();
     iwp               = real2d_k();
-    sw_heating        = real2d_k();
-    lw_heating        = real2d_k();
-    sw_clrsky_heating = real2d_k();
-    lw_clrsky_heating = real2d_k();
     sw_heating        = real2d_k();
     lw_heating        = real2d_k();
     sw_clrsky_heating = real2d_k();
@@ -1200,43 +1196,43 @@ Radiation::run_impl ()
         real1d_k sfc_alb_dir_nir_c  (sfc_alb_dir_nir.data()  + col_s, ncol_c);
         real1d_k sfc_alb_dif_vis_c  (sfc_alb_dif_vis.data()  + col_s, ncol_c);
         real1d_k sfc_alb_dif_nir_c  (sfc_alb_dif_nir.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dir_vis_c (sfc_flux_dir_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dir_nir_c (sfc_flux_dir_nir.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dif_vis_c (sfc_flux_dif_vis.data()  + col_s, ncol_c);
-        real1d_k sfc_flux_dif_nir_c (sfc_flux_dif_nir.data()  + col_s, ncol_c);
-        real1d_k t_sfc_c            (t_sfc.data()             + col_s, ncol_c);
-        real1d_k sfc_emis_c         (sfc_emis.data()          + col_s, ncol_c);
-        real1d_k lw_src_c           (lw_src.data()            + col_s, ncol_c);
+        real1d_k sfc_flux_dir_vis_c (sfc_flux_dir_vis.data() + col_s, ncol_c);
+        real1d_k sfc_flux_dir_nir_c (sfc_flux_dir_nir.data() + col_s, ncol_c);
+        real1d_k sfc_flux_dif_vis_c (sfc_flux_dif_vis.data() + col_s, ncol_c);
+        real1d_k sfc_flux_dif_nir_c (sfc_flux_dif_nir.data() + col_s, ncol_c);
+        real1d_k t_sfc_c            (t_sfc.data()            + col_s, ncol_c);
+        real1d_k sfc_emis_c         (sfc_emis.data()         + col_s, ncol_c);
+        real1d_k lw_src_c           (lw_src.data()           + col_s, ncol_c);
 
         // --- Chunk subviews: 2D (ncol, nlay) via LayoutRight pointer offset ---
         const int stride2_nlay   = nlay;
         const int stride2_nlayp1 = nlay + 1;
-        real2d_k p_lay_c        (p_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k t_lay_c        (t_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k r_lay_c        (r_lay.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k z_del_c        (z_del.data()        + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k lwp_c          (lwp.data()          + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k iwp_c          (iwp.data()          + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k eff_radius_qc_c(eff_radius_qc.data()+ col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k eff_radius_qi_c(eff_radius_qi.data()+ col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k cldfrac_tot_c  (cldfrac_tot.data()  + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k sw_heating_c   (sw_heating.data()   + col_s*stride2_nlay, ncol_c, nlay);
-        real2d_k lw_heating_c   (lw_heating.data()   + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k p_lay_c        (p_lay.data()         + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k t_lay_c        (t_lay.data()         + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k r_lay_c        (r_lay.data()         + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k z_del_c        (z_del.data()         + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k lwp_c          (lwp.data()           + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k iwp_c          (iwp.data()           + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k eff_radius_qc_c(eff_radius_qc.data() + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k eff_radius_qi_c(eff_radius_qi.data() + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k cldfrac_tot_c  (cldfrac_tot.data()   + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k sw_heating_c   (sw_heating.data()    + col_s*stride2_nlay, ncol_c, nlay);
+        real2d_k lw_heating_c   (lw_heating.data()    + col_s*stride2_nlay, ncol_c, nlay);
 
         // --- Chunk subviews: 2D (ncol, nlay+1) ---
-        real2d_k p_lev_c                   (p_lev.data()                    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k t_lev_c                   (t_lev.data()                    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_up_c              (sw_flux_up.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_dn_c              (sw_flux_dn.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_flux_dn_dir_c          (sw_flux_dn_dir.data()           + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_flux_up_c              (lw_flux_up.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_flux_dn_c              (lw_flux_dn.data()               + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k p_lev_c                   (p_lev.data()                 + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k t_lev_c                   (t_lev.data()                 + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_flux_up_c              (sw_flux_up.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_flux_dn_c              (sw_flux_dn.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_flux_dn_dir_c          (sw_flux_dn_dir.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k lw_flux_up_c              (lw_flux_up.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k lw_flux_dn_c              (lw_flux_dn.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
         // Clear-sky flux subviews (always active)
-        real2d_k sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data()    + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()        + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data() + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        real2d_k lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
 
         // Diagnostic flux subviews (placeholder when disabled)
         real2d_k sw_clnclrsky_flux_up_c, sw_clnclrsky_flux_dn_c, sw_clnclrsky_flux_dn_dir_c;
@@ -1276,14 +1272,13 @@ Radiation::run_impl ()
         real2d_k sfc_alb_dif_c(sfc_alb_dif.data() + col_s*nswbands, ncol_c, nswbands);
 
         // --- Chunk subviews: 3D (ncol, nlay+1, nbands) ---
-        const int stride3_sw = stride2_nlayp1 * nswbands;
-        const int stride3_lw = stride2_nlayp1 * m_nlwbands;
-        real3d_k sw_bnd_flux_up_c (sw_bnd_flux_up.data()  + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dn_c (sw_bnd_flux_dn.data()  + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dir_c(sw_bnd_flux_dir.data() + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k sw_bnd_flux_dif_c(sw_bnd_flux_dif.data() + col_s*stride3_sw, ncol_c, nlay+1, nswbands);
-        real3d_k lw_bnd_flux_up_c (lw_bnd_flux_up.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
-        real3d_k lw_bnd_flux_dn_c (lw_bnd_flux_dn.data()  + col_s*stride3_lw, ncol_c, nlay+1, m_nlwbands);
+        // NOTE: Allocate these once on m_ncol_chunk and use what we need in the chunk loop
+        real3d_k sw_bnd_flux_up_c (sw_bnd_flux_up.data() , ncol_c, nlay+1, nswbands);
+        real3d_k sw_bnd_flux_dn_c (sw_bnd_flux_dn.data() , ncol_c, nlay+1, nswbands);
+        real3d_k sw_bnd_flux_dir_c(sw_bnd_flux_dir.data(), ncol_c, nlay+1, nswbands);
+        real3d_k sw_bnd_flux_dif_c(sw_bnd_flux_dif.data(), ncol_c, nlay+1, nswbands);
+        real3d_k lw_bnd_flux_up_c (lw_bnd_flux_up.data() , ncol_c, nlay+1, m_nlwbands);
+        real3d_k lw_bnd_flux_dn_c (lw_bnd_flux_dn.data() , ncol_c, nlay+1, m_nlwbands);
 
         // --- Create chunk gas concentrations by subsetting from pre-fetched VMR ---
         gas_concs_t gas_concs_c;
