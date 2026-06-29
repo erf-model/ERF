@@ -261,6 +261,7 @@ ERF::HurricaneEyeTrackerNotInitial_WRF (const Geometry& geom,
 }
 
 void
+<<<<<<< HEAD
 ERF::ReadStormTrackerRestart ()
 {
     hurricane_eye_track_xy.clear();
@@ -365,6 +366,8 @@ ERF::ReadStormTrackerRestart ()
 }
 
 void
+=======
+>>>>>>> upstream/development
 ERF::HurricaneEyeTracker_WRF (const SolverChoice& solverChoice)
 {
     static bool is_start = true;
@@ -374,16 +377,23 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& solverChoice)
     const Real hurricane_eye_latitude = solverChoice.hurricane_eye_latitude;
     const Real hurricane_eye_longitude = solverChoice.hurricane_eye_longitude;
 
+<<<<<<< HEAD
     if(is_start and restart_chkfile.empty()){
+=======
+    if(is_start){
+>>>>>>> upstream/development
         HurricaneEyeTrackerInitial_WRF(geom[levc],
                                        vars_new[levc],
                                        hurricane_eye_latitude,
                                        hurricane_eye_longitude);
         is_start = false;
     } else {
+<<<<<<< HEAD
          if(!restart_chkfile.empty()) {
             ReadStormTrackerRestart();
         }
+=======
+>>>>>>> upstream/development
         HurricaneEyeTrackerNotInitial_WRF(geom[levc], vars_new[levc],
                                           moisture_type);
     }
