@@ -533,6 +533,16 @@ class SDInitProperties
 
         virtual int numSDPerCell (const amrex::Real) const = 0;
         virtual amrex::Real numParticlesPerCell (const amrex::Real) const = 0;
+
+        /*! \brief Per-box high-multiplicity injection (false for initialization
+         *  and legacy per-cell injection). */
+        [[nodiscard]] virtual bool perBoxInjection () const { return false; }
+        /*! \brief Number of super-droplets to inject in the whole box this step. */
+        [[nodiscard]] virtual int injectBoxCount () const { return 0; }
+        /*! \brief Multiplicity of each super-droplet injected this step. */
+        [[nodiscard]] virtual amrex::Real injectMultiplicity () const { return zero; }
+        /*! \brief Reproducible seed for scattering this step's super-droplets. */
+        [[nodiscard]] virtual unsigned int injectSeed () const { return 0; }
 };
 
 /*! \brief Super-droplets initialization structure */
@@ -565,12 +575,38 @@ class SDInjection : public SDInitProperties
         amrex::Real m_numdens_accum = zero;
         /*!< Injection-level cell volume [m^3], set from geometry at read time */
         amrex::Real m_cell_volume = -1;
-        /*!< Number of super-droplets to inject per cell this step (0 = none) */
+        /*!< Number of super-droplets to inject this step (0 = none). Per cell in
+             legacy mode; per box in per-box high-multiplicity mode. */
         int m_inject_num_sd = 0;
         /*!< Integer multiplicity of each super-droplet injected this step */
         amrex::Real m_inject_mult = zero;
         /*!< Tolerance below 1 at which an accumulated injection fires */
         amrex::Real m_frac_tol = amrex::Real(1.0e-3);
+
+        /*!< Minimum multiplicity for per-box injection (default 100) */
+        amrex::Real m_min_multiplicity = 100;
+        /*!< Per-box high-multiplicity injection mode (set when particles_per_cell
+             is not specified) */
+        bool m_perbox = false;
+        /*!< True when both sd_rate and min_multiplicity are explicitly specified */
+        bool m_both_specified = false;
+        /*!< Whether each knob was specified in any readInputs call (the
+             non-indexed and indexed injection prefixes are read separately). */
+        bool m_ppc_specified = false;
+        bool m_sd_specified  = false;
+        bool m_mm_specified  = false;
+        /*!< Effective SD injection rate [# m^-3 s^-1] used in per-box mode */
+        amrex::Real m_eff_sd_rate = -1;
+        /*!< Injection-box volume [m^3], set from the box at read time */
+        amrex::Real m_box_volume = -1;
+        /*!< Accumulated super-droplet count owed to the box (per-box mode) */
+        amrex::Real m_sd_accum = zero;
+        /*!< Count of injection events so far, used as a reproducible scatter seed */
+        unsigned int m_inject_count = 0;
+        /*!< Reproducible seed for scattering this step's super-droplets */
+        unsigned int m_inject_seed = 0;
+        /*!< Input prefix (e.g. injection.0) for diagnostic messages */
+        std::string m_prefix;
 
         /*! \brief Update time-dependent quantities for particle injection
          *
@@ -592,6 +628,30 @@ class SDInjection : public SDInitProperties
         inline void updateDt (const amrex::Real a_dt, const bool a_active)
         {
             using amrex::Real;
+
+            if (m_perbox) {
+                // Per-box high-multiplicity injection: accumulate the box-level
+                // super-droplet and physical-particle counts. Inject floor(SD
+                // count) super-droplets at the implied multiplicity (= rate /
+                // eff_sd_rate) once at least one super-droplet is owed. This
+                // decouples the super-droplet count from the grid and bounds the
+                // population at physical/multiplicity.
+                if (a_active) {
+                    m_sd_accum      += m_eff_sd_rate * a_dt * m_box_volume;
+                    m_numdens_accum += m_inj_rate    * a_dt * m_box_volume;  // physical count in box
+                }
+                if (a_active && m_sd_accum >= one - m_frac_tol) {
+                    const int N = std::max(static_cast<int>(std::floor(m_sd_accum + m_frac_tol)), 1);
+                    m_inject_mult   = std::max(std::round(m_numdens_accum / N), one);
+                    m_inject_num_sd = N;
+                    m_sd_accum      -= N;
+                    m_numdens_accum -= N * m_inject_mult;
+                    m_inject_seed   = m_inject_count++;
+                } else {
+                    m_inject_num_sd = 0;
+                    m_inject_mult   = zero;
+                }
+            } else {
 
             // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
             Real num_sd;
@@ -628,6 +688,8 @@ class SDInjection : public SDInitProperties
                     m_inject_num_sd = 0;
                     m_inject_mult   = zero;
                 }
+            }
+
             }
 
             if (this->m_type == SDInitShape::uniform) {
@@ -691,6 +753,11 @@ class SDInjection : public SDInitProperties
         {
             return amrex::Real(m_inject_num_sd) * m_inject_mult;
         }
+
+        [[nodiscard]] inline bool perBoxInjection () const override { return m_perbox; }
+        [[nodiscard]] inline int injectBoxCount () const override { return m_inject_num_sd; }
+        [[nodiscard]] inline amrex::Real injectMultiplicity () const override { return m_inject_mult; }
+        [[nodiscard]] inline unsigned int injectSeed () const override { return m_inject_seed; }
 
 };
 

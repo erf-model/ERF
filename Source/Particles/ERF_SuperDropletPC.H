@@ -177,6 +177,13 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
+        /*! \brief Scatter a box-level count of super-droplets over the injection box */
+        void setNumSDPerBox( int a_lev,
+                             amrex::iMultiFab&,
+                             const int,
+                             const amrex::RealBox&,
+                             const unsigned int );
+
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
         void setNumSDBubbleDistribution( int a_lev,
                                       amrex::iMultiFab&,

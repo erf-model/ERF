@@ -236,8 +236,10 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
+    m_prefix = a_prefix;
     pp.query("rate", m_inj_rate);
-    pp.query("sd_rate", m_sd_inj_rate);
+    if (pp.query("sd_rate", m_sd_inj_rate))                { m_sd_specified  = true; }
+    if (pp.query("min_multiplicity", m_min_multiplicity))  { m_mm_specified  = true; }
     pp.query("t_start", m_tstart);
     pp.query("t_stop", m_tstop);
     pp.queryarr("domain_velocity", m_domain_vel);
@@ -246,6 +248,29 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     // Cell volume of the injection level, used to accumulate the per-cell count.
     const auto dx = a_geom.CellSize();
     m_cell_volume = dx[0]*dx[1]*dx[2];
+    m_box_volume  = this->volume();
+
+    // Injection mode: an explicit particles_per_cell selects the legacy per-cell
+    // path; otherwise inject in per-box high-multiplicity mode. The effective SD
+    // injection rate is taken from sd_rate or rate/min_multiplicity; if both are
+    // specified, the one giving fewer super-droplets (lower SD rate) is used. The
+    // injection is read twice (non-indexed defaults then indexed overrides), so
+    // "specified" is tracked stickily across both calls.
+    int ppc_tmp = m_ppc;
+    if (pp.query("particles_per_cell", ppc_tmp)) { m_ppc_specified = true; }
+    m_perbox = !m_ppc_specified;
+    if (m_perbox) {
+        if (m_sd_specified && m_mm_specified) {
+            m_eff_sd_rate    = std::min(m_sd_inj_rate, m_inj_rate / m_min_multiplicity);
+            m_both_specified = true;
+        } else if (m_sd_specified) {
+            m_eff_sd_rate    = m_sd_inj_rate;
+            m_both_specified = false;
+        } else {
+            m_eff_sd_rate    = m_inj_rate / m_min_multiplicity;
+            m_both_specified = false;
+        }
+    }
 }
 
 void SDInitProperties::printParameters ( const MatVec& a_species_mat,
@@ -346,9 +371,23 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
             << m_domain_vel[0] << ","
             << m_domain_vel[1] << ","
             << m_domain_vel[2] << "\n"
-            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n"
-            << "    SD injection rate: " << m_sd_inj_rate << "\n"
-            << "    Fractional-accumulation tolerance: " << m_frac_tol << "\n";
+            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n";
+    if (m_perbox) {
+        if (m_both_specified) {
+            Print() << "    Warning: sd_rate and min_multiplicity both specified for "
+                    << m_prefix << "\n";
+        }
+        Print() << "    Injection mode: per-box high-multiplicity\n"
+                << "    SD injection rate (specified): " << m_sd_inj_rate << "\n"
+                << "    Minimum multiplicity: " << m_min_multiplicity << "\n"
+                << "    Effective SD injection rate (# m^{-3} s^{-1}): " << m_eff_sd_rate << "\n"
+                << "    Implied multiplicity: "
+                << (m_eff_sd_rate > zero ? m_inj_rate / m_eff_sd_rate : zero) << "\n";
+    } else {
+        Print() << "    Injection mode: per-cell (particles_per_cell)\n"
+                << "    SD injection rate: " << m_sd_inj_rate << "\n";
+    }
+    Print() << "    Fractional-accumulation tolerance: " << m_frac_tol << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }
 
