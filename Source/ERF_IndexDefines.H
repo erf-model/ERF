@@ -212,13 +212,6 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
-        CounterGradient_v,  // Countergradient correction term for vertical momentum (MRF PBL)
-        CounterGradient_h,  // Countergradient correction term for horizontal momentum (MRF PBL)
-        CounterGradient_theta,  // Countergradient correction term for potential temperature (MRF/YSU PBL)
-        CounterGradient_q,  // Countergradient correction term for water vapor (MRF/YSU PBL)
-        Entrainment_mom,  // Entrainment diffusivity for momentum at PBL top
-        Entrainment_theta,  // Entrainment diffusivity for potential temperature at PBL top
-        Entrainment_q,  // Entrainment diffusivity for water vapor at PBL top
         NumDiffs
     };
 }
