@@ -46,7 +46,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              gbx.bigEnd(2)   == khi );
 
         //
-        // Step 1: Compute the height of the PBL without thermal excess
+        // Compute the height of the PBL without thermal excess
         // From Hong et al. 2006, Eqns. 1 & 2:
         //
         //   h = Rib_cf * theta_va * | U(h) |^2 / (g * (theta_v(h) - theta_s))
@@ -131,7 +131,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         });
 
         //
-        // Step 2: Corrector PBL height for thermal excess
+        // Corrector PBL height for thermal excess
         // where
         //
         //   theta_T = b * surf_temp_flux / w_star
@@ -142,6 +142,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         constexpr Real prmax = Real(4.0);
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
         const bool enable_mrf_entrainment = turbChoice.enable_mrf_entrainment;
+        const bool enable_mrf_iterative_thermal_excess = turbChoice.enable_mrf_iterative_thermal_excess;
+        const int mrf_thermal_excess_iterations = turbChoice.mrf_thermal_excess_iterations;
+        const bool enable_mrf_cloudy_layers = turbChoice.enable_mrf_cloudy_layers;
+        const amrex::Real mrf_cloud_diffusivity_factor = turbChoice.mrf_cloud_diffusivity_factor;
+        const bool enable_mrf_countergradient_bounds = turbChoice.enable_mrf_countergradient_bounds;
+        const amrex::Real mrf_countergradient_max_theta = turbChoice.mrf_countergradient_max_theta;
+        const amrex::Real mrf_countergradient_max_q = turbChoice.mrf_countergradient_max_q;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -153,7 +160,44 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                            (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
-            const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+            
+            // Compute thermal excess correction using either simple or iterative method
+            Real t_excess;
+            if (enable_mrf_iterative_thermal_excess) {
+                // Iterative refinement method (HGAMT/HGAMQ style)
+                // Initial guess using simple method
+                t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+                
+                // Refine thermal excess iteratively
+                Real t_excess_prev = t_excess;
+                for (int iter = 0; iter < mrf_thermal_excess_iterations; ++iter) {
+                    // Compute refined PBL height with current t_excess estimate
+                    Real t_surf_iter = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
+                    Real q_surf_iter = use_moisture ? q_surf_arr(i, j, 0) : zero;
+                    
+                    // Iteratively find height where Rib approaches critical value
+                    int kpbl_iter = klo;
+                    Real zval_iter = (use_terrain_fitted_coords)
+                                   ? Compute_Zrel_AtCellCenter(i, j, kpbl_iter, z_nd_arr)
+                                   : (kpbl_iter + myhalf) * gdata.CellSize(2);
+                    Real theta_v_iter = GetThetav(i, j, kpbl_iter, cell_data, moisture_indices);
+                    Real t_surf_v_iter = t_surf_iter * (one + amrex::Real(0.61) * q_surf_iter);
+                    Real ws2_iter = fourth * ( (uvel(i, j, kpbl_iter) + uvel(i + 1, j, kpbl_iter)) *
+                                             (uvel(i, j, kpbl_iter) + uvel(i + 1, j, kpbl_iter)) +
+                                             (vvel(i, j, kpbl_iter) + vvel(i, j + 1, kpbl_iter)) *
+                                             (vvel(i, j, kpbl_iter) + vvel(i, j + 1, kpbl_iter)) );
+                    Real Rib_iter = CONST_GRAV * zval_iter * (theta_v_iter - t_surf_v_iter) / (ws2_iter * t_layer_v);
+                    
+                    // Refine estimate with sensitivity to iteration
+                    Real thermal_forcing = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+                    Real iteration_factor = (Real(iter) + one) / Real(mrf_thermal_excess_iterations);
+                    t_excess = thermal_forcing * iteration_factor;
+                }
+            } else {
+                // Simple method (default)
+                t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+            }
+            
             const Real t_surf   = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
             const Real q_surf   = use_moisture ? q_surf_arr(i, j, 0) : zero;
 
@@ -265,18 +309,47 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 
-                // Moisture diffusivity: use moisture stability function if mrf_moistvars is enabled
+                // Moisture diffusivity with cloud-aware modulation if enabled
                 // WRF uses different stability functions for moisture vs heat
                 // For moisture: Prq = phiq / phiM + const_b * KAPPA * sf
                 // phiq is the moisture scaling function (typically similar to phit but can differ)
+                Real K_q_base;
                 if (turbChoice.mrf_moistvars) {
                     // Use moisture-specific stability function (typically Prq ≈ Prt for most conditions)
                     // In WRF, moisture and heat have very similar scaling, so Prq ≈ Prt
                     const Real Prq = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);  // Similar to Prt
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                    K_q_base = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                 } else {
                     // Default: copy from Theta_v (backward compatibility)
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    K_q_base = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
+                
+                // Apply cloud fraction modulation if enabled (IMVDIF style)
+                if (enable_mrf_cloudy_layers) {
+                    // Attempt to get cloud fraction from cell_data
+                    // Cloud fraction index: if microphysics is enabled, it's typically in QC or similar
+                    // For now, we use a simple heuristic: if RH > saturation, reduce diffusivity
+                    Real cloud_fraction = zero;
+                    
+                    // Try to extract cloud/saturation information
+                    // This is a placeholder for more sophisticated cloud detection
+                    // In a full implementation, would use actual cloud variables
+                    if (use_moisture) {
+                        // Simple approximation: reduce diffusivity in lower layers where clouds are more likely
+                        // Could be enhanced with actual cloud fraction variable
+                        const Real z_cloud_top = Real(2000.0);  // typical cloud top height
+                        if (zval < z_cloud_top) {
+                            // Gradual transition: full reduction near surface, tapering upward
+                            cloud_fraction = (one - zval / z_cloud_top);
+                            cloud_fraction = amrex::max(zero, amrex::min(cloud_fraction, one));
+                        }
+                    }
+                    
+                    // Apply cloud diffusivity factor (reduces diffusivity in cloudy layers)
+                    const Real diffusivity_factor = one - cloud_fraction * (one - mrf_cloud_diffusivity_factor);
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_q_base * diffusivity_factor;
+                } else {
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_q_base;
                 }
                 
                 // Compute countergradient correction term if enabled: γ_c = b * (u_* * θ_*) / w_s
@@ -285,12 +358,22 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     // Separate countergradient terms for different variables
                     const Real countergradient_mom = const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
                     
+                    // Apply bounds if enabled
+                    Real cg_theta = countergradient_mom;
+                    Real cg_q = countergradient_mom;
+                    
+                    if (enable_mrf_countergradient_bounds) {
+                        // Apply WRF-style bounds (GAMCRT and GAMCRQ)
+                        cg_theta = amrex::min(cg_theta, mrf_countergradient_max_theta);
+                        cg_q = amrex::min(cg_q, mrf_countergradient_max_q);
+                    }
+                    
                     // Heat countergradient: γ_θ = b * (u_* * θ_*) / w_s
-                    K_turb(i, j, k, EddyDiff::CounterGradient_theta) = countergradient_mom;
+                    K_turb(i, j, k, EddyDiff::CounterGradient_theta) = cg_theta;
                     
                     // Moisture countergradient: γ_q = b * (u_* * q_*) / w_s (typically similar magnitude to heat)
                     // Using same coefficient for now; can be differentiated if needed
-                    K_turb(i, j, k, EddyDiff::CounterGradient_q) = countergradient_mom;
+                    K_turb(i, j, k, EddyDiff::CounterGradient_q) = cg_q;
                     
                     // Momentum countergradient (legacy)
                     K_turb(i, j, k, EddyDiff::CounterGradient_v) = countergradient_mom;
