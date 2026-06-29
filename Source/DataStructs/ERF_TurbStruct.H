@@ -172,22 +172,6 @@ public:
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_entrainment", enable_mrf_entrainment, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_iterative_thermal_excess", enable_mrf_iterative_thermal_excess, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_thermal_excess_iterations", mrf_thermal_excess_iterations, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_cloudy_layers", enable_mrf_cloudy_layers, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_cloud_diffusivity_factor", mrf_cloud_diffusivity_factor, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_countergradient_bounds", enable_mrf_countergradient_bounds, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_countergradient_max_theta", mrf_countergradient_max_theta, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_countergradient_max_q", mrf_countergradient_max_q, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -425,22 +409,6 @@ public:
                      << std::endl;
       amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
                      << std::endl;
-      amrex::Print() << "    enable_mrf_entrainment : " << enable_mrf_entrainment
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_iterative_thermal_excess : " << enable_mrf_iterative_thermal_excess
-                     << std::endl;
-      amrex::Print() << "    mrf_thermal_excess_iterations : " << mrf_thermal_excess_iterations
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_cloudy_layers : " << enable_mrf_cloudy_layers
-                     << std::endl;
-      amrex::Print() << "    mrf_cloud_diffusivity_factor : " << mrf_cloud_diffusivity_factor
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_countergradient_bounds : " << enable_mrf_countergradient_bounds
-                     << std::endl;
-      amrex::Print() << "    mrf_countergradient_max_theta : " << mrf_countergradient_max_theta
-                     << std::endl;
-      amrex::Print() << "    mrf_countergradient_max_q : " << mrf_countergradient_max_q
-                     << std::endl;
     }
   }
 
@@ -535,15 +503,7 @@ public:
   amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
-  bool enable_mrf_countergradient = false; // if true, compute countergradient correction terms for MRF PBL
-  bool enable_mrf_entrainment = false; // if true, compute entrainment fluxes at PBL top for MRF PBL
-  bool enable_mrf_iterative_thermal_excess = false; // if true, use iterative refinement for thermal excess correction
-  int mrf_thermal_excess_iterations = 3; // number of iterations for thermal excess refinement
-  bool enable_mrf_cloudy_layers = false; // if true, apply cloud-fraction-based moisture diffusivity modulation
-  amrex::Real mrf_cloud_diffusivity_factor = amrex::Real(0.8); // diffusivity reduction factor in cloudy layers
-  bool enable_mrf_countergradient_bounds = false; // if true, apply bounds to countergradient terms
-  amrex::Real mrf_countergradient_max_theta = amrex::Real(3.0); // maximum countergradient for heat (WRF's GAMCRT)
-  amrex::Real mrf_countergradient_max_q = amrex::Real(0.002); // maximum countergradient for moisture (WRF's GAMCRQ)
+  bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
