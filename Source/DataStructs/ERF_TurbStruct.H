@@ -170,6 +170,8 @@ public:
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -405,6 +407,8 @@ public:
                      << std::endl;
       amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars
                      << std::endl;
+      amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
+                     << std::endl;
     }
   }
 
@@ -499,6 +503,7 @@ public:
   amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
+  bool enable_mrf_countergradient = false; // if true, compute countergradient correction terms for MRF PBL
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
