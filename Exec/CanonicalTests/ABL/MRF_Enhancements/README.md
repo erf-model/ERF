@@ -1,86 +1,55 @@
-# MRF PBL Model Enhancements Testing
+# MRF PBL Model – WRF-Style Configuration Tests
 
-This directory contains test cases for the MRF (Medium Range Forecast) PBL model enhancements implemented in ERF. These enhancements align the MRF model more closely with WRF's advanced parameterizations while maintaining backward compatibility.
+This directory contains test cases for the MRF (Medium Range Forecast) PBL model as
+implemented following WRF's `module_bl_mrf.F`.
+
+**WRF reference:**
+https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
+
+The implementation uses:
+- **HGAMT / HGAMQ** (WRF lines 872–879) only for PBL height finding — not stored in the
+  diffusion coefficients.
+- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`.
+- No entrainment terms (WRF MRF does not include explicit entrainment fluxes).
 
 ## Test Cases
 
-### 1. Full_Enhancements
-Tests the MRF model with all three enhancements enabled:
-- Iterative thermal excess correction
-- Cloud-aware moisture diffusivity (IMVDIF)
-- Countergradient term bounding
+### 1. Baseline MRF (`inputs_baseline`)
+Standard MRF without any optional features. Serves as a reference for neutral/stable
+boundary layers.
 
-This represents the "Full WRF-Style Configuration" for maximum realism in challenging conditions.
-
-**Usage:**
-```bash
-./erf inputs_full_enhancements
-```
-
-### 2. Conservative_Enhancement
-Tests the MRF model with only iterative thermal excess correction enabled. This conservative configuration improves strong convection without other changes.
-
-**Usage:**
-```bash
-./erf inputs_conservative
-```
-
-### 3. CloudAware_Layers
-Tests the MRF model with cloud-aware moisture diffusivity enabled. This configuration is suitable for stratocumulus-topped or fog/stratus simulations.
-
-**Usage:**
-```bash
-./erf inputs_cloud_aware
-```
-
-### 4. Baseline_MRF
-Tests the baseline MRF model without any enhancements. This serves as a reference for backward compatibility and neutral/stable boundary layer simulations.
-
-**Usage:**
 ```bash
 ./erf inputs_baseline
 ```
 
-## Enhancement Details
-
-### Iterative Thermal Excess Correction
-- **Parameter:** `pbl.enable_mrf_iterative_thermal_excess`
-- **Sub-parameters:** `pbl.mrf_thermal_excess_iterations`
-- **Physical basis:** Refines surface virtual potential temperature estimate through multiple iterations
-- **Typical impact:** 1-5% additional computation
-
-### Cloud-Aware Moisture Diffusivity (IMVDIF)
-- **Parameter:** `pbl.enable_mrf_cloudy_layers`
-- **Sub-parameters:** `pbl.mrf_cloud_diffusivity_factor` (default: 0.8)
-- **Physical basis:** Reduces moisture diffusivity in stratocumulus layers
-- **Typical impact:** <1% overhead
-
-### Countergradient Term Bounding
-- **Parameter:** `pbl.enable_mrf_countergradient_bounds`
-- **Sub-parameters:** `pbl.mrf_countergradient_max_theta`, `pbl.mrf_countergradient_max_q`
-- **Physical basis:** Prevents unrealistic amplification of countergradient fluxes
-- **Typical impact:** <1% overhead
-
-## Running Tests
-
-All test cases use the same problem setup (uniform ABL simulation) with different PBL configurations. To run a test:
+### 2. Full WRF-Style (`inputs_full_enhancements`)
+Enables both WRF-aligned features:
+- HGAMT + HGAMQ countergradient correction for PBL height (heat and moisture via q_*)
+- Moisture turbulent diffusivity with Prq ≈ Prt
 
 ```bash
-# Build ERF
-cd Exec
-make -j
-
-# Run specific test
-cd CanonicalTests/ABL/MRF_Enhancements
-../../../erf inputs_full_enhancements
+./erf inputs_full_enhancements
 ```
 
-## Output and Validation
+Key parameters:
+```
+pbl.enable_mrf_countergradient = true   # HGAMT/HGAMQ for PBL height finding
+pbl.mrf_moistvars               = true   # moisture diffusivity (Prq ~ Prt)
+```
 
-Each test produces plotfiles at intervals specified in the input files. The test cases are designed to run stably and demonstrate that all enhancements can be combined without causing numerical instability.
+## Available MRF Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `pbl.pbl_mrf_Ribcr` | 0.5 | Critical bulk Richardson number (WRF BRCR) |
+| `pbl.pbl_mrf_const_b` | 7.8 | Surface layer factor (WRF CFAC) |
+| `pbl.pbl_mrf_sf` | 0.1 | Surface layer fraction (WRF SFAC) |
+| `pbl.enable_mrf_countergradient` | false | Apply HGAMT/HGAMQ to PBL height finding |
+| `pbl.mrf_moistvars` | false | Enable moisture diffusivity (Prq ≈ Prt) |
 
 ## References
 
-- Hong et al. (1996): "Nonlocal Boundary Layer Vertical Diffusion in a Medium-Range Forecast Model"
-- Hong et al. (2006): "A new vertical diffusion package with an explicit treatment of entrainment processes"
-- WRF Model Documentation: PBL Schemes
+- Hong, S.-Y. and H.-L. Pan (1996): Nonlocal boundary layer vertical diffusion in a
+  medium-range forecast model. *Mon. Wea. Rev.*, 124, 2322–2339.
+- Hong, S.-Y. et al. (2006): A new vertical diffusion package with an explicit treatment
+  of entrainment processes. *Mon. Wea. Rev.*, 134, 2318–2341.
