@@ -5,6 +5,7 @@
 #include "ERF_TurbStruct.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_MoistUtils.H"
 
 using namespace amrex;
 
@@ -17,7 +18,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const TurbChoice& turbChoice,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
-                       bool /*use_moisture*/,
+                       bool use_moisture,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
@@ -78,6 +79,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
+        const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
+        const auto& q_surf_arr = SurfLayer->get_q_surf(level)->const_array(mfi);
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
 
@@ -98,13 +101,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
 
-                const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
-                                   cell_data(i, j, kpbl, Rho_comp);
+                // Use virtual potential temperature for stability calculations
+                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real Rib = CONST_GRAV * zval * (theta - t_layer) / (ws2 * t_layer);
+                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * t_layer_v);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -133,10 +138,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
+        constexpr Real prmin = Real(0.5);
+        constexpr Real prmax = Real(4.0);
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
+        const bool enable_mrf_entrainment = turbChoice.enable_mrf_entrainment;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
             const Real phiM     = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
@@ -145,6 +155,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
             const Real t_surf   = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
+            const Real q_surf   = use_moisture ? q_surf_arr(i, j, 0) : zero;
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
@@ -152,13 +163,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
-                                   cell_data(i, j, kpbl, Rho_comp);
+                // Use virtual potential temperature for stability calculations
+                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * q_surf);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
             }
 
             bool above_critical = false;
@@ -170,13 +182,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
-                                   cell_data(i, j, kpbl, Rho_comp);
+                // Use virtual potential temperature for stability calculations
+                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * q_surf);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -245,23 +258,55 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                 : std::pow(
                                            (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / two);
-                const Real Prt = phit / phiM + const_b * KAPPA * sf;
+                const Real Prt = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
                 const Real wstar = u_star_arr(i, j, 0) / phiM;
                 K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
                                                  * (1 - zval / pblh_corr_arr(i, j, 0))
                                                  * (1 - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 
+                // Moisture diffusivity: use moisture stability function if mrf_moistvars is enabled
+                // WRF uses different stability functions for moisture vs heat
+                // For moisture: Prq = phiq / phiM + const_b * KAPPA * sf
+                // phiq is the moisture scaling function (typically similar to phit but can differ)
+                if (turbChoice.mrf_moistvars) {
+                    // Use moisture-specific stability function (typically Prq ≈ Prt for most conditions)
+                    // In WRF, moisture and heat have very similar scaling, so Prq ≈ Prt
+                    const Real Prq = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);  // Similar to Prt
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                } else {
+                    // Default: copy from Theta_v (backward compatibility)
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
+                
                 // Compute countergradient correction term if enabled: γ_c = b * (u_* * θ_*) / w_s
                 if (enable_mrf_countergradient) {
                     // Note: wstar is already u_* / φ_m, so we don't need to divide again
-                    const Real countergradient = const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
-                    K_turb(i, j, k, EddyDiff::CounterGradient_v) = countergradient;
+                    // Separate countergradient terms for different variables
+                    const Real countergradient_mom = const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
+                    
+                    // Heat countergradient: γ_θ = b * (u_* * θ_*) / w_s
+                    K_turb(i, j, k, EddyDiff::CounterGradient_theta) = countergradient_mom;
+                    
+                    // Moisture countergradient: γ_q = b * (u_* * q_*) / w_s (typically similar magnitude to heat)
+                    // Using same coefficient for now; can be differentiated if needed
+                    K_turb(i, j, k, EddyDiff::CounterGradient_q) = countergradient_mom;
+                    
+                    // Momentum countergradient (legacy)
+                    K_turb(i, j, k, EddyDiff::CounterGradient_v) = countergradient_mom;
                 } else {
                     K_turb(i, j, k, EddyDiff::CounterGradient_v) = zero;
+                    K_turb(i, j, k, EddyDiff::CounterGradient_theta) = zero;
+                    K_turb(i, j, k, EddyDiff::CounterGradient_q) = zero;
                 }
                 K_turb(i, j, k, EddyDiff::CounterGradient_h) = zero;
+                
+                // Initialize entrainment terms (zero in mixed layer)
+                K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
+                K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
+                K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
             } else {
+                // Free atmosphere above PBL
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                 Real dthetadz, dudz, dvdz;
@@ -270,8 +315,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
                 const Real wind_shear = dudz * dudz + dvdz * dvdz + Real(1.0e-9);
-                const Real theta   = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
-                Real grad_Ri = CONST_GRAV / theta * dthetadz / wind_shear; // clear sky -- TODO: reduce stability in cloudy air
+                
+                // Use virtual potential temperature for Richardson number stability calculation
+                const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
+                const Real dthetav_dz = myhalf * (GetThetav(i, j, k+1, cell_data, moisture_indices) - 
+                                                   GetThetav(i, j, k-1, cell_data, moisture_indices)) * (one / dz_terrain);
+                Real grad_Ri = CONST_GRAV / theta_v * dthetav_dz / wind_shear;
                 grad_Ri = std::max(grad_Ri, -Real(100.0));  // Hong et al. 2006, MWR, Appendix A
                 /*
                   const Real Pr = Real(1.5) + Real(3.08) * grad_Ri;
@@ -298,10 +347,60 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
+                
+                // Apply moisture-specific treatment if enabled
+                if (turbChoice.mrf_moistvars) {
+                    // For free atmosphere, moisture typically has similar diffusivity to heat
+                    // In some formulations, fq may differ slightly from ft, but WRF uses same scaling
+                    K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
+                } else {
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
+                
+                // Check if we're at PBL top and add entrainment fluxes (if enabled)
+                if (enable_mrf_entrainment) {
+                    int kpbl = pbli_arr(i, j, 0);
+                    const int pbl_smooth_levels = 2;  // Number of levels above and below PBL top for smoothing
+                    
+                    // Check if current level is within smoothing zone around PBL top
+                    if ((k >= kpbl - pbl_smooth_levels && k <= kpbl + pbl_smooth_levels) && kpbl < khi) {
+                        // Calculate smoothing weight: maximum at PBL top, decreasing away from it
+                        // Weight function: 1 - |k - kpbl| / pbl_smooth_levels (linear)
+                        const int dist_from_pbl = std::abs(k - kpbl);
+                        const Real smooth_weight = amrex::max(zero, one - (Real(dist_from_pbl) / Real(pbl_smooth_levels)));
+                        
+                        // Entrainment at PBL top: gradual mixing zone instead of sharp discontinuity
+                        // Entrainment is strongest at the PBL interface and smoothed over multiple levels
+                        const Real entrainment_coeff = Real(0.1);  // Typical entrainment coefficient
+                        const Real u_star = u_star_arr(i, j, 0);
+                        
+                        // Entrainment momentum flux: ρ * w_e * Δu where w_e ~ α * u_*
+                        // Apply smoothing weight to gradually transition entrainment across levels
+                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = smooth_weight * rho * entrainment_coeff * u_star * KAPPA * zval;
+                        
+                        // Entrainment temperature flux: similar to momentum
+                        K_turb(i, j, k, EddyDiff::Entrainment_theta) = K_turb(i, j, k, EddyDiff::Entrainment_mom) / ft;
+                        
+                        // Entrainment moisture flux
+                        K_turb(i, j, k, EddyDiff::Entrainment_q) = K_turb(i, j, k, EddyDiff::Entrainment_theta);
+                    } else {
+                        // No entrainment correction outside the smoothing zone
+                        K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
+                        K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
+                        K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
+                    }
+                } else {
+                    // Entrainment disabled
+                    K_turb(i, j, k, EddyDiff::Entrainment_mom) = zero;
+                    K_turb(i, j, k, EddyDiff::Entrainment_theta) = zero;
+                    K_turb(i, j, k, EddyDiff::Entrainment_q) = zero;
+                }
                  
                 // No countergradient correction in free atmosphere
                 K_turb(i, j, k, EddyDiff::CounterGradient_v) = zero;
                 K_turb(i, j, k, EddyDiff::CounterGradient_h) = zero;
+                K_turb(i, j, k, EddyDiff::CounterGradient_theta) = zero;
+                K_turb(i, j, k, EddyDiff::CounterGradient_q) = zero;
             }
 
             // limit both diffusion coefficients
@@ -322,7 +421,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Mom_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Theta_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
-            K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+            K_turb(i, j, k, EddyDiff::Q_v) = std::max(
+                std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_arr(i, j, 0);
             // CounterGradient terms already set above in mixed layer or free atmosphere
         });
@@ -335,11 +435,21 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
             K_turb(i, j, klo-1, EddyDiff::CounterGradient_v) = K_turb(i, j, klo, EddyDiff::CounterGradient_v);
             K_turb(i, j, klo-1, EddyDiff::CounterGradient_h) = K_turb(i, j, klo, EddyDiff::CounterGradient_h);
+            K_turb(i, j, klo-1, EddyDiff::CounterGradient_theta) = K_turb(i, j, klo, EddyDiff::CounterGradient_theta);
+            K_turb(i, j, klo-1, EddyDiff::CounterGradient_q) = K_turb(i, j, klo, EddyDiff::CounterGradient_q);
+            K_turb(i, j, klo-1, EddyDiff::Entrainment_mom) = K_turb(i, j, klo, EddyDiff::Entrainment_mom);
+            K_turb(i, j, klo-1, EddyDiff::Entrainment_theta) = K_turb(i, j, klo, EddyDiff::Entrainment_theta);
+            K_turb(i, j, klo-1, EddyDiff::Entrainment_q) = K_turb(i, j, klo, EddyDiff::Entrainment_q);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
             K_turb(i, j, khi+1, EddyDiff::CounterGradient_v) = K_turb(i, j, khi, EddyDiff::CounterGradient_v);
             K_turb(i, j, khi+1, EddyDiff::CounterGradient_h) = K_turb(i, j, khi, EddyDiff::CounterGradient_h);
+            K_turb(i, j, khi+1, EddyDiff::CounterGradient_theta) = K_turb(i, j, khi, EddyDiff::CounterGradient_theta);
+            K_turb(i, j, khi+1, EddyDiff::CounterGradient_q) = K_turb(i, j, khi, EddyDiff::CounterGradient_q);
+            K_turb(i, j, khi+1, EddyDiff::Entrainment_mom) = K_turb(i, j, khi, EddyDiff::Entrainment_mom);
+            K_turb(i, j, khi+1, EddyDiff::Entrainment_theta) = K_turb(i, j, khi, EddyDiff::Entrainment_theta);
+            K_turb(i, j, khi+1, EddyDiff::Entrainment_q) = K_turb(i, j, khi, EddyDiff::Entrainment_q);
         });
     }// mfi
 }
