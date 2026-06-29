@@ -4,7 +4,9 @@
 using namespace amrex;
 
 void
-rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv, const MultiFab& qt, const MultiFab* z_phys, const Geometry& geom)
+rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv,
+                  const MultiFab& qt, const MultiFab* z_phys, const Geometry& geom,
+                  bool use_existing_sfc_density)
 {
 
 #ifdef AMREX_USE_FLOAT
@@ -35,7 +37,7 @@ rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv, cons
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
-            Real Factor;
+            // Real Factor;
             Real dz, F, C;
             Real rho_tot_hi, rho_tot_lo;
             Real z_lo, z_hi;
@@ -46,6 +48,7 @@ rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv, cons
             Real P_lo, P_hi;
 
             // First integrate from sea level to the height at klo
+            if (!use_existing_sfc_density)
             {
                 // Vertical grid spacing
                 z_lo = zero; // corresponding to p_0
@@ -83,10 +86,15 @@ rebalance_columns(MultiFab& rho, const MultiFab& theta, const MultiFab& qv, cons
                 // for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
                 P_lo = P_hi;
                 z_lo = z_hi;
+            } else {
+                z_lo = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                     +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                P_lo = getPgivenRTh(rho_arr(i,j,klo)*th_arr(i,j,klo),qv_arr(i,j,klo));
+                P_hi = P_lo;
             }
 
-            for (int k(klo+1); k<=khi; ++k) {
-                // Vertical grid spacing
+            for (int k(klo+1); k<=khi; ++k)
+            {
               z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
                                    +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
               dz   = z_hi - z_lo;

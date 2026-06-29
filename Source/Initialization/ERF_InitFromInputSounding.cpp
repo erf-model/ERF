@@ -134,7 +134,6 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real> qv_hse_arr = qv_hse.array(mfi);
 
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
         if (constant_density_sounding) {
             // This assumes rho_0 = one
@@ -155,7 +154,22 @@ ERF::init_from_input_sounding (int lev)
     }
 
     if (!constant_density_sounding) {
-        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev]);
+        // Enforce HSE on the base state -- holding th_hse and qv_hse constant
+        bool use_existing_sfc_density = true;
+        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev], use_existing_sfc_density);
+
+        // Update rho in the state from base state
+        MultiFab::Copy(lev_new[Vars::cons], r_hse, 0, Rho_comp, 1, 1);
+
+        // Update (rho theta) in the state from base state
+        MultiFab::Copy(lev_new[Vars::cons], th_hse, 0, RhoTheta_comp, 1, 1);
+        MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoTheta_comp, 1, 1);
+
+        if (l_moist) {
+            // Update (rho qv) in the state from base state
+            MultiFab::Copy(lev_new[Vars::cons], qv_hse, 0, RhoQ1_comp, 1, 1);
+            MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoQ1_comp, 1, 1);
+        }
     }
 
     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -321,12 +335,7 @@ init_state_from_input_sounding_hse (const Box &bx,
         // Initial Rho0*Theta0
         state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
-        // Initialize all scalars to zero
-        for (int n = 0; n < NSCALARS; n++) {
-            state(i, j, k, RhoScalar_comp+n) = 0;
-        }
-
-        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
+        // Total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
         Real qv_k = zero;
         if (l_moist) {
