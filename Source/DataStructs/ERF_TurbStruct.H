@@ -437,6 +437,20 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+      amrex::Print() << "    enable_mrf_iterative_thermal_excess : " << enable_mrf_iterative_thermal_excess
+                     << std::endl;
+      amrex::Print() << "    mrf_thermal_excess_iterations : " << mrf_thermal_excess_iterations
+                     << std::endl;
+      amrex::Print() << "    enable_mrf_cloudy_layers : " << enable_mrf_cloudy_layers
+                     << std::endl;
+      amrex::Print() << "    mrf_cloud_diffusivity_factor : " << mrf_cloud_diffusivity_factor
+                     << std::endl;
+      amrex::Print() << "    enable_mrf_countergradient_bounds : " << enable_mrf_countergradient_bounds
+                     << std::endl;
+      amrex::Print() << "    mrf_countergradient_max_theta : " << mrf_countergradient_max_theta
+                     << std::endl;
+      amrex::Print() << "    mrf_countergradient_max_q : " << mrf_countergradient_max_q
+                     << std::endl;
     }
   }
 
