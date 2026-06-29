@@ -136,6 +136,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
+        const bool enable_mrf_entrainment = turbChoice.enable_mrf_entrainment;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
