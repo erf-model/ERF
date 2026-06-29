@@ -79,6 +79,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
+        const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
+        const auto& q_surf_arr = SurfLayer->get_q_surf(level)->const_array(mfi);
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
 
@@ -101,7 +103,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 // Use virtual potential temperature for stability calculations
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * zero);  // t_layer is already theta, convert to theta_v (assuming dry for now)
+                const Real q_layer   = use_moisture ? q10av_arr(i, j, 0) : zero;
+                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_layer);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -148,6 +151,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
             const Real t_surf   = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
+            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
+            const Real q_surf   = use_moisture ? q_surf_arr(i, j, 0) : zero;
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
@@ -157,12 +162,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 // Use virtual potential temperature for stability calculations
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * zero);  // t_surf is already theta, convert to theta_v
+                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * q_surf);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer);
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
             }
 
             bool above_critical = false;
@@ -176,12 +181,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 // Use virtual potential temperature for stability calculations
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * zero);  // t_surf is already theta, convert to theta_v
+                const Real t_surf_v = t_surf * (one + amrex::Real(0.61) * q_surf);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer);
+                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_layer);
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
                 above_critical = (Rib >= Ribcr);
             }
 
