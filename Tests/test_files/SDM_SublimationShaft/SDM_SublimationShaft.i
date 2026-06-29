@@ -52,6 +52,7 @@ super_droplets_moisture.advect_with_gravity    = true
 super_droplets_moisture.prescribed_advection   = false
 super_droplets_moisture.density_scaling        = false
 super_droplets_moisture.aerosols               = NaCl
+super_droplets_moisture.dimensionality         = one_d_z
 
 # Monodisperse initial particles, deterministic placement (1 per cell, whole column)
 super_droplets_moisture.initial_distribution_type = "uniform"
