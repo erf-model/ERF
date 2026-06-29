@@ -18,7 +18,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const TurbChoice& turbChoice,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
-                       bool /*use_moisture*/,
+                       bool use_moisture,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
@@ -103,8 +103,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 // Use virtual potential temperature for stability calculations
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real q_layer   = use_moisture ? q10av_arr(i, j, 0) : zero;
-                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_layer);
+                const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -138,11 +138,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
+        constexpr Real prmin = Real(0.5);
+        constexpr Real prmax = Real(4.0);
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
         const bool enable_mrf_entrainment = turbChoice.enable_mrf_entrainment;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
             const Real phiM     = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
@@ -151,7 +155,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
             const Real t_surf   = t_layer + amrex::max(amrex::min(t_excess, amrex::Real(3)), amrex::Real(0));
-            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real q_surf   = use_moisture ? q_surf_arr(i, j, 0) : zero;
 
             int kpbl = klo;
@@ -186,7 +189,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_layer);
                 Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * t_layer_v);
                 above_critical = (Rib >= Ribcr);
             }
@@ -256,7 +258,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                 : std::pow(
                                            (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / two);
-                const Real Prt = phit / phiM + const_b * KAPPA * sf;
+                const Real Prt = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
                 const Real wstar = u_star_arr(i, j, 0) / phiM;
                 K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
                                                  * (1 - zval / pblh_corr_arr(i, j, 0))
@@ -270,7 +272,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 if (turbChoice.mrf_moistvars) {
                     // Use moisture-specific stability function (typically Prq ≈ Prt for most conditions)
                     // In WRF, moisture and heat have very similar scaling, so Prq ≈ Prt
-                    const Real Prq = phit / phiM + const_b * KAPPA * sf;  // Similar to Prt
+                    const Real Prq = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);  // Similar to Prt
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                 } else {
                     // Default: copy from Theta_v (backward compatibility)
