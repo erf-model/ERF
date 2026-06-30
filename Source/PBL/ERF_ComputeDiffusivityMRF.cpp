@@ -87,6 +87,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
         const auto& q_surf_arr = SurfLayer->get_q_surf(level)->const_array(mfi);
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
+        // Get land/water mask for proper handling of moisture countergradient
+        const auto& lmask_arr = (SurfLayer->get_lmask(level)) ? 
+                                SurfLayer->get_lmask(level)->const_array(mfi) : 
+                                Array4<int>{};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
@@ -215,9 +219,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             Real HGAMQ = zero;
             if (use_moisture && enable_mrf_countergradient) {
                 HGAMQ = amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ);
-                // Note: We do NOT zero HGAMQ over water here because we don't have land mask.
-                // This is a limitation that should be addressed in future versions.
-                // Ideally: if (is_water) HGAMQ = 0;
+                // Zero HGAMQ over water (WRF: XLAND >= 1.5 is water)
+                // In ERF, lmask = 1 for land, 0 for water (opposite convention)
+                // If no land mask is available, default to land (keep HGAMQ)
+                if (lmask_arr) {
+                    bool is_land = (lmask_arr(i,j,0) == 1);
+                    if (!is_land) HGAMQ = zero;  // zero over water
+                }
             }
             
             // Virtual potential temperature excess at surface (positive = more unstable)
