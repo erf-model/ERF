@@ -243,10 +243,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
                 const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                          (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
 
                 // CRITICAL FIX: Richardson number calculation uses potential temperature at
                 // lowest level (klo) in denominator, consistent with WRF formulation.
@@ -462,10 +463,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                          (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
                 // CRITICAL FIX: Use theta_v_klo (at lowest level) in denominator, not theta_v at current level
                 Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v_klo);
             }
@@ -481,10 +483,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                          (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
                 // CRITICAL FIX: Use theta_v_klo (at lowest level) in denominator for consistency
                 Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
@@ -518,13 +521,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Store HGAMT and HGAMQ divided by PBL height for later use in implicit solver
-            const Real pblh = pblh_corr_arr(i, j, 0);
-            hgamt_arr(i, j, 0) = (enable_mrf_countergradient)
-                ? HGAMT / pblh   // units: K/m — the gradient correction term
-                : zero;
-            hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture)
-                ? HGAMQ / pblh   // units: kg/kg/m
-                : zero;
+            // WRF: if KPBL<=1 after corrector, disable nonlocal scheme entirely (line 926)
+            // Routes stable/collapsed columns fully through free-atmosphere Ri mixing
+            if (pbli_arr(i, j, 0) <= klo + 1) {
+                pbli_arr(i, j, 0) = klo;  // k < klo is never true: disables nonlocal branch
+                hgamt_arr(i, j, 0) = zero;
+                hgamq_arr(i, j, 0) = zero;
+            } else {
+                const Real pblh = pblh_corr_arr(i, j, 0);
+                hgamt_arr(i, j, 0) = (enable_mrf_countergradient)
+                    ? HGAMT / pblh : zero;
+                hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture)
+                    ? HGAMQ / pblh : zero;
+            }
 
         });
         /*
@@ -700,7 +709,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // This follows Hong & Pan (1996), Equation (9)
                 // The (1 - z/h)² factor enforces zero diffusion at PBL top and surface,
                 // providing sharp PBL boundary which is characteristic of nonlocal schemes.
-                K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
+                // WRF adds CKZ*DZA background minimum so K never goes exactly to zero at PBL top
+                // (module_bl_mrf.F line 977-978: XKZO=CKZ*DZA; XKZM=XKZO+WSCALE*...)
+                constexpr Real ckz_pbl = Real(0.001);
+                const Real K_base = ckz_pbl * dz_terrain * rho;
+                K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zval
                                                  * (one - zval / pblh_corr_arr(i, j, 0))
                                                  * (one - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
