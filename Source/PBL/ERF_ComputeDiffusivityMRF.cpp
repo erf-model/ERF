@@ -194,9 +194,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         FArrayBox pbl_height_predictor(xybx, 1, The_Async_Arena());
         FArrayBox pbl_height_corrector(xybx, 1, The_Async_Arena());
         IArrayBox pbl_index(xybx, 1, The_Async_Arena());
+        FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h
+        FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h
         const auto& pblh_arr      = pbl_height_predictor.array();
         const auto& pblh_corr_arr = pbl_height_corrector.array();
         const auto& pbli_arr      = pbl_index.array();
+        const auto& hgamt_arr     = hgamt_fab.array();
+        const auto& hgamq_arr     = hgamq_fab.array();
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -512,6 +516,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 pblh_corr_arr(i, j, 0) = pblh_min;
                      pbli_arr(i, j, 0) = klo + 1;
             }
+
+            // Store HGAMT and HGAMQ divided by PBL height for later use in implicit solver
+            const Real pblh = pblh_corr_arr(i, j, 0);
+            hgamt_arr(i, j, 0) = (enable_mrf_countergradient)
+                ? HGAMT / pblh   // units: K/m — the gradient correction term
+                : zero;
+            hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture)
+                ? HGAMQ / pblh   // units: kg/kg/m
+                : zero;
 
         });
         /*
@@ -846,6 +859,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, k, EddyDiff::Q_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
+
+            // Store countergradient correction term: HGAMT/h and HGAMQ/h
+            // These values are zero outside the PBL and used by the implicit diffusion solver
+            if (k < pbli_arr(i, j, 0)) {
+                // Inside PBL: store the normalized countergradient terms
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
+            } else {
+                // Outside PBL: zero countergradient
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = zero;
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
+            }
         });
 
         // FOEXTRAP top and bottom ghost cells
@@ -854,9 +879,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, klo-1, EddyDiff::Mom_v  ) = K_turb(i, j, klo, EddyDiff::Mom_v  );
             K_turb(i, j, klo-1, EddyDiff::Theta_v) = K_turb(i, j, klo, EddyDiff::Theta_v);
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
+            K_turb(i, j, klo-1, EddyDiff::HGAMT_v) = K_turb(i, j, klo, EddyDiff::HGAMT_v);
+            K_turb(i, j, klo-1, EddyDiff::HGAMQ_v) = K_turb(i, j, klo, EddyDiff::HGAMQ_v);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
+            K_turb(i, j, khi+1, EddyDiff::HGAMT_v) = K_turb(i, j, khi, EddyDiff::HGAMT_v);
+            K_turb(i, j, khi+1, EddyDiff::HGAMQ_v) = K_turb(i, j, khi, EddyDiff::HGAMQ_v);
         });
     }// mfi
 }
