@@ -337,16 +337,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 
                 // Stability function phiM for momentum
                 const Real phiM = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
-                                           (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           (1 - 8 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / three);
                 
                 // Stability function phit for heat
                 const Real phit = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
-                                           (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           (1 - 16 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / two);
                 
                 // Prandtl number: Prt = phit/phiM + const_b*kappa*sf
@@ -448,7 +448,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Q_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
-            K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_arr(i, j, 0);
+            K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
         });
 
         // FOEXTRAP top and bottom ghost cells
