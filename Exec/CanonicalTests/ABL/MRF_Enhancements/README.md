@@ -79,7 +79,34 @@ Richardson number effects dominate.
 
 ---
 
-### 4. Baseline MRF (`inputs_baseline`)
+### 4. Cloud-Topped Boundary Layer (`inputs_cloud_topped`)
+**Reference:** BOMEX (Barbados Oceanographic and Meteorological Experiment)
+Siebesma et al. (2003): A large eddy simulation intercomparison study of shallow cumulus 
+convection. J. Atmos. Sci., 60, 1201-1219.
+
+Realistic warm-season conditions with shallow cumulus clouds forming at PBL top. Tests MRF's 
+ability to represent cloud-topped boundary layers with realistic entrainment and cloud-top 
+evaporative cooling effects.
+
+```bash
+./erf inputs_cloud_topped
+```
+
+**Key characteristics:**
+- Moderate surface heating (8 K/h) and moisture supply
+- Moist well-mixed layer with shallow cumulus formation
+- Cloud formation at PBL top via vertical convection
+- Sharp entrainment zone between PBL and free troposphere
+- Strong capping inversion limiting vertical extent
+- Cloud-top evaporative cooling and entrainment effects
+- Countergradient corrections ESSENTIAL (strongest HGAMT/HGAMQ in this case)
+- Moisture effects maximize virtual potential temperature (latent heat dominates)
+- Cloud-aware stability adjustments improve mixing representation
+- Radiative effects can be enabled for realistic cloud forcing
+
+---
+
+### 5. Baseline MRF (`inputs_baseline`)
 Standard MRF without any optional features. Serves as a reference for neutral/stable
 boundary layers.
 
@@ -89,7 +116,7 @@ boundary layers.
 
 ---
 
-### 5. Full WRF-Style (`inputs_full_enhancements`)
+### 6. Full WRF-Style (`inputs_full_enhancements`)
 Enables both WRF-aligned features:
 - HGAMT + HGAMQ countergradient correction for PBL height (heat and moisture via q_*)
 - Moisture turbulent diffusivity with Prq ≈ Prt
@@ -120,6 +147,7 @@ pbl.mrf_moistvars               = true   # moisture diffusivity (Prq ~ Prt)
 |------|-----------|-------------------|-------|-----------|-------------|
 | Neutral | Neutral | 0 K/h | 0 K/m | Shear-driven | u*/f scaling, no buoyancy |
 | Unstable | Unstable | +5 K/h | -0.02 K/m | Convective | HGAMT/HGAMQ critical, VPERT limits |
+| Cloud-Topped | Very Unstable | +8 K/h | -0.02 K/m | Convective with clouds | Moisture effects, entrainment, HGAMT/HGAMQ strongest |
 | Stable | Stable | -0.25 K/h | +0.01 K/m | Suppressed | Richardson number, inertial oscillations |
 
 ## How to Use These Test Cases
@@ -132,6 +160,9 @@ pbl.mrf_moistvars               = true   # moisture diffusivity (Prq ~ Prt)
 # Test unstable PBL (countergradient corrections)
 ./erf inputs_unstable
 
+# Test cloud-topped PBL (realistic warm-season conditions)
+./erf inputs_cloud_topped
+
 # Test stable PBL (Richardson number effects)
 ./erf inputs_stable
 ```
@@ -140,12 +171,14 @@ pbl.mrf_moistvars               = true   # moisture diffusivity (Prq ~ Prt)
 These cases should be used to validate that MRF changes don't break:
 1. **inputs_neutral**: Shear-driven mixing and u*/f PBL height scaling
 2. **inputs_unstable**: Convective PBL growth with HGAMT/HGAMQ corrections
-3. **inputs_stable**: Weak mixing and inertial oscillations
+3. **inputs_cloud_topped**: Cloud formation, entrainment, and moisture effects on PBL height
+4. **inputs_stable**: Weak mixing and inertial oscillations
 
 ### Performance Analysis
 Compare against reference metrics:
 - **Neutral**: PBL height h ≈ 0.16 * u* / f (Garratt 1994)
 - **Unstable**: Rapid growth to 500-1000 m within 3-6 hours
+- **Cloud-Topped**: PBL height 800-1200 m with cloud top at 950-1050 m, cloud fraction 0.3-0.6
 - **Stable**: Shallow layer h ≈ 50-100 m with inertial oscillations
 
 ## References
