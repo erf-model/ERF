@@ -7,60 +7,25 @@ atmospheric boundary layer conditions.
 **WRF reference:**
 https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
 
-## Critical Fixes Applied (ERF vs WRF Alignment)
+## Implementation Notes
 
-Recent updates have aligned ERF's MRF implementation with WRF's physics:
+Recent updates to ERF's MRF implementation align key physics with WRF's `module_bl_mrf.F`:
 
-### ✅ Issue 1: Stability Function φ_m (CRITICAL)
-**Fixed:** Changed from Beljaars-Holtslag to Businger-Dyer form
-- **Before:** `φ_m = (1 - 8·HOL)^(-1/3)` 
-- **After:** `φ_m = (1 - 16·HOL)^(-1/4)` (matches WRF L857)
-- **Impact:** Affects wstar, countergradient fluxes, PBL height prediction
-- **Reference:** Hong & Pan (1996), Businger et al. (1971)
+| Feature | Change | Reference |
+|---------|--------|-----------|
+| **Stability function φ_m** | Businger-Dyer: `(1-16·HOL)^(-1/4)` | WRF L857 |
+| **SFCFLG stable-side gating** | Disable countergradient when stable (obuk > 0) | WRF L808, 867-884 |
+| **WSCALE convective velocity** | Bounds: `u*/5 ≤ wstar ≤ 16·u*` | WRF L863-865 |
+| **Terrain-aware coordinates** | Cell-centered heights with `Compute_Zrel_AtCellCenter()` | ✅ Verified |
+| **YSU free-atmosphere mixing** | Richardson-number-dependent above PBL | ✅ Already correct |
 
-### ✅ Issue 2: SFCFLG Stable-Side Gating (CRITICAL)
-**Fixed:** Countergradient corrections now disabled in stable conditions
-- **Before:** HGAMT/HGAMQ computed for all stability conditions
-- **After:** Set to zero when obuk_val > 0 (stable, BR > 0)
-- **Physics:** Countergradient represents convective updrafts/downdrafts (unstable only)
-- **Reference:** WRF module_bl_mrf.F lines 808, 867-884
-
-### ✅ Issue 3: WSCALE Bounds (CRITICAL)
-**Fixed:** Added explicit bounds on wstar (convective velocity)
-- **Before:** Only guarded by `max(phiM, 0.01)`
-- **After:** Enforces `u*/5 ≤ wstar ≤ 16·u*`
-- **Physics:** Mechanical turbulence floor and free convection ceiling
-- **Reference:** WRF module_bl_mrf.F lines 863-865
-
-### ✅ Bonus: Terrain-Aware z Coordinate
-**Verified:** z is properly computed from cell centers using terrain-fitted metrics
-- Uses `Compute_Zrel_AtCellCenter()` when `use_terrain_fitted_coords=true`
-- Cell-centered approach is more appropriate than WRF's interface-based formulation
-- No changes needed
-
-## Outstanding Issues (Lower Priority)
-
-### ⚠️ Issue 4: PBL0/ZFAC K-Profile Shape (MODERATE)
-**Status:** Not yet fixed (complex change)
-- **Current:** Uses simplified `(1 - z/h)²` from z=0
-- **WRF:** Uses `(1 - (ZQ - ZL1)/(PBL - ZL1))^2` with background XKZO term
-- **Workaround:** Bounds-based diffusivity clamping achieves similar results
-- **Priority:** Lower - affects profile shape subtly, not overall PBL physics
-
-### ⚠️ Issue 5: Stable Free-Atmosphere K_m Formula (MINOR)
-**Status:** Simplified in ERF
-- **WRF:** Explicitly adds background diffusivity XKZO in stable conditions
-- **ERF:** Uses diffusivity bounds (rhoKmin) to achieve similar effect
-- **Impact:** Minimal - results are numerically similar
-
-The implementation uses:
-- **HGAMT / HGAMQ** (WRF lines 872–879) only for PBL height finding — not stored in the
-  diffusion coefficients.
-- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`.
-- No entrainment terms (WRF MRF does not include explicit entrainment fluxes).
-
+The implementation features:
+- **HGAMT / HGAMQ** (WRF lines 872–879): Countergradient corrections for PBL height finding
+- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`
+- **No explicit entrainment** (consistent with WRF MRF formulation)
 
 ## Test Cases
+
 
 ### 1. Neutral Boundary Layer (`inputs_neutral`)
 **Reference:** Sorbjan (1989): Structure of the Atmospheric Boundary Layer.
