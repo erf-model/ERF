@@ -59,10 +59,8 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp the
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
-erf.les_type  = "Deardorff"
-erf.Ck        = 0.1
-erf.sigma_k   = 1.0
-erf.Ce        = 0.1
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
 erf.theta_ref = 260.0
 
 erf.init_type = Uniform
