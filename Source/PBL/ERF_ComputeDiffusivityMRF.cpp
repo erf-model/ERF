@@ -210,7 +210,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
-        const auto& q_surf_arr = SurfLayer->get_q_surf(level)->const_array(mfi);
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         // Get land/water mask for proper handling of moisture countergradient
         const auto& lmask_arr = (SurfLayer->get_lmask(level)) ?
