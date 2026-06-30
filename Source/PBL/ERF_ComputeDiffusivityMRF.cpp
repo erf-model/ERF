@@ -231,6 +231,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // IF((XLAND(I)-1.5).GE.0)HGAMQ(I)=0.   [zero over water]
             Real HGAMQ = zero;
             if (use_moisture && enable_mrf_countergradient) {
+                // WRF convention: q_star is negative for upward moisture flux (evaporation from surface)
+                // So -const_b * u_star * q_star gives positive HGAMQ for unstable conditions
                 HGAMQ = amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ);
                 // Zero HGAMQ over water (WRF: XLAND >= 1.5 is water)
                 // In ERF, lmask = 1 for land, 0 for water (opposite convention)
@@ -387,12 +389,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 Real phiM_cloud = phiM;
                 if (has_cloud && l_obuk_arr(i, j, 0) > zero) {
                     // In stable layers with clouds, reduce stability damping
-                    // Cloud scaling factor: reduce stability by 10-20% where qc > threshold
-                    Real cloud_factor = one - Real(0.15) * amrex::min(total_qcloud / qc_threshold, one);
-                    phiM_cloud = (one + Real(5.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) * cloud_factor
-                               + (one - cloud_factor);  // blend toward reduced stability
-                    phit_cloud = (one + Real(5.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) * cloud_factor
-                               + (one - cloud_factor);
+                    // Cloud-aware reduction factor: reduce stability enhancement by 10-20% where qc > threshold
+                    Real reduction_factor = one - Real(0.15) * amrex::min(total_qcloud / qc_threshold, one);
+                    // Reduce the phiM enhancement in stable conditions
+                    phiM_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
+                    phit_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
                 } else if (has_cloud && l_obuk_arr(i, j, 0) <= zero) {
                     // In unstable layers with clouds, slightly enhance instability
                     // (clouds warm the boundary layer)
@@ -445,15 +446,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
-                const Real wind_shear = dudz * dudz + dvdz * dvdz + Real(1.0e-9);
-
-                // Use virtual potential temperature for Richardson number stability calculation
-                const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
-                const Real dthetav_dz = myhalf * (GetThetav(i, j, k+1, cell_data, moisture_indices) -
-                                                   GetThetav(i, j, k-1, cell_data, moisture_indices)) * (one / dz_terrain);
                 
-                // Gradient Richardson number: Ri = (g/theta_v) * (dtheta_v/dz) / (du/dz)^2
-                Real grad_Ri = CONST_GRAV / theta_v * dthetav_dz / wind_shear;
+                // Apply boundary safeguards to avoid numerical instability in calm conditions above PBL
+                const Real dudz_safe = (k < izmax) ? dudz : zero;
+                const Real dvdz_safe = (k < izmax) ? dvdz : zero;
+                
+                // Wind shear magnitude with safety threshold (WRF approach)
+                // Using separate safety threshold avoids numerical issues with very small wind shear
+                const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
+                const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-10));
+
+                // Use potential temperature (not virtual) for Richardson number stability calculation
+                // WRF MRF uses theta (not theta_v) in denominator for consistency with Hong et al. 2006
+                const Real theta = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
+                const Real dtheta_dz = myhalf * ((cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)) -
+                                                  (cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp))) * (one / dz_terrain);
+                
+                // Gradient Richardson number: Ri = (g/theta) * (dtheta/dz) / (du/dz)^2
+                // WRF reference: module_bl_mrf.F line ~450-456
+                Real grad_Ri = CONST_GRAV / theta * dtheta_dz / wind_shear_safe;
                 grad_Ri = std::max(grad_Ri, -Real(100.0));  // Hong et al. 2006, MWR, Appendix A
                 
                 // Using YSU stability functions (Hong et al. 2006, MWR, Appendix A)
