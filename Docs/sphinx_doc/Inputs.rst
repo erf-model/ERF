@@ -1286,6 +1286,11 @@ List of Parameters
 |                                         | correction terms   |                     |             |
 |                                         | in MRF PBL scheme  |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_highres_bounds**         | Enable alternative | bool                | 0           |
+|                                         | high-resolution    |                     |             |
+|                                         | grid-dependent     |                     |             |
+|                                         | diffusivity bounds |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.enable_mrf_unbounded_vpert**      | Enable physically  | bool                | 0           |
 |                                         | superior           |                     |             |
 |                                         | unbounded VPERT    |                     |             |
