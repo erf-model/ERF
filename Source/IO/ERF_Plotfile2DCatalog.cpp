@@ -36,6 +36,10 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::LatenFlux,      "laten_flux",   "Surface moisture flux (legacy output name)",      "kg m^-2 s^-1", DiagnosticCategory::SurfaceFlux,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SurfPres,       "surf_pres",    "Surface pressure",                                "Pa",        DiagnosticCategory::SurfaceState,   MissingPolicy::AlwaysAvailable},
         {DiagnosticID::IntegratedQv,   "integrated_qv","Column-integrated water vapor",                   "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
+        {DiagnosticID::SurfaceDiagnosticSource,
+                                         "surface_diagnostic_source",
+                                                        "Surface diagnostic source code",
+                                                        "1",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
     };
 
     return catalog;

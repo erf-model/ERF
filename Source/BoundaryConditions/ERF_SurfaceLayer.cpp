@@ -542,6 +542,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto q_star_arr = q_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);
         const auto q_surf_arr = q_surf[lev]->array(mfi);
+        auto surface_source_arr = surface_diagnostic_source[lev]->array(mfi);
 
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
@@ -557,6 +558,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
         }
 
+        const bool has_lsm_t_flux = static_cast<bool>(lsm_t_flux_arr);
+        const bool is_custom = (flux_type == FluxCalcType::CUSTOM);
+        const bool is_rico   = (flux_type == FluxCalcType::RICO);
+
 
         // Rho*Theta flux
         //============================================================================
@@ -570,15 +575,20 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
+            const bool lsm_flux_is_valid = has_lsm_t_flux &&
+                                           lsm_t_flux_arr(i,j,0) < lsm_flux_undefined;
+            if (has_lsm_t_flux && is_land && lsm_flux_is_valid) {
                 Tflux = lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
-
             }
+
+            surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(
+                surface_diagnostics::classify_scalar_source(
+                    is_custom, is_rico, is_land, has_lsm_t_flux, lsm_flux_is_valid));
 
             // Do scalar flux rotations?
             if (rotate) {
@@ -701,9 +711,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t12_arr, t21_arr,
                                      t13_arr, t31_arr,
                                      t23_arr, t32_arr);
-            });
+                });
         }
     } // mfiter
+
+    surface_diagnostic_source[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 /**
@@ -741,6 +753,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
     const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNorm();
     const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNorm();
     const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNorm();
+
+    // EB does not currently have a cell-centered scalar-source classification.
+    // Keep the provenance mask missing rather than inventing face-aware
+    // semantics for the staggered stress path.
+    surface_diagnostic_source[lev]->setVal(
+        surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -901,6 +919,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
             }
         });
     } // mfiter
+
 }
 
 void

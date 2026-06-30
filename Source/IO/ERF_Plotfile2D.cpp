@@ -522,6 +522,26 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
+        if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for (MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& source = m_SurfaceLayer->get_surface_diagnostic_source(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = source(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // surface_diagnostic_source
+
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
         }

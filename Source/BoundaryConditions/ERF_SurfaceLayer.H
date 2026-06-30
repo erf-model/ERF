@@ -13,6 +13,7 @@
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
 #include "ERF_EBMOSTStress.H"
+#include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
@@ -334,6 +335,7 @@ public:
           q_star.resize(nlevs);
           t_surf.resize(nlevs);
           q_surf.resize(nlevs);
+          surface_diagnostic_source.resize(nlevs);
           olen.resize(nlevs);
           pblh.resize(nlevs);
       }
@@ -462,6 +464,10 @@ public:
 
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
+
+      surface_diagnostic_source[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      surface_diagnostic_source[lev]->setVal(
+          surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
 
       // TODO: Do we want an enum struct for indexing?
 
@@ -639,6 +645,8 @@ public:
   amrex::MultiFab* get_q_surf (const int& lev) { return q_surf[lev].get(); }
   void set_q_surf(const int& lev, const amrex::Real qsurf) { q_surf[lev]->setVal(qsurf); }
 
+  amrex::MultiFab* get_surface_diagnostic_source (const int& lev) { return surface_diagnostic_source[lev].get(); }
+
   amrex::Real get_zref (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
 
   amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
@@ -767,6 +775,10 @@ private:
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_surf;
+  // Diagnostic-only provenance mask. This records the cell-centered source
+  // path used by the SurfaceLayer scalar diagnostic path. It must not feed
+  // back into flux calculations, boundary conditions, or model state.
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> surface_diagnostic_source;
 
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_tsk_lev;

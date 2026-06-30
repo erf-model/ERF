@@ -98,7 +98,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv"
+        "surf_pres", "integrated_qv", "surface_diagnostic_source"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
@@ -173,6 +173,21 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForKnownName)
     EXPECT_STREQ(descriptor->name, "sens_flux");
     EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::SensFlux);
     EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
+    EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: The new provenance mask is a public 2D output, so its catalog
+// entry must be findable and carry the metadata that documents its output
+// convention.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
+{
+    const auto* descriptor = plotfile2d::find_diagnostic("surface_diagnostic_source");
+
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_STREQ(descriptor->name, "surface_diagnostic_source");
+    EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::SurfaceDiagnosticSource);
+    EXPECT_FALSE(std::string(descriptor->long_name).empty());
+    EXPECT_FALSE(std::string(descriptor->units).empty());
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 

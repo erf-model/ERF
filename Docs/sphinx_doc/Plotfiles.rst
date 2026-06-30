@@ -753,62 +753,103 @@ Output Options for 2D Plotfiles
 The table below lists the built-in 2D diagnostic catalog. ERF writes selected
 variables in this order.
 
-+--------------------+---------------------------------------------------------------+
-| Parameter          | Definition                                                    |
-+====================+===============================================================+
-| **z_surf**         | Surface elevation [m].                                        |
-+--------------------+---------------------------------------------------------------+
-| **landmask**       | Land-sea mask. Land is 1 and sea is 0 [1].                    |
-+--------------------+---------------------------------------------------------------+
-| **mapfac**         | Map factor at mass points [1].                                |
-+--------------------+---------------------------------------------------------------+
-| **lat_m**          | Latitude at unstaggered mass points [deg].                    |
-+--------------------+---------------------------------------------------------------+
-| **lon_m**          | Longitude at unstaggered mass points [deg].                   |
-+--------------------+---------------------------------------------------------------+
-| **u_star**         | Friction velocity from the surface layer [m/s]. ERF writes    |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **w_star**         | Convective velocity scale from the surface layer [m/s]. ERF   |
-|                    | writes -999 when the surface layer is not active.             |
-+--------------------+---------------------------------------------------------------+
-| **t_star**         | Temperature scale from the surface layer [K]. ERF writes      |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **q_star**         | Humidity scale from the surface layer [kg/kg]. ERF writes     |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **Olen**           | Obukhov length from the surface layer [m]. ERF writes -999    |
-|                    | when the surface layer is not active.                         |
-+--------------------+---------------------------------------------------------------+
-| **pblh**           | Diagnosed planetary boundary layer height [m]. ERF writes     |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **t_surf**         | Surface temperature from the surface layer [K]. ERF writes    |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **q_surf**         | Surface humidity from the surface layer [kg/kg]. ERF writes   |
-|                    | -999 when the surface layer is not active.                    |
-+--------------------+---------------------------------------------------------------+
-| **z0**             | Roughness height from the surface layer [m]. ERF writes -999  |
-|                    | when the surface layer is not active.                         |
-+--------------------+---------------------------------------------------------------+
-| **OLR**            | Outgoing longwave radiation at the model top [W/m^2]. ERF     |
-|                    | writes -999 when radiation is not active.                     |
-+--------------------+---------------------------------------------------------------+
-| **sens_flux**      | Surface sensible heat flux from the vertical surface flux     |
-|                    | field [kg K m^-2 s^-1]. ERF writes -999 when the flux field   |
-|                    | is not available.                                             |
-+--------------------+---------------------------------------------------------------+
-| **laten_flux**     | Surface moisture flux from the vertical water-vapor flux      |
-|                    | field [kg m^-2 s^-1]. This is a legacy output name. ERF       |
-|                    | writes -999 when the flux field is not available.             |
-+--------------------+---------------------------------------------------------------+
-| **surf_pres**      | Surface pressure [Pa].                                        |
-+--------------------+---------------------------------------------------------------+
-| **integrated_qv**  | Column-integrated water vapor [kg/m^2]. ERF writes zero when  |
-|                    | moisture is disabled.                                         |
-+--------------------+---------------------------------------------------------------+
++-------------------------------+-------------------------------------------------------+
+| Parameter                     | Definition                                            |
++===============================+=======================================================+
+| **z_surf**                    | Surface elevation [m].                                |
++-------------------------------+-------------------------------------------------------+
+| **landmask**                  | Land-sea mask. Land is 1 and sea is 0 [1].            |
++-------------------------------+-------------------------------------------------------+
+| **mapfac**                    | Map factor at mass points [1].                        |
++-------------------------------+-------------------------------------------------------+
+| **lat_m**                     | Latitude at unstaggered mass points [deg].            |
++-------------------------------+-------------------------------------------------------+
+| **lon_m**                     | Longitude at unstaggered mass points [deg].           |
++-------------------------------+-------------------------------------------------------+
+| **u_star**                    | Friction velocity from the surface layer [m/s]. ERF   |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **w_star**                    | Convective velocity scale from the surface layer [m/s]|
+|                               | ERF writes -999 when the surface layer is not active. |
++-------------------------------+-------------------------------------------------------+
+| **t_star**                    | Temperature scale from the surface layer [K]. ERF     |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **q_star**                    | Humidity scale from the surface layer [kg/kg]. ERF    |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **Olen**                      | Obukhov length from the surface layer [m]. ERF writes |
+|                               | -999 when the surface layer is not active.            |
++-------------------------------+-------------------------------------------------------+
+| **pblh**                      | Diagnosed planetary boundary layer height [m]. ERF    |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **t_surf**                    | Surface temperature from the surface layer [K]. ERF   |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **q_surf**                    | Surface humidity from the surface layer [kg/kg]. ERF  |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **z0**                        | Roughness height from the surface layer [m]. ERF      |
+|                               | writes -999 when the surface layer is not active.     |
++-------------------------------+-------------------------------------------------------+
+| **OLR**                       | Outgoing longwave radiation at the model top [W/m^2]. |
+|                               | ERF writes -999 when radiation is not active.         |
++-------------------------------+-------------------------------------------------------+
+| **sens_flux**                 | Surface sensible heat flux from the vertical surface  |
+|                               | flux field [kg K m^-2 s^-1]. ERF writes -999 when the |
+|                               | flux field is not available.                          |
++-------------------------------+-------------------------------------------------------+
+| **laten_flux**                | Surface moisture flux from the vertical water-vapor   |
+|                               | flux field [kg m^-2 s^-1]. This is a legacy output    |
+|                               | name. ERF writes -999 when the flux field is not      |
+|                               | available.                                            |
++-------------------------------+-------------------------------------------------------+
+| **surf_pres**                 | Surface pressure [Pa].                                |
++-------------------------------+-------------------------------------------------------+
+| **integrated_qv**             | Column-integrated water vapor [kg/m^2]. ERF writes    |
+|                               | zero when moisture is disabled.                       |
++-------------------------------+-------------------------------------------------------+
+| **surface_diagnostic_source** | Source code for the cell-centered SurfaceLayer scalar |
+|                               | diagnostic path. ERF writes -999 when SurfaceLayer is |
+|                               | not active.                                           |
++-------------------------------+-------------------------------------------------------+
+
+Surface Diagnostic Source Codes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``surface_diagnostic_source`` is a cell-centered categorical diagnostic. It
+reports the source path used by the SurfaceLayer scalar diagnostic path. It
+does not report fractional land-cover contributions.
+
+If an input dataset contains fractional land information, this diagnostic still
+reports the categorical source used by ERF's active SurfaceLayer scalar flux
+path.
+
+The diagnostic does not fully describe staggered stress-face provenance. ERF
+may average adjacent LSM and non-LSM contributions when applying staggered
+surface stresses.
+
++------+---------------------------------------------------------------+
+| Code | Meaning                                                       |
++======+===============================================================+
+| -999 | SurfaceLayer is inactive or the field is unavailable.         |
++------+---------------------------------------------------------------+
+| 0    | Missing or unset.                                             |
++------+---------------------------------------------------------------+
+| 1    | Non-LSM SurfaceLayer over land.                               |
++------+---------------------------------------------------------------+
+| 2    | LSM over land.                                                |
++------+---------------------------------------------------------------+
+| 3    | Non-LSM SurfaceLayer fallback where an LSM flux was undefined |
+|      | or unavailable for a land cell.                               |
++------+---------------------------------------------------------------+
+| 4    | Non-LSM SurfaceLayer over sea.                                |
++------+---------------------------------------------------------------+
+| 5    | Custom prescribed surface-layer values.                       |
++------+---------------------------------------------------------------+
+| 6    | RICO prescribed surface-layer values.                         |
++------+---------------------------------------------------------------+
 
 Examples of Usage
 -----------------

@@ -28,7 +28,8 @@ enum class DiagnosticID
     SensFlux,
     LatenFlux,
     SurfPres,
-    IntegratedQv
+    IntegratedQv,
+    SurfaceDiagnosticSource
 };
 
 enum class DiagnosticCategory
