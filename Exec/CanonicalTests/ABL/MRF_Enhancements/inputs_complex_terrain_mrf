@@ -1,0 +1,127 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Complex Multi-Scale Terrain Test Case
+# 
+# Reference: Mountain chains, complex coastlines, realistic topography
+# This test extends the simple 2D hill terrain test to validate MRF over
+# more realistic multi-scale terrain with varying heights and slopes.
+#
+# Physical Context:
+#   - Multiple peaks and valleys of different heights (100m-500m range)
+#   - Varying slope angles to test coordinate metric stability
+#   - Tests that MRF diffusivity remains consistent across terrain transitions
+#   - Validates h_zeta metric computation over complex terrain
+#
+# This case is critical for:
+# - Detecting spurious mixing artifacts at terrain transitions
+# - Validating consistent diffusivity across slope changes
+# - Testing stability of vertical derivatives over terrain
+# - Ensuring PBL height calculation remains physical over terrain
+
+erf.prob_name = "ABL"
+
+# Shorter simulation for terrain stability test
+# With dt=0.1, max_step = 1000 ~= 100 s
+max_step = 1000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY - Larger domain to show multi-scale terrain
+# Higher vertical resolution to resolve terrain slopes
+geometry.prob_extent =  4096     4096    1536
+amr.n_cell           =    64       64      64
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - WITH TERRAIN-FITTED PARAMETERS
+zlo.type = "surface_layer"
+erf.most.z0   = 0.05    # roughness length [m]
+erf.most.zref = 10.0    # reference height [m]
+
+# Moderate surface heating (not extreme to focus on terrain effects)
+erf.most.surf_temp = 300.0
+erf.most.surf_heating_rate = 2.0  # modest heating [K/h]
+
+# Upper boundary
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.005  # stable layer [K/m]
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.1  # standard time step
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Planar averaging (more challenging with terrain)
+erf.data_log    = complex_terrain_hist.dat complex_terrain_profiles.dat
+erf.profile_int = 20
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_complex_terrain     # root name of checkpoint file
+erf.check_int       = 500                     # checkpoint every 50 s
+
+# PLOTFILES
+erf.plot_file_1     = plt_complex_terrain     # prefix of plotfile name
+erf.plot_int_1      = 100                     # plotfile every 10 s
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+erf.init_type = Uniform
+
+# TERRAIN GRID TYPE - StaticFittedMesh activates use_terrain_fitted_coords = true
+erf.terrain_type = StaticFittedMesh
+
+# COMPLEX MULTI-SCALE TERRAIN SETUP
+# Multiple hills with different sizes to test multi-scale effects
+prob.custom_terrain_type = "WoA"  # Can be extended for multiple-peak terrain in future
+prob.hmax = 200.0       # primary hill height [m]
+prob.L = 1000.0         # primary hill length [m] (wider base for multi-scale)
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.225  # sea level air density [kg/m³]
+prob.A_0 = 1.0      # stretching factor
+
+# Moderate wind speed to ensure flow over terrain
+prob.U_0 = 8.0      # wind speed [m/s] aligned with terrain
+prob.V_0 = 0.0      # no cross-wind
+prob.W_0 = 0.0      # no mean vertical motion
+prob.T_0 = 300.0    # potential temperature [K]
+
+# Perturbations for turbulence development
+prob.U_0_Pert_Mag = 0.3
+prob.V_0_Pert_Mag = 0.3
+prob.W_0_Pert_Mag = 0.1
+
+# PBL CONFIGURATION - MRF over Complex Terrain
+erf.pbl_type    = "mrf"
+pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+pbl.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+pbl.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# Enable countergradient corrections for realistic PBL over terrain
+pbl.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity
+pbl.mrf_moistvars = false
+
+# Use high-resolution bounds for terrain-fitted grid
+# This allows appropriate scaling of Kmin with mesh size
+pbl.pbl_mrf_highres_bounds = true  # Kmin = ckz*dz for terrain mesh
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude
+
+# END OF INPUT FILE
