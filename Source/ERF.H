@@ -1229,16 +1229,6 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
-    // **************************************************************************************
-    const amrex::Vector<std::string> derived_names_2d {
-        "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
-        "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
-        "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv"
-    };
-
-    // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
     // **************************************************************************************
     const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
