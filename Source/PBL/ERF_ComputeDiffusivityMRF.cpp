@@ -30,7 +30,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     Medium-Range Forecast (MRF) Boundary Layer Parameterization Scheme
     ============================================================================
     
-    Implementation of the MRF (Mellor-Yamada-Janjic) boundary layer scheme
+    Implementation of the MRF (Medium Range Forecast) boundary layer scheme
     based on Hong and Pan (1996), with enhanced moisture handling and 
     cloud-aware stability corrections developed for ERF.
     
