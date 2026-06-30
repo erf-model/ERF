@@ -265,9 +265,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                 : myhalf * gdata.CellSize(2);
 
+            // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
+            const Real z_max = (use_terrain_fitted_coords)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             : (khi + myhalf) * gdata.CellSize(2);
+            const Real pblh_max = Real(0.9) * z_max;
+            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+
             // Initial PBL Height
             // Avoiding detailed interpolation here
-            pblh_arr(i, j, 0) = (above_critical) ? zval : pblh_emp;
+            pblh_arr(i, j, 0) = (above_critical) ? amrex::max(amrex::min(zval, pblh_max), pblh_min) : pblh_min;
             pbli_arr(i, j, 0) = (above_critical) ? kpbl : klo+1;  // k < kpbl is considered the PBL
         });
 
@@ -336,12 +343,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //   phiM = 1 + 5*HOL           [from Högström 1988]
             //
             // Reference: Hong & Pan (1996), Equations (14)-(15)
+            // CRITICAL: Bound HOL to prevent numerical issues under highly convective, low-wind conditions
+            const Real HOL = sf * pblh_arr(i, j, 0) / obuk_val;
+            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
             const Real phiM     = (obuk_val > 0)
-                                ? (1 + 5 * sf * pblh_arr(i, j, 0) / obuk_val)
+                                ? (1 + 5 * HOL_bounded)
                                 : std::pow(
-                                           (1 - 8 * sf * pblh_arr(i, j, 0) / obuk_val),
+                                           amrex::max(1 - 8 * HOL_bounded, Real(0.01)),
                                            -one / three);
-            const Real wstar    = u_star_arr(i, j, 0) / phiM;
+            const Real phiM_safe = amrex::max(phiM, Real(0.01));
+            const Real wstar    = u_star_arr(i, j, 0) / phiM_safe;
 
             // WRF MRF countergradient terms (module_bl_mrf.F lines 872-879):
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L872-L879
@@ -387,6 +398,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 if (lmask_arr) {
                     bool is_land = (lmask_arr(i,j,0) == 1);
                     if (!is_land) HGAMQ = zero;  // zero over water surfaces
+                }
+
+                // Saturation-Aware Moisture Countergradient (HGAMQ) Limiter safeguard:
+                // Smoothly scale down HGAMQ as relative humidity near the surface (at klo) exceeds 95%
+                // to prevent unphysical moisture pumping and runaway grid-point storms.
+                if (moisture_indices.qv >= 0) {
+                    Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
+                    Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
+                                                  cell_data(i, j, klo, RhoTheta_comp),
+                                                  qv_klo);
+                    Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
+                    Real qsat_klo = zero;
+                    erf_qsatw(T_klo, p_klo, qsat_klo);
+                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
+                    if (rh_klo > Real(0.95)) {
+                        Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                        HGAMQ *= rh_scaling;
+                    }
                 }
             }
 
@@ -458,19 +487,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 above_critical = (Rib >= Ribcr);
             }
 
+            // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
+            const Real z_max = (use_terrain_fitted_coords)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             : (khi + myhalf) * gdata.CellSize(2);
+            const Real pblh_max = Real(0.9) * z_max;
+            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+
             if (above_critical) {
                 // Interpolate to height at which Rib == Ribcr
                 // Linear interpolation between levels where Richardson number crosses critical value
                 // WRF reference (module_bl_mrf.F lines 838-840):
                 // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
                 Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
-                pblh_corr_arr(i, j, 0) = pblh_interp;
+                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                      pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
             } else {
                 // Fallback to first cell
-                pblh_corr_arr(i, j, 0) = (use_terrain_fitted_coords)
-                                       ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                       : myhalf * gdata.CellSize(2);
+                pblh_corr_arr(i, j, 0) = pblh_min;
                      pbli_arr(i, j, 0) = klo + 1;
             }
 
@@ -717,9 +751,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // 0 < Ri_g < 0.5: weakly stable
                 // Ri_g < 0: unstable (turbulence enhanced)
                 // Ri_g < -100: very strong instability (apply lower bound for safety)
+                //
+                // CRITICAL SAFETY BOUND: Bound both from below (-100.0) and above (100.0)
+                // to prevent extreme floating-point scales from causing numerical instability
                 Real grad_Ri = CONST_GRAV / theta * dtheta_dz / wind_shear_safe;
-                grad_Ri = std::max(grad_Ri, -Real(100.0));  // Hong et al. 2006, MWR, Appendix A, safety bound
-
+                grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
                 // YSU stability functions (Hong et al. 2006, MWR, Appendix A)
                 // Reference: https://doi.org/10.1175/MWR3250.1
                 // See equations A19-A20

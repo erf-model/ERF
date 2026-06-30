@@ -1,0 +1,97 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Complex Terrain Askervein Hill / 2D Ridge Test (Witch of Agnesi Hill with MRF)
+#
+# A simulation over a simple 2D bell-shaped (Witch of Agnesi) hill using
+# terrain-fitted coordinates (use_terrain_fitted_coords = true).
+#
+# Why it is needed:
+# The MRF model's vertical gradients, Richardson numbers, and PBL heights rely on
+# cell-centered coordinate metrics (Compute_Zrel_AtCellCenter and Compute_h_zeta_AtCellCenter).
+# Running tests over steep slopes ensures that grid distortion does not introduce
+# unphysical localized shear or artificial mixing coefficients.
+#
+# This test validates MRF's numerical stability and physical representation of
+# turbulent diffusivity in complex, terrain-fitted grid domains.
+
+erf.prob_name = "ABL"
+
+max_step = 20
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  2048     2048    1024
+amr.n_cell           =    64       64      32
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY WITH TERRAIN-FITTED PARAMETERS
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 8.0
+
+# Heat flux or surface temperature setup
+erf.most.surf_temp = 300.0
+erf.most.surf_heating_rate = 1.0 # gentle surface heating
+
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0
+
+# CHECKPOINT FILES
+erf.check_file      = chk_terrain
+erf.check_int       = 100
+
+# PLOTFILES
+erf.plot_file_1     = plt_terrain
+erf.plot_int_1      = 10
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+erf.init_type = Uniform
+
+# TERRAIN GRID TYPE - StaticFittedMesh activates use_terrain_fitted_coords = true
+erf.terrain_type = StaticFittedMesh
+prob.custom_terrain_type = "WoA"
+prob.hmax = 100.0       # hill height [m]
+prob.L = 500.0          # hill length [m]
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.2
+prob.A_0 = 1.0
+
+prob.U_0 = 10.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
+prob.T_0 = 300.0
+
+# Perturbations
+prob.U_0_Pert_Mag = 0.1
+prob.V_0_Pert_Mag = 0.1
+prob.W_0_Pert_Mag = 0.05
+
+# PBL CONFIGURATION - MRF over Complex Terrain
+erf.pbl_type    = "mrf"
+pbl.pbl_mrf_Ribcr = 0.5
+pbl.pbl_mrf_const_b = 7.8
+pbl.pbl_mrf_sf = 0.1
+pbl.enable_mrf_countergradient = true
+pbl.mrf_moistvars = false
