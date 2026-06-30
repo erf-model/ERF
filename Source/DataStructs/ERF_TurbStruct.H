@@ -174,6 +174,8 @@ public:
           pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_highres_bounds", pbl_mrf_highres_bounds, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -413,6 +415,8 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_highres_bounds     : " << pbl_mrf_highres_bounds
                      << std::endl;
+      amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
+                     << std::endl;
     }
   }
 
@@ -509,6 +513,7 @@ public:
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
+  bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in

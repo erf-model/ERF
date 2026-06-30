@@ -358,13 +358,19 @@ VPERT to GAMCRT suppresses the effect of latent heating. This violates the physi
 3. The latent heating from evaporation in unstable conditions is being artificially suppressed
 4. This causes underprediction of PBL height in strongly moist convective conditions
 
-**ERF Correction:** ERF correctly implements VPERT as:
+**ERF Correction:** ERF can implement unbounded VPERT when ``enable_mrf_unbounded_vpert`` is enabled:
 
 .. code-block:: cpp
 
    const Real VPERT = amrex::max(HGAMT + 0.61 * theta * HGAMQ, zero);
 
-This preserves the combined heating effect while preventing negative VPERT values (via MAX with zero). 
+Otherwise, for strict WRF consistency, it bounds VPERT to ``GAMCRT`` (3 K):
+
+.. code-block:: cpp
+
+   const Real VPERT = amrex::max(amrex::min(HGAMT + 0.61 * theta * HGAMQ, GAMCRT), zero);
+
+Enabling unbounded VPERT preserves the combined heating effect while preventing negative VPERT values (via MAX with zero). 
 The correction produces physically more accurate PBL heights in moist environments.
 
 **References:**
