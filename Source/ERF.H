@@ -924,6 +924,7 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> macrophysics_src; // RhoTheta source for macro coupling
 
     // Variables for wind farm parametrization models
 

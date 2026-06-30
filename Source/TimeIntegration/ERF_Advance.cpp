@@ -1,5 +1,6 @@
-#include <ERF.H>
-#include <ERF_Utils.H>
+#include "ERF.H"
+#include "ERF_Utils.H"
+#include "ERF_MacroPhysics.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -228,6 +229,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             amrex::Print() << "Testing on negative temperature before dycore" << std::endl;
         }
         check_for_negative_theta(S_old);
+    }
+
+    // **************************************************************************************
+    // Macrophysics source term computed pre-step
+    // **************************************************************************************
+    if (solverChoice.moisture_type != MoistureType::None &&
+        solverChoice.macrophysics_acoustic_coupling)
+    {
+        GetMacroPhysicsSrc(dt_lev, macrophysics_src[lev].get(), S_old);
     }
 
     // **************************************************************************************

@@ -466,6 +466,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     //*********************************************************
+    // Macrophysics heating source terms
+    //*********************************************************
+    if (solverChoice.moisture_type != MoistureType::None &&
+        solverChoice.macrophysics_acoustic_coupling)
+    {
+        macrophysics_src[lev] = std::make_unique<MultiFab>(ba, dm, 3, 0);
+        macrophysics_src[lev]->setVal(0);
+    }
+
+    //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************
     if (solverChoice.use_perturbation(lev))

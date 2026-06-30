@@ -17,6 +17,7 @@ CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_DirectionSelector.H
 CEXE_headers += ERF_StormDiagnostics.H
 CEXE_headers += ERF_HurricaneDiagnostics.H
+CEXE_headers += ERF_MacroPhysics.H
 
 CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp

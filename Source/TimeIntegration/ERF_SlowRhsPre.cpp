@@ -131,6 +131,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
+
+    const AdvType l_moist_horiz_adv_type = solverChoice.advChoice.moistscal_horiz_adv_type;
+    const AdvType l_moist_vert_adv_type  = solverChoice.advChoice.moistscal_vert_adv_type;
+    const Real    l_moist_horiz_upw_frac = solverChoice.advChoice.moistscal_horiz_upw_frac;
+    const Real    l_moist_vert_upw_frac  = solverChoice.advChoice.moistscal_vert_upw_frac;
+
     const bool    l_use_stretched_dz             = (solverChoice.mesh_type == MeshType::StretchedDz);
     const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type == MeshType::VariableDz);
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -583,39 +589,60 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (!l_eb_terrain_cc){
-            AdvectionSrcForRho( bx, cell_rhs,
-                                rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr, // these are being defined from the fluxes
-                                ax_arr, ay_arr, az_arr, detJ_arr,
-                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                                flx_arr, l_fixed_rho);
+            AdvectionSrcForRho(bx, cell_rhs,
+                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                               avg_xmom_arr, avg_ymom_arr, avg_zmom_arr, // these are being defined from the fluxes
+                               ax_arr, ay_arr, az_arr, detJ_arr,
+                               dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                               flx_arr, l_fixed_rho);
             AdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                cell_prim, cell_rhs,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h);
+                                   avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                   cell_prim, cell_rhs,
+                                   detJ_arr, dxInv, mf_mx, mf_my,
+                                   l_horiz_adv_type, l_vert_adv_type,
+                                   l_horiz_upw_frac, l_vert_upw_frac,
+                                   flx_arr, domain, bc_ptr_h);
+            if (l_use_moisture) {
+                AdvectionSrcForScalars(bx, RhoQ1_comp, ncomp,
+                                       avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                       cell_prim, cell_rhs,
+                                       detJ_arr, dxInv, mf_mx, mf_my,
+                                       l_moist_horiz_adv_type, l_moist_vert_adv_type,
+                                       l_moist_horiz_upw_frac, l_moist_vert_upw_frac,
+                                       flx_arr, domain, bc_ptr_h);
+            }
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
-                                rho_u, rho_v, omega_arr,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                mask_arr, cfg_arr,
-                                ax_arr, ay_arr, az_arr,
-                                fcx_arr, fcy_arr, fcz_arr, detJ_arr,
-                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                                flx_arr, l_fixed_rho,
-                                already_on_centroids);
+                                 rho_u, rho_v, omega_arr,
+                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                 mask_arr, cfg_arr,
+                                 ax_arr, ay_arr, az_arr,
+                                 fcx_arr, fcy_arr, fcz_arr, detJ_arr,
+                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                                 flx_arr, l_fixed_rho,
+                                 already_on_centroids);
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                cell_prim, cell_rhs,
-                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                fcx_arr, fcy_arr, fcz_arr,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h,
-                                already_on_centroids);
+                                     avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                     cell_prim, cell_rhs,
+                                     mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                     fcx_arr, fcy_arr, fcz_arr,
+                                     detJ_arr, dxInv, mf_mx, mf_my,
+                                     l_horiz_adv_type, l_vert_adv_type,
+                                     l_horiz_upw_frac, l_vert_upw_frac,
+                                     flx_arr, domain, bc_ptr_h,
+                                     already_on_centroids);
+            if (l_use_moisture) {
+                EBAdvectionSrcForScalars(bx, RhoQ1_comp, ncomp,
+                                         avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                         cell_prim, cell_rhs,
+                                         mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                         fcx_arr, fcy_arr, fcz_arr,
+                                         detJ_arr, dxInv, mf_mx, mf_my,
+                                         l_moist_horiz_adv_type, l_moist_vert_adv_type,
+                                         l_moist_horiz_upw_frac, l_moist_vert_upw_frac,
+                                         flx_arr, domain, bc_ptr_h,
+                                         already_on_centroids);
+            }
         }
 
         if (l_use_diff) {
@@ -657,6 +684,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                if (l_use_moisture) {
+                    DiffusionSrcForState_S(bx, domain, RhoQ1_comp, n_comp, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           stretched_dz_d, dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_z, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                }
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -668,6 +706,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                if (l_use_moisture) {
+                    DiffusionSrcForState_T(bx, domain, RhoQ1_comp, n_comp, l_rotate, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
+                                           dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                }
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -678,6 +728,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                        mu_turb, solverChoice, level,
                                        bc_ptr_d, l_use_SurfLayer);
+                if (l_use_moisture) {
+                    DiffusionSrcForState_EB(bx, domain, RhoQ1_comp, n_comp, u, v,
+                                            cell_data, cell_prim, cell_rhs,
+                                            diffflux_x, diffflux_y, diffflux_z,
+                                            cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
+                                            barea_arr, bcent_arr,
+                                            dx, dxInv,
+                                            hfx_z, q1fx_z, q2fx_z, hfx_EB,
+                                            mu_turb, solverChoice, level,
+                                            bc_ptr_d, l_use_SurfLayer);
+                }
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -688,6 +749,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                if (l_use_moisture) {
+                    DiffusionSrcForState_N(bx, domain, RhoQ1_comp, n_comp, u, v,
+                                           cell_data, cell_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           dxInv, SmnSmn_a,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy,
+                                           hfx_z, q1fx_z, q2fx_z, diss,
+                                           mu_turb, solverChoice, level,
+                                           tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                }
             }
         }
 
@@ -696,6 +768,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
+            if (l_use_moisture) {
+               cell_rhs(i,j,k,RhoQ1_comp) += source_arr(i,j,k,RhoQ1_comp);
+            }
         });
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
@@ -705,9 +780,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
             {
                 cell_rhs(i,j,k,     Rho_comp) *= myhalf;
                 cell_rhs(i,j,k,RhoTheta_comp) *= myhalf;
+                if (l_use_moisture) { cell_rhs(i,j,k,RhoQ1_comp) *= myhalf; }
 
                 cell_rhs(i,j,k,     Rho_comp) += myhalf / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
                 cell_rhs(i,j,k,RhoTheta_comp) += myhalf / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                if (l_use_moisture) {
+                    cell_rhs(i,j,k,RhoQ1_comp) += myhalf / dt * (cell_data(i,j,k,RhoQ1_comp) - cell_old(i,j,k,RhoQ1_comp));
+                }
+
             });
         }
 
