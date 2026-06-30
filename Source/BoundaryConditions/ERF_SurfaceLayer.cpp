@@ -578,7 +578,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             const bool lsm_flux_is_valid = has_lsm_t_flux &&
                                            lsm_t_flux_arr(i,j,0) < lsm_flux_undefined;
             if (has_lsm_t_flux && is_land && lsm_flux_is_valid) {
-                Tflux = lsm_t_flux_arr(i,j,0);
+                const Real rho = cons_arr(i,j,k,Rho_comp);
+                // LSM flux MultiFabs store kinematic fluxes for MOST parameter
+                // updates. The applied hfx array stores the conservative RHS flux.
+                Tflux = rho * lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
@@ -608,7 +611,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_flux_undefined) {
-                    Qflux = lsm_q_flux_arr(i,j,0);
+                    const Real rho = cons_arr(i,j,k,Rho_comp);
+                    // LSM flux MultiFabs store kinematic fluxes for MOST parameter
+                    // updates. The applied qfx array stores the conservative RHS flux.
+                    Qflux = rho * lsm_q_flux_arr(i,j,0);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
                                                      cons_arr, velx_arr, vely_arr,
@@ -648,10 +654,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                                   umm_arr, um_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressx += myhalf * lsm_tau13_arr(i  ,j,0);
+                        const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
+                        // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
+                        stressx += myhalf * rho_hi * lsm_tau13_arr(i  ,j,0);
                     }
                     if (is_land_lo) {
-                        stressx += myhalf * lsm_tau13_arr(i-1,j,0);
+                        const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
+                        // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
+                        stressx += myhalf * rho_lo * lsm_tau13_arr(i-1,j,0);
                     }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
@@ -682,10 +692,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                                   umm_arr, vm_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressy += myhalf * lsm_tau23_arr(i,j  ,0);
+                        const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
+                        // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
+                        stressy += myhalf * rho_hi * lsm_tau23_arr(i,j  ,0);
                     }
                     if (is_land_lo) {
-                        stressy += myhalf * lsm_tau23_arr(i,j-1,0);
+                        const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
+                        // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
+                        stressy += myhalf * rho_lo * lsm_tau23_arr(i,j-1,0);
                     }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
