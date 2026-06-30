@@ -1,0 +1,102 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Neutral Atmospheric Boundary Layer Test Case
+# 
+# Reference: Sorbjan, Z. (1989): Structure of the Atmospheric Boundary Layer.
+# Neutral conditions characterized by:
+#   - Zero surface heat flux (adiabatic surface)
+#   - Uniform potential temperature profile
+#   - Shear-driven turbulence from mean wind
+#   - PBL height governed by wind shear: h ~ u*/f
+#
+# This case tests MRF performance in neutral stability where:
+# - Countergradient corrections (HGAMT/HGAMQ) should have minimal effect
+# - Diffusivity driven by wind shear rather than buoyancy
+# - Suitable for validating base MRF physics
+
+erf.prob_name = "ABL"
+
+max_step = 100
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY (neutral case with moderate resolution)
+# Domain size chosen to resolve PBL (~500m at surface)
+geometry.prob_extent =  2048     2048    1024
+amr.n_cell           =    64       64      64
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Adiabatic surface (zero heat flux for neutral conditions)
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 10.0     # reference height [m]
+erf.most.surf_temp = 300.0  # surface temperature [K]
+erf.most.surf_heating_rate = 0.0  # zero heat flux for neutral conditions
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.0  # adiabatic upper boundary
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.1  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_neutral     # root name of checkpoint file
+erf.check_int       = 100             # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt_neutral      # prefix of plotfile name
+erf.plot_int_1      = 20               # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true  # gravity for neutral case (important for buoyancy frequency = 0)
+
+erf.molec_diff_type = "None"
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 1.0
+erf.Ce        = 0.1
+erf.theta_ref = 300.0
+
+erf.init_type = Uniform
+
+# INITIALIZATION - Neutral conditions
+# Uniform potential temperature (no vertical gradient)
+# Moderate wind speed for shear-driven turbulence
+prob.rho_0 = 1.225   # sea level air density [kg/m³]
+prob.A_0 = 1.0       # stretching factor
+
+prob.U_0 = 10.0      # mean wind speed [m/s] at surface
+prob.V_0 = 0.0       # no cross-wind
+prob.W_0 = 0.0       # no mean vertical motion
+prob.T_0 = 300.0     # uniform potential temperature [K]
+
+# Small perturbations to trigger turbulence development
+prob.U_0_Pert_Mag = 0.5  # ~5% perturbation
+prob.V_0_Pert_Mag = 0.5
+prob.W_0_Pert_Mag = 0.1
+
+# PBL CONFIGURATION - Baseline MRF (neutral case)
+erf.pbl_type    = "mrf"
+pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+pbl.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+pbl.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# Disable countergradient corrections (not relevant for neutral conditions)
+pbl.enable_mrf_countergradient = false
+
+# Enable moisture diffusivity for completeness (but no moisture in neutral case)
+pbl.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
