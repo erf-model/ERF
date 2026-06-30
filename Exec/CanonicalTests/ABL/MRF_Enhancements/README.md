@@ -176,6 +176,170 @@ An extremely stable boundary layer under intense polar radiative cooling (-1 K/h
 ./erf inputs_arctic
 ```
 
+---
+
+## Advanced/Edge Case Tests (Enhanced Coverage)
+
+### 12. Weak Convection Transition (`inputs_weak_convection_transition`)
+**HIGH PRIORITY: Tests smooth HGAMT/HGAMQ activation**
+
+A 24-hour simulation starting from neutral conditions transitioning to weak convection as surface heating gradually increases (0 → 2 K/h). This test validates smooth activation of countergradient corrections without spurious oscillations or negative HGAMT/HGAMQ values.
+
+**Key Physics Tested:**
+- Smooth activation of HGAMT from 0 to positive values (no oscillations)
+- Monotonic PBL height growth without abrupt jumps
+- Stable Richardson number evolution during stability transitions
+- Realistic Monin-Obukhov length calculations across neutral-to-unstable transition
+
+```bash
+./erf inputs_weak_convection_transition
+```
+
+**Expected Behavior:**
+- PBL height grows monotonically from ~100 m to ~300-500 m over 24 hours
+- HGAMT increases smoothly with heating rate (no negative values)
+- No numerical oscillations in diffusivity coefficients
+
+---
+
+### 13. Very Low Wind Speed / Calm Conditions (`inputs_calm_conditions`)
+**HIGH PRIORITY: Tests numerical stability in division-by-zero prone calculations**
+
+Tropical calm-air morning scenario with geostrophic wind < 0.5 m/s and convective heating (5 K/h). Tests wind shear safety threshold (≥ 1.0e-8) and proper fallback to minimum diffusivity bounds (Kmin = 0.1 m²/s).
+
+**Key Physics Tested:**
+- Numerical stability with wind shear → 0 (tests division-by-zero guards)
+- Proper minimum diffusivity bounds (Kmin) when shear is weak
+- No NaN/Inf in K_m, K_h, K_q coefficients
+- Richardson number calculations remain stable near zero wind
+
+```bash
+./erf inputs_calm_conditions
+```
+
+**Expected Behavior:**
+- No NaN or Infinity values in output
+- Diffusivity coefficients bounded by [Kmin, Kmax] = [0.1, 300] m²/s
+- Model runs to completion without crashing
+- Shear-independent convective mixing occurs
+
+---
+
+### 14. Saturated Boundary Layer (`inputs_saturated_layer`)
+**HIGH PRIORITY: Validates saturation-aware HGAMQ limiter (ERF UNIQUE ENHANCEMENT)**
+
+Fog or marine stratus layer with high relative humidity (85% → 99% near surface) and 0.1 g/kg cloud water. Validates the ERF-unique saturation-aware HGAMQ limiter which smoothly ramps down HGAMQ to zero as RH > 95% to prevent moisture pumping and grid-point storms.
+
+**Key Physics Tested:**
+- HGAMQ smoothly ramps down as RH approaches 95-100% (ERF unique safeguard!)
+- No moisture pumping instabilities in saturated conditions
+- Proper interaction between latent heat effects and countergradient mixing
+- Realistic PBL height in highly moist conditions
+
+```bash
+./erf inputs_saturated_layer
+```
+
+**Expected Behavior:**
+- HGAMQ → 0 as surface RH > 95% (smooth ramp, not abrupt)
+- Stable moisture profiles with no grid-point oscillations
+- Cloud-top mixing remains stable despite high RH
+- PBL height remains physically reasonable despite saturation
+
+---
+
+### 15. Rapid Surface Cooling / Inversion Collapse (`inputs_rapid_cooling`)
+**MEDIUM PRIORITY: Tests robustness during rapid stability transitions**
+
+Rapid surface temperature drop simulating inversion formation (initial +5 K/h heating → rapid -3 K/h cooling → -0.1 K/h stable recovery). Tests numerical stability and smooth evolution of VPERT and HOL during sign changes in heat flux.
+
+**Key Physics Tested:**
+- Smooth VPERT evolution from positive to zero as HGAMT deactivates
+- Stable HOL calculations when switching from unstable to stable regimes
+- No oscillations in Ri_g during rapid Monin-Obukhov sign changes
+- Physical PBL height collapse without numerical shocks
+
+```bash
+./erf inputs_rapid_cooling
+```
+
+**Expected Behavior:**
+- Model remains numerically stable throughout 6-hour transition
+- PBL height decreases smoothly from ~500 m to ~50 m
+- HGAMT → 0 smoothly as heat flux becomes negative
+- No spurious diffusivity oscillations during transition
+
+---
+
+### 16. Extreme Heat Flux (`inputs_extreme_heating`)
+**MEDIUM PRIORITY: Tests upper bounds on HGAMT (GAMCRT = 3 K limit)**
+
+Extreme surface heating (15-20 K/h) representing intense heat wave or desert thermals. Validates that HGAMT properly limits to GAMCRT = 3 K maximum and VPERT limits to [0, GAMCRT] to prevent unphysical PBL overshoot.
+
+**Key Physics Tested:**
+- HGAMT limited to GAMCRT = 3 K (physical upper bound)
+- VPERT bounded to [0, 3 K] range
+- PBL height grows realistically despite extreme forcing (doesn't overshoot domain)
+- Model remains stable under extreme atmospheric conditions
+
+```bash
+./erf inputs_extreme_heating
+```
+
+**Expected Behavior:**
+- HGAMT saturates at 3 K (no values > 3 K)
+- VPERT saturates at 3 K despite extreme heat flux
+- PBL height growth slows as it approaches PBL height cap (0.9 × z_max)
+- Conservative diffusivity bounds (Kmax = 300 m²/s) prevent excessive mixing
+
+---
+
+### 17. Complex Multi-Scale Terrain (`inputs_complex_terrain_mrf`)
+**MEDIUM PRIORITY: Extends terrain validation to realistic multi-scale topography**
+
+Extends the simple 2D Witch-of-Agnesi hill test to more realistic multi-scale terrain with multiple peaks/valleys and varying slope angles. Validates that MRF diffusivity and vertical derivatives remain stable and consistent across terrain transitions.
+
+**Key Physics Tested:**
+- Consistent K_m, K_h, K_q across terrain transitions (no artifacts at slopes)
+- Stable h_zeta and vertical derivative metrics over complex terrain
+- No spurious shear generation from terrain coordinate distortion
+- Physical PBL height evolution independent of local topography
+
+```bash
+./erf inputs_complex_terrain_mrf
+```
+
+**Expected Behavior:**
+- Diffusivity profiles smooth across terrain transitions
+- No localized shear artifacts near steep slopes
+- Richardson number calculations remain stable over complex terrain
+- PBL height diagnosis unaffected by underlying terrain complexity
+
+---
+
+### 18. Fine Temporal Resolution (`inputs_fine_dt_stable`)
+**LOW PRIORITY: Tests numerical stability under stringent CFL conditions**
+
+Very short time step (0.01 s vs standard 0.05-0.1 s) simulation over 3 hours in stable conditions. Tests accumulation of temporal discretization errors and validates conservation laws at high CFL stringency.
+
+**Key Physics Tested:**
+- No accumulation of temporal truncation errors over 3 hours
+- Numerical stability maintained with very small dt
+- Energy conservation validated at fine temporal resolution
+- Model performance characteristics under extreme CFL constraints
+
+```bash
+./erf inputs_fine_dt_stable
+```
+
+**Expected Behavior:**
+- Model runs to completion without divergence
+- Energy and momentum remain well-conserved
+- Diffusivity coefficients remain stable and bounded
+- Results consistent with standard dt simulations (when scaled appropriately)
+
+---
+
 ## Model Safeguards and Hardening
 
 The ERF MRF implementation includes critical model safeguards to address numerical and physical vulnerabilities beyond standard WRF MRF configurations:
