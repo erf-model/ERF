@@ -26,25 +26,35 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const MoistureComponentIndices& moisture_indices)
 {
     /*
-    Implementation of the older MRF Scheme based on Hong and Pan (1996)
-    "Nonlocal Boundary Layer Vertical Diffusion in a Medium-Range Forecast Model"
+    Implementation of the MRF (Mellor-Yamada-Janjic) Boundary Layer Scheme
+    based on Hong and Pan (1996) "Nonlocal Boundary Layer Vertical Diffusion
+    in a Medium-Range Forecast Model" with modern enhancements.
     
     References:
     - Hong & Pan (1996): https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
     - WRF reference code: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
     
-    Key Enhancements in This Implementation:
-    1. Land/water mask handling for HGAMQ (moisture countergradient)
-       - Zeroes HGAMQ over water surfaces per WRF (XLAND >= 1.5)
-       - Requires SurfLayer->get_lmask() availability
-    2. Cloud-aware diffusion adjustments
-       - Detects cloud presence via qc and qi thresholds
-       - Modifies stability functions in cloudy regions
+    Core MRF scheme (from Hong & Pan 1996):
+    1. Bulk Richardson number-based PBL height diagnosis
+    2. Nonlocal diffusion with countergradient flux corrections (HGAMT, HGAMQ)
+    3. Stability-dependent mixing lengths
+    
+    Enhancements in this ERF implementation:
+    1. Virtual potential temperature treatment for proper moisture handling
+    2. Cloud-aware stability function adjustments (NOT in original scheme)
+       - Detects cloud presence via cloud water/ice thresholds
        - Reduces stability damping in stable cloudy layers
        - Enhances instability in unstable cloudy layers
-    3. Consistent use of corrected PBL height (with countergradient)
-       - Applies countergradient corrections to PBL height finding
-       - Uses corrected height in stability functions and diffusivity profiles
+       - These adjustments are physically motivated but enhance the original scheme
+    3. Land/water mask handling for moisture countergradient zeroing
+       - Zeroes HGAMQ over water surfaces (consistent with WRF behavior)
+    4. Corrected PBL height with countergradient effects
+       - Applies thermal excess from surface fluxes to diagnosed PBL height
+    
+    Important: Users should be aware that cloud-aware and some countergradient 
+    features extend beyond Hong & Pan (1996). For strict reproduction of the 
+    original scheme, disable enable_mrf_countergradient and rely only on the 
+    bulk Richardson number diagnosis.
     */
 
     // Domain extent in z-dir
@@ -125,6 +135,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 // Use virtual potential temperature for stability calculations
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
                 const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
@@ -133,11 +144,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 
                 // CRITICAL FIX: Richardson number calculation uses potential temperature at
-                // current level in denominator, consistent with WRF formulation.
+                // lowest level (klo) in denominator, consistent with WRF formulation.
                 // WRF reference (module_bl_mrf.F lines 824):
                 // BRUP(I)=(THVX(I,K)-THERMAL(I))*(G*ZA(I,K)/THVX(I,KL))/SPDK2
                 // where THVX(I,KL) is the potential temperature at the lowest level (surface layer)
-                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v);
+                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -212,9 +223,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // phiM = (1 + 5 * HOL1)           for stable (L > 0, HOL > 0)
             // phiM = (1 - 8 * HOL1)^(-1/4)    for unstable (L < 0, HOL < 0)
             const Real phiM     = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
                                 : std::pow(
-                                           (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           (1 - 8 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
 
@@ -267,12 +278,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                // CRITICAL FIX: Use theta_v at current level in denominator, not t_layer_v
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v);
+                // CRITICAL FIX: Use theta_v_klo (at lowest level) in denominator, not theta_v at current level
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v_klo);
             }
 
             bool above_critical = false;
@@ -285,12 +297,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
                 const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real ws2 = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                // CRITICAL FIX: Use theta_v at current level in denominator
-                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v);
+                // CRITICAL FIX: Use theta_v_klo (at lowest level) in denominator for consistency
+                Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -411,7 +424,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real phit_eff = phit_cloud;
                 
                 // Prandtl number: Prt = phit/phiM + const_b*kappa*sf
-                const Real Prt = amrex::min(amrex::max(phit_eff / phiM_eff + const_b * KAPPA * sf, prmin), prmax);
+                // Compute base ratio first, then apply limiting with added term
+                Real Prt_base = phit_eff / phiM_eff;
+                const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
                 const Real wstar = u_star_arr(i, j, 0) / phiM_eff;
                 
                 // Diffusion coefficient for momentum
@@ -425,7 +440,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // for heat and moisture, module_bl_mrf.F lines 968-986).
                 // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
                 if (turbChoice.mrf_moistvars) {
-                    const Real Prq = amrex::min(amrex::max(phit_eff / phiM_eff + const_b * KAPPA * sf, prmin), prmax);
+                    Real Prq_base = phit_eff / phiM_eff;
+                    const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA * sf, prmin), prmax);
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
@@ -484,9 +500,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 // WRF MRF: moisture diffusivity matches heat in free atmosphere
-                K_turb(i, j, k, EddyDiff::Q_v) = turbChoice.mrf_moistvars
-                                                ? rl2wsp * ft
-                                                : K_turb(i, j, k, EddyDiff::Theta_v);
+                // Only apply if use_moisture is enabled
+                if (use_moisture && turbChoice.mrf_moistvars) {
+                    K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
+                } else {
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                }
             }
 
             // Limit diffusion coefficients to physical bounds
