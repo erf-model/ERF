@@ -487,6 +487,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 above_critical = (Rib >= Ribcr);
             }
 
+            // Empirical expression for PBLH fallback: minimum PBL height based on first cell height
+            // Used as a lower bound to prevent division by zero near surface
+            const Real pblh_emp = (use_terrain_fitted_coords)
+                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                : myhalf * gdata.CellSize(2);
+
             // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
