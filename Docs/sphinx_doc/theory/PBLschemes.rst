@@ -678,6 +678,24 @@ The bounds are applied as:
 - Critical for very strong convective conditions
 - Improves model stability in extreme parameter regimes
 
+High-Resolution Grid-Dependent Diffusivity Bounds
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Purpose:** Applies grid-dependent (high-resolution) bounds to diffusivity coefficients, permitting stronger and more resolved mixing in fine-resolution Large Eddy Simulations (LES) or high-resolution mesoscale runs ($\Delta z < 100\ \text{m}$) compared to conservative global forecast limits.
+
+**Parameters:**
+
+- ``pbl.pbl_mrf_highres_bounds`` (bool): Enable high-resolution grid-dependent bounds (default: false)
+
+**Implementation Details:**
+
+When enabled, the diffusivity bounds scale with local grid-spacing and density as formulated in Hong et al. (2006):
+
+- Conservative Bounds (Default):
+  :math:`K_{min} = 0.1\ \text{m}^2/\text{s}, K_{max} = 300\ \text{m}^2/\text{s}`
+- High-Resolution Bounds:
+  :math:`K_{min} = 0.001 \times \Delta z \times \rho, K_{max} = 1000\ \text{m}^2/\text{s}`
+
 Combined Usage Examples
 ^^^^^^^^^^^^^^^^^^^^^^^
 
