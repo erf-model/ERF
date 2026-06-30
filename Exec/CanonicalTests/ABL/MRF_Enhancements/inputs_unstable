@@ -1,0 +1,118 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Unstable Atmospheric Boundary Layer Test Case
+# 
+# Reference: BOMEX (Barbados Oceanographic and Meteorological Experiment)
+# Siebesma et al. (2003): A large eddy simulation intercomparison study 
+# of shallow cumulus convection. J. Atmos. Sci., 60, 1201-1219.
+#
+# Unstable conditions characterized by:
+#   - Strong surface heat flux (heating)
+#   - Superadiabatic temperature near surface (dθ/dz < 0)
+#   - Buoyancy-driven convection and rapid PBL growth
+#   - Countergradient fluxes dominate (thermal excess HGAMT positive)
+#   - Shallow cumulus clouds at PBL top (capping inversion)
+#
+# This case tests MRF performance in strongly unstable conditions where:
+# - Countergradient corrections (HGAMT/HGAMQ) are critical
+# - Nonlocal mixing accelerates PBL height growth
+# - VPERT limiting prevents excessive buoyancy
+# - Free atmosphere Richardson number mixing above PBL is essential
+
+erf.prob_name = "ABL"
+
+max_step = 150
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Fine resolution needed to resolve convective structures in PBL
+geometry.prob_extent =  2560     2560    2560
+amr.n_cell           =    64       64      64
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Strong surface heating
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 10.0     # reference height [m]
+erf.most.surf_temp = 308.0  # surface temperature [K] (warm)
+erf.most.surf_heating_rate = 5.0  # strong heating rate [K/h] for unstable convection
+
+# Upper boundary - stable layer capping the PBL
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.008  # stable layer (K/m) to define PBL top
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05  # shorter timestep for faster dynamics
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# planar averaging
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_unstable     # root name of checkpoint file
+erf.check_int       = 150              # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 1.0
+erf.Ce        = 0.1
+erf.theta_ref = 300.0
+
+erf.init_type = Uniform
+
+# INITIALIZATION - Unstable conditions
+# Near-surface superadiabatic layer (inverted T profile)
+# Moisture present for realistic latent heat effects
+prob.rho_0 = 1.225   # sea level air density [kg/m³]
+prob.A_0 = 1.0       # stretching factor
+
+prob.U_0 = 5.0       # modest wind speed [m/s]
+prob.V_0 = 0.0       # no cross-wind
+prob.W_0 = 0.0       # no mean vertical motion
+prob.T_0 = 303.0     # warm base temperature [K]
+
+# Larger perturbations to trigger convective cells
+prob.U_0_Pert_Mag = 1.0  # ~10-20% perturbations trigger convection
+prob.V_0_Pert_Mag = 1.0
+prob.W_0_Pert_Mag = 0.5
+
+# MOISTURE CONFIGURATION - Important for latent heat release
+prob.Rho_0_qv = 0.008   # initial water vapor mixing ratio [kg/kg]
+prob.Rho_0_qc = 0.0     # initial cloud water mixing ratio
+prob.Rho_0_qi = 0.0     # initial cloud ice mixing ratio
+
+# PBL CONFIGURATION - MRF with COUNTERGRADIENT corrections
+erf.pbl_type    = "mrf"
+pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+pbl.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+pbl.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# ENABLE COUNTERGRADIENT CORRECTIONS (critical for unstable PBL)
+# HGAMT/HGAMQ corrections are essential for accurate PBL height in convection
+pbl.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity (latent heat effects on turbulent mixing)
+pbl.mrf_moistvars = true
+
+# CORIOLIS EFFECT - Tropical latitude for rapid PBL growth
+erf.latitude = 15.0  # tropical latitude (f = 3.77e-5 s^-1)
