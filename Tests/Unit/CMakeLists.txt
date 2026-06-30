@@ -33,6 +33,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestMain.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestHelloWorld.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Interpolation/ERF_GTestInterpolationScalar.cpp

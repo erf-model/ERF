@@ -9,18 +9,17 @@ Plotfiles
 .. toctree::
    :maxdepth: 1
 
-There are three types of plotfiles that can be written from ERF.
+There are three plotfile output paths in ERF.
 
-The first is the standard type of plotfile which includes 3D data on all levels for those variables
-specified by the user in the inputs file.
+The standard plotfile writes 3D data on all active AMR levels. The user selects
+the variables with the plotfile variable lists.
 
-The second is a pseudo-2D plotfile that contains data that is only defined as a function
-of horizontal position, such as map factors, latitude and longitude.
+The 2D plotfile writes a pseudo-2D slab. It stores fields that depend on
+horizontal position, such as map factors, latitude, longitude, surface-layer
+diagnostics, selected surface fluxes, surface pressure, and column-integrated
+water vapor.
 
-The third type of plotfile contains
-3D data on one level only and in a specified region of the domain.   We refer to this
-latter capability as "Subvolumes" below.  The level at which the data is written
-out is determined by the mesh spacing specified by the user.
+The subvolume plotfile writes 3D data from one selected region of the domain.
 
 Controlling PlotFile Generation
 ===============================
@@ -81,7 +80,7 @@ List of Parameters for 3D Plotfiles
 +----------------------------------+------------------+-----------------------+------------+
 | **erf.plot_file_2**              | prefix for       | String                | “*plt_2_*” |
 |                                  | plotfiles        |                       |            |
-|                                  | at seoncd freq.  |                       |            |
+|                                  | at second freq.   |                       |            |
 +----------------------------------+------------------+-----------------------+------------+
 | **erf.plot_int_1**               | how often (by    | Integer               | -1         |
 |                                  | level-0 time     | :math:`> 0`           |            |
@@ -131,59 +130,46 @@ List of Parameters for 3D Plotfiles
 List of Parameters for 2D Plotfiles
 -----------------------------------
 
-+-----------------------------+------------------+-----------------------+--------------+
-| Parameter                   | Definition       | Acceptable            | Default      |
-|                             |                  | Values                |              |
-+=============================+==================+=======================+==============+
-| **erf.plot2d_file_1**       | prefix for       | String                | “*plt2d_1_*” |
-|                             | 2d plotfiles     |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_file_2**       | prefix for       | String                | “*plt2d_2_*” |
-|                             | 2d plotfiles     |                       |              |
-|                             | at seoncd freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_int_1**        | how often (by    | Integer               | -1           |
-|                             | level-0 time     | :math:`> 0`           |              |
-|                             | steps) to write  |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_int_2**        | how often (by    | Integer               | -1           |
-|                             | level-0 time     | :math:`> 0`           |              |
-|                             | steps) to write  |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_per_1**        | how often (in    | Real                  | -1.0         |
-|                             | simulation time) | :math:`> 0`           |              |
-|                             | to write         |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_per_2**        | how often (in    | Real                  | -1.0         |
-|                             | simulation time) | :math:`> 0`           |              |
-|                             | to write         |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_vars_1**       | name of          | list of names         | None         |
-|                             | variables to     |                       |              |
-|                             | include in       |                       |              |
-|                             | 2d plotfiles     |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_vars_2**       | name of          | list of names         | None         |
-|                             | variables to     |                       |              |
-|                             | include in       |                       |              |
-|                             | p2d lotfiles     |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.file_name_digits**    | Number of digits | Integer               | 5            |
-|                             | to be appended   | :math:`> 0`           |              |
-|                             | to the plot file |                       |              |
-|                             | names            |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| Parameter                   | Definition                           | Acceptable Values     | Default      |
++=============================+======================================+=======================+==============+
+| **erf.plot2d_file_1**       | Prefix for 2D plotfiles at the first | String                | ``plt2d_1_`` |
+|                             | output frequency.                    |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_file_2**       | Prefix for 2D plotfiles at the       | String                | ``plt2d_2_`` |
+|                             | second output frequency.             |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_int_1**        | Write 2D plotfiles every this many   | Integer :math:`> 0`   | -1           |
+|                             | level-0 time steps for stream 1.     |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_int_2**        | Write 2D plotfiles every this many   | Integer :math:`> 0`   | -1           |
+|                             | level-0 time steps for stream 2.     |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_per_1**        | Write 2D plotfiles every this much   | Real :math:`> 0`      | -1.0         |
+|                             | simulation time for stream 1.        |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_per_2**        | Write 2D plotfiles every this much   | Real :math:`> 0`      | -1.0         |
+|                             | simulation time for stream 2.        |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_vars_1**       | Variables to include in the first    | List of names         | None         |
+|                             | 2D plotfile stream.                  |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+| **erf.plot2d_vars_2**       | Variables to include in the second   | List of names         | None         |
+|                             | 2D plotfile stream.                  |                       |              |
++-----------------------------+--------------------------------------+-----------------------+--------------+
+
+Notes
+-----
+
+- ERF writes 2D plotfiles as one-cell-thick horizontal slabs.
+- The two 2D streams are independent. Each stream has its own file prefix,
+  write interval, write period, and variable list.
+- Variables in a 2D plotfile appear in ERF's canonical order. The order in
+  ``erf.plot2d_vars_1`` or ``erf.plot2d_vars_2`` does not change the component
+  order in the file.
+- If a requested 2D variable is not available, ERF skips it and prints a
+  warning that names the input parameter and the skipped variable.
+- NetCDF plotfile output requires an ERF build with NetCDF enabled.
 
 List of Parameters for Subvolumes
 -----------------------------------
@@ -761,84 +747,76 @@ This will output the base ERF variables (density, theta, qv) along with Morrison
 cloud water, rain water, cloud droplet number concentration, and rain drop number
 concentration.
 
-Output Options for 2D plotfiles
+Output Options for 2D Plotfiles
 -------------------------------
 
-+-------------------+----------------------------+
-| Parameter         | Definition                 |
-|                   |                            |
-+===================+============================+
-| **z_surf**        | Surface elevation [m]      |
-+-------------------+----------------------------+
-| **landmask**      | Land-sea mask              |
-|                   | (land=1, sea=0)            |
-|                   | [1]                        |
-+-------------------+----------------------------+
-| **mapfac**        | Map factors [1]            |
-+-------------------+----------------------------+
-| **lat_m**         | Latitude (at unstaggered   |
-|                   | "mass" points) [deg]       |
-+-------------------+----------------------------+
-| **u_star**        | Friction velocity          |
-|                   | (with SurfaceLayer only)   |
-|                   | [m/s]                      |
-+-------------------+----------------------------+
-| **w_star**        | Convective velocity scale  |
-|                   | (with SurfaceLayer only)   |
-|                   | [m/s]                      |
-+-------------------+----------------------------+
-| **t_star**        | Temperature scale          |
-|                   | (with SurfaceLayer only)   |
-|                   | [K]                        |
-+-------------------+----------------------------+
-| **q_star**        | Humidity scale             |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg/kg]                    |
-+-------------------+----------------------------+
-| **Olen**          | Obukhov length             |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **pblh**          | Diagnosed PBL height       |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **t_surf**        | Surface temperature        |
-|                   | (with SurfaceLayer only)   |
-|                   | [K]                        |
-+-------------------+----------------------------+
-| **q_surf**        | Surface humidity           |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg/kg]                    |
-+-------------------+----------------------------+
-| **z0**            | Roughness height           |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **OLR**           | Outgoing long wavelength   |
-|                   | radiation (with RRTMGP)    |
-|                   | [W/m^2]                    |
-+-------------------+----------------------------+
-| **sens_flux**     | Sensible heat flux         |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg m^-2 s^-1 K]           |
-+-------------------+----------------------------+
-| **laten_flux**    | Latent heat flux           |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg m^-2 s^-1]             |
-+-------------------+----------------------------+
-| **surf_pres**     | Surface pressure           |
-|                   | [Pa]                       |
-+-------------------+----------------------------+
-| **integrated_qv** | Column-integrated water    |
-|                   | vapor; zero if moisture is |
-|                   | disabled [kg/m^2]          |
-+-------------------+----------------------------+
++--------------------+---------------------------------------------------------------+
+| Parameter          | Definition                                                    |
++====================+===============================================================+
+| **z_surf**         | Surface elevation [m].                                        |
++--------------------+---------------------------------------------------------------+
+| **landmask**       | Land-sea mask. Land is 1 and sea is 0 [1].                    |
++--------------------+---------------------------------------------------------------+
+| **mapfac**         | Map factor at mass points [1].                                |
++--------------------+---------------------------------------------------------------+
+| **lat_m**          | Latitude at unstaggered mass points [deg].                    |
++--------------------+---------------------------------------------------------------+
+| **lon_m**          | Longitude at unstaggered mass points [deg].                   |
++--------------------+---------------------------------------------------------------+
+| **u_star**         | Friction velocity from the surface layer [m/s]. ERF writes    |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **w_star**         | Convective velocity scale from the surface layer [m/s]. ERF   |
+|                    | writes -999 when the surface layer is not active.             |
++--------------------+---------------------------------------------------------------+
+| **t_star**         | Temperature scale from the surface layer [K]. ERF writes      |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **q_star**         | Humidity scale from the surface layer [kg/kg]. ERF writes     |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **Olen**           | Obukhov length from the surface layer [m]. ERF writes -999    |
+|                    | when the surface layer is not active.                         |
++--------------------+---------------------------------------------------------------+
+| **pblh**           | Diagnosed planetary boundary layer height [m]. ERF writes     |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **t_surf**         | Surface temperature from the surface layer [K]. ERF writes    |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **q_surf**         | Surface humidity from the surface layer [kg/kg]. ERF writes   |
+|                    | -999 when the surface layer is not active.                    |
++--------------------+---------------------------------------------------------------+
+| **z0**             | Roughness height from the surface layer [m]. ERF writes -999  |
+|                    | when the surface layer is not active.                         |
++--------------------+---------------------------------------------------------------+
+| **OLR**            | Outgoing longwave radiation at the model top [W/m^2]. ERF     |
+|                    | writes -999 when radiation is not active.                     |
++--------------------+---------------------------------------------------------------+
+| **sens_flux**      | Surface sensible heat flux from the vertical surface flux     |
+|                    | field [kg K m^-2 s^-1]. ERF writes -999 when the flux field   |
+|                    | is not available.                                             |
++--------------------+---------------------------------------------------------------+
+| **laten_flux**     | Surface moisture flux from the vertical water-vapor flux      |
+|                    | field [kg m^-2 s^-1]. This is a legacy output name. ERF       |
+|                    | writes -999 when the flux field is not available.             |
++--------------------+---------------------------------------------------------------+
+| **surf_pres**      | Surface pressure [Pa].                                        |
++--------------------+---------------------------------------------------------------+
+| **integrated_qv**  | Column-integrated water vapor [kg/m^2]. ERF writes zero when  |
+|                    | moisture is disabled.                                         |
++--------------------+---------------------------------------------------------------+
 
 Examples of Usage
 -----------------
 
-In an input file, the user can select parameters to plot by supplying a space-delimited
-list to **erf.plot_vars_1** or **erf.plot_vars_2**.
+The following inputs write a 2D plotfile every 10 level-0 time steps:
 
--  **erf.plot_vars_1** = *option1* *option2* *option3*
+.. code-block:: none
+
+   erf.plot2d_file_1 = plt2d_
+   erf.plot2d_int_1  = 10
+   erf.plot2d_vars_1 = z_surf mapfac lat_m lon_m u_star surf_pres integrated_qv
+
+The variable list may appear in any order. ERF writes the selected variables in
+its canonical 2D plotfile order.
