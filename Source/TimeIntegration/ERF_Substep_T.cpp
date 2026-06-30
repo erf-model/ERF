@@ -768,7 +768,7 @@ void erf_substep_T (int step, int /*nrk*/,
                                          ( zflux_hi * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k+1,PrimQ1_comp)) -
                                            zflux_lo * (prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)) ) * dzi ) / detJ(i,j,k);
                   cur_cons(i,j,k,RhoQ1_comp) += dtau * (slow_rhs_cons(i,j,k,RhoQ1_comp) + fast_rhs_rhoqv);
-                  cur_cons(i,j,k,RhoQ1_comp)  = amrex::max(zero,cur_cons(i,j,k,RhoQ1_comp));
+                  cur_cons(i,j,k,RhoQ1_comp)  = amrex::max(Real(0.),cur_cons(i,j,k,RhoQ1_comp));
               }
 
               if (l_reflux) {
