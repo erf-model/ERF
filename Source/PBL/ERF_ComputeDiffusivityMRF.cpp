@@ -330,6 +330,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real met_h_zeta = (use_terrain_fitted_coords)
                                   ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta / dz_inv;
+            
+            // Cloud-aware diffusion: compute cloud fraction from qc and qi
+            // Cloud water threshold for detection (threshold ~ 0.1 g/kg)
+            constexpr Real qc_threshold = Real(1.0e-4);  // 0.1 g/kg in mixing ratio
+            Real qc_mix = zero;
+            Real qi_mix = zero;
+            if (use_moisture) {
+                // qc (mixing ratio) = qc (density) / rho
+                if (moisture_indices.qc >= 0) {
+                    qc_mix = cell_data(i, j, k, moisture_indices.qc) / rho;
+                }
+                if (moisture_indices.qi >= 0) {
+                    qi_mix = cell_data(i, j, k, moisture_indices.qi) / rho;
+                }
+            }
+            const Real total_qcloud = qc_mix + qi_mix;
+            const bool has_cloud = (total_qcloud > qc_threshold);
+            
             if (k < pbli_arr(i, j, 0)) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
                 // WRF reference (module_bl_mrf.F lines 968-986):
@@ -349,22 +367,51 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                            (1 - 16 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                                            -one / two);
                 
+                // Cloud-aware adjustment: In cloudy regions, increase diffusivity slightly
+                // because clouds reduce buoyancy oscillations and enhance mixing
+                // This is a simplified approach following WRF's implicit cloud handling
+                Real phit_cloud = phit;
+                Real phiM_cloud = phiM;
+                if (has_cloud && l_obuk_arr(i, j, 0) > zero) {
+                    // In stable layers with clouds, reduce stability damping
+                    // Cloud scaling factor: reduce stability by 10-20% where qc > threshold
+                    Real cloud_factor = one - Real(0.15) * amrex::min(total_qcloud / qc_threshold, one);
+                    phiM_cloud = (one + Real(5.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) * cloud_factor
+                               + (one - cloud_factor);  // blend toward reduced stability
+                    phit_cloud = (one + Real(5.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) * cloud_factor
+                               + (one - cloud_factor);
+                } else if (has_cloud && l_obuk_arr(i, j, 0) <= zero) {
+                    // In unstable layers with clouds, slightly enhance instability
+                    // (clouds warm the boundary layer)
+                    Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, one);
+                    phiM_cloud = std::pow(
+                        (one - Real(8.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) / cloud_boost,
+                        -one / three);
+                    phit_cloud = std::pow(
+                        (one - Real(16.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) / cloud_boost,
+                        -one / two);
+                }
+                
+                // Use cloud-aware stability functions
+                const Real phiM_eff = phiM_cloud;
+                const Real phit_eff = phit_cloud;
+                
                 // Prandtl number: Prt = phit/phiM + const_b*kappa*sf
-                const Real Prt = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
-                const Real wstar = u_star_arr(i, j, 0) / phiM;
+                const Real Prt = amrex::min(amrex::max(phit_eff / phiM_eff + const_b * KAPPA * sf, prmin), prmax);
+                const Real wstar = u_star_arr(i, j, 0) / phiM_eff;
                 
                 // Diffusion coefficient for momentum
                 // K = rho * wstar * kappa * z * (1 - z/h)^2
                 K_turb(i, j, k, EddyDiff::Mom_v) = rho * wstar * KAPPA * zval
-                                                 * (1 - zval / pblh_corr_arr(i, j, 0))
-                                                 * (1 - zval / pblh_corr_arr(i, j, 0));
+                                                 * (one - zval / pblh_corr_arr(i, j, 0))
+                                                 * (one - zval / pblh_corr_arr(i, j, 0));
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
                 // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
                 // for heat and moisture, module_bl_mrf.F lines 968-986).
                 // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
                 if (turbChoice.mrf_moistvars) {
-                    const Real Prq = amrex::min(amrex::max(phit / phiM + const_b * KAPPA * sf, prmin), prmax);
+                    const Real Prq = amrex::min(amrex::max(phit_eff / phiM_eff + const_b * KAPPA * sf, prmin), prmax);
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
