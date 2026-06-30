@@ -10,7 +10,7 @@ This folder contains the input files along with the links to WRF files (`wrfinpu
    make -j8
    ```
    in the `Exec` directory.
-3. Run ERF using the corresponding `inputs` file for hurricane.
+3. Run ERF using the corresponding `inputs` file for hurricane from the `InputFiles` directory.
 
 
 ## WRF files 
@@ -25,5 +25,5 @@ wget "https://zenodo.org/records/21083216/files/WRFFiles_HurricaneKatrina2005.zi
 For **Hurricane Katrina**:
 
 1. Download the WRF files 
-2. Use one of the `inputs` files in the `Katrina` directory to run ERF.
+2. Use one of the `inputs` files in the `InputFiles/Katrina` directory to run ERF.
 
