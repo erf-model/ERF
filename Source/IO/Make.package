@@ -1,5 +1,6 @@
 
 CEXE_sources += ERF_Plotfile.cpp
+CEXE_sources += ERF_Plotfile2DCatalog.cpp
 CEXE_sources += ERF_Plotfile2D.cpp
 CEXE_sources += ERF_Plotfile2DUtils.cpp
 CEXE_sources += ERF_Checkpoint.cpp

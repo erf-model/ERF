@@ -1,4 +1,5 @@
 #include "ERF.H"
+#include "ERF_Plotfile2DCatalog.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "ERF_EpochTime.H"
@@ -16,6 +17,8 @@ namespace
 // validates the requested names, assembles the slab geometry, fills existing
 // diagnostics, and dispatches to AMReX or NetCDF output. Nontrivial science
 // diagnostics should live in dedicated modules and be called from here.
+// Keep the fill order below synchronized with plotfile2d::diagnostic_catalog()
+// until the fill blocks move into dedicated diagnostic modules.
 
 std::string make_2d_plotfile_name (int which,
                                    int plot_step,
@@ -102,9 +105,12 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
         requested_plot_names.push_back(nm);
     }
 
+    const auto available_names = plotfile2d::diagnostic_names();
+
     // Keep the canonical built-in 2D ordering so the plotfile component layout
     // stays stable even if the input request order changes.
-    const auto selection = plotfile2d::select_requested_plot_variables(requested_plot_names, derived_names_2d);
+    const auto selection = plotfile2d::select_requested_plot_variables(requested_plot_names,
+                                                                        available_names);
     plot_var_names = selection.accepted;
 
     // Unknown 2D names are skipped rather than aborting because the 2D plot
@@ -112,7 +118,7 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
     // compiled into a given build. The warning is still explicit so the user
     // can correct the input deck.
     warn_for_unavailable_2d_plot_vars(plotfile2d::format_plot2d_parameter_name(pp_prefix, pp_plot_var_names),
-                                      selection.unavailable, derived_names_2d);
+                                      selection.unavailable, available_names);
 }
 
 void
@@ -464,11 +470,13 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // sens_flux
 
+        // Keep the legacy output name "laten_flux"; it maps to the vertical
+        // water-vapor surface flux field.
         if (containerHasElement(plot_var_names, "laten_flux")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (SFS_hfx3_lev[lev]) {
+            if (SFS_q1fx3_lev[lev]) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
@@ -513,6 +521,26 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         }
+
+        if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for (MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& source = m_SurfaceLayer->get_surface_diagnostic_source(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = source(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // surface_diagnostic_source
 
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
