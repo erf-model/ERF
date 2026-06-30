@@ -1286,6 +1286,11 @@ List of Parameters
 |                                         | correction terms   |                     |             |
 |                                         | in MRF PBL scheme  |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.enable_mrf_unbounded_vpert**      | Enable physically  | bool                | 0           |
+|                                         | superior           |                     |             |
+|                                         | unbounded VPERT    |                     |             |
+|                                         | in MRF PBL scheme  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.

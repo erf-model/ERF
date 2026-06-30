@@ -314,12 +314,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
+        const bool enable_mrf_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
             
+            Real obuk_val = l_obuk_arr(i, j, 0);
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
+                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
+
             // Stability function phiM for momentum (WRF module_bl_mrf.F lines 857-861):
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             //
@@ -330,10 +336,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //   phiM = 1 + 5*HOL           [from Högström 1988]
             //
             // Reference: Hong & Pan (1996), Equations (14)-(15)
-            const Real phiM     = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+            const Real phiM     = (obuk_val > 0)
+                                ? (1 + 5 * sf * pblh_arr(i, j, 0) / obuk_val)
                                 : std::pow(
-                                           (1 - 8 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           (1 - 8 * sf * pblh_arr(i, j, 0) / obuk_val),
                                            -one / three);
             const Real wstar    = u_star_arr(i, j, 0) / phiM;
 
@@ -405,10 +411,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Updated ERF approach (matching WRF):
             //   VPERT = max(min(HGAMT + EP1*θ*HGAMQ, GAMCRT), 0)
             // This bounds VPERT to [0, GAMCRT] range for physical consistency with WRF.
-            const Real VPERT = amrex::max(
-                amrex::min(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, GAMCRT),
-                zero
-            );
+            const Real VPERT = enable_mrf_unbounded_vpert
+                ? amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero)
+                : amrex::max(
+                    amrex::min(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, GAMCRT),
+                    zero
+                );
             
             // Effective surface virtual potential temperature used in PBL height finding
             // (WRF: THERMAL = theta_v_surface + VPERT)
@@ -494,6 +502,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            Real obuk_val = l_obuk_arr(i, j, 0);
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
+                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
+
             const Real zval = (use_terrain_fitted_coords)
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
                             : (k + myhalf) * gdata.CellSize(2);
@@ -548,10 +561,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Unstable (L < 0): phiM = (1 - 8*sf*h/L)^(-1/3)
                 // Stable (L > 0):   phiM = 1 + 5*sf*h/L
                 // CRITICAL: Bound HOL to prevent numerical issues
-                const Real HOL = sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
+                const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0)); // Limit to [-10, +10]
                 
-                const Real phiM = (l_obuk_arr(i, j, 0) > 0)
+                const Real phiM = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
                                            amrex::max(1 - 8 * HOL_bounded, Real(0.01)),
@@ -562,7 +575,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Stable (L > 0):   phit = 1 + 5*sf*h/L  (same as phiM for stability)
                 // Reference: Hong & Pan (1996), Table 1
                 // CRITICAL: Ensure base of pow() is positive and in reasonable range
-                const Real phit = (l_obuk_arr(i, j, 0) > 0)
+                const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
                                            amrex::max(1 - 16 * HOL_bounded, Real(0.01)),
@@ -576,15 +589,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // This is a physically motivated extension not in original Hong & Pan (1996).
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
-                if (has_cloud && l_obuk_arr(i, j, 0) > zero) {
+                if (has_cloud && obuk_val > zero) {
                     // Stable layers with clouds: reduce stability enhancement
                     // Cloud presence reduces oscillations, damping is less effective
                     // Reduction factor: up to 15-20% where cloud water exceeds threshold
                     Real reduction_factor = one - Real(0.15) * amrex::min(total_qcloud / qc_threshold, one);
                     // Reduce the phiM enhancement in stable conditions
-                    phiM_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
-                    phit_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
-                } else if (has_cloud && l_obuk_arr(i, j, 0) <= zero) {
+                    phiM_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    phit_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                } else if (has_cloud && obuk_val <= zero) {
                     // Unstable layers with clouds: slightly enhance instability
                     // Clouds warm the boundary layer through latent heat release
                     // Boost factor: up to 5% where cloud water exceeds threshold
