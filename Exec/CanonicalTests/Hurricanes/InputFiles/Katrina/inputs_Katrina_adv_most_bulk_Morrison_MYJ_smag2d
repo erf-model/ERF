@@ -1,0 +1,97 @@
+erf.prob_name = "WPS"
+
+#stop_time = 36000.
+max_step = 86400
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 3702000 2919000 22500
+amr.n_cell           = 1234    973     63
+#amr.blocking_factor  = 1
+
+erf.restart = chk42000
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+#zlo.type = "SlipWall"
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 25.0
+erf.most.ignore_sst = true
+erf.most.average_policy = 1
+erf.most.radius = 0
+erf.surface_layer.flux_type = bulk_coeff
+erf.most.surf_temp = 301.0
+erf.most.surf_moist = 0.024
+erf.most.Cd = 0.001
+erf.most.Ch = 0.0015
+erf.most.Cq = 0.0015
+zhi.type = "SlipWall"
+
+erf.substepping_type = "Implicit"
+erf.fixed_dt = 4.0
+erf.fixed_mri_dt_ratio = 6
+#erf.cfl = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1000   # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plotfile_type   = amrex  # prefix of plotfile name
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 1000    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc qgraup qrain qsnow vorticity_x vorticity_y vorticity_z rain_accum
+
+erf.io_hurricane_eye_tracker = true
+erf.hurricane_eye_latitude = 25.0; # deg N
+erf.hurricane_eye_longitude = -83.3; # deg W
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.terrain_type = StaticFittedMesh
+erf.moisture_model = "Morrison"
+
+# Constant diffusion coefficient
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 1.0 # [kg/(m-s)]
+erf.alpha_T           = 1.0 # [m^2/s]
+erf.alpha_C           = 1.0
+
+erf.use_coriolis = true
+erf.coriolis_3d  = true
+erf.variable_coriolis = true
+erf.has_lat_lon = true
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+erf.pbl_type = MYJ
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.1
+
+# INITIALIZATION WITH ATM DATA
+erf.use_real_bcs = true
+#erf.upwind_real_bcs = true
+erf.real_width     = 4
+erf.real_set_width = 1
+erf.init_type      = "WRFInput"
+erf.nc_init_file_0 = "./WRFFiles/wrfinput_d01"
+erf.nc_bdy_file    = "./WRFFiles/wrfbdy_d01"
+erf.nc_low_file = "./WRFFiles/wrflowinp_d01"
+erf.rebalance_wrfinput = true
