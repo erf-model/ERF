@@ -32,6 +32,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     References:
     - Hong & Pan (1996): https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
     - WRF reference code: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
+    
+    Key Enhancements in This Implementation:
+    1. Land/water mask handling for HGAMQ (moisture countergradient)
+       - Zeroes HGAMQ over water surfaces per WRF (XLAND >= 1.5)
+       - Requires SurfLayer->get_lmask() availability
+    2. Cloud-aware diffusion adjustments
+       - Detects cloud presence via qc and qi thresholds
+       - Modifies stability functions in cloudy regions
+       - Reduces stability damping in stable cloudy layers
+       - Enhances instability in unstable cloudy layers
+    3. Consistent use of corrected PBL height (with countergradient)
+       - Applies countergradient corrections to PBL height finding
+       - Uses corrected height in stability functions and diffusivity profiles
     */
 
     // Domain extent in z-dir
