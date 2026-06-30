@@ -131,7 +131,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
-                    RHS_a(i,j,klo) += Fact * dz_inv / met_h_zeta_hi * rhoAlpha_hi * gam_hi;
+                    RHS_a(i,j,klo) += Fact * dz_inv * rhoAlpha_hi * gam_hi / met_h_zeta_hi;
                 }
 
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
