@@ -503,7 +503,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real dz_terrain = met_h_zeta / dz_inv;
             
             // Cloud-aware diffusion: compute cloud fraction from qc and qi
-            // Cloud water threshold for detection (threshold ~ 0.1 g/kg)
+            // Cloud water threshold for detection (threshold ~ 0.01 g/kg, matching WRF)
             // 
             // CLOUD-AWARE ENHANCEMENTS (ERF Extension):
             // This is an optional feature NOT in Hong & Pan (1996). It adjusts the
@@ -521,7 +521,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // (Bretherton & Park 2009, see WRF module_bl_mynn.F).
             //
             // Disable via enable_mrf_countergradient=false for strict Hong & Pan (1996).
-            constexpr Real qc_threshold = Real(1.0e-4);  // 0.1 g/kg in mixing ratio
+            constexpr Real qc_threshold = Real(1.0e-5);  // 0.01 g/kg in mixing ratio (aligned with WRF)
             Real qc_mix = zero;
             Real qi_mix = zero;
             if (use_moisture) {
@@ -549,7 +549,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Stable (L > 0):   phiM = 1 + 5*sf*h/L
                 // CRITICAL: Bound HOL to prevent numerical issues
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
-                const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0)); // Limit to [-10, +10]
+                const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0)); // Broadened from [-10, +10] to [-100, +100] for extreme stability/convection support
                 
                 const Real phiM = (l_obuk_arr(i, j, 0) > 0)
                                 ? (1 + 5 * HOL_bounded)
@@ -684,10 +684,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real dudz_safe = (k < izmax) ? dudz : zero;
                 const Real dvdz_safe = (k < izmax) ? dvdz : zero;
                 
-                // Wind shear magnitude with safety threshold (WRF approach)
+                // Wind shear magnitude with safety threshold (WRF approach, optimized for GPU precision)
                 // Using separate safety threshold avoids numerical issues with very small wind shear
                 const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
-                const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-10));
+                const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
                 // Use potential temperature (not virtual) for Richardson number stability calculation
                 // This matches WRF MRF approach for consistency with Hong et al. 2006 (YSU scheme).
@@ -765,24 +765,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Alternative (Higher Limits) Hong et al. (2006) formulation (MWR Appendix A):
             // Kmin = ckz * dz * rho (where ckz = 0.001), Kmax = 1000 m²/s
             // These higher limits allow greater mixing in free atmosphere and are
-            // more appropriate for high-resolution simulations. They are provided
-            // as an alternative (see commented code below #if 0 block).
-#if 0
-            // Hong et al. 2006, MWR, Appendix A: Higher limits for free atmosphere
-            // These are recommended for high-resolution simulations (Δz < 100 m)
-            // where the free atmosphere grid can resolve small-scale mixing.
-            constexpr Real ckz  = Real(0.001);
-            constexpr Real Kmax = Real(1000.0);
-            const Real rhoKmin  = ckz * dz_terrain * rho;
-            const Real rhoKmax  = rho * Kmax;
-#endif
-            // Hong & Pan 1996, MWR: Conservative limits (default, used in global forecasts)
-            // These provide good results for typical meteorological scales (Δz > 100 m)
-            // and are the standard in legacy WRF configurations.
-            constexpr Real Kmin = Real(0.1);
-            constexpr Real Kmax = Real(300.0);
-            const Real rhoKmin  = rho * Kmin;
-            const Real rhoKmax  = rho * Kmax;
+            // more appropriate for high-resolution simulations.
+            Real rhoKmin, rhoKmax;
+            if (turbChoice.pbl_mrf_highres_bounds) {
+                // Hong et al. 2006, MWR, Appendix A: Higher limits for free atmosphere
+                // These are recommended for high-resolution simulations (Δz < 100 m)
+                // where the free atmosphere grid can resolve small-scale mixing.
+                constexpr Real ckz  = Real(0.001);
+                constexpr Real Kmax = Real(1000.0);
+                rhoKmin  = ckz * dz_terrain * rho;
+                rhoKmax  = rho * Kmax;
+            } else {
+                // Hong & Pan 1996, MWR: Conservative limits (default, used in global forecasts)
+                // These provide good results for typical meteorological scales (Δz > 100 m)
+                // and are the standard in legacy WRF configurations.
+                constexpr Real Kmin = Real(0.1);
+                constexpr Real Kmax = Real(300.0);
+                rhoKmin  = rho * Kmin;
+                rhoKmax  = rho * Kmax;
+            }
 
             K_turb(i, j, k, EddyDiff::Mom_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Mom_v), rhoKmax), rhoKmin);
