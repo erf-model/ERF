@@ -43,7 +43,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac,
-                          const bool use_mrf_countergradient = false)
+                          const bool use_mrf_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
 
