@@ -210,7 +210,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
-        const auto& q_surf_arr = SurfLayer->get_q_surf(level)->const_array(mfi);
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         // Get land/water mask for proper handling of moisture countergradient
         const auto& lmask_arr = (SurfLayer->get_lmask(level)) ?
@@ -486,6 +485,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 Rib = CONST_GRAV * zval * (theta_v - t_surf_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
+
+            // Empirical expression for PBLH fallback: minimum PBL height based on first cell height
+            // Used as a lower bound to prevent division by zero near surface
+            const Real pblh_emp = (use_terrain_fitted_coords)
+                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                : myhalf * gdata.CellSize(2);
 
             // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
             const Real z_max = (use_terrain_fitted_coords)
