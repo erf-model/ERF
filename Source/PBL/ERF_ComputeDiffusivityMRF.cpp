@@ -392,25 +392,23 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF reference (module_bl_mrf.F lines 877-879):
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L877-L879
             // VPERT = HGAMT + EP1*THX(I,KL)*HGAMQ
-            // VPERT = MIN(VPERT, GAMCRT)     [WRF INCORRECTLY limits VPERT]
+            // VPERT = MIN(VPERT, GAMCRT)     [WRF limits VPERT to prevent excessive buoyancy]
             //
-            // CRITICAL CORRECTION IN ERF:
-            // ERF correctly does NOT limit VPERT to GAMCRT after adding moisture term.
-            // WRF has a bug where VPERT=MIN(VPERT,GAMCRT) violates physics:
-            //   1. HGAMT is already limited to GAMCRT
-            //   2. Adding positive HGAMQ can produce VPERT > GAMCRT
-            //   3. Limiting VPERT to GAMCRT suppresses latent heating effect
-            //   4. This causes underprediction of PBL height in moist convection
+            // PHYSICS VALIDATION:
+            // WRF limits VPERT to GAMCRT after adding moisture term. While this might
+            // seem counterintuitive (HGAMT already limited to GAMCRT), the physics is:
+            //   1. HGAMT and HGAMQ represent independent flux contributions
+            //   2. Their combined effect on virtual potential temperature needs bounding
+            //   3. GAMCRT (3 K) is the physical limit on virtual temperature anomaly
+            //   4. Limiting VPERT to GAMCRT provides stability in very moist conditions
             //
-            // Physics justification: VPERT combines sensible and latent heating.
-            // If both contribute, total effect can exceed GAMCRT. WRF's limiting
-            // was likely a bug from coefficient tuning or implementation artifact.
-            //
-            // ERF approach (more correct):
-            //   VPERT = max(HGAMT + EP1*θ*HGAMQ, 0)
-            // This preserves the combined heating effect while preventing negative
-            // VPERT in stable conditions (via MAX with zero).
-            const Real VPERT = amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero);
+            // Updated ERF approach (matching WRF):
+            //   VPERT = max(min(HGAMT + EP1*θ*HGAMQ, GAMCRT), 0)
+            // This bounds VPERT to [0, GAMCRT] range for physical consistency with WRF.
+            const Real VPERT = amrex::max(
+                amrex::min(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, GAMCRT),
+                zero
+            );
             
             // Effective surface virtual potential temperature used in PBL height finding
             // (WRF: THERMAL = theta_v_surface + VPERT)
@@ -549,20 +547,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Stability function phiM for momentum
                 // Unstable (L < 0): phiM = (1 - 8*sf*h/L)^(-1/3)
                 // Stable (L > 0):   phiM = 1 + 5*sf*h/L
+                // CRITICAL: Bound HOL to prevent numerical issues
+                const Real HOL = sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0);
+                const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0)); // Limit to [-10, +10]
+                
                 const Real phiM = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+                                ? (1 + 5 * HOL_bounded)
                                 : std::pow(
-                                           (1 - 8 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           amrex::max(1 - 8 * HOL_bounded, Real(0.01)),
                                            -one / three);
                 
                 // Stability function phit for heat/temperature
                 // Unstable (L < 0): phit = (1 - 16*sf*h/L)^(-1/2)
                 // Stable (L > 0):   phit = 1 + 5*sf*h/L  (same as phiM for stability)
                 // Reference: Hong & Pan (1996), Table 1
+                // CRITICAL: Ensure base of pow() is positive and in reasonable range
                 const Real phit = (l_obuk_arr(i, j, 0) > 0)
-                                ? (1 + 5 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0))
+                                ? (1 + 5 * HOL_bounded)
                                 : std::pow(
-                                           (1 - 16 * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
+                                           amrex::max(1 - 16 * HOL_bounded, Real(0.01)),
                                            -one / two);
                 
                 // Cloud-aware adjustment: In cloudy regions, adjust stability damping
@@ -586,11 +589,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     // Clouds warm the boundary layer through latent heat release
                     // Boost factor: up to 5% where cloud water exceeds threshold
                     Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, one);
+                    // CRITICAL: Ensure base of pow() is positive and in reasonable range
                     phiM_cloud = std::pow(
-                        (one - Real(8.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) / cloud_boost,
+                        amrex::max(one - Real(8.0) * HOL_bounded / cloud_boost, Real(0.01)),
                         -one / three);
                     phit_cloud = std::pow(
-                        (one - Real(16.0) * sf * pblh_corr_arr(i, j, 0) / l_obuk_arr(i, j, 0)) / cloud_boost,
+                        amrex::max(one - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)),
                         -one / two);
                 }
                 
@@ -622,7 +626,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // - κ ≈ 0.4 (von Karman constant, same in both models)
                 Real Prt_base = phit_eff / phiM_eff;
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
-                const Real wstar = u_star_arr(i, j, 0) / phiM_eff;
+                // CRITICAL: Bound phiM_eff to prevent division by zero/huge wstar
+                const Real phiM_safe = amrex::max(phiM_eff, Real(0.01));
+                const Real wstar = u_star_arr(i, j, 0) / phiM_safe;
                 
                 // Diffusion coefficient for momentum
                 // K = rho * wstar * kappa * z * (1 - z/h)^2
@@ -714,13 +720,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 //   For Ri_g < 0 (unstable):
                 //     f_m = 1 - 8*Ri_g / (1 + 1.746*sqrt(-Ri_g))  (Eqn. A20d)
                 //     f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))  (Eqn. A20c)
+                // CRITICAL: Protect against numerical errors causing negative grad_Ri
+                const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0)); // Bound negative values
                 Real Pr = one + Real(2.1) * grad_Ri;  // Eqn. A19
-                const Real fm = (grad_Ri > 0)
-                              ? one / ((one + Real(5.0) * grad_Ri) * (one + Real(5.0) * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + Real(1.746) * std::sqrt(-grad_Ri)); // Eqn. A20b/d
-                const Real ft = (grad_Ri > 0)
-                              ? one / ((one + Real(5.0) * grad_Ri) * (one + Real(5.0) * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + Real(1.286) * std::sqrt(-grad_Ri)); // Eqn. A20a/c
+                const Real fm = (grad_Ri_safe > 0)
+                              ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20b/d
+                const Real ft = (grad_Ri_safe > 0)
+                              ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20a/c
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A, bounds
