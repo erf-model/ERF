@@ -50,7 +50,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
     const Geometry& geom = m_gdb->Geom(a_lev);
     const Box& dom = geom.Domain();
     const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
@@ -62,9 +62,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto vterm_type_w = m_term_vel_type_w;
 
     // Terminal velocity calculator (shared across tiles)
-    TerminalVelocity<ParticleReal> term_vel { ctx.rho_water };
+    TerminalVelocity<ParticleReal> term_vel { proc_ctx.rho_water };
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
