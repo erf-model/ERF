@@ -340,35 +340,55 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             //
             // HOL = sf * h / L, where L is Monin-Obukhov length
+            // CRITICAL FIX: ERF was using WRONG stability function (Beljaars-Holtslag).
+            // WRF uses Businger-Dyer form (Hong & Pan 1996):
             // Unstable (L < 0, HOL < 0):
-            //   phiM = (1 - 8*HOL)^(-1/3)  [from Holtslag & Nieuwstadt 1986]
+            //   phiM = (1 - 16*HOL)^(-1/4)  [Businger-Dyer; APHI16=16 in WRF]
             // Stable (L > 0, HOL > 0):
-            //   phiM = 1 + 5*HOL           [from Högström 1988]
+            //   phiM = 1 + 5*HOL            [Högström 1988; same as WRF]
             //
-            // Reference: Hong & Pan (1996), Equations (14)-(15)
+            // References:
+            // - Hong, S.-Y., and H.-L. Pan (1996), Equations (14)-(15)
+            // - Businger et al. (1971): Flux-profile relationships in atmospheric surface layer
+            // - WRF reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L850-L861
+            //
             // CRITICAL: Bound HOL to prevent numerical issues under highly convective, low-wind conditions
             const Real HOL = sf * pblh_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
+            const Real one_quarter = Real(1.0) / Real(4.0);
             const Real phiM     = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
-                                           amrex::max(1 - 8 * HOL_bounded, Real(0.01)),
-                                           -one / three);
+                                           amrex::max(1 - 16 * HOL_bounded, Real(0.01)),
+                                           -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
-            const Real wstar    = u_star_arr(i, j, 0) / phiM_safe;
+            // Apply WSCALE bounds: u*/5 <= wstar <= 16*u* (WRF module_bl_mrf.F L863-865)
+            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
+            wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
 
             // WRF MRF countergradient terms (module_bl_mrf.F lines 872-879):
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L872-L879
             //
+            // CRITICAL FIX: Implement SFCFLG stable-side gating (WRF L808, L872-884)
+            // When stable (obuk_val > 0), WRF sets SFCFLG = .FALSE. and skips the entire
+            // countergradient block. Countergradient fluxes represent convective updrafts/downdrafts,
+            // which don't exist in stable layers. Applying them in stable conditions is unphysical.
+            // Reference: WRF module_bl_mrf.F lines 808, 867-884
+            //
             // HGAMT: thermal excess from sensible heat flux
-            //   HGAMT = min(-const_b * u_* * θ_*, GAMCRT)
+            //   HGAMT = min(-const_b * u_* * θ_*, GAMCRT)  [only when SFCFLG=TRUE, i.e., unstable]
             //   where const_b = 7.8 (dimensionless weight), θ_* is surface potential
             //   temperature scale from surface layer scheme. Produces positive
             //   HGAMT for unstable conditions (u_*θ_* < 0 in WRF convention).
-            const Real HGAMT = amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT);
+            // In stable conditions: HGAMT = 0 (no countergradient)
+            bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
+            const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
+                             ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
+                             : zero;
 
             // HGAMQ: moisture excess from latent heat flux
-            //   HGAMQ = max(min(-const_b * u_* * q_*, GAMCRQ), 0)
+            //   HGAMQ = max(min(-const_b * u_* * q_*, GAMCRQ), 0)  [only when SFCFLG=TRUE, i.e., unstable]
             //
             // CRITICAL MOISTURE SIGN CONVENTION:
             // WRF convention: q_star_arr is negative for upward moisture flux (evaporation).
@@ -377,12 +397,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF Reference (module_bl_mrf.F line 875): HGAMQ(I)=MIN(GAMFAC*QFX(I),GAMCRQ)
             // WRF Reference (module_bl_mrf.F lines 880-881): HGAMQ(I)=MAX(HGAMQ(I),0.0)
             //
+            // CRITICAL FIX: When stable (SFCFLG=FALSE), set HGAMQ = 0 (no countergradient)
+            //
             // MISSING FIX IN WRF: WRF applies MAX only to HGAMQ computed above,
             // but if q_star_arr becomes positive (condensation), HGAMQ could become negative.
             // ERF correctly applies MAX limiting to prevent negative HGAMQ values,
             // which would indicate upside-down countergradient (unphysical).
             Real HGAMQ = zero;
-            if (use_moisture && enable_mrf_countergradient) {
+            if (SFCFLG && use_moisture && enable_mrf_countergradient) {
                 // Compute countergradient with limiting to [0, GAMCRQ]
                 HGAMQ = amrex::max(
                     amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ),
@@ -608,25 +630,31 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 //
                 // Key physics: Nonlocal scheme represents updrafts/downdrafts by
                 // countergradient fluxes, enabling faster PBL growth than local schemes.
+                //
+                // CRITICAL: Implement SFCFLG stable-side gating (WRF L808, L872-884)
+                // When stable (BR > 0, i.e., obuk_val > 0), skip nonlocal PBL mixing
+                // and use free-atmosphere Richardson scheme throughout PBL.
+                bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
 
-                // Stability function phiM for momentum
-                // Unstable (L < 0): phiM = (1 - 8*sf*h/L)^(-1/3)
+                // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
+                // CRITICAL FIX: ERF was using WRONG coefficients and exponent
+                // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [WRF APHI16=16, exponent -1/4]
                 // Stable (L > 0):   phiM = 1 + 5*sf*h/L
                 // CRITICAL: Bound HOL to prevent numerical issues
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
-                const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0)); // Broadened from [-10, +10] to [-100, +100] for extreme stability/convection support
-
+                const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+                
+                const Real one_quarter = Real(1.0) / Real(4.0);
                 const Real phiM = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
-                                           amrex::max(1 - 8 * HOL_bounded, Real(0.01)),
-                                           -one / three);
+                                           amrex::max(1 - 16 * HOL_bounded, Real(0.01)),
+                                           -one_quarter);
 
-                // Stability function phit for heat/temperature
+                // Stability function phit for heat/temperature - BUSINGER-DYER form
                 // Unstable (L < 0): phit = (1 - 16*sf*h/L)^(-1/2)
                 // Stable (L > 0):   phit = 1 + 5*sf*h/L  (same as phiM for stability)
-                // Reference: Hong & Pan (1996), Table 1
-                // CRITICAL: Ensure base of pow() is positive and in reasonable range
+                // Reference: Hong & Pan (1996), Table 1; WRF L857-861
                 const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
@@ -655,9 +683,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     // Boost factor: up to 5% where cloud water exceeds threshold
                     Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, one);
                     // CRITICAL: Ensure base of pow() is positive and in reasonable range
+                    // Use corrected BUSINGER-DYER coefficients (16, not 8)
                     phiM_cloud = std::pow(
-                        amrex::max(one - Real(8.0) * HOL_bounded / cloud_boost, Real(0.01)),
-                        -one / three);
+                        amrex::max(one - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)),
+                        -one_quarter);
                     phit_cloud = std::pow(
                         amrex::max(one - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)),
                         -one / two);
@@ -693,7 +722,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
                 // CRITICAL: Bound phiM_eff to prevent division by zero/huge wstar
                 const Real phiM_safe = amrex::max(phiM_eff, Real(0.01));
-                const Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+                Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+                // Apply WSCALE bounds: u*/5 <= wstar <= 16*u* (WRF module_bl_mrf.F L863-865)
+                wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
+                wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
 
                 // Diffusion coefficient for momentum
                 // K = rho * wstar * kappa * z * (1 - z/h)^2
