@@ -8,6 +8,7 @@
 
 #include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
+#include "ERF_NCPlotFile.H"
 #include "ERF_NCInterface.H"
 
 using namespace amrex;

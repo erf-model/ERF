@@ -350,6 +350,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DCatalog.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
@@ -425,9 +428,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
+       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics_WRF.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
+       ${SRC_DIR}/Utils/ERF_Rebalance.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp

@@ -7,15 +7,49 @@ Hindcasting using weather data
 Introduction
 -------------
 
-ERF supports hindcasting simulations using weather data from ERA5 and GFS. There are automated Python tools
-that download and process the weather data, and writes out visualizable output as well as the
-initial and boundary condition files for running ERF simulations in a seamless manner.  Currently there are
-examples for performing hurricane hindcasting using weather data.
+ERF supports hindcasting simulations using weather data from
 
-Hurricane simulations
-----------------------
+#. WRF files (``wrfinput``, ``wrfbdy``, ``wrflow``),
+#. ERA5 weather data, and
+#. GFS weather data.
 
-This folder contains examples for hurricane simulations from real weather data.
+The WRF files have to be generated using the WRF pre-processing system (WPS). For ERA5 and GFS weather data, there are automated Python tools as described in the section below that download and process the weather data, and writes out visualizable output as well as the initial and boundary condition files for running ERF simulations in a seamless manner. Currently there are examples for performing hurricane hindcasting using weather data.
+
+Hindcasting using weather data from WRF files
+---------------------------------------------------------
+The options to be used to enable using WRF files and using them for time-dependent boundary conditions for hindcasting are
+::
+
+  erf.use_real_bcs = true
+  erf.real_width     = 4
+  erf.real_set_width = 1
+  erf.init_type      = "WRFInput"
+  erf.nc_init_file_0 = "wrfinput_d01"
+  erf.nc_bdy_file    = "wrfbdy_d01"
+  erf.nc_low_file = "wrflowinp_d01"
+  erf.rebalance_wrfinput = true
+
+For hurricane simulations, the variable Coriolis force terms have to be activated using
+::
+
+    erf.use_coriolis = true
+    erf.coriolis_3d  = true
+    erf.variable_coriolis = true
+    erf.has_lat_lon = true
+
+For hurricane simulations, to enable tracking the hurricane -- to get the data for plotting the hurricane tracks, use the following options.
+::
+
+  erf.io_hurricane_eye_tracker = true
+  erf.hurricane_eye_latitude = 25.0; # deg N
+  erf.hurricane_eye_longitude = -83.3; # deg W
+
+The user must provide the approximate initial location of the hurricane in latitude and longitude format using the options ``erf.hurricane_eye_latitude`` and ``erf.hurricane_eye_longitude``. The output of tracks will be written in a folder ``Output_StormTracker/latlon`` at the same frequency
+as the plot output (``erf.plot_int``).
+
+Hindcasting using weather data from ERA5/GFS
+----------------------------------------------------------
+This section contains the details for hindcasting simulations from real weather data using ERA5 or GFS.
 
 1. Follow the steps in the ``erftools`` directory to generate the initial condition and boundary
    condition files.
@@ -41,10 +75,7 @@ This folder contains examples for hurricane simulations from real weather data.
 
 5. Run ERF.
 
-Inputs for hindcast simulations
--------------------------------
-
-The following are the inputs required for hindcast simulations.
+The following are the inputs required for hindcast simulations with ERA5/GFS.
 
 .. code-block:: cpp
 
@@ -84,6 +115,9 @@ The following are the inputs required for hindcast simulations.
     erf.hindcast_zhi_sponge_strength = 0.3
     // Sponge length of 5 km
     erf.hindcast_zhi_sponge_length = 5000.0
+
+For hurricane simulations, the variable coriolis force terms have to be enabled using
+::
 
     // Coriolis force
     erf.use_coriolis = true

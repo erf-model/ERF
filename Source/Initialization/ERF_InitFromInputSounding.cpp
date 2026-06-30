@@ -11,37 +11,37 @@
 using namespace amrex;
 
 void
-init_bx_scalars_from_input_sounding (const Box &bx,
+init_state_from_input_sounding (const Box &bx,
                                      Array4<Real> const &state,
                                      GeometryData const &geomdata,
                                      Array4<const Real> const &z_cc_arr,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData);
 void
-init_bx_scalars_from_input_sounding_hse (const Box &bx,
-                                         Array4<Real> const &state,
-                                         Array4<Real> const &r_hse_arr,
-                                         Array4<Real> const &p_hse_arr,
-                                         Array4<Real> const &pi_hse_arr,
-                                         Array4<Real> const &th_hse_arr,
-                                         Array4<Real> const &qv_hse_arr,
-                                         GeometryData const &geomdata,
-                                         Array4<const Real> const &z_cc_arr,
-                                         const Real& l_gravity,
-                                         const Real& l_rdOcp,
-                                         const bool& l_moist,
-                                         InputSoundingData const &inputSoundingData,
-                                         const bool& l_isentropic,
-                                         const int& ngz);
+init_state_from_input_sounding_hse (const Box &bx,
+                                    Array4<Real> const &state,
+                                    Array4<Real> const &r_hse_arr,
+                                    Array4<Real> const &p_hse_arr,
+                                    Array4<Real> const &pi_hse_arr,
+                                    Array4<Real> const &th_hse_arr,
+                                    Array4<Real> const &qv_hse_arr,
+                                    GeometryData const &geomdata,
+                                    Array4<const Real> const &z_cc_arr,
+                                    const Real& l_gravity,
+                                    const Real& l_rdOcp,
+                                    const bool& l_moist,
+                                    InputSoundingData const &inputSoundingData,
+                                    const bool& l_isentropic,
+                                    const int& ngz);
 
 void
-init_bx_velocities_from_input_sounding (const Box &bx,
-                                        Array4<Real> const &x_vel,
-                                        Array4<Real> const &y_vel,
-                                        Array4<Real> const &z_vel,
-                                        GeometryData const &geomdata,
-                                        Array4<const Real> const &z_nd_arr,
-                                        InputSoundingData const &inputSoundingData);
+init_velocities_from_input_sounding (const Box &bx,
+                                     Array4<Real> const &x_vel,
+                                     Array4<Real> const &y_vel,
+                                     Array4<Real> const &z_vel,
+                                     GeometryData const &geomdata,
+                                     Array4<const Real> const &z_nd_arr,
+                                     InputSoundingData const &inputSoundingData);
 
 /**
  * High level wrapper for initializing scalar and velocity
@@ -104,11 +104,11 @@ ERF::init_from_input_sounding (int lev)
 
     auto& lev_new = vars_new[lev];
 
-    // updated if sounding is ideal (following WRF) or isentropic
     const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
                                solverChoice.sounding_type == SoundingType::DryIsentropic);
-    const bool sounding_ideal_or_isentropic = (solverChoice.sounding_type == SoundingType::Ideal ||
-                                               l_isentropic);
+
+    const bool constant_density_sounding = (solverChoice.sounding_type == SoundingType::ConstantDensity);
+
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
@@ -127,9 +127,6 @@ ERF::init_from_input_sounding (int lev)
     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box &bx = mfi.tilebox();
         const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-        const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
-        const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
-        const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
         Array4<Real>  r_hse_arr =  r_hse.array(mfi);
         Array4<Real>  p_hse_arr =  p_hse.array(mfi);
         Array4<Real> pi_hse_arr = pi_hse.array(mfi);
@@ -137,35 +134,76 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real> qv_hse_arr = qv_hse.array(mfi);
 
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
-        if (sounding_ideal_or_isentropic)
+        if (constant_density_sounding) {
+            // This assumes rho_0 = one
+            // HSE will be calculated later with call to initHSE
+            init_state_from_input_sounding(bx, cons_arr, geom[lev].data(), z_cc_arr,
+                                           l_moist, input_sounding_data);
+        }
+        else
         {
             // HSE will be initialized here, interpolated from values previously
             // calculated by calc_rho_p or calc_rho_p_isentropic
-            init_bx_scalars_from_input_sounding_hse(
-                bx, cons_arr,
+            init_state_from_input_sounding_hse(bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
                 geom[lev].data(), z_cc_arr,
                 l_gravity, l_rdOcp, l_moist, input_sounding_data,
                 l_isentropic, ngz);
         }
-        else
-        {
-            // This assumes rho_0 = one
-            // HSE will be calculated later with call to initHSE
-            init_bx_scalars_from_input_sounding(
-                bx, cons_arr,
-                geom[lev].data(), z_cc_arr,
-                l_moist, input_sounding_data);
+    }
+
+    if (!constant_density_sounding) {
+        // Enforce HSE on the base state -- holding th_hse and qv_hse constant
+        bool use_existing_sfc_density = true;
+        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev], use_existing_sfc_density);
+
+        // Update rho in the state from base state
+        MultiFab::Copy(lev_new[Vars::cons], r_hse, 0, Rho_comp, 1, 1);
+
+        // Update (rho theta) in the state from base state
+        MultiFab::Copy(lev_new[Vars::cons], th_hse, 0, RhoTheta_comp, 1, 1);
+        MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoTheta_comp, 1, 1);
+
+        if (l_moist) {
+            // Update (rho qv) in the state from base state
+            MultiFab::Copy(lev_new[Vars::cons], qv_hse, 0, RhoQ1_comp, 1, 1);
+            MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoQ1_comp, 1, 1);
         }
+    }
 
-        init_bx_velocities_from_input_sounding(
-            bx, xvel_arr, yvel_arr, zvel_arr,
-            geom[lev].data(), z_nd_arr,
-            input_sounding_data);
+    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box &bx = mfi.tilebox();
+        const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
+        const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
+        const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+        const auto& z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
+        init_velocities_from_input_sounding(bx, xvel_arr, yvel_arr, zvel_arr,
+                                            geom[lev].data(), z_nd_arr, input_sounding_data);
+    }
 
-    } //mfi
+    // *****************************************************************************
+    // Re-compute p_hse and pi_hse
+    // *****************************************************************************
+    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+
+        const Array4<const Real>&  r_hse_arr =  r_hse.const_array(mfi);
+        const Array4<const Real>& th_hse_arr = th_hse.const_array(mfi);
+        const Array4<const Real>& qv_hse_arr = qv_hse.const_array(mfi);
+
+        const Array4<      Real>&  p_hse_arr =  p_hse.array(mfi);
+        const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rhotheta = r_hse_arr(i,j,k) * th_hse_arr(i,j,k);
+             p_hse_arr(i,j,k) = getPgivenRTh(rhotheta,qv_hse_arr(i,j,k));
+            pi_hse_arr(i,j,k) = getExnergivenRTh(rhotheta, l_rdOcp, qv_hse_arr(i,j,k));
+        });
+    }
 }
 
 /**
@@ -178,12 +216,12 @@ ERF::init_from_input_sounding (int lev)
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding (const Box &bx,
-                                     Array4<Real> const &state,
-                                     GeometryData const &geomdata,
-                                     Array4<const Real> const &z_cc_arr,
-                                     const bool& l_moist,
-                                     InputSoundingData const &inputSoundingData)
+init_state_from_input_sounding (const Box &bx,
+                                Array4<Real> const &state,
+                                GeometryData const &geomdata,
+                                Array4<const Real> const &z_cc_arr,
+                                const bool& l_moist,
+                                InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
@@ -201,8 +239,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                  : z_lo + (k + myhalf) * dz;
+        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : z_lo + (k + myhalf) * dz;
 
         Real rho_0 = one;
 
@@ -211,11 +248,6 @@ init_bx_scalars_from_input_sounding (const Box &bx,
 
         // Initial Rho0*Theta0
         state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
-
-        // Initialize all scalars to zero
-        for (int n = 0; n < NSCALARS; n++) {
-            state(i, j, k, RhoScalar_comp+n) = 0;
-        }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
         if (l_moist) {
@@ -240,21 +272,21 @@ init_bx_scalars_from_input_sounding (const Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding_hse (const Box &bx,
-                                         Array4<Real> const &state,
-                                         Array4<Real> const &r_hse_arr,
-                                         Array4<Real> const &p_hse_arr,
-                                         Array4<Real> const &pi_hse_arr,
-                                         Array4<Real> const &th_hse_arr,
-                                         Array4<Real> const &qv_hse_arr,
-                                         GeometryData const &geomdata,
-                                         Array4<const Real> const &z_cc_arr,
-                                         const Real& /*l_gravity*/,
-                                         const Real& l_rdOcp,
-                                         const bool& l_moist,
-                                         InputSoundingData const &inputSoundingData,
-                                         const bool& l_isentropic,
-                                         const int& ngz)
+init_state_from_input_sounding_hse (const Box &bx,
+                                    Array4<Real> const &state,
+                                    Array4<Real> const &r_hse_arr,
+                                    Array4<Real> const &p_hse_arr,
+                                    Array4<Real> const &pi_hse_arr,
+                                    Array4<Real> const &th_hse_arr,
+                                    Array4<Real> const &qv_hse_arr,
+                                    GeometryData const &geomdata,
+                                    Array4<const Real> const &z_cc_arr,
+                                    const Real& /*l_gravity*/,
+                                    const Real& l_rdOcp,
+                                    const bool& l_moist,
+                                    InputSoundingData const &inputSoundingData,
+                                    const bool& l_isentropic,
+                                    const int& ngz)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
@@ -303,12 +335,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         // Initial Rho0*Theta0
         state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
-        // Initialize all scalars to zero
-        for (int n = 0; n < NSCALARS; n++) {
-            state(i, j, k, RhoScalar_comp+n) = 0;
-        }
-
-        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
+        // Total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
         Real qv_k = zero;
         if (l_moist) {
@@ -375,13 +402,13 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_velocities_from_input_sounding (const Box &bx,
-                                        Array4<Real> const &x_vel,
-                                        Array4<Real> const &y_vel,
-                                        Array4<Real> const &z_vel,
-                                        GeometryData const &geomdata,
-                                        Array4<const Real> const &z_nd_arr,
-                                        InputSoundingData const &inputSoundingData)
+init_velocities_from_input_sounding (const Box &bx,
+                                     Array4<Real> const &x_vel,
+                                     Array4<Real> const &y_vel,
+                                     Array4<Real> const &z_vel,
+                                     GeometryData const &geomdata,
+                                     Array4<const Real> const &z_nd_arr,
+                                     InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d[0].dataPtr();
