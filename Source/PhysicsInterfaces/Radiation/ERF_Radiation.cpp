@@ -286,8 +286,10 @@ Radiation::alloc_buffers ()
     iwp           = real2d_k("iwp"          , m_ncol, m_nlay);
     sw_heating    = real2d_k("sw_heating"   , m_ncol, m_nlay);
     lw_heating    = real2d_k("lw_heating"   , m_ncol, m_nlay);
-    sw_clrsky_heating = real2d_k("sw_clrsky_heating", m_ncol, m_nlay);
-    lw_clrsky_heating = real2d_k("lw_clrsky_heating", m_ncol, m_nlay);
+    if (datalog_int > 0) {
+        sw_clrsky_heating = real2d_k("sw_clrsky_heating", m_ncol, m_nlay);
+        lw_clrsky_heating = real2d_k("lw_clrsky_heating", m_ncol, m_nlay);
+    }
 
     // 2d size (ncol, nlay+1)
     d_tint                   = real2d_k("d_tint"               , m_ncol, m_nlay+1);
@@ -302,11 +304,19 @@ Radiation::alloc_buffers ()
     lw_flux_dn               = real2d_k("lw_flux_dn"           , m_ncol, m_nlay+1);
 
     // Clear-sky flux arrays are always needed
-    sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol, m_nlay+1);
-    lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol, m_nlay+1);
-    lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
+    if (datalog_int > 0) {
+        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol, m_nlay+1);
+        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
+        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol, m_nlay+1);
+        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol, m_nlay+1);
+        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
+    } else {
+        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
+        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
+        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol_chunk, m_nlay+1);
+        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
+        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
+    }
 
     // Clean-clear-sky diagnostic fluxes (only when enabled)
     if (m_extra_clnclrsky_diag) {
@@ -832,7 +842,7 @@ void Radiation::populateDatalogMF ()
 
     Table1D<Real>              mu0_tab(mu0.data(),              {0}, {static_cast<int>(mu0.extent(0))});
 
-    auto extra_clnsky_diag = m_extra_clnsky_diag;
+    auto extra_clnsky_diag    = m_extra_clnsky_diag;
     auto extra_clnclrsky_diag = m_extra_clnclrsky_diag;
 
     for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
@@ -1228,11 +1238,22 @@ Radiation::run_impl ()
         real2d_k lw_flux_up_c              (lw_flux_up.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
         real2d_k lw_flux_dn_c              (lw_flux_dn.data()            + col_s*stride2_nlayp1, ncol_c, nlay+1);
         // Clear-sky flux subviews (always active)
-        real2d_k sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data() + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
-        real2d_k lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        // NOTE: once on m_ncol_chunk if not writing a datalog
+        real2d_k lw_clrsky_flux_up_c, lw_clrsky_flux_dn_c;
+        real2d_k sw_clrsky_flux_up_c, sw_clrsky_flux_dn_c, sw_clrsky_flux_dn_dir_c;
+        if (datalog_int > 0) {
+            sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+            sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+            sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data() + col_s*stride2_nlayp1, ncol_c, nlay+1);
+            lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+            lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()     + col_s*stride2_nlayp1, ncol_c, nlay+1);
+        } else {
+            sw_clrsky_flux_up_c       (sw_clrsky_flux_up.data()     , ncol_c, nlay+1);
+            sw_clrsky_flux_dn_c       (sw_clrsky_flux_dn.data()     , ncol_c, nlay+1);
+            sw_clrsky_flux_dn_dir_c   (sw_clrsky_flux_dn_dir.data() , ncol_c, nlay+1);
+            lw_clrsky_flux_up_c       (lw_clrsky_flux_up.data()     , ncol_c, nlay+1);
+            lw_clrsky_flux_dn_c       (lw_clrsky_flux_dn.data()     , ncol_c, nlay+1);
+        }
 
         // Diagnostic flux subviews (placeholder when disabled)
         real2d_k sw_clnclrsky_flux_up_c, sw_clnclrsky_flux_dn_c, sw_clnclrsky_flux_dn_dir_c;
