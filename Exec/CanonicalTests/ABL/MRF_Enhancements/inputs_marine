@@ -1,0 +1,102 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Marine Boundary Layer (MBL) / RICO or DYCOMS-II Test Case
+#
+# A test representing marine conditions characterized by weak sensible heat flux
+# but high latent heat flux (evaporation) over a water surface.
+#
+# Why it is needed:
+# This directly exercises the land/water mask discrimination switch (lmask_arr).
+# Over water, the moisture countergradient term HGAMQ is forced to zero, but moisture
+# effects on buoyancy (theta_v) remain active. This validates the physical correctness
+# of suppressing the nonlocal moisture flux over water bodies while retaining virtual
+# temperature buoyancy corrections.
+#
+# This test validates MRF's land/water surface physics discrimination.
+
+erf.prob_name = "ABL"
+
+max_step = 20
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  1024     1024    1024
+amr.n_cell           =    64       64      64
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY WITH WATER SURFACE DISCRIMINATION
+zlo.type = "surface_layer"
+erf.most.z0   = 0.0001     # smooth sea surface roughness
+erf.most.zref = 10.0
+erf.most.surf_temp = 298.0 # warm sea surface temperature
+erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
+
+# To force sea classification, we can utilize roughness types or landmask configurations
+# consistent with ocean/water body parameterizations.
+# In the test, HGAMQ is zeroed over water surfaces if lmask_arr is 0 (water).
+erf.most.roughness_type_sea = charnock
+
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.1
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0
+
+# CHECKPOINT FILES
+erf.check_file      = chk_marine
+erf.check_int       = 100
+
+# PLOTFILES
+erf.plot_file_1     = plt_marine
+erf.plot_int_1      = 10
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 1.0
+erf.Ce        = 0.1
+erf.theta_ref = 298.0
+
+erf.init_type = Uniform
+
+# MOISTURE CONFIGURATION
+prob.rho_0 = 1.2
+prob.A_0 = 1.0
+
+prob.U_0 = 6.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
+prob.T_0 = 298.0
+
+# Active moisture with high humidity
+erf.active_moisture_vars = qv qc qi
+prob.Rho_0_qv = 0.014   # high water vapor mixing ratio (marine air)
+prob.Rho_0_qc = 0.0
+prob.Rho_0_qi = 0.0
+
+# PBL CONFIGURATION - MRF PBL with water/land-aware moisture diffusivity
+erf.pbl_type    = "mrf"
+pbl.pbl_mrf_Ribcr = 0.5
+pbl.pbl_mrf_const_b = 7.8
+pbl.pbl_mrf_sf = 0.1
+pbl.enable_mrf_countergradient = true
+pbl.mrf_moistvars = true
+
+# Weak perturbations
+prob.U_0_Pert_Mag = 0.1
+prob.V_0_Pert_Mag = 0.1
+prob.W_0_Pert_Mag = 0.02

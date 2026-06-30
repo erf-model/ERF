@@ -131,6 +131,64 @@ pbl.enable_mrf_countergradient = true   # HGAMT/HGAMQ for PBL height finding
 pbl.mrf_moistvars               = true   # moisture diffusivity (Prq ~ Prt)
 ```
 
+---
+
+### 7. Diurnal Cycle Transition (`inputs_diurnal`)
+Simulates a dynamic 24-to-48-hour diurnal cycle driven by time-varying surface conditions. This test validates the smooth transition of the Monin-Obukhov length $L$ and the corresponding activation/deactivation of countergradient fluxes ($\text{HGAMT}/\text{HGAMQ}$) without causing spurious numerical oscillations.
+
+```bash
+./erf inputs_diurnal
+```
+
+---
+
+### 8. Marine Boundary Layer (`inputs_marine`)
+Represents marine environments characterized by high latent heat flux (evaporation) but weak sensible heat flux. It specifically validates the land/water mask discrimination safeguard which zeroes out the moisture countergradient term $HGAMQ$ over water bodies while keeping moisture buoyancy corrections active.
+
+```bash
+./erf inputs_marine
+```
+
+---
+
+### 9. Complex Terrain (`inputs_terrain_mrf`)
+A simulation over a simple 2D bell-shaped (Witch of Agnesi) hill utilizing terrain-fitted coordinates (`StaticFittedMesh`). It ensures that vertical coordinate metrics and cell-centered operations function stably under grid distortion without introducing unphysical localized shear or artificial mixing coefficients.
+
+```bash
+./erf inputs_terrain_mrf
+```
+
+---
+
+### 10. Strong Wind / High Shear (`inputs_high_shear`)
+A shear-dominated neutral boundary layer representing extreme storm conditions (geostrophic wind of 35 m/s). It evaluates the performance and safety bounds of the stability-corrected Prandtl number ($0.5 \le Pr_t \le 4.0$) and division-by-zero guards under massive wind shear.
+
+```bash
+./erf inputs_high_shear
+```
+
+---
+
+### 11. Arctic Polar Stable (`inputs_arctic`)
+An extremely stable boundary layer under intense polar radiative cooling (-1 K/h). This test evaluates the Richardson-number-dependent stable free-atmosphere mixing routines and the minimum conservative diffusivity limit ($K_{min} = 0.1\text{ m}^2/\text{s}$) under conditions of completely collapsed boundary layer turbulence.
+
+```bash
+./erf inputs_arctic
+```
+
+## Model Safeguards and Hardening
+
+The ERF MRF implementation includes critical model safeguards to address numerical and physical vulnerabilities beyond standard WRF MRF configurations:
+
+1. **Predictor Monin-Obukhov Length / $HOL$ Bounding Safeguard:**
+   Limits the Monin-Obukhov ratio $HOL = \text{sf} \times h / L$ in the initial predictor calculation of `phiM` to prevent floating-point overflow and Division-by-Zero under highly convective, low-wind conditions when $L \to 0$.
+2. **Absolute Bounds on Diagnosed PBL Height ($h$):**
+   Clamps the diagnosed PBL height to a maximum fraction of the domain height ($0.9 \times z_{max}$) and bounds it from below by the first vertical grid cell center (minimum 10 m). This prevents unphysical runaway PBL heights and division-by-zero in cells close to the surface.
+3. **Saturation-Aware Moisture Countergradient ($HGAMQ$) Limiter:**
+   Smoothly ramps down the nonlocal moisture countergradient contribution to zero as local relative humidity exceeds 95%. This prevents unphysical moisture pumping and runaway grid-point storm instabilities in saturated conditions.
+4. **Upper Bound on Gradient Richardson Number ($Ri_g$) above PBL:**
+   Enforces both upper (100.0) and lower (-100.0) bounds on the diagnosed Richardson number in the free atmosphere to prevent extreme scale heights from inducing numerical shocks in high-stability conditions.
+
 ## Available MRF Parameters
 
 | Parameter | Default | Description |
