@@ -476,7 +476,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF Reference: module_bl_mrf.F lines 857-861
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
-            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
+            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
             const Real phiM     = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
@@ -901,14 +901,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                 const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
-                // Use potential temperature (not virtual) for Richardson number stability calculation
-                // This matches WRF MRF approach for consistency with Hong et al. 2006 (YSU scheme).
-                // Note: Some schemes use θ_v, but YSU uses θ for simplicity and stability.
-                const Real theta = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
-                const Real dtheta_dz = myhalf * ((cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)) -
-                                                  (cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp))) * (one / dz_terrain);
+                // Use virtual potential temperature (θ_v) for Richardson number stability calculation.
+                // This correctly accounts for moisture effects on buoyancy.
+                // WRF Reference: module_bl_mrf.F uses THVX (virtual potential temperature).
+                // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
+                const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
+                const Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+                const Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
 
-                // Gradient Richardson number: Ri_g = (g/θ) * (dθ/dz) / (shear²)
+                // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
                 // Reference: WRF module_bl_mrf.F line ~450-456, Hong et al. 2006, Eqn. A18
                 //
                 // For STABILITY ANALYSIS:
@@ -919,7 +921,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 //
                 // CRITICAL SAFETY BOUND: Bound both from below (-100.0) and above (100.0)
                 // to prevent extreme floating-point scales from causing numerical instability
-                Real grad_Ri = CONST_GRAV / theta * dtheta_dz / wind_shear_safe;
+                Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
                 // YSU stability functions (Hong et al. 2006, MWR, Appendix A)
                 // Reference: https://doi.org/10.1175/MWR3250.1
@@ -968,6 +970,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
                 K_turb(i, j, k, EddyDiff::Theta_v) = zero;
                 K_turb(i, j, k, EddyDiff::Q_v)     = zero;
+            }
 
             // Limit diffusion coefficients to physical bounds
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
