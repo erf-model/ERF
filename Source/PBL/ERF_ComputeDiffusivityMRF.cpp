@@ -72,7 +72,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
     A. Virtual Potential Temperature (θ_v) Treatment
        - Proper handling of moisture effects on buoyancy
-       - Critical for accurate PBL height and convective strength
+       - Important for accurate PBL height and convective strength
        - Not explicitly detailed in Hong & Pan (1996) but standard practice
 
     B. Cloud-Aware Stability Function Adjustments (OPTIONAL)
@@ -97,7 +97,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     D. Improved VPERT (Virtual Potential Temperature Perturbation)
        Formulation
        - VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0)
-       - CRITICAL CORRECTION vs WRF: Does NOT limit VPERT to GAMCRT
+       - Enhancement vs WRF: Does not limit VPERT to GAMCRT
        - WRF limits VPERT after adding moisture term (VPERT = min(VPERT, GAMCRT))
        - This is physically incorrect: moisture contribution can exceed GAMCRT
        - ERF only limits HGAMT (sensible heat), allowing larger VPERT when
@@ -780,7 +780,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Key physics: Nonlocal scheme represents updrafts/downdrafts by
                 // countergradient fluxes, enabling faster PBL growth than local schemes.
                 //
-                // CRITICAL: Implement SFCFLG stable-side gating (WRF L808, L872-884)
+                // Implement SFCFLG stable-side gating (WRF L808, L872-884)
                 // When stable (BR > 0, i.e., obuk_val > 0), skip nonlocal PBL mixing
                 // and use free-atmosphere Richardson scheme throughout PBL.
                 bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
@@ -1010,7 +1010,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Ri_g < 0: unstable (turbulence enhanced)
                 // Ri_g < -100: very strong instability (apply lower bound for safety)
                 //
-                // CRITICAL SAFETY BOUND: Bound both from below (-100.0) and above (100.0)
+                // Bound values from below (-100.0) and above (100.0)
                 // to prevent extreme floating-point scales from causing numerical instability
                 Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
@@ -1027,7 +1027,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 //   For Ri_g < 0 (unstable):
                 //     f_m = 1 - 8*Ri_g / (1 + 1.746*sqrt(-Ri_g))  (Eqn. A20d)
                 //     f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))  (Eqn. A20c)
-                // CRITICAL: Protect against numerical errors causing negative grad_Ri
+                // Protect against numerical errors causing negative grad_Ri
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0)); // Bound negative values
                 Real Pr = one + Real(2.1) * grad_Ri;  // Eqn. A19
                 const Real fm = (grad_Ri_safe > 0)
