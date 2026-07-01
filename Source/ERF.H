@@ -216,6 +216,8 @@ public:
 
     void HurricaneTrackerCircle_WRF ();
 
+    void ReadStormTrackerRestart ();
+
     // Initialize multilevel data
     void InitData ();
 

@@ -9,6 +9,15 @@
 #include "ERF_DataStruct.H"
 #include "ERF.H"
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+
+using namespace amrex;
+
+namespace fs = std::filesystem;
+
 /**
  * Routines to compute hurricane diagnostics
  */
@@ -16,8 +25,6 @@
 #ifndef M_PI
 #define M_PI Real(3.14159265358979323846)
 #endif
-
-using namespace amrex;
 
 struct {
     Real value;
@@ -258,6 +265,106 @@ ERF::HurricaneEyeTrackerNotInitial_WRF (const Geometry& lev_geom,
 }
 
 void
+ERF::ReadStormTrackerRestart ()
+{
+    hurricane_eye_track_xy.clear();
+    hurricane_eye_track_latlon.clear();
+
+    const fs::path base_dir("Output_StormTracker");
+
+    // Nothing to do for a fresh run.
+    if (!fs::exists(base_dir)) {
+        return;
+    }
+    //
+    // Return the alphabetically last file in a directory.
+    // Since the filenames are zero-padded, this is also the newest output.
+    //
+    auto last_file = [](const fs::path& dir) -> fs::path
+    {
+        std::vector<fs::path> files;
+
+        for (const auto& entry : fs::directory_iterator(dir)) {
+            if (entry.is_regular_file()) {
+                files.push_back(entry.path());
+            }
+        }
+
+        if (files.empty()) {
+            return fs::path{};
+        }
+
+        std::sort(files.begin(), files.end());
+
+        return files.back();
+    };
+
+    //==========================================================
+    // Read lat/lon file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "latlon");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real lat, lon;
+
+            while (ifs >> lat >> lon)
+            {
+                hurricane_eye_track_latlon.push_back({lat, lon});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read XY VTK file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "xy");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+            std::string line;
+
+            // Skip the first four header lines.
+            for (int i = 0; i < 4; ++i) {
+                std::getline(ifs, line);
+            }
+
+
+            std::getline(ifs, line);
+            std::istringstream iss(line);
+            std::string keyword, datatype;
+            int npoints;
+
+            iss >> keyword >> npoints >> datatype;
+            hurricane_eye_track_xy.reserve(npoints);
+
+            for (int i = 0; i < npoints; ++i)
+            {
+                amrex::Real x, y, z;
+                ifs >> x >> y >> z;
+                hurricane_eye_track_xy.push_back({x, y});
+            }
+        }
+    }
+}
+
+void
 ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
 {
     static bool is_start = true;
@@ -267,13 +374,16 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
     const Real hurricane_eye_latitude  = sc.hurricane_eye_latitude;
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
 
-    if(is_start){
+    if(is_start and restart_chkfile.empty()){
         HurricaneEyeTrackerInitial_WRF(geom[levc],
                                        vars_new[levc],
                                        hurricane_eye_latitude,
                                        hurricane_eye_longitude);
         is_start = false;
     } else {
+         if(!restart_chkfile.empty()) {
+            ReadStormTrackerRestart();
+        }
         HurricaneEyeTrackerNotInitial_WRF(geom[levc], vars_new[levc],
                                           moisture_type);
     }
