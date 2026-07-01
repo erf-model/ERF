@@ -13,9 +13,9 @@ FillZeroAreaFaceFluxes (MultiFab& phi,
                         Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                         const Geometry& geom,
                         EBFArrayBoxFactory const& ebfact,
-                        eb_aux_ const& ebfact_u,
-                        eb_aux_ const& ebfact_v,
-                        eb_aux_ const& ebfact_w);
+                        auto const& ebfact_u,
+                        auto const& ebfact_v,
+                        auto const& ebfact_w);
 
 /**
  * Solve the Poisson equation using EB_enabled MLMG
@@ -28,9 +28,9 @@ void
 solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
                     Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
                     EBFArrayBoxFactory const& ebfact,
-                    eb_aux_ const& ebfact_u,
-                    eb_aux_ const& ebfact_v,
-                    eb_aux_ const& ebfact_w,
+                    auto const& ebfact_u,
+                    auto const& ebfact_v,
+                    auto const& ebfact_w,
                     const Geometry& geom, const Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol)
@@ -112,3 +112,23 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     fluxes[0][1].mult(-one);
     fluxes[0][2].mult(-one);
 }
+
+// Explicit template instantiations for the types we use
+// When USE_FC_FACTORY=1, all are EBFArrayBoxFactory
+template void solve_with_EB_mlmg(int, Vector<MultiFab>&, Vector<MultiFab>&,
+                                 Vector<Array<MultiFab,AMREX_SPACEDIM>>&,
+                                 EBFArrayBoxFactory const&,
+                                 EBFArrayBoxFactory const&,
+                                 EBFArrayBoxFactory const&,
+                                 EBFArrayBoxFactory const&,
+                                 const Geometry&, const Vector<amrex::IntVect>&,
+                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real);
+// When USE_FC_FACTORY=0, u/v/w are eb_aux_
+template void solve_with_EB_mlmg(int, Vector<MultiFab>&, Vector<MultiFab>&,
+                                 Vector<Array<MultiFab,AMREX_SPACEDIM>>&,
+                                 EBFArrayBoxFactory const&,
+                                 eb_aux_ const&,
+                                 eb_aux_ const&,
+                                 eb_aux_ const&,
+                                 const Geometry&, const Vector<amrex::IntVect>&,
+                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real);

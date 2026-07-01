@@ -89,7 +89,7 @@ redistribute_term ( int ncomp,
                     MultiFab& result,
                     MultiFab& result_tmp,
                     MultiFab const& state,
-                    eb_aux_ const& ebfact,
+                    auto const& ebfact,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
                     Real const local_dt,
                     int const igrid)
@@ -172,3 +172,11 @@ redistribute_term ( int ncomp,
         }
     } // MFIter
 }
+
+// Explicit template instantiations for the types we use
+template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
+                                MultiFab const&, EBFArrayBoxFactory const&,
+                                BCRec const*, Real const, int const);
+template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
+                                MultiFab const&, eb_aux_ const&,
+                                BCRec const*, Real const, int const);
