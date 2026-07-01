@@ -103,17 +103,17 @@ prob.V_0_Pert_Mag = 0.1
 prob.W_0_Pert_Mag = 0.01
 
 # PBL CONFIGURATION - MRF for stable boundary layer
-erf.pbl_type    = "mrf"
-pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
-pbl.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
-pbl.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
 
 # DISABLE COUNTERGRADIENT CORRECTIONS (not applicable for stable conditions)
 # In stable PBL, flux gradients are downgradient (no countergradient term)
-pbl.enable_mrf_countergradient = false
+erf.enable_mrf_countergradient = false
 
 # Disable moisture diffusivity (dry stable case from GABLS1)
-pbl.mrf_moistvars = false
+erf.mrf_moistvars = false
 
 # CORIOLIS EFFECT - High latitude for strong inertial oscillations
 erf.latitude = 73.3  # GABLS1 latitude near Cabauw, Netherlands
