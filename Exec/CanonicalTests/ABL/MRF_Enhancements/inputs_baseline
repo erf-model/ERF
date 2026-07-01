@@ -67,3 +67,9 @@ erf.pbl_mrf_sf = 0.1
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 15.0 0.0 0.0

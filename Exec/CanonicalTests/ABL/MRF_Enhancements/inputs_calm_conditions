@@ -36,7 +36,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Moderate heating with weak wind
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 303.0  # warm surface (tropical conditions)
 erf.most.surf_heating_rate = 5.0  # strong heating but very weak wind
 
@@ -112,3 +112,9 @@ erf.pbl_mrf_highres_bounds = true  # Uses Kmin = ckz*dz instead of 0.1 m²/s
 erf.latitude = 5.0   # tropical latitude for realistic calm conditions
 
 # END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 0.2 0.0 0.0

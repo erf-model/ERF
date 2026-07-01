@@ -29,7 +29,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY WITH WATER SURFACE DISCRIMINATION
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001     # smooth sea surface roughness
-erf.most.zref = 10.0
+erf.most.zref = 48.0
 erf.most.surf_temp = 298.0 # warm sea surface temperature
 erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
 
@@ -92,3 +92,9 @@ erf.enable_mrf_countergradient = true
 erf.mrf_moistvars = true
 
 # Weak perturbations
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 6.0 0.0 0.0

@@ -37,7 +37,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Strong surface cooling
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m] (from Beare et al. 2006)
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 265.0      # surface temperature [K] (very cold)
 erf.most.surf_heating_rate = -0.25  # strong cooling rate [K/h] (from Beare et al. 2006)
 
@@ -103,3 +103,9 @@ erf.mrf_moistvars = false
 
 # CORIOLIS EFFECT - High latitude for strong inertial oscillations
 erf.latitude = 73.3  # GABLS1 latitude near Cabauw, Netherlands
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 8.0 0.0 0.0

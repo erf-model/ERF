@@ -88,3 +88,9 @@ erf.mrf_moistvars = false
 
 # CORIOLIS EFFECT
 erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 15.0 0.0 0.0

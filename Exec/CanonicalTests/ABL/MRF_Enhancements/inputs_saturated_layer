@@ -37,7 +37,7 @@ geometry.is_periodic = 1 1 0
 # High surface moisture flux to create saturated boundary layer
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001  # smooth surface (ocean-like)
-erf.most.zref = 10.0    # reference height [m]
+erf.most.zref = 48.0    # reference height [m]
 erf.most.surf_temp = 299.0  # sea surface temperature [K]
 erf.most.surf_heating_rate = 3.0  # moderate heating [K/h]
 
@@ -122,3 +122,9 @@ prob.Qv_init = 0.008  # water vapor mixing ratio [kg/kg] (~80% RH at sea level)
 prob.Qc_init = 0.0001 # small cloud water to start [kg/kg]
 
 # END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0

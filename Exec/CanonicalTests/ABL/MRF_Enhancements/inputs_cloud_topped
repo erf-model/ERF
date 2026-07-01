@@ -39,7 +39,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Moderate surface heating and moisture supply
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001   # smooth ocean surface [m]
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 299.5   # sea surface temperature [K] (warm ocean)
 erf.most.surf_heating_rate = 8.0  # strong but realistic heating rate [K/h]
 
@@ -129,3 +129,9 @@ erf.latitude = 15.0  # tropical latitude (f = 3.77e-5 s^-1)
 # Cloud fraction and cloud-top height diagnostics
 erf.compute_cloud_diags = true
 erf.cloud_qc_threshold = 0.0001  # cloud threshold for diagnostics
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0  -4.0 0.0
