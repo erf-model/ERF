@@ -22,15 +22,14 @@ erf.prob_name = "ABL"
 
 max_step = 150
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 # Fine resolution needed to resolve convective structures in PBL
-geometry.prob_extent =  2560     2560    2560
-amr.n_cell           =    64       64      64
-
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY - Strong surface heating
@@ -62,6 +61,10 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 erf.check_file      = chk_unstable     # root name of checkpoint file
 erf.check_int       = 150              # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
 
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name

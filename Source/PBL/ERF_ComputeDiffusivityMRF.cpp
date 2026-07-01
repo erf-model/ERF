@@ -233,7 +233,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
             Real zval0, zval, Rib0, Rib;
             int kpbl = klo;
-            
+
             // Initialize at lowest level
             {
                 zval = (use_terrain_fitted_coords)
@@ -290,16 +290,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
 
             // Fallback to first cell
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
-
-            // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
-            const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
-                             : (khi + myhalf) * gdata.CellSize(2);
-            const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
             // Initial PBL Height with linear interpolation (consistent with corrector pass)
             // WRF reference (module_bl_mrf.F lines 838-840):
@@ -487,9 +477,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
@@ -571,7 +558,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
-                
+
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
                 // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
@@ -664,15 +651,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Use same bounds safeguard as corrector
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
-            const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
-                             : (khi + myhalf) * gdata.CellSize(2);
-            const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
-
             if (above_critical_zero) {
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
@@ -781,7 +759,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Bound HOL to [-100, 100] to prevent numerical issues in extreme stability
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
-                
+
                 const Real one_quarter = Real(1.0) / Real(4.0);
                 const Real phiM = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
@@ -858,7 +836,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // - κ ≈ 0.4 (von Karman constant, same in both models)
                 Real Prt_base = phit_eff / phiM_eff;
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
-                
+
                 // Use pre-computed wstar from the dedicated recomputation loop (lines 465-545).
                 // wstar_arr was computed with pblh_corr_arr to ensure consistency
                 // between countergradient diagnostics and K-profile calculations.
@@ -879,7 +857,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real pblh = pblh_corr_arr(i, j, 0);
                     const Real pblh_rel = pblh - z_sfc;
                     const Real zfac = amrex::max(one - zrel / pblh_rel, Real(1.0e-8));
-                    
+
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
                     K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
@@ -933,7 +911,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     // Gradient Richardson number with bounds
                     Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
-                    
+
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
                     Real Pr_rich = one + Real(2.1) * grad_Ri;
                     const Real fm = (grad_Ri_safe > 0)
