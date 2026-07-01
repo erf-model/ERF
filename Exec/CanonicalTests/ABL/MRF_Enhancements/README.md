@@ -7,13 +7,25 @@ atmospheric boundary layer conditions.
 **WRF reference:**
 https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
 
-The implementation uses:
-- **HGAMT / HGAMQ** (WRF lines 872–879) only for PBL height finding — not stored in the
-  diffusion coefficients.
-- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`.
-- No entrainment terms (WRF MRF does not include explicit entrainment fluxes).
+## Implementation Notes
+
+Recent updates to ERF's MRF implementation align key physics with WRF's `module_bl_mrf.F`:
+
+| Feature | Change | Reference |
+|---------|--------|-----------|
+| **Stability function φ_m** | Businger-Dyer: `(1-16·HOL)^(-1/4)` | WRF L857 |
+| **SFCFLG stable-side gating** | Disable countergradient when stable (obuk > 0) | WRF L808, 867-884 |
+| **WSCALE convective velocity** | Bounds: `u*/5 ≤ wstar ≤ 16·u*` | WRF L863-865 |
+| **Terrain-aware coordinates** | Cell-centered heights with `Compute_Zrel_AtCellCenter()` | ✅ Verified |
+| **YSU free-atmosphere mixing** | Richardson-number-dependent above PBL | ✅ Already correct |
+
+The implementation features:
+- **HGAMT / HGAMQ** (WRF lines 872–879): Countergradient corrections for PBL height finding
+- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`
+- **No explicit entrainment** (consistent with WRF MRF formulation)
 
 ## Test Cases
+
 
 ### 1. Neutral Boundary Layer (`inputs_neutral`)
 **Reference:** Sorbjan (1989): Structure of the Atmospheric Boundary Layer.
