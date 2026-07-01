@@ -235,10 +235,33 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real t_surf  = t_surf_arr(i, j, 0);
             const Real t_layer = t10av_arr(i, j, 0);
 
-            Real zval;
+            Real zval0, zval, Rib0, Rib;
             int kpbl = klo;
+            
+            // Initialize at lowest level
+            {
+                zval = (use_terrain_fitted_coords)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     : (kpbl + myhalf) * gdata.CellSize(2);
+                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
+                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+                // with WRF bulk Richardson number definition (WRF module_bl_mrf.F line 824)
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+            }
+
             bool above_critical = false;
             while (!above_critical && ((kpbl + 1) <= khi)) {
+                zval0 = zval;
+                Rib0 = Rib;
                 kpbl += 1;
 
                 // height above ground level
@@ -260,7 +283,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
                 // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
                 // with WRF bulk Richardson number definition (WRF module_bl_mrf.F line 824)
-                const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
@@ -282,10 +305,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real pblh_max = Real(0.9) * z_max;
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
-            // Initial PBL Height
-            // Avoiding detailed interpolation here
-            pblh_arr(i, j, 0) = (above_critical) ? amrex::max(amrex::min(zval, pblh_max), pblh_min) : pblh_min;
-            pbli_arr(i, j, 0) = (above_critical) ? kpbl : klo+1;  // k < kpbl is considered the PBL
+            // Initial PBL Height with linear interpolation (consistent with corrector pass)
+            // WRF reference (module_bl_mrf.F lines 838-840):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
+            if (above_critical) {
+                // Interpolate to height at which Rib == Ribcr
+                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                pblh_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
+                pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
+            } else {
+                pblh_arr(i, j, 0) = pblh_min;
+                pbli_arr(i, j, 0) = klo + 1;
+            }
         });
 
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
@@ -550,10 +581,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
-                const Real VPERT = (enable_mrf_countergradient)
-                                 ? amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero)
-                                 : zero;
-                vpert_arr(i, j, 0) = VPERT;
+                // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
+                // When enable_mrf_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
+                // WRF Reference: module_bl_mrf.F lines 879-880
+                if (enable_mrf_countergradient) {
+                    const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
+                    const Real VPERT_capped = enable_mrf_unbounded_vpert
+                                            ? VPERT_raw
+                                            : amrex::min(VPERT_raw, GAMCRT);
+                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
+                } else {
+                    vpert_arr(i, j, 0) = zero;
+                }
             }
 
         });
@@ -873,10 +912,52 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
                 } else {
-                    // Stable PBL: fall through to Richardson mixing (computed below in free-atmosphere section)
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
-                    K_turb(i, j, k, EddyDiff::Theta_v) = zero;
-                    K_turb(i, j, k, EddyDiff::Q_v)     = zero;
+                    // Stable PBL: use Richardson mixing (same as free atmosphere for stable conditions)
+                    // WRF Reference: module_bl_mrf.F lines 988-1020 (YSU scheme for free atmosphere)
+                    const Real lambda = Real(150.0);
+                    const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
+                    Real dthetadz, dudz, dvdz;
+                    ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
+                                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
+                                                  u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
+                                                  dudz, dvdz, moisture_indices);
+
+                    // Apply boundary safeguards to avoid numerical instability
+                    const Real dudz_safe = (k < izmax) ? dudz : zero;
+                    const Real dvdz_safe = (k < izmax) ? dvdz : zero;
+
+                    const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
+                    const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
+
+                    // Use virtual potential temperature for Richardson number
+                    const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
+                    const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
+                    const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
+                    const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
+
+                    // Gradient Richardson number with bounds
+                    Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
+                    grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
+                    
+                    const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
+                    Real Pr_rich = one + Real(2.1) * grad_Ri;
+                    const Real fm = (grad_Ri_safe > 0)
+                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                    const Real ft = (grad_Ri_safe > 0)
+                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                    const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
+
+                    Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
+
+                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
+                    K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
+                    if (use_moisture && turbChoice.mrf_moistvars) {
+                        K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
+                    } else {
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    }
                 }
             } else if (k >= pbli_extent) {
                 // Free atmosphere above PBL: use local Richardson number-dependent mixing
@@ -916,8 +997,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // WRF Reference: module_bl_mrf.F uses THVX (virtual potential temperature).
                 // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
                 const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
-                const Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
-                const Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+                const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
+                const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
                 const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
 
                 // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
@@ -1048,11 +1129,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
             K_turb(i, j, klo-1, EddyDiff::HGAMT_v) = K_turb(i, j, klo, EddyDiff::HGAMT_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMQ_v) = K_turb(i, j, klo, EddyDiff::HGAMQ_v);
+            K_turb(i, j, klo-1, EddyDiff::Turb_lengthscale) = K_turb(i, j, klo, EddyDiff::Turb_lengthscale);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
             K_turb(i, j, khi+1, EddyDiff::HGAMT_v) = K_turb(i, j, khi, EddyDiff::HGAMT_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMQ_v) = K_turb(i, j, khi, EddyDiff::HGAMQ_v);
+            K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
 }
