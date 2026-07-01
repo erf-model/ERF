@@ -199,6 +199,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
+        FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
         const auto& pblh_arr        = pbl_height_predictor.array();
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pblh_zero_arr   = pbl_height_zero_ri.array();  // Zero-Ri diagnostic PBL height result
@@ -207,6 +208,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamt_arr       = hgamt_fab.array();
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
+        const auto& vpert_arr       = vpert_fab.array();  // Stored VPERT for Pass 3 diagnostic loop
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -499,10 +501,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              : zero;
 
             // Compute HGAMQ with corrected wstar
+            // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
+            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wstar converts
+            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_mrf.F L874-875
             Real HGAMQ = zero;
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
+                const Real q_star = q_star_arr(i, j, 0);
+                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
                 HGAMQ = amrex::max(
-                    amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ),
+                    amrex::min(HGAMQ_calc, GAMCRQ),
                     zero
                 );
 
@@ -530,14 +537,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Store HGAMT/h and HGAMQ/h for implicit solver (normalized by corrected PBL height)
+            // Also compute VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0) for Pass 3 use
+            // WRF Reference: module_bl_mrf.F lines 879-880 (THERMAL update with VPERT)
             if (pbli_arr(i, j, 0) <= klo + 1) {
                 hgamt_arr(i, j, 0) = zero;
                 hgamq_arr(i, j, 0) = zero;
+                vpert_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                
+                // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
+                // This represents the virtual temperature perturbation at surface
+                const Real VPERT = (enable_mrf_countergradient)
+                                 ? amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero)
+                                 : zero;
+                vpert_arr(i, j, 0) = VPERT;
             }
+
         });
 
         //
@@ -568,10 +586,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Reuse t_layer_v (base surface virtual temperature, no countergradient)
+            // Enhanced surface virtual temperature with VPERT contribution
+            // WRF Reference: module_bl_mrf.F lines 930-964 (Pass 3 uses THERMAL which includes VPERT)
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             int kpbl_zero = klo;
             Real zval0_zero, zval_zero, Rib0_zero, Rib_zero;
@@ -586,8 +606,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Third pass uses base surface temperature (no countergradient effects)
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // Pass 3 uses VPERT-enhanced surface virtual temperature for accurate mixed-layer extent
+                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
             bool above_critical_zero = false;
@@ -606,8 +626,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Use criterion: Rib >= 0.0 (any stability is "critical")
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // Use VPERT-enhanced surface temperature for Richardson number criterion
+                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }
 
@@ -805,37 +825,50 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // between countergradient diagnostics and K-profile calculations.
                 const Real wstar = wstar_arr(i, j, 0);
 
-                // Diffusion coefficient for momentum
-                // K = rho * wstar * kappa * z * (1 - z/h)^2
-                // This follows Hong & Pan (1996), Equation (9)
-                // The (1 - z/h)² factor enforces zero diffusion at PBL top and surface,
-                // providing sharp PBL boundary which is characteristic of nonlocal schemes.
-                // WRF adds CKZ*DZA background minimum so K never goes exactly to zero at PBL top
-                // (module_bl_mrf.F line 977-978: XKZO=CKZ*DZA; XKZM=XKZO+WSCALE*...)
-                constexpr Real ckz_pbl = Real(0.001);
-                const Real K_base = ckz_pbl * dz_terrain * rho;
-                K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zval
-                                                 * (one - zval / pblh_corr_arr(i, j, 0))
-                                                 * (one - zval / pblh_corr_arr(i, j, 0));
-                K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
+                // SFCFLG gating: WRF skips nonlocal mixing in stable PBL (SFCFLG=.FALSE., BR>0, obuk_val>0)
+                // In stable conditions, use free-atmosphere Richardson mixing instead.
+                // WRF Reference: module_bl_mrf.F lines 808, 872-884
+                if (SFCFLG) {
+                    // Diffusion coefficient for momentum with terrain height correction
+                    // K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
+                    // where zrel = z - z_sfc, pblh_rel = pblh - z_sfc
+                    // WRF Reference: module_bl_mrf.F L976-978 uses ZQ(I,K) - ZL1(I) for shape function
+                    const Real z_sfc = (use_terrain_fitted_coords)
+                                     ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                     : zero;
+                    const Real zrel = zval - z_sfc;
+                    const Real pblh = pblh_corr_arr(i, j, 0);
+                    const Real pblh_rel = pblh - z_sfc;
+                    const Real zfac = amrex::max(one - zrel / pblh_rel, Real(1.0e-8));
+                    
+                    constexpr Real ckz_pbl = Real(0.001);
+                    const Real K_base = ckz_pbl * dz_terrain * rho;
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
+                    K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
-                // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
-                // for heat and moisture, module_bl_mrf.F lines 968-986).
-                // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
-                //
-                // Physics justification: Heat and moisture both respond to the same
-                // buoyancy-driven turbulent eddies in the mixed layer. The Prandtl
-                // and Schmidt numbers are thus equal in this formulation. Alternative
-                // approaches use Prq ≠ Prt (e.g., Högström 1996) but the MRF scheme
-                // defaults to equality for simplicity and computational efficiency.
-                if (turbChoice.mrf_moistvars) {
-                    Real Prq_base = phit_eff / phiM_eff;
-                    const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA * sf, prmin), prmax);
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                    // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
+                    // for heat and moisture, module_bl_mrf.F lines 968-986).
+                    // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
+                    //
+                    // Physics justification: Heat and moisture both respond to the same
+                    // buoyancy-driven turbulent eddies in the mixed layer. The Prandtl
+                    // and Schmidt numbers are thus equal in this formulation. Alternative
+                    // approaches use Prq ≠ Prt (e.g., Högström 1996) but the MRF scheme
+                    // defaults to equality for simplicity and computational efficiency.
+                    if (turbChoice.mrf_moistvars) {
+                        Real Prq_base = phit_eff / phiM_eff;
+                        const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA * sf, prmin), prmax);
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                    } else {
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    }
                 } else {
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    // Stable PBL: fall through to Richardson mixing (computed below in free-atmosphere section)
+                    K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
+                    K_turb(i, j, k, EddyDiff::Theta_v) = zero;
+                    K_turb(i, j, k, EddyDiff::Q_v)     = zero;
                 }
-            } else {
+            } else if (k >= pbli_zero_arr(i, j, 0)) {
                 // Free atmosphere above PBL: use local Richardson number-dependent mixing
                 // with lengthscale = (kappa * z * lambda) / (kappa * z + lambda)
                 // where lambda = 150 m (characteristic free-atmosphere lengthscale)
@@ -914,7 +947,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A, bounds
 
-                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
+                // K_m = rl2wsp * fm (no Pr multiplier for momentum)
+                // K_θ = rl2wsp * ft (Richardson scheme treats momentum and heat independently)
+                // WRF Reference: module_bl_mrf.F L1016-1017: momentum and heat have separate stability functions
+                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 // WRF MRF: moisture diffusivity matches heat in free atmosphere
                 // Physics: Above PBL, Richardson number mixing applies same Ri_g
@@ -927,7 +963,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
-            }
+            } else {
+                // Levels outside both PBL and free atmosphere: minimal diffusion
+                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
+                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
+                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
 
             // Limit diffusion coefficients to physical bounds
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
