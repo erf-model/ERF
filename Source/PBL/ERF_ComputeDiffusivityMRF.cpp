@@ -199,6 +199,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
+        FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
         const auto& pblh_arr        = pbl_height_predictor.array();
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pblh_zero_arr   = pbl_height_zero_ri.array();  // Zero-Ri diagnostic PBL height result
@@ -207,6 +208,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamt_arr       = hgamt_fab.array();
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
+        const auto& vpert_arr       = vpert_fab.array();  // Stored VPERT for Pass 3 diagnostic loop
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -530,14 +532,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Store HGAMT/h and HGAMQ/h for implicit solver (normalized by corrected PBL height)
+            // Also compute VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0) for Pass 3 use
+            // WRF Reference: module_bl_mrf.F lines 879-880 (THERMAL update with VPERT)
             if (pbli_arr(i, j, 0) <= klo + 1) {
                 hgamt_arr(i, j, 0) = zero;
                 hgamq_arr(i, j, 0) = zero;
+                vpert_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                
+                // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
+                // This represents the virtual temperature perturbation at surface
+                const Real VPERT = (enable_mrf_countergradient)
+                                 ? amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero)
+                                 : zero;
+                vpert_arr(i, j, 0) = VPERT;
             }
+
         });
 
         //
@@ -568,10 +581,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Reuse t_layer_v (base surface virtual temperature, no countergradient)
+            // Enhanced surface virtual temperature with VPERT contribution
+            // WRF Reference: module_bl_mrf.F lines 930-964 (Pass 3 uses THERMAL which includes VPERT)
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             int kpbl_zero = klo;
             Real zval0_zero, zval_zero, Rib0_zero, Rib_zero;
@@ -586,8 +601,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Third pass uses base surface temperature (no countergradient effects)
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // Pass 3 uses VPERT-enhanced surface virtual temperature for accurate mixed-layer extent
+                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
             bool above_critical_zero = false;
@@ -606,8 +621,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Use criterion: Rib >= 0.0 (any stability is "critical")
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // Use VPERT-enhanced surface temperature for Richardson number criterion
+                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }
 
