@@ -47,7 +47,7 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"
-erf.les_type        = "Smagorinsky"
+erf.les_type        = "Smagorinsky2D"
 erf.Cs              = 0.1
 
 erf.pbl_type        = "MYNN25"
