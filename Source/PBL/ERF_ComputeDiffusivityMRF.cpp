@@ -628,15 +628,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // consistency. ERF implements three passes: this loop performs the needed computation
         // after the corrector pass is complete.
         //
-        // Hong & Pan (1996) formulation: WSCALE = u* / φ_m(h/L)
+        // Hong & Pan (1996): WSCALE = u* / φ_m(h/L)
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
-        //
-        // References:
-        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
-        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
-        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-        // - WRF module_bl_mrf.F lines 863-879
-        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L863-L879
+        // WRF Reference: module_bl_mrf.F lines 863-879
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
@@ -741,15 +735,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //   - Stable mixing formula consistent with corrector diagnostics
         //   - Physical consistency with WRF's treatment
         //
-        // Hong & Pan (1996) motivation: PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
+        // Hong & Pan (1996): PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
         // The Ribcr=0 pass produces h(Ri=0), the "depth of neutral layers" from observations.
-        //
-        // References:
-        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
-        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
-        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-        // - WRF module_bl_mrf.F lines 932-964
-        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
+        // WRF Reference: module_bl_mrf.F lines 932-964
         //
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
