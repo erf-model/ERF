@@ -822,11 +822,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
             if (above_critical_zero) {
-                Real pblh_interp_zero = zval0_zero + (zval_zero - zval0_zero) / (Rib_zero - Rib0_zero) * (Ribcr_zero - Rib0_zero);
-                pblh_zero_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp_zero, pblh_max), pblh_min);
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
-                pblh_zero_arr(i, j, 0) = pblh_min;
                 pbli_zero_arr(i, j, 0) = klo + 1;
             }
         });
@@ -952,6 +949,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                                   u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                                   dudz, dvdz, moisture_indices);
+                    // Note: dthetadz (dry potential temperature gradient) is computed above but intentionally
+                    // not used. Instead, we compute dtheta_v_dz from virtual potential temperature (lines 922-925)
+                    // to properly account for moisture effects on buoyancy in the Richardson number calculation.
+                    // This is consistent with the free-atmosphere branch (line 970) which also uses virtual
+                    // potential temperature for the Richardson number computation.
 
                     const Real dudz_safe = (k < izmax) ? dudz : Real(0);
                     const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
@@ -1029,12 +1031,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
-            } else {
-                // Levels outside both PBL and free atmosphere: minimal diffusion
-                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
-                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
-                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
             }
+            // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
+            // so the else clause would be unreachable. All cells reach K-bounds clipping below.
 
             // Limit diffusion coefficients to physical bounds
             // Hong & Pan (1996): Kmin=0.1, Kmax=300 m^2/s (module_bl_mrf.F lines 1014-1025)
