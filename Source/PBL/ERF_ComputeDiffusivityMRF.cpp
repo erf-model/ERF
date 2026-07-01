@@ -799,11 +799,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // - κ ≈ 0.4 (von Karman constant, same in both models)
                 Real Prt_base = phit_eff / phiM_eff;
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
-                const Real phiM_safe = amrex::max(phiM_eff, Real(0.01));
-                Real wstar = u_star_arr(i, j, 0) / phiM_safe;
-                // Convective velocity bounds: u*/5 ≤ wstar ≤ 16·u*
-                // Hong & Pan (1996), WRF module_bl_mrf.F L863-865
-                // Prevents unrealistic wstar in very weak or strong convection conditions
+                
+                // Use pre-computed wstar from the dedicated recomputation loop (lines 465-545).
+                // wstar_arr was computed with pblh_corr_arr to ensure consistency
+                // between countergradient diagnostics and K-profile calculations.
+                const Real wstar = wstar_arr(i, j, 0);
 
                 // Diffusion coefficient for momentum
                 // K = rho * wstar * kappa * z * (1 - z/h)^2
