@@ -62,9 +62,7 @@ amr.max_level       = 0       # maximum level number allowed
 erf.check_file      = chk_unstable     # root name of checkpoint file
 erf.check_int       = 150              # number of timesteps between checkpoints
 
-# DATA COLLECTION
-erf.data_log    = unstable_hist.dat unstable_profiles.dat
-erf.profile_int = 10
+
 
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name
@@ -96,7 +94,7 @@ erf.enable_mrf_countergradient = true
 
 # Enable moisture diffusivity (latent heat effects on turbulent mixing)
 erf.mrf_moistvars = true
-
+erf.moisture_model = "Kessler"
 # CORIOLIS EFFECT - Tropical latitude for rapid PBL growth
 erf.latitude = 15.0  # tropical latitude (f = 3.77e-5 s^-1)
 

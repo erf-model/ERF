@@ -66,9 +66,6 @@ amr.max_level       = 0       # maximum level number allowed
 erf.check_file      = chk_cloud_topped     # root name of checkpoint file
 erf.check_int       = 200                  # number of timesteps between checkpoints
 
-# DATA COLLECTION
-erf.data_log    = unstable_hist.dat unstable_profiles.dat
-erf.profile_int = 10
 
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name
@@ -111,6 +108,7 @@ erf.enable_mrf_countergradient = true
 # Enable moisture diffusivity (Prq ~ Prt) for realistic latent heating effects
 # Cloud formation depends critically on moisture entrainment
 erf.mrf_moistvars = true
+erf.moisture_model = "Kessler"
 
 # CLOUD-AWARE STABILITY ADJUSTMENT (optional enhancement)
 # Clouds modify buoyancy and stability, affecting PBL growth

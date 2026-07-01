@@ -7,22 +7,6 @@ atmospheric boundary layer conditions.
 WRF reference:
 https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
 
-## Implementation Notes
-
-Recent updates to ERF's MRF implementation align key physics with WRF's `module_bl_mrf.F`:
-
-| Feature | Change | Reference |
-|---------|--------|-----------|
-| Stability function φ_m | Businger-Dyer: `(1-16·HOL)^(-1/4)` | WRF L857 |
-| SFCFLG stable-side gating | Disable countergradient when stable (obuk > 0) | WRF L808, 867-884 |
-| WSCALE convective velocity | Bounds: `u*/5 ≤ wstar ≤ 16·u*` | WRF L863-865 |
-| Terrain-aware coordinates | Cell-centered heights with `Compute_Zrel_AtCellCenter()` | Verified |
-| YSU free-atmosphere mixing | Richardson-number-dependent above PBL | Implemented |
-
-The implementation features:
-- HGAMT / HGAMQ (WRF lines 872–879): Countergradient corrections for PBL height finding
-- Moisture diffusivity with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`
-- No explicit entrainment (consistent with WRF MRF formulation)
 
 ## Test Cases
 
@@ -301,29 +285,8 @@ Expected Behavior:
 
 ---
 
-### 17. Complex Multi-Scale Terrain (`inputs_complex_terrain_mrf`)
 
-Extends the simple 2D Witch-of-Agnesi hill test to more realistic multi-scale terrain with multiple peaks/valleys and varying slope angles. Validates that MRF diffusivity and vertical derivatives remain stable and consistent across terrain transitions.
-
-Key Physics Tested:
-- Consistent K_m, K_h, K_q across terrain transitions (no artifacts at slopes)
-- Stable h_zeta and vertical derivative metrics over complex terrain
-- No spurious shear generation from terrain coordinate distortion
-- Physical PBL height evolution independent of local topography
-
-```bash
-./erf inputs_complex_terrain_mrf
-```
-
-Expected Behavior:
-- Diffusivity profiles smooth across terrain transitions
-- No localized shear artifacts near steep slopes
-- Richardson number calculations remain stable over complex terrain
-- PBL height diagnosis unaffected by underlying terrain complexity
-
----
-
-### 18. Fine Temporal Resolution (`inputs_fine_dt_stable`)
+### 17. Fine Temporal Resolution (`inputs_fine_dt_stable`)
 
 Very short time step (0.01 s vs standard 0.05-0.1 s) simulation over 3 hours in stable conditions. Tests accumulation of temporal discretization errors and validates conservation laws at high CFL stringency.
 
@@ -344,100 +307,4 @@ Expected Behavior:
 - Results consistent with standard dt simulations (when scaled appropriately)
 
 ---
-
-## Model Safeguards and Hardening
-
-The ERF MRF implementation includes model safeguards to address numerical and physical considerations beyond standard WRF MRF configurations:
-
-1. Predictor Monin-Obukhov Length / $HOL$ Bounding Safeguard:
-   Limits the Monin-Obukhov ratio $HOL = \text{sf} \times h / L$ in the initial predictor calculation of `phiM` to prevent floating-point overflow and division-by-zero under highly convective, low-wind conditions when $L \to 0$.
-
-2. Absolute Bounds on Diagnosed PBL Height ($h$):
-   Clamps the diagnosed PBL height to a maximum fraction of the domain height ($0.9 \times z_{max}$) and bounds it from below by the first vertical grid cell center (minimum 10 m). This prevents unphysical runaway PBL heights and division-by-zero in cells close to the surface.
-
-3. Saturation-Aware Moisture Countergradient ($HGAMQ$) Limiter:
-   Smoothly ramps down the nonlocal moisture countergradient contribution to zero as local relative humidity exceeds 95%. This prevents unphysical moisture pumping and runaway grid-point storm instabilities in saturated conditions.
-
-4. Upper Bound on Gradient Richardson Number ($Ri_g$) above PBL:
-   Enforces both upper (100.0) and lower (-100.0) bounds on the diagnosed Richardson number in the free atmosphere to prevent extreme scale heights from inducing numerical shocks in high-stability conditions.
-
-## Available MRF Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `pbl.pbl_mrf_Ribcr` | 0.5 | Critical bulk Richardson number (WRF BRCR) |
-| `pbl.pbl_mrf_const_b` | 7.8 | Surface layer factor (WRF CFAC) |
-| `pbl.pbl_mrf_sf` | 0.1 | Surface layer fraction (WRF SFAC) |
-| `pbl.enable_mrf_countergradient` | false | Apply HGAMT/HGAMQ to PBL height finding |
-| `pbl.mrf_moistvars` | false | Enable moisture diffusivity (Prq ≈ Prt) |
-
-## Test Case Summary: Stability Regimes
-
-| Case | Stability | Surface Heat Flux | dθ/dz | Turbulence | Key Physics |
-|------|-----------|-------------------|-------|-----------|-------------|
-| Neutral | Neutral | 0 K/h | 0 K/m | Shear-driven | u*/f scaling, no buoyancy |
-| Unstable | Unstable | +5 K/h | -0.02 K/m | Convective | HGAMT/HGAMQ critical, VPERT limits |
-| Cloud-Topped | Very Unstable | +8 K/h | -0.02 K/m | Convective with clouds | Moisture effects, entrainment, HGAMT/HGAMQ strongest |
-| Stable | Stable | -0.25 K/h | +0.01 K/m | Suppressed | Richardson number, inertial oscillations |
-
-## How to Use These Test Cases
-
-### Validation of MRF Implementation
-```bash
-# Test neutral PBL (baseline physics)
-./erf inputs_neutral
-
-# Test unstable PBL (countergradient corrections)
-./erf inputs_unstable
-
-# Test cloud-topped PBL (realistic warm-season conditions)
-./erf inputs_cloud_topped
-
-# Test stable PBL (Richardson number effects)
-./erf inputs_stable
-```
-
-### Regression Testing
-These cases should be used to validate that MRF changes do not break:
-1. inputs_neutral: Shear-driven mixing and u*/f PBL height scaling
-2. inputs_unstable: Convective PBL growth with HGAMT/HGAMQ corrections
-3. inputs_cloud_topped: Cloud formation, entrainment, and moisture effects on PBL height
-4. inputs_stable: Weak mixing and inertial oscillations
-
-### Performance Analysis
-Compare against reference metrics:
-- Neutral: PBL height h ≈ 0.16 * u* / f (Garratt 1994)
-- Unstable: Rapid growth to 500-1000 m within 3-6 hours
-- Cloud-Topped: PBL height 800-1200 m with cloud top at 950-1050 m, cloud fraction 0.3-0.6
-- Stable: Shallow layer h ≈ 50-100 m with inertial oscillations
-
-## References
-
-### MRF Core Implementation
-- Hong, S.-Y. and H.-L. Pan (1996): Nonlocal boundary layer vertical diffusion in a
-  medium-range forecast model. *Mon. Wea. Rev.*, 124, 2322–2339.
-  https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-
-### YSU Free Atmosphere Scheme (used above PBL in MRF)
-- Hong, S.-Y., Y. Noh, and J. Dudhia (2006): A new vertical diffusion package with 
-  an explicit treatment of entrainment processes. *Mon. Wea. Rev.*, 134, 2318–2341.
-  https://doi.org/10.1175/MWR3250.1
-
-### Test Case References
-
-#### Neutral Boundary Layer
-- Sorbjan, Z. (1989): Structure of the Atmospheric Boundary Layer.
-  Kluwer Academic Publishers.
-- Garratt, J. R. (1994): The Atmospheric Boundary Layer.
-  *Cambridge University Press*, 2nd ed.
-
-#### Unstable Boundary Layer
-- Siebesma, A. P., et al. (2003): A large eddy simulation intercomparison study 
-  of shallow cumulus convection. *J. Atmos. Sci.*, 60, 1201-1219.
-  https://doi.org/10.1175/1520-0469(2003)60<1201:ALESIUS>2.0.CO;2
-
-#### Stable Boundary Layer
-- Beare, R. J., et al. (2006): An intercomparison of large-eddy simulations of the 
-  stable boundary layer. *Boundary-Layer Meteorol.*, 118, 247-272.
-  https://doi.org/10.1007/s10546-005-9009-5
 

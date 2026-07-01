@@ -15,7 +15,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
-erf.most.zref = 8.0
+erf.most.zref = 48.0
 
 zhi.type = "SlipWall"
 
