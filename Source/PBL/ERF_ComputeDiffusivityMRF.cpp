@@ -617,11 +617,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // so these quantities must be recomputed after the corrector pass to ensure
         // consistency between the PBL height diagnosis and the K-profile mixing lengths.
         //
-        // This addresses the inconsistency where wstar and HGAMT would otherwise use
-        // pblh_arr (predictor, Ribcr=0.5) while the K-profile loop uses pblh_corr_arr
-        // (corrector, Ribcr=0.5 with countergradient effects). Such inconsistency leads
-        // to unrealistic mixing intensity since the stability parameter HOL = sf*h/L
-        // differs between the two computations.
+        // Note: Previous versions computed both a predictor PBL height (without countergradient
+        // corrections) and a corrector PBL height (with countergradient effects). The inconsistency
+        // between these two estimates led to unrealistic mixing intensity since the stability
+        // parameter HOL = sf*h/L differs. The predictor pass has been removed; only the
+        // corrector PBL height (pblh_corr_arr) is now computed and used throughout.
         //
         // WRF implements WSCALE (convective velocity) and countergradient corrections
         // only once before both the corrector loop and K-profile computations, ensuring
