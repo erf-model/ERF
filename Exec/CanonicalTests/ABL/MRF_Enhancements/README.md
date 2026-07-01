@@ -4,7 +4,7 @@ This directory contains test cases for the MRF (Medium Range Forecast) PBL model
 implemented following WRF's `module_bl_mrf.F`, covering neutral, unstable, and stable
 atmospheric boundary layer conditions.
 
-**WRF reference:**
+WRF reference:
 https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
 
 ## Implementation Notes
@@ -13,16 +13,16 @@ Recent updates to ERF's MRF implementation align key physics with WRF's `module_
 
 | Feature | Change | Reference |
 |---------|--------|-----------|
-| **Stability function φ_m** | Businger-Dyer: `(1-16·HOL)^(-1/4)` | WRF L857 |
-| **SFCFLG stable-side gating** | Disable countergradient when stable (obuk > 0) | WRF L808, 867-884 |
-| **WSCALE convective velocity** | Bounds: `u*/5 ≤ wstar ≤ 16·u*` | WRF L863-865 |
-| **Terrain-aware coordinates** | Cell-centered heights with `Compute_Zrel_AtCellCenter()` | ✅ Verified |
-| **YSU free-atmosphere mixing** | Richardson-number-dependent above PBL | ✅ Already correct |
+| Stability function φ_m | Businger-Dyer: `(1-16·HOL)^(-1/4)` | WRF L857 |
+| SFCFLG stable-side gating | Disable countergradient when stable (obuk > 0) | WRF L808, 867-884 |
+| WSCALE convective velocity | Bounds: `u*/5 ≤ wstar ≤ 16·u*` | WRF L863-865 |
+| Terrain-aware coordinates | Cell-centered heights with `Compute_Zrel_AtCellCenter()` | Verified |
+| YSU free-atmosphere mixing | Richardson-number-dependent above PBL | Implemented |
 
 The implementation features:
-- **HGAMT / HGAMQ** (WRF lines 872–879): Countergradient corrections for PBL height finding
-- **Moisture diffusivity** with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`
-- **No explicit entrainment** (consistent with WRF MRF formulation)
+- HGAMT / HGAMQ (WRF lines 872–879): Countergradient corrections for PBL height finding
+- Moisture diffusivity with Prq ≈ Prt (WRF lines 968–986) when `mrf_moistvars = true`
+- No explicit entrainment (consistent with WRF MRF formulation)
 
 ## Test Cases
 
@@ -47,29 +47,29 @@ Shear-driven turbulence dominates. Tests MRF in its simplest stable configuratio
 ---
 
 ### 2. Unstable Boundary Layer (`inputs_unstable`)
-**Reference:** BOMEX (Barbados Oceanographic and Meteorological Experiment)
+Reference: BOMEX (Barbados Oceanographic and Meteorological Experiment)
 Siebesma et al. (2003): A large eddy simulation intercomparison study of shallow cumulus 
 convection. J. Atmos. Sci., 60, 1201-1219.
 
-Strong surface heating with buoyancy-driven convection. Tests MRF's critical countergradient
-flux (HGAMT/HGAMQ) corrections for accurate PBL height prediction.
+Strong surface heating with buoyancy-driven convection. Tests MRF's countergradient
+flux (HGAMT/HGAMQ) corrections for PBL height prediction.
 
 ```bash
 ./erf inputs_unstable
 ```
 
-**Key characteristics:**
+Key characteristics:
 - Strong surface heating (5 K/h)
 - Superadiabatic temperature near surface
 - Rapid PBL growth via convection
-- Countergradient corrections ESSENTIAL (HGAMT positive, VPERT limiting critical)
+- Countergradient corrections important (HGAMT positive, VPERT limiting critical)
 - Moisture diffusivity reflects latent heat effects
 - Shallow cumulus cloud formation at PBL top
 
 ---
 
 ### 3. Stable Boundary Layer (`inputs_stable`)
-**Reference:** GABLS1 (GEWEX Atmospheric Boundary Layer Study 1)
+Reference: GABLS1 (GEWEX Atmospheric Boundary Layer Study 1)
 Beare et al. (2006): An intercomparison of large-eddy simulations of the stable boundary layer.
 Boundary-Layer Meteorol., 118, 247-272.
 
@@ -80,19 +80,19 @@ Richardson number effects dominate.
 ./erf inputs_stable
 ```
 
-**Key characteristics:**
+Key characteristics:
 - Strong surface cooling (-0.25 K/h)
 - Statically stable stratification (dθ/dz = 0.01 K/m)
 - Very shallow mixed layer (h ~ 50-100 m)
 - Inertial oscillations from Coriolis force
 - Countergradient corrections suppressed (downgradient fluxes in stable)
-- Free atmosphere mixing via YSU scheme critical
+- Free atmosphere mixing via YSU scheme important
 - Richardson number dependent diffusivity essential
 
 ---
 
 ### 4. Cloud-Topped Boundary Layer (`inputs_cloud_topped`)
-**Reference:** BOMEX (Barbados Oceanographic and Meteorological Experiment)
+Reference: BOMEX (Barbados Oceanographic and Meteorological Experiment)
 Siebesma et al. (2003): A large eddy simulation intercomparison study of shallow cumulus 
 convection. J. Atmos. Sci., 60, 1201-1219.
 
@@ -104,14 +104,14 @@ evaporative cooling effects.
 ./erf inputs_cloud_topped
 ```
 
-**Key characteristics:**
+Key characteristics:
 - Moderate surface heating (8 K/h) and moisture supply
 - Moist well-mixed layer with shallow cumulus formation
 - Cloud formation at PBL top via vertical convection
 - Sharp entrainment zone between PBL and free troposphere
 - Strong capping inversion limiting vertical extent
 - Cloud-top evaporative cooling and entrainment effects
-- Countergradient corrections ESSENTIAL (strongest HGAMT/HGAMQ in this case)
+- Countergradient corrections important (strong HGAMT/HGAMQ in this case)
 - Moisture effects maximize virtual potential temperature (latent heat dominates)
 - Cloud-aware stability adjustments improve mixing representation
 - Radiative effects can be enabled for realistic cloud forcing
@@ -193,11 +193,10 @@ An extremely stable boundary layer under intense polar radiative cooling (-1 K/h
 ## Advanced/Edge Case Tests (Enhanced Coverage)
 
 ### 12. Weak Convection Transition (`inputs_weak_convection_transition`)
-**HIGH PRIORITY: Tests smooth HGAMT/HGAMQ activation**
 
 A 24-hour simulation starting from neutral conditions transitioning to weak convection as surface heating gradually increases (0 → 2 K/h). This test validates smooth activation of countergradient corrections without spurious oscillations or negative HGAMT/HGAMQ values.
 
-**Key Physics Tested:**
+Key Physics Tested:
 - Smooth activation of HGAMT from 0 to positive values (no oscillations)
 - Monotonic PBL height growth without abrupt jumps
 - Stable Richardson number evolution during stability transitions
@@ -207,7 +206,7 @@ A 24-hour simulation starting from neutral conditions transitioning to weak conv
 ./erf inputs_weak_convection_transition
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - PBL height grows monotonically from ~100 m to ~300-500 m over 24 hours
 - HGAMT increases smoothly with heating rate (no negative values)
 - No numerical oscillations in diffusivity coefficients
@@ -215,11 +214,10 @@ A 24-hour simulation starting from neutral conditions transitioning to weak conv
 ---
 
 ### 13. Very Low Wind Speed / Calm Conditions (`inputs_calm_conditions`)
-**HIGH PRIORITY: Tests numerical stability in division-by-zero prone calculations**
 
 Tropical calm-air morning scenario with geostrophic wind < 0.5 m/s and convective heating (5 K/h). Tests wind shear safety threshold (≥ 1.0e-8) and proper fallback to minimum diffusivity bounds (Kmin = 0.1 m²/s).
 
-**Key Physics Tested:**
+Key Physics Tested:
 - Numerical stability with wind shear → 0 (tests division-by-zero guards)
 - Proper minimum diffusivity bounds (Kmin) when shear is weak
 - No NaN/Inf in K_m, K_h, K_q coefficients
@@ -229,7 +227,7 @@ Tropical calm-air morning scenario with geostrophic wind < 0.5 m/s and convectiv
 ./erf inputs_calm_conditions
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - No NaN or Infinity values in output
 - Diffusivity coefficients bounded by [Kmin, Kmax] = [0.1, 300] m²/s
 - Model runs to completion without crashing
@@ -238,12 +236,11 @@ Tropical calm-air morning scenario with geostrophic wind < 0.5 m/s and convectiv
 ---
 
 ### 14. Saturated Boundary Layer (`inputs_saturated_layer`)
-**HIGH PRIORITY: Validates saturation-aware HGAMQ limiter (ERF UNIQUE ENHANCEMENT)**
 
-Fog or marine stratus layer with high relative humidity (85% → 99% near surface) and 0.1 g/kg cloud water. Validates the ERF-unique saturation-aware HGAMQ limiter which smoothly ramps down HGAMQ to zero as RH > 95% to prevent moisture pumping and grid-point storms.
+Fog or marine stratus layer with high relative humidity (85% → 99% near surface) and 0.1 g/kg cloud water. Validates the saturation-aware HGAMQ limiter which smoothly ramps down HGAMQ to zero as RH > 95% to prevent moisture pumping and grid-point storms.
 
-**Key Physics Tested:**
-- HGAMQ smoothly ramps down as RH approaches 95-100% (ERF unique safeguard!)
+Key Physics Tested:
+- HGAMQ smoothly ramps down as RH approaches 95-100%
 - No moisture pumping instabilities in saturated conditions
 - Proper interaction between latent heat effects and countergradient mixing
 - Realistic PBL height in highly moist conditions
@@ -252,7 +249,7 @@ Fog or marine stratus layer with high relative humidity (85% → 99% near surfac
 ./erf inputs_saturated_layer
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - HGAMQ → 0 as surface RH > 95% (smooth ramp, not abrupt)
 - Stable moisture profiles with no grid-point oscillations
 - Cloud-top mixing remains stable despite high RH
@@ -261,11 +258,10 @@ Fog or marine stratus layer with high relative humidity (85% → 99% near surfac
 ---
 
 ### 15. Rapid Surface Cooling / Inversion Collapse (`inputs_rapid_cooling`)
-**MEDIUM PRIORITY: Tests robustness during rapid stability transitions**
 
 Rapid surface temperature drop simulating inversion formation (initial +5 K/h heating → rapid -3 K/h cooling → -0.1 K/h stable recovery). Tests numerical stability and smooth evolution of VPERT and HOL during sign changes in heat flux.
 
-**Key Physics Tested:**
+Key Physics Tested:
 - Smooth VPERT evolution from positive to zero as HGAMT deactivates
 - Stable HOL calculations when switching from unstable to stable regimes
 - No oscillations in Ri_g during rapid Monin-Obukhov sign changes
@@ -275,7 +271,7 @@ Rapid surface temperature drop simulating inversion formation (initial +5 K/h he
 ./erf inputs_rapid_cooling
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - Model remains numerically stable throughout 6-hour transition
 - PBL height decreases smoothly from ~500 m to ~50 m
 - HGAMT → 0 smoothly as heat flux becomes negative
@@ -284,11 +280,10 @@ Rapid surface temperature drop simulating inversion formation (initial +5 K/h he
 ---
 
 ### 16. Extreme Heat Flux (`inputs_extreme_heating`)
-**MEDIUM PRIORITY: Tests upper bounds on HGAMT (GAMCRT = 3 K limit)**
 
 Extreme surface heating (15-20 K/h) representing intense heat wave or desert thermals. Validates that HGAMT properly limits to GAMCRT = 3 K maximum and VPERT limits to [0, GAMCRT] to prevent unphysical PBL overshoot.
 
-**Key Physics Tested:**
+Key Physics Tested:
 - HGAMT limited to GAMCRT = 3 K (physical upper bound)
 - VPERT bounded to [0, 3 K] range
 - PBL height grows realistically despite extreme forcing (doesn't overshoot domain)
@@ -298,7 +293,7 @@ Extreme surface heating (15-20 K/h) representing intense heat wave or desert the
 ./erf inputs_extreme_heating
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - HGAMT saturates at 3 K (no values > 3 K)
 - VPERT saturates at 3 K despite extreme heat flux
 - PBL height growth slows as it approaches PBL height cap (0.9 × z_max)
@@ -307,11 +302,10 @@ Extreme surface heating (15-20 K/h) representing intense heat wave or desert the
 ---
 
 ### 17. Complex Multi-Scale Terrain (`inputs_complex_terrain_mrf`)
-**MEDIUM PRIORITY: Extends terrain validation to realistic multi-scale topography**
 
 Extends the simple 2D Witch-of-Agnesi hill test to more realistic multi-scale terrain with multiple peaks/valleys and varying slope angles. Validates that MRF diffusivity and vertical derivatives remain stable and consistent across terrain transitions.
 
-**Key Physics Tested:**
+Key Physics Tested:
 - Consistent K_m, K_h, K_q across terrain transitions (no artifacts at slopes)
 - Stable h_zeta and vertical derivative metrics over complex terrain
 - No spurious shear generation from terrain coordinate distortion
@@ -321,7 +315,7 @@ Extends the simple 2D Witch-of-Agnesi hill test to more realistic multi-scale te
 ./erf inputs_complex_terrain_mrf
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - Diffusivity profiles smooth across terrain transitions
 - No localized shear artifacts near steep slopes
 - Richardson number calculations remain stable over complex terrain
@@ -330,11 +324,10 @@ Extends the simple 2D Witch-of-Agnesi hill test to more realistic multi-scale te
 ---
 
 ### 18. Fine Temporal Resolution (`inputs_fine_dt_stable`)
-**LOW PRIORITY: Tests numerical stability under stringent CFL conditions**
 
 Very short time step (0.01 s vs standard 0.05-0.1 s) simulation over 3 hours in stable conditions. Tests accumulation of temporal discretization errors and validates conservation laws at high CFL stringency.
 
-**Key Physics Tested:**
+Key Physics Tested:
 - No accumulation of temporal truncation errors over 3 hours
 - Numerical stability maintained with very small dt
 - Energy conservation validated at fine temporal resolution
@@ -344,7 +337,7 @@ Very short time step (0.01 s vs standard 0.05-0.1 s) simulation over 3 hours in 
 ./erf inputs_fine_dt_stable
 ```
 
-**Expected Behavior:**
+Expected Behavior:
 - Model runs to completion without divergence
 - Energy and momentum remain well-conserved
 - Diffusivity coefficients remain stable and bounded
@@ -354,15 +347,18 @@ Very short time step (0.01 s vs standard 0.05-0.1 s) simulation over 3 hours in 
 
 ## Model Safeguards and Hardening
 
-The ERF MRF implementation includes critical model safeguards to address numerical and physical vulnerabilities beyond standard WRF MRF configurations:
+The ERF MRF implementation includes model safeguards to address numerical and physical considerations beyond standard WRF MRF configurations:
 
-1. **Predictor Monin-Obukhov Length / $HOL$ Bounding Safeguard:**
-   Limits the Monin-Obukhov ratio $HOL = \text{sf} \times h / L$ in the initial predictor calculation of `phiM` to prevent floating-point overflow and Division-by-Zero under highly convective, low-wind conditions when $L \to 0$.
-2. **Absolute Bounds on Diagnosed PBL Height ($h$):**
+1. Predictor Monin-Obukhov Length / $HOL$ Bounding Safeguard:
+   Limits the Monin-Obukhov ratio $HOL = \text{sf} \times h / L$ in the initial predictor calculation of `phiM` to prevent floating-point overflow and division-by-zero under highly convective, low-wind conditions when $L \to 0$.
+
+2. Absolute Bounds on Diagnosed PBL Height ($h$):
    Clamps the diagnosed PBL height to a maximum fraction of the domain height ($0.9 \times z_{max}$) and bounds it from below by the first vertical grid cell center (minimum 10 m). This prevents unphysical runaway PBL heights and division-by-zero in cells close to the surface.
-3. **Saturation-Aware Moisture Countergradient ($HGAMQ$) Limiter:**
+
+3. Saturation-Aware Moisture Countergradient ($HGAMQ$) Limiter:
    Smoothly ramps down the nonlocal moisture countergradient contribution to zero as local relative humidity exceeds 95%. This prevents unphysical moisture pumping and runaway grid-point storm instabilities in saturated conditions.
-4. **Upper Bound on Gradient Richardson Number ($Ri_g$) above PBL:**
+
+4. Upper Bound on Gradient Richardson Number ($Ri_g$) above PBL:
    Enforces both upper (100.0) and lower (-100.0) bounds on the diagnosed Richardson number in the free atmosphere to prevent extreme scale heights from inducing numerical shocks in high-stability conditions.
 
 ## Available MRF Parameters
@@ -402,18 +398,18 @@ The ERF MRF implementation includes critical model safeguards to address numeric
 ```
 
 ### Regression Testing
-These cases should be used to validate that MRF changes don't break:
-1. **inputs_neutral**: Shear-driven mixing and u*/f PBL height scaling
-2. **inputs_unstable**: Convective PBL growth with HGAMT/HGAMQ corrections
-3. **inputs_cloud_topped**: Cloud formation, entrainment, and moisture effects on PBL height
-4. **inputs_stable**: Weak mixing and inertial oscillations
+These cases should be used to validate that MRF changes do not break:
+1. inputs_neutral: Shear-driven mixing and u*/f PBL height scaling
+2. inputs_unstable: Convective PBL growth with HGAMT/HGAMQ corrections
+3. inputs_cloud_topped: Cloud formation, entrainment, and moisture effects on PBL height
+4. inputs_stable: Weak mixing and inertial oscillations
 
 ### Performance Analysis
 Compare against reference metrics:
-- **Neutral**: PBL height h ≈ 0.16 * u* / f (Garratt 1994)
-- **Unstable**: Rapid growth to 500-1000 m within 3-6 hours
-- **Cloud-Topped**: PBL height 800-1200 m with cloud top at 950-1050 m, cloud fraction 0.3-0.6
-- **Stable**: Shallow layer h ≈ 50-100 m with inertial oscillations
+- Neutral: PBL height h ≈ 0.16 * u* / f (Garratt 1994)
+- Unstable: Rapid growth to 500-1000 m within 3-6 hours
+- Cloud-Topped: PBL height 800-1200 m with cloud top at 950-1050 m, cloud fraction 0.3-0.6
+- Stable: Shallow layer h ≈ 50-100 m with inertial oscillations
 
 ## References
 
