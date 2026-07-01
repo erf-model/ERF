@@ -81,27 +81,6 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_unstable"
 
-# INITIALIZATION - Unstable conditions
-# Near-surface superadiabatic layer (inverted T profile)
-# Moisture present for realistic latent heat effects
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
-
-prob.U_0 = 5.0       # modest wind speed [m/s]
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 303.0     # warm base temperature [K]
-
-# Larger perturbations to trigger convective cells
-prob.U_0_Pert_Mag = 1.0  # ~10-20% perturbations trigger convection
-prob.V_0_Pert_Mag = 1.0
-prob.W_0_Pert_Mag = 0.5
-
-# MOISTURE CONFIGURATION - Important for latent heat release
-prob.Rho_0_qv = 0.008   # initial water vapor mixing ratio [kg/kg]
-prob.Rho_0_qc = 0.0     # initial cloud water mixing ratio
-prob.Rho_0_qi = 0.0     # initial cloud ice mixing ratio
-
 # PBL CONFIGURATION - MRF with COUNTERGRADIENT corrections
 erf.pbl_type = "MRF"
 erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number

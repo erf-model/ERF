@@ -90,24 +90,12 @@ erf.input_sounding_file = "input_sounding_MRF_cloud_topped"
 # INITIALIZATION - Cloud-topped PBL (BOMEX standard)
 # Moist well-mixed layer below cloud top
 # Dry layer above cloud top (free troposphere)
-prob.rho_0 = 1.225   # tropical sea level air density [kg/m³]
-prob.A_0 = 1.0
 
-prob.U_0 = 5.0       # moderate trade wind [m/s]
-prob.V_0 = -4.0      # realistic wind shear (speed ~6.4 m/s)
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 298.0     # warm tropical base temperature [K]
 
 # Stronger perturbations to trigger organized convection
-prob.U_0_Pert_Mag = 0.5
-prob.V_0_Pert_Mag = 0.5
-prob.W_0_Pert_Mag = 0.25
 
 # MOISTURE CONFIGURATION (critical for cloud formation and latent heat)
 # Moist well-mixed layer
-prob.Rho_0_qv = 0.015  # initial water vapor mixing ratio [kg/kg] (moist tropical air)
-prob.Rho_0_qc = 0.0    # initialized cloud water (forms via saturation)
-prob.Rho_0_qi = 0.0    # no ice (warm tropical case)
 
 # PBL CONFIGURATION - MRF with full cloud-aware enhancements
 erf.pbl_type = "MRF"
