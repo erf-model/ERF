@@ -1021,7 +1021,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
-            }
+            } else {
+                // Levels outside both PBL and free atmosphere: minimal diffusion
+                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
+                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
+                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
 
             // Limit diffusion coefficients to physical bounds
             // Hong & Pan (1996): Kmin=0.1, Kmax=300 m^2/s (module_bl_mrf.F lines 1014-1025)
