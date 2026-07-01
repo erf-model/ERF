@@ -717,14 +717,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real total_qcloud = qc_mix + qi_mix;
             const bool has_cloud = (total_qcloud > qc_threshold);
 
-            if (k < pbli_zero_arr(i, j, 0)) {
+            // Select PBL extent index based on configuration:
+            // - Default (pbl_mrf_use_zero_ri_extent=false): use pbli_arr (Ri=0.5 corrector)
+            //   This matches WRF behavior for better comparability
+            // - Alternative (pbl_mrf_use_zero_ri_extent=true): use pbli_zero_arr (Ri=0)
+            //   This provides a ~30-60% taller mixing region for convective ABL cases
+            const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
+
+            if (k < pbli_extent) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
                 // WRF reference (module_bl_mrf.F lines 968-986):
                 // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
                 //
-                // Use pbli_zero_arr (zero-Ri diagnostic index) to determine PBL extent,
-                // which provides the physically appropriate mixed-layer depth. The mixing
-                // intensity is governed by pblh_corr_arr used in the formula K = ρ*wstar*κ*z*(1-z/h)².
+                // PBL extent selection:
+                // - Default (pbl_mrf_use_zero_ri_extent=false): uses pbli_arr (Ri=0.5 corrector)
+                //   Matches WRF behavior for K-profile mixing
+                // - Alternative (pbl_mrf_use_zero_ri_extent=true): uses pbli_zero_arr (Ri=0)
+                //   Provides physically appropriate mixed-layer depth with extended mixing region
+                // The mixing intensity is governed by pblh_corr_arr used in the formula K = ρ*wstar*κ*z*(1-z/h)².
                 // This two-level approach ensures realistic PBL height behavior across
                 // different stability regimes while maintaining stable mixing coefficients.
                 //
@@ -868,7 +878,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     K_turb(i, j, k, EddyDiff::Theta_v) = zero;
                     K_turb(i, j, k, EddyDiff::Q_v)     = zero;
                 }
-            } else if (k >= pbli_zero_arr(i, j, 0)) {
+            } else if (k >= pbli_extent) {
                 // Free atmosphere above PBL: use local Richardson number-dependent mixing
                 // with lengthscale = (kappa * z * lambda) / (kappa * z + lambda)
                 // where lambda = 150 m (characteristic free-atmosphere lengthscale)
@@ -1018,8 +1028,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
 
             // Store countergradient correction terms (HGAMT/h and HGAMQ/h)
-            // Use pbli_zero_arr (zero-Ri diagnostic index) to determine PBL extent
-            if (k < pbli_zero_arr(i, j, 0)) {
+            // Use the selected PBL extent index (pbli_arr or pbli_zero_arr based on pbl_mrf_use_zero_ri_extent)
+            if (k < pbli_extent) {
                 // Inside PBL: store the normalized countergradient terms
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
