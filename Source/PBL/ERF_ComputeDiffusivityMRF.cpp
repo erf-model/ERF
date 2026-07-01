@@ -771,7 +771,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             int kpbl_zero = klo;
-            Real zval0_zero, zval_zero, Rib0_zero, Rib_zero;
+            Real zval_zero, Rib_zero;
             {
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
@@ -789,8 +789,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
             bool above_critical_zero = false;
             while (!above_critical_zero && ((kpbl_zero + 1) <= khi)) {
-                zval0_zero = zval_zero;
-                Rib0_zero = Rib_zero;
+                //zval0_zero = zval_zero;
+                //Rib0_zero = Rib_zero;
                 kpbl_zero += 1;
 
                 zval_zero = (use_terrain_fitted_coords)
