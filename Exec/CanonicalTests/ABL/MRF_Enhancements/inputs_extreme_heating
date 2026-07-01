@@ -23,15 +23,14 @@ erf.prob_name = "ABL"
 # With dt=0.05, max_step = 864000
 max_step = 864000
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 # Larger domain needed for extreme convection
 geometry.prob_extent =  3200     3200    3200
-amr.n_cell           =    64       64      64
-
+amr.n_cell           =    8        8      64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY - EXTREME HEATING (testing upper bounds)
@@ -66,8 +65,8 @@ erf.check_file      = chk_extreme_heating     # root name of checkpoint file
 erf.check_int       = 50000                   # checkpoint every ~2500 s
 
 # PLOTFILES
-erf.plot_file_1     = plt_extreme_heating     # prefix of plotfile name
-erf.plot_int_1      = 10000                   # plotfile every 500 s
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
