@@ -190,8 +190,11 @@
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
-#ifdef ERF_USE_SHOC
-                         shoc_interface[level],
+#ifdef ERF_USE_EAMXX_SHOC
+                         eamxx_shoc_interface[level].get(),
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+                         native_shoc_driver[level].get(),
 #endif
                          fr_as_crse, fr_as_fine);
 
@@ -250,9 +253,15 @@
             }
         }
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            shoc_interface[level]->add_fast_tend(S_rhs);
+#ifdef ERF_USE_EAMXX_SHOC
+        if (solverChoice.turbChoice[level].uses_eamxx_shoc() && eamxx_shoc_interface[level]) {
+            eamxx_shoc_interface[level]->add_fast_tend(S_rhs);
+        }
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
+            // Native SHOC applies its increment directly to state; ERF no
+            // longer adds a separate fast RHS contribution.
         }
 #endif
 

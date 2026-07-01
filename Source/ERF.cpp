@@ -206,11 +206,20 @@ ERF::ERF_shared ()
     initializeWindFarm(nlevs_max);
 #endif
 
-#ifdef ERF_USE_SHOC
-    shoc_interface.resize(nlevs_max);
-    if (solverChoice.use_shoc) {
-        for (int lev = 0; lev <= max_level; ++lev) {
-            shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+#ifdef ERF_USE_EAMXX_SHOC
+    eamxx_shoc_interface.resize(nlevs_max);
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
+            eamxx_shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+        }
+    }
+#endif
+
+#ifdef ERF_USE_NATIVE_SHOC
+    native_shoc_driver.resize(nlevs_max);
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].uses_native_shoc()) {
+            native_shoc_driver[lev] = std::make_unique<ShocDriver>(lev, solverChoice);
         }
     }
 #endif

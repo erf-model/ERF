@@ -44,7 +44,7 @@ public:
     void Define(SolverChoice& sc) override
     {
         m_axis = sc.ave_plane;
-        m_do_cond = (!sc.use_shoc);
+        m_do_cond = (!sc.uses_shoc_family());
     }
 
     // WSM6 module parameter constants (Fortran: parameter, private)
