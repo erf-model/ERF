@@ -715,7 +715,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
-                
+
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
                 // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
