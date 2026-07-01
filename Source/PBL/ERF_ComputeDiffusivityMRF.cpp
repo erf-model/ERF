@@ -191,18 +191,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // create flattened boxes to store PBL height and related quantities
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(gbx, IntVect{0, 0, 0});
-        FArrayBox pbl_height_predictor(xybx, 1, The_Async_Arena());
         FArrayBox pbl_height_corrector(xybx, 1, The_Async_Arena());
-        FArrayBox pbl_height_zero_ri(xybx, 1, The_Async_Arena());  // Zero-Richardson diagnostic (Ribcr=0)
         IArrayBox pbl_index(xybx, 1, The_Async_Arena());
         IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
-        const auto& pblh_arr        = pbl_height_predictor.array();
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
-        const auto& pblh_zero_arr   = pbl_height_zero_ri.array();  // Zero-Ri diagnostic PBL height result
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
         const auto& hgamt_arr       = hgamt_fab.array();
@@ -307,16 +303,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
             // Initial PBL Height with linear interpolation (consistent with corrector pass)
             // WRF reference (module_bl_mrf.F lines 838-840):
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
-            if (above_critical) {
-                // Interpolate to height at which Rib == Ribcr
-                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
-                pblh_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
-                pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
-            } else {
-                pblh_arr(i, j, 0) = pblh_min;
-                pbli_arr(i, j, 0) = klo + 1;
-            }
+             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
+             if (above_critical) {
+                 pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
+             } else {
+                 pbli_arr(i, j, 0) = klo + 1;
+             }
         });
 
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
@@ -459,9 +451,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             wstar_arr(i, j, 0) = zero;
 
         });
+        // Debug output (disabled):
         /*
           amrex::Print() << "PBL height computed for MRF scheme at level "
-          << pblh_arr(2, 2, 0) << "  " << pblh_corr_arr(2, 2, 0)
+          << pblh_corr_arr(2, 2, 0)
           << std::endl;
           amrex::Print() << "PBL Temp:" << t_surf_arr(2, 2, 0) << "  "
           << t10av_arr(2, 2, 0) << std::endl;
@@ -476,11 +469,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // so these quantities must be recomputed after the corrector pass to ensure
         // consistency between the PBL height diagnosis and the K-profile mixing lengths.
         //
-        // This addresses the inconsistency where wstar and HGAMT would otherwise use
-        // pblh_arr (predictor, Ribcr=0.5) while the K-profile loop uses pblh_corr_arr
-        // (corrector, Ribcr=0.5 with countergradient effects). Such inconsistency leads
-        // to unrealistic mixing intensity since the stability parameter HOL = sf*h/L
-        // differs between the two computations.
+        // Note: Previous versions computed both a predictor PBL height (without countergradient
+        // corrections) and a corrector PBL height (with countergradient effects). The inconsistency
+        // between these two estimates led to unrealistic mixing intensity since the stability
+        // parameter HOL = sf*h/L differs. The predictor pass has been removed; only the
+        // corrector PBL height (pblh_corr_arr) is now computed and used throughout.
         //
         // WRF implements WSCALE (convective velocity) and countergradient corrections
         // only once before both the corrector loop and K-profile computations, ensuring
@@ -681,11 +674,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
             if (above_critical_zero) {
-                Real pblh_interp_zero = zval0_zero + (zval_zero - zval0_zero) / (Rib_zero - Rib0_zero) * (Ribcr_zero - Rib0_zero);
-                pblh_zero_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp_zero, pblh_max), pblh_min);
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
-                pblh_zero_arr(i, j, 0) = pblh_min;
                 pbli_zero_arr(i, j, 0) = klo + 1;
             }
         });
@@ -921,6 +911,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                                   u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                                   dudz, dvdz, moisture_indices);
+                    // Note: dthetadz (dry potential temperature gradient) is computed above but intentionally
+                    // not used. Instead, we compute dtheta_v_dz from virtual potential temperature (lines 922-925)
+                    // to properly account for moisture effects on buoyancy in the Richardson number calculation.
+                    // This is consistent with the free-atmosphere branch (line 970) which also uses virtual
+                    // potential temperature for the Richardson number computation.
 
                     // Apply boundary safeguards to avoid numerical instability
                     const Real dudz_safe = (k < izmax) ? dudz : zero;
@@ -1056,12 +1051,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
-            } else {
-                // Levels outside both PBL and free atmosphere: minimal diffusion
-                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
-                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
-                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
             }
+            // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
+            // so the else clause would be unreachable. All cells reach K-bounds clipping below.
 
             // Limit diffusion coefficients to physical bounds
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
