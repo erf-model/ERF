@@ -190,7 +190,7 @@ public:
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
       }
-
+#endif
       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
