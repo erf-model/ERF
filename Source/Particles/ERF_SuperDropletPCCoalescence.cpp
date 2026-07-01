@@ -447,6 +447,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto& gvec = a_temperature.nGrowVect();
 
     auto kernel_choice = m_coalescence_kernel;
+    auto ice_agg_eff = ParticleReal(m_ice_agg_eff);
     auto include_brownian_coalescence = m_include_brownian_coalescence;
 
     // Build process context
@@ -680,8 +681,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // velocity difference
                 auto dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
 
-                // collision efficiency
-                k_val = 0.1 * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
+                // collision efficiency (ice_agg_eff; input ice_aggregation_efficiency, default 0.1)
+                k_val = ice_agg_eff * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
 
             } else if (sp_idx_i >= 0) {
 
