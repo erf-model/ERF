@@ -52,6 +52,10 @@ amr.max_level       = 0
 erf.check_file      = chk_terrain
 erf.check_int       = 100
 
+# DATA COLLECTION
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
+
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name
 erf.plot_int_1      = 15                # number of timesteps between plotfiles
