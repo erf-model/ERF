@@ -501,10 +501,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              : zero;
 
             // Compute HGAMQ with corrected wstar
+            // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
+            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wstar converts
+            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_mrf.F L874-875
             Real HGAMQ = zero;
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
+                const Real q_star = q_star_arr(i, j, 0);
+                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
                 HGAMQ = amrex::max(
-                    amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ),
+                    amrex::min(HGAMQ_calc, GAMCRQ),
                     zero
                 );
 
@@ -820,18 +825,21 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // between countergradient diagnostics and K-profile calculations.
                 const Real wstar = wstar_arr(i, j, 0);
 
-                // Diffusion coefficient for momentum
-                // K = rho * wstar * kappa * z * (1 - z/h)^2
-                // This follows Hong & Pan (1996), Equation (9)
-                // The (1 - z/h)² factor enforces zero diffusion at PBL top and surface,
-                // providing sharp PBL boundary which is characteristic of nonlocal schemes.
-                // WRF adds CKZ*DZA background minimum so K never goes exactly to zero at PBL top
-                // (module_bl_mrf.F line 977-978: XKZO=CKZ*DZA; XKZM=XKZO+WSCALE*...)
+                // Diffusion coefficient for momentum with terrain height correction
+                // K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
+                // where zrel = z - z_sfc, pblh_rel = pblh - z_sfc
+                // WRF Reference: module_bl_mrf.F L976-978 uses ZQ(I,K) - ZL1(I) for shape function
+                const Real z_sfc = (use_terrain_fitted_coords)
+                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                 : zero;
+                const Real zrel = zval - z_sfc;
+                const Real pblh = pblh_corr_arr(i, j, 0);
+                const Real pblh_rel = pblh - z_sfc;
+                const Real zfac = amrex::max(one - zrel / pblh_rel, Real(1.0e-8));
+                
                 constexpr Real ckz_pbl = Real(0.001);
                 const Real K_base = ckz_pbl * dz_terrain * rho;
-                K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zval
-                                                 * (one - zval / pblh_corr_arr(i, j, 0))
-                                                 * (one - zval / pblh_corr_arr(i, j, 0));
+                K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
                 // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
