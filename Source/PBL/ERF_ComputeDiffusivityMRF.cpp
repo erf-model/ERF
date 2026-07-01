@@ -199,7 +199,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
-        FArrayBox t_surf_v_fab(xybx, 1, The_Async_Arena());  // Base surface virtual temperature
         const auto& pblh_arr        = pbl_height_predictor.array();
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pblh_zero_arr   = pbl_height_zero_ri.array();  // Zero-Ri diagnostic PBL height result
@@ -208,7 +207,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamt_arr       = hgamt_fab.array();
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
-        const auto& t_surf_v_arr    = t_surf_v_fab.array();  // Base surface temperature for subsequent passes
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -351,8 +349,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF Reference: module_bl_mrf.F lines 932-964
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
             //
-            // Store base surface virtual temperature (without countergradient excess) for later use
-            t_surf_v_arr(i, j, 0) = t_layer_v;
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
