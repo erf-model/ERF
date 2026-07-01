@@ -290,9 +290,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
 
             // Fallback to first cell
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
 
             // Initial PBL Height with linear interpolation (consistent with corrector pass)
             // WRF reference (module_bl_mrf.F lines 838-840):
@@ -479,6 +476,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
+            const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
@@ -653,9 +651,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Use same bounds safeguard as corrector
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
             if (above_critical_zero) {
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
