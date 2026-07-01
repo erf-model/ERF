@@ -673,10 +673,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                              : zero;
 
             // Compute HGAMQ with corrected wstar
+            // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
+            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wstar converts
+            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_mrf.F L874-875
             Real HGAMQ = zero;
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
+                const Real q_star = q_star_arr(i, j, 0);
+                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
                 HGAMQ = amrex::max(
-                    amrex::min(-const_b * u_star_arr(i, j, 0) * q_star_arr(i, j, 0) / wstar, GAMCRQ),
+                    amrex::min(HGAMQ_calc, GAMCRQ),
                     zero
                 );
 
