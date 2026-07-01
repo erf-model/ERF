@@ -30,7 +30,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Adiabatic surface (zero heat flux for neutral conditions)
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 300.0  # surface temperature [K]
 erf.most.surf_heating_rate = 0.0  # zero heat flux for neutral conditions
 

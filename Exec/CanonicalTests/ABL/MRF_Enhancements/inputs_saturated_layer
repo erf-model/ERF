@@ -64,9 +64,6 @@ amr.max_level       = 0       # maximum level number allowed
 erf.check_file      = chk_saturated      # root name of checkpoint file
 erf.check_int       = 50000              # checkpoint every ~2500 s
 
-# DATA COLLECTION
-erf.data_log    = unstable_hist.dat unstable_profiles.dat
-erf.profile_int = 10
 
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name
@@ -115,6 +112,7 @@ erf.latitude = 40.0  # mid-latitude (typical for marine stratus)
 # Enable water vapor and cloud water species
 erf.use_moisture = true
 erf.init_moisture_type = "Uniform"
+erf.moisture_model = "Kessler"
 
 # Initialize with high moisture content (approaching saturation)
 # Exact values depend on temperature and pressure

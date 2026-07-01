@@ -30,7 +30,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001     # smooth sea surface roughness
 erf.most.zref = 48.0
-erf.most.surf_temp = 298.0 # warm sea surface temperature
+#erf.most.surf_temp = 298.0 # warm sea surface temperature
 erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
 
 # To force sea classification, we can utilize roughness types or landmask configurations
@@ -55,9 +55,7 @@ amr.max_level       = 0
 erf.check_file      = chk_marine
 erf.check_int       = 100
 
-# DATA COLLECTION
-erf.data_log    = unstable_hist.dat unstable_profiles.dat
-erf.profile_int = 10
+
 
 # PLOTFILES
 erf.plot_file_1     = plt_unstable      # prefix of plotfile name
@@ -82,6 +80,7 @@ erf.input_sounding_file = "input_sounding_MRF_marine"
 
 # Active moisture with high humidity
 erf.active_moisture_vars = qv qc qi
+erf.moisture_model = "Kessler"
 
 # PBL CONFIGURATION - MRF PBL with water/land-aware moisture diffusivity
 erf.pbl_type = "MRF"
