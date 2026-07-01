@@ -28,8 +28,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 # Fine resolution needed to resolve convective structures in PBL
-geometry.prob_extent =  2560     2560    2560
-amr.n_cell           =    8        8      64
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY - Strong surface heating

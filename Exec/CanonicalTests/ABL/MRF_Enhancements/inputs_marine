@@ -22,8 +22,8 @@ amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  1024     1024    1024
-amr.n_cell           =    8        8      64
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY WITH WATER SURFACE DISCRIMINATION
