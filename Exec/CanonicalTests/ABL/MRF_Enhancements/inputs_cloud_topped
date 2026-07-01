@@ -82,7 +82,10 @@ erf.theta_ref = 300.0
 erf.active_moisture_vars = qv qc qi
 erf.microphysics_type = "None"  # use simple saturation-based cloud formation
 
-erf.init_type = Uniform
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_cloud_topped"
 
 # INITIALIZATION - Cloud-topped PBL (BOMEX standard)
 # Moist well-mixed layer below cloud top
@@ -107,18 +110,18 @@ prob.Rho_0_qc = 0.0    # initialized cloud water (forms via saturation)
 prob.Rho_0_qi = 0.0    # no ice (warm tropical case)
 
 # PBL CONFIGURATION - MRF with full cloud-aware enhancements
-erf.pbl_type    = "mrf"
-pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
-pbl.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
-pbl.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
 
 # ENABLE COUNTERGRADIENT CORRECTIONS (essential for accurate cloud-top PBL height)
 # HGAMT + HGAMQ corrections dramatically affect cloud formation
-pbl.enable_mrf_countergradient = true
+erf.enable_mrf_countergradient = true
 
 # Enable moisture diffusivity (Prq ~ Prt) for realistic latent heating effects
 # Cloud formation depends critically on moisture entrainment
-pbl.mrf_moistvars = true
+erf.mrf_moistvars = true
 
 # CLOUD-AWARE STABILITY ADJUSTMENT (optional enhancement)
 # Clouds modify buoyancy and stability, affecting PBL growth

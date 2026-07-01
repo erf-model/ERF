@@ -48,13 +48,16 @@ erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.theta_ref = 300.0
 
-erf.init_type = Uniform
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_baseline"
 
 # PBL CONFIGURATION - Baseline MRF (no enhancements)
-erf.pbl_type    = "mrf"
-pbl.pbl_mrf_Ribcr = 0.5
-pbl.pbl_mrf_const_b = 7.8
-pbl.pbl_mrf_sf = 0.1
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

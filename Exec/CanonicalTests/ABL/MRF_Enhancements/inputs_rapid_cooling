@@ -81,7 +81,10 @@ erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.theta_ref = 300.0
 
-erf.init_type = Uniform
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_rapid_cooling"
 
 # INITIALIZATION - Start from unstable conditions
 prob.rho_0 = 1.225   # sea level air density [kg/m³]
@@ -98,16 +101,16 @@ prob.V_0_Pert_Mag = 0.3
 prob.W_0_Pert_Mag = 0.1
 
 # PBL CONFIGURATION - MRF with countergradient
-erf.pbl_type    = "mrf"
-pbl.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
-pbl.pbl_mrf_const_b = 7.8 # surface layer factor
-pbl.pbl_mrf_sf = 0.1      # surface layer fraction
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
 
 # Enable countergradient corrections - tests smooth deactivation during cooling
-pbl.enable_mrf_countergradient = true
+erf.enable_mrf_countergradient = true
 
 # Enable moisture diffusivity
-pbl.mrf_moistvars = false
+erf.mrf_moistvars = false
 
 # CORIOLIS EFFECT
 erf.latitude = 60.0  # higher latitude for realistic cooling rates
