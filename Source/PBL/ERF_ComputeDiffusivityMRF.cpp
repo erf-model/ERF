@@ -609,18 +609,34 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         });
 
         //
-        // CRITICAL FIX #1: Recompute wstar and countergradient (HGAMT/HGAMQ)
-        // using the corrector PBL height (pblh_corr_arr), not the predictor height.
+        // Recompute convective velocity scale (wstar) and countergradient fluxes
+        // (HGAMT/HGAMQ) using the corrector PBL height (pblh_corr_arr).
         //
-        // Problem: Original code computed wstar and HGAMT in the corrector loop using pblh_arr
-        // (predictor height), but the K-profile loop uses pblh_corr_arr. This inconsistency
-        // means HGAMT/wstar and K-profiles use different effective stability parameters.
+        // Background: The corrector PBL height is now available. The Monin-Obukhov stability
+        // functions and countergradient fluxes depend strongly on the PBL height estimate,
+        // so these quantities must be recomputed after the corrector pass to ensure
+        // consistency between the PBL height diagnosis and the K-profile mixing lengths.
         //
-        // Solution: Now that pblh_corr_arr is finalized, recompute wstar and countergradient
-        // terms using the correct PBL height. Store them in 2D arrays for use in K-profile loop.
+        // This addresses the inconsistency where wstar and HGAMT would otherwise use
+        // pblh_arr (predictor, Ribcr=0.5) while the K-profile loop uses pblh_corr_arr
+        // (corrector, Ribcr=0.5 with countergradient effects). Such inconsistency leads
+        // to unrealistic mixing intensity since the stability parameter HOL = sf*h/L
+        // differs between the two computations.
         //
-        // WRF Reference: module_bl_mrf.F lines 863-879
-        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L863-L879
+        // WRF implements WSCALE (convective velocity) and countergradient corrections
+        // only once before both the corrector loop and K-profile computations, ensuring
+        // consistency. ERF implements three passes: this loop performs the needed computation
+        // after the corrector pass is complete.
+        //
+        // Hong & Pan (1996) formulation: WSCALE = u* / φ_m(h/L)
+        // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
+        //
+        // References:
+        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
+        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
+        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+        // - WRF module_bl_mrf.F lines 863-879
+        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L863-L879
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
@@ -633,8 +649,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
-            // CRITICAL: Now use pblh_corr_arr (corrector height) for HOL computation
-            // This ensures consistency with K-profile loop (line 653)
+            // Compute Monin-Obukhov stability parameter using corrector PBL height
+            // HOL = sf * h / L, where L is Monin-Obukhov length scale
+            // WRF Reference: module_bl_mrf.F lines 857-861
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
@@ -645,8 +663,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                            -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
-            // Compute wstar with CORRECTED pblh (pblh_corr_arr)
-            // Apply WSCALE bounds: u*/5 <= wstar <= 16*u* (WRF module_bl_mrf.F L863-865)
+            // Convective velocity scale (wstar = u*/phi_m), now computed with pblh_corr_arr
+            // wstar is the characteristic turbulent velocity in the boundary layer.
+            // Bounds (u*/5 to 16*u*) prevent unrealistic values in very weak or strong convection.
+            // WRF Reference: module_bl_mrf.F L863-865
             Real wstar = u_star_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
             wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
@@ -701,21 +721,35 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         });
 
         //
-        // CRITICAL FIX #2: Compute third PBL height pass with Ribcr=0.0 (zero-Ri diagnostic)
+        // Third PBL height pass using zero-Ri criterion (Ribcr = 0.0)
         //
-        // Problem: WRF uses three passes:
-        //   Pass 1: Ribcr=0.5 (predictor) - initial estimate
-        //   Pass 2: Ribcr=0.5 (corrector) - refined with countergradient effects  
-        //   Pass 3: Ribcr=0.0 (zero-Ri) - diagnostic for K-profile extent
-        // ERF only has two passes, using only Ribcr=0.5 for both. This makes the nonlocal
-        // region systematically too shallow in convective conditions.
+        // Background: WRF employs three distinct PBL height estimates:
+        //   Pass 1: Ribcr=0.5 with base surface temperature (predictor)
+        //   Pass 2: Ribcr=0.5 with enhanced surface temperature (corrector, includes VPERT)
+        //   Pass 3: Ribcr=0.0 diagnostic (uses base surface temperature, neutral criterion)
         //
-        // Solution: Add third pass with Ribcr=0.0. This gives a larger, physically correct
-        // mixed-layer depth for the K-profile extent. Use pblh_corr_arr inside the mixing
-        // formula (1 - z/h)², but use pbli_zero_arr for the loop index check (k < pbli_zero_arr).
+        // The third pass produces a larger, physically meaningful mixed-layer depth. When
+        // Ribcr=0, the PBL height is found where the Richardson number first becomes
+        // neutral (Rib ≥ 0), which typically occurs higher in the atmosphere than the Ribcr=0.5
+        // criterion. This is the "zero-Richardson" diagnostic commonly used in observations.
         //
-        // WRF Reference: module_bl_mrf.F lines 932-964
-        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
+        // Use of three passes: The corrector PBL height (Pass 2, Ribcr=0.5) is used for
+        // computing the mixing intensity formula K = ρ*wstar*κ*z*(1-z/h)², while the
+        // diagnostic height (Pass 3, Ribcr=0) determines the vertical extent of the nonlocal
+        // mixing region (the index for k < pbli_zero_arr checks). This separation ensures:
+        //   - Realistic mixed-layer extent in convective conditions
+        //   - Stable mixing formula consistent with corrector diagnostics
+        //   - Physical consistency with WRF's treatment
+        //
+        // Hong & Pan (1996) motivation: PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
+        // The Ribcr=0 pass produces h(Ri=0), the "depth of neutral layers" from observations.
+        //
+        // References:
+        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
+        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
+        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+        // - WRF module_bl_mrf.F lines 932-964
+        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
