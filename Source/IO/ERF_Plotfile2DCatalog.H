@@ -29,7 +29,9 @@ enum class DiagnosticID
     LatenFlux,
     SurfPres,
     IntegratedQv,
-    SurfaceDiagnosticSource
+    SurfaceDiagnosticSource,
+    SensibleHeatFlux,
+    LatentHeatFlux
 };
 
 enum class DiagnosticCategory

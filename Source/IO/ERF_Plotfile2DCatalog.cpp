@@ -40,6 +40,8 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
                                          "surface_diagnostic_source",
                                                         "Surface diagnostic source code",
                                                         "1",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::SensibleHeatFlux,"sensible_heat_flux","Surface sensible heat flux",                  "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::LatentHeatFlux,  "latent_heat_flux","Surface latent heat flux",                    "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
     };
 
     return catalog;

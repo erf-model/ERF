@@ -535,7 +535,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             } else {
-                mf[lev].setVal(zero);
+                mf[lev].setVal(zero, mf_comp, 1, 0);
                 mf_comp++;
             }
         }
@@ -547,7 +547,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
             } else {
-                mf[lev].setVal(zero);
+                mf[lev].setVal(zero, mf_comp, 1, 0);
                 mf_comp++;
             }
         }

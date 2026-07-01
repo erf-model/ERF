@@ -29,7 +29,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
     BL_PROFILE("SuperDropletPC::MassChange()");
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
@@ -72,7 +72,7 @@ void SuperDropletPC::MassChange ( int                                         a_
     constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& pti, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)

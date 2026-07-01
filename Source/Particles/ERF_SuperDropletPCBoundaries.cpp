@@ -18,7 +18,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
     const MFPtr& z_height = a_z_phys_nd[a_lev];
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
     const auto save_inac = m_save_inactive;
 
     // number of super-droplets per cell
@@ -26,13 +26,13 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     // number of physical particles per cell
     Real num_par_per_cell = zero;
     for (int i = 0; i < m_num_initializations; i++) {
-        num_par_per_cell += m_initializations[i]->numParticlesPerCell(ctx.cell_volume);
+        num_par_per_cell += m_initializations[i]->numParticlesPerCell(proc_ctx.cell_volume);
     }
     auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
 
     Long num_deactivated_particles = 0;
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)

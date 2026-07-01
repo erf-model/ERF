@@ -2,6 +2,7 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
+#include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 #include "ERF_EpochTime.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
@@ -541,6 +542,52 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // surface_diagnostic_source
+
+        if (containerHasElement(plot_var_names, "sensible_heat_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_hfx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        // Delegate unit semantics to the surface flux diagnostics helper.
+                        derdat(i, j, k, mf_comp) =
+                            surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(
+                                hfx_arr(i, j, klo));
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // sensible_heat_flux
+
+        if (containerHasElement(plot_var_names, "latent_heat_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_q1fx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        // Delegate unit semantics to the surface flux diagnostics helper.
+                        derdat(i, j, k, mf_comp) =
+                            surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(
+                                qfx_arr(i, j, klo));
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // latent_heat_flux
 
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));

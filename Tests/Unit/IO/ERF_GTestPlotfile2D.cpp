@@ -98,7 +98,8 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv", "surface_diagnostic_source"
+        "surf_pres", "integrated_qv", "surface_diagnostic_source",
+        "sensible_heat_flux", "latent_heat_flux"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
@@ -189,6 +190,27 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
     EXPECT_FALSE(std::string(descriptor->long_name).empty());
     EXPECT_FALSE(std::string(descriptor->units).empty());
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: The W m^-2 diagnostics are public 2D outputs, so their catalog
+// entries must expose the intended units, category, and missing-value policy.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceFluxComposition)
+{
+    const auto* sensible = plotfile2d::find_diagnostic("sensible_heat_flux");
+    ASSERT_NE(sensible, nullptr);
+    EXPECT_STREQ(sensible->name, "sensible_heat_flux");
+    EXPECT_EQ(sensible->id, plotfile2d::DiagnosticID::SensibleHeatFlux);
+    EXPECT_EQ(sensible->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
+    EXPECT_STREQ(sensible->units, "W m^-2");
+    EXPECT_EQ(sensible->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+
+    const auto* latent = plotfile2d::find_diagnostic("latent_heat_flux");
+    ASSERT_NE(latent, nullptr);
+    EXPECT_STREQ(latent->name, "latent_heat_flux");
+    EXPECT_EQ(latent->id, plotfile2d::DiagnosticID::LatentHeatFlux);
+    EXPECT_EQ(latent->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
+    EXPECT_STREQ(latent->units, "W m^-2");
+    EXPECT_EQ(latent->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
 // Motivation: Unknown catalog lookups should fail cleanly so callers can

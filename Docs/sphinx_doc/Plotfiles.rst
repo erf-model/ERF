@@ -814,6 +814,22 @@ variables in this order.
 |                               | diagnostic path. ERF writes -999 when SurfaceLayer is |
 |                               | not active.                                           |
 +-------------------------------+-------------------------------------------------------+
+| **sensible_heat_flux**        | Surface sensible heat flux [W m^-2]. ERF writes     |
+|                               | -999 when the flux field is not available.          |
++-------------------------------+-------------------------------------------------------+
+| **latent_heat_flux**          | Surface latent heat flux [W m^-2]. ERF writes       |
+|                               | -999 when moisture is disabled or the flux field is |
+|                               | not available.                                       |
++-------------------------------+-------------------------------------------------------+
+
+sens_flux and laten_flux are legacy ERF internal conservative scalar flux
+outputs. sensible_heat_flux and latent_heat_flux convert those applied
+conservative fluxes to W m^-2 using Cp_d and L_v, respectively.
+
+The sign convention follows ERF's lower-boundary flux convention. No source-
+specific Noah-MP or MOST conversion is applied in the diagnostic layer. The
+Noah-MP LSM kinematic-to-conservative conversion happens upstream in
+SurfaceLayer.
 
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
