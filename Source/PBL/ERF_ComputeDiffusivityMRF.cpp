@@ -648,7 +648,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF Reference: module_bl_mrf.F lines 857-861
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
-            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
+            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
             const Real phiM     = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
@@ -1026,6 +1026,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
                 K_turb(i, j, k, EddyDiff::Theta_v) = zero;
                 K_turb(i, j, k, EddyDiff::Q_v)     = zero;
+            }
 
             // Limit diffusion coefficients to physical bounds
             // Hong & Pan (1996): Kmin=0.1, Kmax=300 m^2/s (module_bl_mrf.F lines 1014-1025)
