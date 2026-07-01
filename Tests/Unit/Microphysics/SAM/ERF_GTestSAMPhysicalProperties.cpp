@@ -15,7 +15,8 @@ SolverChoice make_sam_solver_choice (const MoistureType moisture_type = Moisture
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_shoc = false;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = false;
     return sc;
 }
 
@@ -1090,6 +1091,60 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                                           std::max({summary.initial_rain_mass + summary.initial_snow_mass + summary.initial_graupel_mass,
                                                     summary.rain_accum_mass + summary.snow_accum_mass + summary.graupel_accum_mass,
                                                     amrex::Real(1.0)})));
+}
+
+// Motivation: When SHOC owns cloud condensation, SAM::Cloud must not change a
+// warm supersaturated cloud-free cell. This exercises the public C++ no-op
+// path and guards against double-adjusting vapor and cloud water.
+TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
+{
+    const amrex::Real tabs = amrex::Real(290.0);
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real qsat = mixed_qsat_for_state(kSAMWithIceMode, tabs, pres_mbar);
+    const SAMCellState state = make_cell_state(
+        tabs,
+        pres_mbar,
+        qsat + amrex::Real(1.0e-4),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0));
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, 1.0)});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab before(ba, dm, RhoQ6_comp + 1, 0);
+    fill_single_cell_from_sam_state(cons, state);
+    amrex::MultiFab::Copy(before, cons, 0, 0, cons.nComp(), 0);
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+
+    SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
+    sc.use_native_shoc = true;
+    sc.turbChoice.resize(1);
+    sc.turbChoice[0].pbl_type = PBLType::NATIVE_SHOC;
+
+    SAM sam;
+    sam.Define(sc);
+    sam.Set_dzmin(geom.CellSize(2));
+    sam.Init(cons, ba, geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
+    sam.Copy_State_to_Micro(cons);
+    sam.Cloud(sc);
+    sam.Copy_Micro_to_State(cons);
+    amrex::Gpu::streamSynchronize();
+
+    for (int comp = Rho_comp; comp <= RhoQ6_comp; ++comp) {
+        SCOPED_TRACE("comp=" + std::to_string(comp));
+        EXPECT_NEAR(cons.max(comp), before.max(comp), exact_zero_or_near_zero_tol());
+    }
 }
 
     struct CloudAdjustmentLimiterInvestigation {

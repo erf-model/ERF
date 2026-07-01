@@ -831,6 +831,10 @@ specific Noah-MP or MOST conversion is applied in the diagnostic layer. The
 Noah-MP LSM kinematic-to-conservative conversion happens upstream in
 SurfaceLayer.
 
+Native SHOC continues to consume the host flux and stress arrays through its
+existing preprocessing path, which divides by near-surface density before the
+coupled column update.
+
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

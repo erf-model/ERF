@@ -292,7 +292,10 @@ inline SolverChoice make_solver_choice (const bool use_shoc)
     SolverChoice sc;
     sc.c_p = Cp_d;
     sc.rdOcp = kRdOcp;
-    sc.use_shoc = use_shoc;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = use_shoc;
+    sc.turbChoice.resize(1);
+    sc.turbChoice[0].pbl_type = use_shoc ? PBLType::NATIVE_SHOC : PBLType::None;
     return sc;
 }
 

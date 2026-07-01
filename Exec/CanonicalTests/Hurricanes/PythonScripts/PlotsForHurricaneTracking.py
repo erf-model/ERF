@@ -154,5 +154,3 @@ if __name__ == "__main__":
         plt.legend()
         plt.savefig(args.outfile_minpressure, dpi=300, bbox_inches="tight")
         plt.close()
-
-

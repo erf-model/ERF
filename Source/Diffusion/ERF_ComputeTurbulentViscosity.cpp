@@ -893,7 +893,7 @@ void ComputeTurbulentViscosity (Real dt,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
                               solverChoice.moisture_indices);
-    } else if (turbChoice.pbl_type == PBLType::SHOC) {
+    } else if (turbChoice.uses_shoc_family()) {
         // NOTE: Nothing to do here. The SHOC class handles setting the vertical
         //       components of eddyDiffs in slow RHS pre.
     }
