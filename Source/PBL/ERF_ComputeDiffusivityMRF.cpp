@@ -476,7 +476,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // WRF Reference: module_bl_mrf.F lines 857-861
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
-            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(10.0)), Real(-10.0));
+            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
             const Real phiM     = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
@@ -717,14 +717,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real total_qcloud = qc_mix + qi_mix;
             const bool has_cloud = (total_qcloud > qc_threshold);
 
-            if (k < pbli_zero_arr(i, j, 0)) {
+            // Select PBL extent index based on configuration:
+            // - Default (pbl_mrf_use_zero_ri_extent=false): use pbli_arr (Ri=0.5 corrector)
+            //   This matches WRF behavior for better comparability
+            // - Alternative (pbl_mrf_use_zero_ri_extent=true): use pbli_zero_arr (Ri=0)
+            //   This provides a ~30-60% taller mixing region for convective ABL cases
+            const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
+
+            if (k < pbli_extent) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
                 // WRF reference (module_bl_mrf.F lines 968-986):
                 // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
                 //
-                // Use pbli_zero_arr (zero-Ri diagnostic index) to determine PBL extent,
-                // which provides the physically appropriate mixed-layer depth. The mixing
-                // intensity is governed by pblh_corr_arr used in the formula K = ρ*wstar*κ*z*(1-z/h)².
+                // PBL extent selection:
+                // - Default (pbl_mrf_use_zero_ri_extent=false): uses pbli_arr (Ri=0.5 corrector)
+                //   Matches WRF behavior for K-profile mixing
+                // - Alternative (pbl_mrf_use_zero_ri_extent=true): uses pbli_zero_arr (Ri=0)
+                //   Provides physically appropriate mixed-layer depth with extended mixing region
+                // The mixing intensity is governed by pblh_corr_arr used in the formula K = ρ*wstar*κ*z*(1-z/h)².
                 // This two-level approach ensures realistic PBL height behavior across
                 // different stability regimes while maintaining stable mixing coefficients.
                 //
@@ -868,7 +878,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     K_turb(i, j, k, EddyDiff::Theta_v) = zero;
                     K_turb(i, j, k, EddyDiff::Q_v)     = zero;
                 }
-            } else if (k >= pbli_zero_arr(i, j, 0)) {
+            } else if (k >= pbli_extent) {
                 // Free atmosphere above PBL: use local Richardson number-dependent mixing
                 // with lengthscale = (kappa * z * lambda) / (kappa * z + lambda)
                 // where lambda = 150 m (characteristic free-atmosphere lengthscale)
@@ -901,14 +911,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                 const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
-                // Use potential temperature (not virtual) for Richardson number stability calculation
-                // This matches WRF MRF approach for consistency with Hong et al. 2006 (YSU scheme).
-                // Note: Some schemes use θ_v, but YSU uses θ for simplicity and stability.
-                const Real theta = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
-                const Real dtheta_dz = myhalf * ((cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)) -
-                                                  (cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp))) * (one / dz_terrain);
+                // Use virtual potential temperature (θ_v) for Richardson number stability calculation.
+                // This correctly accounts for moisture effects on buoyancy.
+                // WRF Reference: module_bl_mrf.F uses THVX (virtual potential temperature).
+                // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
+                const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
+                const Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+                const Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
 
-                // Gradient Richardson number: Ri_g = (g/θ) * (dθ/dz) / (shear²)
+                // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
                 // Reference: WRF module_bl_mrf.F line ~450-456, Hong et al. 2006, Eqn. A18
                 //
                 // For STABILITY ANALYSIS:
@@ -919,7 +931,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 //
                 // CRITICAL SAFETY BOUND: Bound both from below (-100.0) and above (100.0)
                 // to prevent extreme floating-point scales from causing numerical instability
-                Real grad_Ri = CONST_GRAV / theta * dtheta_dz / wind_shear_safe;
+                Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
                 // YSU stability functions (Hong et al. 2006, MWR, Appendix A)
                 // Reference: https://doi.org/10.1175/MWR3250.1
@@ -968,6 +980,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
                 K_turb(i, j, k, EddyDiff::Theta_v) = zero;
                 K_turb(i, j, k, EddyDiff::Q_v)     = zero;
+            }
 
             // Limit diffusion coefficients to physical bounds
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
@@ -1015,8 +1028,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
 
             // Store countergradient correction terms (HGAMT/h and HGAMQ/h)
-            // Use pbli_zero_arr (zero-Ri diagnostic index) to determine PBL extent
-            if (k < pbli_zero_arr(i, j, 0)) {
+            // Use the selected PBL extent index (pbli_arr or pbli_zero_arr based on pbl_mrf_use_zero_ri_extent)
+            if (k < pbli_extent) {
                 // Inside PBL: store the normalized countergradient terms
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
