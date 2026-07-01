@@ -722,10 +722,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
-                const Real VPERT = (enable_mrf_countergradient)
-                                 ? amrex::max(HGAMT + amrex::Real(0.61) * t_layer * HGAMQ, zero)
-                                 : zero;
-                vpert_arr(i, j, 0) = VPERT;
+                // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
+                // When enable_mrf_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
+                // WRF Reference: module_bl_mrf.F lines 879-880
+                if (enable_mrf_countergradient) {
+                    const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
+                    const Real VPERT_capped = enable_mrf_unbounded_vpert
+                                            ? VPERT_raw
+                                            : amrex::min(VPERT_raw, GAMCRT);
+                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
+                } else {
+                    vpert_arr(i, j, 0) = zero;
+                }
             }
 
         });
