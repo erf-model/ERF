@@ -548,6 +548,7 @@ ERF::ERF_shared ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+                EB2::BuildFC();
             }
         } else if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
