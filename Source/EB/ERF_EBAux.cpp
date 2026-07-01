@@ -1176,7 +1176,7 @@ eb_aux_::getBndryCent () const
 }
 
 const MultiFab&
-eb_aux_::getBndryNorm () const
+eb_aux_::getBndryNormal () const
 {
     AMREX_ASSERT(m_bndrynorm != nullptr);
     return *m_bndrynorm;

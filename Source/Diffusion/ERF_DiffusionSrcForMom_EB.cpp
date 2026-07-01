@@ -127,7 +127,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
     Array4<const Real      > u_bcent = u_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > u_bnorm = u_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > u_bnorm = u_factory->getBndryNormal().const_array(mfi);
 
     // EB v-factory
     const auto* v_factory = ebfact.get_v_const_factory();
@@ -138,7 +138,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
     Array4<const Real      > v_bcent = v_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > v_bnorm = v_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > v_bnorm = v_factory->getBndryNormal().const_array(mfi);
 
     // EB w-factory
     const auto* w_factory = ebfact.get_w_const_factory();
@@ -149,7 +149,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
     Array4<const Real      > w_bcent = w_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > w_bnorm = w_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > w_bnorm = w_factory->getBndryNormal().const_array(mfi);
 
     // x-momentum
     ParallelFor(bxx,

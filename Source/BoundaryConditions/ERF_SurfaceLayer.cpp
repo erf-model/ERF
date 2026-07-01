@@ -764,9 +764,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
     const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
     const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
     const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
-    const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNorm();
-    const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNorm();
-    const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNorm();
+    const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNormal();
+    const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNormal();
+    const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNormal();
 
     // EB does not currently have a cell-centered scalar-source classification.
     // Keep the provenance mask missing rather than inventing face-aware
