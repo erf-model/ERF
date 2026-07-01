@@ -84,19 +84,9 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_fine_dt_stable"
 
-# INITIALIZATION - Start from stable conditions
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
 
-prob.U_0 = 5.0       # moderate wind speed [m/s]
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # potential temperature [K]
 
 # Small perturbations for turbulence
-prob.U_0_Pert_Mag = 0.2
-prob.V_0_Pert_Mag = 0.2
-prob.W_0_Pert_Mag = 0.05
 
 # PBL CONFIGURATION - Standard MRF
 erf.pbl_type = "MRF"

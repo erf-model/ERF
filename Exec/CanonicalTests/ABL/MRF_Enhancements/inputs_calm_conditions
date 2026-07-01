@@ -85,18 +85,9 @@ erf.input_sounding_file = "input_sounding_MRF_calm_conditions"
 # INITIALIZATION - VERY LOW WIND CONDITIONS
 # Key: Start with extremely weak winds (0.1-0.5 m/s)
 # This tests the wind shear safety threshold
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
 
-prob.U_0 = 0.2       # VERY WEAK wind speed [m/s] (tropical calm-air conditions)
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # potential temperature [K]
 
 # Small perturbations to trigger turbulence despite weak wind
-prob.U_0_Pert_Mag = 0.1
-prob.V_0_Pert_Mag = 0.1
-prob.W_0_Pert_Mag = 0.05
 
 # PBL CONFIGURATION - MRF with countergradient
 erf.pbl_type = "MRF"

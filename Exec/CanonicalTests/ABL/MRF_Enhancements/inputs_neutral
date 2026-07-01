@@ -71,22 +71,6 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_neutral"
 
-# INITIALIZATION - Neutral conditions
-# Uniform potential temperature (no vertical gradient)
-# Moderate wind speed for shear-driven turbulence
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
-
-prob.U_0 = 10.0      # mean wind speed [m/s] at surface
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # uniform potential temperature [K]
-
-# Small perturbations to trigger turbulence development
-prob.U_0_Pert_Mag = 0.5  # ~5% perturbation
-prob.V_0_Pert_Mag = 0.5
-prob.W_0_Pert_Mag = 0.1
-
 # PBL CONFIGURATION - Baseline MRF (neutral case)
 erf.pbl_type = "MRF"
 erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number

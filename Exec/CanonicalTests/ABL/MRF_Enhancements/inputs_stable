@@ -83,24 +83,12 @@ erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.theta_ref = 270.0
 
-# INITIALIZATION - Stable conditions (from GABLS1 input_sounding)
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_GABLS1"
 
-# PROBLEM PARAMETERS (initial values if Uniform initialization used)
-prob.rho_0 = 1.3   # polar air density [kg/m³]
-prob.A_0 = 1.0
 
-prob.U_0 = 8.0       # geostrophic wind speed [m/s]
-prob.V_0 = 0.0       # no cross-wind component initially
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 270.0     # cold base temperature [K]
 
-# Weak perturbations (stable case suppresses turbulence)
-prob.U_0_Pert_Mag = 0.1
-prob.V_0_Pert_Mag = 0.1
-prob.W_0_Pert_Mag = 0.01
 
 # PBL CONFIGURATION - MRF for stable boundary layer
 erf.pbl_type = "MRF"

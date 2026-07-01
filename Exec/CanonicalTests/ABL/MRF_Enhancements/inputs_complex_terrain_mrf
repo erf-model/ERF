@@ -94,19 +94,10 @@ prob.hmax = 200.0       # primary hill height [m]
 prob.L = 1000.0         # primary hill length [m] (wider base for multi-scale)
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.225  # sea level air density [kg/m³]
-prob.A_0 = 1.0      # stretching factor
 
 # Moderate wind speed to ensure flow over terrain
-prob.U_0 = 8.0      # wind speed [m/s] aligned with terrain
-prob.V_0 = 0.0      # no cross-wind
-prob.W_0 = 0.0      # no mean vertical motion
-prob.T_0 = 300.0    # potential temperature [K]
 
 # Perturbations for turbulence development
-prob.U_0_Pert_Mag = 0.3
-prob.V_0_Pert_Mag = 0.3
-prob.W_0_Pert_Mag = 0.1
 
 # PBL CONFIGURATION - MRF over Complex Terrain
 erf.pbl_type = "MRF"

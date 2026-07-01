@@ -75,19 +75,10 @@ erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_marine"
 
 # MOISTURE CONFIGURATION
-prob.rho_0 = 1.2
-prob.A_0 = 1.0
 
-prob.U_0 = 6.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 298.0
 
 # Active moisture with high humidity
 erf.active_moisture_vars = qv qc qi
-prob.Rho_0_qv = 0.014   # high water vapor mixing ratio (marine air)
-prob.Rho_0_qc = 0.0
-prob.Rho_0_qi = 0.0
 
 # PBL CONFIGURATION - MRF PBL with water/land-aware moisture diffusivity
 erf.pbl_type = "MRF"
@@ -98,6 +89,3 @@ erf.enable_mrf_countergradient = true
 erf.mrf_moistvars = true
 
 # Weak perturbations
-prob.U_0_Pert_Mag = 0.1
-prob.V_0_Pert_Mag = 0.1
-prob.W_0_Pert_Mag = 0.02
