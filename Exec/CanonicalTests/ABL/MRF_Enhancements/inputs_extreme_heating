@@ -83,19 +83,9 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_extreme_heating"
 
-# INITIALIZATION - Start from weak conditions to evolve to extreme
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
 
-prob.U_0 = 4.0       # weak wind (allows large PBL growth)
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # initial potential temperature [K]
 
 # Moderate perturbations for turbulence initiation
-prob.U_0_Pert_Mag = 0.2
-prob.V_0_Pert_Mag = 0.2
-prob.W_0_Pert_Mag = 0.05
 
 # PBL CONFIGURATION - MRF with countergradient enabled
 erf.pbl_type = "MRF"

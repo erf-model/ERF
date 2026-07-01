@@ -78,18 +78,9 @@ prob.hmax = 100.0       # hill height [m]
 prob.L = 500.0          # hill length [m]
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.2
-prob.A_0 = 1.0
 
-prob.U_0 = 10.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 300.0
 
 # Perturbations
-prob.U_0_Pert_Mag = 0.1
-prob.V_0_Pert_Mag = 0.1
-prob.W_0_Pert_Mag = 0.05
 
 # PBL CONFIGURATION - MRF over Complex Terrain
 erf.pbl_type = "MRF"

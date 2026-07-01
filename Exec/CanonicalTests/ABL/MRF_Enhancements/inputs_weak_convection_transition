@@ -84,20 +84,9 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_weak_convection_transition"
 
-# INITIALIZATION - Start from neutral conditions
 # Neutral profile (uniform θ) transitioning to weakly convective
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
 
-prob.U_0 = 8.0       # mean wind speed [m/s] (typical for weak convection)
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # initial uniform potential temperature [K]
 
-# Small perturbations to trigger turbulence development
-prob.U_0_Pert_Mag = 0.4
-prob.V_0_Pert_Mag = 0.4
-prob.W_0_Pert_Mag = 0.1
 
 # PBL CONFIGURATION - MRF with countergradient enabled (tests smooth activation)
 erf.pbl_type = "MRF"

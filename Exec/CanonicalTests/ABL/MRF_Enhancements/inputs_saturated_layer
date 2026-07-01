@@ -83,21 +83,11 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_saturated_layer"
 
-# INITIALIZATION - Saturated/foggy conditions
 # Start with high relative humidity (~85%) that increases to RH > 95%
-prob.rho_0 = 1.225   # sea level air density [kg/m³]
-prob.A_0 = 1.0       # stretching factor
 
-prob.U_0 = 5.0       # moderate wind speed [m/s]
-prob.V_0 = 0.0       # no cross-wind
-prob.W_0 = 0.0       # no mean vertical motion
-prob.T_0 = 300.0     # potential temperature [K]
 
 # Higher moisture content to create saturation
 # Note: Actual moisture mixing ratio set via microphysics initialization
-prob.U_0_Pert_Mag = 0.3
-prob.V_0_Pert_Mag = 0.3
-prob.W_0_Pert_Mag = 0.1
 
 # PBL CONFIGURATION - MRF with moisture effects enabled
 erf.pbl_type = "MRF"

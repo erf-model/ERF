@@ -69,18 +69,9 @@ erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_arctic"
 
 # INITIALIZATION - extremely cold stable atmosphere
-prob.rho_0 = 1.35
-prob.A_0 = 1.0
 
-prob.U_0 = 5.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 260.0
 
 # Extremely weak perturbations (quickly suppressed)
-prob.U_0_Pert_Mag = 0.05
-prob.V_0_Pert_Mag = 0.05
-prob.W_0_Pert_Mag = 0.001
 
 # PBL CONFIGURATION - MRF under extreme polar cooling
 erf.pbl_type = "MRF"
