@@ -23,15 +23,14 @@ erf.prob_name = "ABL"
 # With dt=0.1, max_step = 216000
 max_step = 216000
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 # Moderate resolution suitable for transitional dynamics
 geometry.prob_extent =  2048     2048    1536
-amr.n_cell           =    64       64      64
-
+amr.n_cell           =    8        8      64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY - Time-varying surface heating (weak convection transition)
@@ -67,8 +66,8 @@ erf.check_file      = chk_weak_convection    # root name of checkpoint file
 erf.check_int       = 50000                  # checkpoint every ~5400 s (90 min)
 
 # PLOTFILES
-erf.plot_file_1     = plt_weak_convection     # prefix of plotfile name
-erf.plot_int_1      = 10000                   # plotfile every 1000 s (~16 min)
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
