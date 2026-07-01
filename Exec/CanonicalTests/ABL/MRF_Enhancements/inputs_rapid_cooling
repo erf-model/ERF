@@ -40,7 +40,7 @@ geometry.is_periodic = 1 1 0
 # This rapid transition tests numerical stability of HOL calculations
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 300.0  # initial surface temperature [K]
 erf.most.surf_heating_rate = 1.0  # average rate (will vary with time/procedure)
 
@@ -109,3 +109,9 @@ erf.mrf_moistvars = false
 erf.latitude = 60.0  # higher latitude for realistic cooling rates
 
 # END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 7.0 0.0 0.0

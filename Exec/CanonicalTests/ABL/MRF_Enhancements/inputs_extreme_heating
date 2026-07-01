@@ -37,7 +37,7 @@ geometry.is_periodic = 1 1 0
 # Very strong surface heating rate (15-20 K/h) representing heat wave or desert
 zlo.type = "surface_layer"
 erf.most.z0   = 0.01    # roughness length [m] (desert-like, sparse vegetation)
-erf.most.zref = 10.0    # reference height [m]
+erf.most.zref = 48.0    # reference height [m]
 erf.most.surf_temp = 320.0  # very hot surface temperature [K]
 erf.most.surf_heating_rate = 15.0  # EXTREME heating rate [K/h]
 
@@ -109,3 +109,9 @@ erf.pbl_mrf_highres_bounds = false  # Uses standard Kmin=0.1, Kmax=300 m²/s
 erf.latitude = 30.0  # subtropical latitude (realistic for extreme heat)
 
 # END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 4.0 0.0 0.0

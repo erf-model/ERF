@@ -15,7 +15,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
-erf.most.zref = 8.0
+erf.most.zref = 48.0
 
 zhi.type = "SlipWall"
 
@@ -77,3 +77,9 @@ erf.mrf_moistvars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 10.0 0.0 0.0

@@ -27,7 +27,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY WITH INTENSE COOLING
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
-erf.most.zref = 10.0
+erf.most.zref = 48.0
 erf.most.surf_temp = 260.0 # very cold Arctic surface
 erf.most.surf_heating_rate = -1.0 # intense radiative surface cooling (-1.0 K/h)
 
@@ -83,3 +83,9 @@ erf.pbl_mrf_const_b = 7.8
 erf.pbl_mrf_sf = 0.1
 erf.enable_mrf_countergradient = false
 erf.mrf_moistvars = false
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0

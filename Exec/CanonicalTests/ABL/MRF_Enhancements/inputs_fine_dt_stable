@@ -37,7 +37,7 @@ geometry.is_periodic = 1 1 0
 # Use stable boundary layer to focus on numerical aspects
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
+erf.most.zref = 48.0     # reference height [m]
 erf.most.surf_temp = 280.0  # cooler surface (stable)
 erf.most.surf_heating_rate = -0.1  # weak cooling [K/h]
 
@@ -107,3 +107,9 @@ erf.mrf_moistvars = false
 erf.latitude = 60.0  # higher latitude for stable conditions
 
 # END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0
