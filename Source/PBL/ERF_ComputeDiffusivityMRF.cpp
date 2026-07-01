@@ -257,11 +257,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
 
-                // CRITICAL FIX: Richardson number calculation uses potential temperature at
-                // lowest level (klo) in denominator, consistent with WRF formulation.
-                // WRF reference (module_bl_mrf.F lines 824):
-                // BRUP(I)=(THVX(I,K)-THERMAL(I))*(G*ZA(I,K)/THVX(I,KL))/SPDK2
-                // where THVX(I,KL) is the potential temperature at the lowest level (surface layer)
+                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+                // with WRF bulk Richardson number definition (WRF module_bl_mrf.F line 824)
                 const Real Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -391,8 +389,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // CRITICAL FIX: Use theta_v_klo (at lowest level) in denominator for consistency
-                // For corrector, use base surface temperature (no countergradient yet)
+                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+                // with WRF bulk Richardson number definition
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -459,15 +458,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // consistency. ERF implements three passes: this loop performs the needed computation
         // after the corrector pass is complete.
         //
-        // Hong & Pan (1996) formulation: WSCALE = u* / φ_m(h/L)
+        // Hong & Pan (1996): WSCALE = u* / φ_m(h/L)
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
-        //
-        // References:
-        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
-        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
-        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-        // - WRF module_bl_mrf.F lines 863-879
-        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L863-L879
+        // WRF Reference: module_bl_mrf.F lines 863-879
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
@@ -572,15 +565,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //   - Stable mixing formula consistent with corrector diagnostics
         //   - Physical consistency with WRF's treatment
         //
-        // Hong & Pan (1996) motivation: PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
+        // Hong & Pan (1996): PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
         // The Ribcr=0 pass produces h(Ri=0), the "depth of neutral layers" from observations.
-        //
-        // References:
-        // - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical Diffusion
-        //   in a Medium-Range Forecast Model. Mon. Wea. Rev., 124, 2322-2339.
-        //   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-        // - WRF module_bl_mrf.F lines 932-964
-        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
+        // WRF Reference: module_bl_mrf.F lines 932-964
         //
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
@@ -734,10 +721,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
 
                 // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
-                // CRITICAL FIX: ERF was using WRONG coefficients and exponent
-                // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [WRF APHI16=16, exponent -1/4]
+                // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [APHI16=16, exponent -1/4]
                 // Stable (L > 0):   phiM = 1 + 5*sf*h/L
-                // CRITICAL: Bound HOL to prevent numerical issues
+                // Bound HOL to [-100, 100] to prevent numerical issues in extreme stability
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
                 
@@ -992,9 +978,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
 
-            // Store countergradient correction term: HGAMT/h and HGAMQ/h
-            // These values are zero outside the PBL and used by the implicit diffusion solver
-            // CRITICAL FIX #2: Use pbli_zero_arr (diagnostic index) to match K-profile extent
+            // Store countergradient correction terms (HGAMT/h and HGAMQ/h)
+            // Use pbli_zero_arr (zero-Ri diagnostic index) to determine PBL extent
             if (k < pbli_zero_arr(i, j, 0)) {
                 // Inside PBL: store the normalized countergradient terms
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
