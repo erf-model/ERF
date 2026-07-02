@@ -212,6 +212,14 @@ public:
           pp, "pbl_ysunew_entr_A", pbl_ysunew_entr_A, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_entr_B", pbl_ysunew_entr_B, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_liquid_theta", enable_ysu_liquid_theta, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_sat_limiter", enable_ysu_sat_limiter, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_cloud_pblh", enable_ysu_cloud_pblh, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -496,6 +504,14 @@ public:
                      << pbl_ysunew_entr_A << std::endl;
       amrex::Print() << "    pbl_ysunew_entr_B               : "
                      << pbl_ysunew_entr_B << std::endl;
+      amrex::Print() << "    enable_ysu_liquid_theta         : "
+                     << enable_ysu_liquid_theta << std::endl;
+      amrex::Print() << "    enable_ysu_sat_limiter          : "
+                     << enable_ysu_sat_limiter << std::endl;
+      amrex::Print() << "    enable_ysu_cloud_pblh           : "
+                     << enable_ysu_cloud_pblh << std::endl;
+      amrex::Print() << "    ysu_qcloud_threshold (kg/kg)    : "
+                     << ysu_qcloud_threshold << std::endl;
     }
   }
 
@@ -633,6 +649,10 @@ public:
   bool enable_ysu_entrainment     = true;              // if true, add entrainment K at PBL top
   amrex::Real pbl_ysunew_entr_A   = amrex::Real(0.2);  // entrainment coefficient for momentum (WRF ENTFAC_M)
   amrex::Real pbl_ysunew_entr_B   = amrex::Real(5.0);  // denominator weight of wstar3 in entrainment velocity
+  bool enable_ysu_liquid_theta    = false;             // use liquid-water virtual pot. temp. in Rib
+  bool enable_ysu_sat_limiter     = false;             // scale HGAMQ to zero as RH approaches 1
+  bool enable_ysu_cloud_pblh      = false;             // extend entrainment zone top by 1 cell if cloud present at kpbl
+  amrex::Real ysu_qcloud_threshold = amrex::Real(1.0e-5);  // cloud detection threshold (kg/kg)
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
