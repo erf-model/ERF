@@ -244,7 +244,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real Ribcr;
             {
                 // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
-                bool over_land = (!lmask_arr.data()) || (lmask_arr(i, j, 0) == 1);
+                bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
                 if (over_land) {
                     Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
                 } else {
@@ -411,7 +411,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real Ribcr;
             {
                 // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
-                bool over_land = (!lmask_arr.data()) || (lmask_arr(i, j, 0) == 1);
+                bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
                 if (over_land) {
                     Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
                 } else {
@@ -487,9 +487,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real dz_terrain = (use_terrain_fitted_coords)
                                    ? (Compute_Zrel_AtCellCenter(i, j, klo + 1, z_nd_arr) - z_sfc)
                                    : gdata.CellSize(2);
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            //const Real pblh_emp = (use_terrain_fitted_coords)
+            //                    ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+            //                    : myhalf * gdata.CellSize(2);
 
             // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
             const Real z_max = (use_terrain_fitted_coords)
