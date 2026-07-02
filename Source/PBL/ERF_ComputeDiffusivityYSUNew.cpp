@@ -635,7 +635,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // Compute HGAMT with corrected wscale and WRF convention
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
             // WRF bl_ysu.F90 line 688: hgamt(i) = min(gamfac*hfx(i)/cp, gamcrt)
-            bool SFCFLG = (sflux_arr(i, j, 0) > zero);
+            //bool SFCFLG = (sflux_arr(i, j, 0) > zero);
+            bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral (L < 0)
             const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
             const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * u_star_arr(i,j,0) * t_star_arr(i,j,0);
             const Real gamfac = const_b / (rho_sfc * wscale_corr);
@@ -925,7 +926,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Implement SFCFLG stable-side gating (WRF L808, L872-884)
                 // When stable (BR > 0, i.e., sflux < 0), skip nonlocal PBL mixing
                 // and use free-atmosphere Richardson scheme throughout PBL.
-                bool SFCFLG = (sflux_arr(i, j, 0) > zero);  // TRUE when unstable/neutral, FALSE when stable
+                //bool SFCFLG = (sflux_arr(i, j, 0) > zero);  // TRUE when unstable/neutral, FALSE when stable
+                bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral (L < 0), FALSE when stable (L > 0)
 
                 // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
                 // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [APHI16=16, exponent -1/4]
