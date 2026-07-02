@@ -161,93 +161,103 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws² (lines 180-200)
         // References: Hong et al., Mon. Wea. Rev., 134, 2318-2341 (2006)
         //
+        const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
+        
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Determine surface-type-dependent critical Richardson number
-            // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
-            Real Ribcr;
-            {
-                // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
-                bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
-                if (over_land) {
-                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
-                } else {
-                    // Over water: compute Rossby-number-dependent Ribcr
-                    // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
-                    const Real z0 = z0_arr(i, j, 0);
-                    const Real ws_layer = ws10av_arr(i, j, 0);
-                    const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
-                    Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
-                }
-            }
+           // Determine surface-type-dependent critical Richardson number
+           // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
+           Real Ribcr;
+           {
+               // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
+               bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
+               if (over_land) {
+                   Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
+               } else {
+                   // Over water: compute Rossby-number-dependent Ribcr
+                   // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
+                   const Real z0 = z0_arr(i, j, 0);
+                   const Real ws_layer = ws10av_arr(i, j, 0);
+                   const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
+                   Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
+               }
+           }
 
-            const Real t_layer  = t10av_arr(i, j, 0);
-            Real zval, Rib;
-            int kpbl = klo;
+           const Real t_layer  = t10av_arr(i, j, 0);
+           Real zval, Rib;
+           int kpbl = klo;
 
-            // Initialize at lowest level
-            {
-                zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
-                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
-            }
+           // Initialize at lowest level
+           {
+               zval = (use_terrain_fitted_coords)
+                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                    : (kpbl + myhalf) * gdata.CellSize(2);
+               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
+                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
+               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
+               const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+               const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
+               // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+               // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
+               Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+           }
 
-            bool above_critical = false;
-            while (!above_critical && ((kpbl + 1) <= khi)) {
-                kpbl += 1;
+           bool above_critical = false;
+           while (!above_critical && ((kpbl + 1) <= khi)) {
+               kpbl += 1;
 
-                // height above ground level
-                zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
+               // height above ground level
+               zval = (use_terrain_fitted_coords)
+                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                    : (kpbl + myhalf) * gdata.CellSize(2);
 
-                // Use virtual potential temperature for stability calculations
-                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-                const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
+               // Use virtual potential temperature for stability calculations
+               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
+                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
+               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
+               const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+               const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
 
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
-                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
-                above_critical = (Rib >= Ribcr);
-            }
+               // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+               // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
+               Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+               above_critical = (Rib >= Ribcr);
+           }
 
-            // Empirical expression for PBLH is given by h = c u* / f
-            // Garratt (1994) and Tennekes (1982)
-            // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. Real(2014.)
-            //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? Real(0.16) : Real(0.60);
-            //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+           // Empirical expression for PBLH is given by h = c u* / f
+           // Garratt (1994) and Tennekes (1982)
+           // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. Real(2014.)
+           //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? Real(0.16) : Real(0.60);
+           //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
 
-            // Fallback to first cell
+           // Fallback to first cell
 
-            // Initial PBL Height diagnosis (stored in pbli_arr)
-            // WRF reference (module_bl_ysu.F lines 150-180):
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
-            if (above_critical) {
-                pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
-            } else {
-                pbli_arr(i, j, 0) = klo + 1;
-            }
+           // Initial PBL Height diagnosis (stored in pbli_arr)
+           // WRF reference (module_bl_ysu.F lines 150-180):
+           // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
+           if (above_critical) {
+               pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
+           } else {
+               pbli_arr(i, j, 0) = klo + 1;
+           }
         });
 
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
@@ -367,37 +377,45 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
-                // Use lowest-level virtual potential temperature in denominator for consistency
-                // with WRF's Bulk Richardson number definition (module_bl_ysu.F)
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
-            }
+               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
+                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
+               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
+               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
+               // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
+               // Use lowest-level virtual potential temperature in denominator for consistency
+               // with WRF's Bulk Richardson number definition (module_bl_ysu.F)
+               Rib = CONST_GRAV * zval * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
+           }
 
-            bool above_critical = false;
-            while (!above_critical && ((kpbl + 1) <= khi)) {
-                zval0 = zval;
-                Rib0 = Rib;
-                kpbl += 1;
+           bool above_critical = false;
+           while (!above_critical && ((kpbl + 1) <= khi)) {
+               zval0 = zval;
+               Rib0 = Rib;
+               kpbl += 1;
 
-                zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
-                // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
+               zval = (use_terrain_fitted_coords)
+                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                    : (kpbl + myhalf) * gdata.CellSize(2);
+               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
+                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
+               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
+               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
+               // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
+               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
                 // with WRF bulk Richardson number definition (module_bl_ysu.F)
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
@@ -475,6 +493,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // YSU (HND06): WSCALE = u* / φ_m(h/L)
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
+        const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
+         
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -533,7 +553,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 }
 
                 // Saturation-Aware HGAMQ limiter
-                if (moisture_indices.qv >= 0) {
+                if (enable_ysu_sat_limiter && moisture_indices.qv >= 0) {
                     Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
                     Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
                                                   cell_data(i, j, klo, RhoTheta_comp),
@@ -602,8 +622,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Reference: Hong et al. (2006), module_bl_ysu.F
         //
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
-         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
-         {
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
              // Surface virtual temperature with VPERT contribution from Pass 2b
              // Pass 3 uses VPERT-enhanced surface temperature for diagnostic extent
              const Real t_layer  = t10av_arr(i, j, 0);
@@ -617,8 +637,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                   ? GetThetavl(i, j, kpbl_zero, cell_data, moisture_indices)
+                                   : GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                       ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                       : GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
@@ -638,8 +662,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
+                                   ? GetThetavl(i, j, kpbl_zero, cell_data, moisture_indices)
+                                   : GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                       ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                       : GetThetav(i, j, klo, cell_data, moisture_indices);
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
@@ -668,6 +696,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const bool enable_ysu_entrainment = turbChoice.enable_ysu_entrainment;
             const Real entr_A = turbChoice.pbl_ysunew_entr_A;
             const Real entr_B = turbChoice.pbl_ysunew_entr_B;
+            const bool enable_ysu_cloud_pblh = turbChoice.enable_ysu_cloud_pblh;
+            const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -702,6 +732,23 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real K_entr_raw = rho_kpbl * we_m * dz_kpbl;
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
                 entr_arr(i,j,0) = amrex::min(K_entr_raw, K_cap);
+                 
+                // Cloud PBLH extension: check for cloud at PBL top cell and extend if present
+                if (enable_ysu_cloud_pblh && use_moisture) {
+                    const int kpbl_current = pbli_arr(i, j, 0);
+                     
+                    // Check for cloud condensate at PBL top cell
+                    amrex::Real qc_kpbl = zero, qi_kpbl = zero;
+                    if (moisture_indices.qc >= 0)
+                        qc_kpbl = cell_data(i, j, kpbl_current, moisture_indices.qc) / cell_data(i, j, kpbl_current, Rho_comp);
+                    if (moisture_indices.qi >= 0)
+                        qi_kpbl = cell_data(i, j, kpbl_current, moisture_indices.qi) / cell_data(i, j, kpbl_current, Rho_comp);
+                     
+                    // Extend PBL top by one cell if cloud present exceeds threshold
+                    if ((qc_kpbl + qi_kpbl) > ysu_qcloud_threshold) {
+                        pbli_arr(i, j, 0) = amrex::min(kpbl_current + 1, izmax);
+                    }
+                }
             });
         }
 
