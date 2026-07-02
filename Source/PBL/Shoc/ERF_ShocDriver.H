@@ -86,9 +86,24 @@ public:
     bool owns_surface_fluxes () const;
     bool debug_summary_enabled () const { return m_opts.debug_summary; }
     bool has_native_diagnostics () const { return m_eddy_coeffs_cc.isDefined(); }
+    bool has_consumed_surface_flux_diagnostics () const
+    {
+        return m_consumed_sens_flux_cc.isDefined() && m_consumed_laten_flux_cc.isDefined();
+    }
     const amrex::MultiFab& native_diagnostics () const { return m_eddy_coeffs_cc; }
     // Native SHOC pblh is diagnosed in meters above local ground (AGL).
     const amrex::MultiFab& pblh_diagnostics () const { return m_pblh_cc; }
+    // Diagnostic-only provenance of the scalar fluxes consumed by native SHOC.
+    const amrex::MultiFab& consumed_sens_flux_diagnostics () const
+    {
+        return m_consumed_sens_flux_cc;
+    }
+    const amrex::MultiFab& consumed_laten_flux_diagnostics () const
+    {
+        return m_consumed_laten_flux_cc;
+    }
+    const amrex::MultiFab& shoc_ustar_diagnostics () const { return m_shoc_ustar_cc; }
+    const amrex::MultiFab& shoc_olen_diagnostics () const { return m_shoc_olen_cc; }
     const amrex::MultiFab& shoc_cldfrac_diagnostics () const { return m_shoc_cldfrac_cc; }
     const amrex::MultiFab& shoc_ql_diagnostics () const { return m_shoc_ql_cc; }
     const amrex::MultiFab& shoc_ql2_diagnostics () const { return m_shoc_ql2_cc; }
@@ -126,7 +141,11 @@ private:
     amrex::MultiFab m_eddy_coeffs_cc;
     amrex::MultiFab m_prev_turb_cc;
     amrex::MultiFab m_prev_wthv_sec_cc;
+    amrex::MultiFab m_consumed_sens_flux_cc;
+    amrex::MultiFab m_consumed_laten_flux_cc;
     amrex::MultiFab m_pblh_cc;
+    amrex::MultiFab m_shoc_ustar_cc;
+    amrex::MultiFab m_shoc_olen_cc;
     amrex::MultiFab m_shoc_cldfrac_cc;
     amrex::MultiFab m_shoc_ql_cc;
     amrex::MultiFab m_shoc_ql2_cc;

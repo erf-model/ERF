@@ -27,7 +27,7 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::TStar,          "t_star",       "Temperature scale from the surface layer",        "K",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::QStar,          "q_star",       "Humidity scale from the surface layer",           "kg/kg",     DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Olen,           "Olen",         "Obukhov length from the surface layer",          "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::Pblh,           "pblh",         "Planetary boundary layer height",                "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::Pblh,           "pblh",         "Planetary boundary layer height from the active PBL diagnostic provider", "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::TSurf,          "t_surf",       "Surface temperature from the surface layer",      "K",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::QSurf,          "q_surf",       "Surface humidity from the surface layer",         "kg/kg",     DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Z0,             "z0",           "Roughness height from the surface layer",         "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
@@ -42,6 +42,9 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
                                                         "1",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SensibleHeatFlux,"sensible_heat_flux","Surface sensible heat flux",                  "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LatentHeatFlux,  "latent_heat_flux","Surface latent heat flux",                    "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::ShocUStar,      "shoc_u_star",  "Native SHOC friction velocity diagnostic",        "m/s",       DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::ShocOlen,       "shoc_Olen",    "Native SHOC Obukhov length diagnostic",            "m",         DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::ShocWthvSfc,    "shoc_wthv_sfc","Native SHOC surface virtual potential temperature flux", "K m s^-1", DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
     };
 
     return catalog;

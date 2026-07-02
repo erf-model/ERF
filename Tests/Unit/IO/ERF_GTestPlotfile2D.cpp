@@ -99,7 +99,8 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
         "surf_pres", "integrated_qv", "surface_diagnostic_source",
-        "sensible_heat_flux", "latent_heat_flux"
+        "sensible_heat_flux", "latent_heat_flux",
+        "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
@@ -145,6 +146,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::SurfaceLayer:
         case plotfile2d::DiagnosticCategory::Radiation:
         case plotfile2d::DiagnosticCategory::SurfaceFlux:
+        case plotfile2d::DiagnosticCategory::PBL:
         case plotfile2d::DiagnosticCategory::SurfaceState:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
             valid_category = true;
@@ -174,6 +176,21 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForKnownName)
     EXPECT_STREQ(descriptor->name, "sens_flux");
     EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::SensFlux);
     EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
+    EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: pblh now follows the active PBL diagnostic provider, so the
+// catalog metadata must describe the provider rather than only SurfaceLayer.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForPblh)
+{
+    const auto* descriptor = plotfile2d::find_diagnostic("pblh");
+
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_STREQ(descriptor->name, "pblh");
+    EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::Pblh);
+    EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::SurfaceLayer);
+    EXPECT_STREQ(descriptor->units, "m");
+    EXPECT_TRUE(contains(descriptor->long_name, "active PBL diagnostic provider"));
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
@@ -211,6 +228,73 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceFluxComposition)
     EXPECT_EQ(latent->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
     EXPECT_STREQ(latent->units, "W m^-2");
     EXPECT_EQ(latent->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: Native SHOC state_update preserves consumed flux snapshots, but
+// the 2D writer must not turn an absent host latent-flux field into a zero
+// SHOC snapshot. Missing flux components should still fill -999.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionRequiresHostFluxField)
+{
+    EXPECT_TRUE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, false));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, false, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, false, false));
+}
+
+// Motivation: Sensible and latent fluxes are selected independently, so one
+// missing host field must not force the other component to use the wrong
+// source.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionIsComponentSpecific)
+{
+    const bool native_shoc_owns_scalar_fluxes = true;
+    const bool native_shoc_has_consumed_flux_diagnostics = true;
+    const bool host_sensible_flux_available = true;
+    const bool host_latent_flux_available = false;
+
+    const bool use_sensible =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_sensible_flux_available);
+
+    const bool use_latent =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_latent_flux_available);
+
+    EXPECT_TRUE(use_sensible);
+    EXPECT_FALSE(use_latent);
+}
+
+// Motivation: Native SHOC diagnostics are public 2D outputs, so their catalog
+// entries must expose the intended category and missing-value policy.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForNativeShocSurfaceDiagnostics)
+{
+    const auto* ustar = plotfile2d::find_diagnostic("shoc_u_star");
+    ASSERT_NE(ustar, nullptr);
+    EXPECT_STREQ(ustar->name, "shoc_u_star");
+    EXPECT_EQ(ustar->id, plotfile2d::DiagnosticID::ShocUStar);
+    EXPECT_EQ(ustar->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(ustar->units, "m/s");
+    EXPECT_EQ(ustar->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+
+    const auto* olen = plotfile2d::find_diagnostic("shoc_Olen");
+    ASSERT_NE(olen, nullptr);
+    EXPECT_STREQ(olen->name, "shoc_Olen");
+    EXPECT_EQ(olen->id, plotfile2d::DiagnosticID::ShocOlen);
+    EXPECT_EQ(olen->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(olen->units, "m");
+    EXPECT_EQ(olen->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+
+    const auto* wthv = plotfile2d::find_diagnostic("shoc_wthv_sfc");
+    ASSERT_NE(wthv, nullptr);
+    EXPECT_STREQ(wthv->name, "shoc_wthv_sfc");
+    EXPECT_EQ(wthv->id, plotfile2d::DiagnosticID::ShocWthvSfc);
+    EXPECT_EQ(wthv->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(wthv->units, "K m s^-1");
+    EXPECT_EQ(wthv->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
 // Motivation: Unknown catalog lookups should fail cleanly so callers can

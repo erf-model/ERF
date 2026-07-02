@@ -31,7 +31,10 @@ enum class DiagnosticID
     IntegratedQv,
     SurfaceDiagnosticSource,
     SensibleHeatFlux,
-    LatentHeatFlux
+    LatentHeatFlux,
+    ShocUStar,
+    ShocOlen,
+    ShocWthvSfc
 };
 
 enum class DiagnosticCategory
@@ -40,6 +43,7 @@ enum class DiagnosticCategory
     SurfaceLayer,
     Radiation,
     SurfaceFlux,
+    PBL,
     SurfaceState,
     ColumnIntegral
 };

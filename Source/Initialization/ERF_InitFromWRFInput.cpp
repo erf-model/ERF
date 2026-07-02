@@ -650,6 +650,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 FArrayBox &cur_fab = mf_PSFC_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
+              Real pmax = mf_PSFC_lev.max(0);
+              if (pmax == zero) {
+                  amrex::Print() << " PSFC read in had max of 0; replacing it by 1e5 everywhere" << std::endl;
+                  mf_PSFC_lev.setVal(p_0);
+              }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
 #ifdef _OPENMP
