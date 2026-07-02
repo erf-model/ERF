@@ -226,6 +226,8 @@ public:
           pp, "enable_ysu_topdown", enable_ysu_topdown, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_topdown_phifac", pbl_ysunew_topdown_phifac, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_windfarm_coupling", enable_ysu_windfarm_coupling, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -524,6 +526,8 @@ public:
                      << enable_ysu_topdown << std::endl;
       amrex::Print() << "    pbl_ysunew_topdown_phifac       : "
                      << pbl_ysunew_topdown_phifac << std::endl;
+      amrex::Print() << "    enable_ysu_windfarm_coupling    : "
+                     << enable_ysu_windfarm_coupling << std::endl;
     }
   }
 
@@ -668,6 +672,7 @@ public:
   bool enable_ysu_terrain_pblh_floor = true;           // use terrain-aware pblh_min floor
   bool enable_ysu_topdown        = false;          // enable top-down cloud-driven mixing
   amrex::Real pbl_ysunew_topdown_phifac = amrex::Real(8.0);  // weight for top-down wstar (H10 Eq. 12)
+  bool enable_ysu_windfarm_coupling = false;      // if true, optionally couple YSUNew TKE to wind farm parameterizations
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
