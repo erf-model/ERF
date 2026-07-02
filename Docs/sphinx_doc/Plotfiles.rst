@@ -781,8 +781,9 @@ variables in this order.
 | **Olen**                      | Obukhov length from the surface layer [m]. ERF writes |
 |                               | -999 when the surface layer is not active.            |
 +-------------------------------+-------------------------------------------------------+
-| **pblh**                      | Diagnosed planetary boundary layer height [m]. ERF    |
-|                               | writes -999 when the surface layer is not active.     |
+| **pblh**                      | Diagnosed planetary boundary layer height from the    |
+|                               | active PBL diagnostic provider [m]. ERF writes -999   |
+|                               | when no PBL diagnostics are active.                   |
 +-------------------------------+-------------------------------------------------------+
 | **t_surf**                    | Surface temperature from the surface layer [K]. ERF   |
 |                               | writes -999 when the surface layer is not active.     |
@@ -821,6 +822,16 @@ variables in this order.
 |                               | -999 when moisture is disabled or the flux field is |
 |                               | not available.                                       |
 +-------------------------------+-------------------------------------------------------+
+| **shoc_u_star**               | Native SHOC friction velocity diagnostic [m/s]. ERF  |
+|                               | writes -999 when Native SHOC is not active.          |
++-------------------------------+-------------------------------------------------------+
+| **shoc_Olen**                 | Native SHOC Obukhov length diagnostic [m]. ERF      |
+|                               | writes -999 when Native SHOC is not active.          |
++-------------------------------+-------------------------------------------------------+
+| **shoc_wthv_sfc**             | Native SHOC surface virtual potential temperature    |
+|                               | flux [K m s^-1]. ERF writes -999 when Native SHOC is |
+|                               | not active.                                          |
++-------------------------------+-------------------------------------------------------+
 
 sens_flux and laten_flux are legacy ERF internal conservative scalar flux
 outputs. sensible_heat_flux and latent_heat_flux convert those applied
@@ -834,6 +845,10 @@ SurfaceLayer.
 Native SHOC continues to consume the host flux and stress arrays through its
 existing preprocessing path, which divides by near-surface density before the
 coupled column update.
+
+In native SHOC state_update mode, SHOC is the transport owner. The
+``surface_diagnostic_source`` field still describes the upstream surface-flux
+source path used before SHOC consumes it.
 
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -161,6 +161,33 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
 
+        const MultiFab* pblh_source = nullptr;
+        const MultiFab* sens_flux_source = SFS_hfx3_lev[lev].get();
+        const MultiFab* laten_flux_source = SFS_q1fx3_lev[lev].get();
+#ifdef ERF_USE_NATIVE_SHOC
+        const ShocDriver* native_shoc = native_shoc_driver[lev].get();
+        // Native SHOC state_update clears the host SFS arrays after consuming
+        // them, so 2D flux diagnostics must use SHOC's preserved snapshots
+        // when SHOC owns scalar surface transport.
+        const bool use_native_shoc_consumed_fluxes =
+            native_shoc &&
+            native_shoc->owns_scalar_surface_fluxes() &&
+            native_shoc->has_consumed_surface_flux_diagnostics();
+        if (native_shoc && native_shoc->has_native_diagnostics()) {
+            pblh_source = &native_shoc->pblh_diagnostics();
+        }
+        if (use_native_shoc_consumed_fluxes) {
+            sens_flux_source = &native_shoc->consumed_sens_flux_diagnostics();
+            laten_flux_source = &native_shoc->consumed_laten_flux_diagnostics();
+        }
+#endif
+        // pblh should follow the active PBL diagnostic provider. Native SHOC
+        // diagnoses its own PBL height in state_update mode; SurfaceLayer
+        // remains the fallback for non-SHOC configurations.
+        if (!pblh_source && m_SurfaceLayer) {
+            pblh_source = m_SurfaceLayer->get_pblh(lev);
+        }
+
         if (containerHasElement(plot_var_names, "z_surf")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -355,12 +382,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (m_SurfaceLayer) {
+            if (pblh_source) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_pblh(lev)->const_array(mfi);
+                    const auto& ustar  = pblh_source->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                        derdat(i, j, k, mf_comp) = ustar(i, j, 0);
                     });
@@ -455,12 +482,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (SFS_hfx3_lev[lev]) {
+            if (sens_flux_source) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+                    const auto& hfx_arr = sens_flux_source->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         derdat(i, j, k, mf_comp) = hfx_arr(i, j, klo);
                     });
@@ -477,12 +504,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (SFS_q1fx3_lev[lev]) {
+            if (laten_flux_source) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
+                    const auto& qfx_arr = laten_flux_source->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         derdat(i, j, k, mf_comp) = qfx_arr(i, j, klo);
                     });
@@ -547,12 +574,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (SFS_hfx3_lev[lev]) {
+            if (sens_flux_source) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+                    const auto& hfx_arr = sens_flux_source->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         // Delegate unit semantics to the surface flux diagnostics helper.
                         derdat(i, j, k, mf_comp) =
@@ -570,12 +597,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            if (SFS_q1fx3_lev[lev]) {
+            if (laten_flux_source) {
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
+                    const auto& qfx_arr = laten_flux_source->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         // Delegate unit semantics to the surface flux diagnostics helper.
                         derdat(i, j, k, mf_comp) =
@@ -588,6 +615,75 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // latent_heat_flux
+
+        if (containerHasElement(plot_var_names, "shoc_u_star")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+            if (native_shoc && native_shoc->has_native_diagnostics()) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& source = native_shoc->shoc_ustar_diagnostics().const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = source(i, j, klo);
+                    });
+                }
+            } else
+#endif
+            {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // shoc_u_star
+
+        if (containerHasElement(plot_var_names, "shoc_Olen")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+            if (native_shoc && native_shoc->has_native_diagnostics()) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& source = native_shoc->shoc_olen_diagnostics().const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = source(i, j, klo);
+                    });
+                }
+            } else
+#endif
+            {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // shoc_Olen
+
+        if (containerHasElement(plot_var_names, "shoc_wthv_sfc")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+            if (native_shoc && native_shoc->has_native_diagnostics()) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& source = native_shoc->wthv_sec_diagnostics().const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = source(i, j, klo);
+                    });
+                }
+            } else
+#endif
+            {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp++;
+        } // shoc_wthv_sfc
 
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
