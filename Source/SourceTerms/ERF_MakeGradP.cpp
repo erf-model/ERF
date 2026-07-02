@@ -251,7 +251,7 @@ compute_gradp_xy (const MultiFab& p,
             Array4<const EBCellFlag> u_cellflg = u_factory->getMultiEBCellFlagFab()[mfi].const_array();
             Array4<const Real      > u_volfrac = u_factory->getVolFrac().const_array(mfi);
             bool u_is_cut = (u_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued);
-            Array4<const Real> u_volcent = u_is_cut ? u_factory->getCentroid().const_array(mfi) : Array4<const Real>{};
+            Array4<const Real      > u_volcent = u_is_cut ? u_factory->getCentroid().const_array(mfi) : Array4<const Real>{};
 
 
             // EB v-factory

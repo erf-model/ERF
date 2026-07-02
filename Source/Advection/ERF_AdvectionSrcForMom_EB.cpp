@@ -107,34 +107,61 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     });
 
     // EB u-factory
-    Array4<const EBCellFlag> u_cflag   = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > u_vfrac   = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > u_afrac_x = (ebfact.get_u_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > u_afrac_y = (ebfact.get_u_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > u_afrac_z = (ebfact.get_u_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > u_fcx     = (ebfact.get_u_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > u_fcy     = (ebfact.get_u_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > u_fcz     = (ebfact.get_u_const_factory())->getFaceCent()[2]->const_array(mfi);
-
+    auto const* u_factory = ebfact.get_u_const_factory();
+    Array4<const EBCellFlag> u_cflag = u_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real> u_vfrac = u_factory->getVolFrac().const_array(mfi);
+    Array4<const Real> u_afrac_x{};
+    Array4<const Real> u_afrac_y{};
+    Array4<const Real> u_afrac_z{};
+    Array4<const Real> u_fcx{};
+    Array4<const Real> u_fcy{};
+    Array4<const Real> u_fcz{};
+    if (u_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued) {
+        u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
+        u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
+        u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
+        u_fcx     = u_factory->getFaceCent()[0]->const_array(mfi);
+        u_fcy     = u_factory->getFaceCent()[1]->const_array(mfi);
+        u_fcz     = u_factory->getFaceCent()[2]->const_array(mfi);
+    }
+    
     // EB v-factory
-    Array4<const EBCellFlag> v_cflag   = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > v_vfrac   = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > v_afrac_x = (ebfact.get_v_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > v_afrac_y = (ebfact.get_v_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > v_afrac_z = (ebfact.get_v_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > v_fcx     = (ebfact.get_v_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > v_fcy     = (ebfact.get_v_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > v_fcz     = (ebfact.get_v_const_factory())->getFaceCent()[2]->const_array(mfi);
+    auto const* v_factory = ebfact.get_v_const_factory();
+    Array4<const EBCellFlag> v_cflag = v_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real> v_vfrac = v_factory->getVolFrac().const_array(mfi);
+    Array4<const Real> v_afrac_x{};
+    Array4<const Real> v_afrac_y{};
+    Array4<const Real> v_afrac_z{};
+    Array4<const Real> v_fcx{};
+    Array4<const Real> v_fcy{};
+    Array4<const Real> v_fcz{};
+    if (u_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued) {
+        v_afrac_x = v_factory->getAreaFrac()[0]->const_array(mfi);
+        v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
+        v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
+        v_fcx     = v_factory->getFaceCent()[0]->const_array(mfi);
+        v_fcy     = v_factory->getFaceCent()[1]->const_array(mfi);
+        v_fcz     = v_factory->getFaceCent()[2]->const_array(mfi);
+    }
 
     // EB w-factory
-    Array4<const EBCellFlag> w_cflag   = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-    Array4<const Real      > w_vfrac   = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
-    Array4<const Real      > w_afrac_x = (ebfact.get_w_const_factory())->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > w_afrac_y = (ebfact.get_w_const_factory())->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > w_afrac_z = (ebfact.get_w_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > w_fcx     = (ebfact.get_w_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > w_fcy     = (ebfact.get_w_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > w_fcz     = (ebfact.get_w_const_factory())->getFaceCent()[2]->const_array(mfi);
+    auto const* w_factory = ebfact.get_w_const_factory();
+    Array4<const EBCellFlag> w_cflag = w_factory->getMultiEBCellFlagFab()[mfi].const_array();
+    Array4<const Real> w_vfrac = w_factory->getVolFrac().const_array(mfi);
+    Array4<const Real> w_afrac_x{};
+    Array4<const Real> w_afrac_y{};
+    Array4<const Real> w_afrac_z{};
+    Array4<const Real> w_fcx{};
+    Array4<const Real> w_fcy{};
+    Array4<const Real> w_fcz{};
+    if (w_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued) {
+        w_afrac_x = w_factory->getAreaFrac()[0]->const_array(mfi);
+        w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
+        w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
+        w_fcx     = w_factory->getFaceCent()[0]->const_array(mfi);
+        w_fcy     = w_factory->getFaceCent()[1]->const_array(mfi);
+        w_fcz     = w_factory->getFaceCent()[2]->const_array(mfi);
+    }
 
     // Inline with 2nd order for efficiency
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
