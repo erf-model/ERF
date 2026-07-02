@@ -837,7 +837,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1008,25 +1008,54 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // In stable conditions, use free-atmosphere Richardson mixing instead.
                 // WRF Reference: module_bl_ysu.F lines 200, 220-260
                 if (SFCFLG) {
-                    // Diffusion coefficient for momentum with terrain height correction
-                    // K = rho * wscale * kappa * zrel * (1 - zrel/pblh_rel)^pfac
-                    // where zrel = z - z_sfc, pblh_rel = pblh - z_sfc
-                    // WRF Reference: module_bl_ysu.F L250-260 uses z - z_ground for shape function
+                    // PHASE 13 CHANGES: Use layer-top interface height (zq_kp1) and
+                    // level-dependent wscalek for proper K-profile formulation.
+                    // WRF Reference: module_bl_ysu.F lines 943-961
+                    
+                    // Step 1: Compute zq_kp1 (top interface of cell k)
+                    // zq(k+1) in WRF = cell center + dz/2
+                    const Real zq_kp1 = zval + myhalf * dz_terrain;
+                    
+                    // Step 2: Get surface height and first-level height (zl1)
                     const Real z_sfc = (use_terrain_fitted_coords)
                                      ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                      : zero;
-                    const Real zrel = zval - z_sfc;
-                    const Real pblh = pblh_corr_arr(i, j, 0);
-                    const Real pblh_rel = pblh - z_sfc;
-                    // K-profile shape function: zfac = max(1 - zrel/pblh_rel, 1e-8)
-                    // This is correctly computed as terrain-relative from Phase 1:
-                    // zrel = height above local surface, pblh_rel = PBL height above local surface
-                    // WRF equivalent: module_bl_ysu.F L250-260 uses z - z_ground for shape function
-                    const Real zfac = amrex::max(one - zrel / amrex::max(pblh_rel, Real(1.0e-4)), Real(1.0e-8));
-
+                    const Real zl1 = (use_terrain_fitted_coords)
+                                  ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                  : (klo + myhalf) * gdata.CellSize(2);
+                    
+                    // Step 3: Compute zfac using zq_kp1 and zl1 (WRF bl_ysu.F90 line 943)
+                    // zfac = min(max((1-(zq(k+1)-zl1)/(hpbl-zl1)), zfmin), 1.)
+                    constexpr Real zfacmin = amrex::Real(1.0e-8);
+                    const Real pblh_rel    = amrex::max(pblh_corr_arr(i, j, 0) - zl1, amrex::Real(1.0e-4));
+                    const Real zfac        = amrex::min(
+                        amrex::max(one - (zq_kp1 - zl1) / pblh_rel, zfacmin), one);
+                    
+                    // Step 4: Compute level-dependent wscalek (for K-profile, NOT for HGAMT/HGAMQ)
+                    // WRF stores wstar3 per column; we now have it from Phase 12
+                    const Real wstar3_col  = wstar3_arr_cap(i, j, 0);
+                    const Real ust3        = u_star_arr(i, j, 0) * u_star_arr(i, j, 0) * u_star_arr(i, j, 0);
+                    const bool sfcflg      = (sflux_arr_cap(i, j, 0) > zero);
+                    
+                    Real wscalek_val;
+                    if (sfcflg) {
+                        // WRF bl_ysu.F90 line 945: wscalek = (ust3 + phifac*karman*wstar3*(1-zfac))^h1
+                        wscalek_val = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_col * (one - zfac));
+                    } else {
+                        // WRF bl_ysu.F90 stable branch lines 951-957:
+                        // wscalek = ust / phi_m(zq(k+1)/L)
+                        const Real zol1       = zol1_arr_cap(i, j, 0);  // stored from Phase 12
+                        const Real phim8z     = one + amrex::Real(5.0) * zol1 * zq_kp1 / zl1;
+                        wscalek_val = amrex::max(u_star_arr(i, j, 0) / amrex::max(phim8z, amrex::Real(0.01)),
+                                                 amrex::Real(0.001));
+                    }
+                    
+                    // Step 5: Compute K_m using zq_kp1 and wscalek_val (WRF line 961)
+                    // WRF: xkzm(i,k) = wscalek(k)*karman*zq(k+1)*zfac(k)**pfac
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
+                    constexpr Real pfac = amrex::Real(2.0);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1 * std::pow(zfac, pfac);
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
                     // Moisture diffusivity: YSU uses Prq ~ Prt (same stability functions
