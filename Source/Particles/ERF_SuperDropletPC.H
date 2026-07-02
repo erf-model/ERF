@@ -393,6 +393,7 @@ class SuperDropletPC : public ERFPC
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         amrex::Real m_ice_agg_eff; /*!< Ice-ice aggregation (collection) efficiency */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
+        SDKernelRelativeVelocityType m_kernel_relative_velocity; /*!< Kernel relative velocity type */
 
         SDTerminalVelocityType m_term_vel_type_w; /*!< Terminal velocity model for water droplets */
         SDTerminalVelocityType m_term_vel_type_i; /*!< Terminal velocity model for ice particles */
