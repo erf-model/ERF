@@ -326,8 +326,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         constexpr Real prmax = Real(4.0);
         constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
-        const bool enable_mrf_countergradient = turbChoice.enable_mrf_countergradient;
-        const bool enable_mrf_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
+        const bool enable_ysu_countergradient = turbChoice.enable_ysu_countergradient;
+        const bool enable_ysu_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as Pass 1)
@@ -504,7 +504,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real wscale = u_star_arr(i, j, 0) / phiM_safe;
             wscale = amrex::max(wscale, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
             wscale = amrex::min(wscale, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
-            wstar_fab(i, j, 0) = wscale;  // Store for use in K-profile loop
+            //wstar_fab(i, j, 0) = wscale;  // Store for use in K-profile loop
+            wstar_arr(i, j, 0) = wscale;  // Store for use in K-profile loop
 
             // Compute HGAMT with corrected wscale
             bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
@@ -902,7 +903,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscale * KAPPA * zrel * zfac * zfac;
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
                     // Moisture diffusivity: YSU uses Prq ~ Prt (same stability functions
@@ -1101,7 +1102,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // These higher limits allow greater mixing in free atmosphere and are
             // more appropriate for high-resolution simulations.
             Real rhoKmin, rhoKmax;
-            if (turbChoice.pbl_ysu_highres_bounds) {
+            if (turbChoice.pbl_ysunew_highres_bounds) {
                 // Hong et al. 2006, MWR, Appendix A: Higher limits for free atmosphere
                 // These are recommended for high-resolution simulations (Δz < 100 m)
                 // where the free atmosphere grid can resolve small-scale mixing.
