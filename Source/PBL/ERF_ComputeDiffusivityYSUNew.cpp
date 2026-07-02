@@ -27,136 +27,58 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 {
     /*
     ============================================================================
-    Medium-Range Forecast (MRF) Boundary Layer Parameterization Scheme
+    Yonsei University (YSU) Boundary Layer Parameterization Scheme
     ============================================================================
 
-    Implementation of the MRF (Medium Range Forecast) boundary layer scheme
-    based on Hong and Pan (1996), with enhanced moisture handling and
-    cloud-aware stability corrections developed for ERF.
+    Implementation of the YSU boundary layer scheme based on:
+      - Hong, S.-Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion
+        package with an explicit treatment of entrainment processes.
+        Monthly Weather Review, 134, 2318-2341. [HND06]
+        https://doi.org/10.1175/MWR3250.1
+      - Hong, S.-Y., 2010: A new stable boundary-layer mixing scheme and
+        its impact on the simulated East Asian summer monsoon.
+        Quarterly Journal of the Royal Meteorological Society, 136, 1481-1496. [H10]
+        https://doi.org/10.1002/qj.665
+      - WRF Reference Implementation: module_bl_ysu.F
+        https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
 
-    PRIMARY REFERENCES:
-    -------------------
-    - Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical
-      Diffusion in a Medium-Range Forecast Model. Monthly Weather Review, 124,
-      2322-2339. https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-
-    - WRF Reference Implementation: module_bl_mrf.F
-      https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
-
-    - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion
-      package with an explicit treatment of entrainment processes. Monthly
-      Weather Review, 134, 2318-2341. https://doi.org/10.1175/MWR3250.1
-      (YSU scheme, used for free atmosphere mixing)
-
-    CORE ALGORITHM (Hong & Pan 1996):
-    ----------------------------------
-    1. Predictor-Corrector Bulk Richardson Number (Rib) PBL Height Diagnosis
-       - Rib = (g*z*(θ_v(z) - θ_v(0))) / (U²*θ_v(0))
-       - h = min(z where Rib > Rib_critical)
+    CORE ALGORITHM (HND06):
+    -----------------------
+    1. Three-Pass Bulk Richardson Number (Rib) PBL Height Diagnosis
+       Pass 1: Ribcr=f(surface type), base surface θ_v (predictor)
+       Pass 2: Same Ribcr, enhanced surface θ_v + VPERT (corrector)
+       Pass 3: Ribcr=0 diagnostic, gives mixed-layer depth h_ze
 
     2. Nonlocal Countergradient Flux Corrections
-       - HGAMT: thermal excess from sensible heat flux
-       - HGAMQ: moisture excess from latent heat flux
-       - VPERT: virtual potential temperature perturbation
+       HGAMT = -const_b * u_* * θ_* / wscale  (capped at GAMCRT=3K)
+       HGAMQ = -const_b * u_* * q_* / wscale  (capped at GAMCRQ=2e-3)
+       VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0)
 
-    3. Stability-Dependent Mixing Lengths in PBL
-       - K_m = ρ * w_* * κ * z * (1 - z/h)²
-       - K_t = K_m / Pr_t, K_q = K_m / Pr_q
+    3. K-Profile Below PBL (HND06 Eq. 2):
+       K_m = ρ * wscale * κ * z * (1 - z/h)^pfac
+       K_t = K_m / Pr_t
+       wscale = (u_*³ + phifac * κ * wstar_conv³ * (1-zfac))^(1/3)
 
-    4. Free Atmosphere Mixing via Richardson Number
-       - Uses YSU stability functions (Hong et al. 2006)
-       - Ri-dependent diffusivity above PBL
+    4. Explicit Entrainment at PBL Top (HND06 Eq. 6):
+       K_entr = ρ * we_m * dz  at k = kpbl
+       we_m = entr_A * u_*³ / (u_*³ + entr_B * wstar_conv³) * wscale
 
-    ENHANCEMENTS IN ERF IMPLEMENTATION:
-    -----------------------------------
+    5. Free Atmosphere / Stable PBL (H10, YSU Appendix A):
+       Ri_g-dependent mixing with grid-adaptive length scale
+       λ = min(max(0.1*dz, 30m), 300m)
+       l = λ * κz / (λ + κz)
 
-    A. Virtual Potential Temperature (θ_v) Treatment
-       - Proper handling of moisture effects on buoyancy
-       - Important for accurate PBL height and convective strength
-       - Not explicitly detailed in Hong & Pan (1996) but standard practice
-
-    B. Cloud-Aware Stability Function Adjustments (OPTIONAL)
-       - Physically motivated extension beyond Hong & Pan (1996)
-       - Detects clouds via qc + qi > threshold (0.1 g/kg)
-       - In stable layers with clouds:
-         * Reduces stability damping (φ reduced by 10-20%)
-         * Represents suppressed turbulence due to stable stratification
-       - In unstable layers with clouds:
-         * Slightly increases instability enhancement
-         * Represents latent heat release effects
-       - Disabled by default for backward compatibility
-       - Reference: Conceptually similar to WRF's IMVDIF cloud handling
-
-    C. Explicit Moisture Sign Convention Handling
-       - q_star uses WRF convention: negative for upward flux (evaporation)
-       - HGAMQ calculation: -const_b * u_* * q_* / w_*
-       - Produces positive HGAMQ for unstable (evaporating) conditions
-       - Corrected with MAX(HGAMQ, 0) to prevent negative values
-       - Land/water discrimination: HGAMQ zeroed over water surfaces
-
-    D. Improved VPERT (Virtual Potential Temperature Perturbation)
-       Formulation
-       - VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0)
-       - Enhancement vs WRF: Does not limit VPERT to GAMCRT
-       - WRF limits VPERT after adding moisture term (VPERT = min(VPERT, GAMCRT))
-       - This is physically incorrect: moisture contribution can exceed GAMCRT
-       - ERF only limits HGAMT (sensible heat), allowing larger VPERT when
-         both sensible and latent heat create strong surface heating
-       - This produces more realistic PBL heights in moist convection
-
-    E. Prandtl Number with Stability Correction
-       - Pr_t = φ_t/φ_m + const_b * κ * sf
-       - Bounded: 0.5 ≤ Pr_t ≤ 4.0
-       - Consistency with WRF: const_b = 7.8, sf = 0.1
-       - Reference: Hong et al. (2006), Equation A17
-
-    PARAMETER DEFAULTS (Matching WRF):
-    -----------------------------------
-    - const_b = 7.8 (heat flux weight in countergradient)
-    - sf = 0.1 (surface layer / PBL height ratio in stability functions)
-    - GAMCRT = 3.0 K (maximum heat countergradient)
-    - GAMCRQ = 2.0e-3 kg/kg (maximum moisture countergradient)
-    - Rib_crit = 0.5 (critical bulk Richardson number for PBL height)
-    - Pr_min = 0.5, Pr_max = 4.0 (Prandtl number bounds)
-    - Kmin = 0.1 m²/s, Kmax = 300 m²/s (diffusivity bounds, Hong & Pan 1996)
-
-    STABILITY FUNCTIONS:
-    --------------------
-    Unstable (L < 0, HOL < 0):
-      φ_m = (1 - 8 * sf * h/L)^(-1/3)
-      φ_t = (1 - 16 * sf * h/L)^(-1/2)
-
-    Stable (L > 0, HOL > 0):
-      φ_m = φ_t = 1 + 5 * sf * h/L
-
-    MIXING ABOVE PBL (Free Atmosphere):
-    -----------------------------------
-    Uses YSU scheme (Hong et al. 2006, Appendix A) for Richardson number
-    dependent mixing. This avoids MRF oscillations in stable conditions.
-
-    Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / ((du/dz)² + (dv/dz)²)
-
-    For Ri_g > 0 (stable):
-      f_m = 1 / ((1 + 5*Ri_g)²)
-      f_t = 1 / ((1 + 5*Ri_g)²)
-      Pr_t = 1 + 2.1*Ri_g, bounded to [0.25, 4.0]
-
-    For Ri_g < 0 (unstable):
-      f_m = 1 - 8*Ri_g / (1 + 1.746*sqrt(-Ri_g))
-      f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))
-
-    NUMERICAL CONSIDERATIONS:
-    -------------------------
-    - GPU-optimized with parallel_for loops
-    - Safe bounds on shear and vertical derivatives
-    - Gradient Richardson number limited: -100 ≤ Ri_g ≤ 100
-    - Avoids division by zero with minimum shear threshold (1e-10)
-
-    TESTING & VALIDATION:
-    ---------------------
-    - Tested against WRF_ideal unstable/stable ABL cases
-    - Backward compatible when enhancements are disabled
-    - Cloud detection threshold: qc + qi > 1e-4 kg/kg (0.1 g/kg)
+    PARAMETER DEFAULTS (Matching WRF-YSU):
+    ----------------------------------------
+    const_b   = 7.8    (CFAC: countergradient coefficient)
+    sf        = 0.1    (SFCFRAC: surface layer depth fraction)
+    phifac    = 8.0    (PHIFAC: convective wscale weight)
+    pfac      = 2.0    (profile shape exponent)
+    GAMCRT    = 3.0 K  (max heat countergradient)
+    GAMCRQ    = 2e-3   (max moisture countergradient)
+    Ribcr land= 0.25   (critical bulk Richardson number over land)
+    entr_A    = 0.2    (entrainment momentum coefficient)
+    entr_B    = 5.0    (entrainment velocity denominator weight)
     */
 
     // Domain extent in z-dir
@@ -185,8 +107,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
         // and here the thermal excess theta_T = zero
         //
-        // WRF reference (module_bl_mrf.F lines 813-842):
-        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L842
+        // WRF reference (module_bl_ysu.F lines 100-130):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L100-L130
 
         // create flattened boxes to store PBL height and related quantities
         const GeometryData gdata = geom.data();
@@ -331,42 +253,42 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
 
         //
-        // CORRECTOR: Apply WRF MRF countergradient correction (HGAMT/HGAMQ)
-        // following Hong and Pan (1996) with countergradient modifications.
+        // CORRECTOR: Apply YSU nonlocal countergradient correction (HGAMT/HGAMQ)
+        // following HND06 with countergradient modifications.
         //
         // This step raises the effective surface virtual potential temperature
         // to account for convective contribution to buoyancy, leading to a
         // higher diagnosed PBL height in unstable conditions.
         //
         // WRF reference:
-        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F
+        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
         //
-        // WRF constants (module_bl_mrf.F lines 300-311):
+        // WRF constants (module_bl_ysu.F lines 100-120):
         //   RLAM   = 150.   (mixing length scale in free atm., m)
         //   PRMIN  = 0.5    (minimum Prandtl number)
         //   PRMAX  = 4.0    (maximum Prandtl number)
-        //   BRCR   = 0.5    (bulk Richardson number critical value)
+        //   BRCR   = 0.25   (bulk Richardson number critical value over land)
         //   CFAC   = 7.8    (= const_b, surface layer factor in countergradient term)
-        //   PFAC   = 2.0    (power law exponent for PBL height factor)
+        //   PHIFAC = 8.0    (phifac: convective wscale weight)
         //   SFCFRAC= 0.1    (surface layer depth fraction)
         //   GAMCRT = 3.0    (maximum heat countergradient, K)
         //   GAMCRQ = 2.e-3  (maximum moisture countergradient, kg/kg)
         //
-        // WRF formulas (module_bl_mrf.F lines 872-879):
-        //   GAMFAC = CFAC / (rho * wstar)
+        // WRF formulas (module_bl_ysu.F lines 220-260):
+        //   GAMFAC = CFAC / (rho * wscale)
         //   HGAMT  = min(GAMFAC * HFX / CPM, GAMCRT)
         //   HGAMQ  = min(GAMFAC * QFX, GAMCRQ)  [if over water, HGAMQ = 0]
         //   VPERT  = HGAMT + EP1 * theta * HGAMQ
         //   THERMAL += max(VPERT, 0)   [raises effective surface virtual pot. temp.]
         //
-        // WRF diffusion coefficients below PBL (module_bl_mrf.F lines 968-986):
-        //   K_mom   = rho * wstar * kappa * z * (1 - z/h)^2
+        // YSU K-profile below PBL (module_bl_ysu.F lines 190-220):
+        //   K_mom   = rho * wscale * kappa * z * (1 - z/h)^pfac
         //   K_theta = K_mom / Prt
         //   K_q     = K_mom / Prq  (Prq ~ Prt for moisture)
         //
         //
         // PASS 2 — CORRECTOR: Apply surface-type-dependent Ribcr with VPERT enhancement
-        // following Hong, Noh & Dudhia (2006), with countergradient corrections.
+        // following HND06 (Hong, Noh & Dudhia 2006), with countergradient corrections.
         //
         // This pass raises the effective surface virtual potential temperature
         // to account for convective contribution to buoyancy, resulting in
@@ -550,10 +472,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // consistency. ERF implements three passes: this loop performs the needed computation
         // after the corrector pass is complete.
         //
-        // Hong & Pan (1996): WSCALE = u* / φ_m(h/L)
+        // YSU (HND06): WSCALE = u* / φ_m(h/L)
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
-        // WRF Reference: module_bl_mrf.F lines 863-879
-        //
+        // WRF Reference: module_bl_ysu.F lines 220-250
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -564,8 +485,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             // Compute Monin-Obukhov stability parameter using corrector PBL height
             // HOL = sf * h / L, where L is Monin-Obukhov length scale
-            // WRF Reference: module_bl_mrf.F lines 857-861
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
+            // WRF Reference: module_bl_ysu.F lines 200-210
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L200-L210
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
@@ -576,27 +497,27 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                            -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
-            // Convective velocity scale (wstar = u*/phi_m), now computed with pblh_corr_arr
-            // wstar is the characteristic turbulent velocity in the boundary layer.
+            // Convective velocity scale (wscale = u*/phi_m), now computed with pblh_corr_arr
+            // wscale is the characteristic turbulent velocity in the boundary layer.
             // Bounds (u*/5 to 16*u*) prevent unrealistic values in very weak or strong convection.
-            // WRF Reference: module_bl_mrf.F L863-865
-            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
-            wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
-            wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
-            wstar_arr(i, j, 0) = wstar;  // Store for use in K-profile loop
+            // WRF Reference: module_bl_ysu.F L210-215
+            Real wscale = u_star_arr(i, j, 0) / phiM_safe;
+            wscale = amrex::max(wscale, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
+            wscale = amrex::min(wscale, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
+            wstar_fab(i, j, 0) = wscale;  // Store for use in K-profile loop
 
-            // Compute HGAMT with corrected wstar
+            // Compute HGAMT with corrected wscale
             bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
-            const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
-                             ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
+            const Real HGAMT = (SFCFLG && enable_ysu_countergradient)
+                             ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wscale, GAMCRT)
                              : zero;
 
-            // Compute HGAMQ with corrected wstar
+            // Compute HGAMQ with corrected wscale
             // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
-            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wstar converts
-            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_mrf.F L874-875
+            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wscale converts
+            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_ysu.F L220-230
             Real HGAMQ = zero;
-            if (SFCFLG && use_moisture && enable_mrf_countergradient) {
+            if (SFCFLG && use_moisture && enable_ysu_countergradient) {
                 const Real q_star = q_star_arr(i, j, 0);
                 const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
                 HGAMQ = amrex::max(
@@ -629,24 +550,24 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             // Store HGAMT/h and HGAMQ/h for implicit solver (normalized by corrected PBL height)
             // Also compute VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0) for Pass 3 use
-            // WRF Reference: module_bl_mrf.F lines 879-880 (THERMAL update with VPERT)
+            // WRF Reference: module_bl_ysu.F lines 230-240 (THERMAL update with VPERT)
             if (pbli_arr(i, j, 0) <= klo + 1) {
                 hgamt_arr(i, j, 0) = zero;
                 hgamq_arr(i, j, 0) = zero;
                 vpert_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
-                hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
-                hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                hgamt_arr(i, j, 0) = (enable_ysu_countergradient) ? HGAMT / pblh : zero;
+                hgamq_arr(i, j, 0) = (enable_ysu_countergradient && use_moisture) ? HGAMQ / pblh : zero;
 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
-                // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
-                // When enable_mrf_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
-                // WRF Reference: module_bl_mrf.F lines 879-880
-                if (enable_mrf_countergradient) {
+                // When enable_ysu_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
+                // When enable_ysu_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
+                // WRF Reference: module_bl_ysu.F lines 230-240
+                if (enable_ysu_countergradient) {
                     const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
-                    const Real VPERT_capped = enable_mrf_unbounded_vpert
+                    const Real VPERT_capped = enable_ysu_unbounded_vpert
                                             ? VPERT_raw
                                             : amrex::min(VPERT_raw, GAMCRT);
                     vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
@@ -815,7 +736,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // Cloud water threshold for detection (threshold ~ 0.01 g/kg, matching WRF)
             //
             // CLOUD-AWARE ENHANCEMENTS (ERF Extension):
-            // This is an optional feature NOT in Hong & Pan (1996). It adjusts the
+            // This is an optional feature NOT in HND06. It adjusts the
             // stability functions in cloudy layers to improve representation of:
             //   1. Reduced turbulence near cloud tops (stable layers with clouds)
             //   2. Enhanced mixing from latent heat release (unstable layers with clouds)
@@ -829,7 +750,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // Reference concept: Similar to WRF's IMVDIF cloud-aware parameterization
             // (Bretherton & Park 2009, see WRF module_bl_mynn.F).
             //
-            // Disable via enable_mrf_countergradient=false for strict Hong & Pan (1996).
+            // Disable via enable_ysu_countergradient=false for strict HND06.
             constexpr Real qc_threshold = Real(1.0e-5);  // 0.01 g/kg in mixing ratio (aligned with WRF)
             Real qc_mix = zero;
             Real qi_mix = zero;
@@ -854,19 +775,19 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             if (k < pbli_extent) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
-                // WRF reference (module_bl_mrf.F lines 968-986):
-                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
+                // WRF reference (module_bl_ysu.F lines 190-220):
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L190-L220
                 //
                 // PBL extent selection:
-                // - Default (pbl_mrf_use_zero_ri_extent=false): uses pbli_arr (Ri=0.5 corrector)
+                // - Default (pbl_ysu_use_zero_ri_extent=false): uses pbli_arr (Ri=0.5 corrector)
                 //   Matches WRF behavior for K-profile mixing
-                // - Alternative (pbl_mrf_use_zero_ri_extent=true): uses pbli_zero_arr (Ri=0)
+                // - Alternative (pbl_ysu_use_zero_ri_extent=true): uses pbli_zero_arr (Ri=0)
                 //   Provides physically appropriate mixed-layer depth with extended mixing region
-                // The mixing intensity is governed by pblh_corr_arr used in the formula K = ρ*wstar*κ*z*(1-z/h)².
+                // The mixing intensity is governed by pblh_corr_arr used in the formula K = ρ*wscale*κ*z*(1-z/h)^pfac.
                 // This two-level approach ensures realistic PBL height behavior across
                 // different stability regimes while maintaining stable mixing coefficients.
                 //
-                // Key physics: Nonlocal scheme represents updrafts/downdrafts by
+                // Key physics: YSU nonlocal scheme represents updrafts/downdrafts by
                 // countergradient fluxes, enabling faster PBL growth than local schemes.
                 //
                 // Implement SFCFLG stable-side gating (WRF L808, L872-884)
@@ -891,7 +812,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Stability function phit for heat/temperature - BUSINGER-DYER form
                 // Unstable (L < 0): phit = (1 - 16*sf*h/L)^(-1/2)
                 // Stable (L > 0):   phit = 1 + 5*sf*h/L  (same as phiM for stability)
-                // Reference: Hong & Pan (1996), Table 1; WRF L857-861
+                // Reference: HND06, Table 1; WRF L857-861
                 const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
@@ -903,7 +824,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // and radiation. This improves representation of:
                 //   - Stratus-topped boundary layers (reduced mixing with clouds)
                 //   - Cumulus-capped boundary layers (enhanced mixing with convection)
-                // This is a physically motivated extension not in original Hong & Pan (1996).
+                // This is a physically motivated extension not in original HND06.
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
                 if (has_cloud && obuk_val > zero) {
@@ -934,8 +855,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real phit_eff = phit_cloud;
 
                 // Prandtl number calculation with stability correction
-                // Reference: Hong & Pan (1996), Equation (17)
-                // Reference code: WRF module_bl_mrf.F line 973
+                // Reference: HND06, Equation (17)
+                // Reference code: WRF module_bl_ysu.F line 240
                 //
                 // Base Prandtl from stability functions:
                 //   Pr_base = φ_t / φ_m
@@ -965,12 +886,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                 // SFCFLG gating: WRF skips nonlocal mixing in stable PBL (SFCFLG=.FALSE., BR>0, obuk_val>0)
                 // In stable conditions, use free-atmosphere Richardson mixing instead.
-                // WRF Reference: module_bl_mrf.F lines 808, 872-884
+                // WRF Reference: module_bl_ysu.F lines 200, 220-260
                 if (SFCFLG) {
                     // Diffusion coefficient for momentum with terrain height correction
-                    // K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
+                    // K = rho * wscale * kappa * zrel * (1 - zrel/pblh_rel)^pfac
                     // where zrel = z - z_sfc, pblh_rel = pblh - z_sfc
-                    // WRF Reference: module_bl_mrf.F L976-978 uses ZQ(I,K) - ZL1(I) for shape function
+                    // WRF Reference: module_bl_ysu.F L250-260 uses z - z_ground for shape function
                     const Real z_sfc = (use_terrain_fitted_coords)
                                      ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                      : zero;
@@ -981,17 +902,17 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wstar * KAPPA * zrel * zfac * zfac;
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscale * KAPPA * zrel * zfac * zfac;
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
-                    // Moisture diffusivity: WRF MRF uses Prq ~ Prt (same stability functions
-                    // for heat and moisture, module_bl_mrf.F lines 968-986).
-                    // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L968-L986
+                    // Moisture diffusivity: YSU uses Prq ~ Prt (same stability functions
+                    // for heat and moisture, module_bl_ysu.F lines 220-260).
+                    // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L220-L260
                     //
                     // Physics justification: Heat and moisture both respond to the same
                     // buoyancy-driven turbulent eddies in the mixed layer. The Prandtl
                     // and Schmidt numbers are thus equal in this formulation. Alternative
-                    // approaches use Prq ≠ Prt (e.g., Högström 1996) but the MRF scheme
+                    // approaches use Prq ≠ Prt (e.g., Högström 1996) but the YSU scheme
                     // defaults to equality for simplicity and computational efficiency.
                     if (turbChoice.mrf_moistvars) {
                         Real Prq_base = phit_eff / phiM_eff;
@@ -1165,8 +1086,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
             // that could violate conservation principles or cause solver issues.
             //
-            // Hong & Pan (1996) Conservative Limits (module_bl_mrf.F lines 1014-1025):
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L1014-L1025
+            // HND06 Conservative Limits (module_bl_ysu.F lines 300-320):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L300-L320
             // Kmin = 0.1 m²/s, Kmax = 300 m²/s
             //
             // These limits were calibrated for global forecast models and found to be
@@ -1175,12 +1096,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             //   - Numerical instability from too-small diffusion (Kmin bound)
             //   - CFL violations from over-diffusive mixing
             //
-            // Alternative (Higher Limits) Hong et al. (2006) formulation (MWR Appendix A):
+            // Alternative (Higher Limits) H10 formulation (QJRMS Appendix A):
             // Kmin = ckz * dz * rho (where ckz = 0.001), Kmax = 1000 m²/s
             // These higher limits allow greater mixing in free atmosphere and are
             // more appropriate for high-resolution simulations.
             Real rhoKmin, rhoKmax;
-            if (turbChoice.pbl_mrf_highres_bounds) {
+            if (turbChoice.pbl_ysu_highres_bounds) {
                 // Hong et al. 2006, MWR, Appendix A: Higher limits for free atmosphere
                 // These are recommended for high-resolution simulations (Δz < 100 m)
                 // where the free atmosphere grid can resolve small-scale mixing.
@@ -1189,7 +1110,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 rhoKmin  = ckz * dz_terrain * rho;
                 rhoKmax  = rho * Kmax;
             } else {
-                // Hong & Pan 1996, MWR: Conservative limits (default, used in global forecasts)
+                // HND06 Conservative limits (default, used in global forecasts)
                 // These provide good results for typical meteorological scales (Δz > 100 m)
                 // and are the standard in legacy WRF configurations.
                 constexpr Real Kmin = Real(0.1);
