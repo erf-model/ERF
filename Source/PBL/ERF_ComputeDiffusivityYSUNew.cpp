@@ -956,10 +956,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
                 } else {
-                    // Stable PBL: use Richardson mixing (same as free atmosphere for stable conditions)
-                    // WRF Reference: module_bl_mrf.F lines 988-1020 (YSU scheme for free atmosphere)
-                    const Real lambda = Real(150.0);
-                    const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
+                    // Stable PBL: use Richardson mixing with H10 (Hong 2010) formulation
+                    // WRF Reference: module_bl_ysu.F; H10 Section 3a
+                    // H10 = Hong, S.-Y., 2010: A new stable boundary-layer mixing scheme. QJRMS, 136, 1481-1496.
+                    const Real lambda_min = Real(30.0);
+                    const Real lambda_max = Real(300.0);
+                    const Real lambdadz = amrex::min(amrex::max(Real(0.1) * dz_terrain, lambda_min), lambda_max);
+                    const Real lscale = (lambdadz * KAPPA * zval) / (lambdadz + KAPPA * zval);
                     Real dthetadz, dudz, dvdz;
                     ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
@@ -989,7 +992,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-                    Real Pr_rich = one + Real(2.1) * grad_Ri;
                     const Real fm = (grad_Ri_safe > 0)
                                   ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
                                   : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
@@ -998,34 +1000,29 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                   : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
                     const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
-                    Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
-
                     K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
-                    K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
-                    if (use_moisture && turbChoice.mrf_moistvars) {
-                        K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
+                    // H10 formulation: for stable conditions, K_t = K_m / Pr
+                    if (grad_Ri_safe > 0) {
+                        Real Pr = amrex::min(amrex::max(one + Real(2.1) * grad_Ri, Real(0.25)), Real(4.0));
+                        K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Pr;
+                    } else {
+                        K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
+                    }
+                    if (use_moisture && turbChoice.ysu_moistvars) {
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     } else {
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
                 }
             } else if (k >= pbli_extent) {
                 // Free atmosphere above PBL: use local Richardson number-dependent mixing
-                // with lengthscale = (kappa * z * lambda) / (kappa * z + lambda)
-                // where lambda = 150 m (characteristic free-atmosphere lengthscale)
-                //
-                // WRF reference (module_bl_mrf.F lines 988-1020):
-                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L988-L1020
-                //
-                // This uses YSU scheme stability functions (Hong et al. 2006, Appendix A)
-                // Reference: https://doi.org/10.1175/MWR3250.1
-                // See equations A19-A20 for unstable and stable Richardson number functions.
-                //
-                // Why YSU above PBL? Original MRF formulation (Hong & Pan 1996) caused
-                // oscillations in stable boundary layers. YSU's Richardson number approach
-                // is more stable and better represents free atmosphere mixing.
-
-                const Real lambda = Real(150.0);
-                const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
+                // with H10 (Hong 2010) grid-adaptive lengthscale
+                // WRF Reference: module_bl_ysu.F; H10 Section 3a
+                // H10 = Hong, S.-Y., 2010: A new stable boundary-layer mixing scheme. QJRMS, 136, 1481-1496.
+                const Real lambda_min = Real(30.0);
+                const Real lambda_max = Real(300.0);
+                const Real lambdadz = amrex::min(amrex::max(Real(0.1) * dz_terrain, lambda_min), lambda_max);
+                const Real lscale = (lambdadz * KAPPA * zval) / (lambdadz + KAPPA * zval);
                 Real dthetadz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
@@ -1043,7 +1040,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                 // Use virtual potential temperature (θ_v) for Richardson number stability calculation.
                 // This correctly accounts for moisture effects on buoyancy.
-                // WRF Reference: module_bl_mrf.F uses THVX (virtual potential temperature).
+                // WRF Reference: module_bl_ysu.F uses THVX (virtual potential temperature).
                 // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
                 const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
                 const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
@@ -1051,7 +1048,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
 
                 // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
-                // Reference: WRF module_bl_mrf.F line ~450-456, Hong et al. 2006, Eqn. A18
+                // Reference: WRF module_bl_ysu.F line ~450-456, Hong et al. 2006, Eqn. A18
                 //
                 // For STABILITY ANALYSIS:
                 // Ri_g > 0.5: typically considered strongly stable (turbulence suppressed)
@@ -1078,7 +1075,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 //     f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))  (Eqn. A20c)
                 // Protect against numerical errors causing negative grad_Ri
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0)); // Bound negative values
-                Real Pr = one + Real(2.1) * grad_Ri;  // Eqn. A19
                 const Real fm = (grad_Ri_safe > 0)
                               ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
                               : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20b/d
@@ -1087,21 +1083,22 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                               : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20a/c
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
-                Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));  // Hong et al. 2006, MWR, Appendix A, bounds
-
-                // K_m = rl2wsp * fm (no Pr multiplier for momentum)
-                // K_θ = rl2wsp * ft (Richardson scheme treats momentum and heat independently)
-                // WRF Reference: module_bl_mrf.F L1016-1017: momentum and heat have separate stability functions
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
-                K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
-                // WRF MRF: moisture diffusivity matches heat in free atmosphere
+                // H10 formulation: for stable conditions, K_t = K_m / Pr
+                if (grad_Ri_safe > 0) {
+                    Real Pr = amrex::min(amrex::max(one + Real(2.1) * grad_Ri, Real(0.25)), Real(4.0));
+                    K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Pr;
+                } else {
+                    K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
+                }
+                // WRF YSU: moisture diffusivity matches heat in free atmosphere
                 // Physics: Above PBL, Richardson number mixing applies same Ri_g
-                // dependent mixing to both heat and moisture. The heat scaling (ft)
+                // dependent mixing to both heat and moisture. The heat scaling (ft or K_m/Pr)
                 // is used for moisture, which implicitly assumes equal turbulent
                 // Prandtl and Schmidt numbers in the stable/unstable free atmosphere.
                 // Only apply if use_moisture is enabled
-                if (use_moisture && turbChoice.mrf_moistvars) {
-                    K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
+                if (use_moisture && turbChoice.ysu_moistvars) {
+                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
