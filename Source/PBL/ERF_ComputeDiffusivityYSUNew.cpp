@@ -84,8 +84,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     GAMCRT    = 3.0 K  (max heat countergradient)
     GAMCRQ    = 2e-3   (max moisture countergradient)
     Ribcr land= 0.25   (critical bulk Richardson number over land)
-    entr_A    = 0.2    (entrainment momentum coefficient)
-    entr_B    = 5.0    (entrainment velocity denominator weight)
     */
 
     // Domain extent in z-dir
@@ -1046,10 +1044,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const amrex::Real pblh_rel = amrex::max(pblh - z_sfc, amrex::Real(1.0e-4));
 
                 // Top-down K-profile (H10 Eq. 11): K_down = rho * wstar_down * kappa * (h-z) * (z/h)^2
-                // wstar_down is not stored separately; use wstar3_down reconstructed from wscale
-                // Approximation: wstar_down_eff = wstar_arr(i,j,0) * 0.1 as placeholder
-                // TODO: Store wstar3_down in a separate FArrayBox in Phase 10b for accuracy.
-                const amrex::Real wstar_down_eff = amrex::Real(0.1) * wstar_arr(i,j,0);
+                // Use stored top-down convective velocity scale (computed from LRAD in the kernel above)
+                // wstar3_down_arr(i,j,0) = 0 when LRAD=0 (radiation not coupled), so K_down will be zero
+                const amrex::Real wstar3_down_col = wstar3_down_arr(i,j,0);
+                const amrex::Real wstar_down_eff  = (wstar3_down_col > zero)
+                                                   ? std::cbrt(wstar3_down_col)
+                                                   : zero;
                 const amrex::Real zfac_up = amrex::max(zrel / pblh_rel, amrex::Real(0.0));
                 K_down_arr(i,j,k) = rho * wstar_down_eff * KAPPA
                                     * amrex::max(pblh_rel - zrel, zero)
@@ -1234,7 +1234,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // prfac2 = 15.9*(wstar3+wstar3_2)/ust3 / (1 + 4*karman*(wstar3+wstar3_2)/ust3)
                 const Real wstar3_col = wstar3_arr_cap(i, j, 0);
                 const Real ust3 = u_star_arr(i, j, 0) * u_star_arr(i, j, 0) * u_star_arr(i, j, 0);
-                const Real wstar3_2 = zero;  // top-down term; non-zero in Phase 10
+                // Top-down wstar3 term (wstar3_2 in WRF bl_ysu.F90 line 949)
+                // Non-zero only when top-down convection is active (requires radiation coupling for LRAD)
+                const Real wstar3_2 = wstar3_down_arr(i, j, 0);
                 
                 Real prfac2 = zero;
                 if (SFCFLG && ust3 > amrex::Real(1.0e-10)) {
@@ -1501,12 +1503,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // dependent mixing to both heat and moisture. The heat scaling (ft or K_m/Pr)
                 // is used for moisture, which implicitly assumes equal turbulent
                 // Prandtl and Schmidt numbers in the stable/unstable free atmosphere.
-                // Only apply if use_moisture is enabled
-                if (use_moisture && turbChoice.ysu_moistvars) {
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
-                } else {
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
-                }
+                // Q diffusivity matches heat in free atmosphere (same Ri_g-dependent mixing)
+                K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             }
             // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
             // so the else clause would be unreachable. All cells reach K-bounds clipping below.
