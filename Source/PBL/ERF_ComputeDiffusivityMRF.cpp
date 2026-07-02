@@ -609,28 +609,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         });
 
         //
-        // Recompute convective velocity scale (wstar) and countergradient fluxes
-        // (HGAMT/HGAMQ) using the corrector PBL height (pblh_corr_arr).
-        //
-        // Background: The corrector PBL height is now available. The Monin-Obukhov stability
-        // functions and countergradient fluxes depend strongly on the PBL height estimate,
-        // so these quantities must be recomputed after the corrector pass to ensure
-        // consistency between the PBL height diagnosis and the K-profile mixing lengths.
-        //
-        // Note: Previous versions computed both a predictor PBL height (without countergradient
-        // corrections) and a corrector PBL height (with countergradient effects). The inconsistency
-        // between these two estimates led to unrealistic mixing intensity since the stability
-        // parameter HOL = sf*h/L differs. The predictor pass has been removed; only the
-        // corrector PBL height (pblh_corr_arr) is now computed and used throughout.
-        //
-        // WRF implements WSCALE (convective velocity) and countergradient corrections
-        // only once before both the corrector loop and K-profile computations, ensuring
-        // consistency. ERF implements three passes: this loop performs the needed computation
-        // after the corrector pass is complete.
-        //
-        // Hong & Pan (1996): WSCALE = u* / φ_m(h/L)
-        // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
-        // WRF Reference: module_bl_mrf.F lines 863-879
+        // PASS 2 (WSTAR / VPERT): Compute wstar, HGAMT, HGAMQ, VPERT using the
+        // predictor PBL height (pblh_pred_arr). VPERT will be fed into the corrector
+        // Rib search in Pass 3 to raise the effective surface temperature.
+        // WRF reference (module_bl_mrf.F lines 857-880):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
@@ -640,62 +623,42 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
-            // Compute Monin-Obukhov stability parameter using corrector PBL height
-            // HOL = sf * h / L, where L is Monin-Obukhov length scale
-            // WRF Reference: module_bl_mrf.F lines 857-861
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L861
-            const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
+            // HOL computed from predictor height (WRF uses predictor height for wstar/VPERT)
+            const Real HOL = sf * pblh_pred_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(1.0) / Real(4.0);
-            const Real phiM     = (obuk_val > 0)
-                                ? (1 + 5 * HOL_bounded)
-                                : std::pow(
-                                           amrex::max(1 - 16 * HOL_bounded, Real(0.01)),
-                                           -one_quarter);
+            const Real phiM = (obuk_val > 0)
+                            ? (1 + 5 * HOL_bounded)
+                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
-            // Convective velocity scale (wstar = u*/phi_m), now computed with pblh_corr_arr
-            // wstar is the characteristic turbulent velocity in the boundary layer.
-            // Bounds (u*/5 to 16*u*) prevent unrealistic values in very weak or strong convection.
-            // WRF Reference: module_bl_mrf.F L863-865
+            // wstar = u* / phi_m
+            // Absolute bounds [0.01, 5.0] m/s: prevent division-by-zero (floor) and
+            // free-convection blow-up (ceiling), independent of u* for u*->0 safety.
             Real wstar = u_star_arr(i, j, 0) / phiM_safe;
-            //wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
-            //wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
-            wstar_arr(i, j, 0) = wstar;  // Store for use in K-profile loop
 
-            // Compute HGAMT with corrected wstar
-            bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
+            bool SFCFLG = (obuk_val <= zero);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
                              : zero;
 
-            // Compute HGAMQ with corrected wstar
-            // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
-            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wstar converts
-            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_mrf.F L874-875
             Real HGAMQ = zero;
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
                 const Real q_star = q_star_arr(i, j, 0);
                 const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
-                HGAMQ = amrex::max(
-                    amrex::min(HGAMQ_calc, GAMCRQ),
-                    zero
-                );
+                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), zero);
 
-                // Land/water surface discrimination
                 if (lmask_arr) {
                     bool is_land = (lmask_arr(i,j,0) == 1);
                     if (!is_land) HGAMQ = zero;
                 }
 
-                // Saturation-Aware HGAMQ limiter
                 if (moisture_indices.qv >= 0) {
                     Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
                     Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
-                                                  cell_data(i, j, klo, RhoTheta_comp),
-                                                  qv_klo);
+                                                  cell_data(i, j, klo, RhoTheta_comp), qv_klo);
                     Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
                     Real qsat_klo = zero;
                     erf_qsatw(T_klo, p_klo, qsat_klo);
@@ -707,66 +670,176 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 }
             }
 
-            // Store HGAMT/h and HGAMQ/h for implicit solver (normalized by corrected PBL height)
-            // Also compute VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0) for Pass 3 use
-            // WRF Reference: module_bl_mrf.F lines 879-880 (THERMAL update with VPERT)
+            // Compute VPERT = HGAMT + 0.61*θ*HGAMQ (virtual temperature perturbation)
+            // This will be added to the surface temperature in the corrector Rib search.
+            // WRF Reference: module_bl_mrf.F lines 879-880
+            if (pbli_arr(i, j, 0) <= klo + 1 || !enable_mrf_countergradient) {
+                vpert_arr(i, j, 0) = zero;
+            } else {
+                const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
+                const Real VPERT_capped = enable_mrf_unbounded_vpert
+                                        ? VPERT_raw
+                                        : amrex::min(VPERT_raw, GAMCRT);
+                vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
+            }
+        });
+
+        //
+        // PASS 3 (CORRECTOR): Recompute PBL height with VPERT-enhanced surface temperature.
+        // θ_s = θ_va + VPERT  (Hong & Pan 1996, Eq. 4)
+        // This is the WRF-consistent corrector pass. pblh_corr_arr is used for the
+        // K-profile shape function K = ρ*wstar*κ*z*(1-z/h)².
+        // WRF reference (module_bl_mrf.F lines 932-964):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
+        //
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            const Real t_layer  = t10av_arr(i, j, 0);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+            // VPERT-enhanced surface virtual temperature (WRF THERMAL variable)
+            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction)
+                                 + vpert_arr(i, j, 0);
+
+            Real obuk_val = l_obuk_arr(i, j, 0);
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
+                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
+
+            int kpbl = klo;
+            Real zval0, zval, Rib0, Rib;
+            {
+                zval = (use_terrain_fitted_coords)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     : (kpbl + myhalf) * gdata.CellSize(2);
+                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+            }
+
+            bool above_critical = false;
+            while (!above_critical && ((kpbl + 1) <= khi)) {
+                zval0 = zval;
+                Rib0  = Rib;
+                kpbl += 1;
+
+                zval = (use_terrain_fitted_coords)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     : (kpbl + myhalf) * gdata.CellSize(2);
+                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                above_critical = (Rib >= Ribcr);
+            }
+
+            const Real pblh_emp = (use_terrain_fitted_coords)
+                                ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                : myhalf * gdata.CellSize(2);
+            const Real z_max = (use_terrain_fitted_coords)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             : (khi + myhalf) * gdata.CellSize(2);
+            const Real pblh_max = Real(0.9) * z_max;
+            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+
+            if (above_critical) {
+                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
+                pbli_arr(i, j, 0) = kpbl;
+            } else {
+                pblh_corr_arr(i, j, 0) = pblh_min;
+                pbli_arr(i, j, 0) = klo + 1;
+            }
+        });
+
+        //
+        // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
+        // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile
+        // amplitude and the countergradient fluxes. HOL = sf*h/L uses pblh_corr_arr.
+        // WRF reference (module_bl_mrf.F lines 857-880):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
+        //
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            //const Real t_layer  = t10av_arr(i, j, 0);
+            Real obuk_val = l_obuk_arr(i, j, 0);
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
+                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
+
+            // HOL now uses corrected PBLH for full internal consistency
+            const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
+            const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+            const Real one_quarter = Real(1.0) / Real(4.0);
+            const Real phiM = (obuk_val > 0)
+                            ? (1 + 5 * HOL_bounded)
+                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+            const Real phiM_safe = amrex::max(phiM, Real(0.01));
+
+            // Absolute bounds [0.01, 5.0] m/s
+            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            wstar = amrex::max(wstar, Real(0.01));
+            wstar = amrex::min(wstar, Real(5.0));
+            wstar_arr(i, j, 0) = wstar;
+
+            bool SFCFLG = (obuk_val <= zero);
+            const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
+                             ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
+                             : zero;
+
+            Real HGAMQ = zero;
+            if (SFCFLG && use_moisture && enable_mrf_countergradient) {
+                const Real q_star = q_star_arr(i, j, 0);
+                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
+                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), zero);
+
+                if (lmask_arr) {
+                    bool is_land = (lmask_arr(i,j,0) == 1);
+                    if (!is_land) HGAMQ = zero;
+                }
+
+                if (moisture_indices.qv >= 0) {
+                    Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
+                    Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
+                                                  cell_data(i, j, klo, RhoTheta_comp), qv_klo);
+                    Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
+                    Real qsat_klo = zero;
+                    erf_qsatw(T_klo, p_klo, qsat_klo);
+                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
+                    if (rh_klo > Real(0.95)) {
+                        Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                        HGAMQ *= rh_scaling;
+                    }
+                }
+            }
+
             if (pbli_arr(i, j, 0) <= klo + 1) {
                 hgamt_arr(i, j, 0) = zero;
                 hgamq_arr(i, j, 0) = zero;
-                vpert_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
-
-                // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
-                // This represents the virtual temperature perturbation at surface
-                // When enable_mrf_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
-                // When enable_mrf_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
-                // WRF Reference: module_bl_mrf.F lines 879-880
-                if (enable_mrf_countergradient) {
-                    const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
-                    const Real VPERT_capped = enable_mrf_unbounded_vpert
-                                            ? VPERT_raw
-                                            : amrex::min(VPERT_raw, GAMCRT);
-                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
-                } else {
-                    vpert_arr(i, j, 0) = zero;
-                }
             }
-
         });
 
         //
-        // Third PBL height pass using zero-Ri criterion (Ribcr = 0.0)
+        // PASS 5 (ZERO-RI): Diagnostic PBL height with Ribcr=0, VPERT-enhanced surface temp.
+        // Used optionally (pbl_mrf_use_zero_ri_extent) to extend the nonlocal mixing region.
+        // WRF reference (module_bl_mrf.F lines 932-964):
+        // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        // Background: WRF employs three distinct PBL height estimates:
-        //   Pass 1: Ribcr=0.5 with base surface temperature (predictor)
-        //   Pass 2: Ribcr=0.5 with enhanced surface temperature (corrector, includes VPERT)
-        //   Pass 3: Ribcr=0.0 diagnostic (uses base surface temperature, neutral criterion)
-        //
-        // The third pass produces a larger, physically meaningful mixed-layer depth. When
-        // Ribcr=0, the PBL height is found where the Richardson number first becomes
-        // neutral (Rib ≥ 0), which typically occurs higher in the atmosphere than the Ribcr=0.5
-        // criterion. This is the "zero-Richardson" diagnostic commonly used in observations.
-        //
-        // Use of three passes: The corrector PBL height (Pass 2, Ribcr=0.5) is used for
-        // computing the mixing intensity formula K = ρ*wstar*κ*z*(1-z/h)², while the
-        // diagnostic height (Pass 3, Ribcr=0) determines the vertical extent of the nonlocal
-        // mixing region (the index for k < pbli_zero_arr checks). This separation ensures:
-        //   - Realistic mixed-layer extent in convective conditions
-        //   - Stable mixing formula consistent with corrector diagnostics
-        //   - Physical consistency with WRF's treatment
-        //
-        // Hong & Pan (1996): PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
-        // The Ribcr=0 pass produces h(Ri=0), the "depth of neutral layers" from observations.
-        // WRF Reference: module_bl_mrf.F lines 932-964
-        //
-        constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
+        constexpr Real Ribcr_zero = zero;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Enhanced surface virtual temperature with VPERT contribution
-            // WRF Reference: module_bl_mrf.F lines 930-964 (Pass 3 uses THERMAL which includes VPERT)
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
@@ -778,39 +851,33 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real theta_v    = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo,      cell_data, moisture_indices);
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Pass 3 uses VPERT-enhanced surface virtual temperature for accurate mixed-layer extent
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
             bool above_critical_zero = false;
             while (!above_critical_zero && ((kpbl_zero + 1) <= khi)) {
-                //zval0_zero = zval_zero;
-                //Rib0_zero = Rib_zero;
                 kpbl_zero += 1;
-
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real theta_v    = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                const Real theta_v_klo = GetThetav(i, j, klo,      cell_data, moisture_indices);
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Use VPERT-enhanced surface temperature for Richardson number criterion
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }
 
-            // Use same bounds safeguard as corrector
             if (above_critical_zero) {
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
@@ -939,11 +1006,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                                   u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                                   dudz, dvdz, moisture_indices);
-                    // Note: dthetadz (dry potential temperature gradient) is computed above but intentionally
-                    // not used. Instead, we compute dtheta_v_dz from virtual potential temperature (lines 922-925)
-                    // to properly account for moisture effects on buoyancy in the Richardson number calculation.
-                    // This is consistent with the free-atmosphere branch (line 970) which also uses virtual
-                    // potential temperature for the Richardson number computation.
 
                     const Real dudz_safe = (k < izmax) ? dudz : Real(0);
                     const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
@@ -1022,8 +1084,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
             }
-            // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
-            // so the else clause would be unreachable. All cells reach K-bounds clipping below.
 
             // Limit diffusion coefficients to physical bounds
             // Hong & Pan (1996): Kmin=0.1, Kmax=300 m^2/s (module_bl_mrf.F lines 1014-1025)
