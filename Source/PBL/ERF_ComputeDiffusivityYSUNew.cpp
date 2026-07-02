@@ -519,7 +519,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real HGAMQ = zero;
             if (SFCFLG && use_moisture && enable_ysu_countergradient) {
                 const Real q_star = q_star_arr(i, j, 0);
-                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
+                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wscale;
                 HGAMQ = amrex::max(
                     amrex::min(HGAMQ_calc, GAMCRQ),
                     zero
