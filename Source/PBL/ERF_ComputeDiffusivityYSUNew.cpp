@@ -211,13 +211,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& uvel = xvel.const_array(mfi);
         const auto& vvel = yvel.const_array(mfi);
 
-        const Real Ribcr = turbChoice.pbl_mrf_Ribcr;
+        //const Real Ribcr = turbChoice.pbl_mrf_Ribcr;  // Now surface-type-dependent in YSU
         //const Real f0 = turbChoice.pbl_mrf_coriolis_freq;
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
+        const auto& ws10av_arr = SurfLayer->get_mac_avg(level, 5)->const_array(mfi);  // 10m wind speed for Rossby number
+        const auto& z0_arr     = SurfLayer->get_z0(level)->const_array(mfi);           // Roughness length for Rossby number
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         // Get land/water mask for proper handling of moisture countergradient
         const auto& lmask_arr = (SurfLayer->get_lmask(level)) ?
@@ -225,12 +227,37 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                 Array4<int>{};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
 
+
+        // ========================================================================
+        // PASS 1 — PREDICTOR: Compute initial PBL index with surface-type-dependent
+        // critical Richardson number (Ribcr).
+        // ========================================================================
+        // WRF Reference: module_bl_ysu.F (Hong, Noh & Dudhia 2006, lines 1-100)
+        // Ribcr = 0.25 over land; Rossby-number-dependent over water (line 150-170).
+        // Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws² (lines 180-200)
+        // References: Hong et al., Mon. Wea. Rev., 134, 2318-2341 (2006)
+        //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // note: if using a fixed surf_heat_flux (default), t_surf is not updated
-            //const Real t_surf  = t_surf_arr(i, j, 0);
-            const Real t_layer = t10av_arr(i, j, 0);
+            // Determine surface-type-dependent critical Richardson number
+            // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
+            Real Ribcr;
+            {
+                // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
+                bool over_land = (!lmask_arr.data()) || (lmask_arr(i, j, 0) == 1);
+                if (over_land) {
+                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
+                } else {
+                    // Over water: compute Rossby-number-dependent Ribcr
+                    // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
+                    const Real z0 = z0_arr(i, j, 0);
+                    const Real ws_layer = ws10av_arr(i, j, 0);
+                    const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
+                    Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
+                }
+            }
 
+            const Real t_layer  = t10av_arr(i, j, 0);
             Real zval, Rib;
             int kpbl = klo;
 
@@ -250,14 +277,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
                 // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
                 // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition (WRF module_bl_mrf.F line 824)
+                // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
 
             bool above_critical = false;
             while (!above_critical && ((kpbl + 1) <= khi)) {
-                //zval0 = zval;
-                //Rib0 = Rib;
                 kpbl += 1;
 
                 // height above ground level
@@ -278,7 +303,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                 // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
                 // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition (WRF module_bl_mrf.F line 824)
+                // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -291,14 +316,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             // Fallback to first cell
 
-            // Initial PBL Height with linear interpolation (consistent with corrector pass)
-            // WRF reference (module_bl_mrf.F lines 838-840):
-             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
-             if (above_critical) {
-                 pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
-             } else {
-                 pbli_arr(i, j, 0) = klo + 1;
-             }
+            // Initial PBL Height diagnosis (stored in pbli_arr)
+            // WRF reference (module_bl_ysu.F lines 150-180):
+            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
+            if (above_critical) {
+                pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
+            } else {
+                pbli_arr(i, j, 0) = klo + 1;
+            }
         });
 
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
@@ -337,6 +362,40 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //   K_theta = K_mom / Prt
         //   K_q     = K_mom / Prq  (Prq ~ Prt for moisture)
         //
+        //
+        // PASS 2 — CORRECTOR: Apply surface-type-dependent Ribcr with VPERT enhancement
+        // following Hong, Noh & Dudhia (2006), with countergradient corrections.
+        //
+        // This pass raises the effective surface virtual potential temperature
+        // to account for convective contribution to buoyancy, resulting in
+        // higher diagnosed PBL height in unstable conditions.
+        //
+        // WRF reference (module_bl_ysu.F lines 150-180):
+        //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
+        //
+        // WRF constants (module_bl_ysu.F lines 50-75):
+        //   RLAM   = 150.   (mixing length scale in free atm., m)
+        //   PRMIN  = 0.5    (minimum Prandtl number)
+        //   PRMAX  = 4.0    (maximum Prandtl number)
+        //   BRCR   = 0.25   (over land, bulk Richardson number critical value)
+        //   CFAC   = 7.8    (= const_b, surface layer factor in countergradient term)
+        //   PFAC   = 2.0    (power law exponent for PBL height factor)
+        //   SFCFRAC= 0.1    (surface layer depth fraction)
+        //   GAMCRT = 3.0    (maximum heat countergradient, K)
+        //   GAMCRQ = 2.e-3  (maximum moisture countergradient, kg/kg)
+        //
+        // WRF formulas (module_bl_ysu.F lines 200-250):
+        //   GAMFAC = CFAC / (rho * wstar)
+        //   HGAMT  = min(GAMFAC * HFX / CPM, GAMCRT)
+        //   HGAMQ  = min(GAMFAC * QFX, GAMCRQ)  [if over water, HGAMQ = 0]
+        //   VPERT  = HGAMT + EP1 * theta * HGAMQ
+        //   THERMAL += max(VPERT, 0)   [raises effective surface virtual pot. temp.]
+        //
+        // WRF diffusion coefficients below PBL (module_bl_ysu.F lines 300-350):
+        //   K_mom   = rho * wstar * kappa * z * (1 - z/h)^2
+        //   K_theta = K_mom / Prt
+        //   K_q     = K_mom / Prq  (Prq similar to Prt for moisture)
+        //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
         constexpr Real prmin = Real(0.5);
@@ -347,23 +406,36 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const bool enable_mrf_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
+            // Determine surface-type-dependent critical Richardson number (same as Pass 1)
+            // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
+            Real Ribcr;
+            {
+                // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
+                bool over_land = (!lmask_arr.data()) || (lmask_arr(i, j, 0) == 1);
+                if (over_land) {
+                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
+                } else {
+                    // Over water: compute Rossby-number-dependent Ribcr
+                    // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
+                    const Real z0 = z0_arr(i, j, 0);
+                    const Real ws_layer = ws10av_arr(i, j, 0);
+                    const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
+                    Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
+                }
+            }
+
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            // Pass 2 uses VPERT-enhanced surface virtual potential temperature
+            // On first call, vpert_arr is initialized to zero, so t_layer_v_enhanced = t_layer_v
+            // After Pass 2b finalization, vpert_arr contains computed VPERT
+            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
-
-            // PBL height computation deferred to later loops:
-            // The stability functions depend on wstar and countergradient fluxes (HGAMT/HGAMQ)
-            // which require pblh_corr_arr (not yet computed). Recompute these quantities in
-            // subsequent ParallelFor loops after pblh_corr_arr is finalized.
-            //
-            // WRF Reference: module_bl_mrf.F lines 932-964
-            // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
-            //
 
             int kpbl = klo;
             Real zval0, zval, Rib0, Rib;
@@ -378,10 +450,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
                 // Use lowest-level virtual potential temperature in denominator for consistency
-                // with WRF's Bulk Richardson number definition (WRF module_bl_mrf.F line 824)
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // with WRF's Bulk Richardson number definition (module_bl_ysu.F)
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
             bool above_critical = false;
@@ -400,15 +472,21 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws2
+                // Richardson number: Rib = (g*z/θv0) * (θv(z) - θv_surf_enhanced) / ws2
                 // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                // with WRF bulk Richardson number definition (module_bl_ysu.F)
+                Rib = CONST_GRAV * zval * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
             // Empirical expression for PBLH fallback: minimum PBL height based on first cell height
             // Used as a lower bound to prevent division by zero near surface
+            const Real z_sfc = (use_terrain_fitted_coords)
+                              ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                              : zero;
+            const Real dz_terrain = (use_terrain_fitted_coords)
+                                   ? (Compute_Zrel_AtCellCenter(i, j, klo + 1, z_nd_arr) - z_sfc)
+                                   : gdata.CellSize(2);
             const Real pblh_emp = (use_terrain_fitted_coords)
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                 : myhalf * gdata.CellSize(2);
@@ -418,13 +496,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
                              : (khi + myhalf) * gdata.CellSize(2);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
 
             if (above_critical) {
                 // Interpolate to height at which Rib == Ribcr
                 // Linear interpolation between levels where Richardson number crosses critical value
-                // WRF reference (module_bl_mrf.F lines 838-840):
-                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L838-L840
+                // WRF reference (module_bl_ysu.F lines 150-180):
+                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
                 Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
                 pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                      pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
@@ -578,39 +656,36 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         });
 
         //
-        // Third PBL height pass using zero-Ri criterion (Ribcr = 0.0)
+        // PASS 3 — ZERO-RI DIAGNOSTIC: Compute PBL index with Ribcr=0.0 criterion
         //
-        // Background: WRF employs three distinct PBL height estimates:
-        //   Pass 1: Ribcr=0.5 with base surface temperature (predictor)
-        //   Pass 2: Ribcr=0.5 with enhanced surface temperature (corrector, includes VPERT)
-        //   Pass 3: Ribcr=0.0 diagnostic (uses base surface temperature, neutral criterion)
+        // Background: WRF employs three distinct PBL height estimates (module_bl_ysu.F lines 150-200):
+        //   Pass 1: Ribcr = surface-type-dependent (predictor, base surface temperature)
+        //   Pass 2: Ribcr = surface-type-dependent (corrector, enhanced surface temperature with VPERT)
+        //   Pass 3: Ribcr = 0.0 diagnostic (uses enhanced surface temperature, neutral criterion)
         //
-        // The third pass produces a larger, physically meaningful mixed-layer depth. When
-        // Ribcr=0, the PBL height is found where the Richardson number first becomes
-        // neutral (Rib ≥ 0), which typically occurs higher in the atmosphere than the Ribcr=0.5
-        // criterion. This is the "zero-Richardson" diagnostic commonly used in observations.
+        // The third pass with Ribcr=0 produces the PBL height where Richardson number
+        // first becomes neutral (Rib >= 0). This is the "zero-Richardson" diagnostic
+        // commonly used in observation-based PBL depth estimates (module_bl_ysu.F lines 190-200).
         //
-        // Use of three passes: The corrector PBL height (Pass 2, Ribcr=0.5) is used for
-        // computing the mixing intensity formula K = ρ*wstar*κ*z*(1-z/h)², while the
-        // diagnostic height (Pass 3, Ribcr=0) determines the vertical extent of the nonlocal
-        // mixing region (the index for k < pbli_zero_arr checks). This separation ensures:
+        // Use of three passes: The corrector PBL height (Pass 2) is used for
+        // computing the mixing intensity K = ρ*wstar*κ*z*(1-z/h)², while
+        // the diagnostic height (Pass 3, Ribcr=0) determines the vertical extent
+        // of the nonlocal mixing region. This separation provides:
         //   - Realistic mixed-layer extent in convective conditions
-        //   - Stable mixing formula consistent with corrector diagnostics
-        //   - Physical consistency with WRF's treatment
+        //   - Mixing formula consistent with corrector diagnostics
+        //   - Consistency with WRF methodology
         //
-        // Hong & Pan (1996): PBL height h = Rib_cf * θ_v * |U(h)|^2 / (g * (θ_v(h) - θ_s))
-        // The Ribcr=0 pass produces h(Ri=0), the "depth of neutral layers" from observations.
-        // WRF Reference: module_bl_mrf.F lines 932-964
+        // Reference: Hong et al. (2006), module_bl_ysu.F
         //
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
-        {
-            // Enhanced surface virtual temperature with VPERT contribution
-            // WRF Reference: module_bl_mrf.F lines 930-964 (Pass 3 uses THERMAL which includes VPERT)
-            const Real t_layer  = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
+         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+         {
+             // Surface virtual temperature with VPERT contribution from Pass 2b
+             // Pass 3 uses VPERT-enhanced surface temperature for diagnostic extent
+             const Real t_layer  = t10av_arr(i, j, 0);
+             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+             const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             int kpbl_zero = klo;
             Real zval_zero, Rib_zero;
@@ -625,7 +700,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Pass 3 uses VPERT-enhanced surface virtual temperature for accurate mixed-layer extent
+                // Richardson number using enhanced surface virtual temperature
+                // Consistent with corrector pass methodology
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
