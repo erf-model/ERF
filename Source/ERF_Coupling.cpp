@@ -11,6 +11,99 @@
 #include <AMReX_Print.H>
 #include <AMReX_ParmParse.H>
 
+#include <string>
+
+namespace {
+bool
+PrintCouplingLayouts ()
+{
+    static bool initialized = false;
+    static bool enabled = false;
+    if (!initialized) {
+        int flag = 0;
+        amrex::ParmParse("driver").query("print_coupling_layouts", flag);
+        enabled = (flag != 0);
+        initialized = true;
+    }
+    return enabled;
+}
+
+void
+PrintDistributionMap (const amrex::DistributionMapping& dm)
+{
+    const auto& pmap = dm.ProcessorMap();
+    amrex::Print() << " pmap=[";
+    for (int i = 0; i < static_cast<int>(pmap.size()); ++i) {
+        amrex::Print() << (i == 0 ? "" : ",") << pmap[i];
+    }
+    amrex::Print() << "]";
+}
+
+void
+PrintBoxArrayLayout (const char* label,
+                     const amrex::BoxArray& ba,
+                     const amrex::DistributionMapping& dm)
+{
+    if (!PrintCouplingLayouts()) { return; }
+    amrex::Print() << "[coupling-layout] " << label
+                   << " boxes=" << ba.size()
+                   << " domain=" << ba.minimalBox();
+    PrintDistributionMap(dm);
+    amrex::Print() << "\n" << ba << "\n";
+}
+
+void
+PrintMultiFabLayout (const char* label, const amrex::MultiFab& mf)
+{
+    if (!PrintCouplingLayouts()) { return; }
+    amrex::Print() << "[coupling-layout] " << label
+                   << " ncomp=" << mf.nComp()
+                   << " ngrow=" << mf.nGrowVect();
+    PrintDistributionMap(mf.DistributionMap());
+    for (int comp = 0; comp < mf.nComp(); ++comp) {
+        amrex::Print() << " c" << comp
+                       << "_min=" << mf.min(comp)
+                       << " c" << comp
+                       << "_max=" << mf.max(comp);
+    }
+    amrex::Print() << "\n";
+    PrintBoxArrayLayout(label, mf.boxArray(), mf.DistributionMap());
+}
+
+void
+AverageDownToDstLayout (const amrex::MultiFab& fine,
+                        amrex::MultiFab& dst,
+                        const amrex::IntVect& ratio)
+{
+    const amrex::IntVect fine_len = fine.boxArray().minimalBox().length();
+    const amrex::IntVect dst_len  = dst.boxArray().minimalBox().length();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        fine_len[0] % ratio[0] == 0 &&
+        fine_len[1] % ratio[1] == 0 &&
+        fine_len[2] % ratio[2] == 0,
+        "AverageDownToDstLayout: fine box length is not divisible by ratio.");
+
+    amrex::BoxArray coarse_ba = fine.boxArray();
+    for (int i = 0; i < coarse_ba.size(); ++i) {
+        amrex::Box original = coarse_ba[i];
+        amrex::Box coarsened = original;
+        coarsened.coarsen(ratio);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            coarsened.refine(ratio) == original,
+            "AverageDownToDstLayout: encountered fine box that is not evenly coarsenable.");
+    }
+    coarse_ba.coarsen(ratio);
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        coarse_ba.minimalBox().length() == dst_len,
+        "AverageDownToDstLayout: coarsened fine domain does not match destination domain.");
+
+    amrex::MultiFab coarse_tmp(coarse_ba, fine.DistributionMap(), fine.nComp(), 0);
+    amrex::average_down(fine, coarse_tmp, 0, fine.nComp(), ratio);
+    dst.ParallelCopy(coarse_tmp, 0, 0, fine.nComp());
+}
+}
+
 amrex::Real
 ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
 {
@@ -82,6 +175,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
     const auto& ba2d_lev = ba2d[lev];
+    PrintMultiFabLayout("ERF PackAtmosphericStates cons source", cons);
+    PrintMultiFabLayout("ERF PackAtmosphericStates xvel source", xvel);
+    PrintMultiFabLayout("ERF PackAtmosphericStates yvel source", yvel);
+    PrintBoxArrayLayout("ERF PackAtmosphericStates ba2d source", ba2d_lev, dm);
 
     // --- Uwind + Vwind: use AMReX's average_face_to_cellcenter which correctly
     // handles tile boundaries via growntilebox(1) internally. ---
@@ -92,16 +189,19 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         MultiFab cc_vel(ba, dm, AMREX_SPACEDIM, 0);
         amrex::average_face_to_cellcenter(cc_vel, 0,
             Array<const MultiFab*, AMREX_SPACEDIM>{&xvel, &yvel, &zvel});
+        PrintMultiFabLayout("ERF PackAtmosphericStates cc_vel temp", cc_vel);
 
         // Collapse to 2D slab
         MultiFab uv_slab(ba2d_lev, dm, 2, 0);  // comp0=u, comp1=v
         uv_slab.ParallelCopy(cc_vel, 0, 0, 2);
+        PrintMultiFabLayout("ERF PackAtmosphericStates uv_slab temp", uv_slab);
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
             IntVect ratio = ba2d_lev.minimalBox().length()
                           / states[iUwind]->boxArray().minimalBox().length();
             amrex::average_down(u_alias, *states[iUwind], 0, 1, ratio);
+            PrintMultiFabLayout("ERF PackAtmosphericStates Uwind destination", *states[iUwind]);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
@@ -109,6 +209,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             IntVect ratio = ba2d_lev.minimalBox().length()
                           / states[iVwind]->boxArray().minimalBox().length();
             amrex::average_down(v_alias, *states[iVwind], 0, 1, ratio);
+            PrintMultiFabLayout("ERF PackAtmosphericStates Vwind destination", *states[iVwind]);
         }
     }
 
@@ -130,8 +231,43 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iPatm]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iPatm], 0, 1, ratio);
+        {
+            const amrex::IntVect src_len = ba2d_lev.minimalBox().length();
+            const amrex::IntVect dst_len = states[iPatm]->boxArray().minimalBox().length();
+            const amrex::IntVect ratio   = src_len / dst_len;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                src_len[0] % dst_len[0] == 0 && src_len[1] % dst_len[1] == 0,
+                "PackAtmosphericStates Patm/Tair: src length not divisible by dst length");
+            const amrex::Real tmp_min = tmp.min(0);
+            const amrex::Real tmp_max = tmp.max(0);
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "[DIAG][ERF-pack][pre-avgdown]"
+                               << " lane=Patm"
+                               << " src_len=" << src_len
+                               << " dst_len=" << dst_len
+                               << " ratio="   << ratio
+                               << " tmp_min=" << tmp_min
+                               << " tmp_max=" << tmp_max
+                               << "\n";
+            }
+        }
+        PrintMultiFabLayout("ERF PackAtmosphericStates Patm temp", tmp);
+        amrex::MultiFab tmp_dst(states[iPatm]->boxArray(),
+                                states[iPatm]->DistributionMap(), 1, 0);
+        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
+        states[iPatm]->ParallelCopy(tmp_dst, 0, 0, 1);
+        {
+            const amrex::Real dst_min = states[iPatm]->min(0);
+            const amrex::Real dst_max = states[iPatm]->max(0);
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "[DIAG][ERF-pack][post-avgdown]"
+                               << " lane=Patm"
+                               << " dst_min=" << dst_min
+                               << " dst_max=" << dst_max
+                               << "\n";
+            }
+        }
+        PrintMultiFabLayout("ERF PackAtmosphericStates Patm destination", *states[iPatm]);
     }
 
     // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
@@ -152,8 +288,43 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iTair]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
+        {
+            const amrex::IntVect src_len = ba2d_lev.minimalBox().length();
+            const amrex::IntVect dst_len = states[iTair]->boxArray().minimalBox().length();
+            const amrex::IntVect ratio   = src_len / dst_len;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                src_len[0] % dst_len[0] == 0 && src_len[1] % dst_len[1] == 0,
+                "PackAtmosphericStates Patm/Tair: src length not divisible by dst length");
+            const amrex::Real tmp_min = tmp.min(0);
+            const amrex::Real tmp_max = tmp.max(0);
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "[DIAG][ERF-pack][pre-avgdown]"
+                               << " lane=Tair"
+                               << " src_len=" << src_len
+                               << " dst_len=" << dst_len
+                               << " ratio="   << ratio
+                               << " tmp_min=" << tmp_min
+                               << " tmp_max=" << tmp_max
+                               << "\n";
+            }
+        }
+        PrintMultiFabLayout("ERF PackAtmosphericStates Tair temp", tmp);
+        amrex::MultiFab tmp_dst(states[iTair]->boxArray(),
+                                states[iTair]->DistributionMap(), 1, 0);
+        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
+        states[iTair]->ParallelCopy(tmp_dst, 0, 0, 1);
+        {
+            const amrex::Real dst_min = states[iTair]->min(0);
+            const amrex::Real dst_max = states[iTair]->max(0);
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "[DIAG][ERF-pack][post-avgdown]"
+                               << " lane=Tair"
+                               << " dst_min=" << dst_min
+                               << " dst_max=" << dst_max
+                               << "\n";
+            }
+        }
+        PrintMultiFabLayout("ERF PackAtmosphericStates Tair destination", *states[iTair]);
     }
 
     // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
@@ -207,8 +378,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
+                PrintMultiFabLayout("ERF PackAtmosphericStates Cloud temp", tmp);
                 IntVect ratio = ba2d_lev.minimalBox().length() / states[iCloud]->boxArray().minimalBox().length();
                 amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
+                PrintMultiFabLayout("ERF PackAtmosphericStates Cloud destination", *states[iCloud]);
             }
         }
 #if 0
@@ -242,14 +415,18 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
+            PrintMultiFabLayout("ERF PackAtmosphericStates SWrad temp", tmp);
             IntVect ratio = ba2d_lev.minimalBox().length() / states[iSWrad]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iSWrad], 0, 1, ratio);
+            PrintMultiFabLayout("ERF PackAtmosphericStates SWrad destination", *states[iSWrad]);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
+            PrintMultiFabLayout("ERF PackAtmosphericStates LWrad temp", tmp);
             IntVect ratio = ba2d_lev.minimalBox().length() / states[iLWrad]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iLWrad], 0, 1, ratio);
+            PrintMultiFabLayout("ERF PackAtmosphericStates LWrad destination", *states[iLWrad]);
         }
     }
 }
@@ -264,24 +441,19 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
+        PrintMultiFabLayout("ERF ApplyOceanSurfaceState SST source", *state[0]);
+        amrex::MultiFab src_remapped(dst->boxArray(), dst->DistributionMap(), 1, 0);
+        src_remapped.ParallelCopy(*state[0], 0, 0, 1);
+        PrintMultiFabLayout("ERF ApplyOceanSurfaceState SST remapped temp", src_remapped);
         const auto lsm_geom = lsm.Get_Lsm_Geom(0);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
             lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
             lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
             "OceanSurf t_surf geometry lost ERF periodic flags.");
-        const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
-        const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
-        for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
-            auto dst_arr = dst->array(mfi);
-            auto src_arr = state[0]->const_array(mfi);
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
-            });
-        }
+        dst->ParallelCopy(src_remapped, 0, 0, 1);
         dst->FillBoundary(lsm_geom.periodicity());
-        amrex::Gpu::streamSynchronize();
+        PrintMultiFabLayout("ERF ApplyOceanSurfaceState OceanSurf destination", *dst);
 
         const amrex::Real src_min = state[0]->min(0);
         const amrex::Real src_max = state[0]->max(0);
