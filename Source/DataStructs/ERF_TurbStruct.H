@@ -206,6 +206,12 @@ public:
           pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_entrainment", enable_ysu_entrainment, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysunew_entr_A", pbl_ysunew_entr_A, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysunew_entr_B", pbl_ysunew_entr_B, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -618,6 +624,9 @@ public:
   bool ysu_moistvars             = false;              // if true, apply turbulence to moisture variables
   bool enable_ysu_countergradient = true;              // if true, apply nonlocal HGAMT/HGAMQ corrections
   bool pbl_ysunew_highres_bounds  = false;             // if true, use high-res diffusivity bounds
+  bool enable_ysu_entrainment     = true;              // if true, add entrainment K at PBL top
+  amrex::Real pbl_ysunew_entr_A   = amrex::Real(0.2);  // entrainment coefficient for momentum (WRF ENTFAC_M)
+  amrex::Real pbl_ysunew_entr_B   = amrex::Real(5.0);  // denominator weight of wstar3 in entrainment velocity
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in

@@ -198,6 +198,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
+        FArrayBox entr_fab(xybx, 1, The_Async_Arena());   // Per-column entrainment diffusivity
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
@@ -205,6 +206,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
         const auto& vpert_arr       = vpert_fab.array();  // Stored VPERT for Pass 3 diagnostic loop
+        const auto& entr_arr        = entr_fab.array();   // Stored entrainment diffusivity
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -734,6 +736,49 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
         });
 
+        // Compute entrainment diffusivity at PBL top cell (HND06 Eq. 6, 11-14)
+        // This represents the enhanced diffusivity from entrainment of free-tropospheric air
+        {
+            const bool enable_ysu_entrainment = turbChoice.enable_ysu_entrainment;
+            const Real entr_A = turbChoice.pbl_ysunew_entr_A;
+            const Real entr_B = turbChoice.pbl_ysunew_entr_B;
+
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                entr_arr(i,j,0) = zero;
+                if (!enable_ysu_entrainment) return;
+
+                const Real rho_kpbl = cell_data(i, j, pbli_arr(i,j,0), Rho_comp);
+                const Real pblh     = pblh_corr_arr(i,j,0);
+                const Real wscale   = wstar_arr(i,j,0);
+                const Real ustar    = u_star_arr(i,j,0);
+
+                // Entrainment velocity (HND06 Eq. 13):
+                // we_m = entr_A * ustar^3 / (ustar^3 + entr_B * wstar_conv^3)
+                // wstar_conv^3 = max(BFLUX * g/theta * pblh, 0)
+                const Real t_layer = t10av_arr(i,j,0);
+                const Real BFLUX   = -ustar * t_star_arr(i,j,0);
+                const Real wstar3  = amrex::max(BFLUX * CONST_GRAV / t_layer * pblh, zero);
+                const Real ustar3  = ustar * ustar * ustar;
+                const Real we_denom = ustar3 + entr_B * wstar3;
+                const Real we_m = (we_denom > Real(1.0e-10))
+                                ? entr_A * ustar3 / we_denom * wscale
+                                : zero;
+
+                // Entrainment diffusivity K_entr = we * dz at PBL top cell
+                // dz_terrain at kpbl level:
+                const int kpbl    = pbli_arr(i,j,0);
+                const Real met_h  = (use_terrain_fitted_coords)
+                                   ? Compute_h_zeta_AtCellCenter(i, j, kpbl, dxInv, z_nd_arr) : one;
+                const Real dz_kpbl = met_h / dz_inv;
+
+                // Cap K_entr to 5x the typical mixing to prevent runaway values
+                const Real K_entr_raw = rho_kpbl * we_m * dz_kpbl;
+                const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
+                entr_arr(i,j,0) = amrex::min(K_entr_raw, K_cap);
+            });
+        }
+
         // -- Compute diffusion coefficients --
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
@@ -1105,6 +1150,16 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
             // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
             // so the else clause would be unreachable. All cells reach K-bounds clipping below.
+
+            // Add entrainment diffusivity at PBL top cell (HND06 Eq. 6)
+            // Applied only at k == pbli_arr(i,j,0) (the first cell above the PBL)
+            if (k == pbli_arr(i,j,0)) {
+                K_turb(i,j,k,EddyDiff::Mom_v)   += entr_arr(i,j,0);
+                K_turb(i,j,k,EddyDiff::Theta_v) += entr_arr(i,j,0);
+                if (turbChoice.ysu_moistvars) {
+                    K_turb(i,j,k,EddyDiff::Q_v) += entr_arr(i,j,0);
+                }
+            }
 
             // Limit diffusion coefficients to physical bounds
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
