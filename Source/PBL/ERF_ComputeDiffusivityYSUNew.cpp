@@ -63,9 +63,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
        K_t = K_m / Pr_t
        wscale = (u_*³ + phifac * κ * wstar_conv³ * (1-zfac))^(1/3)
 
-    4. Explicit Entrainment at PBL Top (HND06 Eq. 6):
-       K_entr = ρ * we_m * dz  at k = kpbl
-       we_m = entr_A * u_*³ / (u_*³ + entr_B * wstar_conv³) * wscale
+    4. Explicit Entrainment at PBL Top (WRF bl_ysu.F90 lines 831-925):
+       K_entr = ρ * |we| * dz  at k = kpbl  (applied only when we < 0)
+       wm3   = wstar³ + 5*u_*³
+       bfxpbl = -0.15 * θv(klo)/g * wm3 / pblh
+       dthvx = max(θv(kpbl+1) - θv(kpbl), 1e-2)
+       we    = max(bfxpbl/dthvx, -sqrt(wm3^(2/3)))
 
     5. Free Atmosphere / Stable PBL (H10, YSU Appendix A):
        Ri_g-dependent mixing with grid-adaptive length scale
@@ -132,6 +135,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         FArrayBox sflux_fab(xybx, 1, The_Async_Arena());        // Virtual kinematic heat flux (sensible + latent)
         FArrayBox wstar3_fab(xybx, 1, The_Async_Arena());       // Convective velocity scale cubed per column
         FArrayBox zol1_fab(xybx, 1, The_Async_Arena());         // Monin-Obukhov stability parameter at first level
+        FArrayBox sfcflg_fab(xybx, 1, The_Async_Arena());       // Surface stability flag: 1=unstable/neutral, 0=stable
         // REQUIRED: zero-initialize all FArrayBoxes before GPU kernels read them.
         // The_Async_Arena() does not zero memory; reading uninitialized data
         // corrupts rib_enhan_arr (via vpert_arr) and SFCFLG (via sflux_arr).
@@ -139,6 +143,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         sflux_fab.setVal(zero);
         wstar3_fab.setVal(zero);
         wstar3_down_fab.setVal(zero);
+        sfcflg_fab.setVal(zero);
         hgamt_fab.setVal(zero);
         hgamq_fab.setVal(zero);
         hgamu_fab.setVal(zero);
@@ -161,6 +166,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& sflux_arr       = sflux_fab.array();       // Virtual kinematic heat flux
         const auto& wstar3_arr      = wstar3_fab.array();      // Convective velocity scale cubed
         const auto& zol1_arr        = zol1_fab.array();        // Monin-Obukhov stability parameter
+        const auto& sfcflg_arr      = sfcflg_fab.array();      // Surface stability flag (1=unstable/neutral, 0=stable)
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -268,6 +274,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // WRF bl_ysu.F90 line 615: if(br(i).gt.0.0) sfcflg(i) = .false.
             // In ERF, br > 0 corresponds to sflux < 0 (stable), so:
             const bool sfcflg = (sflux > zero);
+            sfcflg_arr(i, j, 0) = sfcflg ? one : zero;  // Store as scalar field for unified use
 
             // WRF: govrth = g/thx(1) — uses DRY theta at first level
             const Real govrth = CONST_GRAV / t_layer;
@@ -670,8 +677,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // Compute HGAMT with corrected wscale and WRF convention
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
             // WRF bl_ysu.F90 line 688: hgamt(i) = min(gamfac*hfx(i)/cp, gamcrt)
-            //bool SFCFLG = (sflux_arr(i, j, 0) > zero);
-            bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral (L < 0)
+            // Use sflux-based sfcflg for consistency with the precompute kernel (Fix 3)
+            bool SFCFLG = (sfcflg_arr(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux > 0)
             const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
             const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * u_star_arr(i,j,0) * t_star_arr(i,j,0);
             const Real gamfac = const_b / (rho_sfc * wscale_corr);
@@ -940,12 +947,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const Real dz_inv = geom.InvCellSize(2);
         const int izmin   = geom.Domain().smallEnd(2);
         const int izmax   = geom.Domain().bigEnd(2);
-        // Compute entrainment diffusivity at PBL top cell (HND06 Eq. 6, 11-14)
-        // This represents the enhanced diffusivity from entrainment of free-tropospheric air
+        // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
+        // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
+        // the actual inversion strength (dthvx) at the PBL top.
         {
             const bool enable_ysu_entrainment = turbChoice.enable_ysu_entrainment;
-            const Real entr_A = turbChoice.pbl_ysunew_entr_A;
-            const Real entr_B = turbChoice.pbl_ysunew_entr_B;
             const bool enable_ysu_cloud_pblh = turbChoice.enable_ysu_cloud_pblh;
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
@@ -953,32 +959,49 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 entr_arr(i,j,0) = zero;
                 if (!enable_ysu_entrainment) return;
 
-                const Real rho_kpbl = cell_data(i, j, pbli_arr(i,j,0), Rho_comp);
+                const int kpbl     = pbli_arr(i,j,0);
+                const Real rho_kpbl = cell_data(i, j, kpbl, Rho_comp);
                 const Real pblh     = pblh_corr_arr(i,j,0);
                 const Real wscale   = wstar_arr(i,j,0);
                 const Real ustar    = u_star_arr(i,j,0);
+                const Real ustar3   = ustar * ustar * ustar;
 
-                // Entrainment velocity (HND06 Eq. 13):
-                // we_m = entr_A * ustar^3 / (ustar^3 + entr_B * wstar_conv^3)
-                // wstar_conv^3 = max(BFLUX * g/theta * pblh, 0)
-                const Real t_layer = t10av_arr(i,j,0);
-                const Real BFLUX   = -ustar * t_star_arr(i,j,0);
-                const Real wstar3  = amrex::max(BFLUX * CONST_GRAV / t_layer * pblh, zero);
-                const Real ustar3  = ustar * ustar * ustar;
-                const Real we_denom = ustar3 + entr_B * wstar3;
-                const Real we_m = (we_denom > Real(1.0e-10))
-                                ? entr_A * ustar3 / we_denom * wscale
-                                : zero;
+                // WRF bl_ysu.F90 lines 831-839: buoyancy-flux-based entrainment velocity
+                // wm3 = wstar3 + 5*ust3  (combined convective + mechanical velocity scale)
+                const Real wstar3_col = wstar3_arr(i,j,0);
+                const Real wm3   = wstar3_col + amrex::Real(5.0) * ustar3;
+                const Real wm2   = std::pow(wm3, amrex::Real(2.0) / amrex::Real(3.0));
 
-                // Entrainment diffusivity K_entr = we * dz at PBL top cell
-                // dz_terrain at kpbl level:
-                const int kpbl    = pbli_arr(i,j,0);
+                // bfxpbl = -0.15 * thvx(klo)/g * wm3 / hpbl
+                // thvx at klo: use liquid-theta equivalent if enabled (WRF thlix path)
+                const Real thvx_klo = (use_moisture && enable_ysu_liquid_theta)
+                                    ? GetThetavl(i, j, klo, cell_data, moisture_indices)
+                                    : GetThetav(i, j, klo, cell_data, moisture_indices);
+                const Real bfxpbl = amrex::Real(-0.15) * thvx_klo / CONST_GRAV * wm3 / pblh;
+
+                // dthvx = max(thvx(kpbl+1) - thvx(kpbl), tmin)  [inversion strength at PBL top]
+                // Guard against kpbl+1 exceeding domain top
+                const int kpbl_p1 = amrex::min(kpbl + 1, izmax);
+                const Real thvx_kpbl   = (use_moisture && enable_ysu_liquid_theta)
+                                       ? GetThetavl(i, j, kpbl,   cell_data, moisture_indices)
+                                       : GetThetav(i, j, kpbl,   cell_data, moisture_indices);
+                const Real thvx_kpbl_p1 = (use_moisture && enable_ysu_liquid_theta)
+                                        ? GetThetavl(i, j, kpbl_p1, cell_data, moisture_indices)
+                                        : GetThetav(i, j, kpbl_p1, cell_data, moisture_indices);
+                const Real dthvx = amrex::max(thvx_kpbl_p1 - thvx_kpbl, amrex::Real(1.0e-2));
+
+                // we = max(bfxpbl / dthvx, -sqrt(wm2))
+                // we is negative for true (downward) entrainment
+                const Real we = amrex::max(bfxpbl / dthvx, -std::sqrt(wm2));
+
+                // dz at kpbl level (terrain-adjusted)
                 const Real met_h  = (use_terrain_fitted_coords)
                                    ? Compute_h_zeta_AtCellCenter(i, j, kpbl, dxInv, z_nd_arr) : one;
                 const Real dz_kpbl = met_h / dz_inv;
 
-                // Cap K_entr to 5x the typical mixing to prevent runaway values
-                const Real K_entr_raw = rho_kpbl * we_m * dz_kpbl;
+                // Apply entrainment only when we < 0 (downward entrainment occurring)
+                // K_entr_raw = rho_kpbl * |we| * dz_kpbl
+                const Real K_entr_raw = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
                 entr_arr(i,j,0) = amrex::min(K_entr_raw, K_cap);
                  
@@ -1048,7 +1071,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
-        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1124,8 +1147,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Implement SFCFLG stable-side gating (WRF L808, L872-884)
                 // When stable (BR > 0, i.e., sflux < 0), skip nonlocal PBL mixing
                 // and use free-atmosphere Richardson scheme throughout PBL.
-                //bool SFCFLG = (sflux_arr(i, j, 0) > zero);  // TRUE when unstable/neutral, FALSE when stable
-                bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral (L < 0), FALSE when stable (L > 0)
+                // Use sflux-based sfcflg for unified definition (Fix 3)
+                bool SFCFLG = (sfcflg_arr_cap(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux > 0)
 
                 // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
                 // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [APHI16=16, exponent -1/4]
@@ -1419,16 +1442,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // alph = xlv*qmean/rd/tmean
                         // chi  = xlv*xlv*qmean / (cp*rv*tmean*tmean)
                         // ri = (1+alph)*(ri - g^2/(ss*tmean*cp) * (chi-alph)/(1+chi))
-                        const Real qv_k   = (moisture_indices.qv >= 0)
-                                            ? cell_data(i,j,k,  moisture_indices.qv) / rho_k   : zero;
-                        const Real qv_kp1 = (moisture_indices.qv >= 0)
-                                            ? cell_data(i,j,k+1,moisture_indices.qv) / rho_kp1 : zero;
-                        const Real theta_k   = cell_data(i,j,k,  RhoTheta_comp) / rho_k;
-                        const Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp) / rho_kp1;
-                        // Approximate T from theta: T = theta * pi ≈ theta (for typical ERF pressure levels)
-                        // More accurate: use getTgivenRandRTh if available
-                        const Real tmean  = myhalf * (theta_k + theta_kp1);  // approximate temperature
-                        const Real qmean  = myhalf * (qv_k + qv_kp1);
+                        const Real qv_k_mri   = (moisture_indices.qv >= 0)
+                                                ? cell_data(i,j,k,  moisture_indices.qv) / rho_k   : zero;
+                        const Real qv_kp1_mri = (moisture_indices.qv >= 0)
+                                                ? cell_data(i,j,k+1,moisture_indices.qv) / rho_kp1 : zero;
+                        // Use proper temperature (not theta) matching WRF's tx(i,k) — Fix 2
+                        const Real T_k   = getTgivenRandRTh(rho_k,   cell_data(i,j,k,  RhoTheta_comp), qv_k_mri);
+                        const Real T_kp1 = getTgivenRandRTh(rho_kp1, cell_data(i,j,k+1,RhoTheta_comp), qv_kp1_mri);
+                        const Real tmean  = myhalf * (T_k + T_kp1);
+                        const Real qmean  = myhalf * (qv_k_mri + qv_kp1_mri);
                         constexpr Real xlv = amrex::Real(2.5e6);   // latent heat of vaporization (J/kg)
                         constexpr Real rd  = amrex::Real(287.0);   // gas constant dry air (J/kg/K)
                         constexpr Real rv  = amrex::Real(461.5);   // gas constant water vapor (J/kg/K)
