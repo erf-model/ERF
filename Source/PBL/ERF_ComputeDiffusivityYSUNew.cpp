@@ -168,6 +168,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // This improves GPU performance by eliminating serial while-loops in favor of simple
         // array lookups during the three PBLH pass loops.
         //
+        const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
         FArrayBox rib_base_fab(gbx, 1, The_Async_Arena());    // Rib with base t_layer_v
         FArrayBox rib_enhan_fab(gbx, 1, The_Async_Arena());   // Rib with enhanced t_layer_v+VPERT
         const auto& rib_base_arr  = rib_base_fab.array();
@@ -176,28 +177,28 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         BL_PROFILE_VAR("YSUNew_Rib_Precompute", prof_rib_precomp);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-           const amrex::Real t_layer   = t10av_arr(i,j,0);
-           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
-           const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
-           // On first call, vpert_arr is initialized to zero
-           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
-           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
-                                       ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
-           const amrex::Real zval      = (use_terrain_fitted_coords)
-                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                       : (k + myhalf) * gdata.CellSize(2);
-           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
-           const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
-                                       ? GetThetavl(i,j,k,cell_data,moisture_indices)
-                                       : GetThetav(i,j,k,cell_data,moisture_indices);
-           const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                         ? GetThetavl(i,j,klo,cell_data,moisture_indices)
-                                         : GetThetav(i,j,klo,cell_data,moisture_indices);
-           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
-                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
-           const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
-           rib_base_arr(i,j,k)  = CONST_GRAV * zrel * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
-           rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh)     / (ws2 * theta_v_klo);
+          const amrex::Real t_layer   = t10av_arr(i,j,0);
+          const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
+          const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
+          // On first call, vpert_arr is initialized to zero
+          const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
+          const amrex::Real z_sfc     = (use_terrain_fitted_coords)
+                                      ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
+          const amrex::Real zval      = (use_terrain_fitted_coords)
+                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                      : (k + myhalf) * gdata.CellSize(2);
+          const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
+          const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i,j,k,cell_data,moisture_indices)
+                                      : GetThetav(i,j,k,cell_data,moisture_indices);
+          const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                        ? GetThetavl(i,j,klo,cell_data,moisture_indices)
+                                        : GetThetav(i,j,klo,cell_data,moisture_indices);
+          const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
+                                      + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
+          const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
+          rib_base_arr(i,j,k)  = CONST_GRAV * zrel * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+          rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh)     / (ws2 * theta_v_klo);
         });
         BL_PROFILE_VAR_STOP(prof_rib_precomp);
 
@@ -210,7 +211,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Rib = (g*z/θv0) * (θv(z) - θv_surf) / ws² (lines 180-200)
         // References: Hong et al., Mon. Wea. Rev., 134, 2318-2341 (2006)
         //
-        const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
           
         BL_PROFILE_VAR("YSUNew_PBLH_Passes", prof_pblh);
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
