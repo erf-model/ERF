@@ -27,7 +27,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
-                       const MoistureComponentIndices& moisture_indices)
+                       const MoistureComponentIndices& moisture_indices,
+                       const MultiFab* qheating_rates = nullptr)
 {
     /*
     ============================================================================
@@ -187,6 +188,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                 SurfLayer->get_lmask(level)->const_array(mfi) :
                                 Array4<int>{};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        // Get qheating_rates if provided (for LW radiation coupling to top-down mixing)
+        const Array4<Real const> qheat_arr = (qheating_rates != nullptr) 
+                                             ? qheating_rates->const_array(mfi) 
+                                             : Array4<Real const>{};
+        const bool has_qheating_rates = (qheating_rates != nullptr);
 
 
         // ========================================================================
@@ -643,10 +649,23 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 int k_cloud_top = cloud_top_arr(i, j, 0);
                  
                 // Longwave cooling flux at cloud top (W/m^2 equivalent in K*m/s)
-                // When RRTMGP is active, read from lw_cooling MultiFab if available.
+                // When RRTMGP is active, read from qheating_rates if available.
                 // Otherwise use zero (feature disabled when radiation is off).
-                // Placeholder for radiation coupling — set to zero until Phase 10b.
-                amrex::Real LRAD = zero;  // Will be replaced by radiation coupling below
+                // Compute LRAD by integrating the LW heating rate (component index 1) 
+                // over the PBL column from surface (klo) to cloud top (k_cloud_top)
+                amrex::Real LRAD = zero;
+                if (has_qheating_rates) {
+                    // Integrate LW heating rate from surface to cloud top
+                    // qheating_rates contains heating rates (K/s); negative values represent cooling
+                    for (int kk = klo; kk <= k_cloud_top; ++kk) {
+                        amrex::Real dz = (use_terrain_fitted_coords)
+                                       ? (z_nd_arr(i, j, kk+1) - z_nd_arr(i, j, kk))
+                                       : gdata.CellSize(2);
+                        // Accumulate cooling (negative heating) integrated over height
+                        // LW component is at index 1
+                        LRAD += -qheat_arr(i, j, kk, 1) * dz;
+                    }
+                }
                  
                 // Top-down convective velocity (H10 Eq. 12):
                 // wstar_down^3 = g/theta * LRAD/(rho*cp) * pblh

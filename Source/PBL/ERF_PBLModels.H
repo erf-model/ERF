@@ -194,6 +194,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * @param[in]  vert_only  compute vertical diffusivity only
  * @param[in]  z_phys_nd  physical node heights (terrain)
  * @param[in]  moisture_indices  component index mapping for moisture variables
+ * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
  */
 void
 ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
@@ -209,7 +210,8 @@ ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                          const MoistureComponentIndices& moisture_indices);
+                          const MoistureComponentIndices& moisture_indices,
+                          const amrex::MultiFab* qheating_rates = nullptr);
 
 /**
  * Function for computing vertical derivatives for use in PBL model
