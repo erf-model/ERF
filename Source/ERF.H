@@ -277,6 +277,8 @@ public:
 
     void compute_max_pressure_gradient_diagnostic(int lev);
 
+    void check_mesh_type(int lev);
+
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
     bool writeNow (double cur_time, const int nstep, const int plot_int,
