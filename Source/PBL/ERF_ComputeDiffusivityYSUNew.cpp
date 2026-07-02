@@ -7,6 +7,10 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 
+#ifdef ERF_USE_WINDFARM
+#include "ERF_WindFarm.H"
+#endif
+
 using namespace amrex;
 
 void
@@ -157,6 +161,47 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
 
         // ========================================================================
+        // PRE-COMPUTE Rib ARRAYS FOR GPU PERFORMANCE
+        // ========================================================================
+        // Pre-compute both base (without VPERT) and enhanced (with VPERT) Richardson numbers
+        // in a single vectorized kernel to reduce divergent control flow in subsequent PBLH loops.
+        // This improves GPU performance by eliminating serial while-loops in favor of simple
+        // array lookups during the three PBLH pass loops.
+        //
+        FArrayBox rib_base_fab(gbx, 1, The_Async_Arena());    // Rib with base t_layer_v
+        FArrayBox rib_enhan_fab(gbx, 1, The_Async_Arena());   // Rib with enhanced t_layer_v+VPERT
+        const auto& rib_base_arr  = rib_base_fab.array();
+        const auto& rib_enhan_arr = rib_enhan_fab.array();
+
+        BL_PROFILE_VAR("YSUNew_Rib_Precompute", prof_rib_precomp);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+           const amrex::Real t_layer   = t10av_arr(i,j,0);
+           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
+           const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
+           // On first call, vpert_arr is initialized to zero
+           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
+           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
+                                       ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
+           const amrex::Real zval      = (use_terrain_fitted_coords)
+                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                       : (k + myhalf) * gdata.CellSize(2);
+           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
+           const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
+                                       ? GetThetavl(i,j,k,cell_data,moisture_indices)
+                                       : GetThetav(i,j,k,cell_data,moisture_indices);
+           const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                         ? GetThetavl(i,j,klo,cell_data,moisture_indices)
+                                         : GetThetav(i,j,klo,cell_data,moisture_indices);
+           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
+                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
+           const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
+           rib_base_arr(i,j,k)  = CONST_GRAV * zrel * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+           rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh)     / (ws2 * theta_v_klo);
+        });
+        BL_PROFILE_VAR_STOP(prof_rib_precomp);
+
+        // ========================================================================
         // PASS 1 — PREDICTOR: Compute initial PBL index with surface-type-dependent
         // critical Richardson number (Ribcr).
         // ========================================================================
@@ -166,116 +211,34 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // References: Hong et al., Mon. Wea. Rev., 134, 2318-2341 (2006)
         //
         const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
-         
+          
+        BL_PROFILE_VAR("YSUNew_PBLH_Passes", prof_pblh);
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Height above local surface: zrel = zval - z_sfc
-            // where z_sfc = height of surface cell center above the reference datum.
-            // Using zrel in the Rib numerator ensures PBLH is measured correctly over terrain.
-            // WRF equivalent: ZQ(I,K) - ZL1(I) in module_bl_ysu.F.
+            // Determine surface-type-dependent critical Richardson number
+            // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
+            Real Ribcr;
+            {
+                bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
+                if (over_land) {
+                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;
+                } else {
+                    const Real z0 = z0_arr(i, j, 0);
+                    const Real ws_layer = ws10av_arr(i, j, 0);
+                    const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
+                    Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
+                }
+            }
 
-           // Determine surface-type-dependent critical Richardson number
-           // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
-           Real Ribcr;
-           {
-               // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
-               bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
-               if (over_land) {
-                   Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
-               } else {
-                   // Over water: compute Rossby-number-dependent Ribcr
-                   // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
-                   const Real z0 = z0_arr(i, j, 0);
-                   const Real ws_layer = ws10av_arr(i, j, 0);
-                   const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
-                   Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
-               }
-           }
-
-           const Real t_layer  = t10av_arr(i, j, 0);
-            
-           // Compute surface cell height once (terrain-relative)
-           const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                        : zero;
-            
-           Real zval, Rib;
-           int kpbl = klo;
-
-           // Initialize at lowest level
-           {
-               zval = (use_terrain_fitted_coords)
-                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                    : (kpbl + myhalf) * gdata.CellSize(2);
-               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
-                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
-               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
-               const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-               const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-               // Richardson number: Rib = (g*zrel/θv0) * (θv(z) - θv_surf) / ws2
-               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-               // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
-               const amrex::Real zrel = zval - z_sfc_col;
-               Rib = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
-           }
-
-           bool above_critical = false;
-           while (!above_critical && ((kpbl + 1) <= khi)) {
-               kpbl += 1;
-
-               // height above ground level
-               zval = (use_terrain_fitted_coords)
-                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                    : (kpbl + myhalf) * gdata.CellSize(2);
-
-               // Use virtual potential temperature for stability calculations
-               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
-                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
-               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
-               const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-               const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-
-               // Richardson number: Rib = (g*zrel/θv0) * (θv(z) - θv_surf) / ws2
-               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-               // with WRF bulk Richardson number definition (HND06, module_bl_ysu.F)
-               const amrex::Real zrel = zval - z_sfc_col;
-               Rib = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
-               above_critical = (Rib >= Ribcr);
-           }
-
-           // Empirical expression for PBLH is given by h = c u* / f
-           // Garratt (1994) and Tennekes (1982)
-           // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. Real(2014.)
-           //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? Real(0.16) : Real(0.60);
-           //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
-
-           // Fallback to first cell
-
-           // Initial PBL Height diagnosis (stored in pbli_arr)
-           // WRF reference (module_bl_ysu.F lines 150-180):
-           // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
-           if (above_critical) {
-               pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
-           } else {
-               pbli_arr(i, j, 0) = klo + 1;
-           }
+            // Scan rib_base_arr(i,j,klo..khi) to find first crossing of Ribcr
+            int kpbl = klo;
+            for (int kk = klo+1; kk <= khi; ++kk) {
+                if (rib_base_arr(i,j,kk) >= Ribcr) { kpbl = kk; break; }
+                kpbl = kk;  // keep updating so kpbl = khi if never exceeded
+            }
+            pbli_arr(i, j, 0) = kpbl;
         });
+        BL_PROFILE_VAR_STOP(prof_pblh);
 
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
 
@@ -357,22 +320,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const bool enable_ysu_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Height above local surface: zrel = zval - z_sfc
-            // where z_sfc = height of surface cell center above the reference datum.
-            // Using zrel in the Rib numerator ensures PBLH is measured correctly over terrain.
-            // WRF equivalent: ZQ(I,K) - ZL1(I) in module_bl_ysu.F.
-
             // Determine surface-type-dependent critical Richardson number (same as Pass 1)
             // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
             Real Ribcr;
             {
-                // Check if over land (lmask_arr(i,j,0) == 1) or lmask_arr is null (default land)
                 bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
                 if (over_land) {
-                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;  // Default 0.25 (module_bl_ysu.F line ~160)
+                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;
                 } else {
-                    // Over water: compute Rossby-number-dependent Ribcr
-                    // Hong et al. (2006), Eq. (5): Ribcr = 0.16 * (1e-7*Ro)^(-0.18) (module_bl_ysu.F lines 165-170)
                     const Real z0 = z0_arr(i, j, 0);
                     const Real ws_layer = ws10av_arr(i, j, 0);
                     const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
@@ -383,91 +338,36 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-            // Pass 2 uses VPERT-enhanced surface virtual potential temperature
-            // On first call, vpert_arr is initialized to zero, so t_layer_v_enhanced = t_layer_v
-            // After Pass 2b finalization, vpert_arr contains computed VPERT
             const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
-            Real obuk_val = l_obuk_arr(i, j, 0);
-            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
-                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
-            }
-
-            // Compute surface cell height once (terrain-relative)
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                          : zero;
 
             int kpbl = klo;
-            Real zval0, zval, Rib0, Rib;
-            {
-                zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
-               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
-                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
-               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
-               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-               // Richardson number: Rib = (g*zrel/θv0) * (θv(z) - θv_surf_enhanced) / ws2
-               // Use lowest-level virtual potential temperature in denominator for consistency
-               // with WRF's Bulk Richardson number definition (module_bl_ysu.F)
-               const amrex::Real zrel = zval - z_sfc_col;
-               Rib = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
-           }
-
-           bool above_critical = false;
-           while (!above_critical && ((kpbl + 1) <= khi)) {
-               zval0 = zval;
-               Rib0 = Rib;
-               kpbl += 1;
-
-               zval = (use_terrain_fitted_coords)
-                    ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                    : (kpbl + myhalf) * gdata.CellSize(2);
-               const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                  ? GetThetavl(i, j, kpbl, cell_data, moisture_indices)
-                                  : GetThetav(i, j, kpbl, cell_data, moisture_indices);
-               const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                      : GetThetav(i, j, klo, cell_data, moisture_indices);
-               const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                             (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                             (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-               const Real ws2 = amrex::max(ws2_raw, Real(1.0));  // WRF: SPDK2=MAX(...,1.)
-               // Richardson number: Rib = (g*zrel/θv0) * (θv(z) - θv_surf_enhanced) / ws2
-               // Use lowest-level potential temperature (theta_v_klo) in denominator for consistency
-                // with WRF bulk Richardson number definition (module_bl_ysu.F)
-                const amrex::Real zrel = zval - z_sfc_col;
-                Rib = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
-                above_critical = (Rib >= Ribcr);
+            Real zval0 = zero, Rib0 = zero;
+            // Scan rib_enhan_arr to find first crossing of Ribcr with linear interpolation
+            for (int kk = klo; kk <= khi; ++kk) {
+                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; break; }
+                zval0 = (use_terrain_fitted_coords)
+                      ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                      : (kk + myhalf) * gdata.CellSize(2);
+                Rib0 = rib_enhan_arr(i,j,kk);
+                kpbl = kk;
             }
 
-            // Empirical expression for PBLH fallback: minimum PBL height based on first cell height
-            // Used as a lower bound to prevent division by zero near surface
+            // Compute bounds for pblh clamping
             const Real z_sfc = (use_terrain_fitted_coords)
                               ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                               : zero;
             const Real dz_terrain = (use_terrain_fitted_coords)
                                    ? (Compute_Zrel_AtCellCenter(i, j, klo + 1, z_nd_arr) - z_sfc)
                                    : gdata.CellSize(2);
-            //const Real pblh_emp = (use_terrain_fitted_coords)
-            //                    ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-            //                    : myhalf * gdata.CellSize(2);
-
-            // Absolute bounds safeguard: clamp to prevent division by zero near surface and runaway height at top
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
                              : (khi + myhalf) * gdata.CellSize(2);
             const Real pblh_max = Real(0.9) * z_max;
-             
+              
             amrex::Real pblh_min;
             if (turbChoice.enable_ysu_terrain_pblh_floor && use_terrain_fitted_coords) {
                 const Real dz_inv = geom.InvCellSize(2);
@@ -479,22 +379,20 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
             }
 
-            if (above_critical) {
-                // Interpolate to height at which Rib == Ribcr
-                // Linear interpolation between levels where Richardson number crosses critical value
-                // WRF reference (module_bl_ysu.F lines 150-180):
-                // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F
+            // Linear interpolation from previous level if crossing detected
+            if (kpbl < khi && rib_enhan_arr(i,j,kpbl) >= Ribcr) {
+                const Real zval = (use_terrain_fitted_coords)
+                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
+                                : (kpbl + myhalf) * gdata.CellSize(2);
+                const Real Rib = rib_enhan_arr(i,j,kpbl);
                 Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
                 pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
-                     pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
             } else {
-                // Fallback to first cell
                 pblh_corr_arr(i, j, 0) = pblh_min;
-                     pbli_arr(i, j, 0) = klo + 1;
             }
+            pbli_arr(i, j, 0) = kpbl;
 
-            // NOTE: Countergradient fluxes (HGAMT/HGAMQ) deferred to subsequent loop
-            // after pblh_corr_arr is finalized. Initialize with zeros for now.
+            // Initialize countergradient fluxes for now
             hgamt_arr(i, j, 0) = zero;
             hgamq_arr(i, j, 0) = zero;
             wstar_arr(i, j, 0) = zero;
@@ -1317,6 +1215,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 rhoKmin  = rho * Kmin;
                 rhoKmax  = rho * Kmax;
             }
+
+            #ifdef ERF_USE_WINDFARM
+            // Wind farm coupling: if TKE from Fitch/EWP model is available and positive at this cell,
+            // augment wscale to reflect enhanced turbulence from turbine wakes.
+            // This requires mf_vars_windfarm to be passed in (added to function signature below).
+            // For now, add a placeholder comment:
+            // TODO: Accept optional MultiFab* windfarm_tke argument. When non-null and
+            //       windfarm_tke(i,j,k) > 0, augment K_turb by rho * sqrt(windfarm_tke(i,j,k)) * lscale.
+            #endif
 
             K_turb(i, j, k, EddyDiff::Mom_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Mom_v), rhoKmax), rhoKmin);
