@@ -58,6 +58,7 @@ amrex::Real coalescence_metric (const int i) noexcept
     va[0] = amrex::Real(1.0);   // particle 1 falls at 1 m/s
     vb[0] = amrex::Real(0.0);   // particle 2 at rest  -> |dv| = 1
     vc[0] = amrex::Real(2.0);   // a larger |dv| = 2 (vs vb)
+    const amrex::Real xz[AMREX_SPACEDIM] = {};  // unused positions (absolute_velocity)
     const amrex::Real sumr = r1 + r2;
     const amrex::Real geom = PI*sumr*sumr*amrex::Real(1.0);  // E=1 rate at |dv|=1
 
@@ -74,29 +75,29 @@ amrex::Real coalescence_metric (const int i) noexcept
 
     // --- Gravitational sedimentation kernel ---
     case 3: // vanishes when the fall velocities are equal (no differential settling)
-        return std::abs(ck.sedimentation(r1, r2, va, va));
+        return std::abs(ck.sedimentation(r1, r2, va, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 4: // symmetric under swapping both radius and velocity
-        return std::abs(ck.sedimentation(r1, r2, va, vb) - ck.sedimentation(r2, r1, vb, va));
+        return std::abs(ck.sedimentation(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity) - ck.sedimentation(r2, r1, vb, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 5: // non-negative
-        return nonneg(-ck.sedimentation(r1, r2, va, vb));
+        return nonneg(-ck.sedimentation(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 6: // increases with the differential fall speed
-        return nonneg(ck.sedimentation(r1, r2, va, vb) - ck.sedimentation(r1, r2, vc, vb));
+        return nonneg(ck.sedimentation(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity) - ck.sedimentation(r1, r2, vc, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
 
     // --- Long's (1974) kernel ---
     case 7: // vanishes when |dv| = 0
-        return std::abs(ck.Longs(r1, r2, va, va));
+        return std::abs(ck.Longs(r1, r2, va, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 8: // non-negative
-        return nonneg(-ck.Longs(r1, r2, va, vb));
+        return nonneg(-ck.Longs(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 9: // symmetric under swapping both radius and velocity
-        return std::abs(ck.Longs(r1, r2, va, vb) - ck.Longs(r2, r1, vb, va));
+        return std::abs(ck.Longs(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity) - ck.Longs(r2, r1, vb, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
 
     // --- Hall's (1980) kernel (efficiency table + bilinear interpolation) ---
     case 10: // vanishes when |dv| = 0
-        return std::abs(ck.Halls(r1, r2, va, va));
+        return std::abs(ck.Halls(r1, r2, va, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 11: // symmetric under swapping both radius and velocity
-        return std::abs(ck.Halls(r1, r2, va, vb) - ck.Halls(r2, r1, vb, va));
+        return std::abs(ck.Halls(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity) - ck.Halls(r2, r1, vb, va, xz, xz, SDKernelRelativeVelocityType::absolute_velocity));
     case 12: // collision efficiency E = K / (pi (r1+r2)^2 |dv|) stays within [0, 1.05]
-        return band_violation(ck.Halls(r1, r2, va, vb)/geom, amrex::Real(0.0), amrex::Real(1.05));
+        return band_violation(ck.Halls(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity)/geom, amrex::Real(0.0), amrex::Real(1.05));
 
     // --- Riming collision efficiencies ---
     case 13: // Beard-Grover (1974) efficiency in [0,1]

@@ -100,6 +100,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     coal_kernel_name = "sedimentation";
     m_ice_agg_eff = amrex::Real(0.1);
     m_include_brownian_coalescence = false;
+    m_kernel_relative_velocity = SDKernelRelativeVelocityType::terminal_velocity;
     m_term_vel_type_w = SDTerminalVelocityType::CloudRainShima;
     m_term_vel_type_i = SDTerminalVelocityType::IceBohm;
 
@@ -175,6 +176,8 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     } else {
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
+
+    pp.query("kernel_relative_velocity", m_kernel_relative_velocity);
 
     // ice-ice aggregation collection efficiency (kernel prefactor; default 0.1)
     pp.query("ice_aggregation_efficiency", m_ice_agg_eff);
@@ -330,6 +333,8 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const
         } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
             Print() << "Halls" << "\n";
         }
+        Print() << "  Kernel relative velocity: "
+                << getEnumNameString(m_kernel_relative_velocity) << "\n";
         Print() << "  Mass change time integrator: ";
         if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
             Print() << "rk3bs";
