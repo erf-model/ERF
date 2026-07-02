@@ -27,7 +27,7 @@ zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
 erf.most.zref = 10.0     # reference height [m]
 erf.most.surf_temp = 308.0  # surface temperature [K] (warm)
-erf.most.surf_heating_rate = 0.1  # heating rate in K*m/s (positive = unstable)
+erf.most.surf_temp_flux = 0.1  # surface temperature flux (positive = unstable, K*m/s)
 
 # Upper boundary - stable layer capping the PBL
 zhi.type = "SlipWall"
