@@ -486,8 +486,10 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const SolverChoice&, \
         const BCRec*, \
         const bool, \
-        const Real);
+        const Real, \
+        const bool);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
-#undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM
+#undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU
+        

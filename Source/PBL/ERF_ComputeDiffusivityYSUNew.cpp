@@ -1585,7 +1585,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
         });
         BL_PROFILE_VAR_STOP(prof_kprof);
-
+        amrex::Print()<<" Turbulent Viscosity at cell "<<K_turb(2, 2, 2, EddyDiff::Mom_v)<<" "<<pblh_corr_arr(2, 2, 0)<<std::endl;
         // FOEXTRAP top and bottom ghost cells
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
