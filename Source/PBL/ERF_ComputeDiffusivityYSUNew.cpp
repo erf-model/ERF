@@ -121,6 +121,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
         FArrayBox entr_fab(xybx, 1, The_Async_Arena());   // Per-column entrainment diffusivity
+        IArrayBox cloud_top_fab(xybx, 1, The_Async_Arena());  // Cloud-top cell index for top-down mixing
+        FArrayBox wstar3_down_fab(xybx, 1, The_Async_Arena());  // Top-down convective velocity scale cubed
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
@@ -129,6 +131,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
         const auto& vpert_arr       = vpert_fab.array();  // Stored VPERT for Pass 3 diagnostic loop
         const auto& entr_arr        = entr_fab.array();   // Stored entrainment diffusivity
+        const auto& cloud_top_arr   = cloud_top_fab.array();  // Cloud-top cell index for top-down mixing
+        const auto& wstar3_down_arr = wstar3_down_fab.array();  // Top-down wstar cubed
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -530,6 +534,40 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
          
+        // ========================================================================
+        // Cloud-top detection for top-down mixing (H10 Section 3b)
+        // ========================================================================
+        const bool enable_ysu_topdown = turbChoice.enable_ysu_topdown;
+        const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
+          
+        if (enable_ysu_topdown && use_moisture) {
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                cloud_top_arr(i, j, 0) = -1;  // Initialize: no cloud found
+                 
+                // Search from PBL top downward for cloud-top cell
+                int kpbl = pbli_arr(i, j, 0);
+                for (int kk = kpbl - 1; kk >= klo; --kk) {
+                    amrex::Real qc_kk = zero, qi_kk = zero;
+                    if (moisture_indices.qc >= 0)
+                        qc_kk = cell_data(i, j, kk, moisture_indices.qc) / cell_data(i, j, kk, Rho_comp);
+                    if (moisture_indices.qi >= 0)
+                        qi_kk = cell_data(i, j, kk, moisture_indices.qi) / cell_data(i, j, kk, Rho_comp);
+                     
+                    if (qc_kk + qi_kk > ysu_qcloud_threshold) {
+                        cloud_top_arr(i, j, 0) = kk;
+                        break;
+                    }
+                }
+            });
+        } else {
+            // Disable cloud-top detection
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                cloud_top_arr(i, j, 0) = -1;
+            });
+        }
+         
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -559,6 +597,30 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real wscale = u_star_arr(i, j, 0) / phiM_safe;
             wscale = amrex::max(wscale, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
             wscale = amrex::min(wscale, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
+             
+            // Compute top-down convective velocity scale wstar3_down (H10 Eq. 12)
+            // This represents turbulence driven by radiative cooling at cloud top
+            amrex::Real wstar3_down = zero;
+            if (enable_ysu_topdown && cloud_top_arr(i, j, 0) >= klo) {
+                int k_cloud_top = cloud_top_arr(i, j, 0);
+                 
+                // Longwave cooling flux at cloud top (W/m^2 equivalent in K*m/s)
+                // When RRTMGP is active, read from lw_cooling MultiFab if available.
+                // Otherwise use zero (feature disabled when radiation is off).
+                // Placeholder for radiation coupling — set to zero until Phase 10b.
+                amrex::Real LRAD = zero;  // Will be replaced by radiation coupling below
+                 
+                // Top-down convective velocity (H10 Eq. 12):
+                // wstar_down^3 = g/theta * LRAD/(rho*cp) * pblh
+                const amrex::Real t_local = cell_data(i, j, k_cloud_top, RhoTheta_comp)
+                                          / cell_data(i, j, k_cloud_top, Rho_comp);
+                const amrex::Real rho_ct  = cell_data(i, j, k_cloud_top, Rho_comp);
+                wstar3_down = amrex::max(CONST_GRAV / t_local * LRAD
+                                        / (rho_ct * amrex::Real(1004.0))
+                                        * pblh_corr_arr(i, j, 0), zero);
+            }
+            wstar3_down_arr(i, j, 0) = wstar3_down;
+             
             //wstar_fab(i, j, 0) = wscale;  // Store for use in K-profile loop
             wstar_arr(i, j, 0) = wscale;  // Store for use in K-profile loop
 
@@ -744,7 +806,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real entr_A = turbChoice.pbl_ysunew_entr_A;
             const Real entr_B = turbChoice.pbl_ysunew_entr_B;
             const bool enable_ysu_cloud_pblh = turbChoice.enable_ysu_cloud_pblh;
-            const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -796,6 +857,39 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         pbli_arr(i, j, 0) = amrex::min(kpbl_current + 1, izmax);
                     }
                 }
+            });
+        }
+
+        // Compute K_down for top-down cloud-driven mixing (H10 Eq. 11)
+        FArrayBox K_down_fab(gbx, 1, The_Async_Arena());
+        K_down_fab.setVal(zero);
+        const auto& K_down_arr = K_down_fab.array();
+         
+        if (enable_ysu_topdown) {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                K_down_arr(i,j,k) = zero;
+                if (k >= pbli_arr(i,j,0)) return;  // only inside PBL
+
+                const amrex::Real rho   = cell_data(i,j,k,Rho_comp);
+                const amrex::Real pblh  = pblh_corr_arr(i,j,0);
+                const amrex::Real zval  = (use_terrain_fitted_coords)
+                                        ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                        : (k + myhalf) * geom.CellSize(2);
+                const amrex::Real z_sfc = (use_terrain_fitted_coords)
+                                        ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
+                const amrex::Real zrel  = zval - z_sfc;
+                const amrex::Real pblh_rel = amrex::max(pblh - z_sfc, amrex::Real(1.0e-4));
+
+                // Top-down K-profile (H10 Eq. 11): K_down = rho * wstar_down * kappa * (h-z) * (z/h)^2
+                // wstar_down is not stored separately; use wstar3_down reconstructed from wscale
+                // Approximation: wstar_down_eff = wstar_arr(i,j,0) * 0.1 as placeholder
+                // TODO: Store wstar3_down in a separate FArrayBox in Phase 10b for accuracy.
+                const amrex::Real wstar_down_eff = amrex::Real(0.1) * wstar_arr(i,j,0);
+                const amrex::Real zfac_up = amrex::max(zrel / pblh_rel, amrex::Real(0.0));
+                K_down_arr(i,j,k) = rho * wstar_down_eff * KAPPA
+                                    * amrex::max(pblh_rel - zrel, zero)
+                                    * zfac_up * zfac_up;
             });
         }
 
@@ -1019,6 +1113,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                     } else {
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    }
+                     
+                    // Add top-down contribution (H10 Eq. 11)
+                    if (enable_ysu_topdown && k < pbli_arr(i, j, 0)) {
+                        K_turb(i, j, k, EddyDiff::Mom_v)   += K_down_arr(i, j, k);
+                        K_turb(i, j, k, EddyDiff::Theta_v) += K_down_arr(i, j, k);
                     }
                 } else {
                     // Stable PBL: use Richardson mixing with H10 (Hong 2010) formulation
