@@ -246,7 +246,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
                         const SolverChoice &solverChoice,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
-                        const Real implicit_fac)
+                        const Real implicit_fac,
+                        const bool use_ysu_mom_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_S()",ImplicitDiffForMom_S);
 
@@ -385,6 +386,13 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
               }
 
+              // Add YSU momentum countergradient correction at bottom boundary
+              if (use_ysu_mom_countergradient && stagdir < 2) {
+                  const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
+                  const Real gam_hi = myhalf * (mu_turb(i,j,klo,hgam_comp) + mu_turb(i,j,klo+1,hgam_comp));
+                  RHS_a(i,j,klo) += Fact * gfac * dz_inv * rhoAlpha_hi * gam_hi * dz_inv_hi;
+              }
+
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one;
 
@@ -411,6 +419,17 @@ ImplicitDiffForMomLU_S (const Box& bx,
 
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k)) * dz_inv;
+
+              // Add YSU momentum countergradient correction
+              if (use_ysu_mom_countergradient && stagdir < 2) {
+                  const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
+                  const Real gam_k   = mu_turb(i, j, k,   hgam_comp);
+                  const Real gam_km1 = mu_turb(i, j, k-1, hgam_comp);
+                  const Real gam_kp1 = mu_turb(i, j, k+1, hgam_comp);
+                  const Real gam_hi  = myhalf * (gam_k + gam_kp1);
+                  const Real gam_lo  = myhalf * (gam_k + gam_km1);
+                  RHS_a(i,j,k) += Fact * gfac * dz_inv * (rhoAlpha_hi * gam_hi * dz_inv_hi - rhoAlpha_lo * gam_lo * dz_inv_lo);
+              }
 
               RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
               coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"
