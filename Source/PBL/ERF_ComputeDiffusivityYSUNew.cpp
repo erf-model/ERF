@@ -538,7 +538,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Cloud-top detection for top-down mixing (H10 Section 3b)
         // ========================================================================
         const bool enable_ysu_topdown = turbChoice.enable_ysu_topdown;
-         
+        const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
+          
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -805,7 +806,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real entr_A = turbChoice.pbl_ysunew_entr_A;
             const Real entr_B = turbChoice.pbl_ysunew_entr_B;
             const bool enable_ysu_cloud_pblh = turbChoice.enable_ysu_cloud_pblh;
-            const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
