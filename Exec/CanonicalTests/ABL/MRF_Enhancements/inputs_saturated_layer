@@ -1,0 +1,128 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Saturated Boundary Layer Test Case
+# 
+# Reference: Fog layers, marine boundary layers, post-rain environments
+# This test validates the saturation-aware HGAMQ limiter (UNIQUE ERF ENHANCEMENT)
+# which prevents moisture pumping and grid-point storms in highly saturated conditions.
+#
+# Physical Context:
+#   - Fog or stratus cloud layer with RH > 95%
+#   - Tests smooth ramp-down of HGAMQ limiter as RH approaches 100%
+#   - Validates that moisture countergradient doesn't cause instabilities
+#   - Tests cloud-aware diffusivity adjustments in saturated layers
+#
+# This case is critical for:
+# - Validating RH > 95% HGAMQ limiter (ERF unique safeguard!)
+# - Preventing moisture pumping instabilities in fog layers
+# - Testing cloud water content effects on stability
+# - Ensuring realistic PBL height in moist conditions
+
+erf.prob_name = "ABL"
+
+# 12-hour simulation: 43200 s
+# With dt=0.05, max_step = 864000
+max_step = 864000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Standard resolution for cloud/moisture effects
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Moderate heating with moisture supply
+# High surface moisture flux to create saturated boundary layer
+zlo.type = "surface_layer"
+erf.most.z0   = 0.0001  # smooth surface (ocean-like)
+erf.most.zref = 48.0    # reference height [m]
+erf.most.surf_temp = 299.0  # sea surface temperature [K]
+erf.most.surf_heating_rate = 3.0  # moderate heating [K/h]
+
+# Upper boundary - strong stable layer above fog
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.01   # strong inversion [K/m] (traps fog layer)
+
+# TIME STEP CONTROL - Shorter for moist dynamics
+erf.fixed_dt = 0.05  # shorter time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Planar averaging with frequent profiles for moisture tracking
+erf.data_log    = saturated_hist.dat saturated_profiles.dat
+erf.profile_int = 30
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_saturated      # root name of checkpoint file
+erf.check_int       = 50000              # checkpoint every ~2500 s
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_saturated_layer"
+
+# Start with high relative humidity (~85%) that increases to RH > 95%
+
+
+# Higher moisture content to create saturation
+# Note: Actual moisture mixing ratio set via microphysics initialization
+
+# PBL CONFIGURATION - MRF with moisture effects enabled
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
+
+# Enable countergradient corrections - tests smooth HGAMQ ramp-down
+erf.enable_mrf_countergradient = true
+
+# CRITICAL: Enable moisture diffusivity to test HGAMQ limiter
+erf.mrf_moistvars = true   # Enables Prq ~ Prt and HGAMQ processing
+
+# Enable cloud-aware stability adjustments for fog/stratus
+# This helps with proper mixing in saturated layers
+erf.enable_mrf_cloud_aware = true  # Uses cloud water content for φ adjustments
+
+# CORIOLIS EFFECT
+erf.latitude = 40.0  # mid-latitude (typical for marine stratus)
+
+# MOISTURE CONFIGURATION
+# Enable water vapor and cloud water species
+erf.use_moisture = true
+erf.init_moisture_type = "Uniform"
+erf.moisture_model = "Kessler"
+
+# Initialize with high moisture content (approaching saturation)
+# Exact values depend on temperature and pressure
+prob.Qv_init = 0.008  # water vapor mixing ratio [kg/kg] (~80% RH at sea level)
+prob.Qc_init = 0.0001 # small cloud water to start [kg/kg]
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0

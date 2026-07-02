@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
+ * @param[in   ] use_mrf_countergradient whether to include MRF countergradient correction
  */
 void
 ImplicitDiffForStateLU_T (const Box& bx,
@@ -41,7 +42,8 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const SolverChoice& solverChoice,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
-                          const Real implicit_fac)
+                          const Real implicit_fac,
+                          const bool use_mrf_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
 
@@ -125,6 +127,13 @@ ImplicitDiffForStateLU_T (const Box& bx,
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
                 }
 
+                // Add countergradient correction to RHS at bottom boundary
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
+                    RHS_a(i,j,klo) += Fact * dz_inv * rhoAlpha_hi * gam_hi / met_h_zeta_hi;
+                }
+
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
                 coeffG_a(i,j,klo)  = c_tmp / b_tmp; // NOTE: this is now "gamma"
             }
@@ -145,6 +154,19 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
                 RHS_a(i,j,k)    = detJ(i,j,k) * cell_data(i,j,k,n); // NOTE: this is rho*phi; solution is phi
+
+                // Add countergradient correction to RHS in interior
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_k   = mu_turb(i, j, k,   gam_comp);
+                    const Real gam_km1 = mu_turb(i, j, k-1, gam_comp);
+                    const Real gam_kp1 = mu_turb(i, j, k+1, gam_comp);
+                    const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+½
+                    const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-½
+                    // Countergradient flux divergence (explicit, added to RHS):
+                    //   d/dz[K_h * γ] ≈ (K_h_{k+½}·γ_{k+½} - K_h_{k-½}·γ_{k-½}) * dz_inv
+                    RHS_a(i,j,k) += Fact * dz_inv * (rhoAlpha_hi * gam_hi / met_h_zeta_hi - rhoAlpha_lo * gam_lo / met_h_zeta_lo);
+                }
 
                 RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
                 coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"

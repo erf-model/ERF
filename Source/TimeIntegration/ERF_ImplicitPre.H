@@ -65,11 +65,14 @@
 
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
+                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
+                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      stretched_dz_d[level], hfx_z,
                                                      mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_S<0>(tbx, fine_geom.Domain(), level, slow_dt,
@@ -93,11 +96,14 @@
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
+                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
+                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
                                                      mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_T<0>(tbx, fine_geom.Domain(), level, slow_dt,
@@ -121,10 +127,13 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
+                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
+                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, slow_dt,

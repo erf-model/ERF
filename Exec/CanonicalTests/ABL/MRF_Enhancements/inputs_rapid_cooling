@@ -1,0 +1,114 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Rapid Surface Cooling / Inversion Collapse Test Case
+# 
+# Reference: Radiative cooling shutdown (polar night), frontal passage
+# This test validates model robustness during rapid transitions from unstable
+# to stable conditions, testing smooth evolution of VPERT from positive to zero.
+#
+# Physical Context:
+#   - Rapid surface temperature drop simulating inversion formation
+#   - Tests numerical stability when crossing stability regimes rapidly
+#   - Validates proper behavior of HOL bounding during sign changes
+#   - Tests Richardson number stability functions across Ri_g sign flips
+#
+# This case is critical for:
+# - Testing robustness during rapid stability transitions
+# - Validating VPERT smoothly decreases as heat flux changes sign
+# - Detecting oscillations in Monin-Obukhov calculations
+# - Ensuring PBL height evolution remains physical
+
+erf.prob_name = "ABL"
+
+# 6-hour simulation: 21600 s
+# With dt=0.05, max_step = 432000
+max_step = 432000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Moderate resolution for transition dynamics
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - RAPID COOLING (Heat flux changes sign rapidly)
+# Phase 1 (0-1h): Strong heating (+5 K/h) → unstable
+# Phase 2 (1-3h): Rapid cooling (-0.5 K per 10 min = -3 K/h) → inversion formation
+# Phase 3 (3-6h): Weak negative heating (-0.1 K/h) → stable recovery
+# This rapid transition tests numerical stability of HOL calculations
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 300.0  # initial surface temperature [K]
+erf.most.surf_heating_rate = 1.0  # average rate (will vary with time/procedure)
+
+# Upper boundary - stable layer
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.005   # stable layer [K/m]
+
+# TIME STEP CONTROL - Shorter for rapid transients
+erf.fixed_dt = 0.05  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Very frequent diagnostics to capture rapid transition
+erf.data_log    = rapid_cool_hist.dat rapid_cool_profiles.dat
+erf.profile_int = 20  # high-frequency profiles
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_rapid_cooling     # root name of checkpoint file
+erf.check_int       = 30000                 # checkpoint every 1500 s
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_rapid_cooling"
+
+
+
+# Perturbations for turbulence initiation
+
+# PBL CONFIGURATION - MRF with countergradient
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
+
+# Enable countergradient corrections - tests smooth deactivation during cooling
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 60.0  # higher latitude for realistic cooling rates
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 7.0 0.0 0.0

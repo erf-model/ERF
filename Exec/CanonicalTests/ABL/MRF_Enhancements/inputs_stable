@@ -1,0 +1,109 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Stable Atmospheric Boundary Layer Test Case
+# 
+# Reference: GABLS1 (GEWEX Atmospheric Boundary Layer Study 1)
+# Beare et al. (2006): An intercomparison of large-eddy simulations of the stable 
+# boundary layer. Boundary-Layer Meteorol., 118, 247-272.
+#
+# Stable conditions characterized by:
+#   - Strong negative surface heat flux (cooling)
+#   - Statically stable stratification (dθ/dz > 0)
+#   - Weak mixing and oscillatory motion
+#   - Inertial oscillations due to Coriolis (geostrophic wind balance)
+#   - Sharp PBL-free atmosphere interface
+#   - Very limited vertical mixing (low diffusivity)
+#
+# This case tests MRF performance in stable conditions where:
+# - Countergradient corrections have minimal effect (HGAMT → 0)
+# - Stability damping dominates (φ_M, φ_T large, reducing K)
+# - Richardson number mixing is weak in PBL (Ri-dependent K)
+# - Free atmosphere mixing via YSU scheme becomes important
+# - Accurate prediction of very shallow PBL is critical
+
+erf.prob_name = "ABL"
+
+stop_time = 28800.0  # 8 hours
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY (from GABLS1)
+# Coarse resolution acceptable due to weak turbulence
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Strong surface cooling
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m] (from Beare et al. 2006)
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 265.0      # surface temperature [K] (very cold)
+erf.most.surf_heating_rate = -0.25  # strong cooling rate [K/h] (from Beare et al. 2006)
+
+# Upper boundary - capping inversion
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.01   # strong stable layer [K/m] (from Beare et al. 2006)
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05  # time step [s] - can be larger due to weak dynamics
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# planar averaging (important for stable case diagnostics)
+erf.data_log    = stable_hist.dat stable_profiles.dat stable_covar.dat
+erf.profile_int = 20
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_stable      # root name of checkpoint file
+erf.check_int       = 1200            # number of timesteps between checkpoints
+
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_GABLS1"
+
+
+
+
+# PBL CONFIGURATION - MRF for stable boundary layer
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# DISABLE COUNTERGRADIENT CORRECTIONS (not applicable for stable conditions)
+# In stable PBL, flux gradients are downgradient (no countergradient term)
+erf.enable_mrf_countergradient = false
+
+# Disable moisture diffusivity (dry stable case from GABLS1)
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT - High latitude for strong inertial oscillations
+erf.latitude = 73.3  # GABLS1 latitude near Cabauw, Netherlands
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 8.0 0.0 0.0

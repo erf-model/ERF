@@ -1,0 +1,112 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Fine Temporal Resolution Test Case
+# 
+# Reference: Sub-grid scale temporal dynamics, numerical conservation
+# This test uses very small time steps (0.01 s vs typical 0.05-0.1 s)
+# to validate numerical stability and conservation under stringent CFL conditions.
+#
+# Physical Context:
+#   - Tests model stability at fine temporal resolution
+#   - Very short time steps to probe numerical precision
+#   - Tests for accumulation of temporal discretization errors
+#   - Validates energy and moisture conservation at high CFL stringency
+#
+# This case is critical for:
+# - Testing numerical stability with very small dt
+# - Detecting temporal truncation errors
+# - Validating conservation laws at high temporal resolution
+# - Catching potential issues in time-marching scheme
+
+erf.prob_name = "ABL"
+
+# 3-hour stable boundary layer simulation: 10800 s
+# With dt=0.01, max_step = 1080000 (very fine temporal resolution)
+max_step = 1080000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Smaller domain for efficiency with fine dt
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Stable conditions (simpler dynamics for fine dt test)
+# Use stable boundary layer to focus on numerical aspects
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 280.0  # cooler surface (stable)
+erf.most.surf_heating_rate = -0.1  # weak cooling [K/h]
+
+# Upper boundary - stable layer
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.01   # stable inversion [K/m]
+
+# TIME STEP CONTROL - VERY FINE TEMPORAL RESOLUTION
+# THIS IS THE KEY: dt = 0.01 s (10x finer than standard)
+erf.fixed_dt = 0.01  # very small time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 10      # sum interval in fine dt runs (less frequent to avoid I/O)
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Less frequent averaging due to fine dt
+erf.data_log    = fine_dt_hist.dat fine_dt_profiles.dat
+erf.profile_int = 100  # less frequent to avoid I/O bottleneck
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES - Less frequent to handle I/O
+erf.check_file      = chk_fine_dt        # root name of checkpoint file
+erf.check_int       = 50000              # checkpoint every 500 s (~8 min)
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_fine_dt_stable"
+
+
+
+# Small perturbations for turbulence
+
+# PBL CONFIGURATION - Standard MRF
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
+
+# Standard configuration for stable case
+erf.enable_mrf_countergradient = false  # not needed for stable conditions
+
+# Enable moisture diffusivity (to test its time-marching too)
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 60.0  # higher latitude for stable conditions
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0
