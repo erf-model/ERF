@@ -359,6 +359,16 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         BL_PROFILE_VAR_STOP(prof_pblh);
 
         //
+        // FIRST ITERATION: Compute HGAMT/HGAMQ/VPERT using Pass 1 PBL height
+        // ========================================================================
+        // This produces initial estimates of countergradient corrections and VPERT,
+        // which will then be used to recompute rib_enhan_arr for a more accurate
+        // corrector pass.
+        //
+
+        // (Reuse existing corrector loop code below, first pass...)
+
+        //
         // CORRECTOR: Apply YSU nonlocal countergradient correction (HGAMT/HGAMQ)
         // following HND06 with countergradient modifications.
         //
@@ -803,6 +813,88 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
           rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh) / (ws2 * theta_v_klo);
         });
         BL_PROFILE_VAR_STOP(prof_rib_recomp);
+
+        // ========================================================================
+        // RE-RUN CORRECTOR PASS 2 WITH UPDATED rib_enhan_arr
+        // ========================================================================
+        // Now that rib_enhan_arr has been recomputed with the nonzero VPERT values,
+        // we need to re-scan for the PBL height using the corrector Ribcr criterion.
+        // This corrects the earlier Pass 2 which used zero-VPERT Rib values.
+        //
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            // Determine surface-type-dependent critical Richardson number (same as before)
+            Real Ribcr;
+            {
+                bool over_land = (!lmask_arr) || (lmask_arr(i, j, 0) == 1);
+                if (over_land) {
+                    Ribcr = turbChoice.pbl_ysu_land_Ribcr;
+                } else {
+                    const Real z0 = z0_arr(i, j, 0);
+                    const Real ws_layer = ws10av_arr(i, j, 0);
+                    const Real Rossby = ws_layer / (turbChoice.pbl_ysu_coriolis_freq * amrex::max(z0, Real(1.0e-4)));
+                    Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
+                }
+            }
+
+            // Rescan rib_enhan_arr with updated values
+            int kpbl = klo;
+            Real zval0 = zero, Rib0 = zero;
+            Real Rib = rib_enhan_arr(i,j,klo);
+            zval0 = (use_terrain_fitted_coords)
+                  ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr)
+                  : (klo + myhalf) * gdata.CellSize(2);
+            Rib0 = Rib;
+            bool above_critical = (Rib >= Ribcr);
+            
+            for (int kk = klo+1; !above_critical && kk <= khi; ++kk) {
+                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; above_critical = true; break; }
+                zval0 = (use_terrain_fitted_coords)
+                      ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                      : (kk + myhalf) * gdata.CellSize(2);
+                Rib0 = rib_enhan_arr(i,j,kk);
+                kpbl = kk;
+            }
+
+            // Compute bounds
+            const Real z_sfc = (use_terrain_fitted_coords)
+                              ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                              : zero;
+            const Real dz_terrain = (use_terrain_fitted_coords)
+                                   ? (Compute_Zrel_AtCellCenter(i, j, klo + 1, z_nd_arr) - z_sfc)
+                                   : gdata.CellSize(2);
+            const Real z_max = (use_terrain_fitted_coords)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             : (khi + myhalf) * gdata.CellSize(2);
+            const Real pblh_max = Real(0.9) * z_max;
+            
+            amrex::Real pblh_min;
+            if (turbChoice.enable_ysu_terrain_pblh_floor && use_terrain_fitted_coords) {
+                const Real dz_inv = geom.InvCellSize(2);
+                const auto& dxInv = geom.InvCellSizeArray();
+                const amrex::Real met_h_klo = Compute_h_zeta_AtCellCenter(i, j, klo, dxInv, z_nd_arr);
+                const amrex::Real dz0 = met_h_klo / dz_inv;
+                const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
+                                             ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                             : zero;
+                pblh_min = amrex::max(z_sfc_col + Real(0.5)*dz0, Real(10.0));
+            } else {
+                pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
+            }
+
+            // Update PBL height with the enhanced Rib values
+            if (kpbl < khi && rib_enhan_arr(i,j,kpbl) >= Ribcr) {
+                const Real zval = (use_terrain_fitted_coords)
+                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
+                                : (kpbl + myhalf) * gdata.CellSize(2);
+                const Real Rib = rib_enhan_arr(i,j,kpbl);
+                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
+            } else {
+                pblh_corr_arr(i, j, 0) = pblh_min;
+            }
+            pbli_arr(i, j, 0) = kpbl;
+        });
 
         //
         // PASS 3 — ZERO-RI DIAGNOSTIC: Compute PBL index with Ribcr=0.0 criterion
