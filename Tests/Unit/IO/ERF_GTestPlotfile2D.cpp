@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DMetadata.H"
 #include "ERF_Plotfile2DUtils.H"
 
 using namespace plotfile2d;
@@ -368,4 +369,118 @@ TEST(Plotfile2D, InvalidStreamMessageReportsAllowedValues)
 
     EXPECT_TRUE(contains(message, "invalid stream index 0"));
     EXPECT_TRUE(contains(message, "expected 1 or 2"));
+}
+
+// Motivation: The JSON sidecar is a public metadata contract, so diagnostic
+// categories must serialize to stable, readable strings.
+TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
+{
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Geometry), "Geometry");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceLayer), "SurfaceLayer");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Radiation), "Radiation");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceFlux), "SurfaceFlux");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+}
+
+// Motivation: Downstream readers need to distinguish always-available fields
+// from fields that use zero or -999 as their documented unavailable value.
+TEST(Plotfile2DMetadata, MissingPolicyStringsAndValuesMatchPublicMetadataSchema)
+{
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::AlwaysAvailable), "AlwaysAvailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::AlwaysAvailable), "null");
+
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::FillZeroWhenUnavailable), "FillZeroWhenUnavailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::FillZeroWhenUnavailable), "0");
+
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::FillMinus999WhenUnavailable),
+                 "FillMinus999WhenUnavailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::FillMinus999WhenUnavailable), "-999");
+}
+
+// Motivation: Metadata strings come from catalog descriptors. The sidecar must
+// remain valid JSON if future descriptors contain quotes or control characters.
+TEST(Plotfile2DMetadata, EscapesJsonStrings)
+{
+    const std::string input = "\"quoted\" slash\\ line\n tab\t return\r";
+    const std::string expected = "\\\"quoted\\\" slash\\\\ line\\n tab\\t return\\r";
+
+    EXPECT_EQ(escape_json_string(input), expected);
+}
+
+// Motivation: The sidecar must describe plotfile components by output index,
+// so its variable order must match the selected plotfile component order.
+TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
+{
+    const amrex::Vector<std::string> selected{
+        "z_surf", "pblh", "latent_heat_flux", "surface_diagnostic_source"
+    };
+
+    const std::string json = format_2d_metadata_json(selected);
+
+    EXPECT_TRUE(contains(json, "\"format_version\": 1"));
+    EXPECT_TRUE(contains(json, "\"kind\": \"ERF 2D plotfile metadata\""));
+    EXPECT_TRUE(contains(json, "\"n_variables\": 4"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 0"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 1"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 2"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 3"));
+    EXPECT_TRUE(contains(json, "\"name\": \"z_surf\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"pblh\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"latent_heat_flux\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"surface_diagnostic_source\""));
+    EXPECT_TRUE(contains(json, "\"long_name\": \"Surface elevation\""));
+    EXPECT_TRUE(contains(json, "\"units\": \"m\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"Geometry\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SurfaceLayer\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SurfaceFlux\""));
+    EXPECT_TRUE(contains(json, "\"missing_policy\": \"AlwaysAvailable\""));
+    EXPECT_TRUE(contains(json, "\"missing_policy\": \"FillMinus999WhenUnavailable\""));
+    EXPECT_TRUE(contains(json, "\"missing_value\": null"));
+    EXPECT_TRUE(contains(json, "\"missing_value\": -999"));
+
+    const auto z_pos = json.find("\"name\": \"z_surf\"");
+    const auto pblh_pos = json.find("\"name\": \"pblh\"");
+    const auto latent_pos = json.find("\"name\": \"latent_heat_flux\"");
+    const auto source_pos = json.find("\"name\": \"surface_diagnostic_source\"");
+    ASSERT_NE(z_pos, std::string::npos);
+    ASSERT_NE(pblh_pos, std::string::npos);
+    ASSERT_NE(latent_pos, std::string::npos);
+    ASSERT_NE(source_pos, std::string::npos);
+    EXPECT_LT(z_pos, pblh_pos);
+    EXPECT_LT(pblh_pos, latent_pos);
+    EXPECT_LT(latent_pos, source_pos);
+}
+
+// Motivation: The sidecar must describe the components written to this
+// plotfile, not every possible catalog entry.
+TEST(Plotfile2DMetadata, FormatsOnlySelectedVariables)
+{
+    const amrex::Vector<std::string> selected{"surf_pres"};
+    const std::string json = format_2d_metadata_json(selected);
+
+    EXPECT_TRUE(contains(json, "\"n_variables\": 1"));
+    EXPECT_TRUE(contains(json, "\"name\": \"surf_pres\""));
+    EXPECT_FALSE(contains(json, "\"name\": \"z_surf\""));
+}
+
+// Motivation: Adding new catalog entries should fail fast if the metadata
+// sidecar cannot serialize their category, missing policy, or descriptor
+// fields.
+TEST(Plotfile2DMetadata, FormatsEveryCatalogDiagnostic)
+{
+    const auto names = plotfile2d::diagnostic_names();
+    const std::string json = format_2d_metadata_json(names);
+
+    EXPECT_TRUE(contains(json, std::string("\"n_variables\": ") + std::to_string(names.size())));
+    for (const auto& name : names) {
+        EXPECT_TRUE(contains(json, "\"name\": \"" + name + "\""));
+    }
+}
+
+// Motivation: The metadata file should travel with the native AMReX 2D
+// plotfile directory and not collide with other output streams.
+TEST(Plotfile2DMetadata, MetadataFilenameLivesInsidePlotfileDirectory)
+{
+    EXPECT_EQ(metadata_json_filename("plt2d_00010"), "plt2d_00010/2DMetadata.json");
 }
