@@ -356,11 +356,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (w_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
-                rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (w_afrac_y(i  , j+1, k  ) * flx_w_arr[1](i  , j+1, k  ) - w_afrac_y(i, j, k) * flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (w_afrac_z(i  , j  , k+1) * flx_w_arr[2](i  , j  , k+1) - w_afrac_z(i, j, k) * flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                Real advectionSrc = ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                rho_w_rhs(i, j, k) = -advectionSrc;
             } else {
-                rho_w_rhs(i, j, k) = 0;
+                rho_w_rhs(i, j, k) = zero;
             }
         });
 
