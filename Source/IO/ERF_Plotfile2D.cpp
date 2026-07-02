@@ -166,18 +166,27 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         const MultiFab* laten_flux_source = SFS_q1fx3_lev[lev].get();
 #ifdef ERF_USE_NATIVE_SHOC
         const ShocDriver* native_shoc = native_shoc_driver[lev].get();
-        // Native SHOC state_update clears the host SFS arrays after consuming
-        // them, so 2D flux diagnostics must use SHOC's preserved snapshots
-        // when SHOC owns scalar surface transport.
-        const bool use_native_shoc_consumed_fluxes =
-            native_shoc &&
-            native_shoc->owns_scalar_surface_fluxes() &&
-            native_shoc->has_consumed_surface_flux_diagnostics();
+        const bool native_shoc_owns_scalar_fluxes =
+            native_shoc && native_shoc->owns_scalar_surface_fluxes();
+        const bool native_shoc_has_consumed_flux_diagnostics =
+            native_shoc && native_shoc->has_consumed_surface_flux_diagnostics();
         if (native_shoc && native_shoc->has_native_diagnostics()) {
             pblh_source = &native_shoc->pblh_diagnostics();
         }
-        if (use_native_shoc_consumed_fluxes) {
+        // Native SHOC state_update clears the host SFS arrays after consuming
+        // them. Use SHOC's preserved snapshots only for flux components whose
+        // corresponding host SFS field existed; otherwise keep the source null
+        // so the 2D writer emits the documented -999 missing value.
+        if (plotfile2d::use_native_shoc_consumed_flux_source(
+                native_shoc_owns_scalar_fluxes,
+                native_shoc_has_consumed_flux_diagnostics,
+                SFS_hfx3_lev[lev] != nullptr)) {
             sens_flux_source = &native_shoc->consumed_sens_flux_diagnostics();
+        }
+        if (plotfile2d::use_native_shoc_consumed_flux_source(
+                native_shoc_owns_scalar_fluxes,
+                native_shoc_has_consumed_flux_diagnostics,
+                SFS_q1fx3_lev[lev] != nullptr)) {
             laten_flux_source = &native_shoc->consumed_laten_flux_diagnostics();
         }
 #endif

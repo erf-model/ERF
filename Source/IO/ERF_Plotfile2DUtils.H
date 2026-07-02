@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include <AMReX_GpuQualifiers.H>
 #include <AMReX_Vector.H>
 
 // Narrow helper utilities for 2D plotfile request handling and message
@@ -11,6 +12,19 @@
 
 namespace plotfile2d
 {
+
+// Native SHOC state_update preserves consumed surface fluxes for diagnostics,
+// but each flux component remains available only if the corresponding host SFS
+// field existed before SHOC consumed and cleared it.
+AMREX_FORCE_INLINE
+bool use_native_shoc_consumed_flux_source (bool native_shoc_owns_scalar_fluxes,
+                                           bool native_shoc_has_consumed_flux_diagnostics,
+                                           bool host_flux_field_available) noexcept
+{
+    return native_shoc_owns_scalar_fluxes &&
+           native_shoc_has_consumed_flux_diagnostics &&
+           host_flux_field_available;
+}
 
 struct PlotVariableSelection
 {

@@ -230,6 +230,44 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceFluxComposition)
     EXPECT_EQ(latent->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
+// Motivation: Native SHOC state_update preserves consumed flux snapshots, but
+// the 2D writer must not turn an absent host latent-flux field into a zero
+// SHOC snapshot. Missing flux components should still fill -999.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionRequiresHostFluxField)
+{
+    EXPECT_TRUE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, false));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, false, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, false, false));
+}
+
+// Motivation: Sensible and latent fluxes are selected independently, so one
+// missing host field must not force the other component to use the wrong
+// source.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionIsComponentSpecific)
+{
+    const bool native_shoc_owns_scalar_fluxes = true;
+    const bool native_shoc_has_consumed_flux_diagnostics = true;
+    const bool host_sensible_flux_available = true;
+    const bool host_latent_flux_available = false;
+
+    const bool use_sensible =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_sensible_flux_available);
+
+    const bool use_latent =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_latent_flux_available);
+
+    EXPECT_TRUE(use_sensible);
+    EXPECT_FALSE(use_latent);
+}
+
 // Motivation: Native SHOC diagnostics are public 2D outputs, so their catalog
 // entries must expose the intended category and missing-value policy.
 TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForNativeShocSurfaceDiagnostics)
