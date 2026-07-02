@@ -3,6 +3,8 @@
  */
 #include <ERF_Constants.H>
 #include <ERF_MetgridUtils.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -59,6 +61,57 @@ ERF::init_from_metgrid (int lev)
     } else {
         Print() << "Init with met_em without moisture model." << std::endl;
     }
+
+    // Check for an erfbdy file.
+    if (lev == 0 && !write_erfbdy) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+    }
+    // Set nvars_erfbdy based on whether moisture is enabled
+    if (use_erfbdy || write_erfbdy) {
+        nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
+    }
+
+    // If the erfbdy file exists, load boundary data and skip met_em processing.
+    if (lev == 0 && use_erfbdy) {
+        Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+        int ntimes_erfbdy;
+        Vector<Real> bdy_times;
+        bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                   ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                   bdy_times, start_bdy_time, final_bdy_time);
+
+        AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
+
+        Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
+        Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+        Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+        Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+        bdy_data_xlo.resize(ntimes_erfbdy);
+        bdy_data_xhi.resize(ntimes_erfbdy);
+        bdy_data_ylo.resize(ntimes_erfbdy);
+        bdy_data_yhi.resize(ntimes_erfbdy);
+
+        // Load the first 2 times.
+        for (int itime = 0; itime < 2; ++itime) {
+            read_from_erfbdy(itime, erfbdy_file,
+                             bdy_data_xlo, bdy_data_xhi,
+                             bdy_data_ylo, bdy_data_yhi,
+                             nvars_erfbdy, real_width);
+            Print() << "Loaded erfbdy time slice " << itime << std::endl;
+        }
+
+        // Set the simulation start time.
+        t_new[lev] = zero;
+        t_old[lev] = -Real(1.e200);
+
+        Print() << "Loaded boundaries from erfbdy, skipping met_em processing" << std::endl;
+        return; // Skip the rest of met_em processing.
+    }
+
+    use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
@@ -220,7 +273,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0);
-            }
+            } // nvar
         } // itime
     } // lev==0
 
@@ -229,6 +282,21 @@ ERF::init_from_metgrid (int lev)
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
+    Vector<Real> bdy_times(ntimes);
+
+    // Read times from met_em files (necessary for erfbdy header initialization).
+    if (lev == 0 && write_erfbdy) {
+        Print() << "Reading times from " << ntimes << " met_em files for erfbdy initialization" << std::endl;
+        for (int itime(0); itime < ntimes; itime++) {
+            bdy_times[itime] = read_start_time_from_metgrid(lev, nc_init_file[lev][itime]);
+        }
+
+        // Initialize erfbdy file header.
+        InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
+                       geom[lev].Domain(), nvars_erfbdy, real_width);
+        Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+    }
 
     for (int itime(0); itime < ntimes; itime++) {
         Print() << " init_from_metgrid: reading nc_init_file[" << lev << "][" << itime << "]\t" << nc_init_file[lev][itime] << std::endl;
@@ -246,6 +314,8 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab, geom[lev]);
 
         if (lev == 0) {
+            bdy_times[itime] = NC_epochTime[itime];
+
             if (itime == 0) {
                 // Start at the earliest time in nc_init_file[lev].
                 start_bdy_time = NC_epochTime[itime];
@@ -530,23 +600,13 @@ ERF::init_from_metgrid (int lev)
 
         } // itime==0
 
-    } // itime
-
-    // FillBoundary to populate the internal halo cells
-     r_hse.FillBoundary(geom[lev].periodicity());
-     p_hse.FillBoundary(geom[lev].periodicity());
-    pi_hse.FillBoundary(geom[lev].periodicity());
-    th_hse.FillBoundary(geom[lev].periodicity());
-    qv_hse.FillBoundary(geom[lev].periodicity());
-
-    // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
-    //       However, the operations needed to define the data on the ERF
-    //       grid are done over MultiFab boxes that are local to the rank.
-    //       So when we save the data in fabs_for_bc, only regions owned
-    //       by the rank are populated. Use an allreduce sum to make the
-    //       complete data set; initialized to 0 above.
-    if (lev == 0) {
-        for (int itime(0); itime < ntimes; itime++) {
+        if (lev == 0) {
+            // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
+            //       However, the operations needed to define the data on the ERF
+            //       grid are done over MultiFab boxes that are local to the rank.
+            //       So when we save the data in fabs_for_bc, only regions owned
+            //       by the rank are populated. Use an allreduce sum to make the
+            //       complete data set; initialized to 0 above.
             for (int nvar(0); nvar<MetGridBdyEnd; ++nvar) {
                 ParallelAllReduce::Sum(bdy_data_xlo[itime][nvar].dataPtr(),
                                        bdy_data_xlo[itime][nvar].size(),
@@ -561,8 +621,33 @@ ERF::init_from_metgrid (int lev)
                                        bdy_data_yhi[itime][nvar].size(),
                                        ParallelContext::CommunicatorAll());
             } // nvar
-        } // itime
-    } // lev==0
+
+            if (write_erfbdy) {
+                WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                     bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                     bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                     nvars_erfbdy);
+                Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
+
+                // Clear this time from memory after writing unless it's one
+                // of the first two times, which are needed at initialization.
+                if (itime > 1) {
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+            }
+        } // lev==0
+
+    } // itime
+
+    // FillBoundary to populate the internal halo cells
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 
     Print() << "Running with relaxation width: " << real_width << std::endl;
 }
