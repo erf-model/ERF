@@ -601,8 +601,8 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
-             (pbl_type == PBLType::MRF)      ||
              (pbl_type == PBLType::YSUNew)   ||
+             (pbl_type == PBLType::MRF)      ||
              uses_shoc_family();
   }
 
