@@ -974,30 +974,64 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real phiM_eff = phiM_cloud;
                 const Real phit_eff = phit_cloud;
 
-                // Prandtl number calculation with stability correction
-                // Reference: HND06, Equation (17)
-                // Reference code: WRF module_bl_ysu.F line 240
+                // SECTION A: Full Prandtl Number Calculation (WRF bl_ysu.F90 lines 948-971)
+                // Three-component formula matching WRF exactly:
+                // (a) prfac = bfac*karman*sfcfrac = 6.8*0.4*0.1 = 0.272
+                // (b) prfac2 = free-convection correction that reduces Pr for strong convection
+                // (c) prnumfac = height-dependent exponential blending
                 //
-                // Base Prandtl from stability functions:
-                //   Pr_base = φ_t / φ_m
-                // This gives Pr > 1 in stable conditions (heat diffuses faster than momentum)
-                // and Pr < 1 in unstable conditions (momentum diffuses faster than heat).
-                //
-                // Stability correction term: const_b * κ * sf
-                // const_b = 7.8 (matches WRF CFAC)
-                // κ = von Karman constant (0.4)
-                // sf = surface layer height fraction (0.1)
-                // This term represents enhanced diffusivity from surface layer processes.
-                //
-                // Final formula: Pr_t = φ_t/φ_m + const_b*κ*sf
-                // Bounded to physically reasonable range [0.5, 4.0]
-                //
-                // Consistency check with WRF:
-                // - const_b = 7.8 (verified: CFAC in WRF)
-                // - sf = 0.1 (verified: SFCFRAC in WRF)
-                // - κ ≈ 0.4 (von Karman constant, same in both models)
-                Real Prt_base = phit_eff / phiM_eff;
-                const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
+                // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L948-L971
+
+                // Step 1: Compute WRF constants (WRF lines 948-950)
+                constexpr Real bfac    = amrex::Real(6.8);   // WRF BFAC (not 7.8)
+                constexpr Real sfcfrac = amrex::Real(0.1);   // SFCFRAC
+                const Real conpr = bfac * KAPPA * sfcfrac;   // = 0.272 (not 0.312)
+
+                // Step 2: Compute height-dependent zq_kp1 for prnumfac calculation
+                const Real zq_kp1_prandtl = zval + myhalf * dz_terrain;
+                
+                // Step 3: Compute prfac (surface layer Prandtl correction)
+                // WRF bl_ysu.F90 line 951: prfac = conpr if SFCFLG, else 0
+                const Real prfac = SFCFLG ? conpr : zero;
+
+                // Step 4: Compute prfac2 (free-convection Prandtl correction)
+                // WRF bl_ysu.F90 lines 962-963:
+                // prfac2 = 15.9*(wstar3+wstar3_2)/ust3 / (1 + 4*karman*(wstar3+wstar3_2)/ust3)
+                const Real wstar3_col = wstar3_arr_cap(i, j, 0);
+                const Real ust3 = u_star_arr(i, j, 0) * u_star_arr(i, j, 0) * u_star_arr(i, j, 0);
+                const Real wstar3_2 = zero;  // top-down term; non-zero in Phase 10
+                
+                Real prfac2 = zero;
+                if (SFCFLG && ust3 > amrex::Real(1.0e-10)) {
+                    const Real wstar_tot3 = wstar3_col + wstar3_2;
+                    prfac2 = amrex::Real(15.9) * wstar_tot3 / ust3
+                           / (one + amrex::Real(4.0) * KAPPA * wstar_tot3 / ust3);
+                }
+
+                // Step 5: Compute prnumfac (height-dependent exponential blend)
+                // WRF bl_ysu.F90 lines 964-965:
+                // prnumfac = -3*(max(zq(k+1) - sfcfrac*hpbl, 0))^2 / hpbl^2
+                const Real pblh = pblh_corr_arr(i, j, 0);
+                const Real sfclayer = sfcfrac * pblh;
+                const Real zdiff = amrex::max(zq_kp1_prandtl - sfclayer, zero);
+                const Real prnumfac = amrex::Real(-3.0) * zdiff * zdiff / (pblh * pblh);
+
+                // Step 6: Compute prnum0 base Prandtl (WRF lines 966-970)
+                // prnum0 = phiH/phiM + prfac
+                constexpr Real prmin_wrf = amrex::Real(0.25);  // WRF minimum (different from ERF)
+                constexpr Real prmax_wrf = amrex::Real(4.0);
+                Real prnum0 = (phit_eff / phiM_eff) + prfac;
+                prnum0 = amrex::min(amrex::max(prnum0, prmin_wrf), prmax_wrf);
+
+                // Step 7: Compute heat Prandtl with free-convection correction and height blend
+                // WRF uses prnum0_heat = prnum0 / (1 + prfac2*karman*sfcfrac) * exp(prnumfac)
+                Real prnum0_heat = prnum0 / (one + prfac2 * KAPPA * sfcfrac);
+                prnum0_heat = amrex::min(amrex::max(prnum0_heat, prmin_wrf), prmax_wrf);
+                const Real Prt = one + (prnum0_heat - one) * std::exp(prnumfac);
+
+                // Step 8: Compute moisture Prandtl (uses prnum0 WITHOUT the free-convection correction)
+                // WRF uses prnum_q = prnum0 * exp(prnumfac)
+                const Real prnum_q = one + (prnum0 - one) * std::exp(prnumfac);
 
                 // Use pre-computed wstar from the dedicated recomputation loop (lines 465-545).
                 // wstar_arr was computed with pblh_corr_arr to ensure consistency
@@ -1033,22 +1067,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     
                     // Step 4: Compute level-dependent wscalek (for K-profile, NOT for HGAMT/HGAMQ)
                     // WRF stores wstar3 per column; we now have it from Phase 12
-                    const Real wstar3_col  = wstar3_arr_cap(i, j, 0);
-                    const Real ust3        = u_star_arr(i, j, 0) * u_star_arr(i, j, 0) * u_star_arr(i, j, 0);
-                    const bool sfcflg      = (sflux_arr_cap(i, j, 0) > zero);
+                    const Real ust3_wscale = u_star_arr(i, j, 0) * u_star_arr(i, j, 0) * u_star_arr(i, j, 0);
                     
                     Real wscalek_val;
-                    if (sfcflg) {
-                        // WRF bl_ysu.F90 line 945: wscalek = (ust3 + phifac*karman*wstar3*(1-zfac))^h1
-                        wscalek_val = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_col * (one - zfac));
-                    } else {
-                        // WRF bl_ysu.F90 stable branch lines 951-957:
-                        // wscalek = ust / phi_m(zq(k+1)/L)
-                        const Real zol1       = zol1_arr_cap(i, j, 0);  // stored from Phase 12
-                        const Real phim8z     = one + amrex::Real(5.0) * zol1 * zq_kp1 / zl1;
-                        wscalek_val = amrex::max(u_star_arr(i, j, 0) / amrex::max(phim8z, amrex::Real(0.01)),
-                                                 amrex::Real(0.001));
-                    }
+                    // Unstable/neutral: wscalek = (ust3 + phifac*karman*wstar3*(1-zfac))^(1/3)
+                    wscalek_val = std::cbrt(ust3_wscale + amrex::Real(8.0) * KAPPA * wstar3_col * (one - zfac));
                     
                     // Step 5: Compute K_m using zq_kp1 and wscalek_val (WRF line 961)
                     // WRF: xkzm(i,k) = wscalek(k)*karman*zq(k+1)*zfac(k)**pfac
@@ -1056,21 +1079,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real K_base = ckz_pbl * dz_terrain * rho;
                     constexpr Real pfac = amrex::Real(2.0);
                     K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1 * std::pow(zfac, pfac);
+                    
+                    // Apply Prandtl number to get heat and moisture diffusivity
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
-
-                    // Moisture diffusivity: YSU uses Prq ~ Prt (same stability functions
-                    // for heat and moisture, module_bl_ysu.F lines 220-260).
-                    // Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L220-L260
-                    //
-                    // Physics justification: Heat and moisture both respond to the same
-                    // buoyancy-driven turbulent eddies in the mixed layer. The Prandtl
-                    // and Schmidt numbers are thus equal in this formulation. Alternative
-                    // approaches use Prq ≠ Prt (e.g., Högström 1996) but the YSU scheme
-                    // defaults to equality for simplicity and computational efficiency.
-                    if (turbChoice.mrf_moistvars) {
-                        Real Prq_base = phit_eff / phiM_eff;
-                        const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA * sf, prmin), prmax);
-                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
+                    if (turbChoice.ysu_moistvars) {
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / prnum_q;
                     } else {
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
@@ -1081,60 +1094,49 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         K_turb(i, j, k, EddyDiff::Theta_v) += K_down_arr(i, j, k);
                     }
                 } else {
-                    // Stable PBL: use Richardson mixing with H10 (Hong 2010) formulation
-                    // WRF Reference: module_bl_ysu.F; H10 Section 3a
-                    // H10 = Hong, S.-Y., 2010: A new stable boundary-layer mixing scheme. QJRMS, 136, 1481-1496.
-                    const Real lambda_min = Real(30.0);
-                    const Real lambda_max = Real(300.0);
-                    const Real lambdadz = amrex::min(amrex::max(Real(0.1) * dz_terrain, lambda_min), lambda_max);
-                    const Real lscale = (lambdadz * KAPPA * zval) / (lambdadz + KAPPA * zval);
-                    Real dthetadz, dudz, dvdz;
-                    ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
-                                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
-                                                  u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
-                                                  dudz, dvdz, moisture_indices);
-                    // Note: dthetadz (dry potential temperature gradient) is computed above but intentionally
-                    // not used. Instead, we compute dtheta_v_dz from virtual potential temperature (lines 922-925)
-                    // to properly account for moisture effects on buoyancy in the Richardson number calculation.
-                    // This is consistent with the free-atmosphere branch (line 970) which also uses virtual
-                    // potential temperature for the Richardson number computation.
-
-                    // Apply boundary safeguards to avoid numerical instability
-                    const Real dudz_safe = (k < izmax) ? dudz : zero;
-                    const Real dvdz_safe = (k < izmax) ? dvdz : zero;
-
-                    const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
-                    const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
-
-                    // Use virtual potential temperature for Richardson number
-                    const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
-                    const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
-                    const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                    const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
-
-                    // Gradient Richardson number with bounds
-                    Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
-                    grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
-
-                    const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-                    const Real fm = (grad_Ri_safe > 0)
-                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
-                    const Real ft = (grad_Ri_safe > 0)
-                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
-                    const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
-
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
-                    // H10 formulation: for stable conditions, K_t = K_m / Pr
-                    if (grad_Ri_safe > 0) {
-                        Real Pr = amrex::min(amrex::max(one + Real(2.1) * grad_Ri, Real(0.25)), Real(4.0));
-                        K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Pr;
-                    } else {
-                        K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
-                    }
-                    if (use_moisture && turbChoice.ysu_moistvars) {
-                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                    // SECTION B: Stable PBL (sfcflg=false, k < pbli_extent)
+                    // WRF uses wscalek = ust/phi_m(zq(k+1)/L), NOT Richardson mixing inside PBL
+                    // Richardson mixing is ONLY for k >= pbli_extent (free atmosphere)
+                    // WRF Reference: bl_ysu.F90 lines 951-957
+                    
+                    // Step 1: Compute zq_kp1 (top interface of cell k)
+                    const Real zq_kp1_stable = zval + myhalf * dz_terrain;
+                    
+                    // Step 2: Get first-level height (zl1)
+                    const Real zl1_stable = (use_terrain_fitted_coords)
+                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                          : (klo + myhalf) * gdata.CellSize(2);
+                    
+                    // Step 3: Compute zfac for stable PBL
+                    constexpr Real zfacmin_stable = amrex::Real(1.0e-8);
+                    const Real pblh_rel_stable = amrex::max(pblh_corr_arr(i, j, 0) - zl1_stable, amrex::Real(1.0e-4));
+                    const Real zfac_stable = amrex::min(
+                        amrex::max(one - (zq_kp1_stable - zl1_stable) / pblh_rel_stable, zfacmin_stable), one);
+                    
+                    // Step 4: Compute stable wscalek using phi_m
+                    // WRF bl_ysu.F90 lines 951-957: wscalek = ust / phi_m(zq(k+1)/L)
+                    const Real zol1_stable = zol1_arr_cap(i, j, 0);  // stored from Phase 12
+                    const Real zol_ratio = zq_kp1_stable / zl1_stable;  // zq(k+1) / zl1
+                    const Real phim_stable_arg = zol1_stable * zol_ratio;  // (z/L) for level k+1
+                    const Real phim_stable = one + amrex::Real(5.0) * phim_stable_arg;  // stable: phi_m = 1 + 5*(z/L)
+                    const Real wscalek_stable = amrex::max(
+                        u_star_arr(i, j, 0) / amrex::max(phim_stable, amrex::Real(0.01)),
+                        amrex::Real(0.001));
+                    
+                    // Step 5: Compute K_m for stable PBL using wscalek
+                    constexpr Real ckz_pbl_stable = Real(0.001);
+                    const Real K_base_stable = ckz_pbl_stable * dz_terrain * rho;
+                    constexpr Real pfac_stable = amrex::Real(2.0);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable * std::pow(zfac_stable, pfac_stable);
+                    
+                    // Step 6: Apply Prandtl number for stable PBL
+                    // For stable, prfac=0 (from step 3 of SECTION A)
+                    // prnum = phiH/phiM without height blending adjustment
+                    const Real prnum_stable = one + (prnum0 - one) * std::exp(prnumfac);
+                    K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / prnum_stable;
+                    
+                    if (turbChoice.ysu_moistvars) {
+                        K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / prnum_q;
                     } else {
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
@@ -1286,6 +1288,21 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // TODO: Accept optional MultiFab* windfarm_tke argument. When non-null and
             //       windfarm_tke(i,j,k) > 0, augment K_turb by rho * sqrt(windfarm_tke(i,j,k)) * lscale.
             #endif
+
+            // SECTION C: Asymmetric Background Diffusivity Floor (WRF bl_ysu.F90 lines 141-142, 972-974)
+            // Applied INSIDE the PBL only (k < pbli_extent)
+            // WRF parameters:
+            //   xkzminm = 0.1 m²/s (background for momentum, added to xkzm)
+            //   xkzminh = 0.01 m²/s (background for heat and moisture, added to xkzh and xkzq)
+            if (k < pbli_extent) {
+                constexpr Real xkzminm = amrex::Real(0.1);   // background for momentum
+                constexpr Real xkzminh = amrex::Real(0.01);  // background for heat/moisture
+                K_turb(i, j, k, EddyDiff::Mom_v)   += rho * xkzminm;
+                K_turb(i, j, k, EddyDiff::Theta_v) += rho * xkzminh;
+                K_turb(i, j, k, EddyDiff::Q_v)     += rho * xkzminh;
+            }
+            // NOTE: The free-atmosphere branch (k >= pbli_extent) keeps the existing
+            // ckz*dz*rho floor from the WRF high-res bounds parameterization.
 
             K_turb(i, j, k, EddyDiff::Mom_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Mom_v), rhoKmax), rhoKmin);
