@@ -321,9 +321,19 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
 
             // Scan rib_base_arr(i,j,klo..khi) to find first crossing of Ribcr
+            // GAP 9: Seed from surface bulk Richardson number (WRF bl_ysu.F90 lines 620-621)
+            // WRF seeds the loop with br (surface bulk Ri) so klo is checked first.
             int kpbl = klo;
-            for (int kk = klo+1; kk <= khi; ++kk) {
-                if (rib_base_arr(i,j,kk) >= Ribcr) { kpbl = kk; break; }
+            Real Rib = rib_base_arr(i,j,klo);  // Seed from surface level
+            bool above_critical = (Rib >= Ribcr);  // Check if already above critical
+            
+            // Scan from klo+1 if not already above critical
+            for (int kk = klo+1; !above_critical && kk <= khi; ++kk) {
+                if (rib_base_arr(i,j,kk) >= Ribcr) { 
+                    kpbl = kk; 
+                    above_critical = true; 
+                    break; 
+                }
                 kpbl = kk;  // keep updating so kpbl = khi if never exceeded
             }
             pbli_arr(i, j, 0) = kpbl;
@@ -434,9 +444,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             int kpbl = klo;
             Real zval0 = zero, Rib0 = zero;
+            // GAP 9: Seed from surface bulk Richardson number (WRF bl_ysu.F90 lines 620-621)
+            // WRF seeds the loop with br (surface bulk Ri) so klo is checked first.
+            Real Rib = rib_enhan_arr(i,j,klo);  // Seed from surface level
+            zval0 = (use_terrain_fitted_coords)
+                  ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr)
+                  : (klo + myhalf) * gdata.CellSize(2);
+            Rib0 = Rib;
+            bool above_critical = (Rib >= Ribcr);  // Check if already above critical
+            
             // Scan rib_enhan_arr to find first crossing of Ribcr with linear interpolation
-            for (int kk = klo; kk <= khi; ++kk) {
-                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; break; }
+            for (int kk = klo+1; !above_critical && kk <= khi; ++kk) {
+                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; above_critical = true; break; }
                 zval0 = (use_terrain_fitted_coords)
                       ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
                       : (kk + myhalf) * gdata.CellSize(2);
@@ -677,12 +696,21 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // When enable_ysu_unbounded_vpert=true, use unbounded VPERT (ERF enhanced)
                 // When enable_ysu_unbounded_vpert=false, cap at GAMCRT (WRF-compatible)
                 // WRF Reference: module_bl_ysu.F lines 230-240
+                // GAP 8: Include WRF height limiter (WRF bl_ysu.F90 line 689-690)
                 if (enable_ysu_countergradient) {
+                    // Compute height limiter: min(zl1/(sfcfrac*pblh), 1.0)
+                    // This reduces VPERT contribution when the first cell is coarse relative to thin PBLs
+                    const Real zl1_col = (use_terrain_fitted_coords)
+                                       ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                       : (klo + myhalf) * gdata.CellSize(2);
+                    constexpr Real sfcfrac_h = amrex::Real(0.1);  // WRF SFCFRAC
+                    const Real height_lim = amrex::min(zl1_col / (sfcfrac_h * pblh), one);
+                    
                     const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
                     const Real VPERT_capped = enable_ysu_unbounded_vpert
                                             ? VPERT_raw
                                             : amrex::min(VPERT_raw, GAMCRT);
-                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
+                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero) * height_lim;
                 } else {
                     vpert_arr(i, j, 0) = zero;
                 }
@@ -715,10 +743,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Scan rib_enhan_arr(i,j,klo..khi) for Ribcr=0 crossing (no interpolation needed)
+            // GAP 9: Seed from surface bulk Richardson number (WRF bl_ysu.F90 lines 620-621)
+            // WRF seeds the loop with br (surface bulk Ri) so klo is checked first.
             int kpbl_zero = klo;
-            for (int kk = klo+1; kk <= khi; ++kk) {
-                if (rib_enhan_arr(i,j,kk) >= Ribcr_zero) { kpbl_zero = kk; break; }
+            Real Rib = rib_enhan_arr(i,j,klo);  // Seed from surface level
+            bool above_critical = (Rib >= Ribcr_zero);  // Check if already above critical (Ribcr=0)
+            
+            // Scan rib_enhan_arr(i,j,klo..khi) for Ribcr=0 crossing (no interpolation needed)
+            for (int kk = klo+1; !above_critical && kk <= khi; ++kk) {
+                if (rib_enhan_arr(i,j,kk) >= Ribcr_zero) { kpbl_zero = kk; above_critical = true; break; }
                 kpbl_zero = kk;
             }
             pbli_zero_arr(i, j, 0) = kpbl_zero;
@@ -1187,6 +1220,50 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // to prevent extreme floating-point scales from causing numerical instability
                 Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
+                
+                // GAP 10: In-cloud moist Richardson number modification
+                // WRF bl_ysu.F90 lines 992-1000 (imvdif == 1, which is hardcoded in WRF)
+                // Only apply when both the current AND next cell are in-cloud (qc+qi > 0.01e-3 kg/kg)
+                if (use_moisture && moisture_indices.qc >= 0 && k < izmax) {
+                    const Real rho_k    = cell_data(i,j,k,  Rho_comp);
+                    const Real rho_kp1  = cell_data(i,j,k+1,Rho_comp);
+                    Real qc_k   = (moisture_indices.qc >= 0) ? cell_data(i,j,k,  moisture_indices.qc)/rho_k   : zero;
+                    Real qc_kp1 = (moisture_indices.qc >= 0) ? cell_data(i,j,k+1,moisture_indices.qc)/rho_kp1 : zero;
+                    Real qi_k   = (moisture_indices.qi >= 0) ? cell_data(i,j,k,  moisture_indices.qi)/rho_k   : zero;
+                    Real qi_kp1 = (moisture_indices.qi >= 0) ? cell_data(i,j,k+1,moisture_indices.qi)/rho_kp1 : zero;
+
+                    constexpr Real cloud_thresh = amrex::Real(0.01e-3);  // 0.01 g/kg in kg/kg
+                    if ((qc_k + qi_k) > cloud_thresh && (qc_kp1 + qi_kp1) > cloud_thresh) {
+                        // WRF bl_ysu.F90 lines 997-1000:
+                        // qmean = 0.5*(qvx(k)+qvx(k+1))
+                        // tmean = 0.5*(tx(k)+tx(k+1))  [temperature, not theta]
+                        // alph = xlv*qmean/rd/tmean
+                        // chi  = xlv*xlv*qmean / (cp*rv*tmean*tmean)
+                        // ri = (1+alph)*(ri - g^2/(ss*tmean*cp) * (chi-alph)/(1+chi))
+                        const Real qv_k   = (moisture_indices.qv >= 0)
+                                            ? cell_data(i,j,k,  moisture_indices.qv) / rho_k   : zero;
+                        const Real qv_kp1 = (moisture_indices.qv >= 0)
+                                            ? cell_data(i,j,k+1,moisture_indices.qv) / rho_kp1 : zero;
+                        const Real theta_k   = cell_data(i,j,k,  RhoTheta_comp) / rho_k;
+                        const Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp) / rho_kp1;
+                        // Approximate T from theta: T = theta * pi ≈ theta (for typical ERF pressure levels)
+                        // More accurate: use getTgivenRandRTh if available
+                        const Real tmean  = myhalf * (theta_k + theta_kp1);  // approximate temperature
+                        const Real qmean  = myhalf * (qv_k + qv_kp1);
+                        constexpr Real xlv = amrex::Real(2.5e6);   // latent heat of vaporization (J/kg)
+                        constexpr Real rd  = amrex::Real(287.0);   // gas constant dry air (J/kg/K)
+                        constexpr Real rv  = amrex::Real(461.5);   // gas constant water vapor (J/kg/K)
+                        constexpr Real cp  = amrex::Real(1004.0);  // specific heat dry air (J/kg/K)
+                        const Real alph = xlv * qmean / (rd * tmean);
+                        const Real chi  = xlv * xlv * qmean / (cp * rv * tmean * tmean);
+                        // Moist Ri correction:
+                        grad_Ri = (one + alph) * (grad_Ri
+                                  - CONST_GRAV * CONST_GRAV / wind_shear_safe / tmean / cp
+                                    * (chi - alph) / (one + chi));
+                        grad_Ri = amrex::max(amrex::min(grad_Ri, amrex::Real(100.0)), amrex::Real(-100.0));
+                    }
+                }
+                
                 // YSU stability functions (Hong et al. 2006, MWR, Appendix A)
                 // Reference: https://doi.org/10.1175/MWR3250.1
                 // See equations A19-A20
