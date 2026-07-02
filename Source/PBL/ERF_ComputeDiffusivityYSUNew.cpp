@@ -901,6 +901,68 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             pbli_arr(i, j, 0) = kpbl;
         });
 
+        // ========================================================================
+        // FIX 1: θ_li PBLH Extension Scan (WRF bl_ysu.F90 lines 733-769)
+        // ========================================================================
+        // Extend kpbl upward using liquid-water potential temperature to find
+        // deeper cloud-topped boundary layers. Only execute when enable_ysu_topdown
+        // and use_moisture are both true.
+        //
+        if (enable_ysu_topdown && use_moisture) {
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                const int kpblold = pbli_arr(i,j,0);  // starting kpbl from Pass 2
+                bool definebrup = false;
+                
+                // Compute thermal liquid-theta virtual pot. temp. at surface
+                const Real thermalli = GetThetavl(i, j, klo, cell_data, moisture_indices);
+                
+                // Scan upward from kpblold to khi-1 looking for cells where
+                // thlix-based Ri is still unstable (bruptmp < brcr=0)
+                for (int kk = kpblold; kk < khi; ++kk) {
+                    // Wind speed for stability calculation
+                    const Real ws2_raw = fourth * ((uvel(i,j,kk)+uvel(i+1,j,kk))*(uvel(i,j,kk)+uvel(i+1,j,kk))
+                                                 + (vvel(i,j,kk)+vvel(i,j+1,kk))*(vvel(i,j,kk)+vvel(i,j+1,kk)));
+                    const Real ws2 = amrex::max(ws2_raw, amrex::Real(1.0));
+                    
+                    // Terrain-adjusted height at kk
+                    const Real z_sfc = (use_terrain_fitted_coords)
+                                     ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                     : zero;
+                    const Real zval_kk = (use_terrain_fitted_coords)
+                                       ? Compute_Zrel_AtCellCenter(i, j, kk, z_nd_arr)
+                                       : (kk + myhalf) * gdata.CellSize(2);
+                    const Real zval_klo = (use_terrain_fitted_coords)
+                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                        : (klo + myhalf) * gdata.CellSize(2);
+                    const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
+                    
+                    // Liquid-theta virtual potential temperatures
+                    const Real thlix_kk = GetThetavl(i, j, kk, cell_data, moisture_indices);
+                    const Real thlix_klo = GetThetavl(i, j, klo, cell_data, moisture_indices);
+                    
+                    // Bulk Richardson number based on thlix (liquid-theta)
+                    const Real bruptmp = CONST_GRAV * zrel_kk * (thlix_kk - thermalli) / (ws2 * thlix_klo);
+                    
+                    // Check stability: brcr_ub = 0 for this scan (unstable criterion)
+                    const bool stable = (bruptmp >= zero);
+                    
+                    if (definebrup) {
+                        pbli_arr(i,j,0) = kk;
+                        definebrup = false;
+                    }
+                    
+                    if (!stable) {
+                        // still mixed/unstable: keep scanning
+                        definebrup = true;
+                    }
+                }
+                
+                // Cap pbli_arr at izmax to prevent out-of-bounds
+                pbli_arr(i,j,0) = amrex::min(pbli_arr(i,j,0), izmax);
+            });
+        }
+
         //
         // PASS 3 — ZERO-RI DIAGNOSTIC: Compute PBL index with Ribcr=0.0 criterion
         //
@@ -1001,7 +1063,74 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // K_entr_raw = rho_kpbl * |we| * dz_kpbl
                 const Real K_entr_raw = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
-                entr_arr(i,j,0) = amrex::min(K_entr_raw, K_cap);
+                
+                // FIX 2: Cloudy entrainment correction (WRF bl_ysu.F90 lines 840-875)
+                // Triggered when qc+qi > 0.01e-3 at cell kpbl-1 (one below PBL top)
+                // Does NOT require radiation — wstar3_2 and hgamt2 (radiation-dependent) are left zero
+                Real we_final = we;
+                Real K_entr_final = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
+                
+                if (enable_ysu_topdown && use_moisture) {
+                    const int k_below = amrex::max(kpbl - 1, klo);
+                    const Real rho_k = cell_data(i, j, k_below, Rho_comp);
+                    Real qc_below = (moisture_indices.qc >= 0)
+                                    ? cell_data(i, j, k_below, moisture_indices.qc) / rho_k : zero;
+                    Real qi_below = (moisture_indices.qi >= 0)
+                                    ? cell_data(i, j, k_below, moisture_indices.qi) / rho_k : zero;
+
+                    constexpr Real cloud_thresh_entr = amrex::Real(0.01e-3);  // WRF: 0.01 g/kg
+
+                    if ((qc_below + qi_below) > cloud_thresh_entr && kpbl >= klo + 2) {
+                        // cloudflg = TRUE path (WRF line 841)
+
+                        // Compute entrainment efficiency ent_eff from liquid water content
+                        // and cloud buoyancy jump (WRF lines 843-855)
+                        // ent_eff = min(0.2 * 8 * xlv/cp * rcldb / (pi * dthvx_li), 0.4)
+                        // where rcldb is the cloud liquid water at saturation (simplified below)
+                        // and dthvx_li uses theta-li jump across 2 cells (kpbl-1 to kpbl+1)
+
+                        // Liquid-theta virtual pot. temp. at relevant levels
+                        const int k_p2  = amrex::min(kpbl + 1, izmax);
+                        const Real thlix_kbelow = GetThetavl(i, j, k_below, cell_data, moisture_indices);
+                        const Real thlix_kp2    = GetThetavl(i, j, k_p2,   cell_data, moisture_indices);
+
+                        // dthvx using theta-li jump (WRF lines 851-853): max difference over 2 cells
+                        const Real dthvx_li = amrex::max(thlix_kp2 - thlix_kbelow, amrex::Real(0.1));
+
+                        // Entrainment efficiency from liquid water (WRF lines 854-855):
+                        // ent_eff = min(0.2 * 8 * (xlv/cp) * qc_below / dthvx_li, 0.4)
+                        constexpr Real xlv_over_cp = amrex::Real(2.5e6) / amrex::Real(1004.0);
+                        const Real ent_eff = amrex::min(amrex::Real(0.2) * amrex::Real(8.0)
+                                                        * xlv_over_cp * qc_below / dthvx_li,
+                                                        amrex::Real(0.4));
+
+                        // Re-compute we with cloudy inversion strength (WRF lines 866-872)
+                        // Use dthvx_li instead of clear-sky dthvx for inversion buoyancy jump
+                        // bfxpbl stays the same (clear-sky surface flux drives the thermals)
+                        // wm2 stays the same
+                        const Real we_cloud = amrex::max(bfxpbl / dthvx_li, -std::sqrt(wm2));
+
+                        // Add cloud-top entrainment contribution (WRF lines 874-881)
+                        // bfxpbl_cloud = -ent_eff * (bfx0_cloud) where bfx0_cloud = sflux (no radsum)
+                        // Since radsum=0, bfx0_cloud = max(sflux, 0) (same as surface buoyancy flux)
+                        const Real bfx0_cloud = amrex::max(sflux_arr(i, j, 0), zero);
+                        const Real bfxpbl_cloud = -ent_eff * bfx0_cloud;
+                        const Real we_cloud_top = amrex::max(bfxpbl_cloud / dthvx_li,
+                                                             -std::sqrt(std::pow(wm3, amrex::Real(2.0)/amrex::Real(3.0))));
+
+                        // Total corrected we (WRF line 881: we(i) = we(i) + we_cloud_top)
+                        we_final = we_cloud + we_cloud_top;
+
+                        // Recompute K_entr with cloudy we
+                        K_entr_final = (we_final < zero) ? rho_kpbl * (-we_final) * dz_kpbl : zero;
+                        
+                        // WRF line 964-965: zero out xkzm at kpbl-1 when cloudflg and we<0
+                        // In ERF, this corresponds to NOT adding entrainment at k_below
+                        // This is handled implicitly since we only apply entr_arr at k==kpbl
+                    }
+                }
+                
+                entr_arr(i,j,0) = amrex::min(K_entr_final, K_cap);
                  
                 // Cloud PBLH extension: check for cloud at PBL top cell and extend if present
                 if (enable_ysu_cloud_pblh && use_moisture) {
