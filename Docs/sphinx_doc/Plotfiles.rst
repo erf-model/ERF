@@ -781,8 +781,10 @@ variables in this order.
 | **Olen**                      | Obukhov length from the surface layer [m]. ERF writes |
 |                               | -999 when the surface layer is not active.            |
 +-------------------------------+-------------------------------------------------------+
-| **pblh**                      | Diagnosed planetary boundary layer height [m]. ERF    |
-|                               | writes -999 when the surface layer is not active.     |
+| **pblh**                      | Diagnosed planetary boundary layer height [m]. Native |
+|                               | SHOC diagnostics are used when available; otherwise   |
+|                               | ERF falls back to SurfaceLayer. ERF writes -999 when  |
+|                               | no PBL diagnostic provider is available.              |
 +-------------------------------+-------------------------------------------------------+
 | **t_surf**                    | Surface temperature from the surface layer [K]. ERF   |
 |                               | writes -999 when the surface layer is not active.     |
@@ -796,14 +798,20 @@ variables in this order.
 | **OLR**                       | Outgoing longwave radiation at the model top [W/m^2]. |
 |                               | ERF writes -999 when radiation is not active.         |
 +-------------------------------+-------------------------------------------------------+
-| **sens_flux**                 | Surface sensible heat flux from the vertical surface  |
-|                               | flux field [kg K m^-2 s^-1]. ERF writes -999 when the |
-|                               | flux field is not available.                          |
+| **sens_flux**                 | Conservative surface sensible heat flux [kg K m^-2    |
+|                               | s^-1]. In native SHOC ``state_update`` mode, this     |
+|                               | reports the preserved surface flux consumed by SHOC.  |
+|                               | Otherwise, it reports the host vertical surface flux  |
+|                               | field. ERF writes -999 when the corresponding flux    |
+|                               | source is unavailable.                                |
 +-------------------------------+-------------------------------------------------------+
-| **laten_flux**                | Surface moisture flux from the vertical water-vapor   |
-|                               | flux field [kg m^-2 s^-1]. This is a legacy output    |
-|                               | name. ERF writes -999 when the flux field is not      |
-|                               | available.                                            |
+| **laten_flux**                | Conservative surface moisture flux [kg m^-2 s^-1].    |
+|                               | This is a legacy output name. In native SHOC          |
+|                               | ``state_update`` mode, this reports the preserved     |
+|                               | surface moisture flux consumed by SHOC. Otherwise, it |
+|                               | reports the host vertical water-vapor surface flux    |
+|                               | field. ERF writes -999 when the corresponding flux    |
+|                               | source is unavailable.                                |
 +-------------------------------+-------------------------------------------------------+
 | **surf_pres**                 | Surface pressure [Pa].                                |
 +-------------------------------+-------------------------------------------------------+
@@ -811,29 +819,57 @@ variables in this order.
 |                               | zero when moisture is disabled.                       |
 +-------------------------------+-------------------------------------------------------+
 | **surface_diagnostic_source** | Source code for the cell-centered SurfaceLayer scalar |
-|                               | diagnostic path. ERF writes -999 when SurfaceLayer is |
-|                               | not active.                                           |
+|                               | diagnostic path [1]. ERF writes -999 when SurfaceLay  |
+|                               | er is not active.                                     |
 +-------------------------------+-------------------------------------------------------+
-| **sensible_heat_flux**        | Surface sensible heat flux [W m^-2]. ERF writes     |
-|                               | -999 when the flux field is not available.          |
+| **sensible_heat_flux**        | Surface sensible heat flux [W m^-2], computed from    |
+|                               | the same conservative source as ``sens_flux``. In     |
+|                               | native SHOC ``state_update`` mode, this uses SHOC's   |
+|                               | preserved consumed-flux snapshot. ERF writes -999     |
+|                               | when the sensible flux source is unavailable.         |
 +-------------------------------+-------------------------------------------------------+
-| **latent_heat_flux**          | Surface latent heat flux [W m^-2]. ERF writes       |
-|                               | -999 when moisture is disabled or the flux field is |
-|                               | not available.                                       |
+| **latent_heat_flux**          | Surface latent heat flux [W m^-2], computed from the  |
+|                               | same conservative source as ``laten_flux``. In native |
+|                               | SHOC ``state_update`` mode, this uses SHOC's          |
+|                               | preserved consumed-flux snapshot. ERF writes -999     |
+|                               | when moisture or the latent flux source is            |
+|                               | unavailable.                                          |
++-------------------------------+-------------------------------------------------------+
+| **shoc_u_star**               | Native SHOC friction velocity diagnostic [m/s]. ERF   |
+|                               | writes -999 when native SHOC diagnostics are          |
+|                               | unavailable.                                          |
++-------------------------------+-------------------------------------------------------+
+| **shoc_Olen**                 | Native SHOC Obukhov length diagnostic [m]. ERF writes |
+|                               | -999 when native SHOC diagnostics are unavailable.    |
++-------------------------------+-------------------------------------------------------+
+| **shoc_wthv_sfc**             | Native SHOC surface virtual potential temperature     |
+|                               | flux [K m s^-1]. ERF writes -999 when native SHOC     |
+|                               | diagnostics are unavailable.                          |
 +-------------------------------+-------------------------------------------------------+
 
-sens_flux and laten_flux are legacy ERF internal conservative scalar flux
-outputs. sensible_heat_flux and latent_heat_flux convert those applied
-conservative fluxes to W m^-2 using Cp_d and L_v, respectively.
+``sens_flux`` and ``laten_flux`` are legacy ERF conservative scalar flux
+outputs. ``sensible_heat_flux`` and ``latent_heat_flux`` convert the same
+selected conservative flux sources to W m^-2 using ``Cp_d`` and ``L_v``,
+respectively.
 
-The sign convention follows ERF's lower-boundary flux convention. No source-
-specific Noah-MP or MOST conversion is applied in the diagnostic layer. The
-Noah-MP LSM kinematic-to-conservative conversion happens upstream in
-SurfaceLayer.
+For non-SHOC configurations and native SHOC host-diffusion mode, these outputs
+use the host vertical surface flux arrays. In native SHOC ``state_update`` mode,
+SHOC consumes those surface fluxes before the host diffusion path clears the
+overlapping arrays. In that mode, the 2D flux diagnostics use SHOC's preserved
+consumed-flux snapshots, component by component. If the corresponding host flux
+field was unavailable before SHOC consumed it, ERF writes -999 rather than a
+zero SHOC snapshot.
 
-Native SHOC continues to consume the host flux and stress arrays through its
-existing preprocessing path, which divides by near-surface density before the
-coupled column update.
+The sign convention follows ERF's lower-boundary flux convention. No
+source-specific Noah-MP, MOST, or SHOC conversion is applied in the 2D
+diagnostic layer. Noah-MP LSM kinematic-to-conservative conversion happens
+upstream in SurfaceLayer. Native SHOC converts the conservative host fluxes to
+kinematic column inputs internally, then the diagnostic snapshot preserves the
+consumed flux in conservative ERF output units.
+
+In native SHOC ``state_update`` mode, SHOC is the transport owner. The
+``surface_diagnostic_source`` field still describes the upstream surface-flux
+source path used before SHOC consumes it.
 
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

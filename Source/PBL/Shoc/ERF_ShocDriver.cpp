@@ -336,7 +336,11 @@ ShocDriver::ensure_storage (const MultiFab& cons,
                                 EddyDiff::NumDiffs, 0);
         m_prev_turb_cc.define(cons.boxArray(), cons.DistributionMap(), 2, 0);
         m_prev_wthv_sec_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_consumed_sens_flux_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_consumed_laten_flux_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_pblh_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_shoc_ustar_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_shoc_olen_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_cldfrac_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_ql_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_ql2_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
@@ -368,7 +372,11 @@ ShocDriver::ensure_storage (const MultiFab& cons,
     m_u_tend_fc.setVal(0.0);
     m_v_tend_fc.setVal(0.0);
     m_eddy_coeffs_cc.setVal(0.0);
+    m_consumed_sens_flux_cc.setVal(0.0);
+    m_consumed_laten_flux_cc.setVal(0.0);
     m_pblh_cc.setVal(0.0);
+    m_shoc_ustar_cc.setVal(0.0);
+    m_shoc_olen_cc.setVal(0.0);
     m_shoc_cldfrac_cc.setVal(0.0);
     m_shoc_ql_cc.setVal(0.0);
     m_shoc_ql2_cc.setVal(0.0);
@@ -571,6 +579,10 @@ ShocDriver::advance (MultiFab& cons,
         auto u_tend_cc = m_u_tend_cc.array(mfi);
         auto v_tend_cc = m_v_tend_cc.array(mfi);
         auto pblh_arr = m_pblh_cc.array(mfi);
+        auto consumed_sens_flux_arr = m_consumed_sens_flux_cc.array(mfi);
+        auto consumed_laten_flux_arr = m_consumed_laten_flux_cc.array(mfi);
+        auto shoc_ustar_arr = m_shoc_ustar_cc.array(mfi);
+        auto shoc_olen_arr = m_shoc_olen_cc.array(mfi);
         auto shoc_cldfrac_arr = m_shoc_cldfrac_cc.array(mfi);
         auto shoc_ql_arr = m_shoc_ql_cc.array(mfi);
         auto shoc_ql2_arr = m_shoc_ql2_cc.array(mfi);
@@ -592,6 +604,10 @@ ShocDriver::advance (MultiFab& cons,
 
         const auto shoc_mix = col.shoc_mix.const_array();
         const auto pblh = col.pblh.const_array();
+        const auto surf_sens_flux = col.surf_sens_flux.const_array();
+        const auto surf_lat_flux = col.surf_lat_flux.const_array();
+        const auto ustar = col.ustar.const_array();
+        const auto obklen = col.obklen.const_array();
         const auto shoc_cldfrac = col.shoc_cldfrac.const_array();
         const auto shoc_ql = col.shoc_ql.const_array();
         const auto shoc_ql2 = col.shoc_ql2.const_array();
@@ -629,6 +645,8 @@ ShocDriver::advance (MultiFab& cons,
             ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
                 const int ic = shoc_column_index(layout, i, j);
+                const int k0 = layout.kmin;
+                const Real rho_sfc = rho(ic,0,0);
                 for (int kk = 0; kk < layout.nlev; ++kk) {
                     const int k = layout.kmin + kk;
                     const Real l = shoc_mix(ic,kk,0);
@@ -683,6 +701,15 @@ ShocDriver::advance (MultiFab& cons,
                     buoy_prod_arr(i,j,k) = buoy_prod(ic,kk,0);
                     diss_tke_arr(i,j,k) = diss_tke(ic,kk,0);
                 }
+                // Motivation: Native SHOC state_update consumes SurfaceLayer
+                // fluxes before the host diffusion path clears the overlapping
+                // SFS arrays. Preserve the consumed conservative fluxes here
+                // so 2D diagnostics report the surface forcing SHOC actually
+                // used, not the cleared host arrays.
+                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
+                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
+                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
+                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
                 });
         }
 
