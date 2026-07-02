@@ -150,14 +150,14 @@ jobs:
     #     directory: ${{runner.workspace}}/ERF
 
     - name: Success artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: success()
       with:
         name: build-and-test
         path: |
           ${{runner.workspace}}/ERF/regressioncov.xml
     - name: Failing test artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: build-and-test
