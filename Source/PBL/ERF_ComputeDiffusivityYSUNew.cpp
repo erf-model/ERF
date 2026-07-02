@@ -122,6 +122,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
+        FArrayBox hgamu_fab(xybx, 1, The_Async_Arena());  // Store HGAMU (YSU u countergradient)
+        FArrayBox hgamv_fab(xybx, 1, The_Async_Arena());  // Store HGAMV (YSU v countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
         FArrayBox entr_fab(xybx, 1, The_Async_Arena());   // Per-column entrainment diffusivity
@@ -139,6 +141,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         wstar3_down_fab.setVal(zero);
         hgamt_fab.setVal(zero);
         hgamq_fab.setVal(zero);
+        hgamu_fab.setVal(zero);
+        hgamv_fab.setVal(zero);
         wstar_fab.setVal(zero);
         entr_fab.setVal(zero);
         pbl_height_corrector.setVal(zero);
@@ -147,6 +151,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
         const auto& hgamt_arr       = hgamt_fab.array();
         const auto& hgamq_arr       = hgamq_fab.array();
+        const auto& hgamu_arr       = hgamu_fab.array();
+        const auto& hgamv_arr       = hgamv_fab.array();
         const auto& wstar_arr       = wstar_fab.array();  // Stored convective velocity for use in K-profile
         const auto& vpert_arr       = vpert_fab.array();  // Stored VPERT for Pass 3 diagnostic loop
         const auto& entr_arr        = entr_fab.array();   // Stored entrainment diffusivity
@@ -698,11 +704,38 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             if (pbli_arr(i, j, 0) <= klo + 1) {
                 hgamt_arr(i, j, 0) = zero;
                 hgamq_arr(i, j, 0) = zero;
+                hgamu_arr(i, j, 0) = zero;
+                hgamv_arr(i, j, 0) = zero;
                 vpert_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 hgamt_arr(i, j, 0) = (enable_ysu_countergradient) ? HGAMT / pblh : zero;
                 hgamq_arr(i, j, 0) = (enable_ysu_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+
+                // Compute YSU momentum countergradient terms (hgamu, hgamv)
+                // WRF bl_ysu.F90 lines 694-696:
+                // brint = -15.9*ust^2/wspd * wstar3/wscale^4
+                // hgamu = brint * ux(1), hgamv = brint * vx(1)
+                hgamu_arr(i, j, 0) = zero;
+                hgamv_arr(i, j, 0) = zero;
+                if (SFCFLG && enable_ysu_countergradient) {
+                    const Real wspd_sfc = ws10av_arr(i, j, 0);
+                    const Real ustar    = u_star_arr(i, j, 0);
+                    const Real wscale   = wstar_arr(i, j, 0);   // column-average wscale
+                    const Real wstar3   = wstar3_arr(i, j, 0);  // convective velocity scale cubed
+
+                    const Real wscale4 = amrex::max(wscale * wscale * wscale * wscale,
+                                                    amrex::Real(1.0e-10));
+                    const Real brint = amrex::Real(-15.9) * ustar * ustar
+                                      / amrex::max(wspd_sfc, amrex::Real(1.0e-4))
+                                      * wstar3 / wscale4;
+
+                    // ux(i,1) and vx(i,1) in WRF = cell-center velocity at lowest level (klo in ERF)
+                    const Real u_klo = myhalf * (uvel(i, j, klo) + uvel(i+1, j, klo));
+                    const Real v_klo = myhalf * (vvel(i, j, klo) + vvel(i, j+1, klo));
+                    hgamu_arr(i, j, 0) = brint * u_klo;
+                    hgamv_arr(i, j, 0) = brint * v_klo;
+                }
 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
                 // This represents the virtual temperature perturbation at surface
@@ -1409,10 +1442,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Inside PBL: store the normalized countergradient terms
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
+                K_turb(i, j, k, EddyDiff::HGAMU_v) = hgamu_arr(i, j, 0);
+                K_turb(i, j, k, EddyDiff::HGAMV_v) = hgamv_arr(i, j, 0);
             } else {
                 // Outside PBL: zero countergradient
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = zero;
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
+                K_turb(i, j, k, EddyDiff::HGAMU_v) = zero;
+                K_turb(i, j, k, EddyDiff::HGAMV_v) = zero;
             }
         });
         BL_PROFILE_VAR_STOP(prof_kprof);
@@ -1425,12 +1462,16 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
             K_turb(i, j, klo-1, EddyDiff::HGAMT_v) = K_turb(i, j, klo, EddyDiff::HGAMT_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMQ_v) = K_turb(i, j, klo, EddyDiff::HGAMQ_v);
+            K_turb(i, j, klo-1, EddyDiff::HGAMU_v) = K_turb(i, j, klo, EddyDiff::HGAMU_v);
+            K_turb(i, j, klo-1, EddyDiff::HGAMV_v) = K_turb(i, j, klo, EddyDiff::HGAMV_v);
             K_turb(i, j, klo-1, EddyDiff::Turb_lengthscale) = K_turb(i, j, klo, EddyDiff::Turb_lengthscale);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
             K_turb(i, j, khi+1, EddyDiff::HGAMT_v) = K_turb(i, j, khi, EddyDiff::HGAMT_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMQ_v) = K_turb(i, j, khi, EddyDiff::HGAMQ_v);
+            K_turb(i, j, khi+1, EddyDiff::HGAMU_v) = K_turb(i, j, khi, EddyDiff::HGAMU_v);
+            K_turb(i, j, khi+1, EddyDiff::HGAMV_v) = K_turb(i, j, khi, EddyDiff::HGAMV_v);
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
