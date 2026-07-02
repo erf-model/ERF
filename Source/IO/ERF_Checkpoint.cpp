@@ -736,29 +736,7 @@ ERF::ReadCheckpointFile ()
            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
            micro->Set_dzmin(lev, dzmin);
 
-           if (SolverChoice::mesh_type == MeshType::VariableDz) {
-               MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
-               int klo = geom[lev].Domain().smallEnd(2);
-               for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
-                   Box nbx = mfi.tilebox();
-                   Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
-                   Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
-                   ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                   {
-                       z_slab_arr(i,j,k) = z_arr(i,j,klo);
-                   });
-               }
-               Real z_min = z_slab.min(0);
-               Real z_max = z_slab.max(0);
-
-               auto dz = geom[lev].CellSize()[2];
-               if (z_max - z_min < Real(1.e-8) * dz) {
-                   SolverChoice::set_mesh_type(MeshType::StretchedDz);
-                   if (verbose > 0) {
-                       amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
-                   }
-               }
-           }
+           check_mesh_type(lev);
         }
 
         // Read in the moisture model restart variables
