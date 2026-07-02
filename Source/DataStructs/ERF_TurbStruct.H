@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, YSUNew, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -169,6 +169,24 @@ public:
         query_one_or_per_level(
           pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
+        query_one_or_per_level(
+          pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_Ribcr", pbl_mrf_Ribcr, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_const_b", pbl_mrf_const_b, lev, max_level);
+        query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_highres_bounds", pbl_mrf_highres_bounds, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+      } else if (pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
         query_one_or_per_level(
@@ -351,6 +369,8 @@ public:
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::YSUNew) {
+      amrex::Print() << "    Using YSUNew PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::EAMXX_SHOC) {
       amrex::Print() << "    Using EAMxx SHOC PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::NATIVE_SHOC) {
@@ -443,6 +463,25 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+    } else if (pbl_type == PBLType::YSUNew) {
+      amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
+                     << std::endl;
+      amrex::Print() << "    pbl_mrf_Ribcr         : " << pbl_mrf_Ribcr
+                     << std::endl;
+      amrex::Print() << "    pbl_mrf_const_b       : " << pbl_mrf_const_b
+                     << std::endl;
+      amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf
+                     << std::endl;
+      amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars
+                     << std::endl;
+      amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
+                     << std::endl;
+      amrex::Print() << "    pbl_mrf_highres_bounds     : " << pbl_mrf_highres_bounds
+                     << std::endl;
+      amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
+                     << std::endl;
+      amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
+                     << std::endl;
     }
   }
 
@@ -516,7 +555,8 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
-             (pbl_type == PBLType::MRF)       ||
+             (pbl_type == PBLType::MRF)      ||
+             (pbl_type == PBLType::YSUNew)   ||
              uses_shoc_family();
   }
 
