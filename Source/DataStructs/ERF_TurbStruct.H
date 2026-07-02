@@ -188,22 +188,24 @@ public:
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
       } else if (pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
-          pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
+          pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
         query_one_or_per_level(
-          pp, "pbl_mrf_Ribcr", pbl_mrf_Ribcr, lev, max_level);
+          pp, "pbl_ysu_force_over_water", pbl_ysu_force_over_water, lev,
+          max_level);
         query_one_or_per_level(
-          pp, "pbl_mrf_const_b", pbl_mrf_const_b, lev, max_level);
-        query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
+          pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
         query_one_or_per_level(
-          pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
+          pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
         query_one_or_per_level(
-          pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
+          pp, "pbl_ysunew_phifac", pbl_ysunew_phifac, lev, max_level);
         query_one_or_per_level(
-          pp, "pbl_mrf_highres_bounds", pbl_mrf_highres_bounds, lev, max_level);
+          pp, "pbl_ysunew_pfac", pbl_ysunew_pfac, lev, max_level);
         query_one_or_per_level(
-          pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
+          pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
-          pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+          pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -464,24 +466,24 @@ public:
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
     } else if (pbl_type == PBLType::YSUNew) {
-      amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
-                     << std::endl;
-      amrex::Print() << "    pbl_mrf_Ribcr         : " << pbl_mrf_Ribcr
-                     << std::endl;
-      amrex::Print() << "    pbl_mrf_const_b       : " << pbl_mrf_const_b
-                     << std::endl;
-      amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf
-                     << std::endl;
-      amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
-                     << std::endl;
-      amrex::Print() << "    pbl_mrf_highres_bounds     : " << pbl_mrf_highres_bounds
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
-                     << std::endl;
-      amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
-                     << std::endl;
+      amrex::Print() << "    pbl_ysu_coriolis_freq           : "
+                     << pbl_ysu_coriolis_freq << std::endl;
+      amrex::Print() << "    pbl_ysu_force_over_water        : "
+                     << pbl_ysu_force_over_water << std::endl;
+      amrex::Print() << "    pbl_ysu_land_Ribcr              : "
+                     << pbl_ysu_land_Ribcr << std::endl;
+      amrex::Print() << "    pbl_ysu_unst_Ribcr              : "
+                     << pbl_ysu_unst_Ribcr << std::endl;
+      amrex::Print() << "    pbl_ysunew_phifac               : "
+                     << pbl_ysunew_phifac << std::endl;
+      amrex::Print() << "    pbl_ysunew_pfac                 : "
+                     << pbl_ysunew_pfac << std::endl;
+      amrex::Print() << "    ysu_moistvars                   : "
+                     << ysu_moistvars << std::endl;
+      amrex::Print() << "    enable_ysu_countergradient      : "
+                     << enable_ysu_countergradient << std::endl;
+      amrex::Print() << "    pbl_ysunew_highres_bounds       : "
+                     << pbl_ysunew_highres_bounds << std::endl;
     }
   }
 
@@ -610,6 +612,12 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  // YSUNew parameters
+  amrex::Real pbl_ysunew_phifac = amrex::Real(8.0);   // WRF PHIFAC: weight of convective term in wscale
+  amrex::Real pbl_ysunew_pfac   = amrex::Real(2.0);   // Profile shape exponent (power law)
+  bool ysu_moistvars             = false;              // if true, apply turbulence to moisture variables
+  bool enable_ysu_countergradient = true;              // if true, apply nonlocal HGAMT/HGAMQ corrections
+  bool pbl_ysunew_highres_bounds  = false;             // if true, use high-res diffusivity bounds
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
