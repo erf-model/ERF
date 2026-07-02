@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include "ERF_Constants.H"
+#include "ERF_SuperDropletPCDefinitions.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -62,21 +63,42 @@ struct CollisionKernel
      * \param[in] a_r2 Radius of particle 2 (m)
      * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
      * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \param[in] a_x1 Pointer to position vector of particle 1 (m)
+     * \param[in] a_x2 Pointer to position vector of particle 2 (m)
+     * \param[in] a_vel_type Kernel relative velocity type
      * \return Collision kernel value (m³/s)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT sedimentation (  const RT a_r1,
                         const RT a_r2,
                         const RT* const a_v1,
-                        const RT* const a_v2 ) const noexcept
+                        const RT* const a_v2,
+                        const RT* const a_x1,
+                        const RT* const a_x2,
+                        const SDKernelRelativeVelocityType a_vel_type ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
         auto E = RT(0.5)*p*p / ((RT(1.0)+p)*(RT(1.0)+p));
+
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
+
         return PI*(a_r1+a_r2)*(a_r1+a_r2)*E*dv;
     }
 
@@ -95,13 +117,19 @@ struct CollisionKernel
      * \param[in] a_r2 Radius of particle 2 (m)
      * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
      * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \param[in] a_x1 Pointer to position vector of particle 1 (m)
+     * \param[in] a_x2 Pointer to position vector of particle 2 (m)
+     * \param[in] a_vel_type Kernel relative velocity type
      * \return Collision kernel value (m³/s)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Longs ( const RT a_r1,
                const RT a_r2,
                const RT* const a_v1,
-               const RT* const a_v2 ) const noexcept
+               const RT* const a_v2,
+               const RT* const a_x1,
+               const RT* const a_x2,
+               const SDKernelRelativeVelocityType a_vel_type ) const noexcept
     {
         auto r1 = std::max( a_r1, a_r2 );  // large
         auto r2 = std::min( a_r1, a_r2 );  // small
@@ -114,10 +142,23 @@ struct CollisionKernel
         c_rate *= (PI*sumr*sumr);
 
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
 
         return c_rate*dv;
     }
@@ -243,7 +284,10 @@ struct CollisionKernel
     RT Halls ( const RT a_r1, /*!< radius of particle 1 */
                const RT a_r2, /*!< radius of particle 2 */
                const RT* const a_v1, /*!< velocity of particle 1 */
-               const RT* const a_v2  /*!< velocity of particle 2 */) const noexcept
+               const RT* const a_v2, /*!< velocity of particle 2 */
+               const RT* const a_x1, /*!< position of particle 1 */
+               const RT* const a_x2, /*!< position of particle 2 */
+               const SDKernelRelativeVelocityType a_vel_type /*!< velocity type */) const noexcept
     {
         auto r1 = std::max( a_r1, a_r2 );  // large
         auto r2 = std::min( a_r1, a_r2 );  // small
@@ -290,10 +334,23 @@ struct CollisionKernel
         c_rate *= (PI*sumr*sumr);
 
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
 
         return c_rate*dv;
     }

@@ -471,6 +471,16 @@ enum struct SDCoalescenceKernelType {
     Halls
 };
 
+/*! \brief Types of kernel relative velocity calculation: terminal_velocity
+ *  (only terminal fall speed; default), absolute_velocity (flow velocity minus
+ *  terminal), radial_velocity (radial component of the relative velocity along
+ *  the pair separation vector). */
+AMREX_ENUM(SDKernelRelativeVelocityType,
+    terminal_velocity,
+    absolute_velocity,
+    radial_velocity
+);
+
 /*! \brief Types of phase change ODE time integrator */
 enum struct SDMassChangeTIMethod {
     RK3BS, RK4, BE, CN, DIRK2

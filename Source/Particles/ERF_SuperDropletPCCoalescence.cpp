@@ -449,6 +449,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     auto kernel_choice = m_coalescence_kernel;
     auto ice_agg_eff = ParticleReal(m_ice_agg_eff);
     auto include_brownian_coalescence = m_include_brownian_coalescence;
+    auto kernel_rel_vel = m_kernel_relative_velocity;
 
     // Build process context
     const auto ctx = buildProcessContext(a_lev);
@@ -635,20 +636,43 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 } else {
 
+                    // Prepare velocities and positions
                     ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
-                    for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                        v_i[d] = ptrs.v_ptr[d][pi];
-                        v_j[d] = ptrs.v_ptr[d][pj];
-                    }
-                    v_i[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pi];
-                    v_j[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pj];
+                    ParticleReal x_i[AMREX_SPACEDIM], x_j[AMREX_SPACEDIM];
 
+                    // Get particle positions
+                    ParticleType& p_i = pstruct_ptr[pi];
+                    ParticleType& p_j = pstruct_ptr[pj];
+                    for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                        x_i[d] = p_i.pos(d);
+                        x_j[d] = p_j.pos(d);
+                    }
+
+                    if (kernel_rel_vel == SDKernelRelativeVelocityType::terminal_velocity) {
+                        // Use only terminal velocity (no flow velocity)
+                        for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                            v_i[d] = ParticleReal(zero);
+                            v_j[d] = ParticleReal(zero);
+                        }
+                        v_i[AMREX_SPACEDIM-1] = -ptrs.vterm_ptr[pi];
+                        v_j[AMREX_SPACEDIM-1] = -ptrs.vterm_ptr[pj];
+                    } else {
+                        // absolute_velocity or radial_velocity: use flow velocity minus terminal
+                        for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                            v_i[d] = ptrs.v_ptr[d][pi];
+                            v_j[d] = ptrs.v_ptr[d][pj];
+                        }
+                        v_i[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pi];
+                        v_j[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pj];
+                    }
+
+                    // Call kernel (handles radial velocity internally)
                     if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                        k_val = ckernel.sedimentation(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.sedimentation(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
                     } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                        k_val = ckernel.Longs(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.Longs(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
                     } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                        k_val = ckernel.Halls(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.Halls(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
                     }
 
                     if (k_val < 0.0) {
@@ -660,8 +684,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 // aggregation between two ice particles
 
-                // ice particle 1
-                auto vz_i = ptrs.v_ptr[AMREX_SPACEDIM-1][pi] - ptrs.vterm_ptr[pi];
+                // ice particle 1 velocity (terminal only, or flow minus terminal)
+                const ParticleReal vz_i = (kernel_rel_vel == SDKernelRelativeVelocityType::terminal_velocity)
+                                        ? -ptrs.vterm_ptr[pi]
+                                        :  ptrs.v_ptr[AMREX_SPACEDIM-1][pi] - ptrs.vterm_ptr[pi];
                 auto a_i = ptrs.a_ptr[pi];
                 auto c_i = ptrs.c_ptr[pi];
                 auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][pi]);
@@ -669,8 +695,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto k_i = std::exp(-ckernel.k_coeff * c_i/a_i);
                 auto area_i = PI * a_i * maxR_i * std::pow(rhoi_i/rho_ice, k_i);
 
-                // ice particle 2
-                auto vz_j = ptrs.v_ptr[AMREX_SPACEDIM-1][pj] - ptrs.vterm_ptr[pj];
+                // ice particle 2 velocity (terminal only, or flow minus terminal)
+                const ParticleReal vz_j = (kernel_rel_vel == SDKernelRelativeVelocityType::terminal_velocity)
+                                        ? -ptrs.vterm_ptr[pj]
+                                        :  ptrs.v_ptr[AMREX_SPACEDIM-1][pj] - ptrs.vterm_ptr[pj];
+
                 auto a_j = ptrs.a_ptr[pj];
                 auto c_j = ptrs.c_ptr[pj];
                 auto rhoi_j = ice_rho(a_j, c_j, ptrs.sp_mass_ptrs[sp_idx_i][pj]);
@@ -679,7 +708,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto area_j = PI * a_j * maxR_j * std::pow(rhoi_j/rho_ice, k_j);
 
                 // velocity difference
-                auto dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
+                const ParticleReal dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
 
                 // collision efficiency (ice_agg_eff; input ice_aggregation_efficiency, default 0.1)
                 k_val = ice_agg_eff * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
@@ -695,12 +724,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 if (phase_i == SDPhase::water) { id_w = pi; id_i = pj; }
                 else { id_w = pj; id_i = pi; }
 
-                // water droplet
-                auto vz_w = ptrs.v_ptr[AMREX_SPACEDIM-1][id_w] - ptrs.vterm_ptr[id_w];
+                // water droplet velocity (terminal only, or flow minus terminal)
+                const ParticleReal vz_w = (kernel_rel_vel == SDKernelRelativeVelocityType::terminal_velocity)
+                                        ? -ptrs.vterm_ptr[id_w]
+                                        :  ptrs.v_ptr[AMREX_SPACEDIM-1][id_w] - ptrs.vterm_ptr[id_w];
                 auto r_w = ptrs.radius_ptr[id_w];
 
-                // ice particle
-                auto vz_i = ptrs.v_ptr[AMREX_SPACEDIM-1][id_i] - ptrs.vterm_ptr[id_i];
+                // ice particle velocity (terminal only, or flow minus terminal)
+                const ParticleReal vz_i = (kernel_rel_vel == SDKernelRelativeVelocityType::terminal_velocity)
+                                        ? -ptrs.vterm_ptr[id_i]
+                                        :  ptrs.v_ptr[AMREX_SPACEDIM-1][id_i] - ptrs.vterm_ptr[id_i];
                 auto a_i = ptrs.a_ptr[id_i];
                 auto c_i = ptrs.c_ptr[id_i];
                 auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][id_i]);
@@ -725,7 +758,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto mu = viscCoeff(temperature);
 
                 // velocity difference
-                auto dvz = std::sqrt((vz_i-vz_w)*(vz_i-vz_w));
+                const ParticleReal dvz = std::sqrt((vz_i-vz_w)*(vz_i-vz_w));
 
                 if (std::abs(vz_w) > std::abs(vz_i)) {
 
