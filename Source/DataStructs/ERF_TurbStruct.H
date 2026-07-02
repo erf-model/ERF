@@ -220,6 +220,8 @@ public:
           pp, "enable_ysu_cloud_pblh", enable_ysu_cloud_pblh, lev, max_level);
         query_one_or_per_level(
           pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_terrain_pblh_floor", enable_ysu_terrain_pblh_floor, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -512,6 +514,8 @@ public:
                      << enable_ysu_cloud_pblh << std::endl;
       amrex::Print() << "    ysu_qcloud_threshold (kg/kg)    : "
                      << ysu_qcloud_threshold << std::endl;
+      amrex::Print() << "    enable_ysu_terrain_pblh_floor   : "
+                     << enable_ysu_terrain_pblh_floor << std::endl;
     }
   }
 
@@ -653,6 +657,7 @@ public:
   bool enable_ysu_sat_limiter     = false;             // scale HGAMQ to zero as RH approaches 1
   bool enable_ysu_cloud_pblh      = false;             // extend entrainment zone top by 1 cell if cloud present at kpbl
   amrex::Real ysu_qcloud_threshold = amrex::Real(1.0e-5);  // cloud detection threshold (kg/kg)
+  bool enable_ysu_terrain_pblh_floor = true;           // use terrain-aware pblh_min floor
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
