@@ -379,6 +379,7 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceLayer), "SurfaceLayer");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Radiation), "Radiation");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceFlux), "SurfaceFlux");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::PBL), "PBL");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
 }
@@ -413,7 +414,7 @@ TEST(Plotfile2DMetadata, EscapesJsonStrings)
 TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
 {
     const amrex::Vector<std::string> selected{
-        "z_surf", "pblh", "latent_heat_flux", "surface_diagnostic_source"
+        "z_surf", "pblh", "latent_heat_flux", "shoc_wthv_sfc"
     };
 
     const std::string json = format_2d_metadata_json(selected);
@@ -428,12 +429,13 @@ TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
     EXPECT_TRUE(contains(json, "\"name\": \"z_surf\""));
     EXPECT_TRUE(contains(json, "\"name\": \"pblh\""));
     EXPECT_TRUE(contains(json, "\"name\": \"latent_heat_flux\""));
-    EXPECT_TRUE(contains(json, "\"name\": \"surface_diagnostic_source\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_wthv_sfc\""));
     EXPECT_TRUE(contains(json, "\"long_name\": \"Surface elevation\""));
     EXPECT_TRUE(contains(json, "\"units\": \"m\""));
     EXPECT_TRUE(contains(json, "\"category\": \"Geometry\""));
     EXPECT_TRUE(contains(json, "\"category\": \"SurfaceLayer\""));
     EXPECT_TRUE(contains(json, "\"category\": \"SurfaceFlux\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"PBL\""));
     EXPECT_TRUE(contains(json, "\"missing_policy\": \"AlwaysAvailable\""));
     EXPECT_TRUE(contains(json, "\"missing_policy\": \"FillMinus999WhenUnavailable\""));
     EXPECT_TRUE(contains(json, "\"missing_value\": null"));
@@ -442,14 +444,14 @@ TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
     const auto z_pos = json.find("\"name\": \"z_surf\"");
     const auto pblh_pos = json.find("\"name\": \"pblh\"");
     const auto latent_pos = json.find("\"name\": \"latent_heat_flux\"");
-    const auto source_pos = json.find("\"name\": \"surface_diagnostic_source\"");
+    const auto shoc_wthv_pos = json.find("\"name\": \"shoc_wthv_sfc\"");
     ASSERT_NE(z_pos, std::string::npos);
     ASSERT_NE(pblh_pos, std::string::npos);
     ASSERT_NE(latent_pos, std::string::npos);
-    ASSERT_NE(source_pos, std::string::npos);
+    ASSERT_NE(shoc_wthv_pos, std::string::npos);
     EXPECT_LT(z_pos, pblh_pos);
     EXPECT_LT(pblh_pos, latent_pos);
-    EXPECT_LT(latent_pos, source_pos);
+    EXPECT_LT(latent_pos, shoc_wthv_pos);
 }
 
 // Motivation: The sidecar must describe the components written to this
@@ -473,6 +475,10 @@ TEST(Plotfile2DMetadata, FormatsEveryCatalogDiagnostic)
     const std::string json = format_2d_metadata_json(names);
 
     EXPECT_TRUE(contains(json, std::string("\"n_variables\": ") + std::to_string(names.size())));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_u_star\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_Olen\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_wthv_sfc\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"PBL\""));
     for (const auto& name : names) {
         EXPECT_TRUE(contains(json, "\"name\": \"" + name + "\""));
     }

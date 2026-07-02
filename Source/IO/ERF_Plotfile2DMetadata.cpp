@@ -66,6 +66,7 @@ diagnostic_category_to_string (DiagnosticCategory category) noexcept
     case DiagnosticCategory::SurfaceLayer:     return "SurfaceLayer";
     case DiagnosticCategory::Radiation:        return "Radiation";
     case DiagnosticCategory::SurfaceFlux:      return "SurfaceFlux";
+    case DiagnosticCategory::PBL:              return "PBL";
     case DiagnosticCategory::SurfaceState:     return "SurfaceState";
     case DiagnosticCategory::ColumnIntegral:   return "ColumnIntegral";
     }
