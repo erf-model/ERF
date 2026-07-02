@@ -712,7 +712,7 @@ public:
     WAVE_COUPLED
   };
 
-  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF };
+  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF, YSUNew };
 
   FluxCalcType flux_type{FluxCalcType::MOENG};
   ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
