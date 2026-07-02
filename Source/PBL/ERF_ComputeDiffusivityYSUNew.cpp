@@ -764,6 +764,46 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         });
 
+        // ========================================================================
+        // RECOMPUTE rib_enhan_arr WITH UPDATED VPERT
+        // ========================================================================
+        // BUG FIX: The enhanced Rib array was computed with vpert_arr=0 during the
+        // initial precompute phase (line 226). Now that VPERT has been computed and
+        // stored in vpert_arr (lines 709-761), we must RECOMPUTE rib_enhan_arr to
+        // incorporate the now-nonzero VPERT. This ensures Pass 3 (zero-Ri diagnostic)
+        // uses the correctly enhanced Richardson numbers, matching WRF methodology
+        // where thermal excess is computed between predictor and corrector passes.
+        //
+        // Reference: Hong et al. (2006) HND06, WRF module_bl_ysu.F lines 150-170
+        //
+        BL_PROFILE_VAR("YSUNew_Rib_Recompute", prof_rib_recomp);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+          const amrex::Real t_layer   = t10av_arr(i,j,0);
+          const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
+          const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
+          // Now vpert_arr contains the computed thermal perturbation from the corrector pass
+          const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
+          const amrex::Real z_sfc     = (use_terrain_fitted_coords)
+                                      ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
+          const amrex::Real zval      = (use_terrain_fitted_coords)
+                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                      : (k + myhalf) * gdata.CellSize(2);
+          const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
+          const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
+                                      ? GetThetavl(i,j,k,cell_data,moisture_indices)
+                                      : GetThetav(i,j,k,cell_data,moisture_indices);
+          const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
+                                        ? GetThetavl(i,j,klo,cell_data,moisture_indices)
+                                        : GetThetav(i,j,klo,cell_data,moisture_indices);
+          const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
+                                      + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
+          const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
+          // Recompute ONLY rib_enhan_arr with updated vpert_arr; leave rib_base_arr unchanged
+          rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh) / (ws2 * theta_v_klo);
+        });
+        BL_PROFILE_VAR_STOP(prof_rib_recomp);
+
         //
         // PASS 3 — ZERO-RI DIAGNOSTIC: Compute PBL index with Ribcr=0.0 criterion
         //
