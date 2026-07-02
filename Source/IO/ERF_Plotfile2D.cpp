@@ -1,5 +1,6 @@
 #include "ERF.H"
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DMetadata.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
@@ -707,6 +708,9 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                 GetVecOfConstPtrs(mf),
                                 varnames, my_geom, t_new[0], istep, refRatio());
+        // Native AMReX 2D plotfiles write a JSON sidecar with catalog
+        // metadata for the selected output variables only.
+        plotfile2d::write_2d_metadata_json(plotfilename, varnames);
         writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_NETCDF

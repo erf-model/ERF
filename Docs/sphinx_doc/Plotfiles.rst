@@ -871,6 +871,55 @@ In native SHOC ``state_update`` mode, SHOC is the transport owner. The
 ``surface_diagnostic_source`` field still describes the upstream surface-flux
 source path used before SHOC consumes it.
 
+2D AMReX Metadata Sidecar
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Native AMReX 2D plotfiles include a JSON metadata sidecar named
+``2DMetadata.json`` in the plotfile directory. The sidecar lists the selected
+2D variables in output component order. For each variable it records the
+component index, name, long name, units, diagnostic category, missing-value
+policy, and documented missing value.
+
+The sidecar uses the same 2D diagnostic catalog that defines the plotfile
+variables. It does not change field values and does not record a separate
+runtime source-selection mask. For example, in native SHOC ``state_update``
+mode the flux fields may come from preserved SHOC-consumed flux snapshots, as
+described above, but the sidecar records the public diagnostic metadata for the
+selected variables.
+
+This sidecar is written for native AMReX 2D plotfiles. NetCDF metadata
+attributes are not changed by this feature.
+
+Example:
+
+.. code-block:: json
+
+   {
+     "format_version": 1,
+     "kind": "ERF 2D plotfile metadata",
+     "n_variables": 2,
+     "variables": [
+       {
+         "component_index": 0,
+         "name": "z_surf",
+         "long_name": "Surface elevation",
+         "units": "m",
+         "category": "Geometry",
+         "missing_policy": "AlwaysAvailable",
+         "missing_value": null
+       },
+       {
+         "component_index": 1,
+         "name": "latent_heat_flux",
+         "long_name": "Surface latent heat flux",
+         "units": "W m^-2",
+         "category": "SurfaceFlux",
+         "missing_policy": "FillMinus999WhenUnavailable",
+         "missing_value": -999
+       }
+     ]
+   }
+
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
