@@ -501,8 +501,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Bounds (u*/5 to 16*u*) prevent unrealistic values in very weak or strong convection.
             // WRF Reference: module_bl_mrf.F L863-865
             Real wstar = u_star_arr(i, j, 0) / phiM_safe;
-            wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
-            wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
+            //wstar = amrex::max(wstar, u_star_arr(i, j, 0) / Real(5.0));      // Mechanical turbulence floor
+            //wstar = amrex::min(wstar, Real(16.0) * u_star_arr(i, j, 0));     // Free convection ceiling
+            wstar = amrex::max(wstar, Real(0.01));
+            wstar = amrex::min(wstar, Real(5.0));
             wstar_arr(i, j, 0) = wstar;  // Store for use in K-profile loop
 
             // Compute HGAMT with corrected wstar
