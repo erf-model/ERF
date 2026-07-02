@@ -127,6 +127,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         FArrayBox entr_fab(xybx, 1, The_Async_Arena());   // Per-column entrainment diffusivity
         IArrayBox cloud_top_fab(xybx, 1, The_Async_Arena());  // Cloud-top cell index for top-down mixing
         FArrayBox wstar3_down_fab(xybx, 1, The_Async_Arena());  // Top-down convective velocity scale cubed
+        FArrayBox sflux_fab(xybx, 1, The_Async_Arena());        // Virtual kinematic heat flux (sensible + latent)
+        FArrayBox wstar3_fab(xybx, 1, The_Async_Arena());       // Convective velocity scale cubed per column
+        FArrayBox zol1_fab(xybx, 1, The_Async_Arena());         // Monin-Obukhov stability parameter at first level
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
@@ -137,6 +140,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& entr_arr        = entr_fab.array();   // Stored entrainment diffusivity
         const auto& cloud_top_arr   = cloud_top_fab.array();  // Cloud-top cell index for top-down mixing
         const auto& wstar3_down_arr = wstar3_down_fab.array();  // Top-down wstar cubed
+        const auto& sflux_arr       = sflux_fab.array();       // Virtual kinematic heat flux
+        const auto& wstar3_arr      = wstar3_fab.array();      // Convective velocity scale cubed
+        const auto& zol1_arr        = zol1_fab.array();        // Monin-Obukhov stability parameter
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -147,6 +153,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //const Real f0 = turbChoice.pbl_mrf_coriolis_freq;
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
+        const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
@@ -203,6 +210,89 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         BL_PROFILE_VAR_STOP(prof_rib_precomp);
 
         // ========================================================================
+        // PRE-COMPUTE surface flux (sflux), stability flag (sfcflg), and convective
+        // velocity scale (wstar3) per column, following WRF-YSU formulation
+        // ========================================================================
+        // WRF Reference: module_bl_ysu.F lines 610-680
+        // These quantities are needed for:
+        //   - Stability-dependent functions throughout the PBLH passes
+        //   - Countergradient flux calculations (HGAMT, HGAMQ)
+        //   - K-profile computations
+        // Computing them once per column improves GPU performance and ensures consistency.
+        //
+        BL_PROFILE_VAR("YSUNew_SurfFlux_Precompute", prof_sflux_precomp);
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
+            const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
+            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
+
+            // WRF: rhox = psfc/(rd*tx(1)*tvcon), approximate with cell-bottom density
+            const Real rhox = rho_sfc;
+
+            // Virtual temperature factor: ep1 = Rv/Rd - 1 = 0.608
+            constexpr Real ep1 = amrex::Real(0.608);
+            constexpr Real cp_air = amrex::Real(1004.0);
+
+            // WRF bl_ysu.F90 line 613: sflux = hfx/(rho*cp) + qfx/rho*ep1*theta
+            // Approximate hfx and qfx from MOST quantities:
+            //   hfx [W/m^2] = -rho * cp * u_star * t_star
+            //   qfx [kg/m^2/s] = -rho * u_star * q_star
+            const Real ustar  = u_star_arr(i, j, 0);
+            const Real tstar  = t_star_arr(i, j, 0);
+            const Real qstar  = use_moisture ? q_star_arr(i, j, 0) : zero;
+            const Real hfx    = -rhox * cp_air * ustar * tstar;   // W/m^2
+            const Real qfx    = -rhox * ustar * qstar;            // kg/m^2/s
+            const Real sflux  = hfx / (rhox * cp_air) + qfx / rhox * ep1 * t_layer;
+            sflux_arr(i, j, 0) = sflux;
+
+            // WRF sfcflg: TRUE when unstable/neutral (sflux > 0), FALSE when stable
+            // WRF bl_ysu.F90 line 615: if(br(i).gt.0.0) sfcflg(i) = .false.
+            // In ERF, br > 0 corresponds to sflux < 0 (stable), so:
+            const bool sfcflg = (sflux > zero);
+
+            // WRF: govrth = g/thx(1) — uses DRY theta at first level
+            const Real govrth = CONST_GRAV / t_layer;
+
+            // WRF bl_ysu.F90 lines 664-668: wstar3 from sflux
+            // First-guess pblh needed for wstar3 — use nominal 500m for initial estimate
+            // wstar3 is refined in subsequent loop after corrector pblh is available
+            const Real pblh_guess = amrex::Real(500.0);
+            const Real bfx0   = amrex::max(sflux, zero);
+            const Real wstar3 = govrth * bfx0 * pblh_guess;
+            wstar3_arr(i, j, 0) = wstar3;
+
+            // WRF bl_ysu.F90 line 676: wscale = (ust3 + phifac*karman*wstar3*0.5)^(1/3)
+            // The 0.5 factor is the column-average of (1-zfac) over the PBL depth
+            constexpr Real phifac = amrex::Real(8.0);
+            const Real ust3   = ustar * ustar * ustar;
+            Real wscale = std::cbrt(ust3 + phifac * KAPPA * wstar3 * amrex::Real(0.5));
+            // WRF bounds: min(wscale, ust*16), max(wscale, ust/5)
+            wscale = amrex::min(wscale, ustar * amrex::Real(16.0));
+            wscale = amrex::max(wscale, ustar / amrex::Real(5.0));
+            wstar_arr(i, j, 0) = wscale;  // Store column-average wscale for HGAMT/HGAMQ
+
+            // zol1: Monin-Obukhov stability parameter at first level
+            // WRF bl_ysu.F90 lines 651-662: zol1 = max(br*fm*fm/fh, rimin)
+            // Approximate: zol1 = z1 / L_obuk
+            Real obuk_val = l_obuk_arr(i, j, 0);
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10))
+                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                           : (klo + myhalf) * gdata.CellSize(2);
+            Real zol1 = zl1 / obuk_val;
+            zol1 = amrex::max(zol1, amrex::Real(-100.0));
+            if (sfcflg) {
+                zol1 = amrex::min(zol1, amrex::Real(-1.0e-8));
+            } else {
+                zol1 = amrex::max(zol1, amrex::Real(1.0e-8));
+            }
+            zol1_arr(i, j, 0) = zol1;
+        });
+        BL_PROFILE_VAR_STOP(prof_sflux_precomp);
+
+        // ========================================================================
         // PASS 1 — PREDICTOR: Compute initial PBL index with surface-type-dependent
         // critical Richardson number (Ribcr).
         // ========================================================================
@@ -239,8 +329,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             pbli_arr(i, j, 0) = kpbl;
         });
         BL_PROFILE_VAR_STOP(prof_pblh);
-
-        const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
 
         //
         // CORRECTOR: Apply YSU nonlocal countergradient correction (HGAMT/HGAMQ)
@@ -519,51 +607,59 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
             wstar3_down_arr(i, j, 0) = wstar3_down;
              
-            //wstar_fab(i, j, 0) = wscale;  // Store for use in K-profile loop
-            wstar_arr(i, j, 0) = wscale;  // Store for use in K-profile loop
+            // Recompute wstar3 and wscale with corrected pblh_corr_arr
+            const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
+            const Real t_dry = t10av_arr(i, j, 0);
+            const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
+            wstar3_arr(i, j, 0) = wstar3_corr;
+            
+            // Recompute wscale with corrected pblh:
+            const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
+            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
+            wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
+            wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
+            wstar_arr(i, j, 0) = wscale_corr;
 
-            // Compute HGAMT with corrected wscale
-            bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
+            // Compute HGAMT with corrected wscale and WRF convention
+            // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
+            // WRF bl_ysu.F90 line 688: hgamt(i) = min(gamfac*hfx(i)/cp, gamcrt)
+            bool SFCFLG = (sflux_arr(i, j, 0) > zero);
+            const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
+            const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * u_star_arr(i,j,0) * t_star_arr(i,j,0);
+            const Real gamfac = const_b / (rho_sfc * wscale_corr);
             const Real HGAMT = (SFCFLG && enable_ysu_countergradient)
-                             ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wscale, GAMCRT)
+                             ? amrex::min(gamfac * hfx_col / amrex::Real(1004.0), GAMCRT)
                              : zero;
 
-            // Compute HGAMQ with corrected wscale
-            // Sign convention: ERF's q_star = κ*(qvm - q_surf)/(log(z/z0) - ψ_h) is positive when surface
-            // is drier than air (evaporating conditions). Formula -const_b*u_star*q_star/wscale converts
-            // to WRF's QFX convention (positive for upward flux). WRF Reference: module_bl_ysu.F L220-230
-            Real HGAMQ = zero;
-            if (SFCFLG && use_moisture && enable_ysu_countergradient) {
-                const Real q_star = q_star_arr(i, j, 0);
-                const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wscale;
-                HGAMQ = amrex::max(
-                    amrex::min(HGAMQ_calc, GAMCRQ),
-                    zero
-                );
+            // Compute HGAMQ with corrected wscale and WRF convention
+            // WRF bl_ysu.F90 line 689: hgamq(i) = min(gamfac*qfx(i), gamcrq)
+            const Real qfx_col  = -rho_sfc * u_star_arr(i,j,0) * q_star_arr(i,j,0);
+            const Real HGAMQ_raw = (SFCFLG && use_moisture && enable_ysu_countergradient)
+                                  ? gamfac * qfx_col
+                                  : zero;
+            Real HGAMQ = amrex::min(amrex::max(HGAMQ_raw, zero), GAMCRQ);
 
-                // Land/water surface discrimination
-                if (lmask_arr) {
-                    bool is_land = (lmask_arr(i,j,0) == 1);
-                    if (!is_land) HGAMQ = zero;
-                }
-
-                // Saturation-Aware HGAMQ limiter
-                if (enable_ysu_sat_limiter && moisture_indices.qv >= 0) {
-                    Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
-                    Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
-                                                  cell_data(i, j, klo, RhoTheta_comp),
-                                                  qv_klo);
-                    Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
-                    Real qsat_klo = zero;
-                    erf_qsatw(T_klo, p_klo, qsat_klo);
-                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
-                    if (rh_klo > Real(0.95)) {
-                        Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
-                        HGAMQ *= rh_scaling;
-                    }
-                }
+            // Land/water surface discrimination
+            if (lmask_arr && SFCFLG && use_moisture && enable_ysu_countergradient) {
+                bool is_land = (lmask_arr(i,j,0) == 1);
+                if (!is_land) HGAMQ = zero;
             }
 
+            // Saturation-Aware HGAMQ limiter
+            if (enable_ysu_sat_limiter && moisture_indices.qv >= 0 && SFCFLG && use_moisture && enable_ysu_countergradient) {
+                Real qv_klo = cell_data(i, j, klo, moisture_indices.qv) / cell_data(i, j, klo, Rho_comp);
+                Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
+                                              cell_data(i, j, klo, RhoTheta_comp),
+                                              qv_klo);
+                Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
+                Real qsat_klo = zero;
+                erf_qsatw(T_klo, p_klo, qsat_klo);
+                Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
+                if (rh_klo > Real(0.95)) {
+                    Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                    HGAMQ *= rh_scaling;
+                }
+            }
             // Store HGAMT/h and HGAMQ/h for implicit solver (normalized by corrected PBL height)
             // Also compute VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0) for Pass 3 use
             // WRF Reference: module_bl_ysu.F lines 230-240 (THERMAL update with VPERT)
@@ -815,9 +911,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // countergradient fluxes, enabling faster PBL growth than local schemes.
                 //
                 // Implement SFCFLG stable-side gating (WRF L808, L872-884)
-                // When stable (BR > 0, i.e., obuk_val > 0), skip nonlocal PBL mixing
+                // When stable (BR > 0, i.e., sflux < 0), skip nonlocal PBL mixing
                 // and use free-atmosphere Richardson scheme throughout PBL.
-                bool SFCFLG = (obuk_val <= zero);  // TRUE when unstable/neutral, FALSE when stable
+                bool SFCFLG = (sflux_arr(i, j, 0) > zero);  // TRUE when unstable/neutral, FALSE when stable
 
                 // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
                 // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [APHI16=16, exponent -1/4]
