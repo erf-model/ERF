@@ -619,79 +619,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         constexpr Real Ribcr_zero = zero;  // Zero critical Richardson number for diagnostic pass
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-             // Height above local surface: zrel = zval - z_sfc
-             // where z_sfc = height of surface cell center above the reference datum.
-             // Using zrel in the Rib numerator ensures PBLH is measured correctly over terrain.
-             // WRF equivalent: ZQ(I,K) - ZL1(I) in module_bl_ysu.F.
-
-             // Surface virtual temperature with VPERT contribution from Pass 2b
-             // Pass 3 uses VPERT-enhanced surface temperature for diagnostic extent
-             const Real t_layer  = t10av_arr(i, j, 0);
-             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-             const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
-
-             // Compute surface cell height once (terrain-relative)
-             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                          : zero;
-
+            // Scan rib_enhan_arr(i,j,klo..khi) for Ribcr=0 crossing (no interpolation needed)
             int kpbl_zero = klo;
-            Real zval_zero, Rib_zero;
-            {
-                zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
-                          : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                   ? GetThetavl(i, j, kpbl_zero, cell_data, moisture_indices)
-                                   : GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                       ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                       : GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
-                                              (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Richardson number using enhanced surface virtual temperature
-                // Consistent with corrector pass methodology
-                const amrex::Real zrel = zval_zero - z_sfc_col;
-                Rib_zero = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
+            for (int kk = klo+1; kk <= khi; ++kk) {
+                if (rib_enhan_arr(i,j,kk) >= Ribcr_zero) { kpbl_zero = kk; break; }
+                kpbl_zero = kk;
             }
-
-            bool above_critical_zero = false;
-            while (!above_critical_zero && ((kpbl_zero + 1) <= khi)) {
-                //zval0_zero = zval_zero;
-                //Rib0_zero = Rib_zero;
-                kpbl_zero += 1;
-
-                zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
-                          : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v = (use_moisture && enable_ysu_liquid_theta)
-                                   ? GetThetavl(i, j, kpbl_zero, cell_data, moisture_indices)
-                                   : GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                       ? GetThetavl(i, j, klo, cell_data, moisture_indices)
-                                       : GetThetav(i, j, klo, cell_data, moisture_indices);
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
-                                              (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                // Use VPERT-enhanced surface temperature for Richardson number criterion
-                const amrex::Real zrel = zval_zero - z_sfc_col;
-                Rib_zero = CONST_GRAV * amrex::max(zrel, Real(1.0e-4)) * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
-                above_critical_zero = (Rib_zero >= Ribcr_zero);
-            }
-
-            // Use same bounds safeguard as corrector
-            if (above_critical_zero) {
-                pbli_zero_arr(i, j, 0) = kpbl_zero;
-            } else {
-                pbli_zero_arr(i, j, 0) = klo + 1;
-            }
+            pbli_zero_arr(i, j, 0) = kpbl_zero;
         });
+        BL_PROFILE_VAR_STOP(prof_pblh);
 
         const auto& dxInv = geom.InvCellSizeArray();
         const Real dz_inv = geom.InvCellSize(2);
@@ -804,6 +740,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         bool v_ext_dir_on_zhi = ((bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir));
 
 
+        BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -1245,6 +1182,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
             }
         });
+        BL_PROFILE_VAR_STOP(prof_kprof);
 
         // FOEXTRAP top and bottom ghost cells
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
