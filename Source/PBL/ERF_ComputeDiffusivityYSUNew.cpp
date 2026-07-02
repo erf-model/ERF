@@ -130,6 +130,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         FArrayBox sflux_fab(xybx, 1, The_Async_Arena());        // Virtual kinematic heat flux (sensible + latent)
         FArrayBox wstar3_fab(xybx, 1, The_Async_Arena());       // Convective velocity scale cubed per column
         FArrayBox zol1_fab(xybx, 1, The_Async_Arena());         // Monin-Obukhov stability parameter at first level
+        // REQUIRED: zero-initialize all FArrayBoxes before GPU kernels read them.
+        // The_Async_Arena() does not zero memory; reading uninitialized data
+        // corrupts rib_enhan_arr (via vpert_arr) and SFCFLG (via sflux_arr).
+        vpert_fab.setVal(zero);
+        sflux_fab.setVal(zero);
+        wstar3_fab.setVal(zero);
+        wstar3_down_fab.setVal(zero);
+        hgamt_fab.setVal(zero);
+        hgamq_fab.setVal(zero);
+        wstar_fab.setVal(zero);
+        entr_fab.setVal(zero);
+        pbl_height_corrector.setVal(zero);
         const auto& pblh_corr_arr   = pbl_height_corrector.array();
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
