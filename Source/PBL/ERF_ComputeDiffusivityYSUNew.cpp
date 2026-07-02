@@ -736,6 +736,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
         });
 
+        const auto& dxInv = geom.InvCellSizeArray();
+        const Real dz_inv = geom.InvCellSize(2);
+        const int izmin   = geom.Domain().smallEnd(2);
+        const int izmax   = geom.Domain().bigEnd(2);
         // Compute entrainment diffusivity at PBL top cell (HND06 Eq. 6, 11-14)
         // This represents the enhanced diffusivity from entrainment of free-tropospheric air
         {
@@ -791,10 +795,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         bool v_ext_dir_on_zlo = ((bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir));
         bool v_ext_dir_on_zhi = ((bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir));
 
-        const auto& dxInv = geom.InvCellSizeArray();
-        const Real dz_inv = geom.InvCellSize(2);
-        const int izmin   = geom.Domain().smallEnd(2);
-        const int izmax   = geom.Domain().bigEnd(2);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
