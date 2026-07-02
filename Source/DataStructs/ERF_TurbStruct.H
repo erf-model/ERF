@@ -480,9 +480,9 @@ public:
                      << pbl_ysu_land_Ribcr << std::endl;
       amrex::Print() << "    pbl_ysu_unst_Ribcr              : "
                      << pbl_ysu_unst_Ribcr << std::endl;
-      amrex::Print() << "    pbl_ysunew_phifac               : "
+      amrex::Print() << "    pbl_ysunew_phifac (PHIFAC)      : "
                      << pbl_ysunew_phifac << std::endl;
-      amrex::Print() << "    pbl_ysunew_pfac                 : "
+      amrex::Print() << "    pbl_ysunew_pfac (profile shape) : "
                      << pbl_ysunew_pfac << std::endl;
       amrex::Print() << "    ysu_moistvars                   : "
                      << ysu_moistvars << std::endl;
@@ -490,6 +490,12 @@ public:
                      << enable_ysu_countergradient << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds       : "
                      << pbl_ysunew_highres_bounds << std::endl;
+      amrex::Print() << "    enable_ysu_entrainment          : "
+                     << enable_ysu_entrainment << std::endl;
+      amrex::Print() << "    pbl_ysunew_entr_A (ENTFAC_M)    : "
+                     << pbl_ysunew_entr_A << std::endl;
+      amrex::Print() << "    pbl_ysunew_entr_B               : "
+                     << pbl_ysunew_entr_B << std::endl;
     }
   }
 
