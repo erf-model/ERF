@@ -339,6 +339,38 @@ TEST(Plotfile2DWaterPath, KesslerAvailabilityMatchesMoistureIndices)
     EXPECT_EQ(std::find(available.begin(), available.end(), "integrated_qg"), available.end());
 }
 
+// Motivation: Full bulk schemes with cloud liquid, cloud ice, rain, snow, and
+// graupel should expose all five condensed water paths.
+TEST(Plotfile2DWaterPath, FullIceAvailabilityIncludesAllCondensedWaterPaths)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Morrison;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
+                                                   RhoQ3_comp, RhoQ4_comp,
+                                                   RhoQ5_comp, RhoQ6_comp);
+
+    const auto available = plotfile2d::available_diagnostic_names(sc);
+
+    for (const std::string& name : {"integrated_qc", "integrated_qi",
+                                     "integrated_qr", "integrated_qs",
+                                     "integrated_qg"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
+    }
+
+    const auto descriptors = plotfile2d::active_condensed_water_path_descriptors(sc);
+    ASSERT_EQ(descriptors.size(), 5u);
+    EXPECT_EQ(descriptors[0].name, std::string("integrated_qc"));
+    EXPECT_EQ(descriptors[0].source_component, RhoQ2_comp);
+    EXPECT_EQ(descriptors[1].name, std::string("integrated_qi"));
+    EXPECT_EQ(descriptors[1].source_component, RhoQ3_comp);
+    EXPECT_EQ(descriptors[2].name, std::string("integrated_qr"));
+    EXPECT_EQ(descriptors[2].source_component, RhoQ4_comp);
+    EXPECT_EQ(descriptors[3].name, std::string("integrated_qs"));
+    EXPECT_EQ(descriptors[3].source_component, RhoQ5_comp);
+    EXPECT_EQ(descriptors[4].name, std::string("integrated_qg"));
+    EXPECT_EQ(descriptors[4].source_component, RhoQ6_comp);
+}
+
 // Motivation: The water-path helper must reduce several selected condensed
 // species in one pass without changing unrelated output components.
 TEST(Plotfile2DWaterPath, FillCondensedWaterPathsUsesColumnSumAndMetric)
@@ -346,7 +378,9 @@ TEST(Plotfile2DWaterPath, FillCondensedWaterPathsUsesColumnSumAndMetric)
     const auto ba3d = make_test_boxarray();
     const auto ba2d = make_test_slab_boxarray();
     amrex::DistributionMapping dm(ba3d);
-    amrex::MultiFab src(ba3d, dm, 6, 0);
+    // Allocate by named ERF component index, not by a literal count. The RhoQ*
+    // offsets depend on the conserved-state layout.
+    amrex::MultiFab src(ba3d, dm, RhoQ6_comp + 1, 0);
     amrex::MultiFab dst(ba2d, dm, 4, 0);
     amrex::MultiFab detJ(ba3d, dm, 1, 0);
     const amrex::Geometry geom = make_test_geometry();
@@ -391,6 +425,21 @@ TEST(Plotfile2DWaterPath, FillCondensedWaterPathsUsesColumnSumAndMetric)
     EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(6.0));
     EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(18.0));
     EXPECT_DOUBLE_EQ(dst.max(2), amrex::Real(18.0));
+}
+
+// Motivation: Downstream tools rely on the sidecar for units, category, and
+// missing-value policy for new water-path diagnostics.
+TEST(Plotfile2DMetadata, FormatsWaterPathDiagnostics)
+{
+    const amrex::Vector<std::string> varnames{"integrated_qc"};
+    const std::string json = plotfile2d::format_2d_metadata_json(varnames);
+
+    EXPECT_NE(json.find("\"name\": \"integrated_qc\""), std::string::npos);
+    EXPECT_NE(json.find("\"long_name\": \"Column-integrated cloud liquid water\""), std::string::npos);
+    EXPECT_NE(json.find("\"units\": \"kg/m^2\""), std::string::npos);
+    EXPECT_NE(json.find("\"category\": \"ColumnIntegral\""), std::string::npos);
+    EXPECT_NE(json.find("\"missing_policy\": \"FillZeroWhenUnavailable\""), std::string::npos);
+    EXPECT_NE(json.find("\"missing_value\": 0"), std::string::npos);
 }
 
 // Motivation: The W m^-2 diagnostics are public 2D outputs, so their catalog

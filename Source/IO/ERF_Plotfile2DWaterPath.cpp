@@ -1,5 +1,6 @@
 #include "ERF_Plotfile2DWaterPath.H"
 
+#include <AMReX.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
 
@@ -129,6 +130,16 @@ fill_condensed_water_paths (MultiFab& dst,
 {
     if (selected.n == 0) {
         return;
+    }
+
+    // Validate selected components on the host before device kernels use them.
+    AMREX_ALWAYS_ASSERT(selected.n >= 0);
+    AMREX_ALWAYS_ASSERT(selected.n <= MaxCondensedWaterPathComponents);
+    for (int n = 0; n < selected.n; ++n) {
+        AMREX_ALWAYS_ASSERT(selected.dst_comp[n] >= 0);
+        AMREX_ALWAYS_ASSERT(selected.dst_comp[n] < dst.nComp());
+        AMREX_ALWAYS_ASSERT(selected.src_comp[n] >= 0);
+        AMREX_ALWAYS_ASSERT(selected.src_comp[n] < cons.nComp());
     }
 
     for (int n = 0; n < selected.n; ++n) {
