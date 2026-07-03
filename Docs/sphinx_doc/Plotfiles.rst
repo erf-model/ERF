@@ -920,6 +920,18 @@ Example:
      ]
    }
 
+2D Diagnostic Assembly
+~~~~~~~~~~~~~~~~~~~~~~
+
+ERF assembles built-in 2D diagnostics from several source patterns. Most
+current fields are surface or single-level diagnostics. ``integrated_qv`` is a
+column-reduction diagnostic. Future diagnostics may add more column
+reductions, such as liquid water path, or interpolated horizontal surfaces,
+such as fields on pressure levels.
+
+This organization does not change the public 2D variable names, component
+order, units, missing-value conventions, or ``2DMetadata.json`` schema.
+
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
