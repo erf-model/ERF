@@ -726,18 +726,20 @@ ERF::ReadCheckpointFile ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         if (SolverChoice::mesh_type != MeshType::ConstantDz)  {
-           // Note that we also read the ghost cells of z_phys_nd
-           IntVect ng = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
-           VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
-           MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
-           update_terrain_arrays(lev);
-
-           // Compute the min dz and pass to the micro model
-           Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
-           micro->Set_dzmin(lev, dzmin);
-
-           check_mesh_type(lev);
+            // Note that we also read the ghost cells of z_phys_nd
+            IntVect ng = z_phys_nd[lev]->nGrowVect();
+            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
+            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
+            update_terrain_arrays(lev);
+ 
+            // Compute the min dz and pass to the micro model
+            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+            micro->Set_dzmin(lev, dzmin);
+ 
+            if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
+                check_mesh_type(lev);
+            }
         }
 
         // Read in the moisture model restart variables
