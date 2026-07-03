@@ -33,7 +33,8 @@ struct {
 
 
 void
-ERF::ComputeGlobalMinLocation_WRF (const Geometry& lev_geom,
+ERF::ComputeGlobalMinLocation_WRF (const SolverChoice& sc,
+                                   const Geometry& lev_geom,
                                    const Vector<MultiFab>& S_data,
                                    Real* d_val_min_ptr,
                                    int* d_i_min_ptr,
@@ -88,7 +89,7 @@ ERF::ComputeGlobalMinLocation_WRF (const Geometry& lev_geom,
 
     int levc = finest_level;
     // On owner_rank, compute eye_lat and eye_lon
-    if (rank == owner_rank) {
+    if (sc.init_type == InitType::WRFInput and rank == owner_rank) {
         for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
             const Box& box = mfi.validbox();
             FArrayBox& fab_lat = (*(lat_m[levc]))[mfi];
@@ -102,6 +103,23 @@ ERF::ComputeGlobalMinLocation_WRF (const Geometry& lev_geom,
                     if (i == global_i_min && j == global_j_min) {
                         *d_eye_lat_ptr = lat_arr(i,j,0);
                         *d_eye_lon_ptr = lon_arr(i,j,0);
+                    }
+                });
+            }
+        }
+    }
+
+    if (sc.init_type == InitType::HindCast and rank == owner_rank) {
+        // On owner_rank, compute eye_lat and eye_lon
+        if (rank == owner_rank) {
+            for (amrex::MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+                const amrex::Box& box = mfi.validbox();
+                const auto& mf_latlon = forecast_state_interp[levc][4];
+                const auto latlon_arr = mf_latlon.array(mfi);
+                amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    if (i == global_i_min && j == global_j_min && k == 0) {
+                        *d_eye_lat_ptr = latlon_arr(i,j,k,0);
+                        *d_eye_lon_ptr = latlon_arr(i,j,k,1);
                     }
                 });
             }
@@ -154,7 +172,8 @@ ERF::HurricaneTrackerCircle_WRF ()
 }
 
 void
-ERF::HurricaneEyeTrackerInitial_WRF (const Geometry& lev_geom,
+ERF::HurricaneEyeTrackerInitial_WRF (const SolverChoice& sc,
+                                     const Geometry& lev_geom,
                                      const Vector<MultiFab>& S_data,
                                      const Real& hurricane_eye_latitude,
                                      const Real& hurricane_eye_longitude)
@@ -167,41 +186,69 @@ ERF::HurricaneEyeTrackerInitial_WRF (const Geometry& lev_geom,
     int* d_i_min_ptr = d_i_min.dataPtr();
     int* d_j_min_ptr = d_j_min.dataPtr();
 
-    for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
-        const Box& box = mfi.validbox();
-        FArrayBox& fab_lat = (*(lat_m[levc]))[mfi];
-        FArrayBox& fab_lon = (*(lon_m[levc]))[mfi];
-        const Array4<Real>& lat_arr = fab_lat.array();
-        const Array4<Real>& lon_arr = fab_lon.array();
+    if(sc.init_type == InitType::WRFInput){
+        for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+            const Box& box = mfi.validbox();
+            FArrayBox& fab_lat = (*(lat_m[levc]))[mfi];
+            FArrayBox& fab_lon = (*(lon_m[levc]))[mfi];
+            const Array4<Real>& lat_arr = fab_lat.array();
+            const Array4<Real>& lon_arr = fab_lon.array();
 
-        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            if (k==0) {
+            ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                if (k==0) {
 
-                Real dlat = lat_arr(i,j,0) - hurricane_eye_latitude;
-                Real dlon = lon_arr(i,j,0) - hurricane_eye_longitude;
-                Real dist = std::sqrt(dlat*dlat + dlon*dlon);
-                // Atomic min using device pointer from DeviceVector
-                Real old = Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                //Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                if (dist < old) {
-                    // We are the new minimum; record indices
-                    d_i_min_ptr[0] = i;
-                    d_j_min_ptr[0] = j;
+                    Real dlat = lat_arr(i,j,0) - hurricane_eye_latitude;
+                    Real dlon = lon_arr(i,j,0) - hurricane_eye_longitude;
+                    Real dist = std::sqrt(dlat*dlat + dlon*dlon);
+                    // Atomic min using device pointer from DeviceVector
+                    Real old = Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                    //Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                    if (dist < old) {
+                        // We are the new minimum; record indices
+                        d_i_min_ptr[0] = i;
+                        d_j_min_ptr[0] = j;
+                    }
                 }
-            }
-        });
+            });
+        }
+    }
+
+    if(sc.init_type == InitType::HindCast){
+        for (amrex::MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+            const amrex::Box& box = mfi.validbox();
+            const auto& mf_latlon = forecast_state_interp[levc][4];
+            const auto latlon_arr = mf_latlon.array(mfi);
+
+            amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                if (k==0) {
+
+                    amrex::Real dlat = latlon_arr(i,j,k,0) - hurricane_eye_latitude;
+                    amrex::Real dlon = latlon_arr(i,j,k,1) - hurricane_eye_longitude;
+                    amrex::Real dist = std::sqrt(dlat*dlat + dlon*dlon);
+                    // Atomic min using device pointer from DeviceVector
+                    amrex::Real old = amrex::Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                    //amrex::Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                    if (dist < old) {
+                        // We are the new minimum; record indices
+                        d_i_min_ptr[0] = i;
+                        d_j_min_ptr[0] = j;
+                    }
+                }
+            });
+        }
     }
 
     Real global_val_min;
     int global_i_min, global_j_min;
 
-    ComputeGlobalMinLocation_WRF(lev_geom, S_data,
+    ComputeGlobalMinLocation_WRF(sc, lev_geom, S_data,
                                  d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
                                  global_val_min, global_i_min, global_j_min);
 }
 
 void
-ERF::HurricaneEyeTrackerNotInitial_WRF (const Geometry& lev_geom,
+ERF::HurricaneEyeTrackerNotInitial_WRF (const SolverChoice& sc,
+                                        const Geometry& lev_geom,
                                         const Vector<MultiFab>& S_data,
                                         MoistureType moisture_type)
 {
@@ -259,7 +306,7 @@ ERF::HurricaneEyeTrackerNotInitial_WRF (const Geometry& lev_geom,
     Real global_val_min;
     int global_i_min, global_j_min;
 
-    ComputeGlobalMinLocation_WRF (lev_geom, S_data,
+    ComputeGlobalMinLocation_WRF (sc, lev_geom, S_data,
                              d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
                              global_val_min, global_i_min, global_j_min);
 }
@@ -375,7 +422,7 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
 
     if(is_start and restart_chkfile.empty()){
-        HurricaneEyeTrackerInitial_WRF(geom[levc],
+        HurricaneEyeTrackerInitial_WRF(sc, geom[levc],
                                        vars_new[levc],
                                        hurricane_eye_latitude,
                                        hurricane_eye_longitude);
@@ -384,7 +431,7 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
          if(!restart_chkfile.empty()) {
             ReadStormTrackerRestart();
         }
-        HurricaneEyeTrackerNotInitial_WRF(geom[levc], vars_new[levc],
+        HurricaneEyeTrackerNotInitial_WRF(sc, geom[levc], vars_new[levc],
                                           moisture_type);
     }
     HurricaneTrackerCircle_WRF();
