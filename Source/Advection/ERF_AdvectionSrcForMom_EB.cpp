@@ -117,7 +117,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     Array4<const Real> u_fcy{};
     Array4<const Real> u_fcz{};
     FabType u_type = u_factory->getMultiEBCellFlagFab()[mfi].getType();
-    if (u_type==FabType::singlevalued) {
+    if (u_type == FabType::singlevalued) {
         u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
         u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
         u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
@@ -137,7 +137,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     Array4<const Real> v_fcy{};
     Array4<const Real> v_fcz{};
     FabType v_type = v_factory->getMultiEBCellFlagFab()[mfi].getType();
-    if (v_type==FabType::singlevalued) {
+    if (v_type == FabType::singlevalued) {
         v_afrac_x = v_factory->getAreaFrac()[0]->const_array(mfi);
         v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
         v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
@@ -157,7 +157,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     Array4<const Real> w_fcy{};
     Array4<const Real> w_fcz{};
     FabType w_type = w_factory->getMultiEBCellFlagFab()[mfi].getType();
-    if (w_type==FabType::singlevalued) {
+    if (w_type == FabType::singlevalued) {
         w_afrac_x = w_factory->getAreaFrac()[0]->const_array(mfi);
         w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
         w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
