@@ -1,10 +1,18 @@
 #include <string>
 #include <unordered_set>
 
+#include <AMReX_Box.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
+#include <AMReX_Gpu.H>
+#include <AMReX_MultiFab.H>
 #include <gtest/gtest.h>
 
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DFill.H"
+#include "ERF_Plotfile2DMetadata.H"
 #include "ERF_Plotfile2DUtils.H"
+#include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 
 using namespace plotfile2d;
 
@@ -14,6 +22,32 @@ namespace
 bool contains (const std::string& haystack, const std::string& needle)
 {
     return haystack.find(needle) != std::string::npos;
+}
+
+amrex::Box make_test_domain ()
+{
+    return amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(1, 1, 2));
+}
+
+amrex::BoxArray make_test_boxarray ()
+{
+    amrex::BoxArray ba(make_test_domain());
+    ba.maxSize(8);
+    return ba;
+}
+
+void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex::Real value)
+{
+    for (amrex::MFIter mfi(mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        const auto& arr = mf.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k == k_level) {
+                arr(i, j, k, comp) = value;
+            }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
 }
 
 } // namespace
@@ -99,7 +133,8 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
         "surf_pres", "integrated_qv", "surface_diagnostic_source",
-        "sensible_heat_flux", "latent_heat_flux"
+        "sensible_heat_flux", "latent_heat_flux",
+        "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
@@ -145,6 +180,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::SurfaceLayer:
         case plotfile2d::DiagnosticCategory::Radiation:
         case plotfile2d::DiagnosticCategory::SurfaceFlux:
+        case plotfile2d::DiagnosticCategory::PBL:
         case plotfile2d::DiagnosticCategory::SurfaceState:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
             valid_category = true;
@@ -174,6 +210,21 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForKnownName)
     EXPECT_STREQ(descriptor->name, "sens_flux");
     EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::SensFlux);
     EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
+    EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: pblh now follows the active PBL diagnostic provider, so the
+// catalog metadata must describe the provider rather than only SurfaceLayer.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForPblh)
+{
+    const auto* descriptor = plotfile2d::find_diagnostic("pblh");
+
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_STREQ(descriptor->name, "pblh");
+    EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::Pblh);
+    EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::SurfaceLayer);
+    EXPECT_STREQ(descriptor->units, "m");
+    EXPECT_TRUE(contains(descriptor->long_name, "active PBL diagnostic provider"));
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
@@ -211,6 +262,73 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceFluxComposition)
     EXPECT_EQ(latent->category, plotfile2d::DiagnosticCategory::SurfaceFlux);
     EXPECT_STREQ(latent->units, "W m^-2");
     EXPECT_EQ(latent->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: Native SHOC state_update preserves consumed flux snapshots, but
+// the 2D writer must not turn an absent host latent-flux field into a zero
+// SHOC snapshot. Missing flux components should still fill -999.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionRequiresHostFluxField)
+{
+    EXPECT_TRUE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, true, false));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(true, false, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, true, true));
+    EXPECT_FALSE(plotfile2d::use_native_shoc_consumed_flux_source(false, false, false));
+}
+
+// Motivation: Sensible and latent fluxes are selected independently, so one
+// missing host field must not force the other component to use the wrong
+// source.
+TEST(Plotfile2D, NativeShocConsumedFluxSelectionIsComponentSpecific)
+{
+    const bool native_shoc_owns_scalar_fluxes = true;
+    const bool native_shoc_has_consumed_flux_diagnostics = true;
+    const bool host_sensible_flux_available = true;
+    const bool host_latent_flux_available = false;
+
+    const bool use_sensible =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_sensible_flux_available);
+
+    const bool use_latent =
+        plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            host_latent_flux_available);
+
+    EXPECT_TRUE(use_sensible);
+    EXPECT_FALSE(use_latent);
+}
+
+// Motivation: Native SHOC diagnostics are public 2D outputs, so their catalog
+// entries must expose the intended category and missing-value policy.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForNativeShocSurfaceDiagnostics)
+{
+    const auto* ustar = plotfile2d::find_diagnostic("shoc_u_star");
+    ASSERT_NE(ustar, nullptr);
+    EXPECT_STREQ(ustar->name, "shoc_u_star");
+    EXPECT_EQ(ustar->id, plotfile2d::DiagnosticID::ShocUStar);
+    EXPECT_EQ(ustar->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(ustar->units, "m/s");
+    EXPECT_EQ(ustar->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+
+    const auto* olen = plotfile2d::find_diagnostic("shoc_Olen");
+    ASSERT_NE(olen, nullptr);
+    EXPECT_STREQ(olen->name, "shoc_Olen");
+    EXPECT_EQ(olen->id, plotfile2d::DiagnosticID::ShocOlen);
+    EXPECT_EQ(olen->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(olen->units, "m");
+    EXPECT_EQ(olen->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+
+    const auto* wthv = plotfile2d::find_diagnostic("shoc_wthv_sfc");
+    ASSERT_NE(wthv, nullptr);
+    EXPECT_STREQ(wthv->name, "shoc_wthv_sfc");
+    EXPECT_EQ(wthv->id, plotfile2d::DiagnosticID::ShocWthvSfc);
+    EXPECT_EQ(wthv->category, plotfile2d::DiagnosticCategory::PBL);
+    EXPECT_STREQ(wthv->units, "K m s^-1");
+    EXPECT_EQ(wthv->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
 }
 
 // Motivation: Unknown catalog lookups should fail cleanly so callers can
@@ -284,4 +402,243 @@ TEST(Plotfile2D, InvalidStreamMessageReportsAllowedValues)
 
     EXPECT_TRUE(contains(message, "invalid stream index 0"));
     EXPECT_TRUE(contains(message, "expected 1 or 2"));
+}
+
+// Motivation: Missing-value fills should not corrupt neighboring output
+// components in the 2D plotfile MultiFab.
+TEST(Plotfile2DFill, FillComponentWithValueTouchesOnlyRequestedComponent)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+
+    dst.setVal(amrex::Real(1.5), 0, 1, 0);
+    dst.setVal(amrex::Real(2.5), 1, 1, 0);
+
+    plotfile2d::fill_component_with_value(dst, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(1.5));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(1.5));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(-999.0));
+}
+
+// Motivation: Surface, top-of-column, and future interpolated diagnostics rely
+// on copying the intended source level into the 2D output component.
+TEST(Plotfile2DFill, FillComponentFromKLevelUsesRequestedSourceLevelAndComponent)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 2, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-1.0));
+    set_component_value_at_k(src, 1, 2, amrex::Real(23.5));
+
+    plotfile2d::fill_component_from_klevel(dst, 0, src, 2, 1);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(23.5));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(23.5));
+}
+
+// Motivation: Optional diagnostics such as SurfaceLayer, radiation, and SHOC
+// fields must write documented missing values when their source is unavailable.
+TEST(Plotfile2DFill, FillComponentFromKLevelOrValueUsesMissingValueWhenSourceIsNull)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    dst.setVal(amrex::Real(4.0));
+
+    plotfile2d::fill_component_from_klevel_or_value(dst, 0, nullptr, 0, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(-999.0));
+}
+
+// Motivation: The same helper must handle available and unavailable diagnostic
+// sources without changing the component order logic in the writer.
+TEST(Plotfile2DFill, FillComponentFromKLevelOrValueCopiesWhenSourceExists)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-2.0));
+    set_component_value_at_k(src, 0, 1, amrex::Real(17.25));
+
+    plotfile2d::fill_component_from_klevel_or_value(dst, 0, &src, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(17.25));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(17.25));
+}
+
+// Motivation: The 2D assembly refactor must preserve the W m^-2 conversion
+// used by the public sensible_heat_flux diagnostic.
+TEST(Plotfile2DFill, SensibleHeatFluxFillUsesSurfaceFluxConversion)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-7.0));
+    set_component_value_at_k(src, 0, 1, amrex::Real(1.75));
+
+    plotfile2d::fill_sensible_heat_flux_from_klevel_or_missing(
+        dst, 0, &src, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real expected =
+        surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(amrex::Real(1.75));
+    EXPECT_DOUBLE_EQ(dst.min(0), expected);
+    EXPECT_DOUBLE_EQ(dst.max(0), expected);
+}
+
+// Motivation: The 2D assembly refactor must preserve the W m^-2 conversion
+// used by the public latent_heat_flux diagnostic.
+TEST(Plotfile2DFill, LatentHeatFluxFillUsesSurfaceFluxConversion)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-7.0));
+    set_component_value_at_k(src, 0, 2, amrex::Real(-0.5));
+
+    plotfile2d::fill_latent_heat_flux_from_klevel_or_missing(
+        dst, 0, &src, 2, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real expected =
+        surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(amrex::Real(-0.5));
+    EXPECT_DOUBLE_EQ(dst.min(0), expected);
+    EXPECT_DOUBLE_EQ(dst.max(0), expected);
+}
+
+// Motivation: The JSON sidecar is a public metadata contract, so diagnostic
+// categories must serialize to stable, readable strings.
+TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
+{
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Geometry), "Geometry");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceLayer), "SurfaceLayer");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Radiation), "Radiation");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceFlux), "SurfaceFlux");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::PBL), "PBL");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+}
+
+// Motivation: Downstream readers need to distinguish always-available fields
+// from fields that use zero or -999 as their documented unavailable value.
+TEST(Plotfile2DMetadata, MissingPolicyStringsAndValuesMatchPublicMetadataSchema)
+{
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::AlwaysAvailable), "AlwaysAvailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::AlwaysAvailable), "null");
+
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::FillZeroWhenUnavailable), "FillZeroWhenUnavailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::FillZeroWhenUnavailable), "0");
+
+    EXPECT_STREQ(missing_policy_to_string(MissingPolicy::FillMinus999WhenUnavailable),
+                 "FillMinus999WhenUnavailable");
+    EXPECT_EQ(missing_value_json(MissingPolicy::FillMinus999WhenUnavailable), "-999");
+}
+
+// Motivation: Metadata strings come from catalog descriptors. The sidecar must
+// remain valid JSON if future descriptors contain quotes or control characters.
+TEST(Plotfile2DMetadata, EscapesJsonStrings)
+{
+    const std::string input = "\"quoted\" slash\\ line\n tab\t return\r";
+    const std::string expected = "\\\"quoted\\\" slash\\\\ line\\n tab\\t return\\r";
+
+    EXPECT_EQ(escape_json_string(input), expected);
+}
+
+// Motivation: The sidecar must describe plotfile components by output index,
+// so its variable order must match the selected plotfile component order.
+TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
+{
+    const amrex::Vector<std::string> selected{
+        "z_surf", "pblh", "latent_heat_flux", "shoc_wthv_sfc"
+    };
+
+    const std::string json = format_2d_metadata_json(selected);
+
+    EXPECT_TRUE(contains(json, "\"format_version\": 1"));
+    EXPECT_TRUE(contains(json, "\"kind\": \"ERF 2D plotfile metadata\""));
+    EXPECT_TRUE(contains(json, "\"n_variables\": 4"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 0"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 1"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 2"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 3"));
+    EXPECT_TRUE(contains(json, "\"name\": \"z_surf\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"pblh\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"latent_heat_flux\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_wthv_sfc\""));
+    EXPECT_TRUE(contains(json, "\"long_name\": \"Surface elevation\""));
+    EXPECT_TRUE(contains(json, "\"units\": \"m\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"Geometry\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SurfaceLayer\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SurfaceFlux\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"PBL\""));
+    EXPECT_TRUE(contains(json, "\"missing_policy\": \"AlwaysAvailable\""));
+    EXPECT_TRUE(contains(json, "\"missing_policy\": \"FillMinus999WhenUnavailable\""));
+    EXPECT_TRUE(contains(json, "\"missing_value\": null"));
+    EXPECT_TRUE(contains(json, "\"missing_value\": -999"));
+
+    const auto z_pos = json.find("\"name\": \"z_surf\"");
+    const auto pblh_pos = json.find("\"name\": \"pblh\"");
+    const auto latent_pos = json.find("\"name\": \"latent_heat_flux\"");
+    const auto shoc_wthv_pos = json.find("\"name\": \"shoc_wthv_sfc\"");
+    ASSERT_NE(z_pos, std::string::npos);
+    ASSERT_NE(pblh_pos, std::string::npos);
+    ASSERT_NE(latent_pos, std::string::npos);
+    ASSERT_NE(shoc_wthv_pos, std::string::npos);
+    EXPECT_LT(z_pos, pblh_pos);
+    EXPECT_LT(pblh_pos, latent_pos);
+    EXPECT_LT(latent_pos, shoc_wthv_pos);
+}
+
+// Motivation: The sidecar must describe the components written to this
+// plotfile, not every possible catalog entry.
+TEST(Plotfile2DMetadata, FormatsOnlySelectedVariables)
+{
+    const amrex::Vector<std::string> selected{"surf_pres"};
+    const std::string json = format_2d_metadata_json(selected);
+
+    EXPECT_TRUE(contains(json, "\"n_variables\": 1"));
+    EXPECT_TRUE(contains(json, "\"name\": \"surf_pres\""));
+    EXPECT_FALSE(contains(json, "\"name\": \"z_surf\""));
+}
+
+// Motivation: Adding new catalog entries should fail fast if the metadata
+// sidecar cannot serialize their category, missing policy, or descriptor
+// fields.
+TEST(Plotfile2DMetadata, FormatsEveryCatalogDiagnostic)
+{
+    const auto names = plotfile2d::diagnostic_names();
+    const std::string json = format_2d_metadata_json(names);
+
+    EXPECT_TRUE(contains(json, std::string("\"n_variables\": ") + std::to_string(names.size())));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_u_star\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_Olen\""));
+    EXPECT_TRUE(contains(json, "\"name\": \"shoc_wthv_sfc\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"PBL\""));
+    for (const auto& name : names) {
+        EXPECT_TRUE(contains(json, "\"name\": \"" + name + "\""));
+    }
+}
+
+// Motivation: The metadata file should travel with the native AMReX 2D
+// plotfile directory and not collide with other output streams.
+TEST(Plotfile2DMetadata, MetadataFilenameLivesInsidePlotfileDirectory)
+{
+    EXPECT_EQ(metadata_json_filename("plt2d_00010"), "plt2d_00010/2DMetadata.json");
 }
