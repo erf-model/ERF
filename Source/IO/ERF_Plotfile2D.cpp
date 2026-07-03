@@ -19,6 +19,9 @@ namespace
 // validates the requested names, assembles the slab geometry, fills existing
 // diagnostics, and dispatches to AMReX or NetCDF output. Nontrivial science
 // diagnostics should live in dedicated modules and be called from here.
+// The assembly path should stay explicit about three diagnostic shapes:
+// surface/single-level fields, column reductions, and future interpolated
+// horizontal surfaces.
 // Keep the fill order below synchronized with plotfile2d::diagnostic_catalog()
 // until the fill blocks move into dedicated diagnostic modules.
 
@@ -295,8 +298,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // lon_m
 
         ///////////////////////////////////////////////////////////////////////
-        // These quantities are diagnosed by the surface layer or the active
-        // PBL provider.
+        // Surface and single-level diagnostics use the fill helpers below.
+        // Column reductions and future interpolated surfaces keep explicit
+        // assembly paths until their contracts are isolated in dedicated
+        // helpers.
         if (containerHasElement(plot_var_names, "u_star")) {
             plotfile2d::fill_component_from_klevel_or_value(
                 mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_u_star(lev) : nullptr,
@@ -400,7 +405,9 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // surf_pres
 
         if (containerHasElement(plot_var_names, "integrated_qv")) {
-            // Column-reduction example for future column-integrated diagnostics.
+            // Current column-reduction example. Future LWP/IWP diagnostics
+            // should follow a separate column-reduction helper path rather
+            // than the single-k copy helpers.
             MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
             if (solverChoice.moisture_type != MoistureType::None) {
                 volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);

@@ -22,6 +22,9 @@ fill_component_from_klevel (MultiFab& dst,
                             int src_k,
                             int src_comp)
 {
+    // Iterate over dst because it defines the 2D output component layout. The
+    // source must be box-compatible with dst on the horizontal tile covered by
+    // each MFIter.
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -69,6 +72,8 @@ fill_sensible_heat_flux_from_klevel_or_missing (MultiFab& dst,
 #endif
     for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
+        // Keep unit conversion in the surface-flux diagnostic helper so this
+        // mechanical layer does not duplicate physical constants or units.
         const Box& bx = mfi.tilebox();
         const auto& dst_arr = dst.array(mfi);
         const auto& src_arr = src->const_array(mfi);
@@ -98,6 +103,8 @@ fill_latent_heat_flux_from_klevel_or_missing (MultiFab& dst,
 #endif
     for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
+        // Keep unit conversion in the surface-flux diagnostic helper so this
+        // mechanical layer does not duplicate physical constants or units.
         const Box& bx = mfi.tilebox();
         const auto& dst_arr = dst.array(mfi);
         const auto& src_arr = src->const_array(mfi);
