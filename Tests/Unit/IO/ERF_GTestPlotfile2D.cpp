@@ -1,11 +1,18 @@
 #include <string>
 #include <unordered_set>
 
+#include <AMReX_Box.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
+#include <AMReX_Gpu.H>
+#include <AMReX_MultiFab.H>
 #include <gtest/gtest.h>
 
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
 #include "ERF_Plotfile2DUtils.H"
+#include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 
 using namespace plotfile2d;
 
@@ -15,6 +22,32 @@ namespace
 bool contains (const std::string& haystack, const std::string& needle)
 {
     return haystack.find(needle) != std::string::npos;
+}
+
+amrex::Box make_test_domain ()
+{
+    return amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(1, 1, 2));
+}
+
+amrex::BoxArray make_test_boxarray ()
+{
+    amrex::BoxArray ba(make_test_domain());
+    ba.maxSize(8);
+    return ba;
+}
+
+void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex::Real value)
+{
+    for (amrex::MFIter mfi(mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        const auto& arr = mf.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k == k_level) {
+                arr(i, j, k, comp) = value;
+            }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
 }
 
 } // namespace
@@ -369,6 +402,125 @@ TEST(Plotfile2D, InvalidStreamMessageReportsAllowedValues)
 
     EXPECT_TRUE(contains(message, "invalid stream index 0"));
     EXPECT_TRUE(contains(message, "expected 1 or 2"));
+}
+
+// Motivation: Missing-value fills should not corrupt neighboring output
+// components in the 2D plotfile MultiFab.
+TEST(Plotfile2DFill, FillComponentWithValueTouchesOnlyRequestedComponent)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+
+    dst.setVal(amrex::Real(1.5), 0, 1, 0);
+    dst.setVal(amrex::Real(2.5), 1, 1, 0);
+
+    plotfile2d::fill_component_with_value(dst, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(1.5));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(1.5));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(-999.0));
+}
+
+// Motivation: Surface, top-of-column, and future interpolated diagnostics rely
+// on copying the intended source level into the 2D output component.
+TEST(Plotfile2DFill, FillComponentFromKLevelUsesRequestedSourceLevelAndComponent)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 2, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-1.0));
+    set_component_value_at_k(src, 1, 2, amrex::Real(23.5));
+
+    plotfile2d::fill_component_from_klevel(dst, 0, src, 2, 1);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(23.5));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(23.5));
+}
+
+// Motivation: Optional diagnostics such as SurfaceLayer, radiation, and SHOC
+// fields must write documented missing values when their source is unavailable.
+TEST(Plotfile2DFill, FillComponentFromKLevelOrValueUsesMissingValueWhenSourceIsNull)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    dst.setVal(amrex::Real(4.0));
+
+    plotfile2d::fill_component_from_klevel_or_value(dst, 0, nullptr, 0, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(-999.0));
+}
+
+// Motivation: The same helper must handle available and unavailable diagnostic
+// sources without changing the component order logic in the writer.
+TEST(Plotfile2DFill, FillComponentFromKLevelOrValueCopiesWhenSourceExists)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-2.0));
+    set_component_value_at_k(src, 0, 1, amrex::Real(17.25));
+
+    plotfile2d::fill_component_from_klevel_or_value(dst, 0, &src, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(17.25));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(17.25));
+}
+
+// Motivation: The 2D assembly refactor must preserve the W m^-2 conversion
+// used by the public sensible_heat_flux diagnostic.
+TEST(Plotfile2DFill, SensibleHeatFluxFillUsesSurfaceFluxConversion)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-7.0));
+    set_component_value_at_k(src, 0, 1, amrex::Real(1.75));
+
+    plotfile2d::fill_sensible_heat_flux_from_klevel_or_missing(
+        dst, 0, &src, 1, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real expected =
+        surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(amrex::Real(1.75));
+    EXPECT_DOUBLE_EQ(dst.min(0), expected);
+    EXPECT_DOUBLE_EQ(dst.max(0), expected);
+}
+
+// Motivation: The 2D assembly refactor must preserve the W m^-2 conversion
+// used by the public latent_heat_flux diagnostic.
+TEST(Plotfile2DFill, LatentHeatFluxFillUsesSurfaceFluxConversion)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab src(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    src.setVal(amrex::Real(-7.0));
+    set_component_value_at_k(src, 0, 2, amrex::Real(-0.5));
+
+    plotfile2d::fill_latent_heat_flux_from_klevel_or_missing(
+        dst, 0, &src, 2, amrex::Real(-999.0));
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real expected =
+        surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(amrex::Real(-0.5));
+    EXPECT_DOUBLE_EQ(dst.min(0), expected);
+    EXPECT_DOUBLE_EQ(dst.max(0), expected);
 }
 
 // Motivation: The JSON sidecar is a public metadata contract, so diagnostic
