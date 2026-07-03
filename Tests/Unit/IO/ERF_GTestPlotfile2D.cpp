@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <string>
 #include <unordered_set>
 
 #include <AMReX_Box.H>
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
 #include <gtest/gtest.h>
@@ -11,7 +13,10 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DUtils.H"
+#include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
 #include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 
 using namespace plotfile2d;
@@ -34,6 +39,26 @@ amrex::BoxArray make_test_boxarray ()
     amrex::BoxArray ba(make_test_domain());
     ba.maxSize(8);
     return ba;
+}
+
+amrex::BoxArray make_test_slab_boxarray ()
+{
+    amrex::BoxList bl = make_test_boxarray().boxList();
+    for (auto& b : bl) {
+        b.setRange(2, 0);
+    }
+    return amrex::BoxArray(std::move(bl));
+}
+
+amrex::Geometry make_test_geometry ()
+{
+    amrex::Geometry geom;
+    amrex::Array<int, AMREX_SPACEDIM> is_per{0, 0, 0};
+    amrex::Real prob_lo[AMREX_SPACEDIM] = {0.0, 0.0, 0.0};
+    amrex::Real prob_hi[AMREX_SPACEDIM] = {2.0, 2.0, 3.0};
+    amrex::RealBox rb(prob_lo, prob_hi);
+    geom.define(make_test_domain(), rb, 0, is_per);
+    return geom;
 }
 
 void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex::Real value)
@@ -132,12 +157,49 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv", "surface_diagnostic_source",
+        "surf_pres", "integrated_qv", "integrated_qc", "integrated_qi",
+        "integrated_qr", "integrated_qs", "integrated_qg",
+        "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
         "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
+}
+
+// Motivation: The condensed water-path catalog must stay ordered after
+// integrated_qv so plotfile readers and metadata remain deterministic.
+TEST(Plotfile2D, WaterPathDiagnosticsFollowIntegratedQv)
+{
+    const auto* qv = plotfile2d::find_diagnostic("integrated_qv");
+    const auto* qc = plotfile2d::find_diagnostic("integrated_qc");
+    const auto* qi = plotfile2d::find_diagnostic("integrated_qi");
+    const auto* qr = plotfile2d::find_diagnostic("integrated_qr");
+    const auto* qs = plotfile2d::find_diagnostic("integrated_qs");
+    const auto* qg = plotfile2d::find_diagnostic("integrated_qg");
+    const auto* surface_source = plotfile2d::find_diagnostic("surface_diagnostic_source");
+
+    ASSERT_NE(qv, nullptr);
+    ASSERT_NE(qc, nullptr);
+    ASSERT_NE(qi, nullptr);
+    ASSERT_NE(qr, nullptr);
+    ASSERT_NE(qs, nullptr);
+    ASSERT_NE(qg, nullptr);
+    ASSERT_NE(surface_source, nullptr);
+
+    EXPECT_EQ(qv->id, plotfile2d::DiagnosticID::IntegratedQv);
+    EXPECT_EQ(qc->id, plotfile2d::DiagnosticID::IntegratedQc);
+    EXPECT_EQ(qi->id, plotfile2d::DiagnosticID::IntegratedQi);
+    EXPECT_EQ(qr->id, plotfile2d::DiagnosticID::IntegratedQr);
+    EXPECT_EQ(qs->id, plotfile2d::DiagnosticID::IntegratedQs);
+    EXPECT_EQ(qg->id, plotfile2d::DiagnosticID::IntegratedQg);
+    EXPECT_EQ(surface_source->id, plotfile2d::DiagnosticID::SurfaceDiagnosticSource);
+
+    for (const auto* descriptor : {qc, qi, qr, qs, qg}) {
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::ColumnIntegral);
+        EXPECT_STREQ(descriptor->units, "kg/m^2");
+        EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillZeroWhenUnavailable);
+    }
 }
 
 // Motivation: Each built-in 2D diagnostic name must be unique so user input
@@ -241,6 +303,94 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
     EXPECT_FALSE(std::string(descriptor->long_name).empty());
     EXPECT_FALSE(std::string(descriptor->units).empty());
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: Water-path diagnostics should disappear from the available list
+// when the active moisture model does not expose the corresponding conserved
+// species.
+TEST(Plotfile2DWaterPath, NoMoistureExcludesCondensedWaterPaths)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::None;
+
+    const auto available = plotfile2d::available_diagnostic_names(sc);
+
+    for (const std::string& name : {"integrated_qc", "integrated_qi",
+                                     "integrated_qr", "integrated_qs",
+                                     "integrated_qg"}) {
+        EXPECT_EQ(std::find(available.begin(), available.end(), name), available.end());
+    }
+}
+
+// Motivation: Scheme-aware availability should follow the active moisture
+// indices rather than a hard-coded microphysics switch.
+TEST(Plotfile2DWaterPath, KesslerAvailabilityMatchesMoistureIndices)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Kessler;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+
+    const auto available = plotfile2d::available_diagnostic_names(sc);
+
+    EXPECT_NE(std::find(available.begin(), available.end(), "integrated_qc"), available.end());
+    EXPECT_NE(std::find(available.begin(), available.end(), "integrated_qr"), available.end());
+    EXPECT_EQ(std::find(available.begin(), available.end(), "integrated_qi"), available.end());
+    EXPECT_EQ(std::find(available.begin(), available.end(), "integrated_qs"), available.end());
+    EXPECT_EQ(std::find(available.begin(), available.end(), "integrated_qg"), available.end());
+}
+
+// Motivation: The water-path helper must reduce several selected condensed
+// species in one pass without changing unrelated output components.
+TEST(Plotfile2DWaterPath, FillCondensedWaterPathsUsesColumnSumAndMetric)
+{
+    const auto ba3d = make_test_boxarray();
+    const auto ba2d = make_test_slab_boxarray();
+    amrex::DistributionMapping dm(ba3d);
+    amrex::MultiFab src(ba3d, dm, 6, 0);
+    amrex::MultiFab dst(ba2d, dm, 4, 0);
+    amrex::MultiFab detJ(ba3d, dm, 1, 0);
+    const amrex::Geometry geom = make_test_geometry();
+
+    dst.setVal(amrex::Real(7.0));
+    src.setVal(amrex::Real(0.0));
+    detJ.setVal(amrex::Real(2.0));
+
+    set_component_value_at_k(src, RhoQ2_comp, 0, amrex::Real(1.0));
+    set_component_value_at_k(src, RhoQ2_comp, 1, amrex::Real(1.0));
+    set_component_value_at_k(src, RhoQ2_comp, 2, amrex::Real(1.0));
+    set_component_value_at_k(src, RhoQ3_comp, 0, amrex::Real(3.0));
+    set_component_value_at_k(src, RhoQ3_comp, 1, amrex::Real(3.0));
+    set_component_value_at_k(src, RhoQ3_comp, 2, amrex::Real(3.0));
+
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Kessler;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+
+    const amrex::Vector<std::string> plot_var_names{
+        "integrated_qv", "integrated_qc", "integrated_qr"
+    };
+    const auto selected =
+        plotfile2d::selected_condensed_water_path_components(plot_var_names, sc);
+
+    ASSERT_EQ(selected.n, 2);
+    EXPECT_EQ(selected.dst_comp[0], 1);
+    EXPECT_EQ(selected.dst_comp[1], 2);
+    EXPECT_EQ(selected.src_comp[0], RhoQ2_comp);
+    EXPECT_EQ(selected.src_comp[1], RhoQ3_comp);
+
+    const auto old_mesh_type = SolverChoice::mesh_type;
+    SolverChoice::set_mesh_type(MeshType::VariableDz);
+    plotfile2d::fill_condensed_water_paths(dst, src, selected, geom, detJ);
+    SolverChoice::set_mesh_type(old_mesh_type);
+
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(7.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(7.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(6.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(6.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(18.0));
+    EXPECT_DOUBLE_EQ(dst.max(2), amrex::Real(18.0));
 }
 
 // Motivation: The W m^-2 diagnostics are public 2D outputs, so their catalog
