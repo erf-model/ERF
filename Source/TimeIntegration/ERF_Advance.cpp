@@ -409,4 +409,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+
+#ifdef ERF_ENABLE_FIRE
+    // Advance fire simulation at level 0
+    if (lev == 0 && m_fire_layer) {
+        m_fire_layer->advance(dt_lev, *m_SurfaceLayer);
+    }
+#endif
 }

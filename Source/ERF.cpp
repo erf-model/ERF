@@ -1540,6 +1540,15 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
+
+#ifdef ERF_ENABLE_FIRE
+    // Initialize fire module
+    m_fire_params = FireParams();
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        m_fire_layer->initialize(*this, m_fire_params);
+    }
+#endif
 }
 
 void
