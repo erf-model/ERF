@@ -17,8 +17,12 @@ amr.max_grid_size = 100
 amr.max_grid_size_z = 50
 
 # Surface layer boundary condition (REQUIRED for fire)
-erf.phys_bc_type.zlo = "surface_layer"
-erf.phys_bc_type.zhi = "SlipWall"
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
 
 # MOST parameters (REQUIRED for fire wind extraction)
 erf.most.z0 = 0.1

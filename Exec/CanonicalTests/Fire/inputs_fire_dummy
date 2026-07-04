@@ -13,6 +13,10 @@ amr.n_cell = 32 32 16
 geometry.is_periodic = 0 0 0
 
 # Boundary conditions
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
