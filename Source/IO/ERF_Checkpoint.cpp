@@ -732,11 +732,11 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
             MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
             update_terrain_arrays(lev);
- 
+
             // Compute the min dz and pass to the micro model
             Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
             micro->Set_dzmin(lev, dzmin);
- 
+
             if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
                 check_mesh_type(lev);
             }
