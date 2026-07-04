@@ -1,0 +1,2 @@
+CEXE_sources += ERF_Fire.cpp
+CEXE_headers += ERF_Fire.H

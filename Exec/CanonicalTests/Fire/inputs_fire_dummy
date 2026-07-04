@@ -1,0 +1,52 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Dummy inputs for 2D fire model test
+
+erf.prob_name = "Fire"
+
+# Run for just a few time steps for testing
+max_step = 10
+
+# Domain and grid
+geometry.prob_extent = 1000.0 1000.0 500.0
+amr.n_cell = 32 32 16
+
+geometry.is_periodic = 0 0 0
+
+# Boundary conditions
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# Time step
+erf.fixed_dt = 1.0
+
+# Diagnostics
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+
+# Refinement
+amr.max_level = 0
+
+# Checkpoints
+erf.check_file = chk
+erf.check_int = 100
+
+# Plot files
+erf.plot_file_1 = plt
+erf.plot_int_1 = 5
+erf.plot_vars_1 = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# Physics choices
+erf.use_gravity = false
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+
+# Initialization
+erf.init_type = "uniform"
+
+# Fire model parameters
+fire.fuel_moisture_content = 0.08
+fire.fuel_bed_depth = 0.3
+fire.wind_speed = 5.0
+fire.slope = 0.0
+fire.ellipse_length_width_ratio = 1.5

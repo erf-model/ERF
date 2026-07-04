@@ -1766,6 +1766,15 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
+void
+ERF::initializeFire (const int& a_nlevsmax /*!< number of AMR levels */)
+{
+    fire = std::make_unique<Fire>();
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "Fire model initialized with " << a_nlevsmax << " level(s)" << std::endl;
+    }
+}
+
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )

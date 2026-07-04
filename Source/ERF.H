@@ -58,6 +58,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#include "ERF_Fire.H"
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -732,6 +733,9 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
+    // Initialize the fire model object
+    void initializeFire (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -974,6 +978,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
+
+    std::unique_ptr<Fire> fire;                              // Fire model instance
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)

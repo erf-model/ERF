@@ -105,6 +105,7 @@ ERF::ERF_shared ()
 
     ReadParameters();
     initializeMicrophysics(nlevs_max);
+    initializeFire(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
