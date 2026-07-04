@@ -1,6 +1,8 @@
 #include "ERF_Fire.H"
 
 #include <AMReX_ParmParse.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <cmath>
 
 /**
  * @brief Define the fire model with default parameters

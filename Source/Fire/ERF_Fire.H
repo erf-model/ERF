@@ -4,6 +4,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <ERF_DataStruct.H>
+#include <cmath>
 
 /**
  * @class Fire
