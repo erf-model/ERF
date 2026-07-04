@@ -216,6 +216,15 @@ public:
                                        int& global_i_min,
                                        int& global_j_min);
 
+    void HurricaneMaxVelTracker_WRF(const amrex::Geometry& geom,
+                                const amrex::MultiFab& mf_cc_vel,
+                                const amrex::Real& time);
+
+    void HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
+                                     const amrex::Geometry& geom,
+                                     const amrex::MultiFab& mf_cons_var,
+                                     const amrex::Real& time);
+
     void HurricaneTrackerCircle_WRF ();
 
     void ReadStormTrackerRestart ();
