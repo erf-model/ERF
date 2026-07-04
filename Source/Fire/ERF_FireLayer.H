@@ -173,13 +173,13 @@ private:
     FarsiteParams                            m_fp;
 
     // Time tracking for fire advancement
-    amrex::Real                              m_current_time = 0.0_rt;
-    amrex::Real                              m_dt_atm       = 0.0_rt;
+    amrex::Real                              m_current_time = 0.0;
+    amrex::Real                              m_dt_atm       = 0.0;
 
     // Ignition parameters
-    amrex::Real                              m_ignition_x = 0.0_rt;
-    amrex::Real                              m_ignition_y = 0.0_rt;
-    amrex::Real                              m_ignition_r = 20.0_rt;
+    amrex::Real                              m_ignition_x = 0.0;
+    amrex::Real                              m_ignition_y = 0.0;
+    amrex::Real                              m_ignition_r = 20.0;
 
     // Configuration
     FireParams                               m_params;

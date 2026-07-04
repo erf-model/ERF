@@ -35,13 +35,13 @@ struct FireParams
     amrex::Real       k_deflect           = 0.3;         ///< Wind deflection factor
     
     // FARSITE parameters
-    amrex::Real       farsite_phi_threshold   = 0.0_rt;  ///< front detection level in phi
+    amrex::Real       farsite_phi_threshold   = 0.0;  ///< front detection level in phi
     int               farsite_use_anderson_lw = 1;       ///< derive coeff_a/b/c from Anderson L/W
-    amrex::Real       farsite_coeff_a         = 0.5_rt;  ///< Richards head coefficient
-    amrex::Real       farsite_coeff_b         = 0.25_rt; ///< Richards flank coefficient
-    amrex::Real       farsite_coeff_c         = 0.1_rt;  ///< Richards backing coefficient
-    amrex::Real       farsite_gaussian_sigma  = -1.0_rt; ///< phi stamping radius [m]
-    amrex::Real       farsite_cfl_fire        = 0.5_rt;  ///< fire CFL number
+    amrex::Real       farsite_coeff_a         = 0.5;  ///< Richards head coefficient
+    amrex::Real       farsite_coeff_b         = 0.25; ///< Richards flank coefficient
+    amrex::Real       farsite_coeff_c         = 0.1;  ///< Richards backing coefficient
+    amrex::Real       farsite_gaussian_sigma  = -1.0; ///< phi stamping radius [m]
+    amrex::Real       farsite_cfl_fire        = 0.5;  ///< fire CFL number
 
     /**
      * @brief Construct FireParams from ParmParse

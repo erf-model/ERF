@@ -35,9 +35,12 @@
  *   - wind_eff has no ghost cells required (read at owned cells only).
  */
 
+#include <AMReX_Config.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_ParallelReduce.H>
+#include <AMReX_ccse-mpi.H>
 #include <AMReX_Gpu.H>
 #include <cmath>
 #include <vector>
@@ -48,13 +51,13 @@
  */
 struct FarsiteParams
 {
-    amrex::Real phi_threshold   = 0.0_rt;  ///< front detection level in phi
-    amrex::Real coeff_a         = 0.5_rt;  ///< Richards head coefficient
-    amrex::Real coeff_b         = 0.25_rt; ///< Richards flank coefficient
-    amrex::Real coeff_c         = 0.1_rt;  ///< Richards backing coefficient
+    amrex::Real phi_threshold   = 0.0;  ///< front detection level in phi
+    amrex::Real coeff_a         = 0.5;  ///< Richards head coefficient
+    amrex::Real coeff_b         = 0.25; ///< Richards flank coefficient
+    amrex::Real coeff_c         = 0.1;  ///< Richards backing coefficient
     int         use_anderson_lw = 1;       ///< derive a,b,c from Anderson L/W ratio
-    amrex::Real gaussian_sigma  = -1.0_rt; ///< phi stamping radius: <0 = single cell, 0 = auto, >0 = user [m]
-    amrex::Real cfl_fire        = 0.5_rt;  ///< fire CFL number for subcycle timestep control
+    amrex::Real gaussian_sigma  = -1.0; ///< phi stamping radius: <0 = single cell, 0 = auto, >0 = user [m]
+    amrex::Real cfl_fire        = 0.5;  ///< fire CFL number for subcycle timestep control
 };
 
 /**
@@ -75,13 +78,13 @@ amrex::Real anderson_LW_ratio(amrex::Real wind_speed_mph) noexcept
     // Simplified approximation used in FARSITE:
     // For U >= 1 mph: L/W = 0.936 * e^(0.2566*U)
     // For U < 1 mph: L/W = 1.0 (no wind effect)
-    
-    if (wind_speed_mph < 1.0_rt) {
-        return 1.0_rt;
+
+    if (wind_speed_mph < 1.0) {
+        return 1.0;
     }
     // Clamp to [1.0, 8.0]
-    amrex::Real lw = 0.936_rt * std::exp(0.2566_rt * wind_speed_mph) - 0.397_rt * std::sqrt(wind_speed_mph);
-    return amrex::max(1.0_rt, amrex::min(lw, 8.0_rt));
+    amrex::Real lw = 0.936 * std::exp(0.2566 * wind_speed_mph) - 0.397 * std::sqrt(wind_speed_mph);
+    return amrex::max(1.0, amrex::min(lw, 8.0));
 }
 
 /**
@@ -99,9 +102,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void LW_ratio_to_richards_coefficients(amrex::Real LW_ratio,
     amrex::Real& coeff_a, amrex::Real& coeff_b, amrex::Real& coeff_c) noexcept
 {
-    coeff_a = 1.0_rt;
-    coeff_c = 0.2_rt * coeff_a;
-    coeff_b = (coeff_a + coeff_c) / (2.0_rt * LW_ratio);
+    coeff_a = 1.0;
+    coeff_c = 0.2 * coeff_a;
+    coeff_b = (coeff_a + coeff_c) / (2.0 * LW_ratio);
 }
 
 /**
@@ -145,12 +148,12 @@ void advance_farsite_one_step(
     const FarsiteParams& fp)
 {
     using namespace amrex;
-    
+
     const auto* prob_lo = geom_fire.ProbLo();
     const auto* dx      = geom_fire.CellSize();
-    const Real dxi = 1.0_rt / dx[0];
-    const Real dyi = 1.0_rt / dx[1];
-    
+    const Real dxi = 1.0 / dx[0];
+    const Real dyi = 1.0 / dx[1];
+
     // Pass 1: GPU — compute spread vectors
     for (MFIter mfi(R_mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -158,106 +161,106 @@ void advance_farsite_one_step(
         auto spread_arr  = farsite_work.array(mfi);
         auto vel_arr     = vel_eff.const_array(mfi);
         auto ros_arr     = R_mf.const_array(mfi);
-        
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
         {
             int i = iv[0], j = iv[1], k = iv[2];
             Real phi_val = phi_arr(iv);
-            
+
             // Skip if not near the front
             if (phi_val > fp.phi_threshold) {
-                spread_arr(iv, 0) = 0.0_rt;
-                spread_arr(iv, 1) = 0.0_rt;
+                spread_arr(iv, 0) = 0.0;
+                spread_arr(iv, 1) = 0.0;
                 return;
             }
-            
+
             // Compute centered-difference gradient of phi
-            Real dphi_dx = (phi_arr(i+1, j, k) - phi_arr(i-1, j, k)) * dxi * 0.5_rt;
-            Real dphi_dy = (phi_arr(i, j+1, k) - phi_arr(i, j-1, k)) * dyi * 0.5_rt;
-            
+            Real dphi_dx = (phi_arr(i+1, j, k) - phi_arr(i-1, j, k)) * dxi * 0.5;
+            Real dphi_dy = (phi_arr(i, j+1, k) - phi_arr(i, j-1, k)) * dyi * 0.5;
+
             Real grad_mag = std::sqrt(dphi_dx*dphi_dx + dphi_dy*dphi_dy);
-            
-            if (grad_mag < 1.0e-50_rt) {
-                spread_arr(iv, 0) = 0.0_rt;
-                spread_arr(iv, 1) = 0.0_rt;
+
+            if (grad_mag < 1.0e-50) {
+                spread_arr(iv, 0) = 0.0;
+                spread_arr(iv, 1) = 0.0;
                 return;
             }
-            
+
             // Outward normal
             Real nx = dphi_dx / grad_mag;
             Real ny = dphi_dy / grad_mag;
-            
+
             // Wind components
             Real ux = vel_arr(iv, 0);
             Real uy = vel_arr(iv, 1);
             Real wind_mag = std::sqrt(ux*ux + uy*uy);
-            
+
             // Compute Richards scale factor
-            Real scale = 1.0_rt;
-            
-            if (wind_mag > 1.0e-10_rt) {
+            Real scale = 1.0;
+
+            if (wind_mag > 1.0e-10) {
                 Real wind_unit_x = ux / wind_mag;
                 Real wind_unit_y = uy / wind_mag;
-                
+
                 // cos_theta = dot(normal, wind_unit)
                 Real cos_theta = nx * wind_unit_x + ny * wind_unit_y;
-                cos_theta = amrex::max(-1.0_rt, amrex::min(cos_theta, 1.0_rt));
-                
-                Real sin_theta = std::sqrt(1.0_rt - cos_theta*cos_theta);
-                
+                cos_theta = amrex::max(-1.0, amrex::min(cos_theta, 1.0));
+
+                Real sin_theta = std::sqrt(1.0 - cos_theta*cos_theta);
+
                 // Apply Richards coefficients
                 Real a = fp.coeff_a;
                 Real b = fp.coeff_b;
                 Real c = fp.coeff_c;
-                
+
                 // If Anderson L/W ratio is enabled, compute coefficients from wind speed
                 if (fp.use_anderson_lw != 0) {
                     // Convert wind speed to mph (assuming wind_mag is in m/s)
-                    Real wind_mph = wind_mag * 2.237_rt;  // m/s to mph conversion
+                    Real wind_mph = wind_mag * 2.237;  // m/s to mph conversion
                     Real lw_ratio = anderson_LW_ratio(wind_mph);
                     LW_ratio_to_richards_coefficients(lw_ratio, a, b, c);
                 }
-                
-                if (cos_theta > 0.0_rt) {
+
+                if (cos_theta > 0.0) {
                     scale = a * cos_theta + b * sin_theta;
                 } else {
                     scale = b * sin_theta - c * cos_theta;
                 }
             }
-            
+
             // Read ROS
             Real R_head = ros_arr(iv);
-            
+
             // Compute spread distance
-            Real spread_dist = amrex::max(scale, 0.0_rt) * R_head * dt_fire;
-            
+            Real spread_dist = amrex::max(scale, 0.0) * R_head * dt_fire;
+
             // Write spread vectors
             spread_arr(iv, 0) = spread_dist * nx;
             spread_arr(iv, 1) = spread_dist * ny;
         });
     }
-    
+
     // Synchronize GPU after Pass 1
     amrex::Gpu::streamSynchronize();
-    
+
     // Pass 2: Host — collect positions, gather, stamp phi
     std::vector<Real> xarray, yarray;
-    
+
     for (MFIter mfi(farsite_work); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto spread_arr = farsite_work.const_array(mfi);
-        
+
         for (int k = bx.smallEnd()[2]; k <= bx.bigEnd()[2]; ++k) {
             for (int j = bx.smallEnd()[1]; j <= bx.bigEnd()[1]; ++j) {
                 for (int i = bx.smallEnd()[0]; i <= bx.bigEnd()[0]; ++i) {
                     Real spread_x = spread_arr(i, j, k, 0);
                     Real spread_y = spread_arr(i, j, k, 1);
-                    
-                    if (std::abs(spread_x) > 1.0e-14_rt || std::abs(spread_y) > 1.0e-14_rt) {
+
+                    if (std::abs(spread_x) > 1.0e-14 || std::abs(spread_y) > 1.0e-14) {
                         // Compute physical position of propagated point
-                        Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-                        Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
-                        
+                        Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                        Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
                         xarray.push_back(x + spread_x);
                         yarray.push_back(y + spread_y);
                     }
@@ -265,81 +268,90 @@ void advance_farsite_one_step(
             }
         }
     }
-    
-    // MPI_Allgatherv to collect positions from all ranks
-    int npts_local = xarray.size();
+
+    // Collect positions from all ranks via AllGather
+    int npts_local = static_cast<int>(xarray.size());
     std::vector<int> npts_all(ParallelDescriptor::NProcs());
-    ParallelDescriptor::Allgather(&npts_local, 1, npts_all.data(), 1,
-                                  ParallelDescriptor::Communicator());
-    
+    ParallelAllGather::AllGather(&npts_local, 1, npts_all.data(),
+                                 ParallelDescriptor::Communicator());
+
     std::vector<int> displs(ParallelDescriptor::NProcs() + 1, 0);
     for (int i = 0; i < ParallelDescriptor::NProcs(); ++i) {
         displs[i+1] = displs[i] + npts_all[i];
     }
     int npts_global = displs[ParallelDescriptor::NProcs()];
-    
+
     std::vector<Real> xarray_all(npts_global), yarray_all(npts_global);
-    ParallelDescriptor::Allgatherv(xarray.data(), npts_local,
-                                   xarray_all.data(), npts_all.data(),
-                                   displs.data(),
-                                   ParallelDescriptor::Communicator());
-    ParallelDescriptor::Allgatherv(yarray.data(), npts_local,
-                                   yarray_all.data(), npts_all.data(),
-                                   displs.data(),
-                                   ParallelDescriptor::Communicator());
-    
+
+#ifdef AMREX_USE_MPI
+    MPI_Allgatherv(xarray.data(), npts_local,
+                   ParallelDescriptor::Mpi_typemap<Real>::type(),
+                   xarray_all.data(), npts_all.data(), displs.data(),
+                   ParallelDescriptor::Mpi_typemap<Real>::type(),
+                   ParallelDescriptor::Communicator());
+    MPI_Allgatherv(yarray.data(), npts_local,
+                   ParallelDescriptor::Mpi_typemap<Real>::type(),
+                   yarray_all.data(), npts_all.data(), displs.data(),
+                   ParallelDescriptor::Mpi_typemap<Real>::type(),
+                   ParallelDescriptor::Communicator());
+#else
+    // Serial build: only one rank, just copy local data
+    xarray_all = xarray;
+    yarray_all = yarray;
+#endif
+
     // Reset phi to 0
-    phi.setVal(0.0_rt);
-    
+    phi.setVal(0.0);
+
     // Copy point arrays to device and stamp phi
     if (npts_global > 0) {
         // Use simple host arrays and capture by value
         std::vector<Real> x_host = xarray_all;
         std::vector<Real> y_host = yarray_all;
-        
+
         const Real* x_ptr = x_host.data();
         const Real* y_ptr = y_host.data();
         int npts = npts_global;
-        
-        if (fp.gaussian_sigma < 0.0_rt) {
+
+        if (fp.gaussian_sigma < 0.0) {
             // Single-cell stamping
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.tilebox();
-                
+
                 for (int n = 0; n < npts; ++n) {
                     Real x = x_ptr[n];
                     Real y = y_ptr[n];
-                    
+
                     // Find cell containing this point
                     int ii = static_cast<int>((x - prob_lo[0]) * dxi);
                     int jj = static_cast<int>((y - prob_lo[1]) * dyi);
-                    
+
                     if (bx.contains(IntVect(ii, jj, 0))) {
-                        p(ii, jj, 0) = -1.0_rt;
+                        p(ii, jj, 0) = -1.0;
                     }
                 }
             }
         } else {
             // Gaussian/SDF stamping with radius sigma
-            Real sigma = (fp.gaussian_sigma > 0.0_rt) ? fp.gaussian_sigma : dx[0];
-            
+            Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
+
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.validbox();
-                
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
-                    Real x_cell = prob_lo[0] + (iv[0] + 0.5_rt) * dx[0];
-                    Real y_cell = prob_lo[1] + (iv[1] + 0.5_rt) * dx[1];
-                    
+                    Real x_cell = prob_lo[0] + (iv[0] + 0.5) * dx[0];
+                    Real y_cell = prob_lo[1] + (iv[1] + 0.5) * dx[1];
+
                     for (int n = 0; n < npts; ++n) {
                         Real x_pt = x_ptr[n];
                         Real y_pt = y_ptr[n];
-                        
-                        Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) + 
+
+                        Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) +
                                              (y_cell - y_pt)*(y_cell - y_pt));
-                        Real phi_sdf = amrex::max(dist - sigma, -1.0_rt);
-                        
+                        Real phi_sdf = amrex::max(dist - sigma, -1.0);
+
                         p(iv) = amrex::min(p(iv), phi_sdf);
                     }
                 });
@@ -369,16 +381,16 @@ amrex::Real compute_fire_dt(
     amrex::Real cfl_fire)
 {
     using namespace amrex;
-    
+
     Real max_ros = R_mf.max(0);
-    
-    if (max_ros < 1.0e-10_rt) {
+
+    if (max_ros < 1.0e-10) {
         return dt_atm;
     }
-    
+
     const auto* dx = geom_fire.CellSize();
     Real min_dx = std::min(dx[0], dx[1]);
-    
+
     return cfl_fire * min_dx / max_ros;
 }
 
@@ -412,26 +424,26 @@ int advance_fire_subcycle(
     const FarsiteParams& fp)
 {
     using namespace amrex;
-    
+
     Real time_remaining = dt_atm;
     int n_substeps = 0;
-    
-    while (time_remaining > 1.0e-14_rt) {
+
+    while (time_remaining > 1.0e-14) {
         Real dt_fire = compute_fire_dt(R_mf, geom_fire, time_remaining, fp.cfl_fire);
         dt_fire = std::min(dt_fire, time_remaining);
-        
+
         advance_farsite_one_step(phi, farsite_work, vel_eff, R_mf,
                                 geom_fire, dt_fire, fp);
-        
+
         time_remaining -= dt_fire;
         n_substeps++;
-        
+
         // Safety check to avoid infinite loop
         if (n_substeps > 1000) {
             amrex::Abort("advance_fire_subcycle: too many substeps");
         }
     }
-    
+
     return n_substeps;
 }
 
