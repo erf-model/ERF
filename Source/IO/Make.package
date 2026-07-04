@@ -2,6 +2,8 @@
 CEXE_sources += ERF_Plotfile.cpp
 CEXE_sources += ERF_Plotfile2DCatalog.cpp
 CEXE_sources += ERF_Plotfile2D.cpp
+CEXE_sources += ERF_Plotfile2DFill.cpp
+CEXE_sources += ERF_Plotfile2DMetadata.cpp
 CEXE_sources += ERF_Plotfile2DUtils.cpp
 CEXE_sources += ERF_Checkpoint.cpp
 CEXE_sources += ERF_WriteJobInfo.cpp
@@ -18,6 +20,11 @@ CEXE_sources += ERF_WriteScalarProfiles.cpp
 CEXE_sources += ERF_WriteSubvolume.cpp
 
 CEXE_sources += ERF_ConsoleIO.cpp
+
+CEXE_headers += ERF_WriteERFBdy.H
+CEXE_sources += ERF_WriteERFBdy.cpp
+CEXE_headers += ERF_ReadFromERFBdy.H
+CEXE_sources += ERF_ReadFromERFBdy.cpp
 
 CEXE_headers += ERF_SampleData.H
 

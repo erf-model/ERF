@@ -277,6 +277,8 @@ public:
 
     void compute_max_pressure_gradient_diagnostic(int lev);
 
+    void check_mesh_type(int lev);
+
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
     bool writeNow (double cur_time, const int nstep, const int plot_int,
@@ -1348,6 +1350,12 @@ private:
     amrex::Real metgrid_proximity{amrex::Real(500.0)};
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
+
+    // Options for ERF boundary files for real simulations.
+    bool        write_erfbdy{false};   // User-settable: write erfbdy during initialization
+    bool        use_erfbdy{false};     // Internal: set during init or restart
+    std::string erfbdy_file{"erfbdy"}; // User-settable: erfbdy file name
+    int         nvars_erfbdy{0};       // Internal: number of variables in erfbdy
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
