@@ -210,6 +210,14 @@ void advance_farsite_one_step(
                 Real b = fp.coeff_b;
                 Real c = fp.coeff_c;
                 
+                // If Anderson L/W ratio is enabled, compute coefficients from wind speed
+                if (fp.use_anderson_lw != 0) {
+                    // Convert wind speed to mph (assuming wind_mag is in m/s)
+                    Real wind_mph = wind_mag * 2.237_rt;  // m/s to mph conversion
+                    Real lw_ratio = anderson_LW_ratio(wind_mph);
+                    LW_ratio_to_richards_coefficients(lw_ratio, a, b, c);
+                }
+                
                 if (cos_theta > 0.0_rt) {
                     scale = a * cos_theta + b * sin_theta;
                 } else {
@@ -239,18 +247,21 @@ void advance_farsite_one_step(
         const Box& bx = mfi.tilebox();
         auto spread_arr = farsite_work.const_array(mfi);
         
-        for (IntVect iv = bx.smallEnd(); iv <= bx.bigEnd(); bx.next(iv)) {
-            Real spread_x = spread_arr(iv, 0);
-            Real spread_y = spread_arr(iv, 1);
-            
-            if (std::abs(spread_x) > 0.0_rt || std::abs(spread_y) > 0.0_rt) {
-                // Compute physical position of propagated point
-                int i = iv[0], j = iv[1];
-                Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
-                
-                xarray.push_back(x + spread_x);
-                yarray.push_back(y + spread_y);
+        for (int k = bx.smallEnd()[2]; k <= bx.bigEnd()[2]; ++k) {
+            for (int j = bx.smallEnd()[1]; j <= bx.bigEnd()[1]; ++j) {
+                for (int i = bx.smallEnd()[0]; i <= bx.bigEnd()[0]; ++i) {
+                    Real spread_x = spread_arr(i, j, k, 0);
+                    Real spread_y = spread_arr(i, j, k, 1);
+                    
+                    if (std::abs(spread_x) > 1.0e-14_rt || std::abs(spread_y) > 1.0e-14_rt) {
+                        // Compute physical position of propagated point
+                        Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
+                        Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
+                        
+                        xarray.push_back(x + spread_x);
+                        yarray.push_back(y + spread_y);
+                    }
+                }
             }
         }
     }
@@ -282,11 +293,13 @@ void advance_farsite_one_step(
     
     // Copy point arrays to device and stamp phi
     if (npts_global > 0) {
-        std::vector<Real> x_d(xarray_all);
-        std::vector<Real> y_d(yarray_all);
+        // Use simple host arrays and capture by value
+        std::vector<Real> x_host = xarray_all;
+        std::vector<Real> y_host = yarray_all;
         
-        amrex::Real* x_ptr = x_d.data();
-        amrex::Real* y_ptr = y_d.data();
+        const Real* x_ptr = x_host.data();
+        const Real* y_ptr = y_host.data();
+        int npts = npts_global;
         
         if (fp.gaussian_sigma < 0.0_rt) {
             // Single-cell stamping
@@ -294,7 +307,7 @@ void advance_farsite_one_step(
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.tilebox();
                 
-                ParallelFor(npts_global, [=] AMREX_GPU_DEVICE (int n) noexcept {
+                for (int n = 0; n < npts; ++n) {
                     Real x = x_ptr[n];
                     Real y = y_ptr[n];
                     
@@ -305,41 +318,31 @@ void advance_farsite_one_step(
                     if (bx.contains(IntVect(ii, jj, 0))) {
                         p(ii, jj, 0) = -1.0_rt;
                     }
-                });
+                }
             }
         } else {
             // Gaussian/SDF stamping with radius sigma
             Real sigma = (fp.gaussian_sigma > 0.0_rt) ? fp.gaussian_sigma : dx[0];
-            Real sigma_inv = 1.0_rt / sigma;
-            int pad = static_cast<int>(std::ceil(sigma * dxi)) + 2;
             
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.validbox();
                 
-                for (int n = 0; n < npts_global; ++n) {
-                    Real x_pt = x_ptr[n];
-                    Real y_pt = y_ptr[n];
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
+                    Real x_cell = prob_lo[0] + (iv[0] + 0.5_rt) * dx[0];
+                    Real y_cell = prob_lo[1] + (iv[1] + 0.5_rt) * dx[1];
                     
-                    int ii_min = static_cast<int>((x_pt - sigma - prob_lo[0]) * dxi);
-                    int ii_max = static_cast<int>((x_pt + sigma - prob_lo[0]) * dxi) + 1;
-                    int jj_min = static_cast<int>((y_pt - sigma - prob_lo[1]) * dyi);
-                    int jj_max = static_cast<int>((y_pt + sigma - prob_lo[1]) * dyi) + 1;
-                    
-                    Box local_bx(IntVect(ii_min, jj_min, 0), IntVect(ii_max, jj_max, 0));
-                    local_bx = local_bx & bx;
-                    
-                    ParallelFor(local_bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
-                        Real x_cell = prob_lo[0] + (iv[0] + 0.5_rt) * dx[0];
-                        Real y_cell = prob_lo[1] + (iv[1] + 0.5_rt) * dx[1];
+                    for (int n = 0; n < npts; ++n) {
+                        Real x_pt = x_ptr[n];
+                        Real y_pt = y_ptr[n];
                         
                         Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) + 
                                              (y_cell - y_pt)*(y_cell - y_pt));
                         Real phi_sdf = std::max(dist - sigma, -1.0_rt);
                         
                         p(iv) = amrex::min(p(iv), phi_sdf);
-                    });
-                }
+                    }
+                });
             }
         }
     }
