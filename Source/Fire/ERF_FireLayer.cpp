@@ -105,7 +105,9 @@ void FireLayer::initialize(const ERF& erf,
 
 // surface_layer is non-const because SurfaceLayer's get_u_star / get_z0 /
 // get_olen accessors are not marked const.
-void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
+void FireLayer::advance(Real dt, SurfaceLayer& surface_layer,
+                        const MultiFab& T_atm_k0,
+                        const MultiFab& RH_atm_k0)
 {
     m_current_time = 0.0_rt;  // Time is tracked externally; this is a placeholder
     m_dt_atm       = dt;
@@ -154,7 +156,19 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
         amrex::Print() << "[FIRE DEBUG] Effective wind computed. Max effective wind: " << max_wind_eff << " m/s" << std::endl;
     }
 
-    // 5. Compute rate-of-spread
+    // 5. Update fuel moisture from atmospheric state (Phase 2)
+    // Called before ROS computation so updated moisture affects fire spread
+    if (m_params.fire_debug) {
+        amrex::Print() << "[FIRE DEBUG] Updating fuel moisture from atmospheric state" << std::endl;
+    }
+    advance_fuel_moisture(dt, T_atm_k0, RH_atm_k0);
+
+    if (m_params.fire_debug) {
+        Real max_mc_1hr = fire_fuel_mc->max(0);
+        amrex::Print() << "[FIRE DEBUG] Fuel moisture update completed. Max 1-hour moisture: " << max_mc_1hr << std::endl;
+    }
+
+    // 6. Compute rate-of-spread
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
 
     if (m_params.fire_debug) {
@@ -163,7 +177,7 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
         amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << max_ros_temp << " m/s, Mean: " << mean_ros_temp << " m/s" << std::endl;
     }
 
-    // 6. (Phase 3) Advance level-set using FARSITE subcycle
+    // 7. (Phase 3) Advance level-set using FARSITE subcycle
     int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                            *fire_wind_eff, *fire_ros,
                                            m_fg.geom, dt, m_fp);

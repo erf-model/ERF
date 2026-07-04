@@ -1,6 +1,10 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
 
+#ifdef ERF_ENABLE_FIRE
+#include <ERF_FireUtils.H>
+#endif
+
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
 #endif
@@ -413,7 +417,17 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 #ifdef ERF_ENABLE_FIRE
     // Advance fire simulation at level 0
     if (lev == 0 && m_fire_layer) {
-        m_fire_layer->advance(dt_lev, *m_SurfaceLayer);
+        // Extract atmospheric state at k=0 for fuel moisture update
+        // Temperature is already computed in Theta_prim
+        // RH is computed from conserved variables
+        
+        const MultiFab& T_atm_k0 = *Theta_prim[lev];  // Potential temperature at k=0
+        
+        // Compute relative humidity at k=0 from conserved state
+        MultiFab RH_atm_k0(S_old.boxArray(), S_old.DistributionMap(), 1, 0);
+        compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
+        
+        m_fire_layer->advance(dt_lev, *m_SurfaceLayer, T_atm_k0, RH_atm_k0);
     }
 #endif
 }

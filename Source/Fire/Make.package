@@ -17,5 +17,8 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_FireLayer.H
   CEXE_headers += Fire/ERF_FarsiteEllipse.H
   CEXE_headers += Fire/ERF_FireIgnition.H
+  CEXE_headers += Fire/ERF_FuelMoisture.H
+  CEXE_headers += Fire/ERF_MoistureExtinction.H
+  CEXE_headers += Fire/ERF_FireUtils.H
 endif
 

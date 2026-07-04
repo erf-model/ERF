@@ -103,18 +103,26 @@ public:
      * 1. Extract wind from MOST layer at reference height
      * 2. Apply Wind Adjustment Factor for canopy
      * 3. Apply terrain wind corrections (FARSITE)
-     * 4. Compute effective midflame wind
-     * 5. Compute rate-of-spread using Rothermel model
-     * 6. (Phase 3) Advance level-set using ROS and wind
-     * 7. (Phase 6) Compute heat flux to atmosphere
+     * 4. Update fuel moisture from atmospheric state (Phase 2)
+     * 5. Compute effective midflame wind
+     * 6. Compute rate-of-spread using Rothermel model
+     * 7. (Phase 3) Advance level-set using ROS and wind
+     * 8. (Phase 6) Compute heat flux to atmosphere
      *
      * @param[in]     dt             Timestep [s]
      * @param[in,out] surface_layer  SurfaceLayer with MOST diagnostics.
      *                               Non-const because get_u_star / get_z0 /
      *                               get_olen are not marked const in
      *                               ERF_SurfaceLayer.H.
+     * @param[in]     T_atm_k0       Atmospheric potential temperature at k=0 [K]
+     *                               On atmospheric grid (coarser than fire grid).
+     * @param[in]     RH_atm_k0      Atmospheric relative humidity at k=0 [fraction 0-1]
+     *                               On atmospheric grid (coarser than fire grid).
      */
-    void advance(amrex::Real dt, SurfaceLayer& surface_layer);
+    void advance(amrex::Real dt, 
+                 SurfaceLayer& surface_layer,
+                 const amrex::MultiFab& T_atm_k0,
+                 const amrex::MultiFab& RH_atm_k0);
 
     /**
      * @brief Get heat flux for atmospheric coupling.
