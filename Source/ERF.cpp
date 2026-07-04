@@ -1546,7 +1546,10 @@ ERF::InitData_post ()
     m_fire_params = FireParams();
     if (m_fire_params.enable) {
         m_fire_layer = std::make_unique<FireLayer>();
-        m_fire_layer->initialize(*this, m_fire_params);
+        m_fire_layer->initialize(*this,
+                         m_SurfaceLayer.get(),
+                         *z_phys_nd[0],
+                         m_fire_params);
     }
 #endif
 }
@@ -1778,7 +1781,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 void
 ERF::initializeFire (const int& a_nlevsmax /*!< number of AMR levels */)
 {
-    fire = std::make_unique<Fire>();
     if (amrex::ParallelDescriptor::IOProcessor()) {
         amrex::Print() << "Fire model initialized with " << a_nlevsmax << " level(s)" << std::endl;
     }

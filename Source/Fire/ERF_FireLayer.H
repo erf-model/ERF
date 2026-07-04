@@ -34,35 +34,31 @@ class ERF;
  *
  * Multifabs (all on FireGrid, size C*nx × C*ny × 1):
  *
- * | Name | ncomp | Description |
- * |------|-------|---|
- * | fire_phi | 1 | Level-set: <0 burned, >0 unburned, ≈0 front |
- * | fire_wind_ref | 2 | u,v at z_ref (e.g., 6.1 m) from MOST |
- * | fire_wind_eff | 2 | After WAF + terrain corrections |
- * | fire_slopes | 2 | dz/dx, dz/dy (static, computed at init) |
- * | fire_curvature | 1 | Terrain curvature (static, at init) |
- * | fire_ros | 1 | Rate of spread [m/s] |
- * | fire_fuel_load | 1 | Fuel load [kg/m²] |
- * | fire_fuel_mc | 3 | M_1hr, M_10hr, M_100hr [fraction] |
- * | fire_heat_flux | 1 | Heat flux [W/m²] (Phase 6, stub) |
- * | fire_spread_vec | 2 | Scratch for FARSITE spread direction (Phase 3) |
+ * | Name           | ncomp | Description                                  |
+ * |----------------|-------|----------------------------------------------|
+ * | fire_phi       | 1     | Level-set: <0 burned, >0 unburned, ≈0 front  |
+ * | fire_wind_ref  | 2     | u,v at z_ref (e.g., 6.1 m) from MOST        |
+ * | fire_wind_eff  | 2     | After WAF + terrain corrections              |
+ * | fire_slopes    | 2     | dz/dx, dz/dy (static, computed at init)      |
+ * | fire_curvature | 1     | Terrain curvature (static, at init)          |
+ * | fire_ros       | 1     | Rate of spread [m/s]                         |
+ * | fire_fuel_load | 1     | Fuel load [kg/m²]                            |
+ * | fire_fuel_mc   | 3     | M_1hr, M_10hr, M_100hr [fraction]           |
+ * | fire_heat_flux | 1     | Heat flux [W/m²] (Phase 6, stub)             |
+ * | fire_spread_vec| 2     | Scratch for FARSITE spread direction (Phase 3)|
  */
 class FireLayer
 {
 public:
 
-    /**
-     * @brief Constructor
-     */
+    /** @brief Constructor */
     FireLayer() = default;
 
-    /**
-     * @brief Destructor
-     */
+    /** @brief Destructor */
     ~FireLayer() = default;
 
     /**
-     * @brief Initialize fire module after SurfaceLayer is ready
+     * @brief Initialize fire module after SurfaceLayer is ready.
      *
      * Called from ERF::InitData_post(). Performs:
      * 1. Prerequisite verification (verify_fire_prerequisites)
@@ -72,17 +68,32 @@ public:
      * 5. Initialize fire level-set (ignition circle)
      * 6. Set initial fuel properties (moisture, fuel load)
      *
-     * @param[in] erf             ERF instance (for grid, geometry, SurfaceLayer access)
-     * @param[in] fire_params     Fire configuration
+     * The caller (ERF, a friend of itself) passes the private members as
+     * explicit arguments so that FireLayer never needs to access ERF's
+     * private/protected data directly.
      *
-     * @throw amrex::Error if prerequisites not met
+     * @param[in] erf                ERF instance — used only for public
+     *                               AmrCore accessors (boxArray, DistributionMap,
+     *                               Geom).
+     * @param[in] surface_layer_ptr  Pointer to the SurfaceLayer owned by ERF
+     *                               (pass m_SurfaceLayer.get() at the call site).
+     *                               May be nullptr when called before the surface
+     *                               layer is constructed (prereq check only).
+     * @param[in] z_phys_nd_atm      Atmospheric nodal terrain-height MultiFab
+     *                               (pass *z_phys_nd[0] at the call site).
+     * @param[in] fire_params        Fire configuration struct.
+     *
+     * @throw amrex::Error if prerequisites not met.
      */
-    void initialize(const ERF& erf, const FireParams& fire_params);
+    void initialize(const ERF&            erf,
+                    const SurfaceLayer*   surface_layer_ptr,
+                    const amrex::MultiFab& z_phys_nd_atm,
+                    const FireParams&     fire_params);
 
     /**
-     * @brief Advance fire simulation by one timestep
+     * @brief Advance fire simulation by one atmospheric timestep.
      *
-     * Called from ERF::Advance() each atmospheric timestep.
+     * Called from ERF::Advance() each timestep.
      * Executes the fire computation pipeline:
      * 1. Extract wind from MOST layer at reference height
      * 2. Apply Wind Adjustment Factor for canopy
@@ -92,18 +103,17 @@ public:
      * 6. (Phase 3) Advance level-set using ROS and wind
      * 7. (Phase 6) Compute heat flux to atmosphere
      *
-     * @param[in] dt              Timestep [s]
-     * @param[in] surface_layer   SurfaceLayer with MOST diagnostics
+     * @param[in]     dt             Timestep [s]
+     * @param[in,out] surface_layer  SurfaceLayer with MOST diagnostics.
+     *                               Non-const because get_u_star / get_z0 /
+     *                               get_olen are not marked const in
+     *                               ERF_SurfaceLayer.H.
      */
-    void advance(amrex::Real dt, const SurfaceLayer& surface_layer);
+    void advance(amrex::Real dt, SurfaceLayer& surface_layer);
 
     /**
-     * @brief Get heat flux for atmospheric coupling
-     *
-     * @return Reference to fire_heat_flux MultiFab
-     *
-     * Returns nullptr if heat flux not yet computed.
-     * Used in Phase 6 for adding fire heat source to atmosphere.
+     * @brief Get heat flux for atmospheric coupling.
+     * @return Pointer to fire_heat_flux MultiFab (nullptr until Phase 6).
      */
     const amrex::MultiFab* get_heat_flux() const
     {
@@ -111,9 +121,8 @@ public:
     }
 
     /**
-     * @brief Get ROS field for diagnostics
-     *
-     * @return Reference to fire_ros MultiFab [m/s]
+     * @brief Get rate-of-spread field for diagnostics.
+     * @return Pointer to fire_ros MultiFab [m/s].
      */
     const amrex::MultiFab* get_ros() const
     {
@@ -121,9 +130,8 @@ public:
     }
 
     /**
-     * @brief Get effective wind for diagnostics
-     *
-     * @return Reference to fire_wind_eff MultiFab [m/s]
+     * @brief Get effective wind field for diagnostics.
+     * @return Pointer to fire_wind_eff MultiFab [m/s].
      */
     const amrex::MultiFab* get_wind_eff() const
     {
@@ -131,9 +139,8 @@ public:
     }
 
     /**
-     * @brief Get level-set for diagnostics
-     *
-     * @return Reference to fire_phi MultiFab
+     * @brief Get level-set field for diagnostics.
+     * @return Pointer to fire_phi MultiFab.
      */
     const amrex::MultiFab* get_levelset() const
     {
@@ -157,31 +164,31 @@ private:
     std::unique_ptr<amrex::MultiFab>         fire_heat_flux;    // Heat flux (stub)
     std::unique_ptr<amrex::MultiFab>         fire_spread_vec;   // FARSITE scratch
 
-    // Precomputed coefficients
+    // Precomputed Rothermel coefficients
     RothermelComputed                        m_rc;
 
     // Configuration
     FireParams                               m_params;
 
     /**
-     * @brief Initialize fire level-set as a circle
+     * @brief Initialize fire level-set as a signed-distance circle.
      *
-     * @param[in] center_x Ignition center x [m]
-     * @param[in] center_y Ignition center y [m]
-     * @param[in] radius   Ignition radius [m]
+     * @param[in] center_x  Ignition centre x [m]
+     * @param[in] center_y  Ignition centre y [m]
+     * @param[in] radius    Ignition radius [m]
      *
-     * Sets fire_phi to a circle:
-     * - fire_phi < 0 inside (burned area)
-     * - fire_phi > 0 outside (unburned fuel)
-     * - fire_phi ≈ 0 on the front
+     * Resulting fire_phi convention:
+     * - fire_phi < 0  →  burned (inside circle)
+     * - fire_phi > 0  →  unburned fuel (outside circle)
+     * - fire_phi ≈ 0  →  fire front
      */
     void init_ignition(amrex::Real center_x, amrex::Real center_y,
                        amrex::Real radius);
 
     /**
-     * @brief Apply Wind Adjustment Factor to wind field
+     * @brief Apply Wind Adjustment Factor to the effective wind field.
      *
-     * Multiplies wind speed by WAF per cell. Used in advance().
+     * Multiplies fire_wind_eff by a scalar WAF. Used inside advance().
      */
     void apply_waf_to_wind();
 

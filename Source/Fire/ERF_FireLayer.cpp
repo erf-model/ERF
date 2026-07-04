@@ -8,30 +8,31 @@
 
 using namespace amrex;
 
-void FireLayer::initialize(const ERF& erf, const FireParams& fire_params)
+void FireLayer::initialize(const ERF& erf,
+                            const SurfaceLayer* surface_layer_ptr,
+                            const MultiFab& z_phys_nd_atm,
+                            const FireParams& fire_params)
 {
     m_params = fire_params;
 
     // Verify prerequisites
-    verify_fire_prerequisites(erf, erf.m_SurfaceLayer.get(), fire_params);
+    verify_fire_prerequisites(erf, surface_layer_ptr, fire_params);
 
-    // Create fire grid
-    m_fg = create_fire_grid(erf.grids[0], erf.DistributionMap(0),
+    // Create fire grid using public AmrCore accessor (boxArray) instead of
+    // protected AmrMesh::grids
+    m_fg = create_fire_grid(erf.boxArray(0), erf.DistributionMap(0),
                             erf.Geom(0), fire_params.grid_ratio);
 
-    // Get atmospheric terrain
-    const MultiFab& z_phys_nd_atm = *erf.z_phys_nd[0];
-
     // Allocate MultiFabs on fire grid
-    fire_phi = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_wind_ref = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_wind_eff = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_slopes = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_curvature = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_ros = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_fuel_load = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_fuel_mc = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 3, 0);
-    fire_heat_flux = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_wind_ref   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_wind_eff   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_curvature  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_fuel_mc    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 3, 0);
+    fire_heat_flux  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_spread_vec = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
 
     // Initialize values
@@ -45,7 +46,7 @@ void FireLayer::initialize(const ERF& erf, const FireParams& fire_params)
     // Set fuel load [kg/m²]
     FuelModelParams fp = get_anderson_fuel_params(fire_params.fuel_model_id);
     Real fuel_load_lb_ft2 = fp.w_d1 + fp.w_d10 + fp.w_d100 + fp.w_lh + fp.w_lw;
-    Real fuel_load_kg_m2 = fuel_load_lb_ft2 * 4.88243;  // Convert to SI
+    Real fuel_load_kg_m2  = fuel_load_lb_ft2 * 4.88243;  // Convert lb/ft² → kg/m²
     fire_fuel_load->setVal(fuel_load_kg_m2);
 
     // Set fuel moisture [fraction]
@@ -59,7 +60,7 @@ void FireLayer::initialize(const ERF& erf, const FireParams& fire_params)
         });
     }
 
-    // Compute terrain slopes and curvature (static fields)
+    // Compute terrain slopes and curvature (static fields, computed once at init)
     compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg);
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
@@ -69,8 +70,8 @@ void FireLayer::initialize(const ERF& erf, const FireParams& fire_params)
 
     // Precompute Rothermel coefficients
     m_rc = compute_rothermel_params(fp, fire_params.moisture_1hr,
-                                     fire_params.moisture_10hr,
-                                     fire_params.moisture_100hr);
+                                    fire_params.moisture_10hr,
+                                    fire_params.moisture_100hr);
 
     amrex::Print() << "[FIRE] FireLayer initialized: "
                    << "C=" << m_fg.C << ", "
@@ -78,10 +79,11 @@ void FireLayer::initialize(const ERF& erf, const FireParams& fire_params)
                    << "grid=" << m_fg.ba.size() << " boxes" << std::endl;
 }
 
-void FireLayer::advance(Real dt, const SurfaceLayer& surface_layer)
+// surface_layer is non-const because SurfaceLayer's get_u_star / get_z0 /
+// get_olen accessors are not marked const.
+void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
 {
-    // Compute wind extraction pipeline:
-    // 1. MOST wind at reference height
+    // 1. Extract MOST wind at reference height
     fill_fire_wind_from_most(*fire_wind_ref,
                              *surface_layer.get_u_star(0),
                              *surface_layer.get_z0(0),
@@ -90,15 +92,15 @@ void FireLayer::advance(Real dt, const SurfaceLayer& surface_layer)
                              *surface_layer.get_mac_avg(0, 1),
                              m_fg, m_params.wind_ref_ht);
 
-    // 2. Copy to effective wind
+    // 2. Copy reference wind to effective wind
     MultiFab::Copy(*fire_wind_eff, *fire_wind_ref, 0, 0, 2, 0);
 
-    // 3. Apply WAF if enabled
+    // 3. Apply Wind Adjustment Factor if enabled
     if (m_params.use_waf) {
         apply_waf_to_wind();
     }
 
-    // 4. Apply terrain wind corrections if enabled
+    // 4. Apply terrain wind corrections (FARSITE) if enabled
     if (m_params.use_terrain_wind) {
         apply_farsite_terrain_wind(*fire_wind_eff, *fire_slopes, *fire_curvature,
                                    m_params.k_ridge, m_params.k_shelter,
@@ -108,41 +110,41 @@ void FireLayer::advance(Real dt, const SurfaceLayer& surface_layer)
     // 5. Compute rate-of-spread
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
 
-    // Print diagnostics
-    Real max_ros = fire_ros->max(0);
+    // Diagnostics
+    Real max_ros  = fire_ros->max(0);
     Real mean_ros = fire_ros->sum(0) / fire_ros->boxArray().numPts();
     amrex::Print() << "[FIRE] t= " << std::scientific << std::setprecision(6)
-                   << "  max_ROS= " << max_ros << " m/s"
+                   << "  max_ROS= " << max_ros  << " m/s"
                    << "  mean_ROS= " << mean_ros << " m/s" << std::endl;
 
     // (Phase 3) Level-set advancement: not implemented in Phase 2
-    // (Phase 6) Heat flux: not implemented in Phase 2
+    // (Phase 6) Heat flux:             not implemented in Phase 2
 }
 
 void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)
 {
-    // Initialize fire level-set as a circle
-    // fire_phi < 0 (burned) inside circle
-    // fire_phi > 0 (unburned) outside circle
+    // Signed-distance initialisation of the level-set:
+    //   fire_phi < 0  →  burned (inside circle)
+    //   fire_phi > 0  →  unburned (outside circle)
+    //   fire_phi ≈ 0  →  fire front
 
-    Real dx = m_fg.geom.CellSize(0);
-    Real dy = m_fg.geom.CellSize(1);
+    const Real dx = m_fg.geom.CellSize(0);
+    const Real dy = m_fg.geom.CellSize(1);
+
+    // Copy ProbLo values into local scalars so the GPU lambda captures them
+    // by value without implicitly capturing 'this' (fixes -Wdeprecated-this-capture).
+    const Real problo_x = m_fg.geom.ProbLo(0);
+    const Real problo_y = m_fg.geom.ProbLo(1);
 
     for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         Array4<Real> phi = fire_phi->array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            // Physical coordinates of cell center
-            Real x = m_fg.geom.ProbLo(0) + (iv[0] + 0.5) * dx;
-            Real y = m_fg.geom.ProbLo(1) + (iv[1] + 0.5) * dy;
-
-            // Distance from ignition center
-            Real dist = std::sqrt((x - center_x)*(x - center_x) +
-                                          (y - center_y)*(y - center_y));
-
-            // Level-set: distance function
-            // Negative inside, positive outside, zero on boundary
+            const Real x    = problo_x + (iv[0] + 0.5_rt) * dx;
+            const Real y    = problo_y + (iv[1] + 0.5_rt) * dy;
+            const Real dist = std::sqrt((x - center_x)*(x - center_x) +
+                                                (y - center_y)*(y - center_y));
             phi(iv) = dist - radius;
         });
     }
@@ -150,21 +152,17 @@ void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)
 
 void FireLayer::apply_waf_to_wind()
 {
-    // Apply Wind Adjustment Factor to wind field
-    // For now, use a constant WAF value
-    // In a full implementation, WAF would depend on canopy properties per cell
+    // Wind Adjustment Factor — constant per call for now.
+    // A full implementation would compute WAF per cell from canopy properties.
 
-    Real waf = 0.4;  // Default WAF for forest (about 40% of open wind)
+    Real waf = 0.4_rt;  // Default: ~40% of open wind (typical closed forest)
 
     if (m_params.waf_formula == "andrews") {
-        // Andrews formula for fuel bed depth of 2 m
-        // WAF ≈ 0.4 for typical forest
-        Real h_ft = 6.5;  // ~2 m fuel bed depth
-        waf = compute_waf_unsheltered(h_ft);
+        // Andrews (1982) unsheltered WAF for ~2 m fuel-bed depth (6.5 ft)
+        waf = compute_waf_unsheltered(6.5_rt);
     } else if (m_params.waf_formula == "behaviorplus") {
-        waf = compute_waf_behaviorplus(6.5);
+        waf = compute_waf_behaviorplus(6.5_rt);
     }
 
-    // Multiply wind by WAF
     fire_wind_eff->mult(waf, 0, 2, 0);
 }
