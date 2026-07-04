@@ -33,6 +33,15 @@ struct FireParams
     amrex::Real       k_shelter           = 0.6;         ///< Sheltered wind factor
     amrex::Real       k_valley            = 0.8;         ///< Valley channeling factor
     amrex::Real       k_deflect           = 0.3;         ///< Wind deflection factor
+    
+    // FARSITE parameters
+    amrex::Real       farsite_phi_threshold   = 0.0_rt;  ///< front detection level in phi
+    int               farsite_use_anderson_lw = 1;       ///< derive coeff_a/b/c from Anderson L/W
+    amrex::Real       farsite_coeff_a         = 0.5_rt;  ///< Richards head coefficient
+    amrex::Real       farsite_coeff_b         = 0.25_rt; ///< Richards flank coefficient
+    amrex::Real       farsite_coeff_c         = 0.1_rt;  ///< Richards backing coefficient
+    amrex::Real       farsite_gaussian_sigma  = -1.0_rt; ///< phi stamping radius [m]
+    amrex::Real       farsite_cfl_fire        = 0.5_rt;  ///< fire CFL number
 
     /**
      * @brief Construct FireParams from ParmParse
@@ -41,25 +50,34 @@ struct FireParams
      */
     FireParams()
     {
-        amrex::ParmParse pp("erf.fire");
-        pp.query("enable", enable);
-        pp.query("grid_ratio", grid_ratio);
-        pp.query("fuel_model_id", fuel_model_id);
-        pp.query("moisture_1hr", moisture_1hr);
-        pp.query("moisture_10hr", moisture_10hr);
-        pp.query("moisture_100hr", moisture_100hr);
-        pp.query("ignition_x", ignition_x);
-        pp.query("ignition_y", ignition_y);
-        pp.query("ignition_r", ignition_r);
-        pp.query("wind_ref_ht", wind_ref_ht);
-        pp.query("use_waf", use_waf);
-        pp.query("waf_formula", waf_formula);
-        pp.query("use_wind_limit", use_wind_limit);
-        pp.query("use_terrain_wind", use_terrain_wind);
-        pp.query("k_ridge", k_ridge);
-        pp.query("k_shelter", k_shelter);
-        pp.query("k_valley", k_valley);
-        pp.query("k_deflect", k_deflect);
+       amrex::ParmParse pp("erf.fire");
+       pp.query("enable", enable);
+       pp.query("grid_ratio", grid_ratio);
+       pp.query("fuel_model_id", fuel_model_id);
+       pp.query("moisture_1hr", moisture_1hr);
+       pp.query("moisture_10hr", moisture_10hr);
+       pp.query("moisture_100hr", moisture_100hr);
+       pp.query("ignition_x", ignition_x);
+       pp.query("ignition_y", ignition_y);
+       pp.query("ignition_r", ignition_r);
+       pp.query("wind_ref_ht", wind_ref_ht);
+       pp.query("use_waf", use_waf);
+       pp.query("waf_formula", waf_formula);
+       pp.query("use_wind_limit", use_wind_limit);
+       pp.query("use_terrain_wind", use_terrain_wind);
+       pp.query("k_ridge", k_ridge);
+       pp.query("k_shelter", k_shelter);
+       pp.query("k_valley", k_valley);
+       pp.query("k_deflect", k_deflect);
+        
+       // FARSITE parameters
+       pp.query("farsite.phi_threshold", farsite_phi_threshold);
+       pp.query("farsite.use_anderson_lw", farsite_use_anderson_lw);
+       pp.query("farsite.coeff_a", farsite_coeff_a);
+       pp.query("farsite.coeff_b", farsite_coeff_b);
+       pp.query("farsite.coeff_c", farsite_coeff_c);
+       pp.query("farsite.gaussian_sigma", farsite_gaussian_sigma);
+       pp.query("farsite.cfl_fire", farsite_cfl_fire);
     }
 };
 

@@ -23,8 +23,8 @@ void FireLayer::initialize(const ERF& erf,
     m_fg = create_fire_grid(erf.boxArray(0), erf.DistributionMap(0),
                             erf.Geom(0), fire_params.grid_ratio);
 
-    // Allocate MultiFabs on fire grid
-    fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    // Allocate MultiFabs on fire grid (fire_phi with 1 ghost cell for gradients)
+    fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 1);
     fire_wind_ref   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_wind_eff   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
@@ -64,9 +64,23 @@ void FireLayer::initialize(const ERF& erf,
     compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg);
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
-    // Initialize ignition
-    init_ignition(fire_params.ignition_x, fire_params.ignition_y,
-                  fire_params.ignition_r);
+    // Store ignition parameters for phase 3
+    m_ignition_x = fire_params.ignition_x;
+    m_ignition_y = fire_params.ignition_y;
+    m_ignition_r = fire_params.ignition_r;
+
+    // Initialize ignition using phase 3 function
+    initialize_ignition(*fire_phi, m_fg.geom, m_ignition_x, m_ignition_y, m_ignition_r);
+    fire_phi->FillBoundary(m_fg.geom.periodicity());
+
+    // Initialize FARSITE parameters
+    m_fp.phi_threshold      = fire_params.farsite_phi_threshold;
+    m_fp.coeff_a            = fire_params.farsite_coeff_a;
+    m_fp.coeff_b            = fire_params.farsite_coeff_b;
+    m_fp.coeff_c            = fire_params.farsite_coeff_c;
+    m_fp.use_anderson_lw    = fire_params.farsite_use_anderson_lw;
+    m_fp.gaussian_sigma     = fire_params.farsite_gaussian_sigma;
+    m_fp.cfl_fire           = fire_params.farsite_cfl_fire;
 
     // Precompute Rothermel coefficients
     m_rc = compute_rothermel_params(fp, fire_params.moisture_1hr,
@@ -83,6 +97,9 @@ void FireLayer::initialize(const ERF& erf,
 // get_olen accessors are not marked const.
 void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
 {
+    m_current_time = 0.0_rt;  // Time is tracked externally; this is a placeholder
+    m_dt_atm       = dt;
+
     // 1. Extract MOST wind at reference height
     fill_fire_wind_from_most(*fire_wind_ref,
                              *surface_layer.get_u_star(0),
@@ -110,15 +127,27 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
     // 5. Compute rate-of-spread
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
 
+    // 6. (Phase 3) Advance level-set using FARSITE subcycle
+    int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
+                                           *fire_wind_eff, *fire_ros,
+                                           m_fg.geom, dt, m_fp);
+
+    // Fill ghost cells after propagation so gradient stencils in the next
+    // ComputeRothermellSpreadRate call (next atmospheric step) are valid.
+    fire_phi->FillBoundary(m_fg.geom.periodicity());
+
     // Diagnostics
     Real max_ros  = fire_ros->max(0);
     Real mean_ros = fire_ros->sum(0) / fire_ros->boxArray().numPts();
-    amrex::Print() << "[FIRE] t= " << std::scientific << std::setprecision(6)
-                   << "  max_ROS= " << max_ros  << " m/s"
-                   << "  mean_ROS= " << mean_ros << " m/s" << std::endl;
+    Real phi_min  = fire_phi->min(0);
+    
+    amrex::Print() << "[FIRE] t=" << m_current_time
+                   << "  substeps=" << n_substeps
+                   << "  phi_min=" << phi_min
+                   << "  max_ROS=" << max_ros << " m/s"
+                   << "  mean_ROS=" << mean_ros << " m/s" << std::endl;
 
-    // (Phase 3) Level-set advancement: not implemented in Phase 2
-    // (Phase 6) Heat flux:             not implemented in Phase 2
+    // (Phase 6) Heat flux:             not implemented in Phase 3
 }
 
 void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)

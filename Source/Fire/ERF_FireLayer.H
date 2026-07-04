@@ -7,6 +7,8 @@
 #include <ERF_FireParams.H>
 #include <ERF_FireGrid.H>
 #include <ERF_Rothermel.H>
+#include <ERF_FarsiteEllipse.H>
+#include <ERF_FireIgnition.H>
 
 // Forward declarations
 class SurfaceLayer;
@@ -166,6 +168,18 @@ private:
 
     // Precomputed Rothermel coefficients
     RothermelComputed                        m_rc;
+
+    // FARSITE parameters for level-set propagation
+    FarsiteParams                            m_fp;
+
+    // Time tracking for fire advancement
+    amrex::Real                              m_current_time = 0.0_rt;
+    amrex::Real                              m_dt_atm       = 0.0_rt;
+
+    // Ignition parameters
+    amrex::Real                              m_ignition_x = 0.0_rt;
+    amrex::Real                              m_ignition_y = 0.0_rt;
+    amrex::Real                              m_ignition_r = 20.0_rt;
 
     // Configuration
     FireParams                               m_params;

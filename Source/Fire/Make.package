@@ -15,5 +15,7 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_TerrainSlope.H
   CEXE_headers += Fire/ERF_Rothermel.H
   CEXE_headers += Fire/ERF_FireLayer.H
+  CEXE_headers += Fire/ERF_FarsiteEllipse.H
+  CEXE_headers += Fire/ERF_FireIgnition.H
 endif
 
