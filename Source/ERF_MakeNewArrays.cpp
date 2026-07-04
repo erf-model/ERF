@@ -751,6 +751,15 @@ ERF::init_zphys (int lev, Real elapsed_time)
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
             }
+
+#if 0
+            // This remains commented out until we verify that the stretched and variable dz pathways
+            //   in fact give the same answer when appropriate
+            if (SolverChoice::mesh_type == MeshType::VariableDz)
+            {
+                check_mesh_type(lev);
+            }
+#endif
         } // lev == 0
 
     } else {

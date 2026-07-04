@@ -315,6 +315,7 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_Constructors.cpp
        ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
@@ -386,10 +387,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DCatalog.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
+       ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp

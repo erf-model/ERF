@@ -233,3 +233,13 @@ that is 1 at the domain boundary and 0 at the edge of the nudge region.
 
 For turbulent inflow perturbations, including the ``erf.perturbation_type`` options and
 their placement on level subdomains, see :doc:`InflowTurbulenceGeneration`.
+
+ERF Boundary Data Files
+----------------------
+
+For real lateral boundary conditions, ``init_type`` of ``metgrid`` or ``wrfinput``, ERF can
+write lateral boundary data to an AMReX-native file during initialization. The file name is
+configurable with ``erf.erfbdy_file`` (default ``"erfbdy"``). Use of the the erfbdy file is
+mandatory for ``init_type`` of ``metgrid``, but can be optionally disabled for ``init_type``
+of ``wrfinput`` with ``erf.write_erfbdy = false`` so that the boundary data is processed
+as-needed during time integration.

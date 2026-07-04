@@ -109,7 +109,7 @@ ShocTKE::compute_shear_production (const ShocColumnData& col,
 {
     const Box iface_box(IntVect(0,0,0), IntVect(col.layout.ncell - 1, col.layout.nlev, 0));
     sterm_iface.resize(iface_box, 1, The_Async_Arena());
-    shoc::set_fab_val(sterm_iface, 0.0);
+    sterm_iface.template setVal<amrex::RunOn::Device>(0.0);
 
     auto sterm = sterm_iface.array();
     const auto u = col.u.const_array();

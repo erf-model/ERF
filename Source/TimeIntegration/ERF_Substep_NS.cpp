@@ -432,10 +432,9 @@ void erf_substep_NS (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            Real dz_inv = one / dz_ptr[k];
-            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
-                                          -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
-                                          -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
+            R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
+                                 +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
+                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
 
             // line 1
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));
