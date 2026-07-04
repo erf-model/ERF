@@ -1457,6 +1457,12 @@ private:
     std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
+#ifdef ERF_ENABLE_FIRE
+    std::unique_ptr<FireLayer>        m_fire_layer = nullptr;
+    FireParams                        m_fire_params;
+#endif
+
+
     //
     // Holds info for dynamically generated tagging criteria
     //

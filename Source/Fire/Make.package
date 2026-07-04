@@ -1,2 +1,19 @@
-CEXE_sources += ERF_Fire.cpp
-CEXE_headers += ERF_Fire.H
+ifeq ($(USE_FIRE), TRUE)
+  CEXE_sources += Fire/ERF_FireGrid.cpp
+  CEXE_sources += Fire/ERF_FirePrerequisites.cpp
+  CEXE_sources += Fire/ERF_FireWindExtract.cpp
+  CEXE_sources += Fire/ERF_TerrainSlope.cpp
+  CEXE_sources += Fire/ERF_Rothermel.cpp
+  CEXE_sources += Fire/ERF_FireLayer.cpp
+  CEXE_sources += Fire/ERF_Fire.cpp
+
+  CEXE_headers += Fire/ERF_Fire.H
+  CEXE_headers += Fire/ERF_FireParams.H
+  CEXE_headers += Fire/ERF_FireGrid.H
+  CEXE_headers += Fire/ERF_FirePrerequisites.H
+  CEXE_headers += Fire/ERF_FireWindExtract.H
+  CEXE_headers += Fire/ERF_TerrainSlope.H
+  CEXE_headers += Fire/ERF_Rothermel.H
+  CEXE_headers += Fire/ERF_FireLayer.H
+endif
+

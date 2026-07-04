@@ -289,6 +289,20 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
+  if(ERF_ENABLE_FIRE)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Fire/ERF_FireGrid.cpp
+      ${SRC_DIR}/Fire/ERF_FirePrerequisites.cpp
+      ${SRC_DIR}/Fire/ERF_FireWindExtract.cpp
+      ${SRC_DIR}/Fire/ERF_TerrainSlope.cpp
+      ${SRC_DIR}/Fire/ERF_Rothermel.cpp
+      ${SRC_DIR}/Fire/ERF_FireLayer.cpp
+      ${SRC_DIR}/Fire/ERF_Fire.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Fire>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_ENABLE_FIRE)
+  endif()
+
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
