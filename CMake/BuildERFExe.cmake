@@ -389,6 +389,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp

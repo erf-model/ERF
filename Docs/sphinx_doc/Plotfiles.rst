@@ -924,13 +924,63 @@ Example:
 ~~~~~~~~~~~~~~~~~~~~~~
 
 ERF assembles built-in 2D diagnostics from several source patterns. Most
-current fields are surface or single-level diagnostics. ``integrated_qv`` is a
-column-reduction diagnostic. Future diagnostics may add more column
-reductions, such as liquid water path, or interpolated horizontal surfaces,
-such as fields on pressure levels.
+current fields are surface or single-level diagnostics. ``integrated_qv`` and
+the scheme-aware water-path diagnostics are column reductions. Future
+diagnostics may add interpolated horizontal surfaces, such as fields on
+pressure levels.
 
 This organization does not change the public 2D variable names, component
 order, units, missing-value conventions, or ``2DMetadata.json`` schema.
+
+2D Water-Path Diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF can write scheme-aware 2D water-path diagnostics for prognostic condensed
+water species. These diagnostics integrate the conserved ``rho*q`` species
+component over the model column. They are available only when the active
+microphysics scheme exposes the corresponding conserved mass component.
+
+For a condensed species :math:`q_x`, ERF writes
+
+.. math::
+
+   W_x(x,y) = \int_{z_b}^{z_t} \rho(x,y,z)\,q_x(x,y,z)\,dz,
+
+where :math:`W_x` has units of :math:`\mathrm{kg\,m^{-2}}`.
+
+The discrete diagnostic uses the same metric convention as ``integrated_qv``:
+
+.. math::
+
+   W_x(i,j) = \Delta z \sum_k (\rho q_x)_{i,j,k}
+
+for constant-:math:`\Delta z` meshes, and
+
+.. math::
+
+   W_x(i,j) = \Delta z \sum_k (\rho q_x)_{i,j,k} J_{i,j,k}
+
+when ERF uses the column metric factor :math:`J`.
+
++-------------------------------+-----------------------------------------------+----------+
+| **integrated_qc**             | Cloud liquid water path                       | kg/m^2   |
++-------------------------------+-----------------------------------------------+----------+
+| **integrated_qi**             | Cloud ice water path                          | kg/m^2   |
++-------------------------------+-----------------------------------------------+----------+
+| **integrated_qr**             | Rain water path                               | kg/m^2   |
++-------------------------------+-----------------------------------------------+----------+
+| **integrated_qs**             | Snow water path                               | kg/m^2   |
++-------------------------------+-----------------------------------------------+----------+
+| **integrated_qg**             | Graupel water path                            | kg/m^2   |
++-------------------------------+-----------------------------------------------+----------+
+
+A name is available only if the active moisture model has that species as a
+conserved mass component. Two-moment number concentrations are not water mass
+paths and are not included.
+
+The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
+with ``FillZeroWhenUnavailable`` missing-value policy. The sidecar schema is
+unchanged.
 
 Surface Diagnostic Source Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

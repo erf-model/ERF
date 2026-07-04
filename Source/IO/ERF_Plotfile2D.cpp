@@ -2,6 +2,7 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "ERF_EpochTime.H"
@@ -110,7 +111,7 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
         requested_plot_names.push_back(nm);
     }
 
-    const auto available_names = plotfile2d::diagnostic_names();
+    const auto available_names = plotfile2d::available_diagnostic_names(solverChoice);
 
     // Keep the canonical built-in 2D ordering so the plotfile component layout
     // stays stable even if the input request order changes.
@@ -405,9 +406,9 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // surf_pres
 
         if (containerHasElement(plot_var_names, "integrated_qv")) {
-            // Current column-reduction example. Future LWP/IWP diagnostics
-            // should follow a separate column-reduction helper path rather
-            // than the single-k copy helpers.
+            // integrated_qv remains the legacy column-reduction example.
+            // Scheme-aware condensed water paths use a dedicated helper below
+            // rather than the single-k copy helpers.
             MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
             if (solverChoice.moisture_type != MoistureType::None) {
                 volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);
@@ -416,6 +417,25 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         }
+
+        const auto selected_water_paths =
+            plotfile2d::selected_condensed_water_path_components(varnames, solverChoice);
+        if (selected_water_paths.n > 0) {
+            // Condensed water paths are scheme-aware column reductions. Their
+            // availability comes from solverChoice.moisture_indices, and the
+            // reduction uses the same metric convention as integrated_qv.
+            plotfile2d::fill_condensed_water_paths(mf[lev],
+                                                   vars_new[lev][Vars::cons],
+                                                   selected_water_paths,
+                                                   geom[lev],
+                                                   *detJ_cc[lev]);
+        }
+
+        if (containerHasElement(plot_var_names, "integrated_qc")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qi")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qr")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qs")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qg")) { mf_comp++; }
 
         if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
             plotfile2d::fill_component_from_klevel_or_value(
