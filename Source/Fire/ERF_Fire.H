@@ -18,6 +18,8 @@
 #include <ERF_FireWindExtract.H>
 #include <ERF_TerrainSlope.H>
 #include <ERF_Rothermel.H>
+#include <ERF_FarsiteEllipse.H>
+#include <ERF_FireIgnition.H>
 #include <ERF_FireLayer.H>
 
 #endif  // ERF_ENABLE_FIRE
