@@ -144,6 +144,7 @@ erf.fire.fuel_model_id = 1           # Anderson FBFM13 model (1-13)
 erf.fire.ignition_x = 1000.0         # Ignition center [m]
 erf.fire.ignition_y = 1000.0         # Ignition center [m]
 erf.fire.ignition_r = 20.0           # Ignition radius [m]
+erf.fire.fire_debug = false          # Enable detailed debug output for fire calculations
 ```
 
 ### Moisture and Wind
@@ -205,21 +206,27 @@ With GR1 fuel, 5 m/s wind, flat terrain:
 - Burned ellipse major axis (downwind): ~200–350 m
 - Minor axis (cross-wind): ~100–200 m
 
-### ComputeFireIntensity(int)
-Dummy implementation of fire intensity calculation using empirical relationships.
+## Debugging
 
-## Input Parameters
+The fire module provides debug output to trace calculation steps when enabled. This can be useful for verifying model behavior and investigating issues.
 
-Fire model parameters can be set in the input file using the `fire.*` prefix:
+### Enabling Debug Output
+
+Set `erf.fire.fire_debug = true` in the input file to enable step-by-step debug messages. When enabled, the fire module prints information about:
+- Wind extraction from MOST boundary layer
+- Wind Adjustment Factor application
+- FARSITE terrain wind corrections
+- Rate-of-spread field computation
+- Level-set propagation and number of fire subcycles
+
+Example input configuration:
 
 ```
-# Fire model parameters
-fire.fuel_moisture_content = 0.08
-fire.fuel_bed_depth = 0.3
-fire.wind_speed = 5.0
-fire.slope = 0.0
-fire.ellipse_length_width_ratio = 1.5
+erf.fire.enable = true
+erf.fire.fire_debug = true
 ```
+
+Debug messages are prefixed with `[FIRE DEBUG]` and printed to standard output alongside regular fire diagnostics (prefixed with `[FIRE]`).
 
 ## Testing
 

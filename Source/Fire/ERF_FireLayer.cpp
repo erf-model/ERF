@@ -100,6 +100,10 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
     m_current_time = 0.0_rt;  // Time is tracked externally; this is a placeholder
     m_dt_atm       = dt;
 
+    if (m_params.fire_debug) {
+        amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
+    }
+
     // 1. Extract MOST wind at reference height
     fill_fire_wind_from_most(*fire_wind_ref,
                              *surface_layer.get_u_star(0),
@@ -109,28 +113,54 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer)
                              *surface_layer.get_mac_avg(0, 1),
                              m_fg, m_params.wind_ref_ht);
 
+    if (m_params.fire_debug) {
+        Real max_wind_ref = fire_wind_ref->max(0);
+        amrex::Print() << "[FIRE DEBUG] Wind extraction completed. Max reference wind: " << max_wind_ref << " m/s" << std::endl;
+    }
+
     // 2. Copy reference wind to effective wind
     MultiFab::Copy(*fire_wind_eff, *fire_wind_ref, 0, 0, 2, 0);
 
     // 3. Apply Wind Adjustment Factor if enabled
     if (m_params.use_waf) {
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Applying Wind Adjustment Factor (formula: " << m_params.waf_formula << ")" << std::endl;
+        }
         apply_waf_to_wind();
     }
 
     // 4. Apply terrain wind corrections (FARSITE) if enabled
     if (m_params.use_terrain_wind) {
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Applying FARSITE terrain wind corrections" << std::endl;
+        }
         apply_farsite_terrain_wind(*fire_wind_eff, *fire_slopes, *fire_curvature,
                                    m_params.k_ridge, m_params.k_shelter,
                                    m_params.k_valley, m_params.k_deflect);
     }
 
+    if (m_params.fire_debug) {
+        Real max_wind_eff = fire_wind_eff->max(0);
+        amrex::Print() << "[FIRE DEBUG] Effective wind computed. Max effective wind: " << max_wind_eff << " m/s" << std::endl;
+    }
+
     // 5. Compute rate-of-spread
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
+
+    if (m_params.fire_debug) {
+        Real max_ros_temp  = fire_ros->max(0);
+        Real mean_ros_temp = fire_ros->sum(0) / fire_ros->boxArray().numPts();
+        amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << max_ros_temp << " m/s, Mean: " << mean_ros_temp << " m/s" << std::endl;
+    }
 
     // 6. (Phase 3) Advance level-set using FARSITE subcycle
     int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                            *fire_wind_eff, *fire_ros,
                                            m_fg.geom, dt, m_fp);
+
+    if (m_params.fire_debug) {
+        amrex::Print() << "[FIRE DEBUG] Level-set propagation completed with " << n_substeps << " fire subcycles" << std::endl;
+    }
 
     // Fill ghost cells after propagation so gradient stencils in the next
     // ComputeRothermellSpreadRate call (next atmospheric step) are valid.

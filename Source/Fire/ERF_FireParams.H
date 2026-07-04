@@ -16,7 +16,7 @@
 struct FireParams
 {
     bool              enable              = false;       ///< Enable fire module
-    bool              debug               = false;       ///< Enable debug output for fire calculations
+    bool              fire_debug          = false;       ///< Enable debug output for fire calculations
     int               grid_ratio          = 5;           ///< Fire grid refinement factor (C)
     int               fuel_model_id       = 1;           ///< Anderson FBFM13 model (1-13)
     amrex::Real       moisture_1hr        = 0.08;        ///< 1-hour fuel moisture [fraction]
@@ -53,7 +53,7 @@ struct FireParams
     {
        amrex::ParmParse pp("erf.fire");
        pp.query("enable", enable);
-       pp.query("debug", debug);
+       pp.query("fire_debug", fire_debug);
        pp.query("grid_ratio", grid_ratio);
        pp.query("fuel_model_id", fuel_model_id);
        pp.query("moisture_1hr", moisture_1hr);

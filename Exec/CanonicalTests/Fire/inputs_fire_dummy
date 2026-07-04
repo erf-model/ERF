@@ -54,3 +54,4 @@ fire.fuel_bed_depth = 0.3
 fire.wind_speed = 5.0
 fire.slope = 0.0
 fire.ellipse_length_width_ratio = 1.5
+erf.fire.fire_debug = true

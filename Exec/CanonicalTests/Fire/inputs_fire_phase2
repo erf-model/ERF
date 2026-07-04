@@ -54,6 +54,7 @@ erf.plot_vars_1 = density rhoadv_0 x_velocity y_velocity z_velocity pressure tem
 
 # Fire module parameters (Phase 2)
 erf.fire.enable = true
+erf.fire.fire_debug = true
 erf.fire.grid_ratio = 5              # 10 m × 10 m fire cells (5 times finer than 50 m atm)
 erf.fire.fuel_model_id = 1            # GR1 (Short grass) Anderson FBFM13 model
 erf.fire.moisture_1hr = 0.08
