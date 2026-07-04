@@ -13,6 +13,7 @@
 #include <ERF_MicrophysicsUtils.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_Constants.H>
 
 /**
  * @brief Compute relative humidity from conserved atmospheric variables at k=0.
@@ -39,6 +40,10 @@ void compute_rh_from_conservative(amrex::MultiFab& RH_out,
                                   const amrex::Geometry& geom)
 {
     using namespace amrex;
+
+    // Precompute rdOcp = R_d / Cp_d for use in Exner function
+    // Cp_d = 1004.5 J/(kg-K), R_d = 287.0 J/(kg-K)
+    constexpr Real rdOcp = R_d / Cp_d;
 
     // Iterate over all boxes
     for (MFIter mfi(RH_out); mfi.isValid(); ++mfi) {
@@ -72,7 +77,7 @@ void compute_rh_from_conservative(amrex::MultiFab& RH_out,
             // Compute temperature from potential temperature
             // T = theta * (p / p_0)^(R_d / c_p)
             // Use Exner function: pi = (p / p_0)^(R_d / c_p)
-            Real exner = getExnergivenP(p, R_d / c_p);
+            Real exner = getExnergivenP(p, rdOcp);
             Real T_K = theta * exner;
 
             // Compute saturation vapor pressure [mbar]
