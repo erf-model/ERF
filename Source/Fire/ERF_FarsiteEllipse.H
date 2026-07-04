@@ -338,7 +338,7 @@ void advance_farsite_one_step(
                         
                         Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) + 
                                              (y_cell - y_pt)*(y_cell - y_pt));
-                        Real phi_sdf = std::max(dist - sigma, -1.0_rt);
+                        Real phi_sdf = amrex::max(dist - sigma, -1.0_rt);
                         
                         p(iv) = amrex::min(p(iv), phi_sdf);
                     }
