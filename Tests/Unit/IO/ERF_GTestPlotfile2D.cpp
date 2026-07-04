@@ -315,9 +315,9 @@ TEST(Plotfile2DWaterPath, NoMoistureExcludesCondensedWaterPaths)
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
-    for (const std::string& name : {"integrated_qc", "integrated_qi",
-                                     "integrated_qr", "integrated_qs",
-                                     "integrated_qg"}) {
+    for (const char* name : {"integrated_qc", "integrated_qi",
+                             "integrated_qr", "integrated_qs",
+                             "integrated_qg"}) {
         EXPECT_EQ(std::find(available.begin(), available.end(), name), available.end());
     }
 }
@@ -351,9 +351,9 @@ TEST(Plotfile2DWaterPath, FullIceAvailabilityIncludesAllCondensedWaterPaths)
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
-    for (const std::string& name : {"integrated_qc", "integrated_qi",
-                                     "integrated_qr", "integrated_qs",
-                                     "integrated_qg"}) {
+    for (const char* name : {"integrated_qc", "integrated_qi",
+                             "integrated_qr", "integrated_qs",
+                             "integrated_qg"}) {
         EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
     }
 
