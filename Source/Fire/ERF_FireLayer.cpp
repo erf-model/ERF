@@ -32,6 +32,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_fuel_mc    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 3, 0);
+    fire_mext       = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_heat_flux  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_spread_vec = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
 
@@ -59,6 +60,15 @@ void FireLayer::initialize(const ERF& erf,
             mc(iv, 2) = fire_params.moisture_100hr;
         });
     }
+
+    // Initialize moisture of extinction (Phase 4)
+    // Use weighted SAV of dead fuels
+    Real dead_load = fp.w_d1 + fp.w_d10 + fp.w_d100;
+    Real sigma_weighted = dead_load > 0.0_rt
+        ? (fp.w_d1 * fp.sigma_d1) / dead_load
+        : fp.sigma_d1;
+    Real M_x = compute_moisture_of_extinction(sigma_weighted);
+    fire_mext->setVal(M_x);
 
     // Compute terrain slopes and curvature (static fields, computed once at init)
     compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg);
@@ -224,4 +234,79 @@ void FireLayer::apply_waf_to_wind()
     }
 
     fire_wind_eff->mult(waf, 0, 2, 0);
+}
+void FireLayer::advance_fuel_moisture(Real dt_s,
+                                      const MultiFab& T_atm_k0,
+                                      const MultiFab& RH_atm_k0)
+{
+    if (!m_params.moisture_dynamic) {
+        return;  // Skip if moisture evolution is disabled
+    }
+
+    // Convert time step from seconds to hours
+    Real dt_hours = dt_s / 3600.0_rt;
+
+    // Get fuel model parameters for weighted SAV computation
+    FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
+
+    // Precipitation rate (uniform, scalar)
+    Real precip_mm_hr = m_params.precip_rate_mm_hr;
+
+    // Refinement factor C
+    int C = m_fg.C;
+
+    // Update each fire cell
+    for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        Array4<Real> mc = fire_fuel_mc->array(mfi);
+        Array4<Real> mext = fire_mext->array(mfi);
+
+        // Get atmospheric arrays from the same box (they are co-located in x-y)
+        // The atmospheric MFIter has the same structure as fire grid but coarser
+        Array4<const Real> T_atm = T_atm_k0.const_array(mfi);
+        Array4<const Real> RH_atm = RH_atm_k0.const_array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv_f) {
+            // Fire grid cell indices
+            int i_f = iv_f[0];
+            int j_f = iv_f[1];
+
+            // Map to atmospheric grid (coarser by factor C)
+            // Since the atmospheric grid is coarser, multiple fire cells map to one atm cell
+            int i_a = i_f / C;
+            int j_a = j_f / C;
+
+            // Read atmospheric state at k=0
+            Real T_K = T_atm(i_a, j_a, 0);      // Potential temperature [K]
+            Real RH_frac = RH_atm(i_a, j_a, 0); // Relative humidity [0-1]
+
+            // Convert to Celsius and percent
+            Real T_C = T_K - 273.15_rt;
+            Real RH = RH_frac * 100.0_rt;
+
+            // Update moisture for each fuel class
+            Real M_1hr_new = advance_fuel_moisture_one_class(
+                mc(i_f, j_f, 0, 0), RH, T_C, precip_mm_hr, dt_hours,
+                FuelMoistureConst::TAU_1HR);
+            Real M_10hr_new = advance_fuel_moisture_one_class(
+                mc(i_f, j_f, 0, 1), RH, T_C, precip_mm_hr, dt_hours,
+                FuelMoistureConst::TAU_10HR);
+            Real M_100hr_new = advance_fuel_moisture_one_class(
+                mc(i_f, j_f, 0, 2), RH, T_C, precip_mm_hr, dt_hours,
+                FuelMoistureConst::TAU_100HR);
+
+            // Write updated values
+            mc(i_f, j_f, 0, 0) = M_1hr_new;
+            mc(i_f, j_f, 0, 1) = M_10hr_new;
+            mc(i_f, j_f, 0, 2) = M_100hr_new;
+
+            // Recompute moisture of extinction from weighted SAV
+            Real dead_load = fp.w_d1 + fp.w_d10 + fp.w_d100;
+            Real sigma_weighted = dead_load > 0.0_rt
+                ? (fp.w_d1 * fp.sigma_d1) / dead_load
+                : fp.sigma_d1;
+            Real M_x = compute_moisture_of_extinction(sigma_weighted);
+            mext(i_f, j_f, 0) = M_x;
+        });
+    }
 }

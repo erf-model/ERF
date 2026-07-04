@@ -35,6 +35,14 @@ struct FireParams
     amrex::Real       k_valley            = 0.8;         ///< Valley channeling factor
     amrex::Real       k_deflect           = 0.3;         ///< Wind deflection factor
     
+    // Fuel moisture control (Phase 4)
+    bool              moisture_dynamic    = true;        ///< Advance moisture each step via ODEs
+    amrex::Real       precip_rate_mm_hr   = 0.0;         ///< Uniform precipitation rate [mm/hr]
+    amrex::Real       moisture_live       = 0.60;        ///< Live fuel moisture [fraction]
+    
+    // Moisture of extinction (Phase 4)
+    bool              use_dynamic_mext    = true;        ///< Compute M_x from fuel SAV
+    
     // FARSITE parameters
     amrex::Real       farsite_phi_threshold   = 0.0;  ///< front detection level in phi
     int               farsite_use_anderson_lw = 1;       ///< derive coeff_a/b/c from Anderson L/W
@@ -72,6 +80,14 @@ struct FireParams
        pp.query("k_valley", k_valley);
        pp.query("k_deflect", k_deflect);
         
+       // Fuel moisture control (Phase 4)
+       pp.query("moisture_dynamic", moisture_dynamic);
+       pp.query("precip_rate_mm_hr", precip_rate_mm_hr);
+       pp.query("moisture_live", moisture_live);
+        
+       // Moisture of extinction (Phase 4)
+       pp.query("use_dynamic_mext", use_dynamic_mext);
+         
        // FARSITE parameters
        pp.query("farsite.phi_threshold", farsite_phi_threshold);
        pp.query("farsite.use_anderson_lw", farsite_use_anderson_lw);

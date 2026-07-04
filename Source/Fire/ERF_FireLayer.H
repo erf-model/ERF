@@ -9,6 +9,8 @@
 #include <ERF_Rothermel.H>
 #include <ERF_FarsiteEllipse.H>
 #include <ERF_FireIgnition.H>
+#include <ERF_FuelMoisture.H>
+#include <ERF_MoistureExtinction.H>
 
 // Forward declarations
 class SurfaceLayer;
@@ -46,6 +48,7 @@ class ERF;
  * | fire_ros       | 1     | Rate of spread [m/s]                         |
  * | fire_fuel_load | 1     | Fuel load [kg/m²]                            |
  * | fire_fuel_mc   | 3     | M_1hr, M_10hr, M_100hr [fraction]           |
+ * | fire_mext      | 1     | Moisture of extinction [fraction] (Phase 4)  |
  * | fire_heat_flux | 1     | Heat flux [W/m²] (Phase 6, stub)             |
  * | fire_spread_vec| 2     | Scratch for FARSITE spread direction (Phase 3)|
  */
@@ -163,6 +166,7 @@ private:
     std::unique_ptr<amrex::MultiFab>         fire_ros;          // Rate of spread
     std::unique_ptr<amrex::MultiFab>         fire_fuel_load;    // Fuel load
     std::unique_ptr<amrex::MultiFab>         fire_fuel_mc;      // Fuel moisture (3 comp)
+    std::unique_ptr<amrex::MultiFab>         fire_mext;         // Moisture of extinction (Phase 4)
     std::unique_ptr<amrex::MultiFab>         fire_heat_flux;    // Heat flux (stub)
     std::unique_ptr<amrex::MultiFab>         fire_spread_vec;   // FARSITE scratch
 
@@ -205,6 +209,20 @@ private:
      * Multiplies fire_wind_eff by a scalar WAF. Used inside advance().
      */
     void apply_waf_to_wind();
+
+    /**
+     * @brief Update fire_fuel_mc and fire_mext for one atmospheric timestep.
+     *
+     * Called from advance() before ComputeRothermellSpreadRate. Updates
+     * fuel moisture using time-lag ODEs and recomputes moisture of extinction.
+     *
+     * @param[in] dt_s       Atmospheric timestep [seconds]
+     * @param[in] T_atm_k0   Atmospheric potential temperature at k=0 [K]
+     * @param[in] RH_atm_k0  Atmospheric relative humidity at k=0 [fraction 0-1]
+     */
+    void advance_fuel_moisture(amrex::Real dt_s,
+                               const amrex::MultiFab& T_atm_k0,
+                               const amrex::MultiFab& RH_atm_k0);
 
 };
 
