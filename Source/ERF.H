@@ -195,7 +195,6 @@ public:
 
     void HurricaneEyeTracker_WRF (const SolverChoice& solverChoice);
 
-
     void HurricaneEyeTrackerInitial_WRF (const amrex::Geometry& geom,
                                      const amrex::Vector<amrex::MultiFab>& S_data,
                                      const amrex::Real& hurricane_eye_latitude,
@@ -213,6 +212,15 @@ public:
                                    amrex::Real& global_val_min,
                                    int& global_i_min,
                                    int& global_j_min);
+
+    void HurricaneMaxVelTracker_WRF(const amrex::Geometry& geom,
+                                const amrex::MultiFab& mf_cc_vel,
+                                const amrex::Real& time);
+
+    void HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
+                                     const amrex::Geometry& geom,
+                                     const amrex::MultiFab& mf_cons_var,
+                                     const amrex::Real& time);
 
     void HurricaneTrackerCircle_WRF ();
 
