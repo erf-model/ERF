@@ -2323,14 +2323,14 @@ ERF::ReadParameters ()
     // write_erfbdy must be false for restarts.
     // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
     {
-        ParmParse pp(pp_prefix);
+        ParmParse pp_erfbdy(pp_prefix);
         bool is_restart = !restart_chkfile.empty();
         if (is_restart) {
             if (write_erfbdy) {
                 Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
             }
         } else {
-            if (!pp.contains("write_erfbdy")) {
+            if (!pp_erfbdy.contains("write_erfbdy")) {
                 if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
                     write_erfbdy = true;
                 }
