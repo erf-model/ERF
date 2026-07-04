@@ -1,5 +1,5 @@
 #include <ERF_Rothermel.H>
-#include <AMReX_LoopConcurrent.H>
+
 
 using namespace amrex;
 
@@ -164,7 +164,7 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     Real beta = rho_b / fp.rho_p;
 
     // Optimal packing ratio
-    Real beta_opt = 3.348 / amrex::Math::pow(sigma, 0.8189);
+    Real beta_opt = 3.348 / std::pow(sigma, 0.8189);
 
     // Fuel moisture (weighted average)
     Real M_x = moisture_1hr * r_d1 + moisture_10hr * r_d10 + moisture_100hr * r_d100;
@@ -175,17 +175,17 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     M_x = amrex::min(M_x, M_x_limit);
 
     // Reaction intensity (BTU/ft²/min)
-    Real A = 133.0 / amrex::Math::pow(sigma, 0.7913);
+    Real A = 133.0 / std::pow(sigma, 0.7913);
     Real E_s = 0.75 - 0.00023 * (M_x_limit - M_x * 100.0);
-    Real gamma_x = (sigma / (460.0 + 25.9 * M_x)) * amrex::Math::exp(fp.delta * (amrex::Math::log(10.0) / 3.0));
+    Real gamma_x = (sigma / (460.0 + 25.9 * M_x)) * std::exp(fp.delta * (std::log(10.0) / 3.0));
 
     // Damping coefficients
-    Real B_d = 0.02526 * amrex::Math::pow(sigma, 0.54);
-    Real C_d = 7.47 * amrex::Math::exp(-0.8711 * amrex::Math::pow(sigma, -0.55));
-    Real E_dust = 0.595 * amrex::Math::pow((M_x_limit - M_x * 100.0), -1.628);
+    Real B_d = 0.02526 * std::pow(sigma, 0.54);
+    Real C_d = 7.47 * std::exp(-0.8711 * std::pow(sigma, -0.55));
+    Real E_dust = 0.595 * std::pow((M_x_limit - M_x * 100.0), -1.628);
 
-    Real eta_M = 1.0 - 2.59 * (M_x / M_x_limit) + 5.11 * amrex::Math::pow(M_x / M_x_limit, 2.0)
-               - 3.861 * amrex::Math::pow(M_x / M_x_limit, 3.0);
+    Real eta_M = 1.0 - 2.59 * (M_x / M_x_limit) + 5.11 * std::pow(M_x / M_x_limit, 2.0)
+               - 3.861 * std::pow(M_x / M_x_limit, 3.0);
     eta_M = amrex::max(0.0, eta_M);
 
     Real eta_S = 0.40;  // Approximation for slope/aspect effect
@@ -194,12 +194,12 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     I_R = amrex::max(I_R, 0.01);
 
     // No-wind, no-slope ROS [ft/min] (Eq. 3 from Rothermel 1972)
-    Real R0_ft_min = A * amrex::Math::pow(beta / beta_opt, B_d) *
-                     amrex::Math::exp((C_d * (1.0 - beta / beta_opt)));
+    Real R0_ft_min = A * std::pow(beta / beta_opt, B_d) *
+                     std::exp((C_d * (1.0 - beta / beta_opt)));
 
     // Wind factor coefficients
-    Real E_wind = 0.92 * amrex::Math::pow(sigma / 1000.0, -0.3);
-    Real B_wind = 0.02526 * amrex::Math::pow(sigma, 0.54);
+    Real E_wind = 0.92 * std::pow(sigma / 1000.0, -0.3);
+    Real B_wind = 0.02526 * std::pow(sigma, 0.54);
 
     // Convert to SI
     rc.R0 = R0_ft_min * FT_MIN_TO_M_S;
@@ -223,7 +223,7 @@ Real rothermel_ros_cell(
     const RothermelComputed& rc) noexcept
 {
     // Effective wind speed [m/s]
-    Real U_eff = amrex::Math::sqrt(ux_eff*ux_eff + uy_eff*uy_eff);
+    Real U_eff = std::sqrt(ux_eff*ux_eff + uy_eff*uy_eff);
 
     // Wind factor: φ_w = C * U_eff^B * (β/β_opt)^E
     // Convert to ft/min for Rothermel calculation
@@ -233,14 +233,14 @@ Real rothermel_ros_cell(
     U_eff_ftmin = amrex::min(U_eff_ftmin, rc.U_max_ftmin);
 
     // Slope magnitude [dimensionless]
-    Real slope_mag = amrex::Math::sqrt(sx*sx + sy*sy);
+    Real slope_mag = std::sqrt(sx*sx + sy*sy);
     Real tan_slope = slope_mag;  // For small slopes, tan(θ) ≈ slope
-    if (slope_mag > 0.1) tan_slope = amrex::Math::atan(slope_mag);  // Exact for large slopes
+    if (slope_mag > 0.1) tan_slope = std::atan(slope_mag);  // Exact for large slopes
 
     // Wind direction
-    Real wind_dir = amrex::Math::atan2(uy_eff, ux_eff);
+    Real wind_dir = std::atan2(uy_eff, ux_eff);
     // Slope direction (maximum slope)
-    Real slope_dir = amrex::Math::atan2(sy, sx);
+    Real slope_dir = std::atan2(sy, sx);
     // Angle between wind and slope
     Real angle = wind_dir - slope_dir;
 
@@ -250,10 +250,10 @@ Real rothermel_ros_cell(
     while (angle < -pi) angle += 2.0*pi;
 
     // Slope factor: φ_s = tan(θ) * cos(angle)
-    Real phi_s = tan_slope * amrex::Math::cos(angle);
+    Real phi_s = tan_slope * std::cos(angle);
 
     // Wind factor
-    Real phi_w = rc.C * amrex::Math::pow(U_eff_ftmin, rc.B) * rc.beta_ratio_E;
+    Real phi_w = rc.C * std::pow(U_eff_ftmin, rc.B) * rc.beta_ratio_E;
 
     // Rate of spread: R = R0 * (1 + φ_w + φ_s)
     Real ROS = rc.R0 * (1.0 + phi_w + phi_s);

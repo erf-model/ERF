@@ -979,7 +979,6 @@ private:
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
 
-    std::unique_ptr<Fire> fire;                              // Fire model instance
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)

@@ -1,5 +1,6 @@
 #include <ERF_FireGrid.H>
 #include <AMReX_IntVect.H>
+#include <AMReX_BoxList.H>
 
 using namespace amrex;
 
@@ -26,16 +27,18 @@ create_fire_grid(const BoxArray& ba_atm,
         b.setBig(2, 0);
         box_list_2d.push_back(b);
     }
-    BoxArray ba_2d(box_list_2d);
+    BoxList bl_2d(std::move(box_list_2d));   // rvalue — matches Vector<Box>&&
+    BoxArray ba_2d(bl_2d);
+
 
     // Step 2: Refine the 2D BoxArray by {C, C, 1}
     IntVect ref_ratio(C, C, 1);
     BoxArray ba_fire = amrex::refine(ba_2d, ref_ratio);
 
-    // Step 3: Refine DistributionMapping
-    // Each MPI rank that owns box i in ba_atm now owns the corresponding
-    // refined boxes in ba_fire
-    DistributionMapping dm_fire = amrex::refine(dm_atm, ref_ratio);
+    // Step 3: DistributionMapping is unchanged — refine() on a BoxArray does not
+    // change the number of boxes, only their size, so dm_atm maps identically
+    // to ba_fire (box i in ba_fire is owned by the same rank as box i in ba_atm).
+    DistributionMapping dm_fire = dm_atm;
 
     // Step 4: Create 2D Geometry
     // Keep x-y physical domain, drop z

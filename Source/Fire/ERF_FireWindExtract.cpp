@@ -1,5 +1,5 @@
 #include <ERF_FireWindExtract.H>
-#include <AMReX_LoopConcurrent.H>
+
 
 using namespace amrex;
 
@@ -44,7 +44,7 @@ void fill_fire_wind_from_most(
             // Read wind direction from averages
             Real u_avg = uavg(i_a, j_a, 0);
             Real v_avg = vavg(i_a, j_a, 0);
-            Real wind_mag = amrex::Math::sqrt(u_avg*u_avg + v_avg*v_avg);
+            Real wind_mag = std::sqrt(u_avg*u_avg + v_avg*v_avg);
 
             // Set fire grid wind
             if (wind_mag > 1.0e-6) {
@@ -119,7 +119,7 @@ void apply_farsite_terrain_wind(
 
             Real u = wind(i, j, k, 0);
             Real v = wind(i, j, k, 1);
-            Real wind_mag = amrex::Math::sqrt(u*u + v*v);
+            Real wind_mag = std::sqrt(u*u + v*v);
 
             if (wind_mag < 1.0e-6) {
                 // No wind, no correction
@@ -129,26 +129,26 @@ void apply_farsite_terrain_wind(
             // Terrain properties
             Real dzdx = slopes(i, j, k, 0);
             Real dzdy = slopes(i, j, k, 1);
-            Real slope_mag = amrex::Math::sqrt(dzdx*dzdx + dzdy*dzdy);
+            Real slope_mag = std::sqrt(dzdx*dzdx + dzdy*dzdy);
             Real terrain_curv = curv(i, j, k);
 
             // Ridge/valley detection
             Real speed_factor = 1.0;
-            if (amrex::Math::abs(terrain_curv) > min_curv) {
+            if (std::abs(terrain_curv) > min_curv) {
                 if (terrain_curv > 0.0) {
                     // Ridge (convex)
                     speed_factor = 1.0 + (k_ridge - 1.0) * amrex::min(1.0, terrain_curv / 0.1);
                 } else {
                     // Valley (concave)
-                    speed_factor = 1.0 - (1.0 - k_valley) * amrex::min(1.0, amrex::Math::abs(terrain_curv) / 0.1);
+                    speed_factor = 1.0 - (1.0 - k_valley) * amrex::min(1.0, std::abs(terrain_curv) / 0.1);
                 }
             }
 
             // Sheltering on lee side
             // Wind direction
-            Real wind_dir = amrex::Math::atan2(v, u);
+            Real wind_dir = std::atan2(v, u);
             // Slope aspect (direction of maximum slope)
-            Real slope_aspect = amrex::Math::atan2(-dzdy, -dzdx);
+            Real slope_aspect = std::atan2(-dzdy, -dzdx);
             // Angle between wind and slope
             Real angle_diff = wind_dir - slope_aspect;
 
@@ -158,7 +158,7 @@ void apply_farsite_terrain_wind(
             while (angle_diff < -pi) angle_diff += 2.0*pi;
 
             // Lee side sheltering: reduce wind on downwind side
-            Real cos_angle = amrex::Math::cos(angle_diff);
+            Real cos_angle = std::cos(angle_diff);
             if (cos_angle < -0.5) {
                 // Lee side
                 speed_factor *= k_shelter;
@@ -166,7 +166,7 @@ void apply_farsite_terrain_wind(
 
             // Deflection: wind turns on slopes (up to ±45°)
             Real max_deflect = 45.0 * pi / 180.0;  // Convert to radians
-            Real deflect_rad = k_deflect * amrex::Math::sin(angle_diff) * slope_mag;
+            Real deflect_rad = k_deflect * std::sin(angle_diff) * slope_mag;
             deflect_rad = amrex::max(-max_deflect, amrex::min(max_deflect, deflect_rad));
 
             // Apply speed factor
@@ -174,8 +174,8 @@ void apply_farsite_terrain_wind(
 
             // Apply deflection by rotating wind
             Real new_dir = wind_dir + deflect_rad;
-            wind(i, j, k, 0) = new_mag * amrex::Math::cos(new_dir);
-            wind(i, j, k, 1) = new_mag * amrex::Math::sin(new_dir);
+            wind(i, j, k, 0) = new_mag * std::cos(new_dir);
+            wind(i, j, k, 1) = new_mag * std::sin(new_dir);
         });
     }
 }

@@ -39,7 +39,7 @@
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real psi_m_dyer(amrex::Real zeta) noexcept
 {
-    if (amrex::Math::abs(zeta) < 1.0e-6) {
+    if (std::abs(zeta) < 1.0e-6) {
         return 0.0;
     }
 
@@ -48,11 +48,11 @@ amrex::Real psi_m_dyer(amrex::Real zeta) noexcept
     if (zeta < 0.0) {
         // Unstable: Businger-Dyer
         amrex::Real zeta16 = 1.0 - 16.0 * zeta;
-        amrex::Real x = amrex::Math::pow(zeta16, 0.25);
+        amrex::Real x = std::pow(zeta16, 0.25);
         amrex::Real x2 = x * x;
-        amrex::Real psi_m = 2.0 * amrex::Math::log((1.0 + x) / 2.0)
-                          + amrex::Math::log((1.0 + x2) / 2.0)
-                          - 2.0 * amrex::Math::atan(x)
+        amrex::Real psi_m = 2.0 * std::log((1.0 + x) / 2.0)
+                          + std::log((1.0 + x2) / 2.0)
+                          - 2.0 * std::atan(x)
                           + pi / 2.0;
         return psi_m;
     } else {
@@ -73,7 +73,7 @@ amrex::Real psi_m_dyer(amrex::Real zeta) noexcept
  * @return U(z_target) wind speed [m/s]
  *
  * Formula:
- * U(z) = (u*/κ) * [ln(z/z0) - ψ_m(z/L) + ψ_m(z0/L)]
+ * U(z) = (u* /kappa) * [ln(z/z0) - ψ_m(z/L) + ψ_m(z0/L)]
  *
  * where κ = 0.4 (von Karman constant), z0 is floored at 1e-4 m, and
  * |olen| < 1e-6 is treated as neutral (all psi_m = 0).
@@ -92,13 +92,13 @@ amrex::Real most_wind_at_height(amrex::Real ustar, amrex::Real z0,
     amrex::Real psi_z_target = 0.0;
     amrex::Real psi_z0 = 0.0;
 
-    if (amrex::Math::abs(olen) >= 1.0e-6) {
+    if (std::abs(olen) >= 1.0e-6) {
         psi_z_target = psi_m_dyer(z_target / olen);
         psi_z0       = psi_m_dyer(z0 / olen);
     }
 
     amrex::Real U = (ustar / kappa) *
-                    (amrex::Math::log(z_target / z0) - psi_z_target + psi_z0);
+                    (std::log(z_target / z0) - psi_z_target + psi_z0);
 
     return amrex::max(U, 0.0);
 }
@@ -150,7 +150,7 @@ amrex::Real compute_waf_unsheltered(amrex::Real delta_ft) noexcept
     delta_ft = amrex::max(delta_ft, 0.1);
     amrex::Real numerator = 20.0 + 0.36 * delta_ft;
     amrex::Real denominator = 0.13 * delta_ft;
-    return 1.83 / amrex::Math::log(numerator / denominator);
+    return 1.83 / std::log(numerator / denominator);
 }
 
 /**
@@ -171,8 +171,8 @@ amrex::Real compute_waf_sheltered(amrex::Real f_c, amrex::Real h_c_ft,
     h_c_ft = amrex::max(h_c_ft, 0.1);
     delta_ft = amrex::max(delta_ft, 0.1);
 
-    amrex::Real ln_term = amrex::Math::log((20.0 + 0.36 * h_c_ft) / (0.13 * h_c_ft));
-    amrex::Real denom = amrex::Math::sqrt(f_c * h_c_ft) * ln_term;
+    amrex::Real ln_term = std::log((20.0 + 0.36 * h_c_ft) / (0.13 * h_c_ft));
+    amrex::Real denom = std::sqrt(f_c * h_c_ft) * ln_term;
     denom = amrex::max(denom, 1.0e-6);
 
     return 0.555 / denom;
@@ -206,7 +206,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_waf_canopy_exp(amrex::Real waf_open, amrex::Real f_c,
                                     amrex::Real alpha_c) noexcept
 {
-    return waf_open * amrex::Math::exp(-alpha_c * f_c);
+    return waf_open * std::exp(-alpha_c * f_c);
 }
 
 /**
@@ -231,7 +231,7 @@ amrex::Real compute_max_ews_ftmin(amrex::Real I_R, amrex::Real C,
         amrex::Real denom = C * beta_ratio_E;
         amrex::Real base = phi_w_max / denom;
         if (base <= 0.0) return 0.0;
-        return amrex::Math::pow(base, 1.0 / B);
+        return std::pow(base, 1.0 / B);
     }
     return 0.0;
 }

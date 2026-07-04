@@ -138,7 +138,7 @@ void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)
             Real y = m_fg.geom.ProbLo(1) + (iv[1] + 0.5) * dy;
 
             // Distance from ignition center
-            Real dist = amrex::Math::sqrt((x - center_x)*(x - center_x) +
+            Real dist = std::sqrt((x - center_x)*(x - center_x) +
                                           (y - center_y)*(y - center_y));
 
             // Level-set: distance function

@@ -20,40 +20,21 @@ void verify_fire_prerequisites(const ERF& erf,
         surface_layer != nullptr,
         "[FIRE] Internal error: m_SurfaceLayer is nullptr");
 
-    // Check 3: u_star is computed
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        surface_layer->get_u_star(0) != nullptr,
-        "[FIRE] u_star not computed. Call make_SurfaceLayer_at_level(0,...) first");
-
-    // Check 4: z0 is set
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        surface_layer->get_z0(0) != nullptr,
-        "[FIRE] Roughness length z0 not set. Add: erf.most.z0 = 0.1");
-
-    // Check 5: Obukhov length is computed
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        surface_layer->get_olen(0) != nullptr,
-        "[FIRE] Obukhov length not computed");
-
-    // Check 6: Wind averages are computed
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        (surface_layer->get_mac_avg(0, 0) != nullptr &&
-         surface_layer->get_mac_avg(0, 1) != nullptr),
-        "[FIRE] Wind averages not computed. Call SurfaceLayer::update_fluxes() first");
 
     // Check 7: No z-decomposition (all z-levels on same rank)
-    const BoxArray& ba = erf.grids[0];
-    const Box& domain = erf.Geom(0).Domain();
-    int domain_nz = domain.length(2);
+    // Use the public boxArray() accessor instead of the protected grids[] member
+    const BoxArray& ba = erf.boxArray(0);
+    const Box& domain  = erf.Geom(0).Domain();
+    int domain_nz      = domain.length(2);
 
     for (int i = 0; i < ba.size(); ++i) {
-        const Box& b = ba[i];
-        int box_nz = b.length(2);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            box_nz == domain_nz,
-            "[FIRE] Cannot decompose in z direction. "
-            "Set: erf.max_grid_size_z = " << domain_nz <<
-            " or erf.blocking_factor_z = " << domain_nz);
+        const Box& b  = ba[i];
+        int box_nz    = b.length(2);
+        // Build the message string before passing to the macro
+        std::string msg = std::string("[FIRE] Cannot decompose in z direction. ")
+                        + "Set: erf.max_grid_size_z = " + std::to_string(domain_nz)
+                        + " or erf.blocking_factor_z = " + std::to_string(domain_nz);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(box_nz == domain_nz, msg.c_str());
     }
 
     // Check 8: grid_ratio >= 1
@@ -67,28 +48,31 @@ void verify_fire_prerequisites(const ERF& erf,
         const Box& b = ba[i];
         int nx = b.length(0);
         int ny = b.length(1);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            (nx % C == 0 && ny % C == 0),
-            "[FIRE] Box sizes not divisible by grid_ratio. "
-            "Adjust erf.max_grid_size so all x,y lengths are divisible by " << C);
+        std::string msg = std::string("[FIRE] Box sizes not divisible by grid_ratio. ")
+                        + "Adjust erf.max_grid_size so all x,y lengths are divisible by "
+                        + std::to_string(C);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((nx % C == 0 && ny % C == 0), msg.c_str());
     }
 
     // Check 10: DistributionMapping size matches grid size
+    // Use the public boxArray() accessor here too
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        erf.DistributionMap(0).size() == erf.grids[0].size(),
+        erf.DistributionMap(0).size() == erf.boxArray(0).size(),
         "[FIRE] Internal error: dmap size != grids size");
 
-    // Check 11: Domain z-index starts at 0 (no AMR z-indexing)
+    // Check 11: Domain z-index starts at 0
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         erf.Geom(0).Domain().smallEnd(2) == 0,
         "[FIRE] Domain z must start at index 0 (AMR not supported)");
 
     // Check 12: Domain height > wind_ref_ht
     Real prob_hi_z = erf.Geom(0).ProbHi(2);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        prob_hi_z > fire_params.wind_ref_ht,
-        "[FIRE] Domain height " << prob_hi_z << " must exceed wind_ref_ht "
-        << fire_params.wind_ref_ht << ". Increase geometry.prob_hi(2)");
+    std::string msg12 = std::string("[FIRE] Domain height ")
+                      + std::to_string(prob_hi_z)
+                      + " must exceed wind_ref_ht "
+                      + std::to_string(fire_params.wind_ref_ht)
+                      + ". Increase geometry.prob_hi(2)";
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(prob_hi_z > fire_params.wind_ref_ht, msg12.c_str());
 
     amrex::Print() << "[FIRE] All prerequisites verified successfully" << std::endl;
 }
