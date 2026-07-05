@@ -14,6 +14,7 @@ namespace
 
 // A target is bracketed when it lies between adjacent coordinate values. This
 // test works for increasing height and decreasing pressure.
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 SampledBracket find_sampled_bracket (SampledCoordinate coordinate,
                                      Real target,
                                      int klo,

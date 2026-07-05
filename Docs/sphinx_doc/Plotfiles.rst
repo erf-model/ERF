@@ -750,106 +750,160 @@ concentration.
 Output Options for 2D Plotfiles
 -------------------------------
 
-The table below lists the built-in 2D diagnostic catalog. ERF writes selected
-variables in this order.
+ERF supports two 2D plotfile streams. Use ``erf.plot2d_vars_1`` and
+``erf.plot2d_vars_2`` to request built-in 2D diagnostics. Use
+``erf.plot2d_level_sets_1`` and ``erf.plot2d_level_sets_2`` to request
+sampled-level diagnostics.
 
-+-------------------------------+-------------------------------------------------------+
-| Parameter                     | Definition                                            |
-+===============================+=======================================================+
-| **z_surf**                    | Surface elevation [m].                                |
-+-------------------------------+-------------------------------------------------------+
-| **landmask**                  | Land-sea mask. Land is 1 and sea is 0 [1].            |
-+-------------------------------+-------------------------------------------------------+
-| **mapfac**                    | Map factor at mass points [1].                        |
-+-------------------------------+-------------------------------------------------------+
-| **lat_m**                     | Latitude at unstaggered mass points [deg].            |
-+-------------------------------+-------------------------------------------------------+
-| **lon_m**                     | Longitude at unstaggered mass points [deg].           |
-+-------------------------------+-------------------------------------------------------+
-| **u_star**                    | Friction velocity from the surface layer [m/s]. ERF   |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **w_star**                    | Convective velocity scale from the surface layer [m/s]|
-|                               | ERF writes -999 when the surface layer is not active. |
-+-------------------------------+-------------------------------------------------------+
-| **t_star**                    | Temperature scale from the surface layer [K]. ERF     |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **q_star**                    | Humidity scale from the surface layer [kg/kg]. ERF    |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **Olen**                      | Obukhov length from the surface layer [m]. ERF writes |
-|                               | -999 when the surface layer is not active.            |
-+-------------------------------+-------------------------------------------------------+
-| **pblh**                      | Diagnosed planetary boundary layer height [m]. Native |
-|                               | SHOC diagnostics are used when available; otherwise   |
-|                               | ERF falls back to SurfaceLayer. ERF writes -999 when  |
-|                               | no PBL diagnostic provider is available.              |
-+-------------------------------+-------------------------------------------------------+
-| **t_surf**                    | Surface temperature from the surface layer [K]. ERF   |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **q_surf**                    | Surface humidity from the surface layer [kg/kg]. ERF  |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **z0**                        | Roughness height from the surface layer [m]. ERF      |
-|                               | writes -999 when the surface layer is not active.     |
-+-------------------------------+-------------------------------------------------------+
-| **OLR**                       | Outgoing longwave radiation at the model top [W/m^2]. |
-|                               | ERF writes -999 when radiation is not active.         |
-+-------------------------------+-------------------------------------------------------+
-| **sens_flux**                 | Conservative surface sensible heat flux [kg K m^-2    |
-|                               | s^-1]. In native SHOC ``state_update`` mode, this     |
-|                               | reports the preserved surface flux consumed by SHOC.  |
-|                               | Otherwise, it reports the host vertical surface flux  |
-|                               | field. ERF writes -999 when the corresponding flux    |
-|                               | source is unavailable.                                |
-+-------------------------------+-------------------------------------------------------+
-| **laten_flux**                | Conservative surface moisture flux [kg m^-2 s^-1].    |
-|                               | This is a legacy output name. In native SHOC          |
-|                               | ``state_update`` mode, this reports the preserved     |
-|                               | surface moisture flux consumed by SHOC. Otherwise, it |
-|                               | reports the host vertical water-vapor surface flux    |
-|                               | field. ERF writes -999 when the corresponding flux    |
-|                               | source is unavailable.                                |
-+-------------------------------+-------------------------------------------------------+
-| **surf_pres**                 | Surface pressure [Pa].                                |
-+-------------------------------+-------------------------------------------------------+
-| **integrated_qv**             | Column-integrated water vapor [kg/m^2]. ERF writes    |
-|                               | zero when moisture is disabled.                       |
-+-------------------------------+-------------------------------------------------------+
-| **surface_diagnostic_source** | Source code for the cell-centered SurfaceLayer scalar |
-|                               | diagnostic path [1]. ERF writes -999 when SurfaceLay  |
-|                               | er is not active.                                     |
-+-------------------------------+-------------------------------------------------------+
-| **sensible_heat_flux**        | Surface sensible heat flux [W m^-2], computed from    |
-|                               | the same conservative source as ``sens_flux``. In     |
-|                               | native SHOC ``state_update`` mode, this uses SHOC's   |
-|                               | preserved consumed-flux snapshot. ERF writes -999     |
-|                               | when the sensible flux source is unavailable.         |
-+-------------------------------+-------------------------------------------------------+
-| **latent_heat_flux**          | Surface latent heat flux [W m^-2], computed from the  |
-|                               | same conservative source as ``laten_flux``. In native |
-|                               | SHOC ``state_update`` mode, this uses SHOC's          |
-|                               | preserved consumed-flux snapshot. ERF writes -999     |
-|                               | when moisture or the latent flux source is            |
-|                               | unavailable.                                          |
-+-------------------------------+-------------------------------------------------------+
-| **shoc_u_star**               | Native SHOC friction velocity diagnostic [m/s]. ERF   |
-|                               | writes -999 when native SHOC diagnostics are          |
-|                               | unavailable.                                          |
-+-------------------------------+-------------------------------------------------------+
-| **shoc_Olen**                 | Native SHOC Obukhov length diagnostic [m]. ERF writes |
-|                               | -999 when native SHOC diagnostics are unavailable.    |
-+-------------------------------+-------------------------------------------------------+
-| **shoc_wthv_sfc**             | Native SHOC surface virtual potential temperature     |
-|                               | flux [K m s^-1]. ERF writes -999 when native SHOC     |
-|                               | diagnostics are unavailable.                          |
-+-------------------------------+-------------------------------------------------------+
+Built-in variables and sampled-level variables can appear in the same 2D output
+stream. ERF writes built-in variables first. It writes selected built-in
+variables in the catalog order shown below, not in input order. ERF then appends
+sampled-level variables in level-set order, target-value order, and field order.
+
+Built-In 2D Diagnostic Catalog
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 16 24 56
+
+   * - Variable
+     - Units
+     - Availability
+     - Description
+   * - ``z_surf``
+     - ``m``
+     - Always available.
+     - Surface elevation.
+   * - ``landmask``
+     - ``1``
+     - Always available.
+     - Land-sea mask. Land is ``1`` and sea is ``0``.
+   * - ``mapfac``
+     - ``1``
+     - Always available.
+     - Map factor at mass points.
+   * - ``lat_m``
+     - ``deg``
+     - Available when latitude data are present.
+     - Latitude at unstaggered mass points.
+   * - ``lon_m``
+     - ``deg``
+     - Available when longitude data are present.
+     - Longitude at unstaggered mass points.
+   * - ``u_star``
+     - ``m s^-1``
+     - ``-999`` if unavailable.
+     - Friction velocity from the surface layer.
+   * - ``w_star``
+     - ``m s^-1``
+     - ``-999`` if unavailable.
+     - Convective velocity scale from the surface layer.
+   * - ``t_star``
+     - ``K``
+     - ``-999`` if unavailable.
+     - Temperature scale from the surface layer.
+   * - ``q_star``
+     - ``kg kg^-1``
+     - ``-999`` if unavailable.
+     - Humidity scale from the surface layer.
+   * - ``Olen``
+     - ``m``
+     - ``-999`` if unavailable.
+     - Obukhov length from the surface layer.
+   * - ``pblh``
+     - ``m``
+     - ``-999`` if unavailable.
+     - Planetary boundary layer height. Native SHOC provides this value when
+       available; otherwise ERF uses SurfaceLayer when present.
+   * - ``t_surf``
+     - ``K``
+     - ``-999`` if unavailable.
+     - Surface temperature from the surface layer.
+   * - ``q_surf``
+     - ``kg kg^-1``
+     - ``-999`` if unavailable.
+     - Surface humidity from the surface layer.
+   * - ``z0``
+     - ``m``
+     - ``-999`` if unavailable.
+     - Roughness height from the surface layer.
+   * - ``OLR``
+     - ``W m^-2``
+     - ``-999`` if unavailable.
+     - Outgoing longwave radiation at the model top.
+   * - ``sens_flux``
+     - ``kg K m^-2 s^-1``
+     - ``-999`` if unavailable.
+     - Conservative surface sensible heat flux.
+   * - ``laten_flux``
+     - ``kg m^-2 s^-1``
+     - ``-999`` if unavailable.
+     - Conservative surface moisture flux. This is a legacy output name.
+   * - ``surf_pres``
+     - ``Pa``
+     - Always available.
+     - Surface pressure.
+   * - ``integrated_qv``
+     - ``kg m^-2``
+     - Zero when moisture is disabled.
+     - Column-integrated water vapor.
+   * - ``integrated_qc``
+     - ``kg m^-2``
+     - Available when the active moisture model has ``qc``.
+     - Column-integrated cloud liquid water.
+   * - ``integrated_qi``
+     - ``kg m^-2``
+     - Available when the active moisture model has ``qi``.
+     - Column-integrated cloud ice.
+   * - ``integrated_qr``
+     - ``kg m^-2``
+     - Available when the active moisture model has ``qr``.
+     - Column-integrated rain water.
+   * - ``integrated_qs``
+     - ``kg m^-2``
+     - Available when the active moisture model has ``qs``.
+     - Column-integrated snow.
+   * - ``integrated_qg``
+     - ``kg m^-2``
+     - Available when the active moisture model has ``qg``.
+     - Column-integrated graupel.
+   * - ``surface_diagnostic_source``
+     - ``1``
+     - ``-999`` when SurfaceLayer is not active.
+     - Source code for the cell-centered SurfaceLayer scalar diagnostic path.
+   * - ``sensible_heat_flux``
+     - ``W m^-2``
+     - ``-999`` if unavailable.
+     - Surface sensible heat flux computed from the same conservative source as
+       ``sens_flux``.
+   * - ``latent_heat_flux``
+     - ``W m^-2``
+     - ``-999`` if unavailable.
+     - Surface latent heat flux computed from the same conservative source as
+       ``laten_flux``.
+   * - ``shoc_u_star``
+     - ``m s^-1``
+     - ``-999`` if unavailable.
+     - Native SHOC friction velocity diagnostic.
+   * - ``shoc_Olen``
+     - ``m``
+     - ``-999`` if unavailable.
+     - Native SHOC Obukhov length diagnostic.
+   * - ``shoc_wthv_sfc``
+     - ``K m s^-1``
+     - ``-999`` if unavailable.
+     - Native SHOC surface virtual potential temperature flux.
+
+If a requested built-in diagnostic is not available for the active configuration,
+ERF warns and skips that diagnostic.
+
+Flux Diagnostics
+~~~~~~~~~~~~~~~~
 
 ``sens_flux`` and ``laten_flux`` are legacy ERF conservative scalar flux
 outputs. ``sensible_heat_flux`` and ``latent_heat_flux`` convert the same
-selected conservative flux sources to W m^-2 using ``Cp_d`` and ``L_v``,
+selected conservative flux sources to ``W m^-2`` using ``Cp_d`` and ``L_v``,
 respectively.
 
 For non-SHOC configurations and native SHOC host-diffusion mode, these outputs
@@ -857,7 +911,7 @@ use the host vertical surface flux arrays. In native SHOC ``state_update`` mode,
 SHOC consumes those surface fluxes before the host diffusion path clears the
 overlapping arrays. In that mode, the 2D flux diagnostics use SHOC's preserved
 consumed-flux snapshots, component by component. If the corresponding host flux
-field was unavailable before SHOC consumed it, ERF writes -999 rather than a
+field was unavailable before SHOC consumed it, ERF writes ``-999`` rather than a
 zero SHOC snapshot.
 
 The sign convention follows ERF's lower-boundary flux convention. No
@@ -889,10 +943,10 @@ flux snapshots, as described above, but the sidecar records the public
 diagnostic metadata for the selected variables.
 
 Native AMReX 2D plotfiles write sampled-level metadata in ``2DMetadata.json``.
-NetCDF 2D output uses the same sampled-level variable names, but this PR does
-not add NetCDF-specific metadata attributes. The sidecar format version is 2.
+NetCDF 2D output uses the same sampled-level variable names, but does not write
+sampled-level metadata attributes. The sidecar format version is ``2``.
 
-Example:
+Example built-in metadata:
 
 .. code-block:: json
 
@@ -922,7 +976,7 @@ Example:
      ]
    }
 
-Sampled-level example:
+Example sampled-level metadata:
 
 .. code-block:: json
 
@@ -951,20 +1005,6 @@ Sampled-level example:
        }
      ]
    }
-
-2D Diagnostic Assembly
-~~~~~~~~~~~~~~~~~~~~~~
-
-ERF assembles built-in 2D diagnostics from several source patterns. Most
-current fields are surface or single-level diagnostics. ``integrated_qv`` and
-the scheme-aware water-path diagnostics are column reductions. Future
-diagnostics may add interpolated horizontal surfaces, such as fields on
-pressure levels.
-
-This organization does not change the public names, component order, units, or
-missing-value conventions for built-in 2D diagnostics. Sampled-level
-diagnostics extend the native AMReX metadata sidecar in ``format_version = 2``
-with optional ``source_field`` and ``vertical_coordinate`` records.
 
 2D Sampled-Level Diagnostics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
