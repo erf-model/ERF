@@ -98,6 +98,11 @@ SampledLevelDefinition parse_sampled_level_definition (const std::string& level_
 amrex::Vector<std::string> parse_requested_sampled_level_sets (const std::string& pp_prefix,
                                                                int which);
 
+amrex::Vector<Plotfile2DOutputDescriptor> build_sampled_level_output_descriptors_from_definitions (
+    const amrex::Vector<SampledLevelDefinition>& level_sets,
+    const amrex::Vector<std::string>& static_plot_vars,
+    const SolverChoice& solver_choice);
+
 amrex::Vector<Plotfile2DOutputDescriptor> build_sampled_level_output_descriptors (
     const std::string& pp_prefix,
     int which,

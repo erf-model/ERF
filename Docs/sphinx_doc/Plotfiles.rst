@@ -888,8 +888,9 @@ sidecar does not change field values. For example, in native SHOC
 flux snapshots, as described above, but the sidecar records the public
 diagnostic metadata for the selected variables.
 
-This sidecar is written for native AMReX 2D plotfiles. NetCDF metadata
-attributes are not changed by this feature. The sidecar format version is 2.
+Native AMReX 2D plotfiles write sampled-level metadata in ``2DMetadata.json``.
+NetCDF 2D output uses the same sampled-level variable names, but this PR does
+not add NetCDF-specific metadata attributes. The sidecar format version is 2.
 
 Example:
 
@@ -921,6 +922,36 @@ Example:
      ]
    }
 
+Sampled-level example:
+
+.. code-block:: json
+
+   {
+     "format_version": 2,
+     "kind": "ERF 2D plotfile metadata",
+     "n_variables": 1,
+     "variables": [
+       {
+         "component_index": 0,
+         "name": "theta_p_850hPa",
+         "long_name": "Potential temperature sampled on pressure levels",
+         "units": "K",
+         "category": "SampledLevel",
+         "missing_policy": "FillMinus999WhenUnavailable",
+         "missing_value": -999,
+         "source_field": "theta",
+         "vertical_coordinate": {
+           "type": "pressure",
+           "value": 850,
+           "units": "hPa",
+           "canonical_value": 85000,
+           "canonical_units": "Pa",
+           "interpolation": "linear"
+         }
+       }
+     ]
+   }
+
 2D Diagnostic Assembly
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -930,8 +961,10 @@ the scheme-aware water-path diagnostics are column reductions. Future
 diagnostics may add interpolated horizontal surfaces, such as fields on
 pressure levels.
 
-This organization does not change the public 2D variable names, component
-order, units, missing-value conventions, or ``2DMetadata.json`` schema.
+This organization does not change the public names, component order, units, or
+missing-value conventions for built-in 2D diagnostics. Sampled-level
+diagnostics extend the native AMReX metadata sidecar in ``format_version = 2``
+with optional ``source_field`` and ``vertical_coordinate`` records.
 
 2D Sampled-Level Diagnostics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -962,6 +995,48 @@ The supported fields are ``rho``, ``theta``, ``temp``, ``pressure``,
 ``qg``. Density, potential temperature, temperature, pressure, and height use
 the existing ERF thermodynamic and terrain helpers. Microphysical mass species
 are sampled as mixing ratios.
+
+Example inputs:
+
+Pressure levels:
+
+.. code-block:: text
+
+   erf.plot2d_level_sets_1 = upper_air
+
+   erf.plot2d.level_set.upper_air.coordinate = pressure
+   erf.plot2d.level_set.upper_air.units = hPa
+   erf.plot2d.level_set.upper_air.values = 850 700 500
+   erf.plot2d.level_set.upper_air.fields = theta temp qv qc
+
+Height-agl levels:
+
+.. code-block:: text
+
+   erf.plot2d_level_sets_1 = bl_heights
+
+   erf.plot2d.level_set.bl_heights.coordinate = height_agl
+   erf.plot2d.level_set.bl_heights.values = 100 500 1000
+   erf.plot2d.level_set.bl_heights.fields = theta qv qc
+
+Model-index levels:
+
+.. code-block:: text
+
+   erf.plot2d_level_sets_1 = native_k
+
+   erf.plot2d.level_set.native_k.coordinate = model_index
+   erf.plot2d.level_set.native_k.values = 0 10 20
+   erf.plot2d.level_set.native_k.fields = theta qv qc
+
+Output names use this pattern:
+
+.. code-block:: text
+
+   theta_p_850hPa
+   qv_p_700hPa
+   qc_z_agl_500m
+   theta_k_10
 
 For linear sampling, ERF uses adjacent levels :math:`k_0` and :math:`k_1`
 that bracket the requested target coordinate :math:`C_t`.

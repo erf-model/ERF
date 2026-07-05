@@ -69,6 +69,8 @@ amrex::Real sampled_field_value (SampledFieldID field_id,
 {
     const amrex::Real rho = cons_arr(i, j, k, Rho_comp);
     const bool has_moisture = (moisture_indices.qv >= 0);
+    // Microphysical fields are sampled as mixing ratios. The conserved state
+    // stores rho*q, so field evaluation divides by rho before interpolation.
     const amrex::Real qv_for_eos = has_moisture
         ? cons_arr(i, j, k, moisture_indices.qv) / rho
         : amrex::Real(0.0);

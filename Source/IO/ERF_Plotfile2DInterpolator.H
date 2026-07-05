@@ -1,11 +1,15 @@
 #ifndef ERF_PLOTFILE2DINTERPOLATOR_H_
 #define ERF_PLOTFILE2DINTERPOLATOR_H_
 
+#include <AMReX_MultiFab.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
 
+#include "ERF_Plotfile2DSampledLevel.H"
+
 // Vertical sampling helpers for ERF 2D plotfiles. These helpers copy model
 // levels or linearly interpolate cell-centered fields onto one target level.
+// The 2D writer calls this layer after it allocates output components.
 
 namespace plotfile2d
 {
@@ -18,18 +22,12 @@ struct SampledBracket
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SampledBracket find_sampled_bracket (amrex::Real target,
-                                     amrex::Real lo_value,
-                                     amrex::Real hi_value) noexcept
+bool sampled_target_is_bracketed (amrex::Real target,
+                                  amrex::Real c0,
+                                  amrex::Real c1) noexcept
 {
-    SampledBracket bracket;
-    if ((lo_value <= target && target <= hi_value) ||
-        (hi_value <= target && target <= lo_value)) {
-        bracket.klo = 0;
-        bracket.khi = 1;
-        bracket.found = true;
-    }
-    return bracket;
+    return (c0 <= target && target <= c1) ||
+           (c1 <= target && target <= c0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -46,6 +44,17 @@ amrex::Real linear_interpolate (amrex::Real lo_value,
     const amrex::Real weight = (target - lo_coord) / (hi_coord - lo_coord);
     return lo_value + weight * (hi_value - lo_value);
 }
+
+void fill_sampled_level_component (amrex::MultiFab& dst,
+                                   int dst_comp,
+                                   const Plotfile2DOutputDescriptor& descriptor,
+                                   const amrex::MultiFab& cons,
+                                   const amrex::MultiFab* z_phys_cc,
+                                   const amrex::MultiFab& z_phys_nd,
+                                   bool have_z_phys_cc,
+                                   const MoistureComponentIndices& moisture_indices,
+                                   int klo,
+                                   int khi);
 
 } // namespace plotfile2d
 

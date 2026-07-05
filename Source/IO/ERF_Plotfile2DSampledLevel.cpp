@@ -319,6 +319,10 @@ parse_sampled_level_definition (const std::string& level_set_name,
     if (!pp.query((base + "coordinate").c_str(), coordinate_value)) {
         amrex::Abort(build_missing_field_error(level_set_name, "coordinate"));
     }
+    if (string_iequals(coordinate_value, "isentropic")) {
+        amrex::Abort(sampled_level_error_prefix(level_set_name, "coordinate") +
+                     "isentropic output needs a crossing policy");
+    }
     level_set.coordinate = sampled_coordinate_from_string(coordinate_value);
 
     if (pp.query((base + "units").c_str(), level_set.units) == 0) {
@@ -378,10 +382,10 @@ parse_requested_sampled_level_sets (const std::string& pp_prefix,
 }
 
 amrex::Vector<Plotfile2DOutputDescriptor>
-build_sampled_level_output_descriptors (const std::string& pp_prefix,
-                                        int which,
-                                        const amrex::Vector<std::string>& static_plot_vars,
-                                        const SolverChoice& solver_choice)
+build_sampled_level_output_descriptors_from_definitions (
+    const amrex::Vector<SampledLevelDefinition>& level_sets,
+    const amrex::Vector<std::string>& static_plot_vars,
+    const SolverChoice& solver_choice)
 {
     amrex::Vector<Plotfile2DOutputDescriptor> descriptors;
     descriptors.reserve(static_plot_vars.size());
@@ -412,13 +416,7 @@ build_sampled_level_output_descriptors (const std::string& pp_prefix,
         descriptors.push_back(std::move(descriptor));
     }
 
-    const auto level_set_names = parse_requested_sampled_level_sets(pp_prefix, which);
-    amrex::ParmParse pp(pp_prefix);
-
-    for (const auto& level_set_name : level_set_names) {
-        const SampledLevelDefinition level_set =
-            parse_sampled_level_definition(level_set_name, pp_prefix);
-
+    for (const auto& level_set : level_sets) {
         const auto field_selection = select_requested_sampled_fields(level_set.fields, solver_choice);
         if (!field_selection.unavailable.empty()) {
             if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -481,6 +479,22 @@ build_sampled_level_output_descriptors (const std::string& pp_prefix,
     }
 
     return descriptors;
+}
+
+amrex::Vector<Plotfile2DOutputDescriptor>
+build_sampled_level_output_descriptors (const std::string& pp_prefix,
+                                        int which,
+                                        const amrex::Vector<std::string>& static_plot_vars,
+                                        const SolverChoice& solver_choice)
+{
+    amrex::Vector<SampledLevelDefinition> level_sets;
+    for (const auto& level_set_name : parse_requested_sampled_level_sets(pp_prefix, which)) {
+        level_sets.push_back(parse_sampled_level_definition(level_set_name, pp_prefix));
+    }
+
+    return build_sampled_level_output_descriptors_from_definitions(level_sets,
+                                                                   static_plot_vars,
+                                                                   solver_choice);
 }
 
 } // namespace plotfile2d

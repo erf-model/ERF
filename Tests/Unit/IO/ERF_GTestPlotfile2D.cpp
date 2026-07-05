@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <AMReX_Box.H>
 #include <AMReX_BoxArray.H>
@@ -8,11 +9,15 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParmParse.H>
 #include <gtest/gtest.h>
 
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DSampledField.H"
+#include "ERF_Plotfile2DSampledLevel.H"
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "ERF_DataStruct.H"
@@ -50,6 +55,11 @@ amrex::BoxArray make_test_slab_boxarray ()
     return amrex::BoxArray(std::move(bl));
 }
 
+amrex::BoxArray make_test_nodal_boxarray ()
+{
+    return amrex::convert(make_test_boxarray(), amrex::IntVect(1, 1, 1));
+}
+
 amrex::Geometry make_test_geometry ()
 {
     amrex::Geometry geom;
@@ -73,6 +83,30 @@ void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex
         });
     }
     amrex::Gpu::streamSynchronize();
+}
+
+void add_sampled_level_definition (const std::string& level_name,
+                                   const std::string& coordinate,
+                                   const std::vector<amrex::Real>& values,
+                                   const std::vector<std::string>& fields,
+                                   const char* units = nullptr,
+                                   const char* interpolation = nullptr,
+                                   const char* missing_value = nullptr)
+{
+    amrex::ParmParse pp("erf");
+    const std::string base = "plot2d.level_set." + level_name + ".";
+    pp.add(base + "coordinate", coordinate);
+    if (units != nullptr) {
+        pp.add(base + "units", units);
+    }
+    if (interpolation != nullptr) {
+        pp.add(base + "interpolation", interpolation);
+    }
+    if (missing_value != nullptr) {
+        pp.add(base + "missing_value", missing_value);
+    }
+    pp.addarr(base + "values", values);
+    pp.addarr(base + "fields", fields);
 }
 
 } // namespace
@@ -304,6 +338,501 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
     EXPECT_FALSE(std::string(descriptor->long_name).empty());
     EXPECT_FALSE(std::string(descriptor->units).empty());
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: Pressure sampled-level definitions must parse with the provided
+// units and preserve the requested value list and field order.
+TEST(Plotfile2DSampledLevel, ParsesPressureLevelSet)
+{
+    add_sampled_level_definition("pressure_parse_pressure",
+                                 "pressure",
+                                 {850.0, 700.0},
+                                 {"theta", "temp", "qv", "qc"},
+                                 "hPa",
+                                 "linear");
+
+    const auto level_set = parse_sampled_level_definition("pressure_parse_pressure", "erf");
+
+    EXPECT_EQ(level_set.coordinate, SampledCoordinate::Pressure);
+    EXPECT_EQ(level_set.units, "hPa");
+    ASSERT_EQ(level_set.values.size(), 2u);
+    EXPECT_DOUBLE_EQ(level_set.values[0], 850.0);
+    EXPECT_DOUBLE_EQ(level_set.values[1], 700.0);
+    ASSERT_EQ(level_set.fields.size(), 4u);
+    EXPECT_EQ(level_set.fields[0], "theta");
+    EXPECT_EQ(level_set.fields[1], "temp");
+    EXPECT_EQ(level_set.fields[2], "qv");
+    EXPECT_EQ(level_set.fields[3], "qc");
+    EXPECT_EQ(level_set.interpolation, SampledInterpolation::Linear);
+    EXPECT_EQ(validate_sampled_level_definition(level_set), "");
+}
+
+// Motivation: Height-agl sampled-level definitions should default to meters
+// and linear interpolation when those keys are omitted.
+TEST(Plotfile2DSampledLevel, ParsesHeightAGLLevelSet)
+{
+    add_sampled_level_definition("height_agl_parse_height",
+                                 "height_agl",
+                                 {100.0, 500.0},
+                                 {"theta", "qv", "qc"});
+
+    const auto level_set = parse_sampled_level_definition("height_agl_parse_height", "erf");
+
+    EXPECT_EQ(level_set.coordinate, SampledCoordinate::HeightAGL);
+    EXPECT_EQ(level_set.units, "m");
+    EXPECT_EQ(level_set.interpolation, SampledInterpolation::Linear);
+    ASSERT_EQ(level_set.values.size(), 2u);
+    EXPECT_DOUBLE_EQ(level_set.values[0], 100.0);
+    EXPECT_DOUBLE_EQ(level_set.values[1], 500.0);
+}
+
+// Motivation: Unknown coordinates should fail fast with a clear parser error
+// instead of falling through to a later interpolation failure.
+TEST(Plotfile2DSampledLevel, RejectsUnknownCoordinate)
+{
+    add_sampled_level_definition("bad_coordinate",
+                                 "bogus_coordinate",
+                                 {10.0},
+                                 {"theta"});
+
+    EXPECT_DEATH(parse_sampled_level_definition("bad_coordinate", "erf"),
+                 "Unknown sampled-level coordinate");
+}
+
+// Motivation: Unsupported units should be rejected at parse time so sampled
+// metadata cannot advertise a unit that the sampler does not canonicalize.
+TEST(Plotfile2DSampledLevel, RejectsUnsupportedUnits)
+{
+    add_sampled_level_definition("bad_units",
+                                 "pressure",
+                                 {850.0},
+                                 {"theta"},
+                                 "kPa",
+                                 "linear");
+
+    EXPECT_DEATH(parse_sampled_level_definition("bad_units", "erf"),
+                 "unsupported units");
+}
+
+// Motivation: Isentropic output needs a crossing policy, so it must stay
+// rejected until that policy exists.
+TEST(Plotfile2DSampledLevel, RejectsIsentropicUntilCrossingPolicyExists)
+{
+    add_sampled_level_definition("bad_isentropic",
+                                 "isentropic",
+                                 {300.0},
+                                 {"theta"});
+
+    EXPECT_DEATH(parse_sampled_level_definition("bad_isentropic", "erf"),
+                 "crossing policy");
+}
+
+// Motivation: Derived moisture aliases are out of scope for this sampled
+// output path and must not be accepted as canonical field names.
+TEST(Plotfile2DSampledLevel, RejectsDerivedMoistureAliases)
+{
+    const amrex::Vector<std::string> requested{"qrain", "qsnow", "qgraup"};
+    SolverChoice sc;
+    const auto selection = select_requested_sampled_fields(requested, sc);
+
+    EXPECT_TRUE(selection.accepted.empty());
+    ASSERT_EQ(selection.unavailable.size(), 3u);
+    EXPECT_EQ(selection.unavailable[0], "qrain");
+    EXPECT_EQ(selection.unavailable[1], "qsnow");
+    EXPECT_EQ(selection.unavailable[2], "qgraup");
+}
+
+// Motivation: Dry runs should expose the thermodynamic and geometric sampled
+// fields but not moisture species.
+TEST(Plotfile2DSampledField, DryRunExcludesMoistureSpecies)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::None;
+
+    const auto available = available_sampled_field_names(sc);
+
+    for (const char* name : {"rho", "theta", "temp", "pressure", "height_msl", "height_agl"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
+    }
+    for (const char* name : {"qv", "qc", "qi", "qr", "qs", "qg"}) {
+        EXPECT_EQ(std::find(available.begin(), available.end(), name), available.end());
+    }
+}
+
+// Motivation: Dry-run thermodynamic sampled fields still use qv = 0 in the
+// EOS helpers even when the sampled qv field itself is unavailable.
+TEST(Plotfile2DSampledField, DryRunUsesZeroVaporForThermodynamicFields)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(2.0));
+    set_component_value_at_k(cons, RhoTheta_comp, 0, amrex::Real(500.0));
+
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::None;
+    const auto& mi = sc.moisture_indices;
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto& cons_arr = cons.const_array(mfi);
+        const auto& z_cc_arr = z_phys_cc.const_array(mfi);
+        const auto& z_nd_arr = z_phys_nd.const_array(mfi);
+
+        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Pressure, cons_arr, z_cc_arr, z_nd_arr,
+                                             true, 0, 0, 0, mi),
+                         getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
+        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Temp, cons_arr, z_cc_arr, z_nd_arr,
+                                             true, 0, 0, 0, mi),
+                         getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
+        break;
+    }
+}
+
+// Motivation: Scheme-aware availability should follow the active moisture
+// indices rather than a hard-coded microphysics switch.
+TEST(Plotfile2DSampledField, KesslerAvailabilityMatchesMoistureIndices)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Kessler;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+
+    const auto available = available_sampled_field_names(sc);
+
+    for (const char* name : {"qv", "qc", "qr"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
+    }
+    for (const char* name : {"qi", "qs", "qg"}) {
+        EXPECT_EQ(std::find(available.begin(), available.end(), name), available.end());
+    }
+}
+
+// Motivation: Full bulk schemes should expose all sampled microphysical mass
+// species.
+TEST(Plotfile2DSampledField, FullIceAvailabilityIncludesAllMassSpecies)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Morrison;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
+                                                   RhoQ3_comp, RhoQ4_comp,
+                                                   RhoQ5_comp, RhoQ6_comp);
+
+    const auto available = available_sampled_field_names(sc);
+
+    for (const char* name : {"qv", "qc", "qi", "qr", "qs", "qg"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
+    }
+}
+
+// Motivation: The bracket rule must work for both increasing and decreasing
+// coordinates so sampled pressure and height behave the same way.
+TEST(Plotfile2DInterpolator, BracketRuleHandlesIncreasingAndDecreasingCoordinates)
+{
+    EXPECT_TRUE(sampled_target_is_bracketed(amrex::Real(5.0), amrex::Real(0.0), amrex::Real(10.0)));
+    EXPECT_TRUE(sampled_target_is_bracketed(amrex::Real(5.0), amrex::Real(10.0), amrex::Real(0.0)));
+    EXPECT_FALSE(sampled_target_is_bracketed(amrex::Real(15.0), amrex::Real(0.0), amrex::Real(10.0)));
+}
+
+// Motivation: Linear interpolation is the core numerical step for sampled
+// height and pressure outputs.
+TEST(Plotfile2DInterpolator, LinearInterpolateMatchesSyntheticValues)
+{
+    EXPECT_DOUBLE_EQ(linear_interpolate(amrex::Real(10.0), amrex::Real(20.0),
+                                        amrex::Real(0.0), amrex::Real(10.0),
+                                        amrex::Real(5.0)),
+                     amrex::Real(15.0));
+}
+
+// Motivation: Model-index sampling should copy the requested level exactly.
+TEST(Plotfile2DInterpolator, ModelIndexCopiesExactLevel)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(2.0));
+    set_component_value_at_k(cons, RhoTheta_comp, 1, amrex::Real(520.0));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "theta_k_1";
+    descriptor.long_name = "Potential temperature sampled on model index levels";
+    descriptor.units = "K";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "native_k",
+        "theta",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(1.0),
+            "1",
+            amrex::Real(1.0),
+            "1",
+            "none"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(520.0) / amrex::Real(2.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(520.0) / amrex::Real(2.0));
+}
+
+// Motivation: Height-msl sampling should interpolate a simple synthetic
+// column without changing the sampled-value convention.
+TEST(Plotfile2DInterpolator, HeightMSLInterpolatesSyntheticColumn)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(10.0));
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(20.0));
+    set_component_value_at_k(cons, Rho_comp, 2, amrex::Real(30.0));
+    set_component_value_at_k(z_phys_cc, 0, 0, amrex::Real(0.0));
+    set_component_value_at_k(z_phys_cc, 0, 1, amrex::Real(1000.0));
+    set_component_value_at_k(z_phys_cc, 0, 2, amrex::Real(2000.0));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "rho_z_msl_500m";
+    descriptor.long_name = "Density sampled on height-msl levels";
+    descriptor.units = "kg/m^3";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air",
+        "rho",
+        SampledVerticalCoordinateMetadata{
+            "height_msl",
+            amrex::Real(500.0),
+            "m",
+            amrex::Real(500.0),
+            "m",
+            "linear"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(15.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(15.0));
+}
+
+// Motivation: Height-agl sampling should use the local terrain height rather
+// than a global altitude origin.
+TEST(Plotfile2DInterpolator, HeightAGLUsesLocalSurfaceHeight)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(10.0));
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(20.0));
+    set_component_value_at_k(cons, Rho_comp, 2, amrex::Real(30.0));
+    set_component_value_at_k(z_phys_nd, 0, 0, amrex::Real(100.0));
+    set_component_value_at_k(z_phys_nd, 0, 1, amrex::Real(200.0));
+    set_component_value_at_k(z_phys_nd, 0, 2, amrex::Real(300.0));
+    set_component_value_at_k(z_phys_nd, 0, 3, amrex::Real(400.0));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "rho_z_agl_50m";
+    descriptor.long_name = "Density sampled on height-agl levels";
+    descriptor.units = "kg/m^3";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "bl",
+        "rho",
+        SampledVerticalCoordinateMetadata{
+            "height_agl",
+            amrex::Real(50.0),
+            "m",
+            amrex::Real(50.0),
+            "m",
+            "linear"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, nullptr, z_phys_nd, false,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(10.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(10.0));
+}
+
+// Motivation: Pressure sampling should interpolate a monotonic column using
+// the EOS-derived pressure coordinate.
+TEST(Plotfile2DInterpolator, PressureInterpolatesMonotonicColumn)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    const amrex::Real qv = amrex::Real(0.0);
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(300.0));
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(310.0));
+    set_component_value_at_k(cons, Rho_comp, 2, amrex::Real(320.0));
+    set_component_value_at_k(cons, RhoTheta_comp, 0, getRhoThetagivenP(amrex::Real(90000.0), qv));
+    set_component_value_at_k(cons, RhoTheta_comp, 1, getRhoThetagivenP(amrex::Real(80000.0), qv));
+    set_component_value_at_k(cons, RhoTheta_comp, 2, getRhoThetagivenP(amrex::Real(70000.0), qv));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "rho_p_85000Pa";
+    descriptor.long_name = "Density sampled on pressure levels";
+    descriptor.units = "kg/m^3";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air",
+        "rho",
+        SampledVerticalCoordinateMetadata{
+            "pressure",
+            amrex::Real(85000.0),
+            "Pa",
+            amrex::Real(85000.0),
+            "Pa",
+            "linear"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, nullptr, z_phys_nd, false,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(305.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(305.0));
+}
+
+// Motivation: Targets outside the sampled column must write the configured
+// missing value rather than extrapolating.
+TEST(Plotfile2DInterpolator, OutOfRangeTargetFillsMissingValue)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(300.0));
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(310.0));
+    set_component_value_at_k(cons, Rho_comp, 2, amrex::Real(320.0));
+    set_component_value_at_k(cons, RhoTheta_comp, 0, getRhoThetagivenP(amrex::Real(90000.0), amrex::Real(0.0)));
+    set_component_value_at_k(cons, RhoTheta_comp, 1, getRhoThetagivenP(amrex::Real(80000.0), amrex::Real(0.0)));
+    set_component_value_at_k(cons, RhoTheta_comp, 2, getRhoThetagivenP(amrex::Real(70000.0), amrex::Real(0.0)));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "rho_p_65000Pa";
+    descriptor.long_name = "Density sampled on pressure levels";
+    descriptor.units = "kg/m^3";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air",
+        "rho",
+        SampledVerticalCoordinateMetadata{
+            "pressure",
+            amrex::Real(65000.0),
+            "Pa",
+            amrex::Real(65000.0),
+            "Pa",
+            "linear"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, nullptr, z_phys_nd, false,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(-999.0));
+}
+
+// Motivation: Microphysical sampled fields are reported as mixing ratios, so
+// the conserved rho*q state must be divided by rho before output.
+TEST(Plotfile2DInterpolator, MicrophysicsFieldsUseMixingRatio)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(2.0));
+    set_component_value_at_k(cons, RhoQ2_comp, 0, amrex::Real(0.004));
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto& cons_arr = cons.const_array(mfi);
+        const auto& z_cc_arr = z_phys_cc.const_array(mfi);
+        const auto& z_nd_arr = z_phys_nd.const_array(mfi);
+
+        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Qc, cons_arr, z_cc_arr, z_nd_arr,
+                                             true, 0, 0, 0, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, -1)),
+                         amrex::Real(0.002));
+        break;
+    }
 }
 
 // Motivation: Water-path diagnostics should disappear from the available list
@@ -734,6 +1263,7 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::PBL), "PBL");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SampledLevel), "SampledLevel");
 }
 
 // Motivation: Downstream readers need to distinguish always-available fields
@@ -875,6 +1405,141 @@ TEST(Plotfile2DMetadata, FormatsSampledLevelVerticalCoordinate)
     EXPECT_TRUE(contains(json, "\"canonical_value\": 85000"));
     EXPECT_TRUE(contains(json, "\"canonical_units\": \"Pa\""));
     EXPECT_TRUE(contains(json, "\"interpolation\": \"linear\""));
+}
+
+// Motivation: Static diagnostics remain on metadata version 2 so existing
+// plotfile readers see the same public catalog fields.
+TEST(Plotfile2DMetadata, StaticDiagnosticsRemainMetadataVersionTwo)
+{
+    const std::string json = format_2d_metadata_json(amrex::Vector<std::string>{"z_surf"});
+
+    EXPECT_TRUE(contains(json, "\"format_version\": 2"));
+    EXPECT_TRUE(contains(json, "\"name\": \"z_surf\""));
+    EXPECT_FALSE(contains(json, "\"source_field\""));
+}
+
+// Motivation: Sampled-level metadata must preserve the output component
+// order that the writer assembles.
+TEST(Plotfile2DMetadata, SampledLevelMetadataPreservesOutputOrder)
+{
+    SampledLevelDefinition upper_air;
+    upper_air.name = "upper_air";
+    upper_air.coordinate = SampledCoordinate::Pressure;
+    upper_air.units = "hPa";
+    upper_air.values = {amrex::Real(850.0), amrex::Real(700.0)};
+    upper_air.fields = {"theta", "qv"};
+    upper_air.interpolation = SampledInterpolation::Linear;
+
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Kessler;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+
+    const auto descriptors =
+        build_sampled_level_output_descriptors_from_definitions(
+            amrex::Vector<SampledLevelDefinition>{upper_air},
+            amrex::Vector<std::string>{"z_surf"},
+            sc);
+
+    ASSERT_EQ(descriptors.size(), 5u);
+    EXPECT_EQ(descriptors[0].name, "z_surf");
+    EXPECT_EQ(descriptors[1].name, "theta_p_850hPa");
+    EXPECT_EQ(descriptors[2].name, "qv_p_850hPa");
+    EXPECT_EQ(descriptors[3].name, "theta_p_700hPa");
+    EXPECT_EQ(descriptors[4].name, "qv_p_700hPa");
+
+    const std::string json = format_2d_metadata_json(descriptors);
+    EXPECT_TRUE(contains(json, "\"component_index\": 0"));
+    EXPECT_TRUE(contains(json, "\"component_index\": 4"));
+    EXPECT_TRUE(contains(json, "\"source_field\": \"theta\""));
+    EXPECT_TRUE(contains(json, "\"source_field\": \"qv\""));
+}
+
+// Motivation: A sampled-only 2D stream should still build a descriptor list
+// with one output per requested field and target value.
+TEST(Plotfile2D, SampledOnlyStreamBuildsOutputDescriptorList)
+{
+    SampledLevelDefinition upper_air;
+    upper_air.name = "upper_air";
+    upper_air.coordinate = SampledCoordinate::Pressure;
+    upper_air.units = "hPa";
+    upper_air.values = {amrex::Real(850.0)};
+    upper_air.fields = {"theta", "temp"};
+    upper_air.interpolation = SampledInterpolation::Linear;
+
+    const auto descriptors =
+        build_sampled_level_output_descriptors_from_definitions(
+            amrex::Vector<SampledLevelDefinition>{upper_air},
+            amrex::Vector<std::string>{},
+            SolverChoice());
+
+    ASSERT_EQ(descriptors.size(), 2u);
+    EXPECT_EQ(descriptors[0].name, "theta_p_850hPa");
+    EXPECT_EQ(descriptors[1].name, "temp_p_850hPa");
+    EXPECT_EQ(descriptors[0].category, DiagnosticCategory::SampledLevel);
+    EXPECT_EQ(descriptors[0].missing_policy, MissingPolicy::FillMinus999WhenUnavailable);
+    ASSERT_TRUE(descriptors[0].sampled_level.has_value());
+    EXPECT_EQ(descriptors[0].sampled_level->level_set_name, "upper_air");
+    EXPECT_EQ(descriptors[0].sampled_level->source_field, "theta");
+}
+
+// Motivation: Static built-in diagnostics must stay ahead of sampled-level
+// diagnostics in the assembled output descriptor list.
+TEST(Plotfile2D, SampledDescriptorsAppendAfterStaticDiagnostics)
+{
+    SampledLevelDefinition upper_air;
+    upper_air.name = "upper_air";
+    upper_air.coordinate = SampledCoordinate::Pressure;
+    upper_air.units = "hPa";
+    upper_air.values = {amrex::Real(850.0)};
+    upper_air.fields = {"theta", "temp"};
+    upper_air.interpolation = SampledInterpolation::Linear;
+
+    const auto descriptors =
+        build_sampled_level_output_descriptors_from_definitions(
+            amrex::Vector<SampledLevelDefinition>{upper_air},
+            amrex::Vector<std::string>{"z_surf", "landmask"},
+            SolverChoice());
+
+    ASSERT_EQ(descriptors.size(), 4u);
+    EXPECT_EQ(descriptors[0].name, "z_surf");
+    EXPECT_EQ(descriptors[1].name, "landmask");
+    EXPECT_EQ(descriptors[2].name, "theta_p_850hPa");
+    EXPECT_EQ(descriptors[3].name, "temp_p_850hPa");
+    EXPECT_NE(descriptors[0].static_diagnostic, nullptr);
+    EXPECT_NE(descriptors[1].static_diagnostic, nullptr);
+}
+
+// Motivation: Sampled descriptors must keep level-set order, target order,
+// and field order so the output layout stays deterministic.
+TEST(Plotfile2D, SampledDescriptorOrderIsLevelSetTargetField)
+{
+    SampledLevelDefinition upper_air;
+    upper_air.name = "upper_air";
+    upper_air.coordinate = SampledCoordinate::Pressure;
+    upper_air.units = "hPa";
+    upper_air.values = {amrex::Real(850.0), amrex::Real(700.0)};
+    upper_air.fields = {"theta", "temp"};
+    upper_air.interpolation = SampledInterpolation::Linear;
+
+    SampledLevelDefinition native_k;
+    native_k.name = "native_k";
+    native_k.coordinate = SampledCoordinate::ModelIndex;
+    native_k.values = {amrex::Real(10.0)};
+    native_k.fields = {"temp"};
+    native_k.interpolation = SampledInterpolation::None;
+
+    const auto descriptors =
+        build_sampled_level_output_descriptors_from_definitions(
+            amrex::Vector<SampledLevelDefinition>{upper_air, native_k},
+            amrex::Vector<std::string>{},
+            SolverChoice());
+
+    ASSERT_EQ(descriptors.size(), 5u);
+    EXPECT_EQ(descriptors[0].name, "theta_p_850hPa");
+    EXPECT_EQ(descriptors[1].name, "temp_p_850hPa");
+    EXPECT_EQ(descriptors[2].name, "theta_p_700hPa");
+    EXPECT_EQ(descriptors[3].name, "temp_p_700hPa");
+    EXPECT_EQ(descriptors[4].name, "temp_k_10");
 }
 
 // Motivation: Sampled-level output names are a public plotfile contract, so
