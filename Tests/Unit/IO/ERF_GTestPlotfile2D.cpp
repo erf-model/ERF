@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -58,6 +59,27 @@ amrex::BoxArray make_test_slab_boxarray ()
 amrex::BoxArray make_test_nodal_boxarray ()
 {
     return amrex::convert(make_test_boxarray(), amrex::IntVect(1, 1, 1));
+}
+
+amrex::BoxArray make_test_xface_boxarray ()
+{
+    auto ba = make_test_boxarray();
+    ba.surroundingNodes(0);
+    return ba;
+}
+
+amrex::BoxArray make_test_yface_boxarray ()
+{
+    auto ba = make_test_boxarray();
+    ba.surroundingNodes(1);
+    return ba;
+}
+
+amrex::BoxArray make_test_zface_boxarray ()
+{
+    auto ba = make_test_boxarray();
+    ba.surroundingNodes(2);
+    return ba;
 }
 
 amrex::Geometry make_test_geometry ()
@@ -451,7 +473,8 @@ TEST(Plotfile2DSampledField, DryRunExcludesMoistureSpecies)
 
     const auto available = available_sampled_field_names(sc);
 
-    for (const char* name : {"rho", "theta", "temp", "pressure", "height_msl", "height_agl"}) {
+    for (const char* name : {"rho", "theta", "temp", "pressure", "height_msl", "height_agl",
+                             "u_east", "v_north", "w", "wind_speed", "wind_dir"}) {
         EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
     }
     for (const char* name : {"qv", "qc", "qi", "qr", "qs", "qg"}) {
@@ -536,6 +559,26 @@ TEST(Plotfile2DSampledField, DryRunUsesZeroVaporForThermodynamicFields)
     EXPECT_DOUBLE_EQ(dst.max(0), getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
     EXPECT_DOUBLE_EQ(dst.min(1), getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
     EXPECT_DOUBLE_EQ(dst.max(1), getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
+}
+
+// Motivation: Wind fields should be first-class sampled-level fields, not
+// special-case output names that bypass descriptor metadata.
+TEST(Plotfile2DSampledField, WindFieldsAreCataloguedAndAlwaysAvailable)
+{
+    SolverChoice sc;
+    const auto available = available_sampled_field_names(sc);
+
+    for (const char* name : {"u_east", "v_north", "w", "wind_speed", "wind_dir"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end());
+        const auto* descriptor = find_sampled_field(name);
+        ASSERT_NE(descriptor, nullptr);
+        EXPECT_STRNE(descriptor->long_name, "");
+        if (std::string(name) == "wind_dir") {
+            EXPECT_STREQ(descriptor->units, "degrees");
+        } else {
+            EXPECT_STREQ(descriptor->units, "m/s");
+        }
+    }
 }
 
 // Motivation: Scheme-aware availability should follow the active moisture
@@ -896,6 +939,364 @@ TEST(Plotfile2DInterpolator, MicrophysicsFieldsUseMixingRatio)
 
     EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(0.002));
     EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(0.002));
+}
+
+// Motivation: Sampled winds should be cell-centered outputs even though their
+// source velocities live on staggered faces.
+TEST(Plotfile2DInterpolator, SampledWindsDestaggerWithoutRotation)
+{
+    const auto cell_ba = make_test_boxarray();
+    const auto xba = make_test_xface_boxarray();
+    const auto yba = make_test_yface_boxarray();
+    const auto zba = make_test_zface_boxarray();
+    amrex::DistributionMapping dm(cell_ba);
+    amrex::MultiFab cons(cell_ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(cell_ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab xvel(xba, dm, 1, 0);
+    amrex::MultiFab yvel(yba, dm, 1, 0);
+    amrex::MultiFab zvel(zba, dm, 1, 0);
+    amrex::MultiFab dst(cell_ba, dm, 5, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    xvel.setVal(amrex::Real(1.0));
+    yvel.setVal(amrex::Real(2.0));
+    zvel.setVal(amrex::Real(3.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    const auto wind_sources = plotfile2d::SampledWindSources{&xvel, &yvel, &zvel, nullptr, nullptr};
+
+    auto make_descriptor = [](const char* field_name, const char* units) {
+        Plotfile2DOutputDescriptor descriptor;
+        descriptor.name = field_name;
+        descriptor.long_name = field_name;
+        descriptor.units = units;
+        descriptor.category = DiagnosticCategory::SampledLevel;
+        descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+        descriptor.missing_value = amrex::Real(-999.0);
+        descriptor.sampled_level = SampledLevelMetadata{
+            "upper_air_winds",
+            field_name,
+            SampledVerticalCoordinateMetadata{
+                "model_index",
+                amrex::Real(0.0),
+                "1",
+                amrex::Real(0.0),
+                "1",
+                "none"
+            }
+        };
+        return descriptor;
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("w", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_speed", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 4, make_descriptor("wind_dir", "degrees"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real pi = amrex::Real(3.141592653589793238462643383279502884L);
+    const amrex::Real expected_dir =
+        amrex::Real(270.0) - std::atan2(amrex::Real(2.0), amrex::Real(1.0)) * amrex::Real(180.0) / pi;
+    const amrex::Real expected_speed = std::sqrt(amrex::Real(5.0));
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(2.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(2.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.max(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.min(3), expected_speed);
+    EXPECT_DOUBLE_EQ(dst.max(3), expected_speed);
+    EXPECT_NEAR(dst.min(4), expected_dir, 1.0e-12);
+    EXPECT_NEAR(dst.max(4), expected_dir, 1.0e-12);
+}
+
+// Motivation: Plotting winds must use earth-relative components when rotation
+// coefficients are supplied.
+TEST(Plotfile2DInterpolator, SampledWindsApplyRotation)
+{
+    const auto cell_ba = make_test_boxarray();
+    const auto xba = make_test_xface_boxarray();
+    const auto yba = make_test_yface_boxarray();
+    const auto zba = make_test_zface_boxarray();
+    amrex::DistributionMapping dm(cell_ba);
+    amrex::MultiFab cons(cell_ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(cell_ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab xvel(xba, dm, 1, 0);
+    amrex::MultiFab yvel(yba, dm, 1, 0);
+    amrex::MultiFab zvel(zba, dm, 1, 0);
+    amrex::MultiFab cos_alpha(cell_ba, dm, 1, 0);
+    amrex::MultiFab sin_alpha(cell_ba, dm, 1, 0);
+    amrex::MultiFab dst(cell_ba, dm, 4, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    xvel.setVal(amrex::Real(1.0));
+    yvel.setVal(amrex::Real(2.0));
+    zvel.setVal(amrex::Real(3.0));
+    cos_alpha.setVal(amrex::Real(0.0));
+    sin_alpha.setVal(amrex::Real(1.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    const auto wind_sources = plotfile2d::SampledWindSources{&xvel, &yvel, &zvel, &cos_alpha, &sin_alpha};
+
+    auto make_descriptor = [](const char* field_name, const char* units) {
+        Plotfile2DOutputDescriptor descriptor;
+        descriptor.name = field_name;
+        descriptor.long_name = field_name;
+        descriptor.units = units;
+        descriptor.category = DiagnosticCategory::SampledLevel;
+        descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+        descriptor.missing_value = amrex::Real(-999.0);
+        descriptor.sampled_level = SampledLevelMetadata{
+            "upper_air_winds",
+            field_name,
+            SampledVerticalCoordinateMetadata{
+                "model_index",
+                amrex::Real(0.0),
+                "1",
+                amrex::Real(0.0),
+                "1",
+                "none"
+            }
+        };
+        return descriptor;
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("wind_speed", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_dir", "degrees"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real pi = amrex::Real(3.141592653589793238462643383279502884L);
+    const amrex::Real expected_dir =
+        amrex::Real(270.0) - std::atan2(amrex::Real(1.0), amrex::Real(-2.0)) * amrex::Real(180.0) / pi;
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(-2.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(-2.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), std::sqrt(amrex::Real(5.0)));
+    EXPECT_DOUBLE_EQ(dst.max(2), std::sqrt(amrex::Real(5.0)));
+    EXPECT_NEAR(dst.min(3), expected_dir, 1.0e-12);
+    EXPECT_NEAR(dst.max(3), expected_dir, 1.0e-12);
+}
+
+// Motivation: Wind direction is undefined for calm winds, so the output should
+// use the configured missing value instead of an arbitrary angle.
+TEST(Plotfile2DInterpolator, WindDirReturnsMissingForCalmWinds)
+{
+    const auto cell_ba = make_test_boxarray();
+    const auto xba = make_test_xface_boxarray();
+    const auto yba = make_test_yface_boxarray();
+    const auto zba = make_test_zface_boxarray();
+    amrex::DistributionMapping dm(cell_ba);
+    amrex::MultiFab cons(cell_ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(cell_ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab xvel(xba, dm, 1, 0);
+    amrex::MultiFab yvel(yba, dm, 1, 0);
+    amrex::MultiFab zvel(zba, dm, 1, 0);
+    amrex::MultiFab dst(cell_ba, dm, 2, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    xvel.setVal(amrex::Real(0.0));
+    yvel.setVal(amrex::Real(0.0));
+    zvel.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    const auto wind_sources = plotfile2d::SampledWindSources{&xvel, &yvel, &zvel, nullptr, nullptr};
+
+    Plotfile2DOutputDescriptor speed_descriptor;
+    speed_descriptor.name = "wind_speed_k_0";
+    speed_descriptor.long_name = "Horizontal wind speed sampled on model index levels";
+    speed_descriptor.units = "m/s";
+    speed_descriptor.category = DiagnosticCategory::SampledLevel;
+    speed_descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    speed_descriptor.missing_value = amrex::Real(-999.0);
+    speed_descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air_winds",
+        "wind_speed",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(0.0),
+            "1",
+            amrex::Real(0.0),
+            "1",
+            "none"
+        }
+    };
+
+    Plotfile2DOutputDescriptor dir_descriptor = speed_descriptor;
+    dir_descriptor.name = "wind_dir_k_0";
+    dir_descriptor.long_name = "Meteorological wind direction sampled on model index levels";
+    dir_descriptor.units = "degrees";
+    dir_descriptor.sampled_level->source_field = "wind_dir";
+
+    plotfile2d::fill_sampled_level_component(dst, 0, speed_descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 1, dir_descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2, wind_sources);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(0.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(0.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(-999.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(-999.0));
+}
+
+// Motivation: Wind direction is circular, so ERF should interpolate the wind
+// vector and derive direction from the interpolated vector.
+TEST(Plotfile2DInterpolator, SampledWindsInterpolateVectorComponents)
+{
+    const auto cell_ba = make_test_boxarray();
+    const auto xba = make_test_xface_boxarray();
+    const auto yba = make_test_yface_boxarray();
+    const auto zba = make_test_zface_boxarray();
+    amrex::DistributionMapping dm(cell_ba);
+    amrex::MultiFab cons(cell_ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(cell_ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab xvel(xba, dm, 1, 0);
+    amrex::MultiFab yvel(yba, dm, 1, 0);
+    amrex::MultiFab zvel(zba, dm, 1, 0);
+    amrex::MultiFab dst(cell_ba, dm, 5, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(xvel, 0, 0, amrex::Real(0.0));
+    set_component_value_at_k(xvel, 0, 1, amrex::Real(2.0));
+    set_component_value_at_k(yvel, 0, 0, amrex::Real(2.0));
+    set_component_value_at_k(yvel, 0, 1, amrex::Real(0.0));
+    zvel.setVal(amrex::Real(3.0));
+    set_component_value_at_k(z_phys_cc, 0, 0, amrex::Real(0.0));
+    set_component_value_at_k(z_phys_cc, 0, 1, amrex::Real(1000.0));
+
+    const auto wind_sources = plotfile2d::SampledWindSources{&xvel, &yvel, &zvel, nullptr, nullptr};
+
+    Plotfile2DOutputDescriptor base_descriptor;
+    base_descriptor.category = DiagnosticCategory::SampledLevel;
+    base_descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    base_descriptor.missing_value = amrex::Real(-999.0);
+    base_descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air_winds",
+        "u_east",
+        SampledVerticalCoordinateMetadata{
+            "height_msl",
+            amrex::Real(500.0),
+            "m",
+            amrex::Real(500.0),
+            "m",
+            "linear"
+        }
+    };
+
+    auto make_descriptor = [&](const char* field_name, const char* units) {
+        Plotfile2DOutputDescriptor descriptor = base_descriptor;
+        descriptor.name = std::string(field_name) + "_z_msl_500m";
+        descriptor.long_name = field_name;
+        descriptor.units = units;
+        descriptor.sampled_level->source_field = field_name;
+        return descriptor;
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 1, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 1, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("w", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 1, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_speed", "m/s"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 1, wind_sources);
+    plotfile2d::fill_sampled_level_component(dst, 4, make_descriptor("wind_dir", "degrees"),
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 1, wind_sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real pi = amrex::Real(3.141592653589793238462643383279502884L);
+    const amrex::Real expected_dir =
+        amrex::Real(270.0) - std::atan2(amrex::Real(1.0), amrex::Real(1.0)) * amrex::Real(180.0) / pi;
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.max(1), amrex::Real(1.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.max(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.min(3), std::sqrt(amrex::Real(2.0)));
+    EXPECT_DOUBLE_EQ(dst.max(3), std::sqrt(amrex::Real(2.0)));
+    EXPECT_NEAR(dst.min(4), expected_dir, 1.0e-12);
+    EXPECT_NEAR(dst.max(4), expected_dir, 1.0e-12);
+}
+
+// Motivation: Sampled wind fields should use the same deterministic naming and
+// descriptor metadata path as thermodynamic sampled fields.
+TEST(Plotfile2DMetadata, FormatsSampledWindLevelMetadata)
+{
+    SampledLevelDefinition upper_air;
+    upper_air.name = "upper_air_winds";
+    upper_air.coordinate = SampledCoordinate::Pressure;
+    upper_air.units = "hPa";
+    upper_air.values = {amrex::Real(850.0)};
+    upper_air.fields = {"u_east", "v_north", "wind_speed", "wind_dir"};
+    upper_air.interpolation = SampledInterpolation::Linear;
+
+    const auto descriptors =
+        build_sampled_level_output_descriptors_from_definitions(
+            amrex::Vector<SampledLevelDefinition>{upper_air},
+            amrex::Vector<std::string>{},
+            SolverChoice());
+
+    ASSERT_EQ(descriptors.size(), 4u);
+    EXPECT_EQ(descriptors[0].name, "u_east_p_850hPa");
+    EXPECT_EQ(descriptors[1].name, "v_north_p_850hPa");
+    EXPECT_EQ(descriptors[2].name, "wind_speed_p_850hPa");
+    EXPECT_EQ(descriptors[3].name, "wind_dir_p_850hPa");
+    EXPECT_EQ(descriptors[0].units, "m/s");
+    EXPECT_EQ(descriptors[1].units, "m/s");
+    EXPECT_EQ(descriptors[2].units, "m/s");
+    EXPECT_EQ(descriptors[3].units, "degrees");
+    EXPECT_EQ(descriptors[0].category, DiagnosticCategory::SampledLevel);
+    ASSERT_TRUE(descriptors[3].sampled_level.has_value());
+    EXPECT_EQ(descriptors[3].sampled_level->source_field, "wind_dir");
+    EXPECT_EQ(descriptors[3].sampled_level->vertical_coordinate.canonical_value, amrex::Real(85000.0));
+    EXPECT_EQ(descriptors[3].sampled_level->vertical_coordinate.canonical_units, "Pa");
 }
 
 // Motivation: Water-path diagnostics should disappear from the available list
@@ -1615,6 +2016,16 @@ TEST(Plotfile2DSampledLevel, FormatsOutputNames)
               "qv_z_agl_500m");
     EXPECT_EQ(sampled_output_name("qg", SampledCoordinate::ModelIndex, amrex::Real(10.0), "1"),
               "qg_k_10");
+    EXPECT_EQ(sampled_output_name("u_east", SampledCoordinate::Pressure, amrex::Real(850.0), "hPa"),
+              "u_east_p_850hPa");
+    EXPECT_EQ(sampled_output_name("v_north", SampledCoordinate::Pressure, amrex::Real(850.0), "hPa"),
+              "v_north_p_850hPa");
+    EXPECT_EQ(sampled_output_name("w", SampledCoordinate::HeightAGL, amrex::Real(500.0), "m"),
+              "w_z_agl_500m");
+    EXPECT_EQ(sampled_output_name("wind_speed", SampledCoordinate::ModelIndex, amrex::Real(10.0), "1"),
+              "wind_speed_k_10");
+    EXPECT_EQ(sampled_output_name("wind_dir", SampledCoordinate::Pressure, amrex::Real(700.0), "hPa"),
+              "wind_dir_p_700hPa");
 }
 
 // Motivation: The metadata file should travel with the native AMReX 2D

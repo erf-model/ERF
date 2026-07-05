@@ -490,6 +490,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             // Sampled-level descriptors are dynamic. The interpolator owns
             // their vertical sampling so the writer remains an output
             // assembly layer.
+            plotfile2d::SampledWindSources wind_sources;
+            wind_sources.xvel = &vars_new[lev][Vars::xvel];
+            wind_sources.yvel = &vars_new[lev][Vars::yvel];
+            wind_sources.zvel = &vars_new[lev][Vars::zvel];
             plotfile2d::fill_sampled_level_component(
                 mf[lev], mf_comp, descriptor,
                 vars_new[lev][Vars::cons],
@@ -497,7 +501,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 *z_phys_nd[lev],
                 z_phys_cc[lev] != nullptr,
                 solverChoice.moisture_indices,
-                klo, khi);
+                klo, khi,
+                wind_sources);
             mf_comp++;
         }
 

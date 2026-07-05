@@ -30,7 +30,12 @@ enum class SampledFieldID
     Qi,
     Qr,
     Qs,
-    Qg
+    Qg,
+    UEast,
+    VNorth,
+    W,
+    WindSpeed,
+    WindDir
 };
 
 struct SampledFieldDescriptor
@@ -57,6 +62,27 @@ SampledFieldSelection select_requested_sampled_fields (const amrex::Vector<std::
                                                        const SolverChoice& solver_choice);
 
 std::string sampled_field_id_to_string (SampledFieldID field_id);
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool sampled_field_is_wind (SampledFieldID field_id) noexcept
+{
+    switch (field_id) {
+    case SampledFieldID::UEast:
+    case SampledFieldID::VNorth:
+    case SampledFieldID::W:
+    case SampledFieldID::WindSpeed:
+    case SampledFieldID::WindDir:
+        return true;
+    default:
+        return false;
+    }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool sampled_field_is_scalar_state (SampledFieldID field_id) noexcept
+{
+    return !sampled_field_is_wind(field_id);
+}
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real sampled_field_value (SampledFieldID field_id,
@@ -103,6 +129,12 @@ amrex::Real sampled_field_value (SampledFieldID field_id,
         return (moisture_indices.qs >= 0) ? cons_arr(i, j, k, moisture_indices.qs) / rho : amrex::Real(0.0);
     case SampledFieldID::Qg:
         return (moisture_indices.qg >= 0) ? cons_arr(i, j, k, moisture_indices.qg) / rho : amrex::Real(0.0);
+    case SampledFieldID::UEast:
+    case SampledFieldID::VNorth:
+    case SampledFieldID::W:
+    case SampledFieldID::WindSpeed:
+    case SampledFieldID::WindDir:
+        return amrex::Real(0.0);
     }
 
     return amrex::Real(0.0);
@@ -124,6 +156,11 @@ sampled_field_name (SampledFieldID field_id) noexcept
     case SampledFieldID::Qr:        return "qr";
     case SampledFieldID::Qs:        return "qs";
     case SampledFieldID::Qg:        return "qg";
+    case SampledFieldID::UEast:     return "u_east";
+    case SampledFieldID::VNorth:    return "v_north";
+    case SampledFieldID::W:         return "w";
+    case SampledFieldID::WindSpeed: return "wind_speed";
+    case SampledFieldID::WindDir:    return "wind_dir";
     }
 
     return "unknown";

@@ -1121,6 +1121,26 @@ Supported fields:
      - Graupel mixing ratio.
      - ``kg kg^-1``
      - Available when the active moisture model has ``qg``.
+   * - ``u_east``
+     - Eastward wind.
+     - ``m/s``
+     - Always available.
+   * - ``v_north``
+     - Northward wind.
+     - ``m/s``
+     - Always available.
+   * - ``w``
+     - Vertical wind.
+     - ``m/s``
+     - Always available.
+   * - ``wind_speed``
+     - Horizontal wind speed.
+     - ``m/s``
+     - Always available.
+   * - ``wind_dir``
+     - Meteorological wind direction.
+     - ``degrees``
+     - Always available. ERF writes the missing value for calm winds.
 
 Use the canonical sampled species names ``qv``, ``qc``, ``qi``, ``qr``, ``qs``,
 and ``qg``. Do not use 3D derived-variable aliases such as ``qrain``, ``qsnow``,
@@ -1176,6 +1196,23 @@ Examples:
    qc_z_agl_500m
    theta_z_msl_1000m
    theta_k_10
+   u_east_p_850hPa
+   v_north_p_850hPa
+   w_z_agl_500m
+   wind_speed_k_10
+   wind_speed_z_agl_500m
+   wind_dir_k_10
+
+Wind example:
+
+.. code-block:: text
+
+   erf.plot2d_level_sets_1 = upper_air_winds
+
+   erf.plot2d.level_set.upper_air_winds.coordinate = pressure
+   erf.plot2d.level_set.upper_air_winds.units = hPa
+   erf.plot2d.level_set.upper_air_winds.values = 850 700
+   erf.plot2d.level_set.upper_air_winds.fields = u_east v_north wind_speed wind_dir
 
 ERF writes sampled-level variables after built-in variables in the same 2D
 stream. Within sampled-level output, ERF writes variables in level-set order,
@@ -1208,6 +1245,20 @@ species as a conserved density :math:`\rho q_x`, so sampled output uses
 ERF uses ``qv = 0`` for dry-run pressure and temperature calculations, but it
 does not expose sampled ``qv`` unless the active moisture model has a water-vapor
 state component.
+
+Wind fields are cell-centered sampled-level diagnostics. ERF destaggers the
+native face-centered velocity components to scalar cell centers before vertical
+sampling. ``u_east`` and ``v_north`` are earth-relative horizontal winds. When
+map-rotation coefficients are available, ERF rotates grid-relative horizontal
+winds before output. Otherwise, ERF uses identity rotation. ``w`` is the
+cell-centered vertical wind.
+
+``wind_speed`` is the horizontal speed computed from ``u_east`` and
+``v_north``. ``wind_dir`` is the meteorological wind direction in degrees
+clockwise from north, indicating where the wind comes from. ERF writes the
+level-set missing value for ``wind_dir`` when the horizontal wind is calm.
+``wind_dir`` is derived from the interpolated vector; ERF does not vertically
+interpolate wind direction as a scalar angle.
 
 Sampled-level metadata records ``source_field`` and ``vertical_coordinate`` in
 the native AMReX ``2DMetadata.json`` sidecar. NetCDF 2D output uses the same

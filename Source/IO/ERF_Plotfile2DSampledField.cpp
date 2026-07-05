@@ -23,6 +23,11 @@ const amrex::Vector<SampledFieldDescriptor>& field_catalog_storage ()
         {SampledFieldID::Qr,        "qr",        "Rain mixing ratio sampled at the target level",         "kg/kg"},
         {SampledFieldID::Qs,        "qs",        "Snow mixing ratio sampled at the target level",         "kg/kg"},
         {SampledFieldID::Qg,        "qg",        "Graupel mixing ratio sampled at the target level",      "kg/kg"},
+        {SampledFieldID::UEast,     "u_east",    "Eastward wind sampled at the target level",             "m/s"},
+        {SampledFieldID::VNorth,    "v_north",   "Northward wind sampled at the target level",            "m/s"},
+        {SampledFieldID::W,         "w",         "Vertical wind sampled at the target level",             "m/s"},
+        {SampledFieldID::WindSpeed,  "wind_speed","Horizontal wind speed sampled at the target level",     "m/s"},
+        {SampledFieldID::WindDir,    "wind_dir",  "Meteorological wind direction sampled at the target level", "degrees"},
     };
 
     return catalog;
@@ -51,6 +56,12 @@ bool field_is_available (SampledFieldID field_id, const SolverChoice& solver_cho
         return mi.qs >= 0;
     case SampledFieldID::Qg:
         return mi.qg >= 0;
+    case SampledFieldID::UEast:
+    case SampledFieldID::VNorth:
+    case SampledFieldID::W:
+    case SampledFieldID::WindSpeed:
+    case SampledFieldID::WindDir:
+        return true;
     }
 
     return false;

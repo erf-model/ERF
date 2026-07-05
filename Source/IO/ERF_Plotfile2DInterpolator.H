@@ -21,6 +21,15 @@ struct SampledBracket
     bool found = false;
 };
 
+struct SampledWindSources
+{
+    const amrex::MultiFab* xvel = nullptr;
+    const amrex::MultiFab* yvel = nullptr;
+    const amrex::MultiFab* zvel = nullptr;
+    const amrex::MultiFab* cos_alpha = nullptr;
+    const amrex::MultiFab* sin_alpha = nullptr;
+};
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool sampled_target_is_bracketed (amrex::Real target,
                                   amrex::Real c0,
@@ -54,7 +63,8 @@ void fill_sampled_level_component (amrex::MultiFab& dst,
                                    bool have_z_phys_cc,
                                    const MoistureComponentIndices& moisture_indices,
                                    int klo,
-                                   int khi);
+                                   int khi,
+                                   const SampledWindSources& wind_sources = {});
 
 } // namespace plotfile2d
 
