@@ -38,6 +38,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_mext       = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_heat_flux  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_spread_vec = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_arrival_time = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
 
     // Initialize values
     fire_phi->setVal(1.0);  // All unburned initially
@@ -90,6 +91,17 @@ void FireLayer::initialize(const ERF& erf,
     // Initialize ignition using phase 3 function
     initialize_ignition(*fire_phi, m_fg.geom, m_ignition_x, m_ignition_y, m_ignition_r);
     fire_phi->FillBoundary(m_fg.geom.periodicity());
+
+    // Initialize fire arrival time: -1 means unburned, ignition cells are marked as t=0
+    fire_arrival_time->setVal(-1.0_rt);  // -1 means unburned
+    // Mark ignition cells as burned at t=0
+    for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
+        auto phi_arr = fire_phi->const_array(mfi);
+        auto at_arr  = fire_arrival_time->array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+            if (phi_arr(iv) < 0.0_rt) at_arr(iv) = 0.0_rt;
+        });
+    }
 
     // Initialize FARSITE parameters
     m_fp.phi_threshold      = fire_params.farsite_phi_threshold;
@@ -223,10 +235,33 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << max_ros_temp << " m/s, Mean: " << mean_ros_temp << " m/s" << std::endl;
     }
 
+    // Re-apply burned interior from arrival time record before subcycle
+    // This ensures the burned region is preserved through the reset in FARSITE
+    for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
+        auto p  = fire_phi->array(mfi);
+        auto at = fire_arrival_time->const_array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+            if (at(iv) >= 0.0_rt) p(iv) = -1.0_rt;
+        });
+    }
+
     // 7. (Phase 3) Advance level-set using FARSITE subcycle
     int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                            *fire_wind_eff, *fire_ros,
                                            m_fg.geom, dt, m_fp);
+
+    // Record arrival times for newly burned cells
+    // If a cell is now burned (phi < 0) but wasn't before (arrival_time < 0), mark it with current time
+    {
+        Real cur_time = m_current_time;
+        for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
+            auto p  = fire_phi->const_array(mfi);
+            auto at = fire_arrival_time->array(mfi);
+            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+                if (p(iv) < 0.0_rt && at(iv) < 0.0_rt) at(iv) = cur_time;
+            });
+        }
+    }
 
     if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Level-set propagation completed with " << n_substeps << " fire subcycles" << std::endl;

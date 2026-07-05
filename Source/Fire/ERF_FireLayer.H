@@ -238,6 +238,7 @@ private:
     std::unique_ptr<amrex::MultiFab>         fire_mext;         // Moisture of extinction (Phase 4)
     std::unique_ptr<amrex::MultiFab>         fire_heat_flux;    // Heat flux (stub)
     std::unique_ptr<amrex::MultiFab>         fire_spread_vec;   // FARSITE scratch
+    std::unique_ptr<amrex::MultiFab>         fire_arrival_time; // Fire arrival time [s]
 
     // Precomputed Rothermel coefficients
     RothermelComputed                        m_rc;

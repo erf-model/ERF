@@ -302,9 +302,9 @@ void advance_farsite_one_step(
     yarray_all = yarray;
 #endif
 
-    // FIX: Do NOT reset phi to 0 here. The burned interior (phi < 0) must be
-    // preserved across timesteps. Stamping only decreases phi (takes the min),
-    // so already-burned cells can never become unburned.
+    // FIX: Reset phi to 0, then stamp propagated positions.
+    // The arrival time record preserves the burned interior across timesteps.
+    phi.setVal(0.0_rt);
 
     // Stamp propagated front positions into phi
     if (npts_global > 0) {
@@ -342,7 +342,7 @@ void advance_farsite_one_step(
                     int jj = static_cast<int>((y - prob_lo[1]) * dyi);
 
                     if (bx.contains(amrex::IntVect(ii, jj, 0))) {
-                        amrex::Gpu::Atomic::Min(&p(ii, jj, 0), -1.0_rt);
+                        p(ii, jj, 0) = -1.0_rt;
                     }
                 });
             }
