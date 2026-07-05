@@ -52,7 +52,7 @@ List of Parameters for Both 2D and 3D Plotfiles
 |                                  |                  | Values                |            |
 +----------------------------------+------------------+-----------------------+------------+
 | **erf.plotfile_type**            | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                                  | format           | "netcdf / "NetCDF"    |            |
+|                                  | format           | "netcdf" or "NetCDF"  |            |
 +----------------------------------+------------------+-----------------------+------------+
 | **erf.use_real_time_in_pltname** | Use real time    | Boolean               | false      |
 |                                  | instead of time  |                       |            |
@@ -70,62 +70,51 @@ List of Parameters for Both 2D and 3D Plotfiles
 List of Parameters for 3D Plotfiles
 -----------------------------------
 
-+----------------------------------+------------------+-----------------------+------------+
-| Parameter                        | Definition       | Acceptable            | Default    |
-|                                  |                  | Values                |            |
-+==================================+==================+=======================+============+
-| **erf.plot_file_1**              | prefix for       | String                | “*plt_1_*” |
-|                                  | plotfiles        |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_2**              | prefix for       | String                | “*plt_2_*” |
-|                                  | plotfiles        |                       |            |
-|                                  | at second freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_1**               | how often (by    | Integer               | -1         |
-|                                  | level-0 time     | :math:`> 0`           |            |
-|                                  | steps) to write  |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_2**               | how often (by    | Integer               | -1         |
-|                                  | level-0 time     | :math:`> 0`           |            |
-|                                  | steps) to write  |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_1**               | how often (in    | Real                  | -1.0       |
-|                                  | simulation time) | :math:`> 0`           |            |
-|                                  | to write         |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_2**               | how often (in    | Real                  | -1.0       |
-|                                  | simulation time) | :math:`> 0`           |            |
-|                                  | to write         |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_1**              | name of          | list of names         | None       |
-|                                  | variables to     |                       |            |
-|                                  | include in       |                       |            |
-|                                  | plotfiles        |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_2**              | name of          | list of names         | None       |
-|                                  | variables to     |                       |            |
-|                                  | include in       |                       |            |
-|                                  | plotfiles        |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_face_vels**           | output plotfiles | Boolean               | false      |
-|                                  | "{prefix}U",     |                       |            |
-|                                  | "{prefix}V", and |                       |            |
-|                                  | "{prefix}W"      |                       |            |
-|                                  | with velocity    |                       |            |
-|                                  | components on the|                       |            |
-|                                  | staggered grid.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 30 24 14
+
+   * - Parameter
+     - Definition
+     - Acceptable Values
+     - Default
+   * - ``erf.plot_file_1``
+     - Prefix for plotfiles at first output frequency.
+     - String
+     - ``plt_1_*``
+   * - ``erf.plot_file_2``
+     - Prefix for plotfiles at second output frequency.
+     - String
+     - ``plt_2_*``
+   * - ``erf.plot_int_1``
+     - Write plot files every this many level-0 time steps for the first stream.
+     - Integer :math:`> 0`
+     - -1
+   * - ``erf.plot_int_2``
+     - Write plot files every this many level-0 time steps for the second stream.
+     - Integer :math:`> 0`
+     - -1
+   * - ``erf.plot_per_1``
+     - Write plot files every this much simulation time for the first stream.
+     - Real :math:`> 0`
+     - -1.0
+   * - ``erf.plot_per_2``
+     - Write plot files every this much simulation time for the second stream.
+     - Real :math:`> 0`
+     - -1.0
+   * - ``erf.plot_vars_1``
+     - Variables to include in the first plotfile stream.
+     - List of names
+     - None
+   * - ``erf.plot_vars_2``
+     - Variables to include in the second plotfile stream.
+     - List of names
+     - None
+   * - ``erf.plot_face_vels``
+     - Output ``{prefix}U``, ``{prefix}V``, and ``{prefix}W`` with velocity
+       components on the staggered grid.
+     - Boolean
+     - false
 
 List of Parameters for 2D Plotfiles
 -----------------------------------
@@ -761,7 +750,7 @@ variables in the catalog order shown below, not in input order. ERF then appends
 sampled-level variables in level-set order, target-value order, and field order.
 
 Built-In 2D Diagnostic Catalog
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -899,7 +888,7 @@ If a requested built-in diagnostic is not available for the active configuration
 ERF warns and skips that diagnostic.
 
 Flux Diagnostics
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 ``sens_flux`` and ``laten_flux`` are legacy ERF conservative scalar flux
 outputs. ``sensible_heat_flux`` and ``latent_heat_flux`` convert the same
@@ -926,7 +915,7 @@ In native SHOC ``state_update`` mode, SHOC is the transport owner. The
 source path used before SHOC consumes it.
 
 2D AMReX Metadata Sidecar
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Native AMReX 2D plotfiles include a JSON metadata sidecar named
 ``2DMetadata.json`` in the plotfile directory. The sidecar lists the selected
@@ -1007,7 +996,7 @@ Example sampled-level metadata:
    }
 
 2D Sampled-Level Diagnostics
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ERF can write sampled-level 2D diagnostics from a vertical coordinate and a
 field registry. A sampled level set is defined under
@@ -1103,7 +1092,7 @@ vorticity, and staggered velocity fields after their sampling rules are
 defined.
 
 2D Water-Path Diagnostics
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ERF can write scheme-aware 2D water-path diagnostics for prognostic condensed
 water species. These diagnostics integrate the conserved ``rho*q`` species
@@ -1153,7 +1142,7 @@ with ``FillZeroWhenUnavailable`` missing-value policy. The sidecar schema is
 unchanged.
 
 Surface Diagnostic Source Codes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``surface_diagnostic_source`` is a cell-centered categorical diagnostic. It
 reports the source path used by the SurfaceLayer scalar diagnostic path. It
