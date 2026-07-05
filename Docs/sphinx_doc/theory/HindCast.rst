@@ -81,7 +81,7 @@ The following are the inputs required for hindcast simulations with ERA5/GFS.
 
     // If using era5 or gfs data to initialize
     // and for boundary forcing
-    erf.init_type = "hindcast"
+    erf.init_type = "HindCast"
     // Initial condition filename -
     // obtained from running the python script
     // with the inputs file specifying the date and
