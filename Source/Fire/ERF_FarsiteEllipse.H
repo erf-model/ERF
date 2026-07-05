@@ -316,28 +316,38 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping: mark newly reached cells as burned (phi = -1),
-            // but only decrease phi — never erase already-burned cells.
+            // Single-cell stamping: copy point arrays to device and use ParallelFor.
+            // This is GPU-safe unlike a direct host-side Array4 write.
+            amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             xarray_all.begin(), xarray_all.end(), d_x.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             yarray_all.begin(), yarray_all.end(), d_y.begin());
+
+            const Real* xp = d_x.data();
+            const Real* yp = d_y.data();
+            int npts = npts_global;
+
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
-                auto p = phi.array(mfi);
                 const Box& bx = mfi.tilebox();
+                auto p = phi.array(mfi);
 
-                for (int n = 0; n < npts; ++n) {
-                    Real x = x_ptr[n];
-                    Real y = y_ptr[n];
+                // For each propagated point, mark the containing cell as burned.
+                // Use the validbox bounds to avoid ghost-cell confusion.
+                amrex::ParallelFor(npts, [=] AMREX_GPU_DEVICE (int n) noexcept {
+                    Real x = xp[n];
+                    Real y = yp[n];
 
-                    // Find cell containing this point
                     int ii = static_cast<int>((x - prob_lo[0]) * dxi);
                     int jj = static_cast<int>((y - prob_lo[1]) * dyi);
 
-                    if (bx.contains(IntVect(ii, jj, 0))) {
-                        p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
+                    if (bx.contains(amrex::IntVect(ii, jj, 0))) {
+                        amrex::Gpu::Atomic::Min(&p(ii, jj, 0), -1.0_rt);
                     }
-                }
+                });
             }
         } else {
-            // Gaussian/SDF stamping with radius sigma.
-            // min() already preserves burned cells correctly.
+            // Gaussian/SDF path — already GPU-safe (unchanged)
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {

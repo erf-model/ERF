@@ -211,8 +211,10 @@ void fill_fire_wind_from_interpolation(
             Real z_surf = z_phys_cc(i_a, j_a, 0);
             Real z_target = z_surf + z_ref;
 
-            // Find vertical level bracket
-            int k_lo = 0;
+            // Find vertical level bracket.
+            // Initialise k_lo to the top interval (nz-2) so that if z_target
+            // is above all levels, the topmost wind values are used.
+            int k_lo = nz - 2;
             for (int k = 0; k < nz - 1; ++k) {
                 if (z_phys_cc(i_a, j_a, k) <= z_target && 
                     z_target < z_phys_cc(i_a, j_a, k + 1)) {
@@ -220,7 +222,7 @@ void fill_fire_wind_from_interpolation(
                     break;
                 }
             }
-            k_lo = amrex::min(k_lo, nz - 2);
+            // k_lo is already guaranteed to be in [0, nz-2]; no additional clamp needed.
 
             // Compute interpolation weight
             Real z_lo = z_phys_cc(i_a, j_a, k_lo);

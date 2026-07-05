@@ -147,10 +147,6 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     const Real S_T = 0.0555;   // Total mineral content
     const Real S_e = 0.010;    // Effective mineral content
 
-    // Fixed SAV constants (Rothermel 1972, ft⁻¹)
-    const Real SIGMA_D10  = 109.0;
-    const Real SIGMA_D100 = 30.0;
-
     // ===================================================================
     // 1. Total fuel load and weighted moisture (single-class path)
     // ===================================================================

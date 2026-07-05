@@ -30,7 +30,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 1);
     fire_wind_ref   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_wind_eff   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 1);
     fire_curvature  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
@@ -78,6 +78,8 @@ void FireLayer::initialize(const ERF& erf,
 
     // Compute terrain slopes and curvature (static fields, computed once at init)
     compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg, m_params.terrain_file_name);
+    // Fill ghost cells of slopes before computing curvature (curvature uses i±1, j±1 stencil)
+    fire_slopes->FillBoundary(m_fg.geom.periodicity());
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
     // Store ignition parameters for phase 3
@@ -185,6 +187,33 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Fuel moisture update completed. Max 1-hour moisture: " << max_mc_1hr << std::endl;
     }
 
+    // 5b. Recompute Rothermel coefficients with updated moisture
+    //     (only when dynamic moisture is enabled — static case uses m_rc from init)
+    if (m_params.moisture_dynamic) {
+        // Compute domain-averaged moisture for each size class
+        // (spatial averaging is appropriate since m_rc is spatially uniform)
+        long num_cells = fire_fuel_mc->boxArray().numPts();
+        Real avg_mc_1hr   = (num_cells > 0) ? fire_fuel_mc->sum(0) / Real(num_cells) : m_params.moisture_1hr;
+        Real avg_mc_10hr  = (num_cells > 0) ? fire_fuel_mc->sum(1) / Real(num_cells) : m_params.moisture_10hr;
+        Real avg_mc_100hr = (num_cells > 0) ? fire_fuel_mc->sum(2) / Real(num_cells) : m_params.moisture_100hr;
+
+        // Clamp to physical bounds
+        avg_mc_1hr   = amrex::max(0.01_rt, amrex::min(avg_mc_1hr,   0.40_rt));
+        avg_mc_10hr  = amrex::max(0.01_rt, amrex::min(avg_mc_10hr,  0.40_rt));
+        avg_mc_100hr = amrex::max(0.01_rt, amrex::min(avg_mc_100hr, 0.40_rt));
+
+        FuelModelParams fp_current = get_anderson_fuel_params(m_params.fuel_model_id);
+        m_rc = compute_rothermel_params(fp_current, avg_mc_1hr, avg_mc_10hr, avg_mc_100hr);
+
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Updated Rothermel coefficients with avg moisture: "
+                           << "M_1hr=" << avg_mc_1hr
+                           << " M_10hr=" << avg_mc_10hr
+                           << " M_100hr=" << avg_mc_100hr
+                           << " R0=" << m_rc.R0 << " m/s" << std::endl;
+        }
+    }
+
     // 6. Compute rate-of-spread
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
 
@@ -272,13 +301,17 @@ void FireLayer::apply_waf_to_wind()
 {
     // Wind Adjustment Factor — uses fuel bed depth from fuel model
 
-    Real waf = 0.4_rt;  // Default: ~40% of open wind (typical closed forest)
+    Real waf = 0.4_rt;  // Default fallback
 
     if (m_params.waf_formula == "andrews") {
         // Andrews (1982) unsheltered WAF for given fuel-bed depth
         waf = compute_waf_unsheltered(m_fuel_bed_depth_ft);
     } else if (m_params.waf_formula == "behaviorplus") {
         waf = compute_waf_behaviorplus(m_fuel_bed_depth_ft);
+    } else {
+        amrex::Print() << "[FIRE WARNING] Unknown waf_formula='" << m_params.waf_formula
+                       << "'. Valid options are 'andrews' and 'behaviorplus'."
+                       << " Using default WAF=" << waf << std::endl;
     }
 
     fire_wind_eff->mult(waf, 0, 2, 0);
