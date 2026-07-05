@@ -294,6 +294,7 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/Fire/ERF_FireGrid.cpp
       ${SRC_DIR}/Fire/ERF_FirePrerequisites.cpp
       ${SRC_DIR}/Fire/ERF_FireWindExtract.cpp
+      ${SRC_DIR}/Fire/ERF_FireTerrainReader.cpp
       ${SRC_DIR}/Fire/ERF_TerrainSlope.cpp
       ${SRC_DIR}/Fire/ERF_Rothermel.cpp
       ${SRC_DIR}/Fire/ERF_FireLayer.cpp
