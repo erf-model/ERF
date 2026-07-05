@@ -107,6 +107,18 @@ void FireLayer::initialize(const ERF& erf,
                    << "C=" << m_fg.C << ", "
                    << "fuel_model=" << fire_params.fuel_model_id << ", "
                    << "grid=" << m_fg.ba.size() << " boxes" << std::endl;
+    
+    // Debug: Print fire grid mesh resolution
+    if (m_params.fire_debug) {
+        IntVect max_extent = m_fg.geom.Domain().size();
+        RealBox prob_domain = m_fg.geom.ProbDomain();
+        Real dx_fire = (prob_domain.hi(0) - prob_domain.lo(0)) / max_extent[0];
+        Real dy_fire = (prob_domain.hi(1) - prob_domain.lo(1)) / max_extent[1];
+        amrex::Print() << "[FIRE DEBUG] Fire grid mesh resolution: dx=" << dx_fire 
+                       << " m, dy=" << dy_fire << " m, "
+                       << "extent: " << max_extent[0] << " x " << max_extent[1]
+                       << " cells, grid_ratio=" << m_fg.C << std::endl;
+    }
 }
 
 // surface_layer is non-const because SurfaceLayer's get_u_star / get_z0 /

@@ -216,7 +216,7 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     // ===================================================================
     // 16-18. Wind factor coefficients (Eqs. 47-49)
     // ===================================================================
-    Real C = 7.47 * std::exp(-0.133 * std::pow(sigma, 0.55));           // Eq. 47 (note: -0.133, not -0.8711)
+    Real C = 7.47 * std::exp(-0.8711 * std::pow(sigma, -0.55));         // Eq. 47 (Rothermel 1972, negative exponent on sigma)
     Real B = 0.02526 * std::pow(sigma, 0.54);                           // Eq. 48
     Real E = 0.715 * std::exp(-3.59e-4 * sigma);                        // Eq. 49
 
@@ -257,9 +257,12 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     // Debug output to verify parameters
     amrex::Print() << "Rothermel Params: R0=" << R0_ft_min << " ft/min (" << rc.R0 << " m/s)"
                   << " I_R=" << I_R << " BTU/ft²/min"
-                  << " C=" << C << " B=" << B
+                  << " C=" << C << " B=" << B << " E=" << E
                   << " beta=" << beta << " beta_opt=" << beta_op
-                  << " U_max=" << U_max_ftmin << " ft/min" << std::endl;
+                  << " beta_ratio_E=" << beta_ratio_E
+                  << " U_max=" << U_max_ftmin << " ft/min ("
+                  << U_max_ftmin * FT_MIN_TO_M_S << " m/s)"
+                  << " phi_s_const=" << phi_s_const << std::endl;
 
     return rc;
 }
