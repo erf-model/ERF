@@ -245,6 +245,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::PBL:
         case plotfile2d::DiagnosticCategory::SurfaceState:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
+        case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
             break;
         }
@@ -770,7 +771,7 @@ TEST(Plotfile2DMetadata, FormatsSelectedVariablesInOutputOrder)
 
     const std::string json = format_2d_metadata_json(selected);
 
-    EXPECT_TRUE(contains(json, "\"format_version\": 1"));
+    EXPECT_TRUE(contains(json, "\"format_version\": 2"));
     EXPECT_TRUE(contains(json, "\"kind\": \"ERF 2D plotfile metadata\""));
     EXPECT_TRUE(contains(json, "\"n_variables\": 4"));
     EXPECT_TRUE(contains(json, "\"component_index\": 0"));
@@ -833,6 +834,59 @@ TEST(Plotfile2DMetadata, FormatsEveryCatalogDiagnostic)
     for (const auto& name : names) {
         EXPECT_TRUE(contains(json, "\"name\": \"" + name + "\""));
     }
+}
+
+// Motivation: Sampled-level metadata must preserve the sampled source field
+// and vertical-coordinate contract without looking up dynamic names in the
+// static catalog.
+TEST(Plotfile2DMetadata, FormatsSampledLevelVerticalCoordinate)
+{
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "theta_p_850hPa";
+    descriptor.long_name = "Potential temperature sampled on pressure levels";
+    descriptor.units = "K";
+    descriptor.category = plotfile2d::DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = plotfile2d::MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = plotfile2d::SampledLevelMetadata{
+        "upper_air",
+        "theta",
+        plotfile2d::SampledVerticalCoordinateMetadata{
+            "pressure",
+            amrex::Real(850.0),
+            "hPa",
+            amrex::Real(85000.0),
+            "Pa",
+            "linear"
+        }
+    };
+
+    const amrex::Vector<Plotfile2DOutputDescriptor> descriptors{descriptor};
+    const std::string json = format_2d_metadata_json(descriptors);
+
+    EXPECT_TRUE(contains(json, "\"format_version\": 2"));
+    EXPECT_TRUE(contains(json, "\"name\": \"theta_p_850hPa\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SampledLevel\""));
+    EXPECT_TRUE(contains(json, "\"source_field\": \"theta\""));
+    EXPECT_TRUE(contains(json, "\"vertical_coordinate\""));
+    EXPECT_TRUE(contains(json, "\"type\": \"pressure\""));
+    EXPECT_TRUE(contains(json, "\"value\": 850"));
+    EXPECT_TRUE(contains(json, "\"units\": \"hPa\""));
+    EXPECT_TRUE(contains(json, "\"canonical_value\": 85000"));
+    EXPECT_TRUE(contains(json, "\"canonical_units\": \"Pa\""));
+    EXPECT_TRUE(contains(json, "\"interpolation\": \"linear\""));
+}
+
+// Motivation: Sampled-level output names are a public plotfile contract, so
+// the coordinate and value tags must stay deterministic.
+TEST(Plotfile2DSampledLevel, FormatsOutputNames)
+{
+    EXPECT_EQ(sampled_output_name("theta", SampledCoordinate::Pressure, amrex::Real(850.0), "hPa"),
+              "theta_p_850hPa");
+    EXPECT_EQ(sampled_output_name("qv", SampledCoordinate::HeightAGL, amrex::Real(500.0), "m"),
+              "qv_z_agl_500m");
+    EXPECT_EQ(sampled_output_name("qg", SampledCoordinate::ModelIndex, amrex::Real(10.0), "1"),
+              "qg_k_10");
 }
 
 // Motivation: The metadata file should travel with the native AMReX 2D

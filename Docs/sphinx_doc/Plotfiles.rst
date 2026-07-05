@@ -878,24 +878,25 @@ Native AMReX 2D plotfiles include a JSON metadata sidecar named
 ``2DMetadata.json`` in the plotfile directory. The sidecar lists the selected
 2D variables in output component order. For each variable it records the
 component index, name, long name, units, diagnostic category, missing-value
-policy, and documented missing value.
+policy, and documented missing value. Sampled-level outputs add a source field
+and vertical-coordinate record.
 
-The sidecar uses the same 2D diagnostic catalog that defines the plotfile
-variables. It does not change field values and does not record a separate
-runtime source-selection mask. For example, in native SHOC ``state_update``
-mode the flux fields may come from preserved SHOC-consumed flux snapshots, as
-described above, but the sidecar records the public diagnostic metadata for the
-selected variables.
+The sidecar uses the same 2D diagnostic catalog that defines the built-in
+plotfile variables. Sampled-level outputs carry their own metadata record. The
+sidecar does not change field values. For example, in native SHOC
+``state_update`` mode the flux fields may come from preserved SHOC-consumed
+flux snapshots, as described above, but the sidecar records the public
+diagnostic metadata for the selected variables.
 
 This sidecar is written for native AMReX 2D plotfiles. NetCDF metadata
-attributes are not changed by this feature.
+attributes are not changed by this feature. The sidecar format version is 2.
 
 Example:
 
 .. code-block:: json
 
    {
-     "format_version": 1,
+     "format_version": 2,
      "kind": "ERF 2D plotfile metadata",
      "n_variables": 2,
      "variables": [
@@ -931,6 +932,60 @@ pressure levels.
 
 This organization does not change the public 2D variable names, component
 order, units, missing-value conventions, or ``2DMetadata.json`` schema.
+
+2D Sampled-Level Diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF can write sampled-level 2D diagnostics from a vertical coordinate and a
+field registry. A sampled level set is defined under
+``erf.plot2d.level_set.<name>.`` and is selected for each 2D output stream by
+``erf.plot2d_level_sets_1`` or ``erf.plot2d_level_sets_2``.
+
+The supported coordinates are:
+
++--------------+-------------------------------------------+
+| Coordinate   | Meaning                                   |
++==============+===========================================+
+| model_index  | Copy the requested model level exactly.   |
++--------------+-------------------------------------------+
+| height_msl   | Sample at cell-centered height above mean |
+|              | sea level.                                |
++--------------+-------------------------------------------+
+| height_agl   | Sample at cell-centered height above      |
+|              | local terrain.                            |
++--------------+-------------------------------------------+
+| pressure     | Sample at cell-centered pressure.         |
++--------------+-------------------------------------------+
+
+The supported fields are ``rho``, ``theta``, ``temp``, ``pressure``,
+``height_msl``, ``height_agl``, ``qv``, ``qc``, ``qi``, ``qr``, ``qs``, and
+``qg``. Density, potential temperature, temperature, pressure, and height use
+the existing ERF thermodynamic and terrain helpers. Microphysical mass species
+are sampled as mixing ratios.
+
+For linear sampling, ERF uses adjacent levels :math:`k_0` and :math:`k_1`
+that bracket the requested target coordinate :math:`C_t`.
+
+.. math::
+
+   F_t = (1 - w) F_{k_0} + w F_{k_1}
+
+.. math::
+
+   w = \frac{C_t - C_{k_0}}{C_{k_1} - C_{k_0}}
+
+Model-index sampling copies the requested level exactly. If the target lies
+outside the column, ERF writes the configured missing value.
+
+.. math::
+
+   q_x = \frac{\rho q_x}{\rho}
+
+The sampled-level metadata records the source field and the vertical
+coordinate. The metadata uses ``format_version = 2``. Future extensions can
+add isentropic coordinates, derived field providers, vorticity, potential
+vorticity, and staggered velocity fields after their sampling rules are
+defined.
 
 2D Water-Path Diagnostics
 ~~~~~~~~~~~~~~~~~~~~~~~~~

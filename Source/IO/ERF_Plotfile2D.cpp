@@ -2,6 +2,8 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DSampledField.H"
+#include "ERF_Plotfile2DSampledLevel.H"
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
@@ -89,6 +91,160 @@ void warn_for_unavailable_2d_plot_vars (const std::string& parameter_name,
     }
 }
 
+amrex::Real sampled_coordinate_value (plotfile2d::SampledCoordinate coordinate,
+                                      const Array4<const Real>& cons_arr,
+                                      const Array4<const Real>& z_phys_cc_arr,
+                                      const Array4<const Real>& z_phys_nd_arr,
+                                      bool have_z_phys_cc,
+                                      int i, int j, int k,
+                                      const MoistureComponentIndices& moisture_indices) noexcept
+{
+    if (coordinate == plotfile2d::SampledCoordinate::ModelIndex) {
+        return static_cast<Real>(k);
+    }
+
+    return plotfile2d::sampled_field_value(
+        coordinate == plotfile2d::SampledCoordinate::HeightMSL
+            ? plotfile2d::SampledFieldID::HeightMSL
+            : coordinate == plotfile2d::SampledCoordinate::HeightAGL
+                ? plotfile2d::SampledFieldID::HeightAGL
+                : plotfile2d::SampledFieldID::Pressure,
+        cons_arr, z_phys_cc_arr, z_phys_nd_arr, have_z_phys_cc,
+        i, j, k, moisture_indices);
+}
+
+bool find_sampled_bracket (plotfile2d::SampledCoordinate coordinate,
+                           amrex::Real target,
+                           int klo,
+                           int khi,
+                           int i, int j,
+                           const Array4<const Real>& cons_arr,
+                           const Array4<const Real>& z_phys_cc_arr,
+                           const Array4<const Real>& z_phys_nd_arr,
+                           bool have_z_phys_cc,
+                           const MoistureComponentIndices& moisture_indices,
+                           int& bracket_lo,
+                           int& bracket_hi,
+                           Real& coord_lo,
+                           Real& coord_hi) noexcept
+{
+    if (khi < klo) {
+        return false;
+    }
+
+    coord_lo = sampled_coordinate_value(coordinate, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
+                                        have_z_phys_cc, i, j, klo, moisture_indices);
+    if (target == coord_lo) {
+        bracket_lo = klo;
+        bracket_hi = klo;
+        coord_hi = coord_lo;
+        return true;
+    }
+
+    for (int k = klo; k < khi; ++k) {
+        coord_hi = sampled_coordinate_value(coordinate, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
+                                            have_z_phys_cc, i, j, k + 1, moisture_indices);
+        if ((coord_lo <= target && target <= coord_hi) ||
+            (coord_hi <= target && target <= coord_lo)) {
+            bracket_lo = k;
+            bracket_hi = k + 1;
+            return true;
+        }
+        coord_lo = coord_hi;
+    }
+
+    return false;
+}
+
+void fill_sampled_descriptor_component (MultiFab& dst,
+                                        int dst_comp,
+                                        const plotfile2d::Plotfile2DOutputDescriptor& descriptor,
+                                        const MultiFab& cons,
+                                        const MultiFab* z_phys_cc,
+                                        const MultiFab& z_phys_nd,
+                                        bool have_z_phys_cc,
+                                        const MoistureComponentIndices& moisture_indices,
+                                        int klo,
+                                        int khi)
+{
+    const auto* sampled = descriptor.sampled_level ? &*descriptor.sampled_level : nullptr;
+    if (sampled == nullptr) {
+        plotfile2d::fill_component_with_value(dst, dst_comp, descriptor.missing_value);
+        return;
+    }
+
+    const auto* field_descriptor = plotfile2d::find_sampled_field(sampled->source_field);
+    if (field_descriptor == nullptr) {
+        Abort("Unknown sampled-level source field '" + sampled->source_field + "'");
+    }
+
+    const auto coordinate = plotfile2d::sampled_coordinate_from_string(
+        sampled->vertical_coordinate.type);
+    const auto field_id = field_descriptor->id;
+    const amrex::Real target = sampled->vertical_coordinate.canonical_value;
+    const int target_k = static_cast<int>(std::nearbyint(target));
+    const amrex::Real missing_value = descriptor.missing_value;
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const auto& dst_arr = dst.array(mfi);
+        const auto& cons_arr = cons.const_array(mfi);
+        const auto& z_phys_nd_arr = z_phys_nd.const_array(mfi);
+        const auto& z_phys_cc_arr = have_z_phys_cc && z_phys_cc != nullptr
+            ? z_phys_cc->const_array(mfi)
+            : cons.const_array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (coordinate == plotfile2d::SampledCoordinate::ModelIndex) {
+                if (target_k < klo || target_k > khi) {
+                    dst_arr(i, j, k, dst_comp) = missing_value;
+                    return;
+                }
+
+                dst_arr(i, j, k, dst_comp) =
+                    plotfile2d::sampled_field_value(field_id,
+                                                    cons_arr, z_phys_cc_arr, z_phys_nd_arr,
+                                                    have_z_phys_cc,
+                                                    i, j, target_k, moisture_indices);
+                return;
+            }
+
+            int bracket_lo = -1;
+            int bracket_hi = -1;
+            Real coord_lo = 0.0;
+            Real coord_hi = 0.0;
+            if (!find_sampled_bracket(coordinate, target, klo, khi, i, j, cons_arr, z_phys_cc_arr,
+                                      z_phys_nd_arr, have_z_phys_cc, moisture_indices,
+                                      bracket_lo, bracket_hi, coord_lo, coord_hi)) {
+                dst_arr(i, j, k, dst_comp) = missing_value;
+                return;
+            }
+
+            const Real field_lo =
+                plotfile2d::sampled_field_value(field_id,
+                                                cons_arr, z_phys_cc_arr, z_phys_nd_arr,
+                                                have_z_phys_cc,
+                                                i, j, bracket_lo, moisture_indices);
+            if (bracket_lo == bracket_hi || coord_hi == coord_lo) {
+                dst_arr(i, j, k, dst_comp) = field_lo;
+                return;
+            }
+
+            const Real field_hi =
+                plotfile2d::sampled_field_value(field_id,
+                                                cons_arr, z_phys_cc_arr, z_phys_nd_arr,
+                                                have_z_phys_cc,
+                                                i, j, bracket_hi, moisture_indices);
+            const Real weight = (target - coord_lo) / (coord_hi - coord_lo);
+            dst_arr(i, j, k, dst_comp) = field_lo + weight * (field_hi - field_lo);
+        });
+    }
+}
+
 } // namespace
 void
 ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -135,7 +291,15 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                            plot2d_file_1, plot2d_file_2,
                                                            file_name_digits);
 
-    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
+    const auto output_descriptors =
+        plotfile2d::build_sampled_level_output_descriptors(pp_prefix, which,
+                                                           plot_var_names, solverChoice);
+
+    Vector<std::string> varnames;
+    varnames.reserve(output_descriptors.size());
+    for (const auto& descriptor : output_descriptors) {
+        varnames.push_back(descriptor.name);
+    }
     const int ncomp_mf = static_cast<int>(varnames.size());
 
     if (ncomp_mf == 0) return;
@@ -475,6 +639,19 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // shoc_wthv_sfc
 
+        const int static_output_count = static_cast<int>(plot_var_names.size());
+        for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
+            const auto& descriptor = output_descriptors[out_idx];
+            fill_sampled_descriptor_component(mf[lev], mf_comp, descriptor,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_cc[lev].get(),
+                                              *z_phys_nd[lev],
+                                              z_phys_cc[lev] != nullptr,
+                                              solverChoice.moisture_indices,
+                                              klo, khi);
+            mf_comp++;
+        }
+
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
         }
@@ -490,7 +667,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                 varnames, my_geom, t_new[0], istep, refRatio());
         // Native AMReX 2D plotfiles write a JSON sidecar with catalog
         // metadata for the selected output variables only.
-        plotfile2d::write_2d_metadata_json(plotfilename, varnames);
+        plotfile2d::write_2d_metadata_json(plotfilename, output_descriptors);
         writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_NETCDF
