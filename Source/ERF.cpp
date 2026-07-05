@@ -26,6 +26,10 @@
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
+#ifdef ERF_ENABLE_FIRE
+#include "ERF_FirePlotfile.H"
+#endif
+
 using namespace amrex;
 
 double ERF::startCPUTime        = 0.0;
@@ -89,6 +93,10 @@ double ERF::last_plot3d_file_time_2 = 0.0;
 double ERF::last_plot2d_file_time_1 = 0.0;
 double ERF::last_plot2d_file_time_2 = 0.0;
 double ERF::last_check_file_time    = 0.0;
+
+#ifdef ERF_ENABLE_FIRE
+Real ERF::last_fire_plot_time = -one;
+#endif
 
 bool ERF::plot_file_on_restart = true;
 
@@ -257,6 +265,15 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
         Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
+
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        if (writeNow(cur_time, step+1, m_fire_plot_int, m_fire_plot_per, dt[0], last_fire_plot_time)) {
+            WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, step+1);
+            if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
+        }
+    }
+#endif
 
     for (int i = 0; i < m_subvol_int.size(); i++) {
         if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
@@ -2229,6 +2246,12 @@ ERF::ReadParameters ()
         pp.query("plot2d_int_2" , m_plot2d_int_2);
         pp.query("plot2d_per_1",  m_plot2d_per_1);
         pp.query("plot2d_per_2",  m_plot2d_per_2);
+
+#ifdef ERF_ENABLE_FIRE
+        pp.query("fire_plot_file", m_fire_plot_file);
+        pp.query("fire_plot_int",  m_fire_plot_int);
+        pp.query("fire_plot_per",  m_fire_plot_per);
+#endif
 
         pp.query("subvol_file",   subvol_file);
 

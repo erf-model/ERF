@@ -160,6 +160,42 @@ public:
         return fire_phi.get();
     }
 
+    /**
+     * @brief Get reference wind field for plotfile output.
+     * @return Pointer to fire_wind_ref MultiFab [m/s].
+     */
+    const amrex::MultiFab* get_wind_ref() const
+    {
+        return fire_wind_ref.get();
+    }
+
+    /**
+     * @brief Get terrain slopes for plotfile output.
+     * @return Pointer to fire_slopes MultiFab [dz/dx, dz/dy].
+     */
+    const amrex::MultiFab* get_slopes() const
+    {
+        return fire_slopes.get();
+    }
+
+    /**
+     * @brief Get fuel moisture content for plotfile output.
+     * @return Pointer to fire_fuel_mc MultiFab [M_1hr, M_10hr, M_100hr].
+     */
+    const amrex::MultiFab* get_fuel_mc() const
+    {
+        return fire_fuel_mc.get();
+    }
+
+    /**
+     * @brief Get fire grid reference for plotfile output.
+     * @return Const reference to the FireGrid.
+     */
+    const FireGrid& get_fire_grid() const
+    {
+        return m_fg;
+    }
+
 private:
 
     // Fire grid and geometry
