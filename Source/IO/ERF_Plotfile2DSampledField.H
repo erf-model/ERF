@@ -58,7 +58,7 @@ SampledFieldSelection select_requested_sampled_fields (const amrex::Vector<std::
 
 std::string sampled_field_id_to_string (SampledFieldID field_id);
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real sampled_field_value (SampledFieldID field_id,
                                  const amrex::Array4<const amrex::Real>& cons_arr,
                                  const amrex::Array4<const amrex::Real>& z_phys_cc_arr,

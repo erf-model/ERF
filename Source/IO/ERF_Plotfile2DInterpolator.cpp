@@ -31,7 +31,7 @@ SampledBracket find_sampled_bracket (SampledCoordinate coordinate,
         return bracket;
     }
 
-    auto coordinate_value = [=] AMREX_GPU_HOST_DEVICE (int kk) noexcept -> Real {
+    auto coordinate_value = [=] AMREX_GPU_DEVICE (int kk) noexcept -> Real {
         if (coordinate == SampledCoordinate::ModelIndex) {
             return static_cast<Real>(kk);
         }

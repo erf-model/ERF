@@ -468,10 +468,12 @@ TEST(Plotfile2DSampledField, DryRunUsesZeroVaporForThermodynamicFields)
     amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
     amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
     amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
 
     cons.setVal(amrex::Real(0.0));
     z_phys_cc.setVal(amrex::Real(0.0));
     z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
 
     set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(2.0));
     set_component_value_at_k(cons, RhoTheta_comp, 0, amrex::Real(500.0));
@@ -479,20 +481,61 @@ TEST(Plotfile2DSampledField, DryRunUsesZeroVaporForThermodynamicFields)
     SolverChoice sc;
     sc.moisture_type = MoistureType::None;
     const auto& mi = sc.moisture_indices;
+    const auto available = available_sampled_field_names(sc);
+    EXPECT_EQ(std::find(available.begin(), available.end(), "qv"), available.end());
 
-    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto& cons_arr = cons.const_array(mfi);
-        const auto& z_cc_arr = z_phys_cc.const_array(mfi);
-        const auto& z_nd_arr = z_phys_nd.const_array(mfi);
+    Plotfile2DOutputDescriptor pressure_descriptor;
+    pressure_descriptor.name = "pressure_k_0";
+    pressure_descriptor.long_name = "Pressure sampled on model index levels";
+    pressure_descriptor.units = "Pa";
+    pressure_descriptor.category = DiagnosticCategory::SampledLevel;
+    pressure_descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    pressure_descriptor.missing_value = amrex::Real(-999.0);
+    pressure_descriptor.sampled_level = SampledLevelMetadata{
+        "dry_run",
+        "pressure",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(0.0),
+            "1",
+            amrex::Real(0.0),
+            "1",
+            "none"
+        }
+    };
 
-        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Pressure, cons_arr, z_cc_arr, z_nd_arr,
-                                             true, 0, 0, 0, mi),
-                         getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
-        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Temp, cons_arr, z_cc_arr, z_nd_arr,
-                                             true, 0, 0, 0, mi),
-                         getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
-        break;
-    }
+    Plotfile2DOutputDescriptor temp_descriptor;
+    temp_descriptor.name = "temp_k_0";
+    temp_descriptor.long_name = "Temperature sampled on model index levels";
+    temp_descriptor.units = "K";
+    temp_descriptor.category = DiagnosticCategory::SampledLevel;
+    temp_descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    temp_descriptor.missing_value = amrex::Real(-999.0);
+    temp_descriptor.sampled_level = SampledLevelMetadata{
+        "dry_run",
+        "temp",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(0.0),
+            "1",
+            amrex::Real(0.0),
+            "1",
+            "none"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, pressure_descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             mi, 0, 2);
+    plotfile2d::fill_sampled_level_component(dst, 1, temp_descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             mi, 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
+    EXPECT_DOUBLE_EQ(dst.max(0), getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
+    EXPECT_DOUBLE_EQ(dst.min(1), getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
+    EXPECT_DOUBLE_EQ(dst.max(1), getTgivenRandRTh(amrex::Real(2.0), amrex::Real(500.0), amrex::Real(0.0)));
 }
 
 // Motivation: Scheme-aware availability should follow the active moisture
@@ -815,24 +858,44 @@ TEST(Plotfile2DInterpolator, MicrophysicsFieldsUseMixingRatio)
     amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
     amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
     amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
 
     cons.setVal(amrex::Real(0.0));
     z_phys_cc.setVal(amrex::Real(0.0));
     z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
 
     set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(2.0));
     set_component_value_at_k(cons, RhoQ2_comp, 0, amrex::Real(0.004));
 
-    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto& cons_arr = cons.const_array(mfi);
-        const auto& z_cc_arr = z_phys_cc.const_array(mfi);
-        const auto& z_nd_arr = z_phys_nd.const_array(mfi);
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "qc_k_0";
+    descriptor.long_name = "Cloud water sampled on model index levels";
+    descriptor.units = "kg/kg";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "microphysics",
+        "qc",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(0.0),
+            "1",
+            amrex::Real(0.0),
+            "1",
+            "none"
+        }
+    };
 
-        EXPECT_DOUBLE_EQ(sampled_field_value(SampledFieldID::Qc, cons_arr, z_cc_arr, z_nd_arr,
-                                             true, 0, 0, 0, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, -1)),
-                         amrex::Real(0.002));
-        break;
-    }
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, -1),
+                                             0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(0.002));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(0.002));
 }
 
 // Motivation: Water-path diagnostics should disappear from the available list
