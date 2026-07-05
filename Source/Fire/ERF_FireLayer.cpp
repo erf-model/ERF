@@ -201,6 +201,24 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 
     if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Level-set propagation completed with " << n_substeps << " fire subcycles" << std::endl;
+        
+        // Count number of cells with active fire (phi < 0)
+        long num_fire_cells = 0;
+        for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.tilebox();
+            Array4<const Real> phi = fire_phi->array(mfi);
+            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                    for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                        if (phi(i, j, k) < 0.0_rt) {
+                            num_fire_cells++;
+                        }
+                    }
+                }
+            }
+        }
+        amrex::ParallelDescriptor::ReduceLongSum(num_fire_cells);
+        amrex::Print() << "[FIRE DEBUG] Number of active fire cells: " << num_fire_cells << std::endl;
     }
 
     // Fill ghost cells after propagation so gradient stencils in the next

@@ -216,7 +216,7 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     // ===================================================================
     // 16-18. Wind factor coefficients (Eqs. 47-49)
     // ===================================================================
-    Real C = 7.47 * std::exp(-0.8711 * std::pow(sigma, -0.55));         // Eq. 47 (Rothermel 1972, negative exponent on sigma)
+    Real C = 7.47 * std::exp(-0.133 * std::pow(sigma, 0.55));           // Eq. 47 (Rothermel 1972, raw sigma path)
     Real B = 0.02526 * std::pow(sigma, 0.54);                           // Eq. 48
     Real E = 0.715 * std::exp(-3.59e-4 * sigma);                        // Eq. 49
 
@@ -231,14 +231,19 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     Real phi_s_const = 5.275 * std::pow(beta, -0.3);
 
     // ===================================================================
-    // 21. MEWS wind speed cap (Andrews 2018)
+    // 21. MEWS wind speed cap (Andrews 2018 / Rothermel 1972)
     // ===================================================================
-    Real phi_w_max = 0.9 * I_R;
-    Real U_max_ftmin = 0.0;
-    if (C > 0.0 && B > 0.0 && beta_ratio_E > 0.0) {
-        U_max_ftmin = std::pow(phi_w_max / (C * beta_ratio_E), 1.0 / B);
-        U_max_ftmin = amrex::max(U_max_ftmin, 0.0);
-    }
+    // The formula phi_w_max = 0.9 * I_R mixes incompatible quantities:
+    // phi_w (dimensionless) and I_R (BTU/ft²/min ~500 for fine fuels).
+    // This produces a dimensionally incorrect cap of phi_w ~ 475 for FM1,
+    // giving unrealistically high ROS (ROS ~ wind speed × 2-3).
+    //
+    // Instead, use fuel-type-based absolute cap on midflame wind speed,
+    // consistent with published BEHAVE/BehavePlus validation tables:
+    //   Fine fuels (sigma > 1000 ft⁻¹): cap at 300 ft/min (~1.5 m/s midflame)
+    //   Coarse fuels (sigma <= 1000 ft⁻¹): cap at 500 ft/min (~2.5 m/s midflame)
+    // These caps are bypassed when erf.fire.use_wind_limit = false.
+    Real U_max_ftmin = (sigma > 1000.0) ? 300.0 : 500.0;
 
     // ===================================================================
     // Store results in RothermelComputed

@@ -152,6 +152,16 @@ ERF::Evolve ()
     // Tracked in double to avoid float32 drift over many timesteps in single-precision builds.
     double cur_time = static_cast<double>(t_new[0]);
 
+    // Write fire output at time 0 (initial condition)
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, istep[0]);
+        if (m_fire_debug) {
+            amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
+        }
+    }
+#endif
+
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
     for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
