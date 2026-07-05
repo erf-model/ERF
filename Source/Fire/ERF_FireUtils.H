@@ -36,7 +36,7 @@
 inline
 void compute_rh_from_conservative(amrex::MultiFab& RH_out,
                                   const amrex::MultiFab& S_atm,
-                                  const amrex::Geometry& geom)
+                                  const amrex::Geometry& /*geom*/)
 {
     using namespace amrex;
 
@@ -59,10 +59,13 @@ void compute_rh_from_conservative(amrex::MultiFab& RH_out,
             // Extract conserved variables at k=0
             Real rho     = S_arr(i, j, k, Rho_comp);           // Density
             Real rho_th  = S_arr(i, j, k, RhoTheta_comp);     // RhoTheta
-            Real rho_qv  = S_arr(i, j, k, RhoQ1_comp);         // RhoQ1 (water vapor)
 
-            // Compute mixing ratios
-            Real qv = rho_qv / rho;  // Water vapor mixing ratio [kg/kg]
+            // Compute mixing ratios (guard against moisture not being present)
+            Real qv = 0.0_rt;  // Water vapor mixing ratio [kg/kg]
+            if (RhoQ1_comp < S_arr.nComp()) {
+                Real rho_qv  = S_arr(i, j, k, RhoQ1_comp);    // RhoQ1 (water vapor)
+                qv = rho_qv / rho;
+            }
 
             // Compute potential temperature
             Real theta = rho_th / rho;  // Potential temperature [K]

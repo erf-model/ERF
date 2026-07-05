@@ -111,14 +111,14 @@ void FireLayer::initialize(const ERF& erf,
 
 // surface_layer is non-const because SurfaceLayer's get_u_star / get_z0 /
 // get_olen accessors are not marked const.
-void FireLayer::advance(Real dt, SurfaceLayer& surface_layer,
+void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& z_phys_cc,
                         const MultiFab& T_atm_k0,
                         const MultiFab& RH_atm_k0)
 {
-    m_current_time = 0.0_rt;  // Time is tracked externally; this is a placeholder
+    m_current_time = time;
     m_dt_atm       = dt;
 
     if (m_params.fire_debug) {

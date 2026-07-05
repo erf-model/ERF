@@ -417,22 +417,30 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 #ifdef ERF_ENABLE_FIRE
     // Advance fire simulation at level 0
     if (lev == 0 && m_fire_layer) {
-        // Extract atmospheric state at k=0 for fuel moisture update
-        // Temperature is already computed in Theta_prim
-        // RH is computed from conserved variables
+       // Extract atmospheric state at k=0 for fuel moisture update
+       // Temperature and RH are on 2D atmospheric grid (coarse compared to fire grid)
         
-        const MultiFab& T_atm_k0 = *Theta_prim[lev];  // Potential temperature at k=0
+       // Allocate 2D T_atm_k0 and fill from Theta_prim at k=0
+       MultiFab T_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
+       for (MFIter mfi(T_atm_k0); mfi.isValid(); ++mfi) {
+           Array4<Real> t2d = T_atm_k0.array(mfi);
+           Array4<const Real> t3d = Theta_prim[lev]->const_array(mfi);
+           amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+               t2d(iv[0], iv[1], 0) = t3d(iv[0], iv[1], 0);
+           });
+       }
         
-        // Compute relative humidity at k=0 from conserved state
-        MultiFab RH_atm_k0(S_old.boxArray(), S_old.DistributionMap(), 1, 0);
-        compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
+       // Allocate 2D RH_atm_k0 and compute from conserved state
+       MultiFab RH_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
+       compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
         
-        m_fire_layer->advance(dt_lev,
-                              *m_SurfaceLayer,
-                              vars_old[lev][Vars::xvel],
-                              vars_old[lev][Vars::yvel],
-                              *z_phys_cc[lev],
-                              T_atm_k0, RH_atm_k0);
+       m_fire_layer->advance(time,
+                             dt_lev,
+                             *m_SurfaceLayer,
+                             vars_old[lev][Vars::xvel],
+                             vars_old[lev][Vars::yvel],
+                             *z_phys_cc[lev],
+                             T_atm_k0, RH_atm_k0);
     }
 #endif
 }

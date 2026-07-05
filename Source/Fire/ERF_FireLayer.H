@@ -122,7 +122,8 @@ public:
      * @param[in]     RH_atm_k0      Atmospheric relative humidity at k=0 [fraction 0-1]
      *                               On atmospheric grid (coarser than fire grid).
      */
-    void advance(amrex::Real dt, 
+    void advance(amrex::Real time,
+                 amrex::Real dt, 
                  SurfaceLayer& surface_layer,
                  const amrex::MultiFab& xvel,
                  const amrex::MultiFab& yvel,
@@ -164,6 +165,24 @@ public:
     const amrex::MultiFab* get_levelset() const
     {
         return fire_phi.get();
+    }
+
+    /**
+     * @brief Get mutable level-set field for checkpoint restart.
+     * @return Mutable pointer to fire_phi MultiFab.
+     */
+    amrex::MultiFab* get_levelset_mut()
+    {
+        return fire_phi.get();
+    }
+
+    /**
+     * @brief Get fire geometry for plotfile output.
+     * @return Const reference to the fire grid geometry.
+     */
+    const amrex::Geometry& get_fire_geom() const
+    {
+        return m_fg.geom;
     }
 
     /**
