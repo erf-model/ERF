@@ -354,7 +354,7 @@ void ReadBndryPlanes::read_input_files (Real time,
     if (last_file_read == -1)
     {
         int idx_init = 0;
-        read_file(idx_init,m_data_n,m_bc_extdir_vals);
+        read_file(idx_init,m_data_n     ,m_bc_extdir_vals);
         read_file(idx_init,m_data_interp,m_bc_extdir_vals); // We want to start with this filled
         m_tn = m_in_times[idx_init];
 
@@ -409,6 +409,10 @@ void ReadBndryPlanes::read_file (const int idx,
                                  Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
                                  Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals)
 {
+    if (idx >= m_in_timesteps.size()) {
+        Print() << "Asking for index " << idx << " but m_in_timesteps only has size " << m_in_timesteps.size() << std::endl;
+        Abort();
+    }
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + Concatenate("/bndry_output", t_step);
 

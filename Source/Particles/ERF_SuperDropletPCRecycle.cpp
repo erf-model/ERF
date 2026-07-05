@@ -20,6 +20,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
 
+    amrex::ignore_unused(a_iter, a_dt);
+
     const auto num_sd_deactivated = NumSDDeactivated();
     const auto num_sd = NumSuperDroplets();
     const auto deac_frac = (num_sd > 0 ? static_cast<Real>(num_sd_deactivated)/static_cast<Real>(num_sd) : 0.0);
@@ -100,7 +102,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto init_r = *(m_initializations[init_idx]);
         const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
-        const auto ctx = buildProcessContext(a_lev);
+        const auto proc_ctx = buildProcessContext(a_lev);
         const auto dx_h = Geom(a_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
@@ -127,7 +129,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_min = m_recyc_zmin;
         const auto z_max = m_recyc_zmax;
 
-        forEachParticleTile(a_lev, ctx,
+        forEachParticleTile(a_lev, proc_ctx,
             [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
@@ -251,9 +253,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         amrex::Print() << "Removing inactive particles.\n";
 
-        const auto ctx = buildProcessContext(a_lev);
+        const auto proc_ctx = buildProcessContext(a_lev);
 
-        forEachParticleTile(a_lev, ctx,
+        forEachParticleTile(a_lev, proc_ctx,
             [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& /*ctx*/)

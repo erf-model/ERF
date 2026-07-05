@@ -1,0 +1,9 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_impli_dp_inverse_tests.cpp
+# Property-case data translated into ERF bottom-up column ordering.
+# Values are exact 1 / (g * rho_zt * dz_zt) with g = 9.81 m s^-2.
+0.008494733265375
+0.002038735983690
+0.001132631102050
+0.000637104994903
+0.000339789330615

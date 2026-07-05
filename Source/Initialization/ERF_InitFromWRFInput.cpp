@@ -11,6 +11,8 @@
 
 #include <ERF_ReadFromWRFInput.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -650,6 +652,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 FArrayBox &cur_fab = mf_PSFC_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
+              Real pmax = mf_PSFC_lev.max(0);
+              if (pmax == zero) {
+                  amrex::Print() << " PSFC read in had max of 0; replacing it by 1e5 everywhere" << std::endl;
+                  mf_PSFC_lev.setVal(p_0);
+              }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
 #ifdef _OPENMP
@@ -1086,29 +1093,119 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time, final_bdy_time);
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
 
-        Print() << "Reading in boundary data with width " << real_width << std::endl;
-        Print() << "Running with relaxation width       " << real_width << std::endl;
+        // Path 1: Load from existing erfbdy file.
+        if (use_erfbdy) {
+            Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
-        // *******************************************************************************************
-        // We intentionally only read in the first three slices here ... we will read the rest in
-        // as needed during the time stepping procedure
-        // *******************************************************************************************
-        int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
-        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-        bool is_anelastic = (solverChoice.anelastic[0] == 1);
-        for (int itime = 0; itime < ntimes; itime++)
-        {
-            read_and_convert_from_wrfbdy(itime, nc_bdy_file,
-                                         bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                         wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                         lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                         real_width, bdy_time_interval, is_anelastic);
-        } // itime
+            // Read metadata and times from erfbdy.
+            int ntimes_erfbdy;
+            Vector<Real> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
+            Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+            Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+            Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Load the first 2 times for simulation initialization.
+            for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Loaded erfbdy time slice " << itime << std::endl;
+            }
+
+            Print() << "Read in boundary data with width "  << real_width << std::endl;
+            Print() << "Running with relaxation width: " << real_width << std::endl;
+        }
+        // Path 2: Load from wrfbdy and optionally write to erfbdy.
+        else {
+            if (nc_bdy_file.empty()) {
+                amrex::Error("NetCDF boundary file name must be provided via input");
+            }
+
+            bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                       bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                                       start_bdy_time, final_bdy_time);
+
+            int ntimes_total = bdy_data_xlo.size();
+            Vector<Real> bdy_times(ntimes_total);
+
+            // Initialize erfbdy file.
+            if (write_erfbdy) {
+                for (int itime = 0; itime < ntimes_total; ++itime) {
+                    bdy_times[itime] = start_bdy_time + itime * bdy_time_interval;
+                }
+
+                InitERFBdyFile(erfbdy_file, ntimes_total, bdy_times,
+                               geom[lev].Domain(), nvars_erfbdy, real_width);
+                Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+            }
+
+            // *******************************************************************************************
+            // We intentionally only read in the first three slices here ... we will read the rest in
+            // as needed during the time stepping procedure
+            // *******************************************************************************************
+            int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+            bool is_anelastic = (solverChoice.anelastic[0] == 1);
+            for (int itime = 0; itime < ntimes; itime++)
+            {
+                read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
+
+                // Write this time to erfbdy.
+                if (write_erfbdy) {
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+                }
+            } // itime
+
+            // If writing erfbdy and we have more than 3 times, then process the remaining times.
+            if (write_erfbdy && ntimes_total > 3) {
+                Print() << "Processing remaining " << ntimes_total - 3 << " boundary times..." << std::endl;
+                for (int itime = 3; itime < ntimes_total; ++itime) {
+                    read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
+
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+                Print() << "Completed writing erfbdy times" << std::endl;
+            } // itime
+        } // use_erfbdy
 
         //
         // Start at the earliest time (read_from_wrfbdy)

@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -65,14 +66,25 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
             //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
-            if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                bool is_anelastic = (solverChoice.anelastic[0] == 1);
-                read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                             vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
-                                             real_width, bdy_time_interval, is_anelastic);
-           }
+            // Handle erfbdy files (AMReX native format).
+            if (use_erfbdy) {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    read_from_erfbdy(itime, erfbdy_file,
+                                     bdy_data_xlo, bdy_data_xhi,
+                                     bdy_data_ylo, bdy_data_yhi,
+                                     nvars_erfbdy, real_width);
+                }
+            // Handle wrfbdy files (NetCDF format).
+            } else {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                    read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                                 vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+                }
+            } // use_erfbdy
         } // itime
     } // use_real_bcs && lev == 0
 

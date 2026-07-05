@@ -11,8 +11,12 @@
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 
-#ifdef ERF_USE_SHOC
+#ifdef ERF_USE_EAMXX_SHOC
 #include "ERF_ShocInterface.H"
+#endif
+
+#ifdef ERF_USE_NATIVE_SHOC
+#include "ERF_ShocDriver.H"
 #endif
 
 void

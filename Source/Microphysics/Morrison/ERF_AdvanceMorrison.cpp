@@ -1464,29 +1464,29 @@ namespace MORRInd {
               }
               //Right after 300 CONTINUE
 //            label_300:
-              // Calculate saturation adjustment to condense extra vapor above water saturation
-              dumt = morr_arr(i,j,k,MORRInd::t3d) + dt * morr_arr(i,j,k,MORRInd::t3dten);
-              dumqv = morr_arr(i,j,k,MORRInd::qv3d) + dt * morr_arr(i,j,k,MORRInd::qv3dten);
+              if (do_cond) {
+                // Calculate saturation adjustment to condense extra vapor above water saturation
+                dumt = morr_arr(i,j,k,MORRInd::t3d) + dt * morr_arr(i,j,k,MORRInd::t3dten);
+                dumqv = morr_arr(i,j,k,MORRInd::qv3d) + dt * morr_arr(i,j,k,MORRInd::qv3dten);
 
-              // Fix for low pressure (added 5/12/10)
-              dum = std::min(Real(0.99) * morr_arr(i,j,k,MORRInd::pres), calc_saturation_vapor_pressure(dumt, 0));
-              dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
-              dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
-              dumqc = std::max(dumqc, Real(0));
+                // Fix for low pressure (added 5/12/10)
+                dum = std::min(Real(0.99) * morr_arr(i,j,k,MORRInd::pres), calc_saturation_vapor_pressure(dumt, 0));
+                dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
+                dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
+                dumqc = std::max(dumqc, Real(0));
 
-              // Saturation adjustment for liquid
-              dums = dumqv - dumqss;
-              pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
-              if (pcc * dt + dumqc < Real(0)) {
-                pcc = -dumqc / dt;
+                // Saturation adjustment for liquid
+                dums = dumqv - dumqss;
+                pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
+                if (pcc * dt + dumqc < Real(0)) {
+                  pcc = -dumqc / dt;
+                }
+
+                // Update tendencies
+                morr_arr(i,j,k,MORRInd::qv3dten) -= pcc;
+                morr_arr(i,j,k,MORRInd::t3dten)  += pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
+                morr_arr(i,j,k,MORRInd::qc3dten) += pcc;
               }
-
-              if (!do_cond) { pcc = Real(0); }
-
-              // Update tendencies
-              morr_arr(i,j,k,MORRInd::qv3dten) -= pcc;
-              morr_arr(i,j,k,MORRInd::t3dten)  += pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
-              morr_arr(i,j,k,MORRInd::qc3dten) += pcc;
             } else { //cold
               //......................................................................
               // ALLOW FOR CONSTANT DROPLET NUMBER
@@ -2426,30 +2426,32 @@ namespace MORRInd {
                 // hm add, wrf-chem, add tendencies for c2prec
                 // c2prec = pra + prc + psacws + qmults + qmultg + psacwg + pgsacw + mnuccc + psacwi;
 
-                // CALCULATE SATURATION ADJUSTMENT TO CONDENSE EXTRA VAPOR ABOVE
-                // WATER SATURATION
-                dumt = morr_arr(i,j,k,MORRInd::t3d) + dt * morr_arr(i,j,k,MORRInd::t3dten);
-                dumqv = morr_arr(i,j,k,MORRInd::qv3d) + dt * morr_arr(i,j,k,MORRInd::qv3dten);
+                if (do_cond) {
+                  // CALCULATE SATURATION ADJUSTMENT TO CONDENSE EXTRA VAPOR ABOVE
+                  // WATER SATURATION
+                  dumt = morr_arr(i,j,k,MORRInd::t3d) + dt * morr_arr(i,j,k,MORRInd::t3dten);
+                  dumqv = morr_arr(i,j,k,MORRInd::qv3d) + dt * morr_arr(i,j,k,MORRInd::qv3dten);
 
-                // hm, add fix for low pressure, 5/12/10
-                dum = std::min(Real(0.99) * morr_arr(i,j,k,MORRInd::pres), calc_saturation_vapor_pressure(dumt, 0));
-                dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
+                  // hm, add fix for low pressure, 5/12/10
+                  dum = std::min(Real(0.99) * morr_arr(i,j,k,MORRInd::pres), calc_saturation_vapor_pressure(dumt, 0));
+                  dumqss = m_ep_2 * dum / (morr_arr(i,j,k,MORRInd::pres) - dum);
 
-                dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
-                dumqc = std::max(dumqc, Real(0));
+                  dumqc = morr_arr(i,j,k,MORRInd::qc3d) + dt * morr_arr(i,j,k,MORRInd::qc3dten);
+                  dumqc = std::max(dumqc, Real(0));
 
-                // SATURATION ADJUSTMENT FOR LIQUID
-                dums = dumqv - dumqss;
+                  // SATURATION ADJUSTMENT FOR LIQUID
+                  dums = dumqv - dumqss;
 
-                pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
+                  pcc = dums / (one + amrex::Math::powi<2>(morr_arr(i,j,k,MORRInd::xxlv)) * dumqss / (morr_arr(i,j,k,MORRInd::cpm) * m_Rv * amrex::Math::powi<2>(dumt))) / dt;
 
-                if (pcc * dt + dumqc < Real(0)) {
-                  pcc = -dumqc / dt;
+                  if (pcc * dt + dumqc < Real(0)) {
+                    pcc = -dumqc / dt;
+                  }
+
+                  morr_arr(i,j,k,MORRInd::qv3dten) = morr_arr(i,j,k,MORRInd::qv3dten) - pcc;
+                  morr_arr(i,j,k,MORRInd::t3dten) = morr_arr(i,j,k,MORRInd::t3dten) + pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
+                  morr_arr(i,j,k,MORRInd::qc3dten) = morr_arr(i,j,k,MORRInd::qc3dten) + pcc;
                 }
-
-                morr_arr(i,j,k,MORRInd::qv3dten) = morr_arr(i,j,k,MORRInd::qv3dten) - pcc;
-                morr_arr(i,j,k,MORRInd::t3dten) = morr_arr(i,j,k,MORRInd::t3dten) + pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
-                morr_arr(i,j,k,MORRInd::qc3dten) = morr_arr(i,j,k,MORRInd::qc3dten) + pcc;
                 // SUBLIMATE, MELT, OR EVAPORATE NUMBER CONCENTRATION
                 // THIS FORMULATION ASSUMES 1:1 RATIO BETWEEN MASS LOSS AND
                 // LOSS OF NUMBER CONCENTRATION

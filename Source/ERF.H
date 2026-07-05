@@ -65,8 +65,12 @@
 
 #include <ERF_RadiationModels.H>
 
-#ifdef ERF_USE_SHOC
+#ifdef ERF_USE_EAMXX_SHOC
 #include "ERF_ShocInterface.H"
+#endif
+
+#ifdef ERF_USE_NATIVE_SHOC
+#include "ERF_ShocDriver.H"
 #endif
 
 #ifdef ERF_USE_P3
@@ -191,26 +195,39 @@ public:
 
     void HurricaneEyeTracker_WRF (const SolverChoice& solverChoice);
 
+    void HurricaneEyeTrackerInitial_WRF (const SolverChoice& sc,
+                                         const amrex::Geometry& geom,
+                                         const amrex::Vector<amrex::MultiFab>& S_data,
+                                         const amrex::Real& hurricane_eye_latitude,
+                                         const amrex::Real& hurricane_eye_longitude);
 
-    void HurricaneEyeTrackerInitial_WRF (const amrex::Geometry& geom,
-                                     const amrex::Vector<amrex::MultiFab>& S_data,
-                                     const amrex::Real& hurricane_eye_latitude,
-                                     const amrex::Real& hurricane_eye_longitude);
-
-    void HurricaneEyeTrackerNotInitial_WRF (const amrex::Geometry& geom,
+    void HurricaneEyeTrackerNotInitial_WRF (const SolverChoice& sc,
+                                            const amrex::Geometry& geom,
                                             const amrex::Vector<amrex::MultiFab>& S_data,
                                             MoistureType moisture_type);
 
-    void ComputeGlobalMinLocation_WRF (const amrex::Geometry& geom,
-                                   const amrex::Vector<amrex::MultiFab>& S_data,
-                                   amrex::Real* d_val_min_ptr,
-                                   int* d_i_min_ptr,
-                                   int* d_j_min_ptr,
-                                   amrex::Real& global_val_min,
-                                   int& global_i_min,
-                                   int& global_j_min);
+    void ComputeGlobalMinLocation_WRF (const SolverChoice& sc,
+                                       const amrex::Geometry& geom,
+                                       const amrex::Vector<amrex::MultiFab>& S_data,
+                                       amrex::Real* d_val_min_ptr,
+                                       int* d_i_min_ptr,
+                                       int* d_j_min_ptr,
+                                       amrex::Real& global_val_min,
+                                       int& global_i_min,
+                                       int& global_j_min);
+
+    void HurricaneMaxVelTracker_WRF(const amrex::Geometry& geom,
+                                const amrex::MultiFab& mf_cc_vel,
+                                const amrex::Real& time);
+
+    void HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
+                                     const amrex::Geometry& geom,
+                                     const amrex::MultiFab& mf_cons_var,
+                                     const amrex::Real& time);
 
     void HurricaneTrackerCircle_WRF ();
+
+    void ReadStormTrackerRestart ();
 
     // Initialize multilevel data
     void InitData ();
@@ -270,6 +287,8 @@ public:
     void check_for_low_temp       (amrex::MultiFab& S);
 
     void compute_max_pressure_gradient_diagnostic(int lev);
+
+    void check_mesh_type(int lev);
 
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
@@ -435,7 +454,7 @@ public:
                             amrex::MultiFab& cons_in,
                             const amrex::Real& dt_advance);
 
-#ifdef ERF_USE_SHOC
+#ifdef ERF_USE_EAMXX_SHOC
     void compute_shoc_tendencies (int lev,
                                   amrex::MultiFab* cons,
                                   amrex::MultiFab* xvel,
@@ -449,6 +468,22 @@ public:
                                   amrex::MultiFab* eddyDiffs,
                                   amrex::MultiFab* z_phys_nd,
                                   const amrex::Real& dt_advance);
+#endif
+
+#ifdef ERF_USE_NATIVE_SHOC
+    void compute_native_shoc_tendencies (int lev,
+                                         amrex::MultiFab* cons,
+                                         amrex::MultiFab* xvel,
+                                         amrex::MultiFab* yvel,
+                                         amrex::MultiFab* zvel,
+                                         amrex::Real* w_subsid,
+                                         amrex::MultiFab* tau13,
+                                         amrex::MultiFab* tau23,
+                                         amrex::MultiFab* hfx3,
+                                         amrex::MultiFab* qfx3,
+                                         amrex::MultiFab* eddyDiffs,
+                                         amrex::MultiFab* z_phys_nd,
+                                         const amrex::Real& dt_advance);
 #endif
 
 #ifdef ERF_USE_P3
@@ -947,8 +982,12 @@ private:
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
-#ifdef ERF_USE_SHOC
-    amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
+#ifdef ERF_USE_EAMXX_SHOC
+    amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
+#endif
+
+#ifdef ERF_USE_NATIVE_SHOC
+    amrex::Vector<std::unique_ptr<ShocDriver>> native_shoc_driver; // Native SHOC model at each level
 #endif
 
 #ifdef ERF_USE_P3
@@ -1208,6 +1247,11 @@ private:
                                                     "Khv","Khh",
                                                     // turbulence lengthscale
                                                     "Lturb",
+                                                    // native SHOC diagnostics
+                                                    "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
+                                                    "wqls_sec", "wthv_sec", "w_sec",
+                                                    "thl_sec", "qw_sec", "qwthl_sec", "wthl_sec", "wqw_sec", "w3",
+                                                    "brunt", "isotropy", "shear_prod", "buoy_prod", "diss_tke",
                                                     // wall distance
                                                     "walldist",
                                                     // dissipation
@@ -1227,16 +1271,6 @@ private:
 #endif
                                                     ,"qsrc_sw", "qsrc_lw"
                                                    };
-
-    // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
-    // **************************************************************************************
-    const amrex::Vector<std::string> derived_names_2d {
-        "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
-        "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
-        "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv"
-    };
 
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
@@ -1327,6 +1361,12 @@ private:
     amrex::Real metgrid_proximity{amrex::Real(500.0)};
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
+
+    // Options for ERF boundary files for real simulations.
+    bool        write_erfbdy{false};   // User-settable: write erfbdy during initialization
+    bool        use_erfbdy{false};     // Internal: set during init or restart
+    std::string erfbdy_file{"erfbdy"}; // User-settable: erfbdy file name
+    int         nvars_erfbdy{0};       // Internal: number of variables in erfbdy
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;

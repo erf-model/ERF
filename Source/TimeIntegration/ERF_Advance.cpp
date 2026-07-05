@@ -139,11 +139,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
 
-#ifdef ERF_USE_SHOC
+#if defined(ERF_USE_EAMXX_SHOC) || defined(ERF_USE_NATIVE_SHOC)
     // **************************************************************************************
     // Update the "old" state using SHOC
     // **************************************************************************************
-    if (solverChoice.use_shoc) {
+    if (solverChoice.turbChoice[lev].uses_shoc_family()) {
         // Get SFC fluxes from SurfaceLayer
         if (m_SurfaceLayer) {
             Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
@@ -153,13 +153,46 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                                     z_phys_nd[lev].get());
         }
 
-        // Get Shoc tendencies and update the state
+        // Apply SHOC before the dycore so it sees a coherent state.
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
-        compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
-                                Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
-                                SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
-                                eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
-                                dt_lev);
+        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
+#ifdef ERF_USE_EAMXX_SHOC
+            compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
+                                    Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
+                                    SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
+                                    eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
+                                    dt_lev);
+#endif
+        } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
+#ifdef ERF_USE_NATIVE_SHOC
+            compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
+                                           Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
+                                           SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
+                                           eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
+                                           dt_lev);
+
+            if (native_shoc_driver[lev] && native_shoc_driver[lev]->uses_state_update()) {
+                // Native SHOC updates the old-time state before the dycore reads it.
+                // Re-fill the updated state, velocities, and momenta now so the
+                // pre-dycore checks and strain calculation see coherent fields.
+                Vector<MultiFab*> mfs_vel = {&S_old, &U_old, &V_old, &W_old};
+                if (lev == 0) {
+                    FillPatchCrseLevel(lev, time, mfs_vel, false);
+                    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                                       V_old, rV_old[lev].nGrowVect(),
+                                       W_old, rW_old[lev].nGrowVect(),
+                                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                                       Geom(lev).Domain(),
+                                       domain_bcs_type, c_vfrac);
+                } else {
+                    Vector<MultiFab*> mfs_mom = {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]};
+                    FillPatchFineLevel(lev, time, mfs_vel, mfs_mom,
+                                       base_state[lev], base_state[lev],
+                                       true, false);
+                }
+            }
+#endif
+        }
     }
 #endif
 

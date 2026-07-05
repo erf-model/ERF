@@ -2,6 +2,12 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
+USE_EAMXX_SHOC  ?= $(USE_SHOC)
+
+ifeq ($(USE_SHOC), TRUE)
+$(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
+endif
+
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
 # Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
 BL_NO_FORT = TRUE
@@ -334,13 +340,16 @@ ifeq ($(USE_RRTMGP), TRUE)
   endif
 endif
 
-# If using SHOC, compile relevant source and headers
-ifeq ($(USE_SHOC), TRUE)
+DEFINES += -DERF_USE_NATIVE_SHOC
+DEFINES += -DERF_HAS_SHOC_FAMILY
+
+# If using EAMxx SHOC, compile relevant source and headers
+ifeq ($(USE_EAMXX_SHOC), TRUE)
 
     USE_KOKKOS = TRUE
 
     DEFINES += -DERF_USE_KOKKOS
-    DEFINES += -DERF_USE_SHOC
+    DEFINES += -DERF_USE_EAMXX_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
     DEFINES += -DEKAT_ENABLE_MPI
     DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
@@ -365,6 +374,7 @@ ifeq ($(USE_SHOC), TRUE)
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
 
     # Other things we get from eamxx

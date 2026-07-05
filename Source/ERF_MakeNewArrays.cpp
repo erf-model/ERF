@@ -562,27 +562,20 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         // NOTE: We require ghost cells in the vertical when allowing grids that don't
         //       cover the entire vertical extent of the domain at this level
         //
-        for (int i = 0; i < 3; i++) {
-            Tau[lev][i] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        }
-        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau12]->setVal(zero);
-        Tau[lev][TauType::tau13]->setVal(zero);
-        Tau[lev][TauType::tau23]->setVal(zero);
+        Tau[lev][TauType::tau11] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau11]->setVal(zero);
+        Tau[lev][TauType::tau22] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau22]->setVal(zero);
+        Tau[lev][TauType::tau33] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau33]->setVal(zero);
+
+        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau12]->setVal(zero);
+        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau13]->setVal(zero);
+        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau23]->setVal(zero);
         if (l_use_terrain) {
-            Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau21]->setVal(zero);
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+            Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau21]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else if (l_implicit_diff) {
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else {
             Tau[lev][TauType::tau21] = nullptr;
             Tau[lev][TauType::tau31] = nullptr;
@@ -758,6 +751,15 @@ ERF::init_zphys (int lev, Real elapsed_time)
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
             }
+
+#if 0
+            // This remains commented out until we verify that the stretched and variable dz pathways
+            //   in fact give the same answer when appropriate
+            if (SolverChoice::mesh_type == MeshType::VariableDz)
+            {
+                check_mesh_type(lev);
+            }
+#endif
         } // lev == 0
 
     } else {
