@@ -427,7 +427,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         MultiFab RH_atm_k0(S_old.boxArray(), S_old.DistributionMap(), 1, 0);
         compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
         
-        m_fire_layer->advance(dt_lev, *m_SurfaceLayer, T_atm_k0, RH_atm_k0);
+        m_fire_layer->advance(dt_lev,
+                              *m_SurfaceLayer,
+                              vars_old[lev][Vars::xvel],
+                              vars_old[lev][Vars::yvel],
+                              *z_phys_cc[lev],
+                              T_atm_k0, RH_atm_k0);
     }
 #endif
 }

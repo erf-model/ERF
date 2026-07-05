@@ -179,3 +179,70 @@ void apply_farsite_terrain_wind(
         });
     }
 }
+
+void fill_fire_wind_from_interpolation(
+    MultiFab&       fire_wind_ref,
+    const MultiFab& xvel_mf,
+    const MultiFab& yvel_mf,
+    const MultiFab& z_phys_cc_mf,
+    const FireGrid&        fg,
+    Real            z_ref,
+    int             nz)
+{
+    // Direct vertical interpolation from atmospheric grid to fire grid
+    int C = fg.C;
+
+    for (MFIter mfi(fire_wind_ref, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        Array4<Real> fire_wind = fire_wind_ref.array(mfi);
+        Array4<const Real> xvel = xvel_mf.array(mfi);
+        Array4<const Real> yvel = yvel_mf.array(mfi);
+        Array4<const Real> z_phys_cc = z_phys_cc_mf.array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+            int i_f = iv[0];
+            int j_f = iv[1];
+
+            // Map to atmospheric column
+            int i_a = i_f / C;
+            int j_a = j_f / C;
+
+            // Get surface height and compute target height
+            Real z_surf = z_phys_cc(i_a, j_a, 0);
+            Real z_target = z_surf + z_ref;
+
+            // Find vertical level bracket
+            int k_lo = 0;
+            for (int k = 0; k < nz - 1; ++k) {
+                if (z_phys_cc(i_a, j_a, k) <= z_target && 
+                    z_target < z_phys_cc(i_a, j_a, k + 1)) {
+                    k_lo = k;
+                    break;
+                }
+            }
+            k_lo = amrex::min(k_lo, nz - 2);
+
+            // Compute interpolation weight
+            Real z_lo = z_phys_cc(i_a, j_a, k_lo);
+            Real z_hi = z_phys_cc(i_a, j_a, k_lo + 1);
+            Real alpha = 0.0;
+            if (z_hi > z_lo) {
+                alpha = (z_target - z_lo) / (z_hi - z_lo);
+                alpha = amrex::max(0.0, amrex::min(1.0, alpha));
+            }
+
+            int k_hi = k_lo + 1;
+
+            // Average u/v from faces to cell centers
+            Real u_cc_lo = 0.5 * (xvel(i_a, j_a, k_lo) + xvel(i_a + 1, j_a, k_lo));
+            Real v_cc_lo = 0.5 * (yvel(i_a, j_a, k_lo) + yvel(i_a, j_a + 1, k_lo));
+
+            Real u_cc_hi = 0.5 * (xvel(i_a, j_a, k_hi) + xvel(i_a + 1, j_a, k_hi));
+            Real v_cc_hi = 0.5 * (yvel(i_a, j_a, k_hi) + yvel(i_a, j_a + 1, k_hi));
+
+            // Interpolate to target height
+            fire_wind(i_f, j_f, 0, 0) = u_cc_lo + alpha * (u_cc_hi - u_cc_lo);
+            fire_wind(i_f, j_f, 0, 1) = v_cc_lo + alpha * (v_cc_hi - v_cc_lo);
+        });
+    }
+}

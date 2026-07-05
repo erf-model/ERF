@@ -1,6 +1,7 @@
 ifeq ($(USE_FIRE), TRUE)
   CEXE_sources += Fire/ERF_FireGrid.cpp
   CEXE_sources += Fire/ERF_FirePrerequisites.cpp
+  CEXE_sources += Fire/ERF_FireTerrainReader.cpp
   CEXE_sources += Fire/ERF_FireWindExtract.cpp
   CEXE_sources += Fire/ERF_TerrainSlope.cpp
   CEXE_sources += Fire/ERF_Rothermel.cpp
@@ -12,6 +13,7 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_FireParams.H
   CEXE_headers += Fire/ERF_FireGrid.H
   CEXE_headers += Fire/ERF_FirePrerequisites.H
+  CEXE_headers += Fire/ERF_FireTerrainReader.H
   CEXE_headers += Fire/ERF_FireWindExtract.H
   CEXE_headers += Fire/ERF_TerrainSlope.H
   CEXE_headers += Fire/ERF_Rothermel.H

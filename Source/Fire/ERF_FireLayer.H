@@ -100,7 +100,7 @@ public:
      *
      * Called from ERF::Advance() each timestep.
      * Executes the fire computation pipeline:
-     * 1. Extract wind from MOST layer at reference height
+     * 1. Extract wind from atmosphere at reference height
      * 2. Apply Wind Adjustment Factor for canopy
      * 3. Apply terrain wind corrections (FARSITE)
      * 4. Update fuel moisture from atmospheric state (Phase 2)
@@ -114,6 +114,9 @@ public:
      *                               Non-const because get_u_star / get_z0 /
      *                               get_olen are not marked const in
      *                               ERF_SurfaceLayer.H.
+     * @param[in]     xvel           x-velocity on atmospheric grid [m/s]
+     * @param[in]     yvel           y-velocity on atmospheric grid [m/s]
+     * @param[in]     z_phys_cc      Cell-center terrain height on atmospheric grid [m]
      * @param[in]     T_atm_k0       Atmospheric potential temperature at k=0 [K]
      *                               On atmospheric grid (coarser than fire grid).
      * @param[in]     RH_atm_k0      Atmospheric relative humidity at k=0 [fraction 0-1]
@@ -121,6 +124,9 @@ public:
      */
     void advance(amrex::Real dt, 
                  SurfaceLayer& surface_layer,
+                 const amrex::MultiFab& xvel,
+                 const amrex::MultiFab& yvel,
+                 const amrex::MultiFab& z_phys_cc,
                  const amrex::MultiFab& T_atm_k0,
                  const amrex::MultiFab& RH_atm_k0);
 
@@ -223,6 +229,12 @@ private:
     // Time tracking for fire advancement
     amrex::Real                              m_current_time = 0.0;
     amrex::Real                              m_dt_atm       = 0.0;
+
+    // Vertical levels
+    int                                      m_nz = 0;
+
+    // Fuel bed depth [ft] (fuel-model dependent)
+    amrex::Real                              m_fuel_bed_depth_ft = 6.5;
 
     // Ignition parameters
     amrex::Real                              m_ignition_x = 0.0;

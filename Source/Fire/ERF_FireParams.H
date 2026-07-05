@@ -52,6 +52,9 @@ struct FireParams
     amrex::Real       farsite_gaussian_sigma  = -1.0; ///< phi stamping radius [m]
     amrex::Real       farsite_cfl_fire        = 0.5;  ///< fire CFL number
 
+    // Terrain file for fine-grid terrain data
+    std::string       terrain_file_name       = "";   ///< Path to terrain file for fine-grid interpolation
+
     /**
      * @brief Construct FireParams from ParmParse
      *
@@ -96,6 +99,10 @@ struct FireParams
        pp.query("farsite.coeff_c", farsite_coeff_c);
        pp.query("farsite.gaussian_sigma", farsite_gaussian_sigma);
        pp.query("farsite.cfl_fire", farsite_cfl_fire);
+
+       // Terrain file
+       amrex::ParmParse pp_erf("erf");
+       pp_erf.query("terrain_file_name", terrain_file_name);
     }
 };
 

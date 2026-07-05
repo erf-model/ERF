@@ -23,6 +23,9 @@ void FireLayer::initialize(const ERF& erf,
     m_fg = create_fire_grid(erf.boxArray(0), erf.DistributionMap(0),
                             erf.Geom(0), fire_params.grid_ratio);
 
+    // Store number of vertical levels
+    m_nz = erf.Geom(0).Domain().length(2);
+
     // Allocate MultiFabs on fire grid (fire_phi with 1 ghost cell for gradients)
     fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 1);
     fire_wind_ref   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
@@ -50,6 +53,9 @@ void FireLayer::initialize(const ERF& erf,
     Real fuel_load_kg_m2  = fuel_load_lb_ft2 * 4.88243;  // Convert lb/ft² → kg/m²
     fire_fuel_load->setVal(fuel_load_kg_m2);
 
+    // Store fuel bed depth from fuel model [ft]
+    m_fuel_bed_depth_ft = fp.delta;
+
     // Set fuel moisture [fraction]
     fire_fuel_mc->setVal(0.0);
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
@@ -71,7 +77,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_mext->setVal(M_x);
 
     // Compute terrain slopes and curvature (static fields, computed once at init)
-    compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg);
+    compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg, m_params.terrain_file_name);
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
     // Store ignition parameters for phase 3
@@ -106,6 +112,9 @@ void FireLayer::initialize(const ERF& erf,
 // surface_layer is non-const because SurfaceLayer's get_u_star / get_z0 /
 // get_olen accessors are not marked const.
 void FireLayer::advance(Real dt, SurfaceLayer& surface_layer,
+                        const MultiFab& xvel,
+                        const MultiFab& yvel,
+                        const MultiFab& z_phys_cc,
                         const MultiFab& T_atm_k0,
                         const MultiFab& RH_atm_k0)
 {
@@ -116,14 +125,10 @@ void FireLayer::advance(Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
     }
 
-    // 1. Extract MOST wind at reference height
-    fill_fire_wind_from_most(*fire_wind_ref,
-                             *surface_layer.get_u_star(0),
-                             *surface_layer.get_z0(0),
-                             *surface_layer.get_olen(0),
-                             *surface_layer.get_mac_avg(0, 0),
-                             *surface_layer.get_mac_avg(0, 1),
-                             m_fg, m_params.wind_ref_ht);
+    // 1. Extract wind at reference height using direct vertical interpolation
+    fill_fire_wind_from_interpolation(*fire_wind_ref,
+                                      xvel, yvel, z_phys_cc,
+                                      m_fg, m_params.wind_ref_ht, m_nz);
 
     if (m_params.fire_debug) {
         Real max_wind_ref = fire_wind_ref->max(0);
@@ -235,16 +240,15 @@ void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)
 
 void FireLayer::apply_waf_to_wind()
 {
-    // Wind Adjustment Factor — constant per call for now.
-    // A full implementation would compute WAF per cell from canopy properties.
+    // Wind Adjustment Factor — uses fuel bed depth from fuel model
 
     Real waf = 0.4_rt;  // Default: ~40% of open wind (typical closed forest)
 
     if (m_params.waf_formula == "andrews") {
-        // Andrews (1982) unsheltered WAF for ~2 m fuel-bed depth (6.5 ft)
-        waf = compute_waf_unsheltered(6.5_rt);
+        // Andrews (1982) unsheltered WAF for given fuel-bed depth
+        waf = compute_waf_unsheltered(m_fuel_bed_depth_ft);
     } else if (m_params.waf_formula == "behaviorplus") {
-        waf = compute_waf_behaviorplus(6.5_rt);
+        waf = compute_waf_behaviorplus(m_fuel_bed_depth_ft);
     }
 
     fire_wind_eff->mult(waf, 0, 2, 0);
@@ -269,30 +273,51 @@ void FireLayer::advance_fuel_moisture(Real dt_s,
     // Refinement factor C
     int C = m_fg.C;
 
-    // Update each fire cell
+    // Create fire-grid versions of atmospheric fields
+    // This ensures indices match between fire grid MFIter and atmospheric data access
+    MultiFab T_fire(fire_fuel_mc->boxArray(), fire_fuel_mc->DistributionMap(), 1, 0);
+    MultiFab RH_fire(fire_fuel_mc->boxArray(), fire_fuel_mc->DistributionMap(), 1, 0);
+
+    // Fill fire-grid MultiFabs by coarse-to-fine prolongation
+    // Use host-side loop to map atmospheric grid to fire grid
+    for (MFIter mfi(T_fire, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        Array4<Real> T_f = T_fire.array(mfi);
+        Array4<Real> RH_f = RH_fire.array(mfi);
+        Array4<const Real> T_atm = T_atm_k0.const_array(mfi);
+        Array4<const Real> RH_atm = RH_atm_k0.const_array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv_f) {
+            int i_f = iv_f[0];
+            int j_f = iv_f[1];
+
+            // Map fire grid to atmospheric grid
+            int i_a = i_f / C;
+            int j_a = j_f / C;
+
+            // Fill with atmospheric values
+            T_f(i_f, j_f, 0) = T_atm(i_a, j_a, 0);
+            RH_f(i_f, j_f, 0) = RH_atm(i_a, j_a, 0);
+        });
+    }
+
+    // Update each fire cell using fire-grid indices
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         Array4<Real> mc = fire_fuel_mc->array(mfi);
         Array4<Real> mext = fire_mext->array(mfi);
 
-        // Get atmospheric arrays from the same box (they are co-located in x-y)
-        // The atmospheric MFIter has the same structure as fire grid but coarser
-        Array4<const Real> T_atm = T_atm_k0.const_array(mfi);
-        Array4<const Real> RH_atm = RH_atm_k0.const_array(mfi);
+        // Get atmospheric arrays from fire-grid MultiFabs (co-located indices)
+        Array4<const Real> T_f = T_fire.array(mfi);
+        Array4<const Real> RH_f = RH_fire.array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv_f) {
-            // Fire grid cell indices
             int i_f = iv_f[0];
             int j_f = iv_f[1];
 
-            // Map to atmospheric grid (coarser by factor C)
-            // Since the atmospheric grid is coarser, multiple fire cells map to one atm cell
-            int i_a = i_f / C;
-            int j_a = j_f / C;
-
-            // Read atmospheric state at k=0
-            Real T_K = T_atm(i_a, j_a, 0);      // Potential temperature [K]
-            Real RH_frac = RH_atm(i_a, j_a, 0); // Relative humidity [0-1]
+            // Read atmospheric state (now directly from fire-grid aligned arrays)
+            Real T_K = T_f(i_f, j_f, 0);      // Potential temperature [K]
+            Real RH_frac = RH_f(i_f, j_f, 0); // Relative humidity [0-1]
 
             // Convert to Celsius and percent
             Real T_C = T_K - 273.15_rt;

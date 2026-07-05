@@ -137,6 +137,48 @@ void fill_fire_wind_from_most(
     amrex::Real z_target);
 
 /**
+ * @brief Extract wind from direct vertical interpolation on fire grid
+ *
+ * Maps atmospheric wind to fire grid at reference height by interpolating
+ * vertically through the atmospheric column at the fire cell location.
+ * Uses cell-center wind values (averaged from face-staggered data) and
+ * linearly interpolates to the target height above terrain.
+ *
+ * @param[out] fire_wind_ref   u,v at z_ref on fire grid [m/s]
+ * @param[in]  xvel_mf         x-velocity (face-staggered at i+1/2, j, k)
+ * @param[in]  yvel_mf         y-velocity (face-staggered at i, j+1/2, k)
+ * @param[in]  z_phys_cc_mf    Cell-center terrain height z_phys_cc[0] on atm grid
+ * @param[in]  fg              Fire grid
+ * @param[in]  z_ref           Target height above local terrain [m]
+ * @param[in]  nz              Number of vertical levels
+ *
+ * Algorithm per fire cell (i_f, j_f):
+ * 1. Map to atmospheric column: i_a = i_f / C, j_a = j_f / C
+ * 2. Get surface height: z_surf = z_phys_cc(i_a, j_a, 0)
+ * 3. Compute target height: z_target = z_surf + z_ref
+ * 4. Walk k from 0 to nz-2: find k_lo such that
+ *    z_phys_cc(i_a, j_a, k_lo) <= z_target < z_phys_cc(i_a, j_a, k_lo+1)
+ *    Clamp to k_lo = nz-2 if z_target exceeds column top
+ * 5. Compute interpolation weight:
+ *    alpha = (z_target - z_phys_cc(i_a, j_a, k_lo)) /
+ *            (z_phys_cc(i_a, j_a, k_lo+1) - z_phys_cc(i_a, j_a, k_lo))
+ *    Clamp alpha to [0, 1]
+ * 6. Average u/v from bracketing face values to get cell centers:
+ *    u_cc(i,j,k) = 0.5 * (xvel(i,j,k) + xvel(i+1,j,k))
+ *    v_cc(i,j,k) = 0.5 * (yvel(i,j,k) + yvel(i,j+1,k))
+ * 7. Interpolate: fw(i_f,j_f,0,0) = u_cc(k_lo) + alpha*(u_cc(k_lo+1) - u_cc(k_lo))
+ *                fw(i_f,j_f,0,1) = v_cc(k_lo) + alpha*(v_cc(k_lo+1) - v_cc(k_lo))
+ */
+void fill_fire_wind_from_interpolation(
+    amrex::MultiFab&       fire_wind_ref,
+    const amrex::MultiFab& xvel_mf,
+    const amrex::MultiFab& yvel_mf,
+    const amrex::MultiFab& z_phys_cc_mf,
+    const FireGrid&        fg,
+    amrex::Real            z_ref,
+    int                    nz);
+
+/**
  * @brief Compute unsheltered Wind Adjustment Factor (Andrews/Albini & Baughman 1979)
  *
  * @param[in] delta_ft Fuel bed depth [ft]
