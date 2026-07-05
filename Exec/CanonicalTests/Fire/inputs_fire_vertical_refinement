@@ -1,0 +1,54 @@
+# ERF-Fire Regression Test: Flat Terrain, Vertical Refinement
+# Tests that wind interpolation at z_ref=6.1m works correctly
+# with non-uniform vertical spacing (grid_stretching_ratio > 1)
+
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 1000.0
+amr.n_cell       = 40 40 64
+
+geometry.is_periodic = 0 0 0
+amr.max_level = 0
+amr.max_grid_size   = 100
+amr.max_grid_size_z = 64
+
+erf.initial_dz              = 4.0
+erf.grid_stretching_ratio   = 1.08
+
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+zhi.type = "SlipWall"
+
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+erf.use_gravity = true
+
+erf.fixed_dt = 1.0
+stop_time    = 900.0
+max_step     = 50
+
+erf.sum_interval = 10
+erf.v   = 1
+amr.v   = 1
+
+erf.check_file  = chk_vref
+erf.check_int   = -1
+erf.fire_plot_file = plt_fire_vref_
+erf.fire_plot_int  = 10
+
+erf.fire.enable         = true
+erf.fire.fire_debug     = true
+erf.fire.grid_ratio     = 5
+erf.fire.fuel_model_id  = 1
+erf.fire.moisture_1hr   = 0.08
+erf.fire.moisture_10hr  = 0.08
+erf.fire.moisture_100hr = 0.10
+erf.fire.ignition_x     = 1000.0
+erf.fire.ignition_y     = 1000.0
+erf.fire.ignition_r     = 50.0
+erf.fire.wind_ref_ht    = 6.1
+erf.fire.use_waf        = true
+erf.fire.waf_formula    = "andrews"
+erf.fire.use_wind_limit = false
+erf.fire.use_terrain_wind = false
