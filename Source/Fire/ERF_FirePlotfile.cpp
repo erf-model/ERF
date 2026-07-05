@@ -3,6 +3,7 @@
 #include "ERF_FireLayer.H"
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -92,10 +93,12 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     // Generate plotfile name
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
-    // Write plotfile
-    Vector<MultiFab> mf_vec = {mf};
+    // Write plotfile — MultiFab is non-copyable so pass as const ptr
+    Vector<const MultiFab*> mf_vec = {&mf};
     Vector<Geometry> geom_vec = {fg.geom};
-    WriteMultiLevelPlotfile(plotfilename, 1, mf_vec, varnames, geom_vec, time, {step}, {});
+    Vector<int> level_steps = {step};
+    Vector<IntVect> ref_ratio = {};
+    WriteMultiLevelPlotfile(plotfilename, 1, mf_vec, varnames, geom_vec, time, level_steps, ref_ratio);
 
     // Print message on I/O processor
     if (ParallelDescriptor::IOProcessor()) {

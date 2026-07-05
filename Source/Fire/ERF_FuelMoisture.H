@@ -59,16 +59,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_emc_adsorption(amrex::Real RH) noexcept
 {
     // Convert RH% to fraction and clamp
-    amrex::Real H = (RH / 100.0_rt);
+    amrex::Real H = (RH / 100.0);
     H = amrex::min(amrex::max(H, FuelMoistureConst::RH_MIN),
                    FuelMoistureConst::RH_MAX);
 
     // Nelson (2000) adsorption polynomial
-    constexpr amrex::Real a0 = 0.03229_rt;
-    constexpr amrex::Real a1 = 0.2810_rt;
-    constexpr amrex::Real a2 = 0.4093_rt;
-    constexpr amrex::Real a3 = -1.3560_rt;
-    constexpr amrex::Real a4 = 1.6596_rt;
+    constexpr amrex::Real a0 = 0.03229;
+    constexpr amrex::Real a1 = 0.2810;
+    constexpr amrex::Real a2 = 0.4093;
+    constexpr amrex::Real a3 = -1.3560;
+    constexpr amrex::Real a4 = 1.6596;
 
     const amrex::Real H2 = H * H;
     const amrex::Real H3 = H2 * H;
@@ -77,7 +77,7 @@ amrex::Real compute_emc_adsorption(amrex::Real RH) noexcept
     amrex::Real M_e = a0 + a1*H + a2*H2 + a3*H3 + a4*H4;
 
     // Clamp to physical range
-    M_e = amrex::max(0.0_rt, amrex::min(M_e, 0.35_rt));
+    M_e = amrex::max(0.0, amrex::min(M_e, 0.35));
 
     return M_e;
 }
@@ -89,16 +89,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_emc_desorption(amrex::Real RH) noexcept
 {
     // Convert RH% to fraction and clamp
-    amrex::Real H = (RH / 100.0_rt);
+    amrex::Real H = (RH / 100.0);
     H = amrex::min(amrex::max(H, FuelMoistureConst::RH_MIN),
                    FuelMoistureConst::RH_MAX);
 
     // Nelson (2000) desorption polynomial
-    constexpr amrex::Real d0 = 0.05800_rt;
-    constexpr amrex::Real d1 = 0.1985_rt;
-    constexpr amrex::Real d2 = 0.6250_rt;
-    constexpr amrex::Real d3 = -1.1830_rt;
-    constexpr amrex::Real d4 = 1.0570_rt;
+    constexpr amrex::Real d0 = 0.05800;
+    constexpr amrex::Real d1 = 0.1985;
+    constexpr amrex::Real d2 = 0.6250;
+    constexpr amrex::Real d3 = -1.1830;
+    constexpr amrex::Real d4 = 1.0570;
 
     const amrex::Real H2 = H * H;
     const amrex::Real H3 = H2 * H;
@@ -107,7 +107,7 @@ amrex::Real compute_emc_desorption(amrex::Real RH) noexcept
     amrex::Real M_e = d0 + d1*H + d2*H2 + d3*H3 + d4*H4;
 
     // Clamp to physical range
-    M_e = amrex::max(0.0_rt, amrex::min(M_e, 0.35_rt));
+    M_e = amrex::max(0.0, amrex::min(M_e, 0.35));
 
     return M_e;
 }
@@ -130,7 +130,7 @@ amrex::Real compute_emc_with_hysteresis(amrex::Real RH, amrex::Real M_current) n
         return M_e_ads;
     } else {
         // Between curves: use average
-        return (M_e_ads + M_e_des) * 0.5_rt;
+        return (M_e_ads + M_e_des) * 0.5;
     }
 }
 
@@ -147,7 +147,7 @@ amrex::Real compute_temp_correction(amrex::Real T_C) noexcept
     amrex::Real f_T = std::exp(-k * (T_C - T_ref));
 
     // Clamp to reasonable range (0.5× to 2× nominal time lag)
-    f_T = amrex::min(amrex::max(f_T, 0.5_rt), 2.0_rt);
+    f_T = amrex::min(amrex::max(f_T, 0.5), 2.0);
 
     return f_T;
 }
@@ -159,7 +159,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_precip_wetting_rate(amrex::Real rain_rate_mm_hr) noexcept
 {
     if (rain_rate_mm_hr < FuelMoistureConst::MIN_RAIN_RATE) {
-        return 0.0_rt;
+        return 0.0;
     }
 
     const amrex::Real k_w = FuelMoistureConst::RAIN_WETTING_COEF;
@@ -209,7 +209,7 @@ amrex::Real advance_fuel_moisture_one_class(
     const amrex::Real P = compute_precip_wetting_rate(rain_mm_hr);
 
     // Time-lag moisture change term
-    const amrex::Real dM_dt_timelag = (M_e - M_current) / amrex::max(tau_eff, 0.1_rt);
+    const amrex::Real dM_dt_timelag = (M_e - M_current) / amrex::max(tau_eff, 0.1);
 
     // Total moisture change rate
     const amrex::Real dM_dt = dM_dt_timelag + P;

@@ -2,13 +2,12 @@
 #define ERF_FIRE_PLOTFILE_H
 
 #include <string>
+#include <AMReX_REAL.H>
 
 // Forward declarations
 class FireLayer;
 
-namespace amrex {
-    class Real;
-}
+
 
 /**
  * @file ERF_FirePlotfile.H

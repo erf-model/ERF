@@ -9,7 +9,6 @@
 #include <AMReX_MultiFab.h>
 #include <AMReX_Geometry.H>
 #include <AMReX_MFIter.H>
-#include <AMReX_ParallelFor.H>
 #include <ERF_MicrophysicsUtils.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>

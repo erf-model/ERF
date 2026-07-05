@@ -298,6 +298,7 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/Fire/ERF_Rothermel.cpp
       ${SRC_DIR}/Fire/ERF_FireLayer.cpp
       ${SRC_DIR}/Fire/ERF_Fire.cpp
+      ${SRC_DIR}/Fire/ERF_FirePlotfile.cpp       
     )
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Fire>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_ENABLE_FIRE)

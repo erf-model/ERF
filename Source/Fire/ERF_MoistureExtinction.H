@@ -38,8 +38,8 @@ amrex::Real compute_moisture_of_extinction(
     amrex::Real exponent) noexcept
 {
     // Avoid division by zero
-    if (sigma_ref <= 0.0_rt || sigma_fuel <= 0.0_rt) {
-        return 0.30_rt;  // Default value
+    if (sigma_ref <= 0.0 || sigma_fuel <= 0.0) {
+        return 0.30;  // Default value
     }
 
     // Sigma ratio
@@ -47,11 +47,11 @@ amrex::Real compute_moisture_of_extinction(
 
     // M_x = M_x_min + (M_x_max - M_x_min) × (σ_fuel / σ_ref)^exponent
     // Simplified: M_x = 0.12 + 0.28 × (σ_fuel / σ_ref)^(-0.3)
-    amrex::Real M_x = M_x_min + 0.28_rt * std::pow(sigma_ratio, exponent);
+    amrex::Real M_x = M_x_min + 0.28 * std::pow(sigma_ratio, exponent);
 
     // Apply reasonable bounds
     M_x = amrex::max(M_x, M_x_min);
-    M_x = amrex::min(M_x, 0.45_rt);  // M_X_MAX
+    M_x = amrex::min(M_x, 0.45);  // M_X_MAX
 
     return M_x;
 }
@@ -62,9 +62,9 @@ amrex::Real compute_moisture_of_extinction(amrex::Real sigma_fuel) noexcept
 {
     return compute_moisture_of_extinction(
         sigma_fuel,
-        1739.0_rt,   // SIGMA_REF_DEFAULT - reference SAV [ft^-1] (1-hr fuel)
-        0.12_rt,     // M_X_MIN_DEFAULT - minimum M_x
-        -0.3_rt      // EXPONENT_DEFAULT - SAV exponent
+        1739.0,   // SIGMA_REF_DEFAULT - reference SAV [ft^-1] (1-hr fuel)
+        0.12,     // M_X_MIN_DEFAULT - minimum M_x
+        -0.3      // EXPONENT_DEFAULT - SAV exponent
     );
 }
 
@@ -78,7 +78,7 @@ amrex::Real compute_weighted_moisture(
 {
     const amrex::Real total_load = w_d1 + w_d10 + w_d100;
 
-    if (total_load <= 0.0_rt) {
+    if (total_load <= 0.0) {
         return M_1hr;  // Fallback if no dead fuel
     }
 
@@ -94,8 +94,8 @@ amrex::Real compute_weighted_moisture(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_moisture_damping(amrex::Real M_f, amrex::Real M_x) noexcept
 {
-    if (M_x <= 0.0_rt || M_f >= M_x) {
-        return 0.0_rt;  // Fuel is above extinction moisture
+    if (M_x <= 0.0 || M_f >= M_x) {
+        return 0.0;  // Fuel is above extinction moisture
     }
 
     const amrex::Real ratio = M_f / M_x;
@@ -103,10 +103,10 @@ amrex::Real compute_moisture_damping(amrex::Real M_f, amrex::Real M_x) noexcept
     const amrex::Real ratio3 = ratio2 * ratio;
 
     // Rothermel (1972) moisture damping coefficient
-    amrex::Real eta_M = 1.0_rt - 2.59_rt * ratio + 5.11_rt * ratio2 - 3.52_rt * ratio3;
+    amrex::Real eta_M = 1.0 - 2.59 * ratio + 5.11 * ratio2 - 3.52 * ratio3;
 
     // Clamp to [0, 1]
-    eta_M = amrex::max(0.0_rt, amrex::min(eta_M, 1.0_rt));
+    eta_M = amrex::max(0.0, amrex::min(eta_M, 1.0));
 
     return eta_M;
 }
