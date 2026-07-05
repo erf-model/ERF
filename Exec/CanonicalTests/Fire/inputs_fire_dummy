@@ -40,6 +40,11 @@ erf.plot2d_file_1 = plt2d_fire
 erf.plot2d_int_1 = 5
 erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_slopes fire_fuel_mc
 
+# Plot files (3D atmospheric variables)
+erf.plot_file = plt3d_atm
+erf.plot_int = 5
+erf.plot_vars = theta qv u v w
+
 # Physics choices
 erf.use_gravity = false
 erf.molec_diff_type = "None"

@@ -80,7 +80,7 @@ def verify_output_files(output_dir=".", expected_files=None):
         True if all expected files exist, False otherwise
     """
     if expected_files is None:
-        expected_files = ["plt", "chk"]
+        expected_files = ["plt2d_fire", "plt3d_atm", "chk"]
 
     print("\nVerifying output files...")
     for pattern in expected_files:

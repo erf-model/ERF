@@ -54,6 +54,11 @@ erf.plot2d_file_1 = plt2d_fire_slope
 erf.plot2d_int_1 = 100
 erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc
 
+# Plot files (3D atmospheric variables)
+erf.plot_file = plt3d_atm_slope
+erf.plot_int = 100
+erf.plot_vars = theta qv u v w
+
 # Fire module parameters (Phase 2 with terrain)
 erf.fire.enable = true
 erf.fire.fire_debug = true
