@@ -55,7 +55,7 @@ struct FarsiteParams
     amrex::Real coeff_a         = 0.5;  ///< Richards head coefficient
     amrex::Real coeff_b         = 0.25; ///< Richards flank coefficient
     amrex::Real coeff_c         = 0.1;  ///< Richards backing coefficient
-    int         use_anderson_lw = 1;       ///< derive a,b,c from Anderson L/W ratio
+    int         use_anderson_lw = 1;    ///< derive a,b,c from Anderson L/W ratio
     amrex::Real gaussian_sigma  = -1.0; ///< phi stamping radius: <0 = single cell, 0 = auto, >0 = user [m]
     amrex::Real cfl_fire        = 0.5;  ///< fire CFL number for subcycle timestep control
 };
@@ -127,7 +127,9 @@ void LW_ratio_to_richards_coefficients(amrex::Real LW_ratio,
  * The function is not GPU-only: Pass 1 is GPU (ParallelFor),
  * Pass 2 is host (loop + MPI_Allgatherv + GPU stamp).
  *
- * phi is modified in-place: reset to 0, then fire-front positions stamped to -1.
+ * phi is modified in-place: propagated front positions are stamped to -1.
+ * Already-burned cells (phi < 0) are never reset — the burned interior is
+ * preserved across timesteps.
  *
  * @param[in,out] phi         Level-set field
  * @param[in,out] farsite_work Scratch for spread vectors
@@ -300,12 +302,12 @@ void advance_farsite_one_step(
     yarray_all = yarray;
 #endif
 
-    // Reset phi to 0
-    phi.setVal(0.0);
+    // FIX: Do NOT reset phi to 0 here. The burned interior (phi < 0) must be
+    // preserved across timesteps. Stamping only decreases phi (takes the min),
+    // so already-burned cells can never become unburned.
 
-    // Copy point arrays to device and stamp phi
+    // Stamp propagated front positions into phi
     if (npts_global > 0) {
-        // Use simple host arrays and capture by value
         std::vector<Real> x_host = xarray_all;
         std::vector<Real> y_host = yarray_all;
 
@@ -314,7 +316,8 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping
+            // Single-cell stamping: mark newly reached cells as burned (phi = -1),
+            // but only decrease phi — never erase already-burned cells.
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.tilebox();
@@ -328,12 +331,13 @@ void advance_farsite_one_step(
                     int jj = static_cast<int>((y - prob_lo[1]) * dyi);
 
                     if (bx.contains(IntVect(ii, jj, 0))) {
-                        p(ii, jj, 0) = -1.0;
+                        p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
                     }
                 }
             }
         } else {
-            // Gaussian/SDF stamping with radius sigma
+            // Gaussian/SDF stamping with radius sigma.
+            // min() already preserves burned cells correctly.
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
@@ -350,7 +354,7 @@ void advance_farsite_one_step(
 
                         Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) +
                                              (y_cell - y_pt)*(y_cell - y_pt));
-                        Real phi_sdf = amrex::max(dist - sigma, -1.0);
+                        Real phi_sdf = amrex::max(dist - sigma, -1.0_rt);
 
                         p(iv) = amrex::min(p(iv), phi_sdf);
                     }

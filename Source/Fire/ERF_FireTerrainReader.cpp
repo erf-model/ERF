@@ -76,9 +76,18 @@ bool read_terrain_onto_fire_grid(
                               ParallelDescriptor::IOProcessorNumber());
 
     // Copy to GPU
-    Gpu::DeviceVector<Real> x_device(x_coords.begin(), x_coords.end());
-    Gpu::DeviceVector<Real> y_device(y_coords.begin(), y_coords.end());
-    Gpu::DeviceVector<Real> z_device(z_values.begin(), z_values.end());
+    //Gpu::DeviceVector<Real> x_device(x_coords.begin(), x_coords.end());
+    //Gpu::DeviceVector<Real> y_device(y_coords.begin(), y_coords.end());
+    //Gpu::DeviceVector<Real> z_device(z_values.begin(), z_values.end());
+
+    // Copy to GPU
+    Gpu::DeviceVector<Real> x_device(nx_terrain);
+    Gpu::DeviceVector<Real> y_device(ny_terrain);
+    Gpu::DeviceVector<Real> z_device(nx_terrain * ny_terrain);
+
+    Gpu::copy(Gpu::hostToDevice, x_coords.begin(), x_coords.end(), x_device.begin());
+    Gpu::copy(Gpu::hostToDevice, y_coords.begin(), y_coords.end(), y_device.begin());
+    Gpu::copy(Gpu::hostToDevice, z_values.begin(), z_values.end(), z_device.begin());
 
     Real* x_ptr = x_device.data();
     Real* y_ptr = y_device.data();

@@ -1583,7 +1583,7 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_ENABLE_FIRE
+/*#ifdef ERF_ENABLE_FIRE
     // Initialize fire module
     m_fire_params = FireParams();
     if (m_fire_params.enable) {
@@ -1593,7 +1593,7 @@ ERF::InitData_post ()
                          *z_phys_nd[0],
                          m_fire_params);
     }
-#endif
+#endif*/ 
 }
 
 void
