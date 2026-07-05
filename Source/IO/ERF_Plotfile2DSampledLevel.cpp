@@ -94,18 +94,6 @@ std::string format_numeric_tag (amrex::Real value)
     return tag;
 }
 
-std::string join_fields (const amrex::Vector<std::string>& fields)
-{
-    std::ostringstream os;
-    for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
-        if (i > 0) {
-            os << ' ';
-        }
-        os << fields[i];
-    }
-    return os.str();
-}
-
 std::string build_duplicate_output_error (const std::string& name)
 {
     std::ostringstream os;
@@ -119,16 +107,6 @@ std::string build_missing_field_error (const std::string& level_set_name,
     std::ostringstream os;
     os << "Sampled-level definition '" << level_set_name << "' is missing required parameter '"
        << parameter_name << "'";
-    return os.str();
-}
-
-std::string build_unsupported_value_error (const std::string& level_set_name,
-                                           const std::string& parameter_name,
-                                           const std::string& value)
-{
-    std::ostringstream os;
-    os << "Sampled-level definition '" << level_set_name << "' has unsupported value '"
-       << value << "' for parameter '" << parameter_name << "'";
     return os.str();
 }
 
