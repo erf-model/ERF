@@ -177,6 +177,24 @@ public:
     }
 
     /**
+     * @brief Get fire arrival time field for diagnostics.
+     * @return Pointer to fire_arrival_time MultiFab.
+     */
+    const amrex::MultiFab* get_arrival_time() const
+    {
+        return fire_arrival_time.get();
+    }
+
+    /**
+     * @brief Get mutable fire arrival time field for checkpoint restart.
+     * @return Mutable pointer to fire_arrival_time MultiFab.
+     */
+    amrex::MultiFab* get_arrival_time_mut()
+    {
+        return fire_arrival_time.get();
+    }
+
+    /**
      * @brief Get fire geometry for plotfile output.
      * @return Const reference to the fire grid geometry.
      */
@@ -264,20 +282,6 @@ private:
     // Configuration
     FireParams                               m_params;
 
-    /**
-     * @brief Initialize fire level-set as a signed-distance circle.
-     *
-     * @param[in] center_x  Ignition centre x [m]
-     * @param[in] center_y  Ignition centre y [m]
-     * @param[in] radius    Ignition radius [m]
-     *
-     * Resulting fire_phi convention:
-     * - fire_phi < 0  →  burned (inside circle)
-     * - fire_phi > 0  →  unburned fuel (outside circle)
-     * - fire_phi ≈ 0  →  fire front
-     */
-    void init_ignition(amrex::Real center_x, amrex::Real center_y,
-                       amrex::Real radius);
 
     /**
      * @brief Apply Wind Adjustment Factor to the effective wind field.

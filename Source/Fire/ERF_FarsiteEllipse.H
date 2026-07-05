@@ -326,7 +326,6 @@ void advance_farsite_one_step(
 
             const Real* xp = d_x.data();
             const Real* yp = d_y.data();
-            int npts = npts_global;
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();

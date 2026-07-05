@@ -255,16 +255,6 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     rc.ros_conv     = 1.0;       // No double conversion: rc.R0 is already in m/s
     rc.I_R          = I_R;
 
-    // Debug output to verify parameters
-    amrex::Print() << "Rothermel Params: R0=" << R0_ft_min << " ft/min (" << rc.R0 << " m/s)"
-                  << " I_R=" << I_R << " BTU/ft²/min"
-                  << " C=" << C << " B=" << B << " E=" << E
-                  << " beta=" << beta << " beta_opt=" << beta_op
-                  << " beta_ratio_E=" << beta_ratio_E
-                  << " U_max=" << U_max_ftmin << " ft/min ("
-                  << U_max_ftmin * FT_MIN_TO_M_S << " m/s)"
-                  << " phi_s_const=" << phi_s_const << std::endl;
-
     return rc;
 }
 

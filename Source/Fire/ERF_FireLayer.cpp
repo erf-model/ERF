@@ -303,34 +303,6 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     // (Phase 6) Heat flux:             not implemented in Phase 3
 }
 
-void FireLayer::init_ignition(Real center_x, Real center_y, Real radius)
-{
-    // Signed-distance initialisation of the level-set:
-    //   fire_phi < 0  →  burned (inside circle)
-    //   fire_phi > 0  →  unburned (outside circle)
-    //   fire_phi ≈ 0  →  fire front
-
-    const Real dx = m_fg.geom.CellSize(0);
-    const Real dy = m_fg.geom.CellSize(1);
-
-    // Copy ProbLo values into local scalars so the GPU lambda captures them
-    // by value without implicitly capturing 'this' (fixes -Wdeprecated-this-capture).
-    const Real problo_x = m_fg.geom.ProbLo(0);
-    const Real problo_y = m_fg.geom.ProbLo(1);
-
-    for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        Array4<Real> phi = fire_phi->array(mfi);
-
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            const Real x    = problo_x + (iv[0] + 0.5_rt) * dx;
-            const Real y    = problo_y + (iv[1] + 0.5_rt) * dy;
-            const Real dist = std::sqrt((x - center_x)*(x - center_x) +
-                                                (y - center_y)*(y - center_y));
-            phi(iv) = dist - radius;
-        });
-    }
-}
 
 void FireLayer::apply_waf_to_wind()
 {

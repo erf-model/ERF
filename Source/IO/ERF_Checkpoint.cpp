@@ -449,6 +449,11 @@ ERF::WriteCheckpointFile () const
             amrex::Print() << "Writing fire level-set (phi) to checkpoint" << std::endl;
             VisMF::Write(*phi, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FirePhi"));
         }
+        // Save fire arrival time (needed to restore burned interior on restart)
+        if (const amrex::MultiFab* at = m_fire_layer->get_arrival_time()) {
+            amrex::Print() << "Writing fire arrival time to checkpoint" << std::endl;
+            VisMF::Write(*at, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireArrivalTime"));
+        }
         if (const amrex::MultiFab* ros = m_fire_layer->get_ros()) {
             amrex::Print() << "Writing fire ROS to checkpoint" << std::endl;
             VisMF::Write(*ros, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireROS"));
@@ -1201,6 +1206,16 @@ ERF::ReadCheckpointFile ()
             m_fire_layer->get_levelset_mut()->ParallelCopy(tmp_phi, 0, 0, 1,
                                                            tmp_phi.nGrowVect(),
                                                            m_fire_layer->get_levelset_mut()->nGrowVect());
+        }
+        // Restore fire arrival time (needed to restore burned interior on restart)
+        std::string ArrivalTimeFile(restart_chkfile + "/Level_0/FireArrivalTime_H");
+        if (amrex::FileExists(ArrivalTimeFile)) {
+            amrex::Print() << "Reading fire arrival time from checkpoint" << std::endl;
+            amrex::MultiFab tmp_at;
+            VisMF::Read(tmp_at, MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireArrivalTime"));
+            m_fire_layer->get_arrival_time_mut()->ParallelCopy(tmp_at, 0, 0, 1,
+                                                               tmp_at.nGrowVect(),
+                                                               m_fire_layer->get_arrival_time_mut()->nGrowVect());
         }
     }
 #endif
