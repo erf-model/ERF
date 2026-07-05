@@ -998,36 +998,139 @@ Example sampled-level metadata:
 2D Sampled-Level Diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-ERF can write sampled-level 2D diagnostics from a vertical coordinate and a
-field registry. A sampled level set is defined under
-``erf.plot2d.level_set.<name>.`` and is selected for each 2D output stream by
-``erf.plot2d_level_sets_1`` or ``erf.plot2d_level_sets_2``.
+ERF can write 2D fields sampled on model-index, height, or pressure levels. This
+mode lets one 2D output stream combine built-in diagnostics with fields on
+user-defined vertical targets.
 
-The supported coordinates are:
+Select sampled level sets for each 2D output stream with:
 
-+--------------+-------------------------------------------+
-| Coordinate   | Meaning                                   |
-+==============+===========================================+
-| model_index  | Copy the requested model level exactly.   |
-+--------------+-------------------------------------------+
-| height_msl   | Sample at cell-centered height above mean |
-|              | sea level.                                |
-+--------------+-------------------------------------------+
-| height_agl   | Sample at cell-centered height above      |
-|              | local terrain.                            |
-+--------------+-------------------------------------------+
-| pressure     | Sample at cell-centered pressure.         |
-+--------------+-------------------------------------------+
+.. code-block:: text
 
-The supported fields are ``rho``, ``theta``, ``temp``, ``pressure``,
-``height_msl``, ``height_agl``, ``qv``, ``qc``, ``qi``, ``qr``, ``qs``, and
-``qg``. Density, potential temperature, temperature, pressure, and height use
-the existing ERF thermodynamic and terrain helpers. Microphysical mass species
-are sampled as mixing ratios.
+   erf.plot2d_level_sets_1 = upper_air bl_heights
+   erf.plot2d_level_sets_2 = native_k
 
-Example inputs:
+Define each level set under ``erf.plot2d.level_set.<name>.``.
 
-Pressure levels:
+Required keys:
+
+.. code-block:: text
+
+   erf.plot2d.level_set.<name>.coordinate = ...
+   erf.plot2d.level_set.<name>.values = ...
+   erf.plot2d.level_set.<name>.fields = ...
+
+Optional keys:
+
+.. code-block:: text
+
+   erf.plot2d.level_set.<name>.units = ...
+   erf.plot2d.level_set.<name>.interpolation = ...
+   erf.plot2d.level_set.<name>.missing_value = ...
+
+The default missing value is ``-999``. ERF does not extrapolate sampled-level
+diagnostics. If a target lies outside the column, ERF writes the level set's
+missing value.
+
+Supported coordinates:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 48 16 16
+
+   * - Coordinate
+     - Meaning
+     - Units
+     - Interpolation
+   * - ``model_index``
+     - Cell-centered model level index.
+     - ``1``
+     - ``none``
+   * - ``height_msl``
+     - Cell-centered height above mean sea level.
+     - ``m``
+     - ``linear``
+   * - ``height_agl``
+     - Cell-centered height above local terrain.
+     - ``m``
+     - ``linear``
+   * - ``pressure``
+     - Cell-centered pressure.
+     - ``Pa`` or ``hPa``
+     - ``linear``
+
+ERF converts pressure targets in ``hPa`` to canonical ``Pa`` values in metadata.
+Model-index values must be integers. ERF rejects unsupported coordinates and
+units during input parsing. Isentropic output is not enabled because it needs a
+crossing policy for non-monotonic potential-temperature columns.
+
+Supported fields:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 52 14 26
+
+   * - Field
+     - Meaning
+     - Units
+     - Availability
+   * - ``rho``
+     - Density.
+     - ``kg m^-3``
+     - Always available.
+   * - ``theta``
+     - Potential temperature.
+     - ``K``
+     - Always available.
+   * - ``temp``
+     - Temperature.
+     - ``K``
+     - Always available.
+   * - ``pressure``
+     - Pressure.
+     - ``Pa``
+     - Always available.
+   * - ``height_msl``
+     - Height above mean sea level.
+     - ``m``
+     - Always available.
+   * - ``height_agl``
+     - Height above local terrain.
+     - ``m``
+     - Always available.
+   * - ``qv``
+     - Water vapor mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qv``.
+   * - ``qc``
+     - Cloud liquid water mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qc``.
+   * - ``qi``
+     - Cloud ice mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qi``.
+   * - ``qr``
+     - Rain mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qr``.
+   * - ``qs``
+     - Snow mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qs``.
+   * - ``qg``
+     - Graupel mixing ratio.
+     - ``kg kg^-1``
+     - Available when the active moisture model has ``qg``.
+
+Use the canonical sampled species names ``qv``, ``qc``, ``qi``, ``qr``, ``qs``,
+and ``qg``. Do not use 3D derived-variable aliases such as ``qrain``, ``qsnow``,
+or ``qgraup`` in sampled-level output.
+
+If a requested moisture field is unavailable for the active moisture model, ERF
+warns and skips that field. If all requested fields in a level set are
+unavailable, ERF aborts with an input error.
+
+Pressure-level example:
 
 .. code-block:: text
 
@@ -1038,7 +1141,7 @@ Pressure levels:
    erf.plot2d.level_set.upper_air.values = 850 700 500
    erf.plot2d.level_set.upper_air.fields = theta temp qv qc
 
-Height-agl levels:
+Height-above-ground example:
 
 .. code-block:: text
 
@@ -1048,7 +1151,7 @@ Height-agl levels:
    erf.plot2d.level_set.bl_heights.values = 100 500 1000
    erf.plot2d.level_set.bl_heights.fields = theta qv qc
 
-Model-index levels:
+Model-index example:
 
 .. code-block:: text
 
@@ -1058,38 +1161,62 @@ Model-index levels:
    erf.plot2d.level_set.native_k.values = 0 10 20
    erf.plot2d.level_set.native_k.fields = theta qv qc
 
-Output names use this pattern:
+Sampled-level output names follow this pattern:
+
+.. code-block:: text
+
+   <field>_<coordinate_tag>_<value_tag>
+
+Examples:
 
 .. code-block:: text
 
    theta_p_850hPa
    qv_p_700hPa
    qc_z_agl_500m
+   theta_z_msl_1000m
    theta_k_10
 
-For linear sampling, ERF uses adjacent levels :math:`k_0` and :math:`k_1`
-that bracket the requested target coordinate :math:`C_t`.
+ERF writes sampled-level variables after built-in variables in the same 2D
+stream. Within sampled-level output, ERF writes variables in level-set order,
+target-value order, and field order.
+
+For linear sampling, ERF finds adjacent cell centers :math:`k_0` and
+:math:`k_1` that bracket the target coordinate :math:`C_t`.
 
 .. math::
 
    F_t = (1 - w) F_{k_0} + w F_{k_1}
 
-.. math::
-
-   w = \frac{C_t - C_{k_0}}{C_{k_1} - C_{k_0}}
-
-Model-index sampling copies the requested level exactly. If the target lies
-outside the column, ERF writes the configured missing value.
+with
 
 .. math::
 
-   q_x = \frac{\rho q_x}{\rho}
+   w = \frac{C_t - C_{k_0}}{C_{k_1} - C_{k_0}}.
 
-The sampled-level metadata records the source field and the vertical
-coordinate. The metadata uses ``format_version = 2``. Future extensions can
-add isentropic coordinates, derived field providers, vorticity, potential
-vorticity, and staggered velocity fields after their sampling rules are
-defined.
+The bracket test works for increasing coordinates, such as height, and
+decreasing coordinates, such as pressure. Model-index sampling copies the
+requested level exactly.
+
+Microphysical mass species are sampled as mixing ratios. ERF stores each
+species as a conserved density :math:`\rho q_x`, so sampled output uses
+
+.. math::
+
+   q_x = \frac{\rho q_x}{\rho}.
+
+ERF uses ``qv = 0`` for dry-run pressure and temperature calculations, but it
+does not expose sampled ``qv`` unless the active moisture model has a water-vapor
+state component.
+
+Sampled-level metadata records ``source_field`` and ``vertical_coordinate`` in
+the native AMReX ``2DMetadata.json`` sidecar. NetCDF 2D output uses the same
+sampled-level variable names, but it does not write sampled-level metadata
+attributes.
+
+Isentropic levels, vorticity, potential vorticity, and staggered velocity fields
+need additional sampling rules. They are not part of this sampled-level output
+mode.
 
 2D Water-Path Diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1138,8 +1265,8 @@ conserved mass component. Two-moment number concentrations are not water mass
 paths and are not included.
 
 The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
-with ``FillZeroWhenUnavailable`` missing-value policy. The sidecar schema is
-unchanged.
+with ``FillZeroWhenUnavailable`` missing-value policy. Water-path diagnostics
+use the built-in metadata fields and add no water-path-specific metadata keys.
 
 Surface Diagnostic Source Codes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
