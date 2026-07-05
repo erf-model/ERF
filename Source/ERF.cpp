@@ -156,7 +156,7 @@ ERF::Evolve ()
 #ifdef ERF_ENABLE_FIRE
     if (m_fire_layer && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, istep[0]);
-        if (m_fire_debug) {
+        if (m_fire_params.fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
     }
