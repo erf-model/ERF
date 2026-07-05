@@ -11,113 +11,114 @@ FuelModelParams get_anderson_fuel_params(int model_id)
 {
     FuelModelParams fp;
 
-    // All fuel loads in lb/ft² (will be converted if needed)
-    // SAV in 1/ft
+    // All fuel loads in lb/ft² (standard Anderson 1982)
+    // SAV in 1/ft (characteristic for 1-hour dead fuel; 10-hr = 109, 100-hr = 30 ft⁻¹ fixed)
     // Heat content in BTU/lb
     // Particle density in lb/ft³
     // Depth in ft
+    // Reference: wildfire_levelset/src/fuel_database.H (Anderson 13 fuel models)
 
     switch (model_id) {
-    case 1:  // Short grass
-        fp.w_d1 = 0.074;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
-        fp.w_lh = 0.019;   fp.w_lw = 0.0;
-        fp.sigma_d1 = 8000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+    case 1:  // Short grass (1 ft)
+        fp.w_d1 = 0.034;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 3500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 1.0;    fp.Mx = 0.12;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 2:  // Timber-grass
-        fp.w_d1 = 0.115;   fp.w_d10 = 0.045;  fp.w_d100 = 0.0;
-        fp.w_lh = 0.05;    fp.w_lw = 0.0;
-        fp.sigma_d1 = 8000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
-        fp.delta = 2.0;    fp.Mx = 0.15;      fp.heat_content = 8000.0;
+    case 2:  // Timber (Grass and Understory)
+        fp.w_d1 = 0.046;   fp.w_d10 = 0.023;  fp.w_d100 = 0.023;
+        fp.w_lh = 0.023;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 3000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.15;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 3:  // Tall grass
-        fp.w_d1 = 0.325;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
-        fp.w_lh = 0.165;   fp.w_lw = 0.0;
-        fp.sigma_d1 = 8000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+    case 3:  // Tall grass (2.5 ft)
+        fp.w_d1 = 0.138;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 2.5;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 4:  // Chaparral
-        fp.w_d1 = 0.184;   fp.w_d10 = 0.092;  fp.w_d100 = 0.023;
-        fp.w_lh = 0.276;   fp.w_lw = 0.0;
-        fp.sigma_d1 = 6800.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+    case 4:  // Chaparral (6 ft)
+        fp.w_d1 = 0.230;   fp.w_d10 = 0.184;  fp.w_d100 = 0.092;
+        fp.w_lh = 0.230;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 1739.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 6.0;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 5:  // Shrub
-        fp.w_d1 = 0.184;   fp.w_d10 = 0.138;  fp.w_d100 = 0.092;
-        fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 6500.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
-        fp.delta = 2.5;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
+    case 5:  // Brush (2 ft)
+        fp.w_d1 = 0.046;   fp.w_d10 = 0.023;  fp.w_d100 = 0.0;
+        fp.w_lh = 0.092;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 1739.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.0;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 6:  // Dormant brush
-        fp.w_d1 = 0.092;   fp.w_d10 = 0.115;  fp.w_d100 = 0.092;
+    case 6:  // Dormant Brush, Hardwood Slash
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.115;  fp.w_d100 = 0.115;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 6500.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+        fp.sigma_d1 = 1750.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 2.5;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 7:  // Southern rough
-        fp.w_d1 = 0.230;   fp.w_d10 = 0.184;  fp.w_d100 = 0.138;
-        fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 6000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+    case 7:  // Southern Rough
+        fp.w_d1 = 0.052;   fp.w_d10 = 0.086;  fp.w_d100 = 0.069;
+        fp.w_lh = 0.017;   fp.w_lw = 0.017;
+        fp.sigma_d1 = 1550.0;  fp.sigma_lh = 1550.0;  fp.sigma_lw = 0.0;
         fp.delta = 2.5;    fp.Mx = 0.40;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 8:  // Closed timber litter
-        fp.w_d1 = 0.276;   fp.w_d10 = 0.046;  fp.w_d100 = 0.023;
+    case 8:  // Closed Timber Litter
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.046;  fp.w_d100 = 0.115;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 7000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+        fp.sigma_d1 = 2000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 0.2;    fp.Mx = 0.30;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 9:  // Hardwood litter
-        fp.w_d1 = 0.138;   fp.w_d10 = 0.092;  fp.w_d100 = 0.115;
+    case 9:  // Hardwood Litter
+        fp.w_d1 = 0.134;   fp.w_d10 = 0.019;  fp.w_d100 = 0.007;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 6000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
-        fp.delta = 0.2;    fp.Mx = 0.40;      fp.heat_content = 8000.0;
+        fp.sigma_d1 = 2500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 0.2;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 10:  // Timber litter-understory
-        fp.w_d1 = 0.092;   fp.w_d10 = 0.138;  fp.w_d100 = 0.230;
-        fp.w_lh = 0.046;   fp.w_lw = 0.023;
-        fp.sigma_d1 = 6000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 1500.0;
+    case 10:  // Timber (Litter and Understory)
+        fp.w_d1 = 0.138;   fp.w_d10 = 0.092;  fp.w_d100 = 0.230;
+        fp.w_lh = 0.092;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 2000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 1.0;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 11:  // Light logging slash
-        fp.w_d1 = 0.230;   fp.w_d10 = 0.322;  fp.w_d100 = 0.046;
+    case 11:  // Light Logging Slash
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.207;  fp.w_d100 = 0.253;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 6000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
-        fp.delta = 1.5;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.15;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 12:  // Medium logging slash
-        fp.w_d1 = 0.575;   fp.w_d10 = 0.575;  fp.w_d100 = 0.092;
+    case 12:  // Medium Logging Slash
+        fp.w_d1 = 0.184;   fp.w_d10 = 0.644;  fp.w_d100 = 0.759;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 5500.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
-        fp.delta = 2.0;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.3;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
 
-    case 13:  // Heavy logging slash
-        fp.w_d1 = 1.058;   fp.w_d10 = 1.268;  fp.w_d100 = 0.322;
+    case 13:  // Heavy Logging Slash
+        fp.w_d1 = 0.322;   fp.w_d10 = 1.058;  fp.w_d100 = 1.288;
         fp.w_lh = 0.0;     fp.w_lw = 0.0;
-        fp.sigma_d1 = 5000.0;  fp.sigma_lh = 60.0;  fp.sigma_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
         fp.delta = 3.0;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
         fp.rho_p = 32.0;
         break;
@@ -140,78 +141,125 @@ RothermelComputed compute_rothermel_params(const FuelModelParams& fp,
     RothermelComputed rc;
 
     // Unit conversions
-    const Real LB_FT2_TO_KG_M2 = 4.88243;
-    const Real FT_TO_M = 0.3048;
     const Real FT_MIN_TO_M_S = 0.00508;
 
-    // Total fuel load [lb/ft²]
+    // Standard mineral contents (Rothermel 1972)
+    const Real S_T = 0.0555;   // Total mineral content
+    const Real S_e = 0.010;    // Effective mineral content
+
+    // Fixed SAV constants (Rothermel 1972, ft⁻¹)
+    const Real SIGMA_D10  = 109.0;
+    const Real SIGMA_D100 = 30.0;
+
+    // ===================================================================
+    // 1. Total fuel load and weighted moisture (single-class path)
+    // ===================================================================
+    Real w_0 = fp.w_d1 + fp.w_d10 + fp.w_d100 + fp.w_lh + fp.w_lw;  // total oven-dry load [lb/ft²]
+    
+    // Compute weighted dead fuel moisture
     Real w_d = fp.w_d1 + fp.w_d10 + fp.w_d100;
-    Real w_l = fp.w_lh + fp.w_lw;
-    Real w_0 = w_d + fp.w_lh + fp.w_lw;
+    Real M_f = 0.0;  // weighted fuel moisture fraction
+    if (w_d > 1.0e-6) {
+        Real r_d1 = fp.w_d1 / w_d;
+        Real r_d10 = fp.w_d10 / w_d;
+        Real r_d100 = fp.w_d100 / w_d;
+        M_f = r_d1 * moisture_1hr + r_d10 * moisture_10hr + r_d100 * moisture_100hr;
+    }
 
-    // Fuel load ratios
-    Real r_d1 = (w_d > 1.0e-6) ? fp.w_d1 / w_d : 0.0;
-    Real r_d10 = (w_d > 1.0e-6) ? fp.w_d10 / w_d : 0.0;
-    Real r_d100 = (w_d > 1.0e-6) ? fp.w_d100 / w_d : 0.0;
+    // ===================================================================
+    // 2. Net fuel load (Eq. 24)
+    // ===================================================================
+    Real w_n = w_0 * (1.0 - S_T);
 
-    // Surface area to volume ratio (weighted)
-    Real sigma = fp.sigma_d1 * r_d1 + fp.sigma_d1 * r_d10 + fp.sigma_d1 * r_d100;
-    if (fp.w_lh > 1.0e-6) sigma += fp.sigma_lh * (fp.w_lh / w_0);
-    sigma = amrex::max(sigma, 100.0);  // Minimum SAV
-
-    // Packing ratio (dry bulk density / particle density)
+    // ===================================================================
+    // 3. Bulk density and packing ratio (Eq. 24)
+    // ===================================================================
     Real rho_b = w_0 / fp.delta;  // lb/ft³
     Real beta = rho_b / fp.rho_p;
 
-    // Optimal packing ratio
-    Real beta_opt = 3.348 / std::pow(sigma, 0.8189);
+    // ===================================================================
+    // 4-7. Reaction velocity components (Eqs. 36-38)
+    // ===================================================================
+    // Use sigma_d1 as characteristic SAV
+    Real sigma = fp.sigma_d1;
+    sigma = amrex::max(sigma, 100.0);  // Minimum SAV guard
 
-    // Fuel moisture (weighted average)
-    Real M_x = moisture_1hr * r_d1 + moisture_10hr * r_d10 + moisture_100hr * r_d100;
-    if (fp.w_lh > 1.0e-6) M_x += moisture_1hr * (fp.w_lh / w_0);
+    Real beta_op = 3.348 * std::pow(sigma, -0.8189);           // Eq. 37: optimum packing ratio
+    Real sigma_1p5 = std::pow(sigma, 1.5);
+    Real Gamma_max = sigma_1p5 / (495.0 + 0.0594 * sigma_1p5); // Eq. 36: maximum reaction velocity
+    Real A = 133.0 * std::pow(sigma, -0.7913);                 // Eq. 38: A coefficient
+    Real beta_ratio = beta / beta_op;
+    Real Gamma_prime = Gamma_max * std::pow(beta_ratio, A) * std::exp(A * (1.0 - beta_ratio)); // Eq. 38
 
-    // Moisture of extinction
-    Real M_x_limit = fp.Mx;
-    M_x = amrex::min(M_x, M_x_limit);
+    // ===================================================================
+    // 8-10. Moisture damping (Eq. 29) and mineral damping (Eq. 30)
+    // ===================================================================
+    Real rm = amrex::min(M_f / fp.Mx, 1.0);
+    Real eta_M = amrex::max(0.0, 1.0 - 2.59*rm + 5.11*rm*rm - 3.52*rm*rm*rm);  // Eq. 29
+    Real eta_s = 0.174 * std::pow(S_e, -0.19);                                  // Eq. 30
 
-    // Reaction intensity (BTU/ft²/min)
-    Real A = 133.0 / std::pow(sigma, 0.7913);
-    Real E_s = 0.75 - 0.00023 * (M_x_limit - M_x * 100.0);
-    Real gamma_x = (sigma / (460.0 + 25.9 * M_x)) * std::exp(fp.delta * (std::log(10.0) / 3.0));
-
-    // Damping coefficients
-    Real B_d = 0.02526 * std::pow(sigma, 0.54);
-    Real C_d = 7.47 * std::exp(-0.8711 * std::pow(sigma, -0.55));
-    Real E_dust = 0.595 * std::pow((M_x_limit - M_x * 100.0), -1.628);
-
-    Real eta_M = 1.0 - 2.59 * (M_x / M_x_limit) + 5.11 * std::pow(M_x / M_x_limit, 2.0)
-               - 3.861 * std::pow(M_x / M_x_limit, 3.0);
-    eta_M = amrex::max(0.0, eta_M);
-
-    Real eta_S = 0.40;  // Approximation for slope/aspect effect
-
-    Real I_R = gamma_x * w_0 * fp.heat_content * eta_M * eta_S;
+    // ===================================================================
+    // 11. Reaction intensity (Eq. 27)
+    // ===================================================================
+    Real I_R = Gamma_prime * w_n * fp.heat_content * eta_M * eta_s;
     I_R = amrex::max(I_R, 0.01);
 
-    // No-wind, no-slope ROS [ft/min] (Eq. 3 from Rothermel 1972)
-    Real R0_ft_min = A * std::pow(beta / beta_opt, B_d) *
-                     std::exp((C_d * (1.0 - beta / beta_opt)));
+    // ===================================================================
+    // 12-15. Propagating flux ratio, heating number, heat of preignition, and R0 (Eqs. 1, 12, 14, 42)
+    // ===================================================================
+    Real xi = std::exp((0.792 + 0.681 * std::sqrt(sigma)) * (beta + 0.1)) 
+              / (192.0 + 0.2595 * sigma);                                      // Eq. 42
+    Real eps_h = std::exp(-138.0 / sigma);                                     // Eq. 14
+    Real Q_ig = 250.0 + 1116.0 * M_f;                                          // Eq. 12: heat of preignition
+    Real R0_ft_min = (I_R * xi) / (rho_b * eps_h * Q_ig);                      // Eq. 1: no-wind ROS [ft/min]
 
-    // Wind factor coefficients
-    Real E_wind = 0.92 * std::pow(sigma / 1000.0, -0.3);
-    Real B_wind = 0.02526 * std::pow(sigma, 0.54);
+    // ===================================================================
+    // 16-18. Wind factor coefficients (Eqs. 47-49)
+    // ===================================================================
+    Real C = 7.47 * std::exp(-0.133 * std::pow(sigma, 0.55));           // Eq. 47 (note: -0.133, not -0.8711)
+    Real B = 0.02526 * std::pow(sigma, 0.54);                           // Eq. 48
+    Real E = 0.715 * std::exp(-3.59e-4 * sigma);                        // Eq. 49
 
-    // Convert to SI
-    rc.R0 = R0_ft_min * FT_MIN_TO_M_S;
-    rc.C = I_R / (173.0 + 60.0);  // Proportional constant (empirical)
-    rc.B = 0.255;  // Standard exponent from Rothermel
-    rc.beta_ratio_E = 1.0;  // (β/β_opt)^E, set E to give neutral effect
-    rc.beta = beta;
-    rc.phi_s_const = 0.0;  // Base slope factor (computed per-cell with terrain)
-    rc.U_max_ftmin = amrex::max(R0_ft_min, 100.0);  // MEWS cap
-    rc.wind_conv = 196.85;  // m/s to ft/min
-    rc.ros_conv = FT_MIN_TO_M_S;
-    rc.I_R = I_R;
+    // ===================================================================
+    // 19. Packing ratio wind factor
+    // ===================================================================
+    Real beta_ratio_E = std::pow(beta_ratio, -E);
+
+    // ===================================================================
+    // 20. Slope factor coefficient (Eq. 51)
+    // ===================================================================
+    Real phi_s_const = 5.275 * std::pow(beta, -0.3);
+
+    // ===================================================================
+    // 21. MEWS wind speed cap (Andrews 2018)
+    // ===================================================================
+    Real phi_w_max = 0.9 * I_R;
+    Real U_max_ftmin = 0.0;
+    if (C > 0.0 && B > 0.0 && beta_ratio_E > 0.0) {
+        U_max_ftmin = std::pow(phi_w_max / (C * beta_ratio_E), 1.0 / B);
+        U_max_ftmin = amrex::max(U_max_ftmin, 0.0);
+    }
+
+    // ===================================================================
+    // Store results in RothermelComputed
+    // ===================================================================
+    rc.R0           = R0_ft_min * FT_MIN_TO_M_S;  // Convert ft/min → m/s
+    rc.C            = C;
+    rc.B            = B;
+    rc.beta_ratio_E = beta_ratio_E;
+    rc.beta         = beta;
+    rc.phi_s_const  = phi_s_const;
+    rc.U_max_ftmin  = U_max_ftmin;
+    rc.wind_conv    = 196.85;    // m/s → ft/min
+    rc.ros_conv     = 1.0;       // No double conversion: rc.R0 is already in m/s
+    rc.I_R          = I_R;
+
+    // Debug output to verify parameters
+    amrex::Print() << "Rothermel Params: R0=" << R0_ft_min << " ft/min (" << rc.R0 << " m/s)"
+                  << " I_R=" << I_R << " BTU/ft²/min"
+                  << " C=" << C << " B=" << B
+                  << " beta=" << beta << " beta_opt=" << beta_op
+                  << " U_max=" << U_max_ftmin << " ft/min" << std::endl;
 
     return rc;
 }
@@ -232,34 +280,19 @@ Real rothermel_ros_cell(
     // Apply MEWS cap
     U_eff_ftmin = amrex::min(U_eff_ftmin, rc.U_max_ftmin);
 
-    // Slope magnitude [dimensionless]
-    Real slope_mag = std::sqrt(sx*sx + sy*sy);
-    Real tan_slope = slope_mag;  // For small slopes, tan(θ) ≈ slope
-    if (slope_mag > 0.1) tan_slope = std::atan(slope_mag);  // Exact for large slopes
+    // Slope magnitude and squared tangent (for Rothermel Eq. 51)
+    Real tan_slope_sq = sx*sx + sy*sy;
 
-    // Wind direction
-    Real wind_dir = std::atan2(uy_eff, ux_eff);
-    // Slope direction (maximum slope)
-    Real slope_dir = std::atan2(sy, sx);
-    // Angle between wind and slope
-    Real angle = wind_dir - slope_dir;
-
-    // Normalize to [-π, π]
-    const Real pi = 3.14159265358979323846;
-    while (angle > pi) angle -= 2.0*pi;
-    while (angle < -pi) angle += 2.0*pi;
-
-    // Slope factor: φ_s = tan(θ) * cos(angle)
-    Real phi_s = tan_slope * std::cos(angle);
+    // Slope factor (Rothermel Eq. 51): φ_s = 5.275 * β^(-0.3) * tan²(φ)
+    Real phi_s = rc.phi_s_const * tan_slope_sq;
 
     // Wind factor
     Real phi_w = rc.C * std::pow(U_eff_ftmin, rc.B) * rc.beta_ratio_E;
 
     // Rate of spread: R = R0 * (1 + φ_w + φ_s)
     Real ROS = rc.R0 * (1.0 + phi_w + phi_s);
-    ROS = amrex::max(ROS, 0.0);
-
-    return ROS * rc.ros_conv;  // Convert ft/min to m/s
+    
+    return amrex::max(ROS, 0.0);
 }
 
 void compute_ros_field(
