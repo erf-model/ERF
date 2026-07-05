@@ -2,7 +2,7 @@
 # This test case couples the Mesoscale Radiation Framework (MRF) for the
 # atmospheric boundary layer with the wildfire propagation model.
 
-stop_time = 10000
+stop_time = 512
 
 amrex.fpe_trap_invalid = 0
 
@@ -10,7 +10,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 8000  8000  2048
-amr.n_cell           =  8   8   64
+amr.n_cell           =  20   20   64
 
 geometry.is_periodic = 1 1 0
 erf.initial_dz = 4.0
@@ -49,7 +49,7 @@ erf.check_int       = -1
 # PLOTFILES
 # FIRE PLOTFILE (on native fire grid, C x finer than atmospheric grid)
 erf.fire_plot_file = plt_fire_
-erf.fire_plot_int  = 100
+erf.fire_plot_int  = 10
 
 # DATA COLLECTION
 erf.data_log        = surf_hist.dat mean_profiles.dat flux_profiles.dat sfs_profiles.dat
@@ -90,14 +90,14 @@ erf.rayleigh_dampcoef = 0.05
 # FIRE MODEL PARAMETERS
 erf.fire.enable = true
 erf.fire.fire_debug = true
-erf.fire.grid_ratio = 2              # Fire grid is 2x finer than atmospheric grid
+erf.fire.grid_ratio = 4              # Fire grid is 2x finer than atmospheric grid
 erf.fire.fuel_model_id = 1            # GR1 (Short grass) Anderson FBFM13 model
 erf.fire.moisture_1hr = 0.08
 erf.fire.moisture_10hr = 0.08
 erf.fire.moisture_100hr = 0.10
 erf.fire.ignition_x = 4000.0
 erf.fire.ignition_y = 4000.0
-erf.fire.ignition_r = 50.0
+erf.fire.ignition_r = 400.0
 erf.fire.wind_ref_ht = 6.1
 erf.fire.use_waf = true
 erf.fire.waf_formula = "andrews"
