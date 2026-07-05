@@ -443,6 +443,19 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer) {
+        if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {
+            amrex::Print() << "Writing fire level-set (phi) to checkpoint" << std::endl;
+            VisMF::Write(*phi, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FirePhi"));
+        }
+        if (const amrex::MultiFab* ros = m_fire_layer->get_ros()) {
+            amrex::Print() << "Writing fire ROS to checkpoint" << std::endl;
+            VisMF::Write(*ros, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireROS"));
+        }
+    }
+#endif
+
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
 #endif
@@ -1174,6 +1187,20 @@ ERF::ReadCheckpointFile ()
                                  nvars_erfbdy, real_width);
                 Print() << "Restart: Loaded erfbdy time index " << itime << std::endl;
             }
+        }
+    }
+#endif
+
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer) {
+        std::string FirePhiFile(restart_chkfile + "/Level_0/FirePhi_H");
+        if (amrex::FileExists(FirePhiFile)) {
+            amrex::Print() << "Reading fire level-set from checkpoint" << std::endl;
+            amrex::MultiFab tmp_phi;
+            VisMF::Read(tmp_phi, MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FirePhi"));
+            m_fire_layer->get_levelset_mut()->ParallelCopy(tmp_phi, 0, 0, 1,
+                                                           tmp_phi.nGrowVect(),
+                                                           m_fire_layer->get_levelset_mut()->nGrowVect());
         }
     }
 #endif

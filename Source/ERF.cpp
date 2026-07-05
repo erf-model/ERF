@@ -1259,6 +1259,21 @@ ERF::InitData_post ()
                                               z_phys_nd[lev],
                                               walldist[lev]);
 
+                // Initialize fire layer after surface layer is fully initialized (lev=0)
+#ifdef ERF_ENABLE_FIRE
+                if (lev == 0 && m_fire_layer && z_phys_nd[0]) {
+                    m_fire_layer->initialize(*this, m_SurfaceLayer.get(), *z_phys_nd[0], m_fire_params);
+                    
+                    // Verify that at least one cell was marked during fire initialization
+                    if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {
+                        Real phi_min = phi->min(0);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(phi_min < 0.0_rt,
+                            "[FIRE] Fire initialization failed: no cells were marked as burned. "
+                            "Check ignition parameters (ignition_x, ignition_y, ignition_r).");
+                    }
+                }
+#endif
+
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
                     Real qkefac = one;
@@ -1796,11 +1811,15 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 }
 
 void
-ERF::initializeFire (const int& a_nlevsmax /*!< number of AMR levels */)
+ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
 {
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-        amrex::Print() << "Fire model initialized with " << a_nlevsmax << " level(s)" << std::endl;
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        amrex::Print() << "[FIRE] Fire module enabled (grid_ratio="
+                       << m_fire_params.grid_ratio << ")\n";
     }
+#endif
 }
 
 #ifdef ERF_USE_WINDFARM
