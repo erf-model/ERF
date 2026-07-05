@@ -51,7 +51,7 @@
  */
 struct FarsiteParams
 {
-    amrex::Real phi_threshold   = 0.0;  ///< front detection level in phi
+    amrex::Real phi_threshold   = 0.1;  ///< front detection level in phi
     amrex::Real coeff_a         = 0.5;  ///< Richards head coefficient
     amrex::Real coeff_b         = 0.25; ///< Richards flank coefficient
     amrex::Real coeff_c         = 0.1;  ///< Richards backing coefficient

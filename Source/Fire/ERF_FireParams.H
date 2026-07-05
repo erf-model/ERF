@@ -44,7 +44,7 @@ struct FireParams
     bool              use_dynamic_mext    = true;        ///< Compute M_x from fuel SAV
     
     // FARSITE parameters
-    amrex::Real       farsite_phi_threshold   = 0.0;  ///< front detection level in phi
+    amrex::Real       farsite_phi_threshold   = 0.1;  ///< front detection level in phi
     int               farsite_use_anderson_lw = 1;       ///< derive coeff_a/b/c from Anderson L/W
     amrex::Real       farsite_coeff_a         = 0.5;  ///< Richards head coefficient
     amrex::Real       farsite_coeff_b         = 0.25; ///< Richards flank coefficient
