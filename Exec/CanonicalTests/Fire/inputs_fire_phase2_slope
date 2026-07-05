@@ -48,9 +48,11 @@ amr.v = 1
 # Checkpoints/Plots
 erf.check_file = fire_slope_chk
 erf.check_int = -1
-erf.plot_file_1 = fire_slope_plt
-erf.plot_int_1 = 100
-erf.plot_vars_1 = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# Plot files (2D fire variables only)
+erf.plot2d_file_1 = plt2d_fire_slope
+erf.plot2d_int_1 = 100
+erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc
 
 # Fire module parameters (Phase 2 with terrain)
 erf.fire.enable = true
