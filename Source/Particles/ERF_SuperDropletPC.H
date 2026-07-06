@@ -192,7 +192,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
-                                       amrex::Real,
+                                       double,
                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                        const amrex::Vector<MFPtr>& ) override
         {

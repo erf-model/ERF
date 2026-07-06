@@ -79,10 +79,10 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         virtual void InitializeParticles (const double time, const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Evolve particles for one time step */
-        virtual void EvolveParticles (   int,
-                                         amrex::Real,
-                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+        virtual void EvolveParticles (int                                                    a_lev,
+                                      double                                                 a_dt_lev,
+                                      amrex::Vector<amrex::Vector<amrex::MultiFab>>&         a_flow_vars,
+                                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd );
 
         /*! Get real-type particle attribute names */
         virtual amrex::Vector<std::string> varNames () const
@@ -99,21 +99,21 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         }
 
         /*! Uses midpoint method to advance particles using flow velocity. */
-        virtual void AdvectWithFlow (  amrex::MultiFab*,
-                                       int,
-                                       amrex::Real,
-                                       const std::unique_ptr<amrex::MultiFab>& );
+        virtual void AdvectWithFlow (amrex::MultiFab*                        a_umac,
+                                     int                                     a_lev,
+                                     double                                  a_dt,
+                                     const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Uses midpoint method to advance particles falling under gravity. */
-        virtual void AdvectWithGravity ( int,
-                                         amrex::Real,
-                                         const std::unique_ptr<amrex::MultiFab>& );
+        virtual void AdvectWithGravity (int                                     a_lev,
+                                        double                                  a_dt,
+                                        const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Interpolates flow temperature to particles */
-        virtual void ComputeTemperature ( const amrex::MultiFab&,
-                                          int,
-                                          amrex::Real,
-                                          const std::unique_ptr<amrex::MultiFab>& );
+        virtual void ComputeTemperature (const amrex::MultiFab&                  a_ucons,
+                                         int                                     a_lev,
+                                         double                                /*a_dt*/,
+                                         const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Compute mass density */
         virtual void massDensity ( amrex::MultiFab&,

@@ -25,7 +25,7 @@ using namespace amrex;
  * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
  */
 void
-ERF::FillIntermediatePatch (int lev, double time,
+ERF::FillIntermediatePatch (int lev, double time_d,
                             const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                             const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                             int ng_cons, int ng_vel, bool cons_only,
@@ -33,6 +33,8 @@ ERF::FillIntermediatePatch (int lev, double time,
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     Interpolater* mapper;
+
+    Real time = static_cast<Real>(time_d);
 
     PhysBCFunctNoOp null_bc;
 

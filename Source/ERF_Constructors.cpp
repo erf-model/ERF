@@ -226,7 +226,7 @@ ERF::ERF_shared ()
 
     t_new.resize(nlevs_max, zero);
     t_old.resize(nlevs_max, -bogus_large_value);
-    dt.resize(nlevs_max, std::min(bogus_large_value,dt_max_initial));
+    dt.resize(nlevs_max, std::min(static_cast<double>(bogus_large_value),dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);

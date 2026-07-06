@@ -570,7 +570,7 @@ class SDInjection : public SDInitProperties
         inline void updateDt (const double a_dt)
         {
             this->m_numdens = m_inj_rate * a_dt;
-            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, one) : -1);
+            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.) : -1);
 
             if (this->m_type == SDInitShape::uniform) {
                 amrex::Vector<amrex::Real> lo = {zero, zero, zero};
