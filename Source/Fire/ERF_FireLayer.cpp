@@ -249,9 +249,10 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     Real phi_min  = fire_phi->min(0);
     amrex::Print() << "[FIRE] t=" << m_current_time
                    << "  substeps=" << n_substeps
-                   << "  phi_min=" << phi_min
-                   << "  max_ROS=" << max_ros << " m/s"
-                   << "  mean_ROS=" << mean_ros << " m/s" << std::endl;
+                   << "  phi_min=" << fire_phi->min(0)
+                   << "  max_ROS=" << fire_ros->max(0) << " m/s"
+                   << "  mean_ROS=" << fire_ros->sum(0)/fire_ros->boxArray().numPts()
+                   << " m/s" << std::endl;
 }
 
 

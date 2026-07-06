@@ -68,6 +68,15 @@ void advance_farsite_one_step(
     const Real dyi = 1.0_rt / dx[1];
     const Real stamp_thresh = 0.5_rt * std::min(dx[0], dx[1]);
 
+    // Stamp threshold: fire front stamps a new cell once accumulated
+    // displacement reaches one cell width in either direction.
+    // Using min(dx,dy) ensures we stamp before skipping a cell.
+    const Real stamp_threshold = amrex::min(dx[0], dx[1]);
+
+    // Clear farsite_work — only cells that cross the threshold this step
+    // will write nonzero values into it.
+    farsite_work.setVal(0.0_rt);
+
     // -------------------------------------------------------------------------
     // Pass 1 (GPU): compute spread vector and accumulate into disp_accum
     // -------------------------------------------------------------------------
@@ -102,7 +111,7 @@ void advance_farsite_one_step(
                 return;
             }
 
-            // Outward normal (points toward unburned region)
+            // Outward normal
             Real nx = dphi_dx / grad_mag;
             Real ny = dphi_dy / grad_mag;
 
@@ -210,53 +219,44 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping (default): copy to device, use ParallelFor
+            // Single-cell stamping
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              xarray_all.begin(), xarray_all.end(), d_x.begin());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              yarray_all.begin(), yarray_all.end(), d_y.begin());
-
             const Real* xp = d_x.data();
             const Real* yp = d_y.data();
+            int npts = npts_global;
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 auto p = phi.array(mfi);
-
                 amrex::ParallelFor(npts, [=] AMREX_GPU_DEVICE (int n) noexcept {
-                    Real x = xp[n];
-                    Real y = yp[n];
-
-                    int ii = static_cast<int>(std::round((x - prob_lo[0]) / dx[0] - 0.5_rt));
-                    int jj = static_cast<int>(std::round((y - prob_lo[1]) / dx[1] - 0.5_rt));
-
+                    int ii = static_cast<int>(std::round((xp[n] - prob_lo[0]) / dx[0] - 0.5_rt));
+                    int jj = static_cast<int>(std::round((yp[n] - prob_lo[1]) / dx[1] - 0.5_rt));
                     if (bx.contains(amrex::IntVect(ii, jj, 0))) {
                         p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
                     }
                 });
             }
         } else {
-            // Gaussian/SDF stamping path
+            // Gaussian/SDF stamping
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
+            const Real* x_ptr = xarray_all.data();
+            const Real* y_ptr = yarray_all.data();
+            int npts = npts_global;
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.validbox();
-
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
                     Real x_cell = prob_lo[0] + (iv[0] + 0.5) * dx[0];
                     Real y_cell = prob_lo[1] + (iv[1] + 0.5) * dx[1];
-
                     for (int n = 0; n < npts; ++n) {
-                        Real x_pt = x_ptr[n];
-                        Real y_pt = y_ptr[n];
-
-                        Real dist = std::sqrt((x_cell - x_pt)*(x_cell - x_pt) +
-                                             (y_cell - y_pt)*(y_cell - y_pt));
-                        Real phi_sdf = amrex::max(dist - sigma, -1.0_rt);
-
-                        p(iv) = amrex::min(p(iv), phi_sdf);
+                        Real dist = std::sqrt((x_cell-x_ptr[n])*(x_cell-x_ptr[n])
+                                            + (y_cell-y_ptr[n])*(y_cell-y_ptr[n]));
+                        p(iv) = amrex::min(p(iv), amrex::max(dist - sigma, -1.0_rt));
                     }
                 });
             }
