@@ -171,6 +171,7 @@ void advance_farsite_one_step(
                     }
                 }
     }
+    
 
     // MPI gather
     int npts_local = static_cast<int>(xarray.size());
