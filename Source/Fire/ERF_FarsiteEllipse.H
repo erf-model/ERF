@@ -234,7 +234,7 @@ void advance_farsite_one_step(
                     int jj = static_cast<int>((y - prob_lo[1]) * dyi);
 
                     if (bx.contains(amrex::IntVect(ii, jj, 0))) {
-                        p(ii, jj, 0) = -1.0_rt;
+                        p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
                     }
                 });
             }

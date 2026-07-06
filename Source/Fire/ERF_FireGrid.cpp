@@ -40,12 +40,21 @@ create_fire_grid(const BoxArray& ba_atm,
     // to ba_fire (box i in ba_fire is owned by the same rank as box i in ba_atm).
     DistributionMapping dm_fire = dm_atm;
 
-    // Step 4: Create 2D Geometry
-    // Keep x-y physical domain, drop z
+    // Step 4: Create 2D Geometry with REFINED index-space domain
+    // The index-space domain must be scaled by C so that cell size = physical_size / (C * n_cells) = (physical_size / n_cells) / C
+    // Keep x-y physical domain unchanged — same extent as atmospheric grid.
+    Box atm_domain   = geom_atm.Domain();
+    Box atm_2d_full  = makeSlab(atm_domain, 2, 0);  // full atmospheric 2D domain
+    // Scale hi-end: new hi = old_hi * C + (C-1) (zero-based indexing)
+    Box fire_domain(atm_2d_full.smallEnd(),
+                    IntVect(atm_2d_full.bigEnd(0) * C + (C - 1),
+                            atm_2d_full.bigEnd(1) * C + (C - 1),
+                            0));
+
     RealBox prob_domain_2d = geom_atm.ProbDomain();
     prob_domain_2d.setHi(2, prob_domain_2d.lo(2) + 1.0); // z extent = 1 m (dummy)
 
-    Geometry geom_fire_2d(domain_2d, prob_domain_2d,
+    Geometry geom_fire_2d(fire_domain, prob_domain_2d,
                           CoordSys::cartesian,
                           {false, false, false});
 
