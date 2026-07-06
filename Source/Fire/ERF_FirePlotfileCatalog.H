@@ -27,7 +27,7 @@
 
 /**
  * @brief Get the canonical fire plotfile variable names.
- * @return Vector of 11 variable name strings in canonical write order.
+ * @return Vector of 15 variable name strings in canonical write order.
  */
 inline amrex::Vector<std::string> fire_plotfile_var_names()
 {
@@ -42,17 +42,21 @@ inline amrex::Vector<std::string> fire_plotfile_var_names()
         "fire_slope_y",
         "fire_fuel_mc_1hr",
         "fire_fuel_mc_10hr",
-        "fire_fuel_mc_100hr"
+        "fire_fuel_mc_100hr",
+        "fire_heat_flux",           // Phase 5
+        "fire_fuel_load",           // Phase 5
+        "fire_fireline_intensity",  // Phase 5
+        "fire_flame_length"         // Phase 5
     };
 }
 
 /**
  * @brief Get the total number of fire plotfile components.
- * @return 11 (the number of scalar fire output variables).
+ * @return 15 (the number of scalar fire output variables).
  */
 inline int fire_plotfile_ncomp()
 {
-    return 11;
+    return 15;
 }
 
 #endif

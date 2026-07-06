@@ -33,6 +33,10 @@ void FireLayer::initialize(const ERF& erf,
     fire_spread_vec   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_arrival_time = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_disp_accum   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+     
+    // Phase 5: Heat flux and diagnostics fields
+    fire_fireline_intensity = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_flame_length = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
 
     fire_phi->setVal(1.0_rt);
     fire_wind_ref->setVal(0.0_rt);
@@ -46,6 +50,7 @@ void FireLayer::initialize(const ERF& erf,
     // Fuel load
     FuelModelParams fp = get_anderson_fuel_params(fire_params.fuel_model_id);
     fire_fuel_load->setVal((fp.w_d1+fp.w_d10+fp.w_d100+fp.w_lh+fp.w_lw)*4.88243);
+    m_fuel_load_initial_kg_m2 = (fp.w_d1+fp.w_d10+fp.w_d100+fp.w_lh+fp.w_lw)*4.88243_rt;
     m_fuel_bed_depth_ft = fp.delta;
 
     // Fuel moisture
@@ -247,7 +252,11 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                    << "  phi_min=" << fire_phi->min(0)
                    << "  max_ROS=" << fire_ros->max(0) << " m/s"
                    << "  mean_ROS=" << fire_ros->sum(0)/fire_ros->boxArray().numPts()
-                   << " m/s" << std::endl;
+                   << " m/s"
+                   << "  Q_max=" << fire_heat_flux->max(0) << " W/m2"
+                   << "  I_B_max=" << fire_fireline_intensity->max(0) << " kW/m"
+                   << "  L_max=" << fire_flame_length->max(0) << " m"
+                   << std::endl;
     
     // Write fire statistics to CSV if enabled
     if (m_params.write_fire_stats_csv) {
@@ -258,7 +267,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         }
         append_fire_stats(*fire_phi, *fire_arrival_time, m_fg.geom,
                          m_step, m_current_time, m_params.fire_stats_csv_file,
-                         fire_ros.get());
+                         fire_ros.get(), fire_heat_flux.get());
     }
 }
 
@@ -322,4 +331,30 @@ void FireLayer::advance_fuel_moisture(Real dt_s,
             mext(i_f,j_f,0) = compute_moisture_of_extinction(sigma_weighted);
         });
     }
+}
+
+void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
+{
+    FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
+
+    // Compute aggregate dead SAV (load-weighted mean of 1-hr, 10-hr, 100-hr classes)
+    Real dead_load = fp.w_d1 + fp.w_d10 + fp.w_d100;
+    Real sigma_agg = (dead_load > 1.0e-10_rt)
+        ? (fp.w_d1*fp.sigma_d1 + fp.w_d10*FIRE_SIGMA_D10 + fp.w_d100*FIRE_SIGMA_D100) / dead_load
+        : fp.sigma_d1;
+
+    // Use user-supplied tau_residence_s if > 0, otherwise derive from fuel SAV
+    Real tau_res_s = (m_params.tau_residence_s > 0.0_rt)
+        ? m_params.tau_residence_s
+        : compute_residence_time_s(sigma_agg, fp.rho_p);
+
+    // Fill heat flux and deplete fuel load
+    fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
+                        *fire_phi, *fire_ros, fp, tau_res_s, dt_fire_s);
+
+    // Compute diagnostics: Byram fireline intensity and Thomas flame length
+    Real h_kJ_per_kg = fp.heat_content * 2.326_rt;   // BTU/lb -> kJ/kg
+    fill_fire_diagnostics(*fire_fireline_intensity, *fire_flame_length,
+                          *fire_phi, *fire_ros, *fire_fuel_load,
+                          m_fuel_load_initial_kg_m2, h_kJ_per_kg);
 }

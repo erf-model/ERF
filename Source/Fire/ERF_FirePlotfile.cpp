@@ -51,6 +51,11 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     MultiFab::Copy(mf, *fire_layer.get_wind_ref(), 0, 4, 2, 0);
     MultiFab::Copy(mf, *fire_layer.get_slopes(),   0, 6, 2, 0);
     MultiFab::Copy(mf, *fire_layer.get_fuel_mc(),  0, 8, 3, 0);
+    // Phase 5: new plotfile fields
+    MultiFab::Copy(mf, *fire_layer.get_heat_flux(), 0, 11, 1, 0);
+    MultiFab::Copy(mf, *fire_layer.get_fuel_load(), 0, 12, 1, 0);
+    MultiFab::Copy(mf, *fire_layer.get_fireline_intensity(), 0, 13, 1, 0);
+    MultiFab::Copy(mf, *fire_layer.get_flame_length(), 0, 14, 1, 0);
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 

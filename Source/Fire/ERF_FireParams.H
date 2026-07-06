@@ -43,6 +43,11 @@ struct FireParams
     // Moisture of extinction (Phase 4)
     bool              use_dynamic_mext    = true;        ///< Compute M_x from fuel SAV
     
+    // Heat flux parameters (Phase 5)
+    amrex::Real       tau_residence_s     = 0.0;         ///< Residence time [s]; 0 = derive from fuel SAV
+    amrex::Real       f_c_min             = 0.2;         ///< Minimum combustion fraction
+    amrex::Real       f_c_max             = 0.9;         ///< Maximum combustion fraction
+    
     // FARSITE parameters
     amrex::Real       farsite_phi_threshold   = 0.1;  ///< front detection level in phi
     int               farsite_use_anderson_lw = 1;       ///< derive coeff_a/b/c from Anderson L/W
@@ -94,7 +99,12 @@ struct FireParams
         
        // Moisture of extinction (Phase 4)
        pp.query("use_dynamic_mext", use_dynamic_mext);
-         
+          
+       // Heat flux parameters (Phase 5)
+       pp.query("tau_residence_s", tau_residence_s);
+       pp.query("f_c_min", f_c_min);
+       pp.query("f_c_max", f_c_max);
+
        // FARSITE parameters
        pp.query("farsite.phi_threshold", farsite_phi_threshold);
        pp.query("farsite.use_anderson_lw", farsite_use_anderson_lw);

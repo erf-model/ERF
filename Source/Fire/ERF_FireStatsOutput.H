@@ -84,7 +84,7 @@ write_fire_stats_header(const std::string& filename)
     }
     
     out << "step,time_s,burned_area_ha,perimeter_km,"
-           "active_front_cells,head_ros_ms,major_axis_m,minor_axis_m\n";
+           "active_front_cells,head_ros_ms,major_axis_m,minor_axis_m,heat_flux_max_Wm2\n";
     out.close();
 }
 
@@ -104,6 +104,7 @@ write_fire_stats_header(const std::string& filename)
  * @param[in] time_s            Simulation time [s]
  * @param[in] filename          CSV file path
  * @param[in] R_mf              Optional rate-of-spread field for head ROS tracking
+ * @param[in] Q_mf              Optional heat flux field for max heat flux tracking
  */
 inline void
 append_fire_stats(const amrex::MultiFab& phi,
@@ -112,7 +113,8 @@ append_fire_stats(const amrex::MultiFab& phi,
                   int step,
                   amrex::Real time_s,
                   const std::string& filename,
-                  const amrex::MultiFab* R_mf = nullptr)
+                  const amrex::MultiFab* R_mf = nullptr,
+                  const amrex::MultiFab* Q_mf = nullptr)
 {
     using namespace amrex;
     
@@ -174,9 +176,14 @@ append_fire_stats(const amrex::MultiFab& phi,
         ParallelDescriptor::ReduceRealMax(head_ros);
     }
 
+    Real Q_max = Q_mf ? Q_mf->max(0) : 0.0_rt;
+    if (Q_mf) {
+        ParallelDescriptor::ReduceRealMax(Q_max);
+    }
+
     Real burned_ha    = static_cast<Real>(n_burned) * cell_area / Real(1.0e4);
     Real perim_km     = perim_m / Real(1000.0);
-    
+     
     // Calculate fire ellipse major/minor axes from area and perimeter
     Real area_m2 = burned_ha * Real(1.0e4);  // convert ha to m²
     auto [major_axis_m, minor_axis_m] = compute_fire_ellipse_axes(area_m2, perim_m);
@@ -188,7 +195,7 @@ append_fire_stats(const amrex::MultiFab& phi,
         amrex::Print() << "[FIRE] WARNING: Cannot append to fire_stats file: " << filename << "\n";
         return;
     }
-    
+     
     out << step       << ","
         << time_s     << ","
         << burned_ha  << ","
@@ -196,7 +203,8 @@ append_fire_stats(const amrex::MultiFab& phi,
         << n_active   << ","
         << head_ros   << ","
         << major_axis_m << ","
-        << minor_axis_m << "\n";
+        << minor_axis_m << ","
+        << Q_max << "\n";
     out.close();
 }
 

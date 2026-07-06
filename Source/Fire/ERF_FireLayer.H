@@ -12,6 +12,8 @@
 #include <ERF_FuelMoisture.H>
 #include <ERF_MoistureExtinction.H>
 #include <ERF_FireStatsOutput.H>
+#include <ERF_FireHeatFlux.H>
+#include <ERF_FireDiagnostics.H>
 
 // Forward declarations
 class SurfaceLayer;
@@ -135,6 +137,33 @@ public:
     const amrex::MultiFab* get_fuel_mc() const
     {
         return fire_fuel_mc.get();
+    }
+
+    /**
+     * @brief Get fuel load for plotfile output.
+     * @return Pointer to fire_fuel_load MultiFab [kg/m²].
+     */
+    const amrex::MultiFab* get_fuel_load() const
+    {
+        return fire_fuel_load.get();
+    }
+
+    /**
+     * @brief Get fireline intensity for diagnostics and plotfile output.
+     * @return Pointer to fire_fireline_intensity MultiFab [kW/m].
+     */
+    const amrex::MultiFab* get_fireline_intensity() const
+    {
+        return fire_fireline_intensity.get();
+    }
+
+    /**
+     * @brief Get flame length for diagnostics and plotfile output.
+     * @return Pointer to fire_flame_length MultiFab [m].
+     */
+    const amrex::MultiFab* get_flame_length() const
+    {
+        return fire_flame_length.get();
     }
 
     /**
