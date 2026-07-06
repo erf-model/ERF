@@ -28,5 +28,6 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_FireHeatFlux.H
   CEXE_headers += Fire/ERF_FireDiagnostics.H
   CEXE_headers += Fire/ERF_FireStatsOutput.H
+  CEXE_headers += Fire/ERF_FireAtmCoupling.H
 endif
 

@@ -63,6 +63,12 @@ struct FireParams
     // CSV output for fire statistics (burned area, perimeter, etc.)
     bool              write_fire_stats_csv    = true; ///< Write burned area and perimeter CSV
     std::string       fire_stats_csv_file     = "fire_stats.csv"; ///< Fire statistics output filename
+    
+    // Phase 6: fire-atmosphere coupling parameters
+    amrex::Real       heat_flux_alfg          = 45.0;  ///< e-folding height for sensible heat distribution [m]
+    amrex::Real       fire_atm_feedback       = 1.0;   ///< multiplier on fire flux (0 = one-way, 1 = full)
+    bool              one_way_coupling        = true;  ///< inject fire heat into atmospheric cc_source
+    bool              inject_latent           = true;  ///< inject latent heat alongside sensible (WRF-Fire parity)
 
     /**
      * @brief Construct FireParams from ParmParse
@@ -121,6 +127,12 @@ struct FireParams
        // CSV output parameters
        pp.query("write_fire_stats_csv", write_fire_stats_csv);
        pp.query("fire_stats_csv_file", fire_stats_csv_file);
+        
+       // Phase 6: fire-atmosphere coupling parameters
+       pp.query("heat_flux_alfg", heat_flux_alfg);
+       pp.query("fire_atm_feedback", fire_atm_feedback);
+       pp.query("one_way_coupling", one_way_coupling);
+       pp.query("inject_latent", inject_latent);
     }
 };
 
