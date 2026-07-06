@@ -171,7 +171,6 @@ void advance_farsite_one_step(
                     }
                 }
     }
-    
 
     // MPI gather
     int npts_local = static_cast<int>(xarray.size());
@@ -213,6 +212,7 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
+            // Single-cell stamping
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              xarray_all.begin(), xarray_all.end(), d_x.begin());
@@ -236,6 +236,7 @@ void advance_farsite_one_step(
                 });
             }
         } else {
+            // Gaussian/SDF stamping
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
             const Real* x_ptr = xarray_all.data();
             const Real* y_ptr = yarray_all.data();
