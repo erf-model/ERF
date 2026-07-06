@@ -11,7 +11,7 @@ using namespace amrex;
  * \param[in] a_z Array containing terrain height information
  * \param[in] a_lev AMR level
  */
-void SuperDropletsMoist::phaseChange ( const double& a_dt,
+void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                        const Vector<std::unique_ptr<MultiFab>>& a_z,
                                        const int a_lev )
 {

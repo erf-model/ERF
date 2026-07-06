@@ -12,7 +12,7 @@ using namespace amrex;
  * Return closest index (from lower) of value in vector
  */
 AMREX_FORCE_INLINE
-int closest_index (const Vector<Real>& vec, const Real value)
+int closest_index (const Vector<double>& vec, const double value)
 {
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());

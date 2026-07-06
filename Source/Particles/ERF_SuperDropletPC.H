@@ -249,7 +249,7 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (int, int, amrex::Real, bool);
+        virtual void Diagnostics (int, int, double, bool);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,

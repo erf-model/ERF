@@ -59,7 +59,7 @@ amrex::Real kessler_precip_flux (const amrex::Real rho,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int kessler_num_sedimentation_substeps (const amrex::Real current_reduced_value,
-                                        const double dt,
+                                        const amrex::Real dt,
                                         const amrex::Real dzmin) noexcept
 {
     // MUST MATCH: current AdvanceKessler CFL_MAX precipitation substep formula.
@@ -159,7 +159,7 @@ KesslerSourceTerms kessler_warm_rain_sources (const amrex::Real qv,
                                               const amrex::Real pressure_current_units,
                                               const amrex::Real qsat,
                                               const amrex::Real dtqsat,
-                                              const double dt,
+                                              const amrex::Real dt,
                                               const bool do_cond,
                                               const amrex::Real latent_over_cp) noexcept
 {

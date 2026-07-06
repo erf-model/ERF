@@ -21,11 +21,11 @@ void
 Morrison::Init (const MultiFab& cons_in,
                 const BoxArray& /*grids*/,
                 const Geometry& geom,
-                const double& dt_advance,
+                const Real& dt_advance,
                 std::unique_ptr<MultiFab>& z_phys_nd,
                 std::unique_ptr<MultiFab>& detJ_cc)
 {
-    [[maybe_unused]] double dt     = dt_advance;
+    [[maybe_unused]] amrex::Real dt     = dt_advance;
     m_geom = geom;
 
     m_z_phys_nd = z_phys_nd.get();

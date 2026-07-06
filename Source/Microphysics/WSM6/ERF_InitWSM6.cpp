@@ -9,7 +9,7 @@ void
 WSM6::Init(const MultiFab& cons_in,
            const BoxArray&,
            const Geometry& geom,
-           const double& dt_advance,
+           const Real& dt_advance,
            std::unique_ptr<MultiFab>& z_phys_nd,
            std::unique_ptr<MultiFab>& detJ_cc)
 {

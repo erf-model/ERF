@@ -48,7 +48,7 @@ public:
     }
 
     // WSM6 module parameter constants (Fortran: parameter, private)
-    static constexpr double      dtcldcr    = 120.0;
+    static constexpr amrex::Real dtcldcr    = amrex::Real(120.0);
     static constexpr amrex::Real n0r        = amrex::Real(8.0e6);
     static constexpr amrex::Real avtr       = amrex::Real(841.9);
     static constexpr amrex::Real bvtr       = amrex::Real(0.8);
@@ -75,7 +75,7 @@ public:
     void Init(const amrex::MultiFab& cons_in,
               const amrex::BoxArray& grids,
               const amrex::Geometry& geom,
-              const double& dt_advance,
+              const amrex::Real& dt_advance,
               std::unique_ptr<amrex::MultiFab>& z_phys_nd,
               std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
@@ -95,7 +95,7 @@ public:
         Copy_Micro_to_State(cons_in);
     }
 
-    void Advance(const double& dt_advance,
+    void Advance(const amrex::Real& dt_advance,
                  const SolverChoice& solverChoice) override;
 
     amrex::MultiFab* Qmoist_Ptr(const int& varIdx) override
@@ -124,7 +124,7 @@ private:
     amrex::Vector<int> MicVarMap;
 
     amrex::Geometry m_geom;
-    double dt{0.0};
+    amrex::Real dt{0.0};
     amrex::Real m_dzmin{0.0};
     int nlev{0}, zlo{0}, zhi{0};
     int m_axis{2};

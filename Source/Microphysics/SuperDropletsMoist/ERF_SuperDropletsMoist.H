@@ -144,7 +144,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void Init ( const amrex::MultiFab&,
                             const amrex::BoxArray&,
                             const amrex::Geometry&,
-                            const double&,
+                            const amrex::Real&,
                             MFPtr&,
                             MFPtr& ) override;
 
@@ -159,7 +159,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                 amrex::MultiFab&,
                                 const amrex::Vector<MFPtr>&) override;
 
-        void Advance ( const double&, const SolverChoice& ) override
+        void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
         }
@@ -187,9 +187,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          * \param[in] mf_array Array of additional multifabs
          * \param[in] bc_arr Array of boundary conditions
          */
-        virtual void Advance (const double& dt,
+        virtual void Advance (const amrex::Real& dt,
                               const int& iteration,
-                              const double& time,
+                              const amrex::Real& time,
                               amrex::Vector<amrex::Vector<amrex::MultiFab>>& cons_vars,
                               const amrex::Vector<MFPtr>& mf_array,
                               const BCTypeArr& bc_arr) override;
@@ -324,7 +324,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          * \param[in] a_z Array of terrain heights
          * \param[in] a_lev AMR level
          */
-        virtual void phaseChange (  const double& a_dt,
+        virtual void phaseChange (  const amrex::Real& a_dt,
                                     const amrex::Vector<MFPtr>& a_z,
                                     const int a_lev);
 
@@ -425,7 +425,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
         /*! time (in seconds) of initial relaxation */
-        double m_init_phase_change_time;
+        amrex::Real m_init_phase_change_time;
 
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
@@ -447,7 +447,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! number of non-water-related state variables for this moisture model */
         int m_qstate_nonmoist_size;
 
-        double m_dt; /*!< timestep */
+        amrex::Real m_dt; /*!< timestep */
         amrex::Vector<int> m_mic_var_map; /*!< moisture model variables map */
 
         /*! moisture model variables - per level for AMR support */

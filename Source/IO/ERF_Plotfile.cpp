@@ -375,10 +375,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
+            Real new_time = t_new[lev];
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
-            Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ftime    = {new_time,new_time};
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
-            Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ctime    = {new_time,new_time};
 
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),

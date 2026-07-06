@@ -25,7 +25,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         auto dm    = tabs->DistributionMap();
         fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
-        double dtn = dt;
+        Real dtn  = dt;
         Real coef = dtn/m_dzmin;
 
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {

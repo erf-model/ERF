@@ -60,7 +60,7 @@ public:
                const amrex::MultiFab& cons_in, /*!< Conserved state variables */
                const amrex::BoxArray& grids,   /*!< Grids */
                const amrex::Geometry& geom,    /*!< Geometry */
-               const double& dt_advance,  /*!< Time step */
+               const amrex::Real& dt_advance,  /*!< Time step */
                std::unique_ptr<amrex::MultiFab>& z_phys_nd,/*< Nodal z heights */
                std::unique_ptr<amrex::MultiFab>& detJ_cc /*< CC Jacobian determinants */) override
     {
@@ -83,9 +83,9 @@ public:
 
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
-                  const double& dt_advance, /*!< Time step */
+                  const amrex::Real& dt_advance, /*!< Time step */
                   const int& iter, /*!< iteration number */
-                  const double& time, /*!< current time */
+                  const amrex::Real& time, /*!< current time */
                   const SolverChoice& /*solverChoice*/, /*!< Solver choice object */
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars, /*!< Dycore state variables */
                   const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */,

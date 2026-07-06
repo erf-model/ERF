@@ -39,7 +39,7 @@ SAM::Precip (const SolverChoice& sc)
 
     Real eps = std::numeric_limits<Real>::epsilon();
 
-    double dtn = dt;
+    Real dtn = dt;
 
     int SAM_moisture_type = 1;
     if (sc.moisture_type == MoistureType::SAM_NoIce) {
