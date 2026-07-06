@@ -343,10 +343,28 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
         ? (fp.w_d1*fp.sigma_d1 + fp.w_d10*FIRE_SIGMA_D10 + fp.w_d100*FIRE_SIGMA_D100) / dead_load
         : fp.sigma_d1;
 
-    // Use user-supplied tau_residence_s if > 0, otherwise derive from fuel SAV
-    Real tau_res_s = (m_params.tau_residence_s > 0.0_rt)
-        ? m_params.tau_residence_s
-        : compute_residence_time_s(sigma_agg, fp.rho_p);
+    // Residence time: use user-supplied value if > 0.
+    // Otherwise derive from cell size and max ROS (time for fire front to cross one cell).
+    // This gives a physically meaningful burn duration per cell and prevents
+    // near-instant fuel depletion in fine-fuel models (e.g., FM1 short grass)
+    // where the SAV-based tau_res (~2.75 s) is far shorter than the cell-crossing time.
+    Real tau_res_s;
+    if (m_params.tau_residence_s > 0.0_rt) {
+        tau_res_s = m_params.tau_residence_s;
+    } else {
+        Real max_ros = fire_ros->max(0);
+        if (max_ros > 1.0e-10_rt) {
+            // tau_cell = dx / ROS  (time for front to cross one fire cell)
+            Real dx_fire = m_fg.geom.CellSize(0);
+            tau_res_s = dx_fire / max_ros;
+        } else {
+            // Fallback to SAV-based when fire is not yet spreading
+            tau_res_s = compute_residence_time_s(sigma_agg, fp.rho_p);
+        }
+        // Apply a floor: never shorter than the SAV-based particle burnout time
+        Real tau_sav = compute_residence_time_s(sigma_agg, fp.rho_p);
+        tau_res_s = amrex::max(tau_res_s, tau_sav);
+    }
 
     // Fill heat flux and deplete fuel load
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
