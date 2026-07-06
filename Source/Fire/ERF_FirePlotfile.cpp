@@ -54,37 +54,70 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
-    // -----------------------------------------------------------------------
-    // Step 1: IOProcessor creates BOTH the top-level plotfile directory AND
-    //         the Level_0 subdirectory, then ALL ranks barrier before writing.
-    // Using WriteSingleLevelPlotfile avoids the internal PreBuildDirectorHierarchy
-    // race inside WriteMultiLevelPlotfile.
-    // -----------------------------------------------------------------------
+    // IOProcessor creates directories; all ranks barrier before writing.
+    // We bypass WriteMultiLevelPlotfile entirely because it calls
+    // PreBuildDirectorHierarchy with callBarrier=false (races on >1 rank)
+    // and renames existing directories to .old.<pid>.
     if (ParallelDescriptor::IOProcessor()) {
-        // Create top-level directory
         if (!amrex::UtilCreateDirectory(plotfilename, 0755)) {
             amrex::CreateDirectoryFailed(plotfilename);
         }
-        // Create Level_0 subdirectory
         const std::string level_dir = plotfilename + "/Level_0";
         if (!amrex::UtilCreateDirectory(level_dir, 0755)) {
             amrex::CreateDirectoryFailed(level_dir);
         }
     }
-    // All ranks wait until directories exist
     ParallelDescriptor::Barrier();
 
-    // -----------------------------------------------------------------------
-    // Step 2: Write using WriteSingleLevelPlotfile which does not call
-    //         PreBuildDirectorHierarchy internally (directories already exist).
-    // -----------------------------------------------------------------------
-    WriteSingleLevelPlotfile(plotfilename, mf, varnames, fg.geom, time, step);
+    // Write MultiFab data (all ranks participate)
+    VisMF::Write(mf, plotfilename + "/Level_0/Cell");
 
+    // Write AMReX Header (IOProcessor only)
     if (ParallelDescriptor::IOProcessor()) {
+        const std::string header_path = plotfilename + "/Header";
+        std::ofstream hfile(header_path, std::ios::out | std::ios::trunc);
+        if (!hfile.good()) { FileOpenFailed(header_path); }
+
+        hfile << "HyperCLaw-V1.1\n";
+        hfile << ncomp << "\n";
+        for (const auto& vn : varnames) { hfile << vn << "\n"; }
+        hfile << "2\n";
+        hfile << std::setprecision(17) << time << "\n";
+        hfile << "0\n";
+
+        const auto* plo  = fg.geom.ProbLo();
+        const auto* phi_h = fg.geom.ProbHi();
+        hfile << plo[0]  << " " << plo[1]  << "\n";
+        hfile << phi_h[0] << " " << phi_h[1] << "\n";
+        hfile << "\n";  // ref ratios — none for single level
+
+        const Box& dom = fg.geom.Domain();
+        hfile << "(" << dom.smallEnd(0) << "," << dom.smallEnd(1) << ",0) "
+              << "(" << dom.bigEnd(0)   << "," << dom.bigEnd(1)   << ",0) "
+              << "(0,0,0)\n";
+        hfile << step << "\n";
+
+        const auto* dx = fg.geom.CellSize();
+        hfile << dx[0] << " " << dx[1] << " 1.0\n";
+        hfile << "0\n";  // Cartesian
+        hfile << "0\n";
+
+        // Level 0 entry
+        hfile << "0 " << fg.ba.size() << " "
+              << std::setprecision(17) << time << "\n";
+        hfile << step << "\n";
+        for (int i = 0; i < fg.ba.size(); ++i) {
+            const Box& b = fg.ba[i];
+            RealBox rb(b, fg.geom.CellSize(), fg.geom.ProbLo());
+            hfile << rb.lo(0) << " " << rb.hi(0) << "\n";
+            hfile << rb.lo(1) << " " << rb.hi(1) << "\n";
+        }
+        hfile << "Level_0/Cell\n";
+
+        if (!hfile.good()) { FileOpenFailed(header_path); }
         Print() << "[FIRE] Writing fire plotfile " << plotfilename << "\n";
     }
 
-    // Barrier before JSON write so all ranks finish VisMF::Write first
     ParallelDescriptor::Barrier();
     write_fire_metadata_json(plotfilename, time, step, fg.C, ncomp);
 }
