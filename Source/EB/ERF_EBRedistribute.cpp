@@ -37,21 +37,22 @@ redistribute_term ( int ncomp,
         EBCellFlagFab const& flagfab = ebfact.getMultiEBCellFlagFab()[mfi];
         Array4<EBCellFlag const> const& flag = flagfab.const_array();
 
-        bool regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
-        bool covered = (flagfab.getType(bx) == FabType::covered);
+        // Redistribution operates on a grown box and needs EB geometry data
+        bool is_singlevalued = (flagfab.getType() == FabType::singlevalued);
+        bool is_regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
+        bool is_covered = (flagfab.getType(bx) == FabType::covered);
 
         Array4<Real> out = result.array(mfi);
         Array4<Real> in  = result_tmp.array(mfi);
 
-        if (!regular && !covered)
+        // Only apply redistribution if we have actual cut cells
+        if (is_singlevalued && !is_regular && !is_covered)
         {
             auto const& vfrac = ebfact.getVolFrac().const_array(mfi);
-            auto const& ccc   = ebfact.getCentroid().const_array(mfi);
-
+            auto const& ccc = ebfact.getCentroid().const_array(mfi);
             auto const& apx = ebfact.getAreaFrac()[0]->const_array(mfi);
             auto const& apy = ebfact.getAreaFrac()[1]->const_array(mfi);
             auto const& apz = ebfact.getAreaFrac()[2]->const_array(mfi);
-
             auto const& fcx = ebfact.getFaceCent()[0]->const_array(mfi);
             auto const& fcy = ebfact.getFaceCent()[1]->const_array(mfi);
             auto const& fcz = ebfact.getFaceCent()[2]->const_array(mfi);
@@ -112,21 +113,22 @@ redistribute_term ( int ncomp,
         EBCellFlagFab const& flagfab = ebfact.getMultiEBCellFlagFab()[mfi];
         Array4<EBCellFlag const> const& flag = flagfab.const_array();
 
-        bool regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
-        bool covered = (flagfab.getType(bx) == FabType::covered);
+        // Redistribution operates on a grown box and needs EB geometry data
+        bool is_singlevalued = (flagfab.getType() == FabType::singlevalued);
+        bool is_regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
+        bool is_covered = (flagfab.getType(bx) == FabType::covered);
 
         Array4<Real> out = result.array(mfi);
         Array4<Real> in  = result_tmp.array(mfi);
 
-        if (!regular && !covered)
+        // Only apply redistribution if we have actual cut cells
+        if (is_singlevalued && !is_regular && !is_covered)
         {
             auto const& vfrac = ebfact.getVolFrac().const_array(mfi);
-            auto const& ccc   = ebfact.getCentroid().const_array(mfi);
-
+            auto const& ccc = ebfact.getCentroid().const_array(mfi);
             auto const& apx = ebfact.getAreaFrac()[0]->const_array(mfi);
             auto const& apy = ebfact.getAreaFrac()[1]->const_array(mfi);
             auto const& apz = ebfact.getAreaFrac()[2]->const_array(mfi);
-
             auto const& fcx = ebfact.getFaceCent()[0]->const_array(mfi);
             auto const& fcy = ebfact.getFaceCent()[1]->const_array(mfi);
             auto const& fcz = ebfact.getFaceCent()[2]->const_array(mfi);
