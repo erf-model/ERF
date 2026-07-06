@@ -350,7 +350,7 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
 
     // Fill heat flux and deplete fuel load
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
-                        *fire_phi, *fire_ros, fp, tau_res_s, dt_fire_s);
+                        *fire_phi, fp, tau_res_s, dt_fire_s);
 
     // Compute diagnostics: Byram fireline intensity and Thomas flame length
     Real h_kJ_per_kg = fp.heat_content * 2.326_rt;   // BTU/lb -> kJ/kg

@@ -1,7 +1,7 @@
 // Sensible heat flux and fuel consumption for the fire layer.
 //
 // The heat flux Q [W/m²] per cell is:
-//   Q = ROS [m/s] * fuel_load_remain [kg/m²] * h_fuel [J/kg] * f_c / tau_res [s]
+//   Q = fuel_load_remain [kg/m²] * h_fuel [J/kg] * f_c / tau_res [s]
 //
 // where f_c is the combustion fraction (Albini 1976, GTR INT-30) and
 // tau_res is the flame residence time (Rothermel 1983, GTR INT-143):
@@ -155,12 +155,11 @@ amrex::Real compute_per_class_consumption_frac(
 /**
  * @brief Compute sensible heat flux at one cell [W/m²].
  *
- * Q = ros * fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s
+ * Q = fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s
  *
- * Returns 0 if phi >= 0 (unburned) or fuel_load_remain <= 0 or ros <= 0.
+ * Returns 0 if phi >= 0 (unburned) or fuel_load_remain <= 0.
  *
  * @param[in] phi                  Level-set field value (burned if < 0)
- * @param[in] ros                  Rate of spread [m/s]
  * @param[in] fuel_load_remain     Remaining fuel load [kg/m²]
  * @param[in] h_fuel_J_per_kg      Heat content [J/kg]
  * @param[in] f_c                  Combustion fraction [0-1]
@@ -170,7 +169,6 @@ amrex::Real compute_per_class_consumption_frac(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_heat_flux_cell(
     amrex::Real phi,
-    amrex::Real ros,
     amrex::Real fuel_load_remain,
     amrex::Real h_fuel_J_per_kg,
     amrex::Real f_c,
@@ -179,16 +177,16 @@ amrex::Real compute_heat_flux_cell(
     // Only burned cells contribute to heat flux
     if (phi >= 0.0_rt) return 0.0_rt;
 
-    // Heat flux is zero if fuel, ROS, or combustion is negligible
-    if (fuel_load_remain <= 0.0_rt || ros <= 0.0_rt || f_c <= 0.0_rt) {
+    // Heat flux is zero if fuel or combustion is negligible
+    if (fuel_load_remain <= 0.0_rt || f_c <= 0.0_rt) {
         return 0.0_rt;
     }
 
     // Guard against zero or negative tau_res
     if (tau_res_s <= 0.0_rt) return 0.0_rt;
 
-    // Q = ros * fuel_load * h_fuel * f_c / tau_res
-    amrex::Real Q = ros * fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s;
+    // Q = fuel_load * h_fuel * f_c / tau_res
+    amrex::Real Q = fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s;
     return amrex::max(0.0_rt, Q);
 }
 
@@ -234,7 +232,7 @@ amrex::Real deplete_fuel_load(
  * For each cell where phi < 0 (burned):
  *   1. Compute f_c = compute_per_class_consumption_frac(tau_res_s, ...).
  *   2. h_fuel_J_per_kg = fp.heat_content [BTU/lb] * 2326.0  (1 BTU/lb = 2326 J/kg)
- *   3. Q = compute_heat_flux_cell(phi, ros, fuel_load, h_fuel_J_per_kg, f_c, tau_res_s)
+ *   3. Q = compute_heat_flux_cell(phi, fuel_load, h_fuel_J_per_kg, f_c, tau_res_s)
  *   4. fire_heat_flux(i,j,k) = Q
  *   5. fire_fuel_load(i,j,k) = deplete_fuel_load(phi, fuel_load, f_c, tau_res_s, dt_fire_s)
  *
@@ -251,7 +249,6 @@ amrex::Real deplete_fuel_load(
  * @param[out] fire_heat_flux     Heat flux field [W/m²]
  * @param[in,out] fire_fuel_load  Fuel load field [kg/m²], modified in-place
  * @param[in] fire_phi            Level-set field
- * @param[in] fire_ros            Rate of spread [m/s]
  * @param[in] fp                  Fuel model parameters
  * @param[in] tau_res_s           Residence time [s]
  * @param[in] dt_fire_s           Fire substep duration [s]
@@ -260,7 +257,6 @@ inline void fill_fire_heat_flux(
     amrex::MultiFab& fire_heat_flux,
     amrex::MultiFab& fire_fuel_load,
     const amrex::MultiFab& fire_phi,
-    const amrex::MultiFab& fire_ros,
     const FuelModelParams& fp,
     amrex::Real tau_res_s,
     amrex::Real dt_fire_s)
@@ -285,7 +281,6 @@ inline void fill_fire_heat_flux(
         const Box& bx = mfi.validbox();
 
         auto const phi_arr = fire_phi.const_array(mfi);
-        auto const ros_arr = fire_ros.const_array(mfi);
         auto Q_arr = fire_heat_flux.array(mfi);
         auto fuel_arr = fire_fuel_load.array(mfi);
 
@@ -293,11 +288,10 @@ inline void fill_fire_heat_flux(
             int i = iv[0], j = iv[1], k = iv[2];
 
             Real phi_val = phi_arr(i, j, k);
-            Real ros_val = ros_arr(i, j, k);
             Real w_cur = fuel_arr(i, j, k);
 
             // Compute heat flux
-            Real Q = compute_heat_flux_cell(phi_val, ros_val, w_cur, h_fuel_J_per_kg, f_c, tau_res_s);
+            Real Q = compute_heat_flux_cell(phi_val, w_cur, h_fuel_J_per_kg, f_c, tau_res_s);
             Q_arr(i, j, k) = Q;
 
             // Deplete fuel load
