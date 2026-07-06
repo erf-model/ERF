@@ -61,6 +61,7 @@ namespace NoahmpInputComp {
         swdown,
         glw,
         coszen,
+        rainbl,      // precipitation rate into land model [mm/s]
         NumComps
     };
 }
@@ -114,6 +115,9 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
+                        const amrex::MultiFab* rain_accum_in,
+                        const amrex::MultiFab* snow_accum_in,
+                        const amrex::MultiFab* graup_accum_in,
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep) override;
@@ -281,6 +285,14 @@ private:
     // Pinned memory buffers for host/device coupling to Noah-MP
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_input_tmp;
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_output_tmp;
+
+    // Previous cumulative surface precip (mm) at the last land-model call, per level.
+    // RAINBL fed to Noah-MP = current cumulative rain_accum minus this (WRF supplies
+    // accumulated mm per land-call interval). Synced to current on the first call and
+    // on restart so a restored accumulation does not produce a spurious precip spike.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rain_accum_prev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_snow_accum_prev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_graup_accum_prev;
 
     // Plot frequency
     int m_plot_int_1 = -1;
