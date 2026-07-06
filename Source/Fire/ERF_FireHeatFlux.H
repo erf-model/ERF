@@ -50,12 +50,12 @@
 
 // BURNOUT_ALPHA [s·ft/lb from Rothermel (1983) GTR INT-143].
 // tau_i [s] = FIRE_BURNOUT_ALPHA * rho_p [lb/ft³] / sigma_i [ft⁻¹]
-constexpr amrex::Real FIRE_BURNOUT_ALPHA = 301.0_rt;
+constexpr amrex::Real FIRE_BURNOUT_ALPHA = 301.0;
 
 // Fixed SAV values [ft⁻¹] for 10-hr and 100-hr dead fuel classes
 // (Anderson 1982, FBFM13 table standard values).
-constexpr amrex::Real FIRE_SIGMA_D10  = 109.0_rt;
-constexpr amrex::Real FIRE_SIGMA_D100 =  30.0_rt;
+constexpr amrex::Real FIRE_SIGMA_D10  = 109.0;
+constexpr amrex::Real FIRE_SIGMA_D100 =  30.0;
 
 /**
  * @brief Compute flame residence time [s] from fuel SAV and particle density.
@@ -70,11 +70,11 @@ constexpr amrex::Real FIRE_SIGMA_D100 =  30.0_rt;
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_residence_time_s(amrex::Real sigma_ft, amrex::Real rho_p_lbft3) noexcept
 {
-    if (sigma_ft <= 0.0_rt || rho_p_lbft3 <= 0.0_rt) {
-        return 1.0_rt;
+    if (sigma_ft <= 0.0 || rho_p_lbft3 <= 0.0) {
+        return 1.0;
     }
     amrex::Real tau = FIRE_BURNOUT_ALPHA * rho_p_lbft3 / sigma_ft;
-    return amrex::max(tau, 1.0_rt);
+    return amrex::max(tau, 1.0);
 }
 
 /**
@@ -124,32 +124,32 @@ amrex::Real compute_per_class_consumption_frac(
     amrex::Real tau_d100= compute_residence_time_s(FIRE_SIGMA_D100, rho_p);
 
     // Live fuel residence times with calibration multipliers from wildfire_levelset
-    amrex::Real tau_lh_adj = compute_residence_time_s(sigma_lh, rho_p) * 1.0_rt;   // herbaceous multiplier = 1.0
-    amrex::Real tau_lw_adj = compute_residence_time_s(sigma_lw, rho_p) * 2.0_rt;   // woody multiplier = 2.0
+    amrex::Real tau_lh_adj = compute_residence_time_s(sigma_lh, rho_p) * 1.0;   // herbaceous multiplier = 1.0
+    amrex::Real tau_lw_adj = compute_residence_time_s(sigma_lw, rho_p) * 2.0;   // woody multiplier = 2.0
 
     // Exponential burnout: f_c_i = 1 - exp(-tau_res / tau_i)
-    amrex::Real f_d1   = 1.0_rt - std::exp(-tau_res / tau_d1);
-    amrex::Real f_d10  = 1.0_rt - std::exp(-tau_res / tau_d10);
-    amrex::Real f_d100 = 1.0_rt - std::exp(-tau_res / tau_d100);
-    amrex::Real f_lh   = 1.0_rt - std::exp(-tau_res / tau_lh_adj);
-    amrex::Real f_lw   = 1.0_rt - std::exp(-tau_res / tau_lw_adj);
+    amrex::Real f_d1   = 1.0 - std::exp(-tau_res / tau_d1);
+    amrex::Real f_d10  = 1.0 - std::exp(-tau_res / tau_d10);
+    amrex::Real f_d100 = 1.0 - std::exp(-tau_res / tau_d100);
+    amrex::Real f_lh   = 1.0 - std::exp(-tau_res / tau_lh_adj);
+    amrex::Real f_lw   = 1.0 - std::exp(-tau_res / tau_lw_adj);
 
     // Compute total load and weighted mean combustion fraction
     amrex::Real total_w = w_d1 + w_d10 + w_d100 + w_lh + w_lw;
-    if (total_w <= 0.0_rt) {
+    if (total_w <= 0.0) {
         // Fallback: compute aggregate SAV from dead fuels only
         amrex::Real dead_w = w_d1 + w_d10 + w_d100;
-        if (dead_w <= 1.0e-10_rt) {
-            return 0.5_rt;  // Default combustion fraction when no fuel
+        if (dead_w <= 1.0e-10) {
+            return 0.5;  // Default combustion fraction when no fuel
         }
         amrex::Real sigma_agg = (w_d1 * sigma_d1 + w_d10 * FIRE_SIGMA_D10 + w_d100 * FIRE_SIGMA_D100) / dead_w;
         amrex::Real tau_agg = compute_residence_time_s(sigma_agg, rho_p);
-        return 1.0_rt - std::exp(-tau_res / tau_agg);
+        return 1.0 - std::exp(-tau_res / tau_agg);
     }
 
     // Load-weighted mean of per-class combustion fractions
     amrex::Real f_c = (w_d1 * f_d1 + w_d10 * f_d10 + w_d100 * f_d100 + w_lh * f_lh + w_lw * f_lw) / total_w;
-    return amrex::max(0.0_rt, amrex::min(f_c, 1.0_rt));
+    return amrex::max(0.0, amrex::min(f_c, 1.0));
 }
 
 /**
@@ -175,7 +175,7 @@ amrex::Real compute_heat_flux_cell(
     amrex::Real tau_res_s) noexcept
 {
     // Only burned cells contribute to heat flux
-    if (phi >= 0.0_rt) return 0.0_rt;
+    if (phi >= 0.0) return 0.0;
 
     // Heat flux is zero if fuel or combustion is negligible
     if (fuel_load_remain <= 0.0_rt || f_c <= 0.0_rt) {
@@ -183,7 +183,7 @@ amrex::Real compute_heat_flux_cell(
     }
 
     // Guard against zero or negative tau_res
-    if (tau_res_s <= 0.0_rt) return 0.0_rt;
+    if (tau_res_s <= 0.0) return 0.0;
 
     // Q = fuel_load * h_fuel * f_c / tau_res
     amrex::Real Q = fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s;
@@ -214,16 +214,16 @@ amrex::Real deplete_fuel_load(
     amrex::Real dt_fire_s) noexcept
 {
     // Only burned cells deplete fuel
-    if (phi >= 0.0_rt) return fuel_load_remain;
+    if (phi >= 0.0) return fuel_load_remain;
 
     // No depletion if tau_res or dt are invalid
-    if (tau_res_s <= 0.0_rt || dt_fire_s <= 0.0_rt) return fuel_load_remain;
+    if (tau_res_s <= 0.0 || dt_fire_s <= 0.0) return fuel_load_remain;
 
     // Euler: w_new = w_old - w_old * f_c * dt / tau
     amrex::Real delta_w = fuel_load_remain * f_c * (dt_fire_s / tau_res_s);
     amrex::Real w_new = fuel_load_remain - delta_w;
 
-    return amrex::max(0.0_rt, w_new);
+    return amrex::max(0.0, w_new);
 }
 
 /**
@@ -264,7 +264,7 @@ inline void fill_fire_heat_flux(
     using namespace amrex;
 
     // Convert heat content from BTU/lb to J/kg: 1 BTU/lb = 2326 J/kg
-    Real h_fuel_J_per_kg = fp.heat_content * 2326.0_rt;
+    Real h_fuel_J_per_kg = fp.heat_content * 2326.0;
 
     // Compute combustion fraction (called once here, reused for all cells)
     Real f_c = compute_per_class_consumption_frac(

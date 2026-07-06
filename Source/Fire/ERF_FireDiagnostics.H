@@ -43,19 +43,19 @@ amrex::Real compute_fireline_intensity_kW_per_m(
     amrex::Real h_fuel_kJ_per_kg) noexcept
 {
     // Only burned cells contribute to fireline intensity
-    if (phi >= 0.0_rt) return 0.0_rt;
+    if (phi >= 0.0) return 0.0;
 
     // Consumed fuel is the difference between initial and remaining
     amrex::Real w_consumed = fuel_load_initial - fuel_load_remain;
 
     // No intensity if consumed fuel or ROS is negligible
-    if (w_consumed <= 0.0_rt || ros <= 0.0_rt) {
-        return 0.0_rt;
+    if (w_consumed <= 0.0 || ros <= 0.0) {
+        return 0.0;
     }
 
     // I_B = h * w_consumed * ros
     amrex::Real I_B = h_fuel_kJ_per_kg * w_consumed * ros;
-    return amrex::max(0.0_rt, I_B);
+    return amrex::max(0.0, I_B);
 }
 
 /**
@@ -71,11 +71,11 @@ amrex::Real compute_fireline_intensity_kW_per_m(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_flame_length_m(amrex::Real I_B_kW_per_m) noexcept
 {
-    if (I_B_kW_per_m <= 0.0_rt) return 0.0_rt;
+    if (I_B_kW_per_m <= 0.0) return 0.0;
 
     // Thomas (1963): L = 0.0775 * I_B^0.46
-    amrex::Real L = 0.0775_rt * std::pow(I_B_kW_per_m, 0.46_rt);
-    return amrex::max(0.0_rt, L);
+    amrex::Real L = 0.0775 * std::pow(I_B_kW_per_m, 0.46);
+    return amrex::max(0.0, L);
 }
 
 /**
