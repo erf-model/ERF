@@ -2,6 +2,7 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
@@ -135,7 +136,15 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                            plot2d_file_1, plot2d_file_2,
                                                            file_name_digits);
 
-    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
+    const auto output_descriptors =
+        plotfile2d::build_sampled_level_output_descriptors(pp_prefix, which,
+                                                           plot_var_names, solverChoice);
+
+    Vector<std::string> varnames;
+    varnames.reserve(output_descriptors.size());
+    for (const auto& descriptor : output_descriptors) {
+        varnames.push_back(descriptor.name);
+    }
     const int ncomp_mf = static_cast<int>(varnames.size());
 
     if (ncomp_mf == 0) return;
@@ -475,6 +484,28 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // shoc_wthv_sfc
 
+        const int static_output_count = static_cast<int>(plot_var_names.size());
+        for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
+            const auto& descriptor = output_descriptors[out_idx];
+            // Sampled-level descriptors are dynamic. The interpolator owns
+            // their vertical sampling so the writer remains an output
+            // assembly layer.
+            plotfile2d::SampledWindSources wind_sources;
+            wind_sources.xvel = &vars_new[lev][Vars::xvel];
+            wind_sources.yvel = &vars_new[lev][Vars::yvel];
+            wind_sources.zvel = &vars_new[lev][Vars::zvel];
+            plotfile2d::fill_sampled_level_component(
+                mf[lev], mf_comp, descriptor,
+                vars_new[lev][Vars::cons],
+                z_phys_cc[lev].get(),
+                *z_phys_nd[lev],
+                z_phys_cc[lev] != nullptr,
+                solverChoice.moisture_indices,
+                klo, khi,
+                wind_sources);
+            mf_comp++;
+        }
+
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
         }
@@ -490,7 +521,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                 varnames, my_geom, t_new[0], istep, refRatio());
         // Native AMReX 2D plotfiles write a JSON sidecar with catalog
         // metadata for the selected output variables only.
-        plotfile2d::write_2d_metadata_json(plotfilename, varnames);
+        plotfile2d::write_2d_metadata_json(plotfilename, output_descriptors);
         writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_NETCDF

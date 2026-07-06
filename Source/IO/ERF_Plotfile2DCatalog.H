@@ -50,7 +50,8 @@ enum class DiagnosticCategory
     SurfaceFlux,
     PBL,
     SurfaceState,
-    ColumnIntegral
+    ColumnIntegral,
+    SampledLevel
 };
 
 enum class MissingPolicy
