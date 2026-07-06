@@ -3,7 +3,7 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
-#include <AMReEx_ParallelDescriptor.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <fstream>
 #include <string>
 #include <cmath>
@@ -41,24 +41,24 @@ compute_fire_ellipse_axes(amrex::Real area_m2, amrex::Real perimeter_m)
     
     // From Area = π * a * b and Perimeter ≈ π * (a + b)
     // we get: a + b ≈ Perimeter / π and a * b = Area / π
-    Real sum_ab  = perimeter_m / PI;
-    Real prod_ab = area_m2 / PI;
+    amrex::Real sum_ab  = perimeter_m / PI;
+    amrex::Real prod_ab = area_m2 / PI;
     
     if (sum_ab <= 0.0 || prod_ab <= 0.0) {
         return {0.0, 0.0};
     }
     
     // Solve for semi-major and semi-minor axes using quadratic formula
-    Real discriminant = sum_ab * sum_ab - 4.0 * prod_ab;
+    amrex::Real discriminant = sum_ab * sum_ab - 4.0 * prod_ab;
     if (discriminant < 0.0) {
         // No real solution; return a circle approximation
-        Real radius = std::sqrt(area_m2 / PI);
+        amrex::Real radius = std::sqrt(area_m2 / PI);
         return {2.0 * radius, 2.0 * radius};
     }
     
-    Real sqrt_disc = std::sqrt(discriminant);
-    Real semi_a = (sum_ab + sqrt_disc) / 2.0;  // semi-major axis
-    Real semi_b = (sum_ab - sqrt_disc) / 2.0;  // semi-minor axis
+    amrex::Real sqrt_disc = std::sqrt(discriminant);
+    amrex::Real semi_a = (sum_ab + sqrt_disc) / 2.0;  // semi-major axis
+    amrex::Real semi_b = (sum_ab - sqrt_disc) / 2.0;  // semi-minor axis
     
     // Return full axes (2 * semi-axes)
     return {2.0 * semi_a, 2.0 * semi_b};

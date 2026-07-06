@@ -59,10 +59,9 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
-    // IOProcessor creates directories; all ranks barrier before writing.
-    // We bypass WriteMultiLevelPlotfile entirely because it calls
-    // PreBuildDirectorHierarchy with callBarrier=false (races on >1 rank)
-    // and renames existing directories to .old.<pid>.
+    // Step 1: IOProcessor creates directories; all ranks barrier before writing.
+    // Bypasses WriteMultiLevelPlotfile which races on >1 rank and renames
+    // existing directories to .old.<pid>.
     if (ParallelDescriptor::IOProcessor()) {
         if (!amrex::UtilCreateDirectory(plotfilename, 0755)) {
             amrex::CreateDirectoryFailed(plotfilename);
@@ -74,52 +73,31 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     }
     ParallelDescriptor::Barrier();
 
-    // Write MultiFab data (all ranks participate)
+    // Step 2: All ranks write their owned fabs (collective call)
     VisMF::Write(mf, plotfilename + "/Level_0/Cell");
 
-    // Write AMReX Header (IOProcessor only)
+    // Step 3: IOProcessor writes the standard AMReX Header using the same
+    // WriteGenericPlotfileHeader function used by the rest of ERF, so the
+    // format is identical to any other AMReX plotfile and ParaView reads it.
     if (ParallelDescriptor::IOProcessor()) {
         const std::string header_path = plotfilename + "/Header";
-        std::ofstream hfile(header_path, std::ios::out | std::ios::trunc);
+        std::ofstream hfile;
+        hfile.open(header_path.c_str(),
+                   std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
         if (!hfile.good()) { FileOpenFailed(header_path); }
 
-        hfile << "HyperCLaw-V1.1\n";
-        hfile << ncomp << "\n";
-        for (const auto& vn : varnames) { hfile << vn << "\n"; }
-        hfile << "2\n";
-        hfile << std::setprecision(17) << time << "\n";
-        hfile << "0\n";
+        // Use AMReX's canonical header writer — guarantees ParaView compatibility
+        Vector<BoxArray>    ba_vec   = {fg.ba};
+        Vector<std::string> var_vec  = varnames;
+        Vector<Geometry>    geom_vec = {fg.geom};
+        Vector<int>         steps    = {step};
+        Vector<IntVect>     rr       = {};   // no refinement — single level
 
-        const auto* plo  = fg.geom.ProbLo();
-        const auto* phi_h = fg.geom.ProbHi();
-        hfile << plo[0]  << " " << plo[1]  << "\n";
-        hfile << phi_h[0] << " " << phi_h[1] << "\n";
-        hfile << "\n";  // ref ratios — none for single level
-
-        const Box& dom = fg.geom.Domain();
-        hfile << "(" << dom.smallEnd(0) << "," << dom.smallEnd(1) << ",0) "
-              << "(" << dom.bigEnd(0)   << "," << dom.bigEnd(1)   << ",0) "
-              << "(0,0,0)\n";
-        hfile << step << "\n";
-
-        const auto* dx = fg.geom.CellSize();
-        hfile << dx[0] << " " << dx[1] << " 1.0\n";
-        hfile << "0\n";  // Cartesian
-        hfile << "0\n";
-
-        // Level 0 entry
-        hfile << "0 " << fg.ba.size() << " "
-              << std::setprecision(17) << time << "\n";
-        hfile << step << "\n";
-        for (int i = 0; i < fg.ba.size(); ++i) {
-            const Box& b = fg.ba[i];
-            RealBox rb(b, fg.geom.CellSize(), fg.geom.ProbLo());
-            hfile << rb.lo(0) << " " << rb.hi(0) << "\n";
-            hfile << rb.lo(1) << " " << rb.hi(1) << "\n";
-        }
-        hfile << "Level_0/Cell\n";
-
+        WriteGenericPlotfileHeader(hfile, 1, ba_vec, var_vec,
+                                   geom_vec, time, steps, rr);
+        hfile << "Level_0/Cell\n";  // MultiFab path at Level 0
         if (!hfile.good()) { FileOpenFailed(header_path); }
+
         Print() << "[FIRE] Writing fire plotfile " << plotfilename << "\n";
     }
 
