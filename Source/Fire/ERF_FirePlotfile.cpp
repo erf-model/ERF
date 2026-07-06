@@ -17,17 +17,12 @@ using namespace amrex;
 
 static void
 write_fire_metadata_json(const std::string& plotfilename,
-                         Real time,
-                         int step,
-                         int grid_ratio,
-                         int n_vars)
+                         Real time, int step, int grid_ratio, int n_vars)
 {
     if (!ParallelDescriptor::IOProcessor()) { return; }
-
     const std::string filename = plotfilename + "/FireMetadata.json";
     std::ofstream outfile(filename, std::ios::out | std::ios::trunc);
     if (!outfile.good()) { FileOpenFailed(filename); }
-
     outfile << "{\n";
     outfile << "  \"format_version\": 1,\n";
     outfile << "  \"time\": " << std::fixed << std::setprecision(15) << time << ",\n";
@@ -35,7 +30,6 @@ write_fire_metadata_json(const std::string& plotfilename,
     outfile << "  \"grid_ratio\": " << grid_ratio << ",\n";
     outfile << "  \"n_variables\": " << n_vars << "\n";
     outfile << "}\n";
-
     if (!outfile.good()) { FileOpenFailed(filename); }
 }
 
@@ -51,7 +45,6 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     int ncomp = fire_plotfile_ncomp();
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
-
     MultiFab::Copy(mf, *fire_layer.get_levelset(), 0, 0, 1, 0);
     MultiFab::Copy(mf, *fire_layer.get_ros(),      0, 1, 1, 0);
     MultiFab::Copy(mf, *fire_layer.get_wind_eff(), 0, 2, 2, 0);
@@ -61,25 +54,37 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
-    // FIX: pre-build the directory hierarchy with callBarrier=true so that
-    // all ranks synchronize AFTER the IOProcessor creates the directories
-    // and BEFORE any rank tries to write Level_0/Cell_H into them.
-    // Without this barrier, non-IOProcessor ranks race ahead on parallel
-    // builds and fail with "Couldn't open file: .../Level_0/Cell_H".
-    PreBuildDirectorHierarchy(plotfilename, "Level_", 1, true);  // true = barrier
+    // -----------------------------------------------------------------------
+    // Step 1: IOProcessor creates BOTH the top-level plotfile directory AND
+    //         the Level_0 subdirectory, then ALL ranks barrier before writing.
+    // Using WriteSingleLevelPlotfile avoids the internal PreBuildDirectorHierarchy
+    // race inside WriteMultiLevelPlotfile.
+    // -----------------------------------------------------------------------
+    if (ParallelDescriptor::IOProcessor()) {
+        // Create top-level directory
+        if (!amrex::UtilCreateDirectory(plotfilename, 0755)) {
+            amrex::CreateDirectoryFailed(plotfilename);
+        }
+        // Create Level_0 subdirectory
+        const std::string level_dir = plotfilename + "/Level_0";
+        if (!amrex::UtilCreateDirectory(level_dir, 0755)) {
+            amrex::CreateDirectoryFailed(level_dir);
+        }
+    }
+    // All ranks wait until directories exist
+    ParallelDescriptor::Barrier();
 
-    Vector<const MultiFab*> mf_vec    = {&mf};
-    Vector<Geometry>        geom_vec  = {fg.geom};
-    Vector<int>             level_steps = {step};
-    Vector<IntVect>         ref_ratio   = {};
-    WriteMultiLevelPlotfile(plotfilename, 1, mf_vec, varnames,
-                            geom_vec, time, level_steps, ref_ratio);
+    // -----------------------------------------------------------------------
+    // Step 2: Write using WriteSingleLevelPlotfile which does not call
+    //         PreBuildDirectorHierarchy internally (directories already exist).
+    // -----------------------------------------------------------------------
+    WriteSingleLevelPlotfile(plotfilename, mf, varnames, fg.geom, time, step);
 
     if (ParallelDescriptor::IOProcessor()) {
         Print() << "[FIRE] Writing fire plotfile " << plotfilename << "\n";
     }
 
-    // Barrier before JSON write so all ranks are done with VisMF::Write
+    // Barrier before JSON write so all ranks finish VisMF::Write first
     ParallelDescriptor::Barrier();
     write_fire_metadata_json(plotfilename, time, step, fg.C, ncomp);
 }
