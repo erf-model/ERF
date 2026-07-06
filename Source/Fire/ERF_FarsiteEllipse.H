@@ -55,6 +55,7 @@ void advance_farsite_one_step(
     amrex::MultiFab& disp_accum,
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
+    const amrex::MultiFab& arrival_time,
     const amrex::Geometry& geom_fire,
     amrex::Real dt_fire,
     const FarsiteParams& fp)
@@ -101,7 +102,7 @@ void advance_farsite_one_step(
                 return;
             }
 
-            // Outward normal
+            // Outward normal (points toward unburned region)
             Real nx = dphi_dx / grad_mag;
             Real ny = dphi_dy / grad_mag;
 
@@ -209,8 +210,7 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping: copy point arrays to device and use ParallelFor.
-            // This is GPU-safe unlike a direct host-side Array4 write.
+            // Single-cell stamping (default): copy to device, use ParallelFor
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              xarray_all.begin(), xarray_all.end(), d_x.begin());
@@ -224,14 +224,10 @@ void advance_farsite_one_step(
                 const Box& bx = mfi.tilebox();
                 auto p = phi.array(mfi);
 
-                // For each propagated point, mark the containing cell as burned.
-                // Use the validbox bounds to avoid ghost-cell confusion.
                 amrex::ParallelFor(npts, [=] AMREX_GPU_DEVICE (int n) noexcept {
                     Real x = xp[n];
                     Real y = yp[n];
 
-                    // Map propagated point to cell index using rounding
-                    // (matching the reference: std::round((x - prob_lo)/dx - 0.5))
                     int ii = static_cast<int>(std::round((x - prob_lo[0]) / dx[0] - 0.5_rt));
                     int jj = static_cast<int>(std::round((y - prob_lo[1]) / dx[1] - 0.5_rt));
 
@@ -241,7 +237,7 @@ void advance_farsite_one_step(
                 });
             }
         } else {
-            // Gaussian/SDF path — already GPU-safe (unchanged)
+            // Gaussian/SDF stamping path
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
 
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
@@ -288,6 +284,7 @@ int advance_fire_subcycle(
     amrex::MultiFab& disp_accum,
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
+    const amrex::MultiFab& arrival_time,
     const amrex::Geometry& geom_fire,
     amrex::Real dt_atm,
     const FarsiteParams& fp)
