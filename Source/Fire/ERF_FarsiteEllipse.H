@@ -230,8 +230,10 @@ void advance_farsite_one_step(
                     Real x = xp[n];
                     Real y = yp[n];
 
-                    int ii = static_cast<int>((x - prob_lo[0]) * dxi);
-                    int jj = static_cast<int>((y - prob_lo[1]) * dyi);
+                    // Map propagated point to cell index using rounding
+                    // (matching the reference: std::round((x - prob_lo)/dx - 0.5))
+                    int ii = static_cast<int>(std::round((x - prob_lo[0]) / dx[0] - 0.5_rt));
+                    int jj = static_cast<int>(std::round((y - prob_lo[1]) / dx[1] - 0.5_rt));
 
                     if (bx.contains(amrex::IntVect(ii, jj, 0))) {
                         p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
