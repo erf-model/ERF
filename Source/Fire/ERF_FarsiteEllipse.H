@@ -180,9 +180,10 @@ void advance_farsite_one_step(
     std::vector<int> displs(ParallelDescriptor::NProcs() + 1, 0);
     for (int r = 0; r < ParallelDescriptor::NProcs(); ++r)
         displs[r+1] = displs[r] + npts_all[r];
-    int npts_global = displs[ParallelDescriptor::NProcs()];
+    int npts_global = displs[nranks];
 
     std::vector<Real> xarray_all(npts_global), yarray_all(npts_global);
+
 #ifdef AMREX_USE_MPI
     MPI_Allgatherv(xarray.data(), npts_local,
                    ParallelDescriptor::Mpi_typemap<Real>::type(),
@@ -212,7 +213,6 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              xarray_all.begin(), xarray_all.end(), d_x.begin());
@@ -236,7 +236,6 @@ void advance_farsite_one_step(
                 });
             }
         } else {
-            // Gaussian/SDF stamping
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
             const Real* x_ptr = xarray_all.data();
             const Real* y_ptr = yarray_all.data();
