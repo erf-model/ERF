@@ -306,11 +306,45 @@ Output and Visualization
 
 Fire simulation results are written to plotfiles for visualization and analysis:
 
-- **Level-set field** (phi): Shows burned area (negative), unburned fuel (positive), and fire front location
+- **Level-set/phi field**: Shows the current fire front position (phi < 0 indicates recent burn)
 - **Rate of spread** (fire_ros): Spatial distribution of fire spread rates
 - **Wind fields** (fire_wind_ref, fire_wind_eff): Reference and effective wind components
 - **Fuel properties** (fire_fuel_load, fire_fuel_mc): Fuel load and moisture content
 - **Terrain data** (fire_slopes, fire_curvature): Elevation derivatives
+- **Arrival time** (fire_arrival_time): Cumulative burned region tracker (arrival_time >= 0 indicates burned area)
+
+Fire Statistics CSV Output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When enabled (default), the fire model writes burned area and fire perimeter statistics to a CSV file each timestep. This file contains:
+
+- **Time series data**: step, time [s], burned area [ha], perimeter [km]
+- **Active front metrics**: active cells, head rate of spread [m/s]
+- **Fire geometry**: major and minor axes of fire ellipse [m]
+
+Configure with:
+
+.. code-block:: text
+
+   erf.fire.write_fire_stats_csv = true          # Enable CSV output (default: true)
+   erf.fire.fire_stats_csv_file = "fire_stats.csv"  # Output filename
+
+Animation Visualization
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+A Python script is provided to generate animated GIF visualizations of fire spread evolution:
+
+.. code-block:: bash
+
+   python3 plot_fire_animation.py [--csv-file FILE] [--output FILE] [--fps FPS]
+
+This creates a multi-panel animation showing:
+   - Fire ellipse extent evolution
+   - Cumulative burned area time series
+   - Fire perimeter growth
+   - Head rate of spread temporal evolution
+
+See ``Exec/CanonicalTests/Fire/ANIMATION_GUIDE.md`` for detailed usage instructions.
 
 These variables enable quantitative analysis of fire behavior and validation against observational data.
 
