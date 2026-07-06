@@ -442,10 +442,21 @@ NOAHMP::Advance_With_State (const int& lev,
             //       so the surface layer can average them.
             Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
             if (hfx_lsm > Real(-9990.0)) {
-                t_flux_arr(i,j,k) = hfx_lsm/(CONS(ii,jj,k,Rho_comp)*Cp_d);
-                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
-                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
-                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+                // Convert Noah-MP surface fluxes to the DENSITY-WEIGHTED form that
+                // ERF's surface layer / diffusion operators expect (the LSM value is
+                // interchanged with the MOST value rho*<x'w'> in the same array, and
+                // the diffusion flux is rho*alpha*d/dz). Do NOT divide by rho.
+                //   HFX,LH  [W/m2];  TAU_EW/NS  [N/m2] (rho already included by Noah-MP).
+                // Heat additionally needs the Exner factor to become a POTENTIAL-
+                // temperature flux (ERF's energy var is RhoTheta): theta-flux =
+                // T-flux * (p0/p)^(Rd/Cp).  rho here is dry-air density (~1.14 kg/m3).
+                Real qv_l   = (is_moist) ? CONS(ii,jj,k,RhoQ1_comp)/CONS(ii,jj,k,Rho_comp) : zero;
+                Real p_l    = getPgivenRTh(CONS(ii,jj,k,RhoTheta_comp), qv_l);
+                Real exner  = std::pow(p_0/p_l, R_d/Cp_d);
+                t_flux_arr(i,j,k) = (hfx_lsm/Cp_d) * exner;
+                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/L_v;
+                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew);
+                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns);
             } else {
                 t_flux_arr(i,j,k) = lsm_flux_undefined;
                 q_flux_arr(i,j,k) = lsm_flux_undefined;
