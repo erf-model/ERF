@@ -15,12 +15,12 @@ void ERF::advance_lsm (int lev,
         yvel_in.FillBoundary(geom[lev].periodicity());
 
         lsm.Update_Lsm_Vars_Lev(lev, cons_in, xvel_in, yvel_in);
-        const bool use_moist = solverChoice.moisture_type != MoistureType::None && solverChoice.moisture_type != MoistureType::Kessler_NoRain && solverChoice.moisture_type != MoistureType::SatAdj;
+        const bool use_moist = solverChoice.moisture_type != MoistureType::None && solverChoice.moisture_type != MoistureType::Kessler_NoRain && solverChoice.moisture_type != MoistureType::SatAdj && solverChoice.moisture_type != MoistureType::MoistNoCondensation;
         int rain_comp = 0;
         if (use_moist) {
-            if (solverChoice.moisture_type == MoistureType::Morrison || solverChoice.moisture_type == MoistureType::Morrison_NoIce)
+            if (solverChoice.moisture_type == MoistureType::Morrison || solverChoice.moisture_type == MoistureType::Morrison_NoIce || solverChoice.moisture_type == MoistureType::WSM6)
             {
-                rain_comp = 5;
+                rain_comp = RhoQ4_comp;
             }
 
             // qmoist[0] is total rain accumulation in mm over entire simulation
