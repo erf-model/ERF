@@ -14,12 +14,9 @@ void FireLayer::initialize(const ERF& erf,
                             const FireParams& fire_params)
 {
     m_params = fire_params;
-
     verify_fire_prerequisites(erf, surface_layer_ptr, fire_params);
-
     m_fg = create_fire_grid(erf.boxArray(0), erf.DistributionMap(0),
                             erf.Geom(0), fire_params.grid_ratio);
-
     m_nz = erf.Geom(0).Domain().length(2);
 
     // Allocate MultiFabs (fire_phi needs 1 ghost cell for gradient stencils)
@@ -48,8 +45,7 @@ void FireLayer::initialize(const ERF& erf,
 
     // Fuel load
     FuelModelParams fp = get_anderson_fuel_params(fire_params.fuel_model_id);
-    Real fuel_load_lb_ft2 = fp.w_d1 + fp.w_d10 + fp.w_d100 + fp.w_lh + fp.w_lw;
-    fire_fuel_load->setVal(fuel_load_lb_ft2 * 4.88243);
+    fire_fuel_load->setVal((fp.w_d1+fp.w_d10+fp.w_d100+fp.w_lh+fp.w_lw)*4.88243);
     m_fuel_bed_depth_ft = fp.delta;
 
     // Fuel moisture
@@ -57,9 +53,9 @@ void FireLayer::initialize(const ERF& erf,
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
         Array4<Real> mc = fire_fuel_mc->array(mfi);
         amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            mc(iv, 0) = fire_params.moisture_1hr;
-            mc(iv, 1) = fire_params.moisture_10hr;
-            mc(iv, 2) = fire_params.moisture_100hr;
+            mc(iv,0) = fire_params.moisture_1hr;
+            mc(iv,1) = fire_params.moisture_10hr;
+            mc(iv,2) = fire_params.moisture_100hr;
         });
     }
 
@@ -105,10 +101,9 @@ void FireLayer::initialize(const ERF& erf,
                                     fire_params.moisture_10hr,
                                     fire_params.moisture_100hr);
 
-    amrex::Print() << "[FIRE] FireLayer initialized: "
-                   << "C=" << m_fg.C << ", "
-                   << "fuel_model=" << fire_params.fuel_model_id << ", "
-                   << "grid=" << m_fg.ba.size() << " boxes" << std::endl;
+    amrex::Print() << "[FIRE] FireLayer initialized: C=" << m_fg.C
+                   << ", fuel_model=" << fire_params.fuel_model_id
+                   << ", grid=" << m_fg.ba.size() << " boxes" << std::endl;
 
     if (m_params.fire_debug) {
         IntVect max_extent  = m_fg.geom.Domain().size();
@@ -123,11 +118,9 @@ void FireLayer::initialize(const ERF& erf,
 }
 
 void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
-                        const MultiFab& xvel,
-                        const MultiFab& yvel,
+                        const MultiFab& xvel, const MultiFab& yvel,
                         const MultiFab& z_phys_cc,
-                        const MultiFab& T_atm_k0,
-                        const MultiFab& RH_atm_k0)
+                        const MultiFab& T_atm_k0, const MultiFab& RH_atm_k0)
 {
     m_current_time = time;
     m_dt_atm       = dt;
@@ -200,6 +193,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     // A cell is only stamped when accum magnitude >= 0.5 * dx_fire.
     int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                            *fire_disp_accum,
+                                           *fire_arrival_time,   // now mutable
                                            *fire_wind_eff, *fire_ros,
                                            m_fg.geom, dt, m_fp);
 
@@ -259,14 +253,10 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 void FireLayer::apply_waf_to_wind()
 {
     Real waf = 0.4_rt;
-    if (m_params.waf_formula == "andrews") {
-        waf = compute_waf_unsheltered(m_fuel_bed_depth_ft);
-    } else if (m_params.waf_formula == "behaviorplus") {
-        waf = compute_waf_behaviorplus(m_fuel_bed_depth_ft);
-    } else {
-        amrex::Print() << "[FIRE WARNING] Unknown waf_formula='" << m_params.waf_formula
-                       << "'. Using default WAF=" << waf << std::endl;
-    }
+    if      (m_params.waf_formula == "andrews")      waf = compute_waf_unsheltered(m_fuel_bed_depth_ft);
+    else if (m_params.waf_formula == "behaviorplus")  waf = compute_waf_behaviorplus(m_fuel_bed_depth_ft);
+    else amrex::Print() << "[FIRE WARNING] Unknown waf_formula='" << m_params.waf_formula
+                        << "'. Using default WAF=" << waf << std::endl;
     fire_wind_eff->mult(waf, 0, 2, 0);
 }
 

@@ -53,11 +53,12 @@ void advance_farsite_one_step(
     amrex::MultiFab& phi,
     amrex::MultiFab& farsite_work,
     amrex::MultiFab& disp_accum,
+    amrex::MultiFab& arrival_time,       // now NON-CONST: updated after stamping
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
-    const amrex::MultiFab& arrival_time,
     const amrex::Geometry& geom_fire,
     amrex::Real dt_fire,
+    amrex::Real current_time,            // simulation time for arrival_time stamp
     const FarsiteParams& fp)
 {
     using namespace amrex;
@@ -73,8 +74,6 @@ void advance_farsite_one_step(
     // Using min(dx,dy) ensures we stamp before skipping a cell.
     const Real stamp_threshold = amrex::min(dx[0], dx[1]);
 
-    // Clear farsite_work — only cells that cross the threshold this step
-    // will write nonzero values into it.
     farsite_work.setVal(0.0_rt);
 
     // -------------------------------------------------------------------------
@@ -87,11 +86,11 @@ void advance_farsite_one_step(
         auto accum_arr  = disp_accum.array(mfi);
         auto vel_arr    = vel_eff.const_array(mfi);
         auto ros_arr    = R_mf.const_array(mfi);
+        auto at_arr     = arrival_time.const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
         {
             int i = iv[0], j = iv[1], k = iv[2];
-            Real phi_val = phi_arr(iv);
 
             // Only process cells on or inside the fire front
             if (phi_val > fp.phi_threshold) {
@@ -111,11 +110,9 @@ void advance_farsite_one_step(
                 return;
             }
 
-            // Outward normal
             Real nx = dphi_dx / grad_mag;
             Real ny = dphi_dy / grad_mag;
 
-            // Wind
             Real ux = vel_arr(iv, 0);
             Real uy = vel_arr(iv, 1);
             Real wind_mag = std::sqrt(ux*ux + uy*uy);
@@ -174,8 +171,6 @@ void advance_farsite_one_step(
                         accum_arr(i, j, k, 1) = 0.0_rt;
                     }
                 }
-            }
-        }
     }
 
     // MPI gather
@@ -189,7 +184,6 @@ void advance_farsite_one_step(
     int npts_global = displs[ParallelDescriptor::NProcs()];
 
     std::vector<Real> xarray_all(npts_global), yarray_all(npts_global);
-
 #ifdef AMREX_USE_MPI
     MPI_Allgatherv(xarray.data(), npts_local,
                    ParallelDescriptor::Mpi_typemap<Real>::type(),
@@ -219,7 +213,6 @@ void advance_farsite_one_step(
         int npts = npts_global;
 
         if (fp.gaussian_sigma < 0.0) {
-            // Single-cell stamping
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              xarray_all.begin(), xarray_all.end(), d_x.begin());
@@ -233,33 +226,50 @@ void advance_farsite_one_step(
                 const Box& bx = mfi.tilebox();
                 auto p = phi.array(mfi);
                 amrex::ParallelFor(npts, [=] AMREX_GPU_DEVICE (int n) noexcept {
-                    int ii = static_cast<int>(std::round((xp[n] - prob_lo[0]) / dx[0] - 0.5_rt));
-                    int jj = static_cast<int>(std::round((yp[n] - prob_lo[1]) / dx[1] - 0.5_rt));
+                    int ii = static_cast<int>(
+                        std::round((xp[n] - prob_lo[0]) / dx[0] - 0.5_rt));
+                    int jj = static_cast<int>(
+                        std::round((yp[n] - prob_lo[1]) / dx[1] - 0.5_rt));
                     if (bx.contains(amrex::IntVect(ii, jj, 0))) {
                         p(ii, jj, 0) = amrex::min(p(ii, jj, 0), -1.0_rt);
                     }
                 });
             }
         } else {
-            // Gaussian/SDF stamping
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
             const Real* x_ptr = xarray_all.data();
             const Real* y_ptr = yarray_all.data();
             int npts = npts_global;
-
             for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.validbox();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
-                    Real x_cell = prob_lo[0] + (iv[0] + 0.5) * dx[0];
-                    Real y_cell = prob_lo[1] + (iv[1] + 0.5) * dx[1];
+                    Real xc = prob_lo[0] + (iv[0]+0.5)*dx[0];
+                    Real yc = prob_lo[1] + (iv[1]+0.5)*dx[1];
                     for (int n = 0; n < npts; ++n) {
-                        Real dist = std::sqrt((x_cell-x_ptr[n])*(x_cell-x_ptr[n])
-                                            + (y_cell-y_ptr[n])*(y_cell-y_ptr[n]));
-                        p(iv) = amrex::min(p(iv), amrex::max(dist - sigma, -1.0_rt));
+                        Real dist = std::sqrt((xc-x_ptr[n])*(xc-x_ptr[n])
+                                           + (yc-y_ptr[n])*(yc-y_ptr[n]));
+                        p(iv) = amrex::min(p(iv), amrex::max(dist-sigma,-1.0_rt));
                     }
                 });
             }
+        }
+    }
+
+    // Step D: KEY FIX — record arrival time for newly burned cells immediately
+    // so that the next substep's Step B can restore them.
+    // Without this, cells stamped this substep have arrival_time < 0 and are
+    // reset to phi=0 (unburned) at the start of the next substep.
+    {
+        const Real t_now = current_time;
+        for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
+            auto p  = phi.const_array(mfi);
+            auto at = arrival_time.array(mfi);
+            amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
+                if (p(iv) < 0.0_rt && at(iv) < 0.0_rt) {
+                    at(iv) = t_now;
+                }
+            });
         }
     }
 }
@@ -282,11 +292,12 @@ int advance_fire_subcycle(
     amrex::MultiFab& phi,
     amrex::MultiFab& farsite_work,
     amrex::MultiFab& disp_accum,
+    amrex::MultiFab& arrival_time,       // non-const: updated each substep
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
-    const amrex::MultiFab& arrival_time,
     const amrex::Geometry& geom_fire,
     amrex::Real dt_atm,
+    amrex::Real current_time,
     const FarsiteParams& fp)
 {
     amrex::Real time_remaining = dt_atm;
