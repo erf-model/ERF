@@ -275,21 +275,26 @@ NOAHMP::Advance_With_State (const int& lev,
         if (int(m_snow_accum_prev.size()) <= lev) { m_snow_accum_prev.resize(lev+1); }
         if (int(m_graup_accum_prev.size()) <= lev) { m_graup_accum_prev.resize(lev+1); }
         if (m_rain_accum_prev[lev] == nullptr) {
+            // NOTE: allocate with ZERO ghost cells and setVal(0) first so no cell is
+            // ever uninitialized (an uninitialized prev-snapshot produced garbage
+            // ~1e25 deltas -> Noah-MP water-balance abort). We only ever read the
+            // valid region (surface slab), so 0 ghost cells is sufficient and avoids
+            // any ghost/nGrow mismatch in the Copy.
             m_rain_accum_prev[lev] = std::make_unique<MultiFab>(
-                rain_accum_in->boxArray(), rain_accum_in->DistributionMap(),
-                1, rain_accum_in->nGrowVect());
-            MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1, rain_accum_in->nGrowVect());
+                rain_accum_in->boxArray(), rain_accum_in->DistributionMap(), 1, 0);
+            m_rain_accum_prev[lev]->setVal(0.0);
+            MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1, 0);
             if (snow_accum_in) {
                 m_snow_accum_prev[lev] = std::make_unique<MultiFab>(
-                    snow_accum_in->boxArray(), snow_accum_in->DistributionMap(),
-                    1, snow_accum_in->nGrowVect());
-                MultiFab::Copy(*m_snow_accum_prev[lev], *snow_accum_in, 0, 0, 1, snow_accum_in->nGrowVect());
+                    snow_accum_in->boxArray(), snow_accum_in->DistributionMap(), 1, 0);
+                m_snow_accum_prev[lev]->setVal(0.0);
+                MultiFab::Copy(*m_snow_accum_prev[lev], *snow_accum_in, 0, 0, 1, 0);
             }
             if (graup_accum_in) {
                 m_graup_accum_prev[lev] = std::make_unique<MultiFab>(
-                    graup_accum_in->boxArray(), graup_accum_in->DistributionMap(),
-                    1, graup_accum_in->nGrowVect());
-                MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1, graup_accum_in->nGrowVect());
+                    graup_accum_in->boxArray(), graup_accum_in->DistributionMap(), 1, 0);
+                m_graup_accum_prev[lev]->setVal(0.0);
+                MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1, 0);
             }
         }
     }
@@ -377,6 +382,11 @@ NOAHMP::Advance_With_State (const int& lev,
             Real drain = zero, sr = zero;
             if (hp) {
                 drain = amrex::max(zero, rain_now(i,j,kklo) - rain_prv(i,j,kklo));
+                // Physical guard: precip accumulated over one land interval cannot
+                // exceed a sane ceiling. Protects Noah-MP's water-balance check from
+                // any corrupt prev-snapshot delta (belt-and-suspenders with the
+                // zero-init above). 500 mm/interval is far above any real 10-min rate.
+                drain = amrex::min(drain, Real(500.0));
                 Real dfroz = zero;
                 if (has_snow)  { dfroz += amrex::max(zero, snow_now (i,j,kklo) - snow_prv (i,j,kklo)); }
                 if (has_graup) { dfroz += amrex::max(zero, graup_now(i,j,kklo) - graup_prv(i,j,kklo)); }
@@ -479,16 +489,9 @@ NOAHMP::Advance_With_State (const int& lev,
     // differences against this step. Device-safe whole-MultiFab copy (these live in
     // the device arena; never touch them on the host).
     if (have_precip) {
-        MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1,
-                       m_rain_accum_prev[lev]->nGrowVect());
-        if (snow_accum_in) {
-            MultiFab::Copy(*m_snow_accum_prev[lev], *snow_accum_in, 0, 0, 1,
-                           m_snow_accum_prev[lev]->nGrowVect());
-        }
-        if (graup_accum_in) {
-            MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1,
-                           m_graup_accum_prev[lev]->nGrowVect());
-        }
+        MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1, 0);
+        if (snow_accum_in)  { MultiFab::Copy(*m_snow_accum_prev[lev],  *snow_accum_in,  0, 0, 1, 0); }
+        if (graup_accum_in) { MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1, 0); }
     }
 
     // Fill the ghost cells
