@@ -104,6 +104,15 @@ public:
     }
 
     /**
+     * @brief Get mutable fuel load field for checkpoint restart.
+     * @return Mutable pointer to fire_fuel_load MultiFab.
+     */
+    amrex::MultiFab* get_fuel_load_mut()
+    {
+        return fire_fuel_load.get();
+    }
+
+    /**
      * @brief Get fire geometry for plotfile output.
      * @return Const reference to the fire grid geometry.
      */

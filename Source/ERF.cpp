@@ -1281,6 +1281,11 @@ ERF::InitData_post ()
                             "[FIRE] Fire initialization failed: no cells were marked as burned. "
                             "Check ignition parameters (ignition_x, ignition_y, ignition_r).");
                     }
+                    
+                    // Restore fire state from checkpoint if restarting
+                    if (restart_chkfile != "") {
+                        ReadCheckpointFileFire();
+                    }
                 }
 #endif
 

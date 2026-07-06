@@ -458,6 +458,13 @@ ERF::WriteCheckpointFile () const
             amrex::Print() << "Writing fire ROS to checkpoint" << std::endl;
             VisMF::Write(*ros, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireROS"));
         }
+        if (const amrex::MultiFab* fuel = m_fire_layer->get_fuel_load()) {
+            amrex::Print() << "Writing fire fuel load to checkpoint" << std::endl;
+            VisMF::Write(*fuel, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireFuelLoad"));
+        }
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            amrex::Print() << "[FIRE] Fire state written to checkpoint " << checkpointname << "\n";
+        }
     }
 #endif
 
@@ -1306,4 +1313,34 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         // Z0
         read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
     }
+}
+
+/**
+ * ERF function for reading fire state from a checkpoint file during restart.
+ *
+ * This is called after FireLayer::initialize() to restore the fire simulation
+ * state (level-set, arrival time, and fuel load).
+ */
+void
+ERF::ReadCheckpointFileFire ()
+{
+    if (!m_fire_layer) { return; }
+
+    std::string FirePhiFile(restart_chkfile + "/Level_0/FirePhi_H");
+    if (!amrex::FileExists(FirePhiFile)) {
+        amrex::Print() << "[FIRE] No fire state found in checkpoint; using ignition defaults.\n";
+        return;
+    }
+
+    amrex::Print() << "[FIRE] Restoring fire state from checkpoint " << restart_chkfile << "\n";
+
+    VisMF::Read(*m_fire_layer->get_levelset_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FirePhi"));
+    m_fire_layer->get_levelset_mut()->FillBoundary(m_fire_layer->get_fire_geom().periodicity());
+
+    VisMF::Read(*m_fire_layer->get_arrival_time_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireArrivalTime"));
+
+    VisMF::Read(*m_fire_layer->get_fuel_load_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireFuelLoad"));
 }

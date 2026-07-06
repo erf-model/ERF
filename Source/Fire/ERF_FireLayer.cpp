@@ -366,6 +366,12 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
         tau_res_s = amrex::max(tau_res_s, tau_sav);
     }
 
+    if (m_params.fire_debug) {
+        amrex::Print() << "[FIRE DEBUG] tau_res_s=" << tau_res_s
+                       << " s  (dx_fire=" << m_fg.geom.CellSize(0)
+                       << " m, max_ROS=" << fire_ros->max(0) << " m/s)" << std::endl;
+    }
+
     // Fill heat flux and deplete fuel load
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
                         *fire_phi, fp, tau_res_s, dt_fire_s);
