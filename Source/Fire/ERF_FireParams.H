@@ -54,6 +54,10 @@ struct FireParams
 
     // Terrain file for fine-grid terrain data
     std::string       terrain_file_name       = "";   ///< Path to terrain file for fine-grid interpolation
+    
+    // CSV output for fire statistics (burned area, perimeter, etc.)
+    bool              write_fire_stats_csv    = true; ///< Write burned area and perimeter CSV
+    std::string       fire_stats_csv_file     = "fire_stats.csv"; ///< Fire statistics output filename
 
     /**
      * @brief Construct FireParams from ParmParse
@@ -103,6 +107,10 @@ struct FireParams
        // Terrain file
        amrex::ParmParse pp_erf("erf");
        pp_erf.query("terrain_file_name", terrain_file_name);
+        
+       // CSV output parameters
+       pp.query("write_fire_stats_csv", write_fire_stats_csv);
+       pp.query("fire_stats_csv_file", fire_stats_csv_file);
     }
 };
 

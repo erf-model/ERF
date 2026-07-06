@@ -10,7 +10,7 @@ Fire Model
 Overview
 --------
 
-The fire model in ERF simulates wildfire propagation using a coupled approach combining the Rothermel fire spread model with the FARSITE elliptical fire expansion algorithm. The implementation uses a level-set method to track the fire front interface, allowing for accurate representation of fire behavior in complex terrain.
+The fire model in ERF simulates wildfire propagation using a coupled approach combining the Rothermel fire spread model with the FARSITE elliptical fire expansion algorithm. The implementation uses Lagrangian perimeter tracking with an arrival-time field to accurately represent the fire front and cumulative burned area, allowing for accurate representation of fire behavior in complex terrain.
 
 The fire model operates on a refined grid with adaptive mesh refinement to capture the dynamics of fire spread at appropriate spatial scales. Fire state is advanced each atmospheric timestep, with communications between atmospheric and fire solvers handled through interpolation and mapping functions.
 
@@ -45,16 +45,21 @@ References:
 - Finney, M. A. (2004). FARSITE: Fire Area Simulator model development and evaluation. Res. Paper RMRS-RP-4 Revised, USDA Forest Service, Rocky Mountain Research Station.
 - Richards, G.D. (1990). An elliptical growth model of forest fire fronts and its numerical solution. Int. J. Numer. Meth. Eng. 30(6):1163-1179.
 
-Level-Set Propagation
-~~~~~~~~~~~~~~~~~~~~~~
+Level-Set and Arrival-Time Representation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The fire front is tracked using a level-set method where the signed-distance function :math:`\phi` represents the fire front location:
+The fire front is tracked using a combination of a phi field and an arrival-time field:
 
-- :math:`\phi < 0`: Burned region (inside fire)
-- :math:`\phi > 0`: Unburned fuel (outside fire)  
-- :math:`\phi \approx 0`: Fire front interface
+- **phi field**: Stores the current fire front position after each timestep. After propagation:
+  - phi < 0: Recent fire front ring (current timestep)
+  - phi ≈ 0: Unburned fuel (reset each timestep)
+  
+- **arrival_time field**: Accumulates the cumulative burned region across all timesteps:
+  - arrival_time >= 0: Cells that have been ignited (burned area)
+  - arrival_time < 0: Cells not yet burned
+  - arrival_time value: Time at which the cell was burned
 
-The level-set field is advanced by computing spread vectors at each grid point based on the local rate of spread, elliptical orientation, and elevation. A two-pass algorithm handles GPU computation of spread vectors followed by host-side MPI gather operations for distributed computing.
+The fire front propagation works through displacement accumulation: at each grid point near the active fire front, displacement vectors are computed based on the local rate of spread and wind-derived elliptical fire shape. When accumulated displacement reaches a cell threshold, the burned cell position is stamped into a global perimeter list. These positions are then gathered across MPI ranks and used to update phi and arrival_time fields, with arrival_time marking the cumulative burned region.
 
 Wind and Terrain Effects
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -147,7 +152,7 @@ Core Classes
 
 **Ignition** (ERF_FireIgnition.H)
    - Initializes fire front at specified location and time
-   - Sets up initial level-set field
+   - Sets up initial fire phi field
 
 **Plotfile Output** (ERF_FirePlotfile.H, ERF_FirePlotfile.cpp)
    - Writes fire state variables to plotfiles
@@ -234,7 +239,7 @@ Debugging
 
    erf.fire.fire_debug = false           # Enable debug output for fire calculations
 
-When enabled, debug messages provide information about wind extraction, wind adjustment factor application, terrain corrections, rate-of-spread calculations, and level-set propagation.
+When enabled, debug messages provide information about wind extraction, wind adjustment factor application, terrain corrections, rate-of-spread calculations, and fire front propagation.
 
 Development Phases
 ------------------
@@ -255,13 +260,14 @@ The fire model has been developed in phases to progressively implement functiona
    - Wind Adjustment Factor application
    - Terrain slope computation
 
-**Phase 3: Level-Set Propagation**
-   - Level-set field initialization
-   - FARSITE elliptical propagation kernel
-   - Anderson L/W ratio computation
-   - Two-pass GPU/MPI propagation
-   - CFL-limited subcycling
+**Phase 3: Lagrangian Perimeter Propagation**
+   - Fire front displacement accumulation
+   - Perimeter point stamping and MPI gather
+   - Arrival-time field management for cumulative burned region
+   - Two-pass propagation: GPU spread vectors, host MPI gather
    - Single-cell and Gaussian stamping modes
+   - CFL-limited fire subcycling
+   - Phase 3 regression test
 
 Testing
 -------
@@ -277,7 +283,7 @@ Regression tests verify fire model functionality at different development stages
 **Phase 3 Regression Test** (inputs_fire_phase3)
    - Flat domain with GR1 fuel model
    - 5 m/s wind, 8% fuel moisture
-   - Verifies level-set propagation and FARSITE elliptical expansion
+   - Verifies fire front propagation and FARSITE elliptical expansion
    - Test checks:
       - Fire front propagation (phi_min < 0 at t > 0)
       - Subcycle count verification

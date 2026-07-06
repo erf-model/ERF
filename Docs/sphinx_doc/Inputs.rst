@@ -2244,7 +2244,7 @@ List of Parameters
 Fire Model
 ==========
 
-The fire model simulates wildfire propagation using the Rothermel fire spread model combined with the FARSITE elliptical fire expansion algorithm. Additional details are available in :ref:`sec:Fire`.
+The fire model simulates wildfire propagation using the Rothermel fire spread model combined with the FARSITE elliptical fire expansion algorithm. Fire front tracking uses Lagrangian perimeter propagation with cumulative arrival-time field for burned area representation. Additional details are available in :ref:`sec:Fire`.
 
 Basic Configuration
 -------------------
@@ -2343,6 +2343,29 @@ Debugging
 +===========================+===================================+=====================+==========+
 | **erf.fire.fire_debug**   | Enable debug output               | true / false        | false    |
 +---------------------------+-----------------------------------+---------------------+----------+
+
+CSV Output
+----------
+
++--------------------------------+-----------------------------------+---------------------+----------+
+| Parameter                      | Definition                        | Acceptable Values   | Default  |
++================================+===================================+=====================+==========+
+| **erf.fire.write_fire_stats_csv** | Write burned area and perimeter  | true / false        | true     |
+|                                |  statistics to CSV file           |                     |          |
++--------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.fire_stats_csv_file**  | CSV output filename               | String (path)       |"fire_    |
+|                                |                                   |                     |stats.csv"|
++--------------------------------+-----------------------------------+---------------------+----------+
+
+The fire statistics CSV file contains time series data including:
+   - **step**: Simulation step number
+   - **time_s**: Simulation time [s]
+   - **burned_area_ha**: Cumulative burned area [hectares]
+   - **perimeter_km**: Active fire perimeter [km]
+   - **active_front_cells**: Number of cells at fire front
+   - **head_ros_ms**: Maximum rate of spread (head fire) [m/s]
+   - **major_axis_m**: Fire ellipse major axis [m]
+   - **minor_axis_m**: Fire ellipse minor axis [m]
 
 Ensemble Initialization
 =======================

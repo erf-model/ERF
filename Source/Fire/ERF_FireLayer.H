@@ -11,6 +11,7 @@
 #include <ERF_FireIgnition.H>
 #include <ERF_FuelMoisture.H>
 #include <ERF_MoistureExtinction.H>
+#include <ERF_FireStatsOutput.H>
 
 // Forward declarations
 class SurfaceLayer;

@@ -124,6 +124,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 {
     m_current_time = time;
     m_dt_atm       = dt;
+    ++m_step;  // Increment step counter
 
     if (m_params.fire_debug)
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
@@ -247,6 +248,18 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                    << "  max_ROS=" << fire_ros->max(0) << " m/s"
                    << "  mean_ROS=" << fire_ros->sum(0)/fire_ros->boxArray().numPts()
                    << " m/s" << std::endl;
+    
+    // Write fire statistics to CSV if enabled
+    if (m_params.write_fire_stats_csv) {
+        static bool csv_header_written = false;
+        if (!csv_header_written) {
+            write_fire_stats_header(m_params.fire_stats_csv_file);
+            csv_header_written = true;
+        }
+        append_fire_stats(*fire_phi, *fire_arrival_time, m_fg.geom,
+                         m_step, m_current_time, m_params.fire_stats_csv_file,
+                         fire_ros.get());
+    }
 }
 
 
