@@ -107,6 +107,18 @@ Vertical grid stretching regression test:
 - **Expected ROS**: 0.1-1.0 m/s
 - **Purpose**: Verify wind extraction and ROS computation with stretched grids
 
+#### inputs_fire_phase5
+Phase 5 test case with heat flux and diagnostics:
+- FM1 (Short Grass) fuel
+- 5 m/s nominal wind
+- 8% fuel moisture
+- Heat flux computation via Albini exponential burnout model
+- Fuel load depletion via forward Euler
+- Byram fireline intensity and Thomas flame length diagnostics
+- CSV output with max heat flux tracking
+- **Expected outputs**: fire_heat_flux > 0 in burned cells, fuel_load decreasing, flame length consistent with Byram
+- **Purpose**: Regression test for heat flux, fuel depletion, fireline intensity, and flame length
+
 ## Test Summary Table
 
 | Test Name | Type | Fuel | Wind | Purpose | Command |
@@ -116,6 +128,7 @@ Vertical grid stretching regression test:
 | test_rothermel_ros.py | Integration | FM1 | Uniform | ERF ROS magnitude check | `python3 test_rothermel_ros.py --erf_exe ./erf --input_file inputs_fire_flat_uniform` |
 | inputs_fire_flat_uniform | Regression | FM1 | 5 m/s | Flat uniform mesh fire spread | `./erf inputs_fire_flat_uniform` |
 | inputs_fire_vertical_refinement | Regression | FM1 | 5 m/s | Stretched vertical grid fire spread | `./erf inputs_fire_vertical_refinement` |
+| inputs_fire_phase5 | Regression | FM1 | 5 m/s | Heat flux and diagnostics | `./erf inputs_fire_phase5` |
 | inputs_fire_dummy | Smoke | FM1 | Dummy | Initialization and basic calls | `./erf inputs_fire_dummy` |
 
 ## Output Variables
@@ -127,6 +140,12 @@ All fire test cases output 2D fire-specific variables at each time step:
 - `fire_wind_ref`: Reference height wind (6.1 m) [m/s]
 - `fire_slopes`: Terrain slope components (dz/dx, dz/dy)
 - `fire_fuel_mc`: Fuel moisture content (1hr, 10hr, 100hr)
+
+Phase 5 additionally outputs:
+- `fire_heat_flux`: Sensible heat flux [W/m²]
+- `fire_fuel_load`: Remaining fuel load [kg/m²]
+- `fire_fireline_intensity`: Byram fireline intensity [kW/m]
+- `fire_flame_length`: Thomas flame length [m]
 
 Output is written to `plt2d_fire*` directories at intervals specified by `erf.plot2d_int_1`.
 
