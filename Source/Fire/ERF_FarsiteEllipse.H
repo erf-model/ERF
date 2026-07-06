@@ -53,12 +53,12 @@ void advance_farsite_one_step(
     amrex::MultiFab& phi,
     amrex::MultiFab& farsite_work,
     amrex::MultiFab& disp_accum,
-    amrex::MultiFab& arrival_time,       // now NON-CONST: updated after stamping
+    amrex::MultiFab& arrival_time,
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
     const amrex::Geometry& geom_fire,
     amrex::Real dt_fire,
-    amrex::Real current_time,            // simulation time for arrival_time stamp
+    amrex::Real current_time,
     const FarsiteParams& fp)
 {
     using namespace amrex;
@@ -79,14 +79,13 @@ void advance_farsite_one_step(
     // -------------------------------------------------------------------------
     // Pass 1 (GPU): compute spread vector and accumulate into disp_accum
     // -------------------------------------------------------------------------
-    for (MFIter mfi(R_mf); mfi.isValid(); ++mfi) {
-        const Box& bx   = mfi.tilebox();
+    for (MFIter mfi(R_mf, false); mfi.isValid(); ++mfi) {
+        const Box& bx   = mfi.validbox();
         auto phi_arr    = phi.array(mfi);
         auto spread_arr = farsite_work.array(mfi);
         auto accum_arr  = disp_accum.array(mfi);
         auto vel_arr    = vel_eff.const_array(mfi);
         auto ros_arr    = R_mf.const_array(mfi);
-        auto at_arr     = arrival_time.const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
         {
@@ -222,8 +221,8 @@ void advance_farsite_one_step(
             const Real* yp = d_y.data();
             int npts = npts_global;
 
-            for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
+            for (MFIter mfi(phi, false); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
                 auto p = phi.array(mfi);
                 amrex::ParallelFor(npts, [=] AMREX_GPU_DEVICE (int n) noexcept {
                     int ii = static_cast<int>(
@@ -240,7 +239,7 @@ void advance_farsite_one_step(
             const Real* x_ptr = xarray_all.data();
             const Real* y_ptr = yarray_all.data();
             int npts = npts_global;
-            for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
+            for (MFIter mfi(phi, false); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
                 const Box& bx = mfi.validbox();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
@@ -256,16 +255,13 @@ void advance_farsite_one_step(
         }
     }
 
-    // Step D: KEY FIX — record arrival time for newly burned cells immediately
-    // so that the next substep's Step B can restore them.
-    // Without this, cells stamped this substep have arrival_time < 0 and are
-    // reset to phi=0 (unburned) at the start of the next substep.
+    // Step D: record arrival time for newly burned cells
     {
         const Real t_now = current_time;
-        for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(phi, false); mfi.isValid(); ++mfi) {
             auto p  = phi.const_array(mfi);
             auto at = arrival_time.array(mfi);
-            amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
                 if (p(iv) < 0.0_rt && at(iv) < 0.0_rt) {
                     at(iv) = t_now;
                 }
@@ -292,7 +288,7 @@ int advance_fire_subcycle(
     amrex::MultiFab& phi,
     amrex::MultiFab& farsite_work,
     amrex::MultiFab& disp_accum,
-    amrex::MultiFab& arrival_time,       // non-const: updated each substep
+    amrex::MultiFab& arrival_time,
     const amrex::MultiFab& vel_eff,
     const amrex::MultiFab& R_mf,
     const amrex::Geometry& geom_fire,
