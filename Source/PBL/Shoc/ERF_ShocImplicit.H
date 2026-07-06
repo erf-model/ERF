@@ -10,7 +10,7 @@ public:
 
     static void compute_tmpi (const ShocColumnData& col,
                               int ic,
-                              amrex::Real dt,
+                              double dt,
                               const amrex::Vector<amrex::Real>& rho_zi,
                               amrex::Vector<amrex::Real>& tmpi);
 
@@ -29,15 +29,15 @@ public:
 
     static void advance_implicit_state (ShocColumnData& col,
                                         const ShocRuntimeOptions& opts,
-                                        amrex::Real dt);
+                                        double dt);
 
     static void finalize_from_pdf (ShocColumnData& col,
                                    const ShocRuntimeOptions& opts,
-                                   amrex::Real dt);
+                                   double dt);
 
     static void update_prognostics (ShocColumnData& col,
                                     const ShocRuntimeOptions& opts,
-                                    amrex::Real dt);
+                                    double dt);
 };
 
 #endif

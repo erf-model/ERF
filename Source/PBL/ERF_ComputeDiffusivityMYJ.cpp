@@ -10,7 +10,7 @@
 using namespace amrex;
 
 void
-ComputeDiffusivityMYJ (Real dt,
+ComputeDiffusivityMYJ (double dt,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        MultiFab& cons_in,
@@ -285,7 +285,7 @@ ComputeDiffusivityMYJ (Real dt,
 
                     Real RHSP1=(ARHS*ELOQ51+BRHS*ELOQ31+CRHS*ELOQ11)*RDEN1*RDEN1;
 
-                    Real DTTURBL=dt;
+                    Real DTTURBL = static_cast<Real>(dt);
                     Real ELOQ12=std::max(ELOQ11+(DLOQ1-ELOQ11)*exp(RHSP1*DTTURBL),EPS1);
 
                     Real ELOQ22=ELOQ12*ELOQ12;

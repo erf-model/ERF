@@ -457,7 +457,7 @@ struct LineSampler
     }
 
     void
-    write_sample_data (amrex::Vector<amrex::Real>& time,
+    write_sample_data (amrex::Vector<double>& time,
                        amrex::Vector<int>& level_steps,
                        amrex::Vector<amrex::IntVect>& ref_ratio,
                        amrex::Vector<amrex::Geometry>& geom)
@@ -470,7 +470,7 @@ struct LineSampler
     }
 
     void
-    write_line_ascii (amrex::Vector<amrex::Real>& time)
+    write_line_ascii (amrex::Vector<double>& time)
     {
         // same as definitions in ERF.H
         constexpr int datwidth = 14;
@@ -482,7 +482,7 @@ struct LineSampler
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
             int lev = m_lev[iline];
-            amrex::Real m_time = time[lev];
+            double m_time = time[lev];
             amrex::Box m_dom   = m_bnd_bx[iline];
 
             for (int ivar(0); ivar<nvar; ++ivar) {
@@ -504,7 +504,7 @@ struct LineSampler
     }
 
     void
-    write_line_plotfile (amrex::Vector<amrex::Real>& time,
+    write_line_plotfile (amrex::Vector<double>& time,
                          amrex::Vector<int>& level_steps,
                          amrex::Vector<amrex::IntVect>& ref_ratio,
                          amrex::Vector<amrex::Geometry>& geom)
@@ -514,7 +514,7 @@ struct LineSampler
             // Data members that can be used as-is
             int dir = m_dir[iline];
             int lev = m_lev[iline];
-            amrex::Real m_time = time[lev];
+            double m_time = time[lev];
             amrex::Vector<int> m_level_steps = {level_steps[lev]};
             amrex::Vector<amrex::IntVect> m_ref_ratio  = {ref_ratio[lev]};
 
@@ -547,7 +547,7 @@ struct LineSampler
 
             // Write each line
             WriteMultiLevelPlotfile(plotfilename, 1, mf,
-                                    m_varnames, m_geom, m_time,
+                                    m_varnames, m_geom, static_cast<amrex::Real>(m_time),
                                     m_level_steps, m_ref_ratio);
         }
     }
@@ -877,7 +877,7 @@ struct PlaneSampler
     }
 
     void
-    write_sample_data (amrex::Vector<amrex::Real>& time,
+    write_sample_data (amrex::Vector<double>& time,
                        amrex::Vector<int>& level_steps,
                        amrex::Vector<amrex::IntVect>& ref_ratio,
                        amrex::Vector<amrex::Geometry>& geom)
@@ -887,7 +887,7 @@ struct PlaneSampler
             // Data members that can be used as-is
             int dir = m_dir[iplane];
             int lev = m_lev[iplane];
-            amrex::Real m_time = time[lev];
+            double m_time = time[lev];
             amrex::Vector<int> m_level_steps = {level_steps[lev]};
             amrex::Vector<amrex::IntVect> m_ref_ratio  = {ref_ratio[lev]};
 
@@ -916,7 +916,7 @@ struct PlaneSampler
 
             // Write each plane
             WriteMultiLevelPlotfile(plotfilename, 1, mf,
-                                    m_varnames, m_geom, m_time,
+                                    m_varnames, m_geom, static_cast<amrex::Real>(m_time),
                                     m_level_steps, m_ref_ratio);
         } // iplane
     }

@@ -320,7 +320,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     // *****************************************************************************************
 
-    Real time = t_new[lev_for_sub];
+    double time = t_new[lev_for_sub];
 
     std::string sf = subvol_file + "_" + std::to_string(isub);
     std::string subvol_filename;
@@ -333,6 +333,6 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     }
 
     amrex::Print() <<"Writing subvolume into " << subvol_filename << std::endl;
-    WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],time,istep[0]);
+    WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],static_cast<amrex::Real>(time),istep[0]);
 
 }

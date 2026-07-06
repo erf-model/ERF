@@ -17,13 +17,15 @@ redistribute_term ( int ncomp,
                     MultiFab const& state,
                     EBFArrayBoxFactory const& ebfact,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const local_dt)
+                    double local_dt_d)
 {
     BL_PROFILE_VAR("redistribute_term1", redistribute_term1);
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************
     AMREX_ASSERT(result.nComp() == state.nComp());
+
+    Real local_dt = static_cast<Real>(local_dt_d);
 
     result_tmp.FillBoundary(geom.periodicity());
 
@@ -91,7 +93,7 @@ redistribute_term ( int ncomp,
                     MultiFab const& state,
                     eb_aux_ const& ebfact,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const local_dt,
+                    double local_dt_d,
                     int const igrid)
 {
     BL_PROFILE_VAR("redistribute_term2", redistribute_term2);
@@ -99,6 +101,8 @@ redistribute_term ( int ncomp,
     // Redistribute result_tmp and pass out result
     // ************************************************************************
     AMREX_ASSERT(result.nComp() == state.nComp());
+
+    Real local_dt = static_cast<Real>(local_dt_d);
 
     result_tmp.FillBoundary(geom.periodicity());
 

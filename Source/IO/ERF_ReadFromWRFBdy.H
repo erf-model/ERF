@@ -36,7 +36,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion = true);
 
-amrex::Real
+double
 read_times_from_wrflow (const std::string& nc_low_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
                         double& start_low_time, double& final_low_time);

@@ -20,7 +20,7 @@
 #endif
 
 void
-ComputeTurbulentViscosity (amrex::Real dt,
+ComputeTurbulentViscosity (double dt,
                            const amrex::MultiFab& xvel ,
                            const amrex::MultiFab& yvel ,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,

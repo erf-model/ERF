@@ -14,11 +14,11 @@ public:
                                        const ShocRuntimeOptions& opts,
                                        amrex::Real dx,
                                        amrex::Real dy,
-                                       amrex::Real dt);
+                                       double dt);
 
     static void diagnose_post_implicit (ShocColumnData& col,
                                         const ShocRuntimeOptions& opts,
-                                        amrex::Real dt);
+                                        double dt);
 };
 
 #endif

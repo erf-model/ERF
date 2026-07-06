@@ -62,7 +62,7 @@ ERF::init_windfarm (int lev)
 
 void
 ERF::advance_windfarm (const Geometry& a_geom,
-                       const Real& dt_advance,
+                       const double& dt_advance,
                        MultiFab& cons_in,
                        MultiFab& U_old,
                        MultiFab& V_old,
@@ -70,7 +70,7 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& mf_vars_windfarm,
                        const MultiFab& mf_Nturb,
                        const MultiFab& mf_SMark,
-                       const Real& time)
+                       const double& time)
 {
         windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
                           U_old, V_old, W_old, mf_Nturb, mf_SMark, time);

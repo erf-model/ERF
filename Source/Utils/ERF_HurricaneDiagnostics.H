@@ -290,7 +290,7 @@ AMREX_FORCE_INLINE
 void
 HurricaneMaxVelTracker(const amrex::Geometry& geom,
                        const amrex::MultiFab& mf_cc_vel,
-                       const amrex::Real& time,
+                       const double& time,
                        const amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
                        amrex::Vector<std::array<amrex::Real, 2>>& hurricane_maxvel_vs_time)
 {
@@ -340,8 +340,8 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
         h_val_max_global = h_val_max_local;
     #endif
 
-    amrex::Real time_in_hrs = time / amrex::Real(3600.0);
-    hurricane_maxvel_vs_time.push_back({time_in_hrs, h_val_max_global});
+    double time_in_hrs = time / 3600.0;
+    hurricane_maxvel_vs_time.push_back({static_cast<amrex::Real>(time_in_hrs), h_val_max_global});
 }
 
 AMREX_FORCE_INLINE
@@ -349,7 +349,7 @@ void
 HurricaneMinPressureTracker(MoistureType moisture_type,
                             const amrex::Geometry& geom,
                             const amrex::MultiFab& mf_cons_var,
-                            const amrex::Real& time,
+                            const double& time,
                             const amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
                             amrex::Vector<std::array<amrex::Real, 2>>& hurricane_minpressure_vs_time)
 {
@@ -396,7 +396,7 @@ HurricaneMinPressureTracker(MoistureType moisture_type,
         h_val_min_global = h_val_min_local;
     #endif
 
-    amrex::Real time_in_hrs = time / amrex::Real(3600.0);
-    hurricane_minpressure_vs_time.push_back({time_in_hrs, h_val_min_global});
+    double time_in_hrs = time / 3600.0;
+    hurricane_minpressure_vs_time.push_back({static_cast<amrex::Real>(time_in_hrs), h_val_min_global});
 }
 #endif

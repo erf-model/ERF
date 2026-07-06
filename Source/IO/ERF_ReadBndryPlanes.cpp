@@ -12,7 +12,7 @@ using namespace amrex;
  * Return closest index (from lower) of value in vector
  */
 AMREX_FORCE_INLINE
-int closest_index (const Vector<Real>& vec, const Real value)
+int closest_index (const Vector<double>& vec, const double value)
 {
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
@@ -83,7 +83,7 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
  * @param time Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::interp_in_time (const Real& time)
+ReadBndryPlanes::interp_in_time (const double& time)
 {
     AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
 
@@ -141,12 +141,12 @@ ReadBndryPlanes::interp_in_time (const Real& time)
  * @param time Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::get_tendency (const Real& time)
+ReadBndryPlanes::get_tendency (const double& time)
 {
     AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
 
     if (time < m_tnp1) {
-        Real idt = Real(1.0) / (m_tnp1 - m_tn);
+        Real idt = static_cast<Real>(1.0 / (m_tnp1 - m_tn));
         for (OrientationIter oit; oit != nullptr; ++oit) {
             auto ori = oit();
             if (ori.coordDir() < 2) {
@@ -167,7 +167,7 @@ ReadBndryPlanes::get_tendency (const Real& time)
             }
         }
     } else {
-        Real idt = Real(1.0) / (m_tnp2 - m_tnp1);
+        Real idt = static_cast<Real>(1.0 / (m_tnp2 - m_tnp1));
         for (OrientationIter oit; oit != nullptr; ++oit) {
             auto ori = oit();
             if (ori.coordDir() < 2) {
@@ -213,7 +213,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
 
     last_file_read = -1;
 
-    m_tinterp = -one;
+    m_tinterp = -1.0;
 
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
@@ -331,8 +331,8 @@ void ReadBndryPlanes::read_time_file ()
  * @param dt Current timestep
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
-void ReadBndryPlanes::read_input_files (Real time,
-                                        Real dt,
+void ReadBndryPlanes::read_input_files (double time,
+                                        double dt,
                                         Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");

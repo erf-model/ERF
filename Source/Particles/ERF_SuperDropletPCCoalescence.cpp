@@ -85,7 +85,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
 
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
-                                  Real  a_dt,
+                                  double                               a_dt,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_temperature )
 {
@@ -127,9 +127,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
     auto kernel_choice = m_coalescence_kernel;
     auto include_brownian_coalescence = m_include_brownian_coalescence;
 
-    Real mcshuffle_wtime_sec = zero;
-    Real mcpairing_wtime_sec = zero;
-    Real coalescence_wtime_sec = zero;
+    double mcshuffle_wtime_sec = 0.0;
+    double mcpairing_wtime_sec = 0.0;
+    double coalescence_wtime_sec = 0.0;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
@@ -516,7 +516,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
                    -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / Real(1000000.0);
+    double total_wtime_sec = static_cast<double>(total_wtime) / 1000000.0;
 
     ParallelDescriptor::ReduceRealMax( &mcshuffle_wtime_sec,
                                        1,
@@ -531,7 +531,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
 #else
-    Real total_wtime_sec = zero;
+    double total_wtime_sec = 0.0;
 #endif
 
     Print() << "SuperDropletPC(" << m_name << "): "
@@ -545,4 +545,3 @@ void SuperDropletPC::Coalescence( int   a_lev,
 }
 
 #endif
-

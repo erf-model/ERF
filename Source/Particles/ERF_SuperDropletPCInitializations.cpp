@@ -34,7 +34,7 @@ void SuperDropletPC::add_superdroplet_attributes()
 }
 
 /*! Read inputs from file */
-void SuperDropletPC::readInputs (const amrex::Real a_dt)
+void SuperDropletPC::readInputs (const double a_dt)
 {
     BL_PROFILE("SuperDropletPC::readInputs");
     ParmParse pp(m_name);
@@ -205,7 +205,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
                                const std::vector<Species::Name>& a_aerosol_mat,
                                const BoxArray&                   a_ba,
                                const DistributionMapping&        a_dmap,
-                               const amrex::Real                 a_dt )
+                               const double                      a_dt )
 {
     BL_PROFILE("SuperDropletPC::define()");
     m_num_sd_per_cell = 0;
@@ -267,7 +267,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
 }
 
 /*! Initialize the particles at AMR level a_lev */
-void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const MFPtr& a_ptr)
+void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, const MFPtr& a_ptr)
 {
     amrex::ignore_unused(a_t);
     BL_PROFILE("SuperDropletPC::InitializeParticles()");
@@ -342,7 +342,7 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const
 }
 
 /*! Inject particles */
-void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const Real a_dt)
+void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, const double a_dt)
 {
     amrex::ignore_unused(a_t);
 
