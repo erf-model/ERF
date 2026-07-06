@@ -119,6 +119,19 @@ Phase 5 test case with heat flux and diagnostics:
 - **Expected outputs**: fire_heat_flux > 0 in burned cells, fuel_load decreasing, flame length consistent with Byram
 - **Purpose**: Regression test for heat flux, fuel depletion, fireline intensity, and flame length
 
+#### inputs_fire_phase6
+Phase 6 test case with one-way fire-to-atmosphere coupling:
+- FM1 (Short Grass) fuel
+- 5 m/s nominal wind
+- 8% fuel moisture
+- Heat flux computation and fuel depletion (Phase 5)
+- Fire heat flux distributed through atmospheric column via exponential decay profile (WRF-Fire approach)
+- Latent heat flux injection alongside sensible heat
+- One-step explicit coupling lag (fire flux from step n enters dycore at step n+1)
+- 30-minute simulation to allow coupling effects to develop
+- **Expected outputs**: theta anomaly above burned area; qv increase if moisture is active; heat flux decays with altitude per exp(-z/alfg)
+- **Purpose**: Regression test for WRF-Fire-parity fire-atmosphere coupling
+
 ## Test Summary Table
 
 | Test Name | Type | Fuel | Wind | Purpose | Command |
@@ -129,6 +142,7 @@ Phase 5 test case with heat flux and diagnostics:
 | inputs_fire_flat_uniform | Regression | FM1 | 5 m/s | Flat uniform mesh fire spread | `./erf inputs_fire_flat_uniform` |
 | inputs_fire_vertical_refinement | Regression | FM1 | 5 m/s | Stretched vertical grid fire spread | `./erf inputs_fire_vertical_refinement` |
 | inputs_fire_phase5 | Regression | FM1 | 5 m/s | Heat flux and diagnostics | `./erf inputs_fire_phase5` |
+| inputs_fire_phase6 | Regression | FM1 | 5 m/s | Fire-atmosphere coupling with WRF-Fire profile | `./erf inputs_fire_phase6` |
 | inputs_fire_dummy | Smoke | FM1 | Dummy | Initialization and basic calls | `./erf inputs_fire_dummy` |
 
 ## Output Variables
@@ -190,3 +204,93 @@ Rothermel Params: R0=2.5 ft/min (0.01270 m/s) I_R=342 BTU/ft²/min C=7.40 B=0.08
 [FIRE DEBUG] Rate-of-spread computed. Max: 0.08523 m/s
 ```
 
+
+## Phase 6: Fire-to-Atmosphere Coupling
+
+Phase 6 implements one-way fire-to-atmosphere coupling using the WRF-Fire (WRF-SFIRE) approach. This allows fire heat flux to affect the atmospheric dynamics.
+
+### Coupling Approach
+
+The coupling follows the WRF-Fire model (Mandel et al. 2011, `phys/module_fr_sfire_atm.F`):
+
+1. **Heat Flux Computation**: Fire sensible heat flux Q [W/m²] is computed from fuel consumption rates and heat content (Phase 5).
+
+2. **Vertical Distribution**: The surface heat flux is distributed through the atmospheric column using an exponential decay profile:
+
+   ```
+   hfx(z) = (Q_sfc / Cp_d) * exp(-z / alfg)
+   ```
+
+   where `z` is height above terrain and `alfg` is the e-folding scale height [m]. At `z = alfg`, the flux decays to 37% of surface value.
+
+3. **Flux Divergence**: The vertical flux divergence is converted to a potential temperature tendency:
+
+   ```
+   d(RhoTheta)/dt = -rho * d(hfx)/dz
+   ```
+
+   This is added to the atmospheric source term before the dycore integration.
+
+4. **Latent Heat**: An equivalent latent heat flux is computed from fuel moisture and distributed the same way:
+
+   ```
+   qfx(z) = (Q_lat / Lv) * exp(-z / alfg)
+   d(RhoQ1)/dt = -rho * d(qfx)/dz
+   ```
+
+5. **Coupling Lag**: Fire flux from timestep n is injected into the dycore at timestep n+1 (one-step explicit lag). This is consistent with WRF-Fire's explicit coupling approach.
+
+### Key Parameters
+
+- `erf.fire.one_way_coupling` (bool, default `true`): Enable fire-to-atmosphere coupling
+- `erf.fire.heat_flux_alfg` (real, default 45.0): E-folding height scale for heat distribution [m]
+- `erf.fire.fire_atm_feedback` (real, default 1.0): Multiplier on fire flux (0 = no feedback, 1 = full coupling)
+- `erf.fire.inject_latent` (bool, default `true`): Inject latent heat alongside sensible heat
+
+### Expected Physical Behavior
+
+With Phase 6 coupling enabled:
+
+1. **Sensible Heat**: Produces a warming anomaly in the atmosphere above the fire, with maximum warming at the surface and exponential decay with height.
+
+2. **Latent Heat**: Increases moisture in the atmospheric boundary layer, reducing relative humidity locally.
+
+3. **Dynamics**: The buoyancy from heating can induce local circulation and enhance updraft near the fire (in subsequent phases with feedback).
+
+4. **Time Evolution**: The atmospheric response grows over the course of the fire spread, with maximum coupling when burning rate is highest.
+
+### Example Usage
+
+Run the Phase 6 test case:
+
+```bash
+./erf Exec/CanonicalTests/Fire/inputs_fire_phase6
+```
+
+Expected outputs:
+- Positive theta anomaly above burned area in `plt_*` directories
+- Positive qv anomaly if moisture model is active
+- Fire stats CSV shows progression of heat flux
+
+To disable coupling but keep fire spread:
+
+```
+erf.fire.one_way_coupling = false
+```
+
+To disable latent heat injection:
+
+```
+erf.fire.inject_latent = false
+```
+
+To reduce coupling strength:
+
+```
+erf.fire.fire_atm_feedback = 0.5
+```
+
+### References
+
+- Mandel, J., et al. (2011). A wildland fire model with data assimilation. Mathematics and Computers in Simulation, 79(3), 584-606.
+- WRF-SFIRE: https://wiki.ucar.edu/display/wrf/WRF%27s+Fire+and+Smoke+Module
