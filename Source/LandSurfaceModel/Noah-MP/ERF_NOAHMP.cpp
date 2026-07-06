@@ -341,7 +341,25 @@ NOAHMP::Advance_With_State (const int& lev,
         Array4<Real> noah_input_arr  =  noahmp_input_tmp[idb]->array();
         Array4<Real> noah_output_arr =  noahmp_output_tmp[idb]->array();
 
-        // Copy forcing data from ERF to Noahmp.
+        // Precipitation accumulations (mm) and their previous-call snapshots, for
+        // building RAINBL. These MultiFabs live in the (device) default arena, so
+        // they are read ONLY inside the device ParallelFor below and staged into the
+        // pinned noah_input_arr — never dereferenced on the host (that segfaults on
+        // GPU). have_precip is false for schemes with no precip (RAINBL stays 0).
+        const bool hp = have_precip;
+        Array4<const Real> rain_now, snow_now, graup_now;
+        Array4<const Real> rain_prv, snow_prv, graup_prv;
+        const bool has_snow  = hp && (snow_accum_in  != nullptr);
+        const bool has_graup = hp && (graup_accum_in != nullptr);
+        if (hp) {
+            rain_now = rain_accum_in->const_array(mfi);
+            rain_prv = m_rain_accum_prev[lev]->const_array(mfi);
+            if (has_snow)  { snow_now  = snow_accum_in->const_array(mfi);  snow_prv  = m_snow_accum_prev[lev]->const_array(mfi);  }
+            if (has_graup) { graup_now = graup_accum_in->const_array(mfi); graup_prv = m_graup_accum_prev[lev]->const_array(mfi); }
+        }
+        const int kklo = klo;
+
+        // Copy forcing data from ERF to Noahmp (device; stage into pinned buffer).
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
@@ -353,23 +371,25 @@ NOAHMP::Advance_With_State (const int& lev,
             noah_input_arr(i,j,0,NoahmpInputComp::swdown)  = SWDOWN(i,j,0);
             noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
             noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
+
+            // RAINBL = accumulated precip [mm] this land-call interval (WRF convention;
+            // Noah-MP divides by DTBL -> mm/s). rain_accum is on the surface slab kklo.
+            Real drain = zero, sr = zero;
+            if (hp) {
+                drain = amrex::max(zero, rain_now(i,j,kklo) - rain_prv(i,j,kklo));
+                Real dfroz = zero;
+                if (has_snow)  { dfroz += amrex::max(zero, snow_now (i,j,kklo) - snow_prv (i,j,kklo)); }
+                if (has_graup) { dfroz += amrex::max(zero, graup_now(i,j,kklo) - graup_prv(i,j,kklo)); }
+                sr = (drain > zero) ? amrex::min(Real(1.0), dfroz/drain) : zero;
+            }
+            noah_input_arr(i,j,0,NoahmpInputComp::rainbl) = drain;
+            noah_input_arr(i,j,0,NoahmpInputComp::sr_in)  = sr;
         });
 
         // Synchronize to ensure GPU kernel is complete before host access
         Gpu::streamSynchronize();
 
-        // Precipitation accumulations (mm) and their previous-call snapshots, for
-        // building RAINBL. Only valid when the scheme provides precip (have_precip).
-        Array4<const Real> rain_now, snow_now, graup_now;
-        Array4<Real>       rain_prv, snow_prv, graup_prv;
-        if (have_precip) {
-            rain_now = rain_accum_in->const_array(mfi);
-            rain_prv = m_rain_accum_prev[lev]->array(mfi);
-            if (snow_accum_in)  { snow_now  = snow_accum_in->const_array(mfi);  snow_prv  = m_snow_accum_prev[lev]->array(mfi);  }
-            if (graup_accum_in) { graup_now = graup_accum_in->const_array(mfi); graup_prv = m_graup_accum_prev[lev]->array(mfi); }
-        }
-
-        // Now on the host, copy data to NoahmpIO arrays
+        // Now on the host, copy the pinned staged data to NoahmpIO arrays
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
             noahmpio->U_PHY(i,1,j)   = noah_input_arr(i,j,0,NoahmpInputComp::u_phy);
@@ -380,38 +400,14 @@ NOAHMP::Advance_With_State (const int& lev,
             noahmpio->SWDOWN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::swdown);
             noahmpio->GLW(i,j)       = noah_input_arr(i,j,0,NoahmpInputComp::glw);
             noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
-
-            // RAINBL = accumulated precip [mm] over this land-call interval (WRF
-            // convention). rain_accum lives on the surface slab (k=klo). Floor at 0
-            // to guard against tiny negative round-off in the difference.
-            Real drain = zero, sr = zero;
-            if (have_precip) {
-                drain = amrex::max(zero, rain_now(i,j,klo) - rain_prv(i,j,klo));
-                Real dfroz = zero;
-                if (snow_prv.dataPtr())  { dfroz += amrex::max(zero, snow_now (i,j,klo) - snow_prv (i,j,klo)); }
-                if (graup_prv.dataPtr()) { dfroz += amrex::max(zero, graup_now(i,j,klo) - graup_prv(i,j,klo)); }
-                sr = (drain > zero) ? amrex::min(Real(1.0), dfroz / drain) : zero;
-            }
-            noahmpio->RAINBL(i,j) = drain;   // [mm]; Noah-MP divides by DTBL -> mm/s
-            noahmpio->SR(i,j)     = sr;       // frozen fraction [-]
+            noahmpio->RAINBL(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);  // [mm]
+            noahmpio->SR(i,j)        = noah_input_arr(i,j,0,NoahmpInputComp::sr_in);   // [-]
         });
 
         // Call the noahmpio driver code. This runs the land model forcing for
         // each object in noahmpio_vect that represent a block in the domain.
         noahmpio->itimestep += 1;
         noahmpio->DriverMain();
-
-        // Advance the precip "previous cumulative accum" snapshot to the current
-        // values now that this interval's RAINBL/SR have been consumed, so the next
-        // land call differences against this step. (Surface slab only.)
-        if (have_precip) {
-            LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
-            {
-                rain_prv(i,j,klo) = rain_now(i,j,klo);
-                if (snow_prv.dataPtr())  { snow_prv (i,j,klo) = snow_now (i,j,klo); }
-                if (graup_prv.dataPtr()) { graup_prv(i,j,klo) = graup_now(i,j,klo); }
-            });
-        }
 
         // Copy results from NoahmpIO back to temporary arrays
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
@@ -465,6 +461,23 @@ NOAHMP::Advance_With_State (const int& lev,
             ALBSFCDIF_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_vis);
             ALBSFCDIF_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_nir);
         });
+    }
+
+    // Advance the precip "previous cumulative accum" snapshot to the current values
+    // now that this land call's RAINBL/SR have been consumed, so the next call
+    // differences against this step. Device-safe whole-MultiFab copy (these live in
+    // the device arena; never touch them on the host).
+    if (have_precip) {
+        MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1,
+                       m_rain_accum_prev[lev]->nGrowVect());
+        if (snow_accum_in) {
+            MultiFab::Copy(*m_snow_accum_prev[lev], *snow_accum_in, 0, 0, 1,
+                           m_snow_accum_prev[lev]->nGrowVect());
+        }
+        if (graup_accum_in) {
+            MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1,
+                           m_graup_accum_prev[lev]->nGrowVect());
+        }
     }
 
     // Fill the ghost cells

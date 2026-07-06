@@ -61,7 +61,8 @@ namespace NoahmpInputComp {
         swdown,
         glw,
         coszen,
-        rainbl,      // precipitation rate into land model [mm/s]
+        rainbl,      // accumulated precip into land model over the interval [mm]
+        sr_in,       // frozen fraction of precip [-]
         NumComps
     };
 }
