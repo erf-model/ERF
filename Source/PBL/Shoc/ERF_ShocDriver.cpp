@@ -245,7 +245,7 @@ namespace
                                        int qc_comp,
                                        int qi_comp,
                                        const ShocRuntimeOptions& opts,
-                                       Real dt)
+                                       double dt)
     {
         const bool has_qv = shoc_valid_comp(qv_comp, cons.nComp());
         const bool has_qc = shoc_valid_comp(qc_comp, cons.nComp());
@@ -289,7 +289,7 @@ namespace
 
     void apply_state_update_face_velocity_impl (MultiFab& vel,
                                                 const MultiFab& vel_tend,
-                                                Real dt)
+                                                double dt)
     {
         for (MFIter mfi(vel_tend, false); mfi.isValid(); ++mfi) {
             auto v = vel.array(mfi);
@@ -469,7 +469,7 @@ ShocDriver::advance (MultiFab& cons,
                      MultiFab* eddy_diffs,
                      MultiFab& z_phys_nd,
                      const Geometry& geom,
-                     Real dt)
+                     double dt)
 {
     BL_PROFILE("SHOC::advance");
 
@@ -913,7 +913,7 @@ void
 ShocDriver::apply_state_update (MultiFab& cons,
                                 MultiFab& xvel,
                                 MultiFab& yvel,
-                                Real dt) const
+                                double dt) const
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
 
@@ -944,7 +944,7 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
                                     const MultiFab* tau13,
                                     const MultiFab* tau23,
                                     const Geometry& geom,
-                                    Real dt) const
+                                    double dt) const
 {
     amrex::ignore_unused(geom, dt);
 
@@ -1467,7 +1467,7 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
 }
 
 void
-ShocDriver::print_debug_summary (Real dt) const
+ShocDriver::print_debug_summary (double dt) const
 {
     BL_PROFILE("SHOC::print_debug_summary");
 

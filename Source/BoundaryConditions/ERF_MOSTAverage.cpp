@@ -243,7 +243,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     //--------------------------------------------------------
     if (m_t_avg) {
         // Exponential filter function
-        m_fact_old = std::exp(-one / m_time_window);
+        m_fact_old = static_cast<amrex::Real>(std::exp(-1.0 / m_time_window));
 
         // Enforce discrete normalization: (mfn*val_new + mfo*val_old)
         m_fact_new = one - m_fact_old;

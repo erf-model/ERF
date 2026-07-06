@@ -16,7 +16,7 @@ AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
 /*! Compute mass change of particles due to evaporation and condensation */
 void SuperDropletPC::MassChange ( int                                         a_lev,
-                                  Real                                        a_dt,
+                                  double                               a_dt,
                                   const Species::Name&                        a_vap_name,
                                   const MultiFab&                             a_temperature,
                                   const MultiFab&                             a_pressure,

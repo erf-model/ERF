@@ -18,7 +18,7 @@ ShocEnergyFixer::diagnose_active_top (const Vector<Real>& tke)
 void
 ShocEnergyFixer::apply_column (const ShocColumnData& col,
                                int ic,
-                               Real dt,
+                               double dt,
                                const Vector<Real>& thl_old,
                                const Vector<Real>& qv_old,
                                const Vector<Real>& qc_old,

@@ -225,7 +225,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
                                const amrex::Geometry& a_geom,
                                const MatVec& a_species_mat,
                                const MatVec& a_aerosol_mat,
-                               const amrex::Real a_dt )
+                               const double a_dt )
 {
     BL_PROFILE("SDInjection::readInputs");
 

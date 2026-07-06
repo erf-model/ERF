@@ -275,7 +275,7 @@ namespace
 void
 ShocPDF::diagnose_pdf (ShocColumnData& col,
                        const ShocRuntimeOptions& opts,
-                       Real dt)
+                       double dt)
 {
     // Interim native-SHOC contract: this PDF remains liquid-cloud
     // macrophysics. It may carry pre-existing ice through the thermodynamic

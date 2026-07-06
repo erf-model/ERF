@@ -65,7 +65,7 @@ public:
     Init (const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance,
+          const double& dt_advance,
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
@@ -101,7 +101,7 @@ public:
 
     // wrapper to advance micro vars
     void
-    Advance (const amrex::Real& dt_advance,
+    Advance (const double& dt_advance,
              const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
@@ -157,7 +157,7 @@ private:
     amrex::Geometry m_geom;
 
     // timestep
-    amrex::Real dt;
+    double dt;
 
     // Minimum dz at this level
     amrex::Real m_dzmin;

@@ -153,7 +153,7 @@ ShocTKE::integrate_column_stability (const ShocColumnData& col,
 void
 ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
                                          const ShocRuntimeOptions& opts,
-                                         Real dt)
+                                         double dt)
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
 

@@ -20,11 +20,11 @@ class NullSurf {
     void Init (const int& /*lev*/,
                const amrex::MultiFab& /*cons_in*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/) { }
+               const double& /*dt_advance*/) { }
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const double& /*dt_advance*/) { }
 
     virtual
     void
@@ -34,8 +34,8 @@ class NullSurf {
                         amrex::MultiFab& /*yvel_in*/,
                         amrex::MultiFab* /*hfx3_out*/,
                         amrex::MultiFab* /*qfx3_out*/,
-                        const amrex::Real& /*elapsed_time*/,
-                        const amrex::Real& /*dt_advance*/,
+                        const double& /*elapsed_time*/,
+                        const double& /*dt_advance*/,
                         const int& /*nstep*/) { }
 
     virtual

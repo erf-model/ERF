@@ -161,14 +161,14 @@ namespace MORRInd {
 
     // wrapper to do all the updating
     void
-    Morrison::Advance (const Real& dt_advance,
+    Morrison::Advance (const double& dt_advance,
                        const SolverChoice& sc)
     {
         // Expose for GPU
         bool do_cond = m_do_cond;
 
         // Store timestep
-        Real dt = dt_advance;
+        double dt = dt_advance;
 
         // Check if CPP or FORT answer is used
         ParmParse pp("erf");

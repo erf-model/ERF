@@ -220,7 +220,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
  */
 
 void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_data,
-                                         Vector<Real> const& crse_time)
+                                         Vector<double> const& crse_time)
 {
     AMREX_ALWAYS_ASSERT(crse_data.size() == 2); // old and new
     AMREX_ALWAYS_ASSERT(crse_time[1] >= crse_time[0]);

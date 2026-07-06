@@ -20,13 +20,13 @@ public:
     void Init (const amrex::MultiFab& /*cons_in*/,
                const amrex::BoxArray& /*grids*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/,
+               const double& /*dt_advance*/,
                std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                std::unique_ptr<amrex::MultiFab>& /*detJ_cc*/) { }
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/,
+    Advance (const double& /*dt_advance*/,
              const SolverChoice& /*solverChoce*/) { }
 
     virtual

@@ -14,7 +14,7 @@ public:
 
     static void diagnose_tke_and_diffusivities (ShocColumnData& col,
                                                 const ShocRuntimeOptions& opts,
-                                                amrex::Real dt);
+                                                double dt);
 };
 
 #endif

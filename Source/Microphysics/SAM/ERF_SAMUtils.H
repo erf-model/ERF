@@ -69,7 +69,7 @@ using SAMCellState = SAMPrimitiveCell;
 struct SAMPrecipConfig {
     int sam_moisture_type{1};
     bool enable_precip{true};
-    amrex::Real dtn{zero};
+    double dtn{0.0};
     amrex::Real rdOcp{zero};
     amrex::Real fac_cond{zero};
     amrex::Real fac_fus{zero};
@@ -405,7 +405,7 @@ SAMCloudPhaseChange sam_apply_condensate_limiter (const amrex::Real qv,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_autoconversion_rates (const amrex::Real dtn,
+SAMPrecipSources sam_autoconversion_rates (const double dtn,
                                            const amrex::Real qcc,
                                            const amrex::Real qii,
                                            const amrex::Real coefice_k) noexcept
@@ -422,7 +422,7 @@ SAMPrecipSources sam_autoconversion_rates (const amrex::Real dtn,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_accretion_rates (const amrex::Real dtn,
+SAMPrecipSources sam_accretion_rates (const double dtn,
                                       const amrex::Real qcc,
                                       const amrex::Real qii,
                                       const amrex::Real qpr,
@@ -821,7 +821,7 @@ int sam_precip_face_donor_k (const int face_k,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int sam_substep_count_from_reduced_flux (const amrex::Real reduced_flux,
-                                         const amrex::Real dt,
+                                         const double dt,
                                          const amrex::Real dz) noexcept
 {
     // Substeps follow the legacy reduced-flux rule based on the maximum
@@ -1027,7 +1027,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // update.
 SAMSurfaceAccumulation sam_surface_accumulation_from_component_fluxes (
     const SAMPrecipFluxComponents& component_fluxes,
-    const amrex::Real dtn) noexcept
+    const double dtn) noexcept
 {
     SAMSurfaceAccumulation result{};
     result.rain = component_fluxes.rain * dtn / rhor * amrex::Real(1000.0);
@@ -1042,7 +1042,7 @@ SAMSurfaceAccumulation sam_surface_accumulation (const SAMPrecipFaceState& face_
                                                  const amrex::Real vrain,
                                                  const amrex::Real vsnow,
                                                  const amrex::Real vgrau,
-                                                 const amrex::Real dtn) noexcept
+                                                 const double dtn) noexcept
 {
     const SAMPrecipFluxComponents face_fluxes =
         sam_precip_flux_components_from_face_state(face_state, vrain, vsnow, vgrau);

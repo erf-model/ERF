@@ -567,7 +567,7 @@ class SDInjection : public SDInitProperties
          *
          * \param[in] a_dt Timestep size in seconds
          */
-        inline void updateDt (const amrex::Real a_dt)
+        inline void updateDt (const double a_dt)
         {
             this->m_numdens = m_inj_rate * a_dt;
             m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, one) : -1);
@@ -615,7 +615,7 @@ class SDInjection : public SDInitProperties
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat,
-                          const amrex::Real a_dt );
+                          const double a_dt );
 
         /*! print super-droplets injection parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;

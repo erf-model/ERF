@@ -34,8 +34,8 @@ using namespace amrex;
  * @param[in] d_sinesq_stag_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at z-faces
  */
 
-void make_mom_sources (Real time,
-                       Real /*dt*/,
+void make_mom_sources (double time,
+                       double /*dt*/,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
                        const MultiFab* z_phys_cc,

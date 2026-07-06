@@ -10,8 +10,8 @@ using namespace amrex;
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
-                             const Real& elapsed_time,
-                             const Real& elapsed_time_since_start_low,
+                             const double& elapsed_time,
+                             const double& elapsed_time_since_start_low,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
                              const std::unique_ptr<MultiFab>& walldist,
@@ -1007,14 +1007,14 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const Real& elapsed_time_since_start_low)
+                                           const double& elapsed_time_since_start_low)
 {
     int n_times_in_sst = static_cast<int>(m_sst_lev[lev].size());
 
-    Real dT = m_low_time_interval;
+    double dT = m_low_time_interval;
 
     int n_time_lo, n_time_hi;
-    Real alpha;
+    double alpha;
 
     if (n_times_in_sst > 1) {
         n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);

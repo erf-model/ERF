@@ -43,7 +43,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, i
 void
 read_from_metgrid (int lev, int itime,
                    const Box& domain, const std::string& fname,
-                   std::string& NC_dateTime, Real& NC_epochTime,
+                   std::string& NC_dateTime, double& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
                    int& flag_sst,  int& flag_tsk, int& flag_lmask,
                    int& NC_nx,     int& NC_ny,
@@ -94,7 +94,7 @@ read_from_metgrid (int lev, int itime,
         Print() << "parsed metgrid datetime " << date << " " << epochTime << std::endl;
 
         NC_dateTime = date;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
         if (lev == 0) {

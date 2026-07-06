@@ -44,7 +44,7 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance)
+          const double& dt_advance)
     {
         m_lsm_model[lev]->Init(lev, cons_in, geom, dt_advance);
     }
@@ -56,8 +56,8 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
-             const amrex::Real& time,
-             const amrex::Real& dt_advance,
+             const double& time,
+             const double& dt_advance,
              const int& nstep)
     {
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
@@ -65,7 +65,7 @@ public:
     }
 
     void
-    Advance (const int& lev, const amrex::Real& dt_advance)
+    Advance (const int& lev, const double& dt_advance)
     {
         m_lsm_model[lev]->Advance(dt_advance);
     }
@@ -135,7 +135,7 @@ public:
     Read_Lsm_Restart (const int& lev, const std::string& dir) { m_lsm_model[lev]->Read_Lsm_Restart(dir); }
 
     void
-    Plot_Lsm_Data (amrex::Real time,
+    Plot_Lsm_Data (double time,
                    const amrex::Vector<int> &level_steps,
                    const amrex::Vector<amrex::IntVect> &ref_ratio)
     {

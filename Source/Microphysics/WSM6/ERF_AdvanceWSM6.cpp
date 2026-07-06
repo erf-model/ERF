@@ -224,7 +224,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void wsm6_nislfv_rain_plm_scratch (int km,
                                    int ww_comp,
                                    int rq_comp,
-                                   Real* precip, Real dt,
+                                   Real* precip, double dt,
                                    int iter,
                                    Array4<Real> const& sed_cell,
                                    Array4<Real> const& sed_node,
@@ -499,7 +499,7 @@ void wsm6_nislfv_rain_plm6_scratch (int km,
                                     int ww_comp,
                                     int rq_comp,
                                     int rq2_comp,
-                                    Real* precip1, Real* precip2, Real dt,
+                                    Real* precip1, Real* precip2, double dt,
                                     int iter,
                                     Array4<Real> const& sed_cell,
                                     Array4<Real> const& sed_node,
@@ -839,7 +839,7 @@ void wsm6_nislfv_rain_plm6_scratch (int km,
 }
 
 void
-WSM6::Advance(const Real& dt_advance,
+WSM6::Advance(const double& dt_advance,
               const SolverChoice&)
 {
     dt = dt_advance;
@@ -1204,7 +1204,7 @@ WSM6::Advance(const Real& dt_advance,
         // Outer minor timestep loop (Rule 29)
         const int wsm6_loops = std::max(
             static_cast<int>(std::round(dt / dtcldcr)), 1);
-        const Real dtcld = dt / static_cast<Real>(wsm6_loops);
+        const double dtcld = dt / static_cast<double>(wsm6_loops);
         const Real qc0    = m_qc0;
         const Real qck1   = m_qck1;
         const Real pvtr   = m_pvtr;
@@ -1783,7 +1783,7 @@ WSM6::Advance(const Real& dt_advance,
 
             // G13a: warm rain — praut, pracw, prevp [lines 867-903]
             {
-                const Real dtcld_l = dtcld;
+                const double dtcld_l = dtcld;
                 const Real qmin_l  = Real(qmin);
                 const Real qcrmin_l= Real(qcrmin);
                 ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {

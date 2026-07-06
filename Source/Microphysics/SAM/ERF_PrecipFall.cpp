@@ -36,7 +36,7 @@ SAM::PrecipFall (const SolverChoice& sc)
     Real vsnow = (a_snow*gams3/Real(6.0))*std::pow((PI*rhos*nzeros),-csnow);
     Real vgrau = (a_grau*gamg3/Real(6.0))*std::pow((PI*rhog*nzerog),-cgrau);
 
-    Real dtn  = dt;
+    double dtn = dt;
     Real coef = dtn/m_dzmin;
 
     auto domain = m_geom.Domain();

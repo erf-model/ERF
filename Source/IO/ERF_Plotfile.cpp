@@ -936,7 +936,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,0) / norm;
@@ -954,7 +954,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,1) / norm;
@@ -972,7 +972,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,2) / norm;
@@ -990,7 +990,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,3) / norm;
@@ -1946,7 +1946,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<const MultiFab*>& mf_nd,
                                          const Vector<std::string>& varnames,
                                          const Vector<Geometry>& my_geom,
-                                         Real time,
+                                         double time,
                                          const Vector<int>& level_steps,
                                          const Vector<IntVect>& rr,
                                          const std::string &versionName,
@@ -2033,7 +2033,7 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const Vector<BoxArray> &bArray,
                                             const Vector<std::string> &varnames,
                                             const Vector<Geometry>& my_geom,
-                                            Real my_time,
+                                            double my_time,
                                             const Vector<int>& level_steps,
                                             const Vector<IntVect>& my_ref_ratio,
                                             const std::string &versionName,

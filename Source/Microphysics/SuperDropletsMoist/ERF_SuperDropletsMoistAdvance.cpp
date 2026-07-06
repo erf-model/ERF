@@ -22,9 +22,9 @@ using namespace amrex;
  * \param[in] a_z Terrain height information
  * \param[in] a_bc Boundary condition types
  */
-void SuperDropletsMoist::Advance ( const Real& a_dt,
+void SuperDropletsMoist::Advance ( const double& a_dt,
                                    const int& a_iter,
-                                   const Real&  a_time,
+                                   const double& a_time,
                                    Vector<Vector<MultiFab>>& a_flow_vars,
                                    const Vector<MFPtr>& a_z,
                                    const BCTypeArr& a_bc )

@@ -30,7 +30,7 @@ public:
                        const amrex::MultiFab&,
                        const amrex::BoxArray&,
                        const amrex::Geometry&,
-                       const amrex::Real&,
+                       const double&,
                        std::unique_ptr<amrex::MultiFab>&,
                        std::unique_ptr<amrex::MultiFab>&) = 0;
 
@@ -41,9 +41,9 @@ public:
 
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
-                          const amrex::Real&,
+                          const double&,
                           const int&,
-                          const amrex::Real&,
+                          const double&,
                           const SolverChoice&,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                           const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,

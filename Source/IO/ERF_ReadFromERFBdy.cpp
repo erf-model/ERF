@@ -6,14 +6,14 @@
 
 using namespace amrex;
 
-Real
+double
 read_times_from_erfbdy(const std::string& bdy_file_name,
                        int& ntimes,
                        int& nvars,
                        int& real_width,
-                       Vector<Real>& bdy_times,
-                       Real& start_bdy_time,
-                       Real& final_bdy_time)
+                       Vector<double>& bdy_times,
+                       double& start_bdy_time,
+                       double& final_bdy_time)
 {
     std::string HeaderFileName = bdy_file_name + "/Header";
 
@@ -56,7 +56,7 @@ read_times_from_erfbdy(const std::string& bdy_file_name,
     final_bdy_time = bdy_times[ntimes - 1];
 
     // Calculate the interval between boundary times.
-    Real bdy_time_interval = bdy_times[1] - bdy_times[0];
+    double bdy_time_interval = bdy_times[1] - bdy_times[0];
 
     return bdy_time_interval;
 }

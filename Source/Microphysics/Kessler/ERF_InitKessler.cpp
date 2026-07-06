@@ -21,7 +21,7 @@ using namespace amrex;
 void Kessler::Init (const MultiFab& cons_in,
                     const BoxArray& /*grids*/,
                     const Geometry& geom,
-                    const Real& dt_advance,
+                    const double& dt_advance,
                     std::unique_ptr<MultiFab>& z_phys_nd,
                     std::unique_ptr<MultiFab>& detJ_cc)
 {

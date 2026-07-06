@@ -20,7 +20,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                                    const Array4<Real const>& yvel_arr,
                                                    const Box& bx, const Box& domain,
                                                    int icomp, int ncomp, IntVect ng,
-                                                   const Real /*time*/)
+                                                   const double /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -320,7 +320,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                     int icomp, int ncomp,
-                                                    const Real /*time*/,
+                                                    const double /*time*/,
                                                     bool do_terrain_adjustment)
 {
     BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);

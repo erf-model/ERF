@@ -136,7 +136,7 @@ void SuperDropletsMoist::readInputs ()
 void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                                 const BoxArray&,
                                 const Geometry&   a_geom,
-                                const Real&       a_dt,
+                                const double&     a_dt,
                                 MFPtr&,
                                 MFPtr& )
 {
@@ -252,12 +252,12 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
                    -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / Real(1000000.0);
+    double total_wtime_sec = static_cast<double>(total_wtime) / 1000000.0;
     ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
 #else
-    Real total_wtime_sec = zero;
+    double total_wtime_sec = 0.0;
 #endif
 
     amrex::Print() << "Restarted "

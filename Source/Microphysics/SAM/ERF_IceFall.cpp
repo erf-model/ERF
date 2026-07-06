@@ -15,7 +15,7 @@ void SAM::IceFall (const SolverChoice& sc) {
     if (sam_is_no_ice(sc.moisture_type))
       return;
 
-    Real dtn  = dt;
+    double dtn = dt;
     Real coef = dtn/m_dzmin;
 
     auto domain = m_geom.Domain();

@@ -16,10 +16,10 @@ using namespace amrex;
  * Reads start_time from the first metgrid file
  *
 */
-Real
+double
 read_start_time_from_metgrid(int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -36,7 +36,7 @@ read_start_time_from_metgrid(int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  metgrid datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         amrex::Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -77,7 +77,7 @@ ERF::init_from_metgrid (int lev)
         Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
         int ntimes_erfbdy;
-        Vector<Real> bdy_times;
+        Vector<double> bdy_times;
         bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                    ntimes_erfbdy, nvars_erfbdy, real_width,
                                                    bdy_times, start_bdy_time, final_bdy_time);
@@ -172,7 +172,7 @@ ERF::init_from_metgrid (int lev)
     Real NC_dx;
     Real NC_dy;
     Vector<std::string> NC_dateTime; NC_dateTime.resize( ntimes);
-    Vector<Real> NC_epochTime;       NC_epochTime.resize(ntimes);
+    Vector<double> NC_epochTime;     NC_epochTime.resize(ntimes);
 
     // Define the arena to be used for data allocation
     Arena* Arena_Used = The_Arena();
@@ -283,7 +283,7 @@ ERF::init_from_metgrid (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    Vector<Real> bdy_times(ntimes);
+    Vector<double> bdy_times(ntimes);
 
     // Read times from met_em files (necessary for erfbdy header initialization).
     if (lev == 0 && write_erfbdy) {
@@ -335,7 +335,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
 
                 // Verify that met_em files have even spacing in time.
-                Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
+                double NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
                 Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
                 if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
             } // itime==0
