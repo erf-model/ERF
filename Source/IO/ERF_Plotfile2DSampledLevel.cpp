@@ -275,9 +275,8 @@ validate_sampled_level_definition (const SampledLevelDefinition& level_set)
     }
 
     std::unordered_set<std::string> unique_fields(level_set.fields.begin(), level_set.fields.end());
-    const auto n_unique_fields = unique_fields.size();
-    const auto n_requested_fields =
-        static_cast<decltype(n_unique_fields)>(level_set.fields.size());
+    const auto n_unique_fields    = static_cast<int>(unique_fields.size());
+    const auto n_requested_fields = static_cast<int>(level_set.fields.size());
     if (n_unique_fields != n_requested_fields) {
         return sampled_level_error_prefix(level_set.name, "fields") +
                build_duplicate_output_error(level_set.name);
