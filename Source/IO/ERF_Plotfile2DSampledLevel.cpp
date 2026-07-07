@@ -193,6 +193,25 @@ sampled_interpolation_from_string (const std::string& value)
 }
 
 std::string
+validate_sampled_coordinate_string (const std::string& level_set_name,
+                                    const std::string& value)
+{
+    if (string_iequals(value, "isentropic")) {
+        return sampled_level_error_prefix(level_set_name, "coordinate") +
+               "isentropic output needs a crossing policy";
+    }
+
+    if (string_iequals(value, "model_index") ||
+        string_iequals(value, "height_msl") ||
+        string_iequals(value, "height_agl") ||
+        string_iequals(value, "pressure")) {
+        return {};
+    }
+
+    return "Unknown sampled-level coordinate '" + value + "'";
+}
+
+std::string
 sampled_level_error_prefix (const std::string& level_set_name,
                             const std::string& parameter_name)
 {
@@ -299,9 +318,10 @@ parse_sampled_level_definition (const std::string& level_set_name,
     if (!pp.query((base + "coordinate").c_str(), coordinate_value)) {
         amrex::Abort(build_missing_field_error(level_set_name, "coordinate"));
     }
-    if (string_iequals(coordinate_value, "isentropic")) {
-        amrex::Abort(sampled_level_error_prefix(level_set_name, "coordinate") +
-                     "isentropic output needs a crossing policy");
+    const std::string coordinate_error =
+        validate_sampled_coordinate_string(level_set_name, coordinate_value);
+    if (!coordinate_error.empty()) {
+        amrex::Abort(coordinate_error);
     }
     level_set.coordinate = sampled_coordinate_from_string(coordinate_value);
 
