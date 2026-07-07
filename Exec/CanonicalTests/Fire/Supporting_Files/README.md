@@ -227,25 +227,25 @@ ERF writes separate plot files for atmospheric and fire variables due to their d
 **Atmospheric 3D Variables** (atmospheric grid - 50m spacing):
 - Directory: `plt3d_atm*` 
 - Variables: theta, qv, u, v, w
-- Specified by: `erf.plot_int = 100`
+- Configuration: `erf.plot_file`, `erf.plot_int`, `erf.plot_vars`
 
 **Fire 2D Variables** (fire grid - 10m spacing, 5× refined):
-- Interval output: `plt2d_fire*` directories (every 100 timesteps)
-- Final timestep: `plt2d_fire_final*` directory (at end of simulation)
-- Specified by: `erf.plot2d_int_1 = 100` and `erf.plot2d_int_2 = -1`
+- Directory: `plt_fire_XXXXX` (timestep numbered)
+- Variables: fire physics on 10m fire cells
+- Configuration: `erf.fire_plot_file`, `erf.fire_plot_int`
 
-**Important**: Fire variables are written to separate 2D plot files because the fire grid is 5× finer than the atmospheric grid. Fire variables cannot share files with atmospheric variables due to incompatible grid structures.
+**Important**: Fire variables use separate dedicated fire plot output parameters because the fire grid (10m cells) is 5× finer than the atmospheric grid (50m cells).
 
 ## Fire Output Variables
-- `fire_phi`: Fire front representation (burned/unburned status)
-- `fire_ros`: Rate of spread [m/s]
-- `fire_wind_eff`: Effective wind after WAF and terrain corrections [m/s]
-- `fire_wind_ref`: Reference height wind (6.1 m) [m/s]
-- `fire_slopes`: Terrain slope components (dz/dx, dz/dy)
-- `fire_fuel_mc`: Fuel moisture content (1hr, 10hr, 100hr) [fraction]
-- `fire_tsurf`: Surface temperature on fire grid [K]
-- `fire_fuel_burned`: Cumulative fuel burned [kg/m²]
-- `fire_ignition_mask`: Ignition state on fire grid (0=unburned, 1=burning, 2=burned)
+
+All fire test cases output 2D fire-specific variables on the fire grid:
+
+**Fire Output Configuration**:
+- Parameter: `erf.fire_plot_file = plt_fire_` (output file prefix)
+- Parameter: `erf.fire_plot_int = 100` (output interval in timesteps)
+- Output directory: `plt_fire_XXXXX` (timestep-numbered directories)
+
+**Fire variables on 10m fire grid**:
 
 Heat flux tests additionally output:
 - `fire_heat_flux`: Sensible heat flux [W/m²]

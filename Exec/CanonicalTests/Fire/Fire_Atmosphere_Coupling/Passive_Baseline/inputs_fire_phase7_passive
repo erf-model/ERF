@@ -35,6 +35,10 @@ erf.v = 1
 amr.v = 1
 erf.check_int = -1
 
+# Plot files (2D fire variables on fire grid)
+erf.fire_plot_file = plt_fire_
+erf.fire_plot_int  = 100
+
 erf.plot_int = 100
 erf.plot_vars = theta u v w
 

@@ -49,15 +49,10 @@ amr.v = 1
 erf.check_file = fire_chk
 erf.check_int = -1
 
-# Plot files (2D fire variables only)
-erf.plot2d_file_1 = plt2d_fire
-erf.plot2d_int_1 = 100
+# Plot files (2D fire variables on fire grid)
+erf.fire_plot_file = plt_fire_
+erf.fire_plot_int  = 100
 
-# Plot files (2D fire variables at final time step)
-erf.plot2d_file_2 = plt2d_fire_final
-erf.plot2d_int_2 = -1
-erf.plot2d_vars_2 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc fire_tsurf fire_fuel_burned fire_ignition_mask
-erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc fire_tsurf fire_fuel_burned fire_ignition_mask
 
 # Plot files (3D atmospheric variables)
 erf.plot_file = plt3d_atm
