@@ -44,48 +44,45 @@ SurfaceLayer::update_fluxes (const int& lev,
     m_ma.compute_averages(lev);
 
     // NOTE: Do iterations to seed variables on the first step (LSM called post step)
+    //       as well as compute values where invalid LSM fluxes may reside
     //*******************************************************************************
-    // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes && elapsed_time > zero) {
-        compute_sfc_params_from_lsm_fluxes(lev, cons_in);
-    } else {
-        // ***************************************************************
-        // Iterate the fluxes if moeng type
-        // First iterate over land -- the only model for surface roughness
-        // over land is RoughCalcType::CONSTANT
-        // ***************************************************************
-        if (flux_type == FluxCalcType::MOENG ||
-            flux_type == FluxCalcType::ROTATE) {
-            bool is_land = true;
-            // Do we have a constant flux for moisture over land?
-            bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
-                                (moist_type == MoistCalcType::ADIABATIC) );
-            if (m_terrain_type != TerrainType::EB) {
+    // ***************************************************************
+    // Iterate the fluxes if moeng type
+    // First iterate over land -- the only model for surface roughness
+    // over land is RoughCalcType::CONSTANT
+    // ***************************************************************
+    if (flux_type == FluxCalcType::MOENG ||
+        flux_type == FluxCalcType::ROTATE) {
+        bool is_land = true;
+        // Do we have a constant flux for moisture over land?
+        bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                            (moist_type == MoistCalcType::ADIABATIC) );
+        if (m_terrain_type != TerrainType::EB) {
             if (theta_type == ThetaCalcType::HEAT_FLUX) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
-                } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
-                } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                        (moist_type == MoistCalcType::ADIABATIC)) {
-                    if (rough_type_land == RoughCalcType::CONSTANT) {
-                        adiabatic most_flux(surf_temp_flux, surf_moist_flux);
-                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-                    } else {
-                        amrex::Abort("Unknown value for rough_type_land");
-                    }
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
                 } else {
-                    amrex::Abort("Unknown value for theta_type");
+                    amrex::Abort("Unknown value for rough_type_land");
                 }
+            } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                       (moist_type == MoistCalcType::ADIABATIC)) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    adiabatic most_flux(surf_temp_flux, surf_moist_flux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else {
+                amrex::Abort("Unknown value for theta_type");
+            }
         // EB
         } else {
             if (theta_type == ThetaCalcType::HEAT_FLUX) {
@@ -103,7 +100,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                     amrex::Abort("Unknown value for rough_type_land");
                 }
             } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                    (moist_type == MoistCalcType::ADIABATIC)) {
+                       (moist_type == MoistCalcType::ADIABATIC)) {
                 if (rough_type_land == RoughCalcType::CONSTANT) {
                     adiabatic_eb most_flux(surf_temp_flux, surf_moist_flux);
                     compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
@@ -113,9 +110,13 @@ SurfaceLayer::update_fluxes (const int& lev,
             } else {
                 amrex::Abort("Unknown value for theta_type");
             }
-        }
-        } // MOENG -- LAND
-    } // has_lsm_fluxes
+        } // EB
+    } // MOENG -- LAND
+
+    // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
+    if (m_has_lsm_fluxes && elapsed_time > zero) {
+        compute_sfc_params_from_lsm_fluxes(lev, cons_in);
+    }
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
@@ -571,22 +572,26 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Valid theta flux from LSM and over land. The LSM writes the
-            // lsm_flux_undefined sentinel for cells it did not process (sea-ice /
+            // lsm_undefined sentinel for cells it did not process (sea-ice /
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            const bool lsm_flux_is_valid = has_lsm_t_flux &&
-                                           lsm_t_flux_arr(i,j,0) < lsm_flux_undefined;
-            if (has_lsm_t_flux && is_land && lsm_flux_is_valid) {
-                const Real rho = cons_arr(i,j,k,Rho_comp);
+            const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined) :
+                                                              false;
+            const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+            if (lsm_t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
-                Tflux = rho * lsm_t_flux_arr(i,j,0);
+                Tflux = cons_arr(i,j,k,Rho_comp) * lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
+                if (lsm_t_flux_arr) {
+                    lsm_t_flux_arr(i,j,0) = Tflux / cons_arr(i,j,k,Rho_comp);
+                }
+
             }
 
             surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(
@@ -610,16 +615,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_flux_undefined) {
-                    const Real rho = cons_arr(i,j,k,Rho_comp);
+                const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined) :
+                                                                  false;
+                const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+                if (lsm_q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
-                    Qflux = rho * lsm_q_flux_arr(i,j,0);
+                    Qflux = cons_arr(i,j,k,Rho_comp) * lsm_q_flux_arr(i,j,0);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
                                                      cons_arr, velx_arr, vely_arr,
                                                      umm_arr, qm_arr, u_star_arr,
                                                      q_star_arr, q_surf_arr);
+                    if (lsm_q_flux_arr) {
+                        lsm_q_flux_arr(i,j,0) = Qflux / cons_arr(i,j,k,Rho_comp);
+                    }
                 }
 
                 // Do scalar flux rotations?
@@ -642,23 +652,33 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // whose LSM flux is the sentinel (sea-ice / open water) is treated
                 // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_flux_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_flux_undefined);
-                if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
+                const bool lsm_hi_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau13_arr(i  ,j,0) < lsm_undefined) :
+                                                                    false;
+                const bool lsm_lo_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau13_arr(i-1,j,0) < lsm_undefined) :
+                                                                    false;
+                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     stressx = zero;
-                    if (!is_land_hi || !is_land_lo) {
+                    if (!has_land_and_flux_hi || !has_land_and_flux_lo) {
                         stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
-                                                                  cons_arr, velx_arr, vely_arr,
-                                                                  umm_arr, um_arr, u_star_arr);
+                                                                     cons_arr, velx_arr, vely_arr,
+                                                                     umm_arr, um_arr, u_star_arr);
+                        if (!has_land_and_flux_hi) {
+                            lsm_tau13_arr(i  ,j,0) = two * stressx;
+                        }
+                        if (!has_land_and_flux_lo) {
+                            lsm_tau13_arr(i-1,j,0) = two * stressx;
+                        }
                     }
-                    if (is_land_hi) {
+                    if (has_land_and_flux_hi) {
                         const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
                         // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
                         stressx += myhalf * rho_hi * lsm_tau13_arr(i  ,j,0);
                     }
-                    if (is_land_lo) {
+                    if (has_land_and_flux_lo) {
                         const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
                         // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
                         stressx += myhalf * rho_lo * lsm_tau13_arr(i-1,j,0);
@@ -667,6 +687,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, um_arr, u_star_arr);
+                    if (lsm_tau13_arr) {
+                        lsm_tau13_arr(i  ,j,0) = stressx / cons_arr(i  ,j,k,Rho_comp);
+                        lsm_tau13_arr(i-1,j,0) = stressx / cons_arr(i-1,j,k,Rho_comp);
+                    }
                 }
 
                 t13_arr(i,j,k) = stressx;
@@ -680,23 +704,33 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_flux_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_flux_undefined);
-                if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
+                const bool lsm_hi_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau23_arr(i,j  ,0) < lsm_undefined) :
+                                                                    false;
+                const bool lsm_lo_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau23_arr(i,j-1,0) < lsm_undefined) :
+                                                                    false;
+                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     stressy = zero;
-                    if (!is_land_hi || !is_land_lo) {
+                    if (!has_land_and_flux_hi || !has_land_and_flux_lo) {
                         stressy += myhalf * flux_comp.compute_v_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, vm_arr, u_star_arr);
+                        if (!has_land_and_flux_hi) {
+                            lsm_tau23_arr(i,j  ,0) = two * stressy;
+                        }
+                        if (!has_land_and_flux_lo) {
+                            lsm_tau23_arr(i,j-1,0) = two * stressy;
+                        }
                     }
-                    if (is_land_hi) {
+                    if (has_land_and_flux_hi) {
                         const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
                         // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
                         stressy += myhalf * rho_hi * lsm_tau23_arr(i,j  ,0);
                     }
-                    if (is_land_lo) {
+                    if (has_land_and_flux_lo) {
                         const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
                         // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
                         stressy += myhalf * rho_lo * lsm_tau23_arr(i,j-1,0);
@@ -705,6 +739,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, vm_arr, u_star_arr);
+                    if (lsm_tau23_arr) {
+                        lsm_tau23_arr(i,j  ,0) = stressy;
+                        lsm_tau23_arr(i,j-1,0) = stressy;
+                    }
                 }
 
                 t23_arr(i,j,k) = stressy;
@@ -975,12 +1013,8 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            // Skip cells the LSM did not flux (sea-ice / open water -> the LSM
-            // wrote the lsm_flux_undefined sentinel). They keep the u*/T*/q*/L
-            // from the MOST iteration (computed from the surface temperature).
-            // Using the sentinel here would give u_star ~ sqrt(bogus_large_value) and blow up
-            // the PBL on the next step.
-            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
+            // Skip cells the LSM did not have a valid flux (lsm_undefined).
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
