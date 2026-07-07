@@ -185,9 +185,9 @@ inline void fill_fire_diagnostics(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_flame_temp_byram(amrex::Real I_B_kWm, amrex::Real T_amb) noexcept
 {
-    if (I_B_kWm <= 0.0_rt) return 0.0_rt;
-    amrex::Real T_flame = T_amb + 800.0_rt * std::pow(I_B_kWm / 1000.0_rt, 0.25_rt);
-    return amrex::max(0.0_rt, T_flame);
+    if (I_B_kWm <= 0.0) return 0.0;
+    amrex::Real T_flame = T_amb + 800.0 * std::pow(I_B_kWm / 1000.0, 0.25);
+    return amrex::max(0.0, T_flame);
 }
 
 /**
@@ -206,14 +206,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_flame_temp_mcalpine(amrex::Real I_B_kWm, amrex::Real h_fuel_Jkg,
                                          amrex::Real M_f, amrex::Real T_amb) noexcept
 {
-    if (I_B_kWm <= 0.0_rt) return 0.0_rt;
-    constexpr amrex::Real c_p_products = 1200.0_rt;  // [J/(kg·K)]
-    constexpr amrex::Real r_stoich = 6.0_rt;         // stoichiometric air-fuel ratio
-    amrex::Real rise = h_fuel_Jkg * (1.0_rt - M_f) / (c_p_products * (1.0_rt + r_stoich));
+    if (I_B_kWm <= 0.0) return 0.0;
+    constexpr amrex::Real c_p_products = 1200.0;  // [J/(kg·K)]
+    constexpr amrex::Real r_stoich = 6.0;         // stoichiometric air-fuel ratio
+    amrex::Real rise = h_fuel_Jkg * (1.0 - M_f) / (c_p_products * (1.0 + r_stoich));
     amrex::Real T_flame = T_amb + rise;
     // Clip to physically reasonable range
-    amrex::Real T_min = T_amb + 100.0_rt;
-    amrex::Real T_max = 1500.0_rt;
+    amrex::Real T_min = T_amb + 100.0;
+    amrex::Real T_max = 1500.0;
     T_flame = amrex::max(T_min, amrex::min(T_flame, T_max));
     return T_flame;
 }
@@ -230,13 +230,13 @@ amrex::Real compute_flame_temp_mcalpine(amrex::Real I_B_kWm, amrex::Real h_fuel_
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_flame_temp_nelson(amrex::Real I_B_kWm) noexcept
 {
-    if (I_B_kWm <= 0.0_rt) return 0.0_rt;
-    constexpr amrex::Real sigma = 5.67e-8_rt;  // Stefan-Boltzmann [W/(m²·K⁴)]
-    constexpr amrex::Real epsilon = 0.9_rt;    // flame emissivity
-    amrex::Real Q_rad_Wm = I_B_kWm * 1000.0_rt;  // convert kW/m to W/m
-    amrex::Real T_flame = std::pow(Q_rad_Wm / (sigma * epsilon), 0.25_rt);
+    if (I_B_kWm <= 0.0) return 0.0;
+    constexpr amrex::Real sigma = 5.67e-8;  // Stefan-Boltzmann [W/(m²·K⁴)]
+    constexpr amrex::Real epsilon = 0.9;    // flame emissivity
+    amrex::Real Q_rad_Wm = I_B_kWm * 1000.0;  // convert kW/m to W/m
+    amrex::Real T_flame = std::pow(Q_rad_Wm / (sigma * epsilon), 0.25);
     // Clip to reasonable range
-    T_flame = amrex::max(300.0_rt, amrex::min(T_flame, 1800.0_rt));
+    T_flame = amrex::max(300.0, amrex::min(T_flame, 1800.0));
     return T_flame;
 }
 
@@ -279,13 +279,13 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
         auto T_flame_arr = fire_flame_temp.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (phi_arr(i, j, k) >= 0.0_rt) {
-                T_flame_arr(i, j, k) = 0.0_rt;
+            if (phi_arr(i, j, k) >= 0.0) {
+                T_flame_arr(i, j, k) = 0.0;
                 return;
             }
 
             Real I_B = I_B_arr(i, j, k);
-            Real T_flame = 0.0_rt;
+            Real T_flame = 0.0;
 
             if (method_id == 1) {
                 T_flame = compute_flame_temp_mcalpine(I_B, h_fuel_Jkg, M_f, T_amb);
@@ -315,36 +315,36 @@ amrex::Real compute_flame_tilt_angle_deg(
     amrex::Real rho_air,
     amrex::Real T_amb) noexcept
 {
-    if (I_B_kWm <= 0.0_rt || rho_air <= 0.0_rt || T_amb <= 0.0_rt) {
-        return 0.0_rt;
+    if (I_B_kWm <= 0.0 || rho_air <= 0.0 || T_amb <= 0.0) {
+        return 0.0;
     }
 
-    constexpr amrex::Real g       = 9.81_rt;
-    constexpr amrex::Real PI      = 3.14159265358979323846_rt;
-    constexpr amrex::Real sigma   = 5.67e-8_rt;
-    constexpr amrex::Real Cp_air  = 1005.0_rt;
+    constexpr amrex::Real g       = 9.81;
+    constexpr amrex::Real PI      = 3.14159265358979323846;
+    constexpr amrex::Real sigma   = 5.67e-8;
+    constexpr amrex::Real Cp_air  = 1005.0;
 
     amrex::Real wind_speed = std::sqrt(wind_u * wind_u + wind_v * wind_v);
-    if (wind_speed <= 0.0_rt) {
-        return 0.0_rt;
+    if (wind_speed <= 0.0) {
+        return 0.0;
     }
 
     amrex::Real flame_length = compute_flame_length_m(I_B_kWm);
     amrex::Real T_flame = compute_flame_temp_byram(I_B_kWm, T_amb);
-    amrex::Real q_rad = sigma * (std::pow(T_flame, 4.0_rt) - std::pow(T_amb, 4.0_rt));
-    q_rad = amrex::max(q_rad, 0.0_rt);
+    amrex::Real q_rad = sigma * (std::pow(T_flame, 4.0) - std::pow(T_amb, 4.0));
+    q_rad = amrex::max(q_rad, 0.0);
 
-    if (flame_length <= 0.0_rt || q_rad <= 0.0_rt) {
-        return 0.0_rt;
+    if (flame_length <= 0.0 || q_rad <= 0.0) {
+        return 0.0;
     }
 
     amrex::Real buoyancy = std::sqrt(g * q_rad * flame_length / (rho_air * Cp_air * T_amb));
-    if (buoyancy <= 0.0_rt) {
-        return 90.0_rt;
+    if (buoyancy <= 0.0) {
+        return 90.0;
     }
 
     amrex::Real tilt_rad = std::atan(wind_speed / buoyancy);
-    return amrex::min(tilt_rad * 180.0_rt / PI, 90.0_rt);
+    return amrex::min(tilt_rad * 180.0 / PI, 90.0);
 }
 
 /**
