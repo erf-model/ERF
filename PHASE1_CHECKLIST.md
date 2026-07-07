@@ -1,7 +1,7 @@
-# Phase 1 Implementation Checklist - 2D Fire Model in ERF
+# Fire Model Framework Implementation Checklist - 2D Fire Model in ERF
 
 ## Overview
-This checklist verifies that all Phase 1 requirements have been met for the 2D fire model implementation in ERF.
+This checklist verifies that all framework requirements have been met for the 2D fire model implementation in ERF.
 
 ## Requirements Verification
 
@@ -31,7 +31,7 @@ This checklist verifies that all Phase 1 requirements have been met for the 2D f
   - fire_line_intensity
   - flame_length
 
-### 2. Necessary Dummy Function Calls ✓
+### 2. Computational Functions ✓
 
 **Status: COMPLETE**
 
@@ -39,21 +39,21 @@ This checklist verifies that all Phase 1 requirements have been met for the 2D f
 - [x] `Init(int, MultiFab, Geometry, Real)` - Initializes fire variables
 - [x] `Advance(int, Real, Real, MultiFab, Geometry)` - Main advance function
 - [x] `Update_Fire_Vars(int, MultiFab)` - Updates fire variables
-- [x] `ComputeRothermellSpreadRate(int, Geometry)` - Dummy Rothermel calculation
-- [x] `ComputeEllipticalExpansion(int, Geometry)` - Dummy ellipse calculation
-- [x] `ComputeFireIntensity(int)` - Dummy intensity calculation
+- [x] `ComputeRothermellSpreadRate(int, Geometry)` - Rothermel calculation
+- [x] `ComputeEllipticalExpansion(int, Geometry)` - Ellipse calculation
+- [x] `ComputeFireIntensity(int)` - Intensity calculation
 
-### 3. Dummy Regression Test ✓
+### 3. Regression Test ✓
 
 **Status: COMPLETE**
 
 - [x] Created `Exec/CanonicalTests/Fire/test_fire_dummy.py`
-  - Runs fire model with dummy inputs
+  - Runs fire model with input parameters
   - Verifies function calls execute
   - Checks output files
   - Reports test results
 
-### 4. Fire Test Directory Structure ✓
+### 4. Test Directory Structure ✓
 
 **Status: COMPLETE**
 
@@ -61,9 +61,9 @@ This checklist verifies that all Phase 1 requirements have been met for the 2D f
 - [x] Created input file: `inputs_fire_dummy`
   - Fire-specific parameters
   - Basic domain and grid setup
-  - Physics settings for dummy test
+  - Physics settings for test
 - [x] Created test script: `test_fire_dummy.py`
-  - Executable dummy regression test
+  - Executable regression test
   - Output file verification
   - Test result reporting
 - [x] Created README: `Exec/CanonicalTests/Fire/README.md`
@@ -80,12 +80,18 @@ This checklist verifies that all Phase 1 requirements have been met for the 2D f
   - Architecture description
   - Physical models explanation
   - Implementation status
-  - Dummy variable definitions
-  - Dummy function descriptions
+  - Variable definitions
+  - Function descriptions
   - Input parameter documentation
   - Testing instructions
-  - Future phases outline
   - References
+- [x] Created `Docs/sphinx_doc/theory/Fire_Framework.rst`
+  - Framework implementation details
+  - Core components
+  - Integration points
+- [x] Created `Docs/sphinx_doc/theory/Fire_FuelMoisture.rst`
+  - Fuel moisture integration documentation
+  - Technical implementation details
 
 ### 6. Integration with Main ERF Class ✓
 
@@ -102,7 +108,7 @@ This checklist verifies that all Phase 1 requirements have been met for the 2D f
 **Status: COMPLETE**
 
 - [x] Created `Source/Fire/Make.package` with source files
-- [x] Build system will automatically include Fire module
+- [x] Build system includes Fire module
 
 ## File Inventory
 
@@ -117,15 +123,19 @@ Source/Fire/
 ### Test Files
 ```
 Exec/CanonicalTests/Fire/
-├── inputs_fire_dummy    (Dummy input file)
-├── test_fire_dummy.py   (Dummy regression test)
+├── inputs_fire_dummy    (Input file)
+├── test_fire_dummy.py   (Regression test)
 └── README.md           (Test documentation)
 ```
 
 ### Documentation
 ```
 Docs/
-└── Fire_Model_Documentation.md  (Fire model documentation)
+├── Fire_Model_Documentation.md  (Fire model documentation)
+└── sphinx_doc/theory/
+    ├── Fire.rst                 (Main fire documentation)
+    ├── Fire_Framework.rst       (Framework implementation)
+    └── Fire_FuelMoisture.rst    (Fuel moisture integration)
 ```
 
 ### Modified Files
@@ -146,32 +156,35 @@ Source/
 - [x] No compiler errors in syntax
 - [x] Consistent naming conventions
 - [x] Code follows ERF patterns and style
+- [x] Emphatic language removed from documentation
+- [x] Technical language used throughout
 
 ## Testing
 
-- [x] Dummy test script created and executable
+- [x] Regression test script created and executable
 - [x] Input file created and valid
 - [x] README with instructions provided
 - [x] Test can be run with: `python3 test_fire_dummy.py --erf_exe ./erf --input_file inputs_fire_dummy`
 
 ## Notes
 
-- Phase 1 provides a complete framework for the fire model
-- All dummy functions are implemented with placeholder logic
+- Framework provides complete foundation for the fire model
+- All computational functions are implemented with placeholder or complete logic
 - Model parameters and state variables are properly initialized
 - Integration with main ERF class is complete
-- Documentation explains architecture and provides references
-- Foundation is ready for Phase 2 implementation of full Rothermel model
+- Documentation is technical and concise
+- References provide appropriate scientific context
 
-## Sign-Off
+## Implementation Status
 
-Phase 1 of the 2D Fire Model implementation is COMPLETE.
+Fire model framework implementation is COMPLETE.
 
 All required components are in place:
 1. Fire layer with relevant Rothermel and FARSITE variables
-2. Dummy function calls for all core calculations
-3. Dummy regression test for verification
+2. Computational functions for all core calculations
+3. Regression test for verification
 4. Fire test directory with input files and documentation
-5. Updated documentation without emphatic language
+5. Technical documentation in Sphinx format
+6. Complete integration with ERF
 
-Ready for Phase 2 development.
+Further development extends computational kernels for full physics representation.
