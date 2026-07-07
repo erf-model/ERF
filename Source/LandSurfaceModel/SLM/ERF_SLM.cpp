@@ -5147,6 +5147,7 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
 
     // Net radiation arrays for output
     auto net_rad_arr = net_rad.array(mfi);
+    auto t_skin_arr  = t_skin.array(mfi);
 
     // Diagnostic arrays for output
     auto slm_diag_arr = slm_diag.array(mfi);
@@ -5515,6 +5516,13 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         amrex::Real cir_g = emg * SB;
         amrex::Real irg = cir_g * std::pow(tg, 4) + air_g;
 
+        amrex::Real tir1 = emv * SB * std::pow(tv, 4);
+        amrex::Real tir2 = emg * SB * std::pow(tg, 4);
+        amrex::Real lwdn1 = lwdn;
+        amrex::Real lwdn2 = (1.0 - emv) * lwdn + tir1;
+        amrex::Real lwup2 = tir2 + (1.0 - emg) * lwdn2;
+        amrex::Real lwup1 = lwdn + irc + irg;
+
         // --------------------------------------------------------------------------------------------------
         // Store shortwave and longwave radiation to net_rad arrays
         // --------------------------------------------------------------------------------------------------
@@ -5534,6 +5542,12 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
 
         // Longwave absorbed (W/m²)
         // Sign flip converts NOAHMP convention (net upward) to SLM convention (net absorbed)
+        net_rad_arr(i, j, 0, SLM_NetRad::tir1) = tir1;
+        net_rad_arr(i, j, 0, SLM_NetRad::tir2) = tir2;
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lwup1) = lwup1;
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lwup2) = lwup2;
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lwdn1) = lwdn1;
+        net_rad_arr(i, j, 0, SLM_NetRad::net_lwdn2) = lwdn2;
         net_rad_arr(i, j, 0, SLM_NetRad::net_lw1) = -irc;  // canopy absorbed longwave
         net_rad_arr(i, j, 0, SLM_NetRad::net_lw2) = -irg;  // ground absorbed longwave
 
@@ -5567,11 +5581,15 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = albi[0];
         alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = albi[1];
 
-        // Surface emissivity (weighted by vegetation fraction)
-        // In SLM, we always have vegetation layer (fveg implicitly 1), so use EMV
-        // For coupling to atmosphere, use effective emissivity of vegetated surface
-        emis_sfc_arr(i, j, 0) = emv + (1.0 - emv) * emg;  // effective surface emissivity
+        // Surface emissivity for the vegetated canopy-ground system, including
+        // the Noah-MP multiple-reflection term.
+        amrex::Real emiss_sfc = emv + emg * (1.0 - emv)
+                              + emv * (1.0 - emv) * (1.0 - emg);
+        emis_sfc_arr(i, j, 0) = emiss_sfc;
         emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i, j, 0);
+
+        t_skin_arr(i, j, 0) = std::pow(
+            std::max(MPE, (lwup1 - (1.0 - emiss_sfc) * lwdn) / (emiss_sfc * SB)), 0.25);
 
     }); // End ParallelFor
 }
