@@ -18,7 +18,7 @@
  *   3. fire_wind_eff_v    (component 1 of fire_wind_eff)
  *   4. fire_wind_ref_u    (component 0 of fire_wind_ref)
  *   5. fire_wind_ref_v    (component 1 of fire_wind_ref)
- *   6. fire_wind_extract_z (wind extraction height [m])
+ *   6. fire_extract_z      (wind extraction height [m])
  *   7. fire_slope_x       (component 0 of fire_slopes)
  *   8. fire_slope_y       (component 1 of fire_slopes)
  *   9. fire_fuel_mc_1hr   (component 0 of fire_fuel_mc)
@@ -46,7 +46,7 @@ inline amrex::Vector<std::string> fire_plotfile_var_names()
         "fire_wind_eff_v",
         "fire_wind_ref_u",
         "fire_wind_ref_v",
-        "fire_wind_extract_z",
+        "fire_extract_z",
         "fire_slope_x",
         "fire_slope_y",
         "fire_fuel_mc_1hr",

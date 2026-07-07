@@ -139,9 +139,14 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     // 1. Wind extraction
     fill_fire_wind_from_interpolation(*fire_wind_ref, xvel, yvel, z_phys_cc,
                                       m_fg, m_params.wind_ref_ht, m_nz);
-    if (m_params.fire_debug)
+    if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Wind extraction completed. Max reference wind: "
                        << fire_wind_ref->max(0) << " m/s" << std::endl;
+        if (m_step > 0)
+            amrex::Print() << "[FIRE DEBUG] Wind extraction height range: min="
+                           << fire_wind_extract_z->min(0) << " m  max="
+                           << fire_wind_extract_z->max(0) << " m" << std::endl;
+    }
 
     // 2. Copy to effective wind
     MultiFab::Copy(*fire_wind_eff, *fire_wind_ref, 0, 0, 2, 0);
@@ -171,9 +176,16 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     if (m_params.fire_debug)
         amrex::Print() << "[FIRE DEBUG] Updating fuel moisture from atmospheric state" << std::endl;
     advance_fuel_moisture(dt, T_atm_k0, RH_atm_k0);
-    if (m_params.fire_debug)
+    if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Fuel moisture update completed. Max 1-hour moisture: "
                        << fire_fuel_mc->max(0) << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Surface temp range: min="
+                       << fire_surface_temp->min(0) << " K  max="
+                       << fire_surface_temp->max(0) << " K" << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Surface RH range:   min="
+                       << fire_surface_rh->min(0) << "    max="
+                       << fire_surface_rh->max(0) << std::endl;
+    }
 
     // 5b. Dynamic Rothermel update
     if (m_params.moisture_dynamic) {
@@ -310,6 +322,11 @@ void FireLayer::advance_fuel_moisture(Real dt_s,
             RH_f(iv_f[0], iv_f[1], 0) = RH_a(i_a, j_a, 0);
         });
     }
+
+    if (!m_params.moisture_dynamic) { return; }
+    Real dt_hours = dt_s / 3600.0_rt;
+    FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
+    Real precip_mm_hr = m_params.precip_rate_mm_hr;
 
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
         Array4<Real>       mc   = fire_fuel_mc->array(mfi);
