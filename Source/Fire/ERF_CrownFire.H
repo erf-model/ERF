@@ -8,9 +8,13 @@
  * @file ERF_CrownFire.H
  * @brief Crown fire initiation and active crown fire rate of spread
  *
- * Implements two models:
+ * Implements multiple crown fire models from published literature:
  *   1. Van Wagner (1977) criterion for surface-to-crown fire transition
  *   2. Cruz et al. (2005) model for active crown fire rate of spread
+ *   3. Rothermel (1991) crown ROS as multiple of surface ROS
+ *   4. Van Wagner proxy model for crown ROS
+ *   5. Van Wagner passive-to-active blending
+ *   6. Crown Fraction Burned (CFB) diagnostic
  *
  * Assumptions:
  *   - Canopy parameters are uniform across the domain; spatially varying canopy
@@ -25,62 +29,226 @@
  *   Cruz, M.G., Alexander, M.E. & Wakimoto, R.H. (2005). Development and testing
  *     of models for predicting crown fire rate of spread in conifer forest stands.
  *     Canadian Journal of Forest Research, 35(7), 1626–1639.
+ *   Rothermel, R.C. (1991). Predicting behavior and size of crown fires in the
+ *     northern Rocky Mountain conifers. USDA Forest Service INT-RP-438.
+ *   Scott, J.H. & Reinhardt, E.D. (2001). Assessing crown fire potential by linking
+ *     models of surface and crown fire behavior. USDA Forest Service RMRS-RP-29.
  */
 
 /**
  * @brief Van Wagner (1977) critical fireline intensity for crown fire initiation
  *
- * Formula: I_B_crit = 0.010 * (C_BH * (M_fold - M_c))^1.5
+ * Formula: I_B_crit = 0.010 * C_BH * (460 + 25.9 * FMC_pct)
  *
- * @param[in] C_BH      Canopy base height [m]
- * @param[in] M_fold    Foliar moisture [fraction]
- * @param[in] M_c       Critical foliar moisture [fraction]
- * @return Critical intensity [kW/m], or 1.0e12 kW/m when M_fold <= M_c
+ * Note: foliar_moisture is converted from fraction to percent before applying formula.
+ * e.g., foliar_moisture=1.0 (100%) converts to FMC_pct=100.0 for the formula.
+ *
+ * @param[in] C_BH              Canopy base height [m]
+ * @param[in] foliar_moisture   Foliar moisture [fraction, 0-1]
+ * @param[in] M_c               Critical foliar moisture [fraction] (unused here, kept for interface)
+ * @return Critical intensity [kW/m], or 1.0e12 kW/m when foliar_moisture=0
  *
  * Reference: Van Wagner, C.E. (1977). Conditions for the start and spread of
  *   crown fire. Canadian Journal of Forest Research, 7(1), 23–34.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real van_wagner_critical_intensity(amrex::Real C_BH, amrex::Real M_fold,
+amrex::Real van_wagner_critical_intensity(amrex::Real C_BH, amrex::Real foliar_moisture,
                                            amrex::Real M_c) noexcept
 {
-    // Crown fire thermally impossible when foliar moisture is at or below critical
-    if (M_fold <= M_c) {
-        return 1.0e12_rt;
-    }
-    amrex::Real delta_m = M_fold - M_c;
-    amrex::Real I_B_crit = 0.010_rt * std::pow(C_BH * delta_m, 1.5_rt);
+    // Convert foliar moisture from fraction to percent
+    // foliar_moisture=1.0 (100%) → FMC_pct=100.0
+    amrex::Real FMC_pct = foliar_moisture * 100.0_rt;
+    
+    // Ensure minimum values for stability
+    C_BH = amrex::max(C_BH, 0.1_rt);
+    FMC_pct = amrex::max(FMC_pct, 50.0_rt);
+    
+    // Van Wagner's critical intensity equation: I_o = 0.010 * CBH * (460 + 25.9 * FMC)
+    amrex::Real I_B_crit = 0.010_rt * C_BH * (460.0_rt + 25.9_rt * FMC_pct);
     return I_B_crit;
 }
 
 /**
  * @brief Cruz et al. (2005) active crown fire rate of spread
  *
- * Formula: R [m/min] = 11.02 * U_10^0.9 * C_BD^0.19 * exp(-17.08 * M_fold)
+ * Formula: R [m/min] = 11.02 * U_10^0.9 * C_BD^0.19 * exp(-0.17 * MC10_pct)
  * Returns value in m/s (input formula is m/min, so divide by 60).
  *
- * @param[in] U_10_kmh  10-meter wind speed [km/h]
- * @param[in] C_BD      Canopy bulk density [kg/m³]
- * @param[in] M_fold    Foliar moisture [fraction]
- * @return Crown fire rate of spread [m/s], or 0 when U_10_kmh <= 0
+ * Note: moisture_10hr is converted from fraction to percent for the formula.
+ *
+ * @param[in] U_10_ms       10-meter wind speed [m/s] (converted to km/h internally)
+ * @param[in] C_BD          Canopy bulk density [kg/m³]
+ * @param[in] moisture_10hr 10-hr dead fuel moisture [fraction, 0-1]
+ * @return Crown fire rate of spread [m/s], or 0 when U_10_ms <= 0
  *
  * Reference: Cruz, M.G., Alexander, M.E. & Wakimoto, R.H. (2005). Development
  *   and testing of models for predicting crown fire rate of spread in conifer
  *   forest stands. Canadian Journal of Forest Research, 35(7), 1626–1639.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real cruz_crown_ros(amrex::Real U_10_kmh, amrex::Real C_BD, amrex::Real M_fold) noexcept
+amrex::Real cruz_crown_ros(amrex::Real U_10_ms, amrex::Real C_BD, amrex::Real moisture_10hr) noexcept
 {
-    // Zero wind produces zero crown ROS
-    if (U_10_kmh <= 0.0_rt) {
+    // Zero or negative wind produces zero crown ROS
+    if (U_10_ms <= 0.0_rt) {
         return 0.0_rt;
     }
-    amrex::Real R_m_min = 11.02_rt * std::pow(U_10_kmh, 0.9_rt)
-                        * std::pow(C_BD, 0.19_rt)
-                        * std::exp(-17.08_rt * M_fold);
+    
+    // Convert wind from m/s to km/h
+    amrex::Real U_kmh = U_10_ms * 3.6_rt;
+    U_kmh = amrex::max(U_kmh, 1.0_rt);  // Minimum 1 km/h (model not calibrated at calm)
+    
+    // Convert moisture from fraction to percent
+    amrex::Real MC10_pct = moisture_10hr * 100.0_rt;
+    
+    // Clamp inputs to valid ranges
+    C_BD = amrex::max(C_BD, 0.01_rt);
+    MC10_pct = amrex::max(MC10_pct, 0.0_rt);
+    
+    // Cruz formula: R [m/min] = 11.02 * U^0.90 * CBD^0.19 * exp(-0.17 * MC10)
+    constexpr amrex::Real A_COEFF = 11.02_rt;     // leading coefficient
+    constexpr amrex::Real W_EXP = 0.90_rt;        // wind exponent
+    constexpr amrex::Real CBD_EXP = 0.19_rt;      // CBD exponent
+    constexpr amrex::Real MC_COEFF = 0.17_rt;     // moisture coefficient
+    
+    amrex::Real R_m_min = A_COEFF
+                        * std::pow(U_kmh, W_EXP)
+                        * std::pow(C_BD, CBD_EXP)
+                        * std::exp(-MC_COEFF * MC10_pct);
+    
     // Convert m/min to m/s
     amrex::Real R_m_s = R_m_min / 60.0_rt;
     return amrex::max(0.0_rt, R_m_s);
+}
+
+/**
+ * @brief Rothermel (1991) active crown fire rate of spread
+ *
+ * Simple empirical formula: R_crown = 3.34 * R_surface
+ *
+ * @param[in] R_surface_ms  Surface fire rate of spread [m/s]
+ * @return Crown fire rate of spread [m/s]
+ *
+ * Reference: Rothermel, R.C. (1991). Predicting behavior and size of crown fires
+ *   in the northern Rocky Mountain conifers. USDA Forest Service INT-RP-438.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_rothermel_1991_crown_ros(amrex::Real R_surface_ms) noexcept
+{
+    constexpr amrex::Real ROTHERMEL_MULT = 3.34_rt;
+    return amrex::max(ROTHERMEL_MULT * R_surface_ms, 0.0_rt);
+}
+
+/**
+ * @brief Van Wagner (1977) proxy active crown fire rate of spread
+ *
+ * Formula: R_crown = (3.0 / CBD) * moisture_factor / 60.0
+ * where moisture_factor = max(0.3, min(1.0, 1.0 - (FMC - 100) / 200))
+ *
+ * @param[in] C_BD              Canopy bulk density [kg/m³]
+ * @param[in] foliar_moisture   Foliar moisture [fraction, 0-1]
+ * @return Crown fire rate of spread [m/s]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_van_wagner_proxy_ros(amrex::Real C_BD, amrex::Real foliar_moisture) noexcept
+{
+    // Convert moisture to percent
+    amrex::Real FMC_pct = foliar_moisture * 100.0_rt;
+    
+    // Clamp CBD
+    C_BD = amrex::max(C_BD, 0.01_rt);
+    
+    // Base crown ROS [m/min] = 3.0 / CBD
+    amrex::Real R_m_min = 3.0_rt / C_BD;
+    
+    // Moisture factor (reduction for higher moisture)
+    amrex::Real mf = 1.0_rt - (FMC_pct - 100.0_rt) / 200.0_rt;
+    mf = amrex::max(0.3_rt, amrex::min(1.0_rt, mf));
+    
+    R_m_min *= mf;
+    
+    // Convert m/min to m/s
+    return amrex::max(0.0_rt, R_m_min / 60.0_rt);
+}
+
+/**
+ * @brief Van Wagner (1977) passive-to-active crown fire blending
+ *
+ * When I_B > I_o, a continuous crowning fraction CF blends between surface and
+ * active crown ROS:
+ *   CF = min((I_B / I_o)^(2/3), 1.0)
+ *   R_total = R_surface * (1 - CF) + R_crown_active * CF
+ *
+ * @param[in] R_surface_ms       Surface fire ROS [m/s]
+ * @param[in] R_crown_active_ms  Active crown fire ROS [m/s]
+ * @param[in] I_B_kwm            Byram fireline intensity [kW/m]
+ * @param[in] I_o_kwm            Van Wagner critical surface intensity [kW/m]
+ * @return Blended ROS [m/s]
+ *
+ * Reference: Van Wagner, C.E. (1977). Conditions for the start and spread of
+ *   crown fire. Canadian Journal of Forest Research, 7(1), 23–34.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_van_wagner_passive_blend(
+    amrex::Real R_surface_ms,
+    amrex::Real R_crown_active_ms,
+    amrex::Real I_B_kwm,
+    amrex::Real I_o_kwm) noexcept
+{
+    // Guard against zero critical intensity
+    if (I_o_kwm < 1.0e-6_rt) return R_surface_ms;
+    
+    // Return surface ROS if below critical intensity
+    if (I_B_kwm < I_o_kwm) return R_surface_ms;
+    
+    // Compute crowning fraction: CF = min((I_B / I_o)^(2/3), 1.0)
+    amrex::Real ratio = I_B_kwm / I_o_kwm;
+    amrex::Real CF = amrex::min(std::pow(ratio, 2.0_rt / 3.0_rt), 1.0_rt);
+    
+    // Blend: R_total = R_surface * (1 - CF) + R_crown_active * CF
+    return R_surface_ms * (1.0_rt - CF) + amrex::max(R_crown_active_ms, R_surface_ms) * CF;
+}
+
+/**
+ * @brief Crown Fraction Burned (CFB) diagnostic
+ *
+ * Computes the crown fraction burned, which distinguishes between passive
+ * (torching) and active crown fire. Used for emissions and fire effects modeling.
+ *
+ * Formula: CFB = (R_total - R_surface) / (R_active_crown - R_surface)
+ * Clipped to range [0, 1].
+ *
+ * @param[in] R_total            Total (observed or modeled) ROS [m/s]
+ * @param[in] R_surface          Surface fire ROS [m/s]
+ * @param[in] R_active_crown     Active crown fire ROS [m/s]
+ * @return CFB value [0-1]
+ *
+ * Reference: Scott, J.H. & Reinhardt, E.D. (2001). Assessing crown fire potential
+ *   by linking models of surface and crown fire behavior. USDA Forest Service
+ *   Research Paper RMRS-RP-29.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_crown_fraction_burned(
+    amrex::Real R_total,
+    amrex::Real R_surface,
+    amrex::Real R_active_crown) noexcept
+{
+    // Ensure positive rates
+    R_total = amrex::max(R_total, 0.0_rt);
+    R_surface = amrex::max(R_surface, 0.0_rt);
+    R_active_crown = amrex::max(R_active_crown, 0.0_rt);
+    
+    // If active crown ROS not greater than surface, no crown fire
+    if (R_active_crown <= R_surface + 1.0e-8_rt) {
+        return 0.0_rt;
+    }
+    
+    // Scott & Reinhardt (2001) CFB formula
+    amrex::Real CFB = (R_total - R_surface) / (R_active_crown - R_surface);
+    
+    // Clamp to valid range [0, 1]
+    CFB = amrex::max(0.0_rt, amrex::min(1.0_rt, CFB));
+    
+    return CFB;
 }
 
 /**

@@ -103,11 +103,18 @@ struct FireParams
         amrex::Real   M_c             = 0.30;   ///< Critical foliar moisture [fraction] (Van Wagner 1977)
         amrex::Real   h_crown_BTU_lb  = 8000.0; ///< Canopy heat content [BTU/lb]
         amrex::Real   wind_10m_kmh    = 0.0;    ///< 10-m wind speed [km/h]; 0 = derive from fire_wind_eff
+        std::string   ros_model       = "cruz"; ///< Crown ROS model: "cruz", "rothermel1991", "van_wagner_proxy"
+        bool          use_passive_blend = false; ///< Use Van Wagner passive-to-active ROS blend
     } crown;
 
     // Phase 9: Flame temperature diagnostic
     std::string       flame_temp_method   = "byram_radiant"; ///< "byram_radiant", "mcalpine_heat", "nelson_emissivity"
     amrex::Real       flame_temp_T_amb    = 300.0;           ///< Ambient temperature for flame temp formula [K]
+    
+    // Phase 9: Flame tilt angle diagnostic
+    bool              compute_flame_tilt  = false;           ///< Compute flame tilt angle diagnostic [degrees]
+    amrex::Real       flame_tilt_T_amb    = 300.0;           ///< Ambient temperature for flame tilt [K]
+    amrex::Real       flame_tilt_rho_air  = 1.2;             ///< Air density for flame tilt [kg/m³]
 
     /**
      * @brief Construct FireParams from ParmParse
@@ -197,10 +204,17 @@ struct FireParams
        pp.query("crown.M_c",             cr.M_c);
        pp.query("crown.h_crown_BTU_lb",  cr.h_crown_BTU_lb);
        pp.query("crown.wind_10m_kmh",    cr.wind_10m_kmh);
+       pp.query("crown.ros_model",       cr.ros_model);
+       pp.query("crown.use_passive_blend", cr.use_passive_blend);
 
        // Phase 9: Flame temperature diagnostic
        pp.query("flame_temp_method", flame_temp_method);
        pp.query("flame_temp_T_amb",  flame_temp_T_amb);
+        
+       // Phase 9: Flame tilt angle diagnostic
+       pp.query("compute_flame_tilt", compute_flame_tilt);
+       pp.query("flame_tilt_T_amb",   flame_tilt_T_amb);
+       pp.query("flame_tilt_rho_air", flame_tilt_rho_air);
     }
 
     // Convenience accessors for coupling mode
