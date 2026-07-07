@@ -32,6 +32,7 @@
  * linearly interpolates to the target height above terrain.
  *
  * @param[out] fire_wind_ref   u,v at z_ref on fire grid [m/s]
+ * @param[out] fire_wind_extract_z_mf  Wind extraction height z_target [m]
  * @param[in]  xvel_mf         x-velocity (face-staggered at i+1/2, j, k)
  * @param[in]  yvel_mf         y-velocity (face-staggered at i, j+1/2, k)
  * @param[in]  z_phys_cc_mf    Cell-center terrain height z_phys_cc[0] on atm grid
@@ -55,9 +56,11 @@
  *    v_cc(i,j,k) = 0.5 * (yvel(i,j,k) + yvel(i,j+1,k))
  * 7. Interpolate: fw(i_f,j_f,0,0) = u_cc(k_lo) + alpha*(u_cc(k_lo+1) - u_cc(k_lo))
  *                fw(i_f,j_f,0,1) = v_cc(k_lo) + alpha*(v_cc(k_lo+1) - v_cc(k_lo))
+ * 8. Store z_target in fire_wind_extract_z_mf
  */
 void fill_fire_wind_from_interpolation(
     amrex::MultiFab&       fire_wind_ref,
+    amrex::MultiFab&       fire_wind_extract_z_mf,
     const amrex::MultiFab& xvel_mf,
     const amrex::MultiFab& yvel_mf,
     const amrex::MultiFab& z_phys_cc_mf,

@@ -132,6 +132,15 @@ public:
     }
 
     /**
+     * @brief Get wind extraction height for plotfile output.
+     * @return Pointer to fire_wind_extract_z MultiFab [m].
+     */
+    const amrex::MultiFab* get_wind_extract_z() const
+    {
+        return fire_wind_extract_z.get();
+    }
+
+    /**
      * @brief Get terrain slopes for plotfile output.
      * @return Pointer to fire_slopes MultiFab [dz/dx, dz/dy].
      */
@@ -156,6 +165,24 @@ public:
     const amrex::MultiFab* get_fuel_load() const
     {
         return fire_fuel_load.get();
+    }
+
+    /**
+     * @brief Get surface temperature for plotfile output.
+     * @return Pointer to fire_surface_temp MultiFab [K].
+     */
+    const amrex::MultiFab* get_surface_temp() const
+    {
+        return fire_surface_temp.get();
+    }
+
+    /**
+     * @brief Get surface relative humidity for plotfile output.
+     * @return Pointer to fire_surface_rh MultiFab [0-1].
+     */
+    const amrex::MultiFab* get_surface_rh() const
+    {
+        return fire_surface_rh.get();
     }
 
     /**

@@ -127,6 +127,7 @@ void apply_farsite_terrain_wind(
 
 void fill_fire_wind_from_interpolation(
     MultiFab&       fire_wind_ref,
+    MultiFab&       fire_wind_extract_z_mf,
     const MultiFab& xvel_mf,
     const MultiFab& yvel_mf,
     const MultiFab& z_phys_cc_mf,
@@ -140,6 +141,7 @@ void fill_fire_wind_from_interpolation(
     for (MFIter mfi(fire_wind_ref, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         Array4<Real> fire_wind = fire_wind_ref.array(mfi);
+        Array4<Real> extract_z = fire_wind_extract_z_mf.array(mfi);
         Array4<const Real> xvel = xvel_mf.array(mfi);
         Array4<const Real> yvel = yvel_mf.array(mfi);
         Array4<const Real> z_phys_cc = z_phys_cc_mf.array(mfi);
@@ -155,6 +157,9 @@ void fill_fire_wind_from_interpolation(
             // Get surface height and compute target height
             Real z_surf = z_phys_cc(i_a, j_a, 0);
             Real z_target = z_surf + z_ref;
+
+            // Store the extraction height for plotfile output
+            extract_z(i_f, j_f, 0) = z_target;
 
             // Find vertical level bracket.
             // Initialise k_lo to the top interval (nz-2) so that if z_target

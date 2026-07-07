@@ -33,6 +33,8 @@ void FireLayer::initialize(const ERF& erf,
     fire_spread_vec   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_arrival_time = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_disp_accum   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_surface_temp = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_surface_rh   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
 
     // Phase 5: Heat flux and diagnostics fields
     fire_fireline_intensity = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
