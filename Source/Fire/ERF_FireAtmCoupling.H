@@ -51,16 +51,18 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
+#include <AMReX_MultiFabUtil.H>
 #include <cmath>
 #include <ERF_Constants.H>
+#include <ERF_IndexDefines.H>
 
 // Default e-folding height for ground fire heat distribution [m].
 // WRF-Fire default: alfg ≈ 45-75 m. At z = alfg: flux decays to 1/e ≈ 37%.
-constexpr amrex::Real FIRE_ATM_ALFG_DEFAULT = 45.0_rt;
+constexpr amrex::Real FIRE_ATM_ALFG_DEFAULT = 45.0;
 
 // Default e-folding height for canopy fire contribution [m].
 // Only used when canopy fire heat is non-zero.
-constexpr amrex::Real FIRE_ATM_ALFC_DEFAULT = 60.0_rt;
+constexpr amrex::Real FIRE_ATM_ALFC_DEFAULT = 60.0;
 
 // Coarsen fire_heat_flux from the fire grid (C*nx × C*ny × 1) to the
 // atmospheric level-0 grid (nx × ny × 1) using area-weighted averaging.
@@ -107,19 +109,19 @@ inline void compute_fire_latent_flux(
     amrex::Real M_f,
     amrex::Real h_fuel_Jkg)
 {
-    if (h_fuel_Jkg <= 0.0_rt) {
-        Q_lat_out.setVal(0.0_rt);
+    if (h_fuel_Jkg <= 0.0) {
+        Q_lat_out.setVal(0.0);
         return;
     }
 
     // Latent heat of vaporization [J/kg] at standard conditions
-    constexpr amrex::Real L_V = 2.501e6_rt;
+    constexpr amrex::Real L_V = 2.501e6;
 
     // Fuel moisture ratio: bmst = M_f / (1 + M_f)
-    amrex::Real bmst = M_f / (1.0_rt + M_f);
+    amrex::Real bmst = M_f / (1.0 + M_f);
 
     // Fraction of combustion product water from burning (WRF-Fire)
-    constexpr amrex::Real f_water = 0.56_rt;
+    constexpr amrex::Real f_water = 0.56;
 
     // Effective latent heat ratio from fuel heat content
     amrex::Real ratio = L_V / h_fuel_Jkg;
@@ -132,7 +134,7 @@ inline void compute_fire_latent_flux(
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const amrex::IntVect& iv) {
             // Q_latent = Q_sensible * (Lv / h_fuel) * (bmst + (1-bmst)*0.56)
-            amrex::Real factor = ratio * (bmst + (1.0_rt - bmst) * f_water);
+            amrex::Real factor = ratio * (bmst + (1.0 - bmst) * f_water);
             q_lat_a(iv) = factor * q_sfc_a(iv);
         });
     }
@@ -183,17 +185,12 @@ inline void apply_fire_tendency_to_cc_source(
 {
     using namespace amrex;
 
-    if (alfg <= 0.0_rt) { return; }
-    if (feedback <= 0.0_rt) { return; }
-
-    // Component indices (from ERF_IndexDefines.H / ERF_Constants.H)
-    int Rho_comp = 0;      // density in S_old
-    int RhoTheta_comp = 1; // potential temperature in S_old
-    int RhoQ1_comp = 2;    // water vapor in S_old (if has_moisture)
+    if (alfg <= 0.0) { return; }
+    if (feedback <= 0.0) { return; }
 
     // Physical constants
-    constexpr Real Cp_d = 1004.64_rt;  // specific heat at constant pressure [J/(kg·K)]
-    constexpr Real L_V = 2.501e6_rt;   // latent heat of vaporization [J/kg]
+    constexpr Real Cp_d = 1004.64;  // specific heat at constant pressure [J/(kg·K)]
+    constexpr Real L_V = 2.501e6;   // latent heat of vaporization [J/kg]
 
     const Box& domain = geom_atm.Domain();
     int klo = domain.smallEnd(2);
@@ -204,15 +201,18 @@ inline void apply_fire_tendency_to_cc_source(
     // Iterate over the 3D atmospheric grid
     for (MFIter mfi(cc_source, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto const& cc_src_a = cc_source.array(mfi);
-        auto const& q_atm_a = Q_atm.array(mfi);
-        auto const& z_cc_a = z_phys_cc.array(mfi);
-        auto const& s_old_a = S_old.array(mfi);
+        auto const& q_atm_a  = Q_atm.array(mfi);
+        auto const& z_cc_a   = z_phys_cc.array(mfi);
+        auto const& s_old_a  = S_old.array(mfi);
 
         const Box& bx = mfi.tilebox();
 
-        // Determine if we have latent heat
-        auto const* q_lat_ptr = (Q_lat_atm != nullptr) ? &(Q_lat_atm->array(mfi)) : nullptr;
+        // FIX: store Array4 by value to avoid taking address of temporary
         bool has_latent = (Q_lat_atm != nullptr) && has_moisture;
+        Array4<Real const> q_lat_arr;
+        if (has_latent) {
+            q_lat_arr = Q_lat_atm->const_array(mfi);
+        }
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const IntVect& iv) {
             int i = iv[0];
@@ -221,9 +221,9 @@ inline void apply_fire_tendency_to_cc_source(
 
             // Surface values (assume 2D fire flux is constant in z, at k=klo)
             Real q_sfc_sensible = feedback * q_atm_a(i, j, 0);
-            Real q_sfc_latent = 0.0_rt;
-            if (has_latent && q_lat_ptr != nullptr) {
-                q_sfc_latent = feedback * (*q_lat_ptr)(i, j, 0);
+            Real q_sfc_latent = 0.0;
+            if (has_latent) {
+                q_sfc_latent = feedback * q_lat_arr(i, j, 0);
             }
 
             // Surface height (lowest cell centre)
@@ -237,7 +237,7 @@ inline void apply_fire_tendency_to_cc_source(
 
             // Height of next cell centre above surface (or use dz_avg if at top)
             Real z_kp1 = (k < khi) ? (z_cc_a(i, j, k + 1) - z_sfc)
-                                     : (z_k + dz_avg);
+                                    : (z_k + dz_avg);
             Real exp_kp1 = std::exp(-z_kp1 / alfg);
 
             // Vertical grid spacing
@@ -245,28 +245,31 @@ inline void apply_fire_tendency_to_cc_source(
                                 : dz_avg;
 
             // Prevent division by zero
-            if (dz <= 1.0e-10_rt) { dz = dz_avg; }
+            if (dz <= 1.0e-10) { dz = dz_avg; }
 
             // Density at this level [kg/m³]
+            // FIX: use Rho_comp macro from ERF_IndexDefines.H
             Real rho = s_old_a(i, j, k, Rho_comp);
-            if (rho <= 0.0_rt) { rho = 1.2_rt; }  // fallback
+            if (rho <= 0.0) { rho = 1.2; }  // fallback
 
             // Sensible heat flux divergence tendency
             // hfx(k) = (Q_sfc / Cp) * exp(-z_k / alfg)
             // d(hfx)/dz = (Q_sfc / Cp) * (-1/alfg) * exp(-z / alfg)
             // d(RhoTheta)/dt = -rho * d(hfx)/dz = rho * (Q_sfc / Cp / alfg) * exp(-z/alfg)
             // Using flux values at cell faces: hfx(k+1/2) - hfx(k-1/2)
-            Real hfx_k = (q_sfc_sensible / Cp_d) * exp_k;
+            Real hfx_k   = (q_sfc_sensible / Cp_d) * exp_k;
             Real hfx_kp1 = (q_sfc_sensible / Cp_d) * exp_kp1;
             Real theta_tend = -rho * (hfx_kp1 - hfx_k) / dz;
 
+            // FIX: use RhoTheta_comp macro from ERF_IndexDefines.H
             cc_src_a(i, j, k, RhoTheta_comp) += theta_tend;
 
             // Latent heat flux divergence tendency (same structure)
-            if (has_latent && q_lat_ptr != nullptr) {
-                Real qfx_k = (q_sfc_latent / L_V) * exp_k;
+            // FIX: use RhoQ1_comp macro from ERF_IndexDefines.H
+            if (has_latent) {
+                Real qfx_k   = (q_sfc_latent / L_V) * exp_k;
                 Real qfx_kp1 = (q_sfc_latent / L_V) * exp_kp1;
-                Real q_tend = -rho * (qfx_kp1 - qfx_k) / dz;
+                Real q_tend  = -rho * (qfx_kp1 - qfx_k) / dz;
 
                 cc_src_a(i, j, k, RhoQ1_comp) += q_tend;
             }
