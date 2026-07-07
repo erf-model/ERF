@@ -76,6 +76,21 @@ struct FireParams
     std::string       coupling_type           = "lagged";
     bool              inject_latent           = true;  ///< inject latent heat alongside sensible (WRF-Fire parity)
 
+    // Phase 8: Albini (1983) ember spotting parameters
+    struct SpottingParams {
+        bool              enable              = false;   ///< Master on/off switch
+        amrex::Real       I_B_min             = 100.0;   ///< Minimum Byram intensity to launch [kW/m]
+        amrex::Real       P_base              = 0.01;    ///< Base launch probability per front cell per step
+        amrex::Real       terminal_velocity   = 0.5;     ///< Firebrand terminal fall velocity [m/s]
+        int               n_traj_steps        = 20;      ///< Trajectory integration sub-steps
+        amrex::Real       spot_radius         = 10.0;    ///< Ignition disk radius at landing [m]
+        amrex::Real       P_catch             = 1.0;     ///< Catching probability at landing [0–1]
+        amrex::Real       reentry_fuel_thresh = 0.05;    ///< Minimum residual fuel fraction for re-entry
+        int               random_seed         = 0;       ///< 0 = time-based seed, >0 = fixed seed
+        int               spotting_interval   = 1;       ///< Apply spotting every N fire subcycles
+        std::string       fuel_system         = "13";    ///< "13" (FBFM13) or "40" (Scott-Burgan 40)
+    } spotting;
+
     /**
      * @brief Construct FireParams from ParmParse
      *
@@ -139,6 +154,20 @@ struct FireParams
        pp.query("fire_atm_feedback", fire_atm_feedback);
        pp.query("coupling_type", coupling_type);
        pp.query("inject_latent", inject_latent);
+
+       // Phase 8: Albini (1983) ember spotting parameters
+       auto& sp = spotting;
+       pp.query("spotting.enable",              sp.enable);
+       pp.query("spotting.I_B_min",             sp.I_B_min);
+       pp.query("spotting.P_base",              sp.P_base);
+       pp.query("spotting.terminal_velocity",   sp.terminal_velocity);
+       pp.query("spotting.n_traj_steps",        sp.n_traj_steps);
+       pp.query("spotting.spot_radius",         sp.spot_radius);
+       pp.query("spotting.P_catch",             sp.P_catch);
+       pp.query("spotting.reentry_fuel_thresh", sp.reentry_fuel_thresh);
+       pp.query("spotting.random_seed",         sp.random_seed);
+       pp.query("spotting.spotting_interval",   sp.spotting_interval);
+       pp.query("spotting.fuel_system",         sp.fuel_system);
     }
 
     // Convenience accessors for coupling mode

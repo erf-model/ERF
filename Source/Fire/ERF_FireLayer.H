@@ -15,6 +15,8 @@
 #include <ERF_FireHeatFlux.H>
 #include <ERF_FireDiagnostics.H>
 #include <ERF_FireAtmCoupling.H>
+#include <ERF_AlbiniSpotting.H>
+#include <ERF_ScottSpottingTable.H>
 
 // Forward declarations
 class SurfaceLayer;
@@ -201,6 +203,15 @@ public:
     const amrex::MultiFab* get_flame_length() const
     {
         return fire_flame_length.get();
+    }
+
+    /**
+     * @brief Get Albini spotting diagnostics for plotfile output.
+     * @return Pointer to fire_albini_data MultiFab (nullptr when spotting disabled).
+     */
+    const amrex::MultiFab* get_albini_data() const
+    {
+        return fire_albini_data.get();
     }
 
     /**

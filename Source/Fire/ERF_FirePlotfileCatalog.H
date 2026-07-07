@@ -11,7 +11,7 @@
  * Defines the canonical output component names for fire plotfiles.
  * All variables are on the native fire grid (C x finer than atmospheric grid).
  *
- * Output order (19 components total, indices 0-18):
+ * Base output order (19 components, indices 0–18):
  *   0. fire_phi           (level-set)
  *   1. fire_ros           (rate of spread [m/s])
  *   2. fire_wind_eff_u    (component 0 of fire_wind_eff)
@@ -31,15 +31,23 @@
  *  16. fire_fireline_intensity (Byram fireline intensity [kW/m])
  *  17. fire_flame_length  (Thomas flame length [m])
  *  18. fire_arrival_time  (fire arrival time [s])
+ *
+ * Phase 8 spotting diagnostics (4 additional components, indices 19–22,
+ * appended when spotting.enable = true):
+ *  19. fire_lofting_height   (Albini lofting height H_z [m] at source cells)
+ *  20. fire_spot_brand_count (firebrand count launched per source cell)
+ *  21. fire_spot_max_dist    (maximum landing distance [m] from source cell)
+ *  22. fire_spot_active      (1.0 at cells that received a spot ignition)
  */
 
 /**
  * @brief Get the canonical fire plotfile variable names.
- * @return Vector of 19 variable name strings in canonical write order.
+ * @param[in] include_spotting  Append 4 Albini spotting components when true.
+ * @return Vector of variable name strings in canonical write order.
  */
-inline amrex::Vector<std::string> fire_plotfile_var_names()
+inline amrex::Vector<std::string> fire_plotfile_var_names(bool include_spotting = false)
 {
-    return amrex::Vector<std::string>{
+    amrex::Vector<std::string> names{
         "fire_phi",
         "fire_ros",
         "fire_wind_eff_u",
@@ -60,15 +68,23 @@ inline amrex::Vector<std::string> fire_plotfile_var_names()
         "fire_flame_length",
         "fire_arrival_time"
     };
+    if (include_spotting) {
+        names.push_back("fire_lofting_height");
+        names.push_back("fire_spot_brand_count");
+        names.push_back("fire_spot_max_dist");
+        names.push_back("fire_spot_active");
+    }
+    return names;
 }
 
 /**
  * @brief Get the total number of fire plotfile components.
- * @return 19 (the number of scalar fire output variables).
+ * @param[in] include_spotting  Count 4 additional Albini spotting components when true.
+ * @return Number of scalar fire output variables.
  */
-inline int fire_plotfile_ncomp()
+inline int fire_plotfile_ncomp(bool include_spotting = false)
 {
-    return 19;
+    return include_spotting ? 23 : 19;
 }
 
 #endif

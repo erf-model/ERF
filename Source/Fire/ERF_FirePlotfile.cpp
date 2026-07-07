@@ -41,8 +41,11 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
 {
     const FireGrid& fg = fire_layer.get_fire_grid();
 
-    Vector<std::string> varnames = fire_plotfile_var_names();
-    int ncomp = fire_plotfile_ncomp();
+    bool has_spotting = (fire_layer.get_params().spotting.enable &&
+                         fire_layer.get_albini_data() != nullptr);
+
+    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting);
+    int ncomp = fire_plotfile_ncomp(has_spotting);
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
     
@@ -74,6 +77,11 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     MultiFab::Copy(mf, *fire_layer.get_flame_length(), 0, 17, 1, 0);
     // Component 18: fire_arrival_time
     MultiFab::Copy(mf, *fire_layer.get_arrival_time(), 0, 18, 1, 0);
+
+    // Phase 8: Albini spotting diagnostics (components 19–22, when enabled)
+    if (has_spotting) {
+        MultiFab::Copy(mf, *fire_layer.get_albini_data(), 0, 19, 4, 0);
+    }
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 

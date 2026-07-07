@@ -95,6 +95,7 @@ Grid refinement and mesh structure tests:
 ### Fire_Behavior/
 Advanced fire behavior patterns:
 - **Ignition_Patterns/**: Multiple ignition sources and fire interaction
+- **Spotting/**: Albini (1983) stochastic ember spotting (Phase 8)
 
 ### Supporting_Files/
 Documentation and utility scripts:
@@ -137,6 +138,7 @@ Documentation and utility scripts:
 
 ### Fire Behavior Tests
 - **Ignition_Patterns/inputs_fire_multiple_ignitions/**: Multiple ignition source interactions
+- **Spotting/inputs_fire_phase8**: Albini (1983) stochastic ember spotting with lofting + trajectory + phi stamp
 
 #### inputs_fire_vertical_refinement (Vertical_Refinement/)
 Vertical grid stretching regression test:
@@ -195,6 +197,27 @@ Passive fire-to-atmosphere coupling baseline test:
 - **Expected outputs**: fire spread with zero theta anomaly above burned area; no atmospheric response to fire
 - **Purpose**: Baseline reference test for passive mode; demonstrates fire spread under prescribed atmospheric conditions
 
+#### inputs_fire_phase8 (Fire_Behavior/Spotting/)
+Phase 8 test case with Albini (1983) ember spotting:
+- FM4 (Chaparral) fuel — produces high fireline intensity > 100 kW/m
+- 8 m/s nominal wind to drive firebrand trajectories downwind
+- 8% fuel moisture
+- Passive coupling (no fire-atmosphere thermal feedback) to isolate spotting physics
+- Albini lofting height H_z = 12.2 * I_B^(1/3) [m], Albini (1983) INT-309
+- Forward-Euler trajectory: 20 sub-steps, terminal velocity 0.5 m/s
+- Deterministic spotting with fixed random_seed = 42
+- 15-minute simulation (900 s)
+- **Expected outputs**: spot_fires_this_step > 0 after t ~ 60 s; fire_spot_active shows
+  isolated patches downwind; max_spot_dist_m increases with fire intensity
+- **Purpose**: Regression test for Albini spotting: lofting, trajectory, phi stamping, CSV output
+
+#### test_albini_spotting.py (Unit_Tests/)
+Unit tests for the Albini (1983) firebrand lofting and spotting distance model.
+Verifies H_z = 12.2 × I_B^(1/3) against Albini (1983) INT-309 Table 1 reference values,
+spotting distance scaling with wind speed and terminal velocity, and threshold behaviour.
+
+Run: `python3 Exec/CanonicalTests/Fire/Unit_Tests/test_albini_spotting.py`
+
 ## Test Summary Table
 
 | Test Category | Test Name | Fuel | Wind | Purpose |
@@ -219,6 +242,8 @@ Passive fire-to-atmosphere coupling baseline test:
 | Unstable Atmosphere | Unstable conditions | FM1 | 5 m/s | Fire spread in convective conditions |
 | Mesh Refinement | Vertical refinement | FM1 | 5 m/s | Stretched vertical grid |
 | Fire Behavior | Multiple ignitions | FM1 | 5 m/s | Multiple ignition source interaction |
+| Fire Behavior | inputs_fire_phase8 | FM4 | 8 m/s | Albini spotting: lofting + trajectory + phi stamp |
+| Unit Tests | test_albini_spotting.py | FM4 | Various | Albini lofting height and spotting distance (no ERF) |
 
 ## Output Files
 

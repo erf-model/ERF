@@ -280,7 +280,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         }
         append_fire_stats(*fire_phi, *fire_arrival_time, m_fg.geom,
                          m_step, m_current_time, m_params.fire_stats_csv_file,
-                         fire_ros.get(), fire_heat_flux.get());
+                         fire_ros.get(), fire_heat_flux.get(), fire_albini_data.get());
     }
 }
 

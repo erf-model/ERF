@@ -84,7 +84,8 @@ write_fire_stats_header(const std::string& filename)
     }
     
     out << "step,time_s,burned_area_ha,perimeter_km,"
-           "active_front_cells,head_ros_ms,major_axis_m,minor_axis_m,heat_flux_max_Wm2\n";
+           "active_front_cells,head_ros_ms,major_axis_m,minor_axis_m,heat_flux_max_Wm2,"
+           "spot_fires_this_step,max_spot_dist_m\n";
     out.close();
 }
 
@@ -105,6 +106,8 @@ write_fire_stats_header(const std::string& filename)
  * @param[in] filename          CSV file path
  * @param[in] R_mf              Optional rate-of-spread field for head ROS tracking
  * @param[in] Q_mf              Optional heat flux field for max heat flux tracking
+ * @param[in] albini_mf         Optional Albini spotting diagnostic MultiFab (4 comp).
+ *                              comp 3 = active spot flag, comp 2 = max landing dist [m].
  */
 inline void
 append_fire_stats(const amrex::MultiFab& phi,
@@ -114,7 +117,8 @@ append_fire_stats(const amrex::MultiFab& phi,
                   amrex::Real time_s,
                   const std::string& filename,
                   const amrex::MultiFab* R_mf = nullptr,
-                  const amrex::MultiFab* Q_mf = nullptr)
+                  const amrex::MultiFab* Q_mf = nullptr,
+                  const amrex::MultiFab* albini_mf = nullptr)
 {
     using namespace amrex;
     
@@ -181,6 +185,25 @@ append_fire_stats(const amrex::MultiFab& phi,
         ParallelDescriptor::ReduceRealMax(Q_max);
     }
 
+    // Phase 8: Albini spotting statistics
+    // spot_fires: count of cells with active spot flag (comp 3) > 0.5
+    // max_spot_dist_m: domain maximum of landing distance field (comp 2)
+    long  n_spot_fires   = 0;
+    Real  max_spot_dist  = 0.0_rt;
+    if (albini_mf) {
+        for (MFIter mfi(*albini_mf); mfi.isValid(); ++mfi) {
+            const Box& bx  = mfi.validbox();
+            auto alb_arr   = albini_mf->const_array(mfi);
+            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
+                if (alb_arr(i, j, k, 3) > 0.5_rt) { ++n_spot_fires; }
+                Real d = alb_arr(i, j, k, 2);
+                if (d > max_spot_dist) { max_spot_dist = d; }
+            });
+        }
+        ParallelDescriptor::ReduceLongSum(n_spot_fires);
+        ParallelDescriptor::ReduceRealMax(max_spot_dist);
+    }
+
     Real burned_ha    = static_cast<Real>(n_burned) * cell_area / Real(1.0e4);
     Real perim_km     = perim_m / Real(1000.0);
      
@@ -204,7 +227,9 @@ append_fire_stats(const amrex::MultiFab& phi,
         << head_ros   << ","
         << major_axis_m << ","
         << minor_axis_m << ","
-        << Q_max << "\n";
+        << Q_max << ","
+        << n_spot_fires << ","
+        << max_spot_dist << "\n";
     out.close();
 }
 
