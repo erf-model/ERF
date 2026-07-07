@@ -34,7 +34,6 @@ target_include_directories(erf_shoc_unit_tests PRIVATE
 
 target_compile_definitions(erf_shoc_unit_tests PRIVATE
   ERF_SHOC_UNIT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-  ERF_USE_NATIVE_SHOC
   ERF_HAS_SHOC_FAMILY
 )
 
