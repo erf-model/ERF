@@ -41,7 +41,7 @@ create_fire_grid(const BoxArray& ba_atm,
     DistributionMapping dm_fire = dm_atm;
 
     // Step 4: Create 2D Geometry with REFINED index-space domain
-    // The index-space domain must be scaled by C so that cell size = physical_size / (C * n_cells) = (physical_size / n_cells) / C
+    // The index-space domain is scaled by C so that cell size = physical_size / (C * n_cells) = (physical_size / n_cells) / C
     // Keep x-y physical domain unchanged — same extent as atmospheric grid.
     Box atm_domain   = geom_atm.Domain();
     Box atm_2d_full  = makeSlab(atm_domain, 2, 0);  // full atmospheric 2D domain

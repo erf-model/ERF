@@ -10,9 +10,9 @@ Fire Model
 Overview
 --------
 
-The fire model in ERF simulates wildfire propagation using a coupled approach combining the Rothermel fire spread model with the FARSITE elliptical fire expansion algorithm. The implementation uses Lagrangian perimeter tracking with an arrival-time field to accurately represent the fire front and cumulative burned area, allowing for accurate representation of fire behavior in complex terrain.
+The fire model in ERF simulates wildfire propagation using a coupled approach combining the Rothermel fire spread model with the FARSITE elliptical fire expansion algorithm. The implementation uses Lagrangian perimeter tracking with an arrival-time field to represent the fire front and cumulative burned area in complex terrain.
 
-The fire model operates on a refined grid with adaptive mesh refinement to capture the dynamics of fire spread at appropriate spatial scales. Fire state is advanced each atmospheric timestep, with communications between atmospheric and fire solvers handled through interpolation and mapping functions.
+The fire model operates on a refined grid with adaptive mesh refinement to capture fire spread dynamics at appropriate spatial scales. Fire state is advanced each atmospheric timestep, with communications between atmospheric and fire solvers handled through interpolation and mapping functions.
 
 Physical Models
 ---------------
@@ -241,46 +241,43 @@ Debugging
 
 When enabled, debug messages provide information about wind extraction, wind adjustment factor application, terrain corrections, rate-of-spread calculations, and fire front propagation.
 
-Development Phases
-------------------
+Implementation Components
+-------------------------
 
-The fire model has been developed in phases to progressively implement functionality:
-
-**Phase 1: Framework**
+**Framework Foundation**
    - Fire layer class structure
-   - Dummy Rothermel and FARSITE functions
+   - Rothermel and FARSITE computational kernels
    - Integration with main ERF class
    - Input file support
-   - Basic regression tests
+   - Regression test infrastructure
 
-**Phase 2: Rothermel Model**
-   - Full Rothermel fire spread equations
+**Rothermel Model**
+   - Rothermel fire spread equations
    - Wind and slope factor calculations
    - Anderson FBFM13 fuel model database
    - Wind Adjustment Factor application
    - Terrain slope computation
 
-**Phase 3: Lagrangian Perimeter Propagation**
+**Lagrangian Perimeter Propagation**
    - Fire front displacement accumulation
    - Perimeter point stamping and MPI gather
    - Arrival-time field management for cumulative burned region
    - Two-pass propagation: GPU spread vectors, host MPI gather
    - Single-cell and Gaussian stamping modes
    - CFL-limited fire subcycling
-   - Phase 3 regression test
 
 Testing
 -------
 
-Regression tests verify fire model functionality at different development stages:
+Regression tests verify fire model functionality:
 
-**Phase 2 Regression Test** (inputs_fire_phase2)
+**Rothermel Validation Test** (inputs_fire_phase2)
    - Flat domain with GR1 fuel model
    - 5 m/s wind, 8% fuel moisture
    - Verifies Rothermel rate-of-spread computation
    - Output: max_ROS and mean_ROS values
 
-**Phase 3 Regression Test** (inputs_fire_phase3)
+**Fire Front Propagation Test** (inputs_fire_phase3)
    - Flat domain with GR1 fuel model
    - 5 m/s wind, 8% fuel moisture
    - Verifies fire front propagation and FARSITE elliptical expansion

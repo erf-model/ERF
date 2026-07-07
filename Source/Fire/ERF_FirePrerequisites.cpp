@@ -40,7 +40,7 @@ void verify_fire_prerequisites(const ERF& erf,
     // Check 8: grid_ratio >= 1
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         fire_params.grid_ratio >= 1,
-        "[FIRE] Fire grid_ratio must be >= 1. Set: erf.fire.grid_ratio >= 1");
+        "[FIRE] Fire grid_ratio requires value >= 1. Set: erf.fire.grid_ratio >= 1");
 
     // Check 9: All boxes divisible by grid_ratio in x,y
     int C = fire_params.grid_ratio;
@@ -63,13 +63,13 @@ void verify_fire_prerequisites(const ERF& erf,
     // Check 11: Domain z-index starts at 0
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         erf.Geom(0).Domain().smallEnd(2) == 0,
-        "[FIRE] Domain z must start at index 0 (AMR not supported)");
+        "[FIRE] Domain z requires start at index 0 (AMR not supported)");
 
     // Check 12: Domain height > wind_ref_ht
     Real prob_hi_z = erf.Geom(0).ProbHi(2);
     std::string msg12 = std::string("[FIRE] Domain height ")
                       + std::to_string(prob_hi_z)
-                      + " must exceed wind_ref_ht "
+                      + " should exceed wind_ref_ht "
                       + std::to_string(fire_params.wind_ref_ht)
                       + ". Increase geometry.prob_hi(2)";
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(prob_hi_z > fire_params.wind_ref_ht, msg12.c_str());

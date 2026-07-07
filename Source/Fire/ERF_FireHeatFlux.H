@@ -182,7 +182,7 @@ amrex::Real deplete_fuel_load(
  *   Q    = fuel_load * h_fuel / tau_cell          [W/m²]
  *   w_new = fuel_load * exp(-dt_atm / tau_cell)   [kg/m²]
  *
- * dt_fire_s should be the full atmospheric dt, not the CFL substep.
+ * dt_fire_s corresponds to the full atmospheric dt, not the CFL substep.
  *
  * @param[out] fire_heat_flux     Heat flux [W/m²]
  * @param[in,out] fire_fuel_load  Fuel load [kg/m²], modified in-place
