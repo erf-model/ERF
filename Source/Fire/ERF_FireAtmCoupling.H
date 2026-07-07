@@ -8,7 +8,7 @@
 //      where z is height above terrain, alfg is the e-folding scale [m].
 //   2. Converts the flux profile to a theta tendency via flux divergence:
 //        d(RhoTheta)/dt = -rho * d(hfx)/dz
-//   3. Does the same for latent heat (grnqfx → rqvfrten):
+//   3. Does the same for latent heat (grnqfx -> rqvfrten):
 //        qfx(z) = (Q_lat / Lv) * exp(-z / alfg)
 //        d(RhoQ1)/dt   = -rho * d(qfx)/dz
 //
@@ -30,7 +30,7 @@
 //   WRF-Fire computes grnqfx (ground latent heat flux) alongside grnhfx and
 //   passes both through fire_tendency. ERF-Fire follows the same approach:
 //   Q_latent = Lv * bmst * (dmass/dt)   where bmst = M_f / (1 + M_f)
-//   This is stored as fire_latent_flux [W/m²] and distributed with the same
+//   This is stored as fire_latent_flux [W/m2] and distributed with the same
 //   exponential profile.
 //
 // Assumptions:
@@ -57,24 +57,16 @@
 #include <ERF_IndexDefines.H>
 
 // Default e-folding height for ground fire heat distribution [m].
-// WRF-Fire default: alfg ≈ 45-75 m. At z = alfg: flux decays to 1/e ≈ 37%.
+// WRF-Fire default: alfg ~ 45-75 m. At z = alfg: flux decays to 1/e ~ 37%.
 constexpr amrex::Real FIRE_ATM_ALFG_DEFAULT = 45.0;
 
 // Default e-folding height for canopy fire contribution [m].
 // Only used when canopy fire heat is non-zero.
 constexpr amrex::Real FIRE_ATM_ALFC_DEFAULT = 60.0;
 
-// Coarsen fire_heat_flux from the fire grid (C*nx × C*ny × 1) to the
-// atmospheric level-0 grid (nx × ny × 1) using area-weighted averaging.
+// Coarsen fire_heat_flux from the fire grid (C*nx x C*ny x 1) to the
+// atmospheric level-0 grid (nx x ny x 1) using area-weighted averaging.
 // Uses amrex::average_down() with refinement ratio (C, C, 1).
-// This is a local operation: each MPI rank owns the same x-y columns.
-//
-// Parameters:
-//   Q_atm_out  — output: atmospheric-resolution heat flux [W/m²], nx×ny×1
-//   Q_fire     — input:  fire-resolution heat flux [W/m²], C*nx×C*ny×1
-//   geom_atm   — atmospheric geometry
-//   geom_fire  — fire grid geometry
-//   C          — refinement factor
 inline void coarsen_fire_flux_to_atm(
     amrex::MultiFab& Q_atm_out,
     const amrex::MultiFab& Q_fire,
@@ -82,27 +74,11 @@ inline void coarsen_fire_flux_to_atm(
     const amrex::Geometry& geom_fire,
     int C)
 {
-    // Use AMReX's average_down with refinement ratio (C, C, 1) in z.
     amrex::average_down(Q_fire, Q_atm_out, geom_fire, geom_atm, 0, Q_fire.nComp(),
                         amrex::IntVect(C, C, 1));
 }
 
-// Compute fire latent heat flux [W/m²] from sensible heat flux and fuel moisture.
-// Follows WRF-Fire: grnqfx = (bmst + (1-bmst)*0.56) * (dmass/dt) * xlv
-// where bmst = M_f / (1 + M_f) is the ratio of water to wet fuel mass.
-//
-// In ERF-Fire, we approximate from the surface sensible heat flux Q_sfc:
-//   Q_latent = Q_sfc * Lv/h_fuel * bmst / (1 - bmst)
-//
-// This is equivalent to WRF-Fire when h_fuel is the net combustion heat.
-// The 0.56 factor (fraction of combustion product water from burning)
-// is included per WRF-Fire.
-//
-// Parameters:
-//   Q_lat_out  — output: latent heat flux [W/m²], nx×ny×1
-//   Q_sfc      — input:  sensible heat flux [W/m²], nx×ny×1
-//   M_f        — mean fuel moisture [fraction], scalar (domain average)
-//   h_fuel_Jkg — heat content of dry fuel [J/kg]
+// Compute fire latent heat flux [W/m2] from sensible heat flux and fuel moisture.
 inline void compute_fire_latent_flux(
     amrex::MultiFab& Q_lat_out,
     const amrex::MultiFab& Q_sfc,
@@ -114,26 +90,16 @@ inline void compute_fire_latent_flux(
         return;
     }
 
-    // Latent heat of vaporization [J/kg] at standard conditions
     constexpr amrex::Real L_V = 2.501e6;
-
-    // Fuel moisture ratio: bmst = M_f / (1 + M_f)
     amrex::Real bmst = M_f / (1.0 + M_f);
-
-    // Fraction of combustion product water from burning (WRF-Fire)
     constexpr amrex::Real f_water = 0.56;
-
-    // Effective latent heat ratio from fuel heat content
     amrex::Real ratio = L_V / h_fuel_Jkg;
 
-    // Per-cell computation of latent flux from sensible flux
     for (amrex::MFIter mfi(Q_sfc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto const& q_sfc_a = Q_sfc.array(mfi);
         auto const& q_lat_a = Q_lat_out.array(mfi);
         auto const& bx = mfi.tilebox();
-
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const amrex::IntVect& iv) {
-            // Q_latent = Q_sensible * (Lv / h_fuel) * (bmst + (1-bmst)*0.56)
             amrex::Real factor = ratio * (bmst + (1.0 - bmst) * f_water);
             q_lat_a(iv) = factor * q_sfc_a(iv);
         });
@@ -143,35 +109,12 @@ inline void compute_fire_latent_flux(
 // Distribute fire surface heat flux through the atmospheric column and add
 // the resulting tendency to cc_source.
 //
-// For each atmospheric column (i,j) and each k-level:
-//   z_k   = z_phys_cc(i,j,k) - z_phys_cc(i,j,klo)   [height above surface, m]
+// Optional fire_debug argument prints per-call tendency diagnostics to stdout:
+//   [FIRE COUPLING] RhoTheta tendency sum = ...  max = ... [kg K m^-3 s^-1]
+//   expected_surface_max = rho * Q_max / Cp * (1 - exp(-dz/alfg)) / dz
 //
-//   Sensible flux profile (following WRF-Fire fire_tendency):
-//     hfx(i,k,j) = (Q_atm(i,j) / Cp_d) * exp(-z_k / alfg)
-//
-//   Latent flux profile (same scale height):
-//     qfx(i,k,j) = (Q_lat_atm(i,j) / Lv) * exp(-z_k / alfg)
-//
-//   Tendency from vertical divergence (WRF-Fire Eq., fire_tendency):
-//     d(RhoTheta)/dt = -rho * (hfx(k+1) - hfx(k)) / dz_k
-//     d(RhoQ1)/dt    = -rho * (qfx(k+1) - qfx(k)) / dz_k
-//
-//   These are added (accumulated) into cc_source[RhoTheta_comp] and
-//   cc_source[RhoQ1_comp] respectively.
-//
-// The flux at k=0 (bottom face, k=klo) is the full surface flux Q_atm/Cp.
-// The flux at k=khi+1 (top face) is exp(-z_top/alfg) ≈ 0 for z_top >> alfg.
-//
-// Parameters:
-//   cc_source     — in/out: 3D source array for conserved variables
-//   Q_atm         — input:  coarsened sensible heat flux [W/m²], nx×ny×1
-//   Q_lat_atm     — input:  coarsened latent heat flux [W/m²], nx×ny×1 (may be null)
-//   z_phys_cc     — input:  cell-centre terrain-following height [m], nx×ny×nz
-//   S_old         — input:  atmospheric conserved state at time n (for density)
-//   geom_atm      — atmospheric geometry
-//   alfg          — e-folding height scale [m]
-//   feedback      — multiplier applied to both fluxes (0 = no feedback, 1 = full)
-//   has_moisture  — whether to inject into RhoQ1_comp (false if no moisture model)
+// With Q_max=14330 W/m2, rho~1.2, Cp=1004.64, alfg=45 m, dz=4 m:
+//   expected_surface_max ~ 0.38 kg K m^-3 s^-1  (~0.32 K/s / rho)
 inline void apply_fire_tendency_to_cc_source(
     amrex::MultiFab& cc_source,
     const amrex::MultiFab& Q_atm,
@@ -181,24 +124,23 @@ inline void apply_fire_tendency_to_cc_source(
     const amrex::Geometry& geom_atm,
     amrex::Real alfg,
     amrex::Real feedback,
-    bool has_moisture)
+    bool has_moisture,
+    bool fire_debug = false)
 {
     using namespace amrex;
 
     if (alfg <= 0.0) { return; }
     if (feedback <= 0.0) { return; }
 
-    // Physical constants
-    constexpr Real Cp_d = 1004.64;  // specific heat at constant pressure [J/(kg·K)]
-    constexpr Real L_V = 2.501e6;   // latent heat of vaporization [J/kg]
+    constexpr Real Cp_d = 1004.64;
+    constexpr Real L_V  = 2.501e6;
 
     const Box& domain = geom_atm.Domain();
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
     const auto& dx = geom_atm.CellSize();
-    Real dz_avg = dx[2];  // average cell height
+    Real dz_avg = dx[2];
 
-    // Iterate over the 3D atmospheric grid
     for (MFIter mfi(cc_source, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto const& cc_src_a = cc_source.array(mfi);
         auto const& q_atm_a  = Q_atm.array(mfi);
@@ -207,7 +149,6 @@ inline void apply_fire_tendency_to_cc_source(
 
         const Box& bx = mfi.tilebox();
 
-        // FIX: store Array4 by value to avoid taking address of temporary
         bool has_latent = (Q_lat_atm != nullptr) && has_moisture;
         Array4<Real const> q_lat_arr;
         if (has_latent) {
@@ -219,61 +160,55 @@ inline void apply_fire_tendency_to_cc_source(
             int j = iv[1];
             int k = iv[2];
 
-            // Surface values (assume 2D fire flux is constant in z, at k=klo)
             Real q_sfc_sensible = feedback * q_atm_a(i, j, 0);
             Real q_sfc_latent = 0.0;
             if (has_latent) {
                 q_sfc_latent = feedback * q_lat_arr(i, j, 0);
             }
 
-            // Surface height (lowest cell centre)
-            Real z_sfc = z_cc_a(i, j, klo);
+            Real z_sfc  = z_cc_a(i, j, klo);
+            Real z_k    = z_cc_a(i, j, k) - z_sfc;
+            Real exp_k  = std::exp(-z_k / alfg);
 
-            // Height of this cell centre above surface
-            Real z_k = z_cc_a(i, j, k) - z_sfc;
-
-            // Exponential decay factor at this cell
-            Real exp_k = std::exp(-z_k / alfg);
-
-            // Height of next cell centre above surface (or use dz_avg if at top)
-            Real z_kp1 = (k < khi) ? (z_cc_a(i, j, k + 1) - z_sfc)
-                                    : (z_k + dz_avg);
+            Real z_kp1  = (k < khi) ? (z_cc_a(i, j, k + 1) - z_sfc) : (z_k + dz_avg);
             Real exp_kp1 = std::exp(-z_kp1 / alfg);
 
-            // Vertical grid spacing
-            Real dz = (k < khi) ? (z_cc_a(i, j, k + 1) - z_cc_a(i, j, k))
-                                : dz_avg;
-
-            // Prevent division by zero
+            Real dz = (k < khi) ? (z_cc_a(i, j, k + 1) - z_cc_a(i, j, k)) : dz_avg;
             if (dz <= 1.0e-10) { dz = dz_avg; }
 
-            // Density at this level [kg/m³]
-            // FIX: use Rho_comp macro from ERF_IndexDefines.H
             Real rho = s_old_a(i, j, k, Rho_comp);
-            if (rho <= 0.0) { rho = 1.2; }  // fallback
+            if (rho <= 0.0) { rho = 1.2; }
 
-            // Sensible heat flux divergence tendency
-            // hfx(k) = (Q_sfc / Cp) * exp(-z_k / alfg)
-            // d(hfx)/dz = (Q_sfc / Cp) * (-1/alfg) * exp(-z / alfg)
-            // d(RhoTheta)/dt = -rho * d(hfx)/dz = rho * (Q_sfc / Cp / alfg) * exp(-z/alfg)
-            // Using flux values at cell faces: hfx(k+1/2) - hfx(k-1/2)
-            Real hfx_k   = (q_sfc_sensible / Cp_d) * exp_k;
-            Real hfx_kp1 = (q_sfc_sensible / Cp_d) * exp_kp1;
+            Real hfx_k    = (q_sfc_sensible / Cp_d) * exp_k;
+            Real hfx_kp1  = (q_sfc_sensible / Cp_d) * exp_kp1;
             Real theta_tend = -rho * (hfx_kp1 - hfx_k) / dz;
-
-            // FIX: use RhoTheta_comp macro from ERF_IndexDefines.H
             cc_src_a(i, j, k, RhoTheta_comp) += theta_tend;
 
-            // Latent heat flux divergence tendency (same structure)
-            // FIX: use RhoQ1_comp macro from ERF_IndexDefines.H
             if (has_latent) {
                 Real qfx_k   = (q_sfc_latent / L_V) * exp_k;
                 Real qfx_kp1 = (q_sfc_latent / L_V) * exp_kp1;
                 Real q_tend  = -rho * (qfx_kp1 - qfx_k) / dz;
-
                 cc_src_a(i, j, k, RhoQ1_comp) += q_tend;
             }
         });
+    }
+
+    // Tendency diagnostics: runs on host after GPU kernel completes.
+    // Prints once per apply call (3x per timestep for RK3).
+    // Expected rt_tend_max ~ rho * Q_max / Cp * (1 - exp(-dz/alfg)) / dz
+    if (fire_debug) {
+        Real Q_max        = Q_atm.max(0);
+        Real rt_tend_sum  = cc_source.sum(RhoTheta_comp);
+        Real rt_tend_max  = cc_source.max(RhoTheta_comp);
+        Real expected_max = Q_max / (Cp_d * 1.2)
+                            * (1.0 - std::exp(-dz_avg / alfg)) / dz_avg;
+        amrex::Print() << "[FIRE COUPLING] Q_atm_max=" << Q_max
+                       << " W/m2  alfg=" << alfg << " m\n"
+                       << "[FIRE COUPLING] RhoTheta tendency"
+                       << "  sum="      << rt_tend_sum
+                       << "  max="      << rt_tend_max
+                       << "  expected_surface_max=" << expected_max
+                       << " [kg K m^-3 s^-1]\n";
     }
 }
 

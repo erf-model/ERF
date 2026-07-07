@@ -33,7 +33,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_spread_vec   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_arrival_time = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_disp_accum   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-     
+
     // Phase 5: Heat flux and diagnostics fields
     fire_fireline_intensity = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_flame_length = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
@@ -129,7 +129,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 {
     m_current_time = time;
     m_dt_atm       = dt;
-    ++m_step;  // Increment step counter
+    ++m_step;
 
     if (m_params.fire_debug)
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
@@ -199,7 +199,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     // A cell is only stamped when accum magnitude >= 0.5 * dx_fire.
     int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                            *fire_disp_accum,
-                                           *fire_arrival_time,   // now mutable
+                                           *fire_arrival_time,
                                            *fire_wind_eff, *fire_ros,
                                            m_fg.geom, dt, m_fp);
 
@@ -257,8 +257,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                    << "  I_B_max=" << fire_fireline_intensity->max(0) << " kW/m"
                    << "  L_max=" << fire_flame_length->max(0) << " m"
                    << std::endl;
-    
-    // Write fire statistics to CSV if enabled
+
     if (m_params.write_fire_stats_csv) {
         static bool csv_header_written = false;
         if (!csv_header_written) {
@@ -337,31 +336,22 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
 {
     FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
 
-    // Compute aggregate dead SAV (load-weighted mean of 1-hr, 10-hr, 100-hr classes)
     Real dead_load = fp.w_d1 + fp.w_d10 + fp.w_d100;
     Real sigma_agg = (dead_load > 1.0e-10_rt)
         ? (fp.w_d1*fp.sigma_d1 + fp.w_d10*FIRE_SIGMA_D10 + fp.w_d100*FIRE_SIGMA_D100) / dead_load
         : fp.sigma_d1;
 
-    // Residence time: use user-supplied value if > 0.
-    // Otherwise derive from cell size and max ROS (time for fire front to cross one cell).
-    // This gives a physically meaningful burn duration per cell and prevents
-    // near-instant fuel depletion in fine-fuel models (e.g., FM1 short grass)
-    // where the SAV-based tau_res (~2.75 s) is far shorter than the cell-crossing time.
     Real tau_res_s;
     if (m_params.tau_residence_s > 0.0_rt) {
         tau_res_s = m_params.tau_residence_s;
     } else {
         Real max_ros = fire_ros->max(0);
         if (max_ros > 1.0e-10_rt) {
-            // tau_cell = dx / ROS  (time for front to cross one fire cell)
             Real dx_fire = m_fg.geom.CellSize(0);
             tau_res_s = dx_fire / max_ros;
         } else {
-            // Fallback to SAV-based when fire is not yet spreading
             tau_res_s = compute_residence_time_s(sigma_agg, fp.rho_p);
         }
-        // Apply a floor: never shorter than the SAV-based particle burnout time
         Real tau_sav = compute_residence_time_s(sigma_agg, fp.rho_p);
         tau_res_s = amrex::max(tau_res_s, tau_sav);
     }
@@ -372,32 +362,28 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
                        << " m, max_ROS=" << fire_ros->max(0) << " m/s)" << std::endl;
     }
 
-    // Fill heat flux and deplete fuel load
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
                         *fire_phi, fp, tau_res_s, dt_fire_s);
 
-    // Compute diagnostics: Byram fireline intensity and Thomas flame length
-    Real h_kJ_per_kg = fp.heat_content * 2.326_rt;   // BTU/lb -> kJ/kg
+    Real h_kJ_per_kg = fp.heat_content * 2.326_rt;
     fill_fire_diagnostics(*fire_fireline_intensity, *fire_flame_length,
                           *fire_phi, *fire_ros, *fire_fuel_load,
                           m_fuel_load_initial_kg_m2, h_kJ_per_kg);
 }
+
 void FireLayer::update_atm_flux_buffer(const amrex::Geometry& geom_atm)
 {
     if (!m_params.one_way_coupling) { return; }
     if (!fire_heat_flux || !m_Q_atm_prev) { return; }
 
-    // Coarsen sensible heat flux from fire grid to atmospheric grid.
     coarsen_fire_flux_to_atm(*m_Q_atm_prev, *fire_heat_flux,
                              geom_atm, m_fg.geom, m_fg.C);
 
-    // Compute and coarsen latent heat flux if injection is enabled.
     if (m_params.inject_latent && m_Q_lat_atm_prev) {
         FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
         amrex::Real h_fuel_Jkg = fp.heat_content * 2326.0_rt;
 
-        // Domain-averaged fuel moisture for bmst computation.
-        amrex::Real M_f = m_params.moisture_1hr;   // fallback
+        amrex::Real M_f = m_params.moisture_1hr;
         if (m_params.moisture_dynamic && fire_fuel_mc) {
             long nc = fire_fuel_mc->boxArray().numPts();
             amrex::Real avg1   = (nc > 0) ? fire_fuel_mc->sum(0) / amrex::Real(nc) : m_params.moisture_1hr;
@@ -409,10 +395,7 @@ void FireLayer::update_atm_flux_buffer(const amrex::Geometry& geom_atm)
                 : avg1;
         }
 
-        // Compute latent flux on fire grid from sensible flux and fuel moisture.
         compute_fire_latent_flux(*fire_latent_flux, *fire_heat_flux, M_f, h_fuel_Jkg);
-
-        // Coarsen to atmospheric grid.
         coarsen_fire_flux_to_atm(*m_Q_lat_atm_prev, *fire_latent_flux,
                                  geom_atm, m_fg.geom, m_fg.C);
     } else {
@@ -434,6 +417,10 @@ void FireLayer::apply_fire_coupling_to_cc_source(
     const amrex::MultiFab* Q_lat_ptr = (m_params.inject_latent && has_moisture)
         ? m_Q_lat_atm_prev.get() : nullptr;
 
+    // Pass fire_debug so apply_fire_tendency_to_cc_source prints tendency diagnostics.
+    // With fire_debug=true you will see per-RK-stage output:
+    //   [FIRE COUPLING] Q_atm_max=...  alfg=...
+    //   [FIRE COUPLING] RhoTheta tendency sum=...  max=...  expected_surface_max=...
     apply_fire_tendency_to_cc_source(
         cc_source,
         *m_Q_atm_prev,
@@ -443,14 +430,6 @@ void FireLayer::apply_fire_coupling_to_cc_source(
         geom_atm,
         m_params.heat_flux_alfg,
         m_params.fire_atm_feedback,
-        has_moisture);
-
-    if (m_params.fire_debug) {
-        amrex::Print() << "[FIRE COUPLING] Q_atm_max=" << m_Q_atm_prev->max(0)
-                       << " W/m2  alfg=" << m_params.heat_flux_alfg << " m\n";
-        if (Q_lat_ptr) {
-            amrex::Print() << "[FIRE COUPLING] Q_lat_atm_max=" << m_Q_lat_atm_prev->max(0)
-                           << " W/m2\n";
-        }
-    }
+        has_moisture,
+        m_params.fire_debug);
 }
