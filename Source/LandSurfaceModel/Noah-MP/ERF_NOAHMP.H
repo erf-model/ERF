@@ -63,6 +63,9 @@ namespace NoahmpInputComp {
         coszen,
         rainbl,      // accumulated precip into land model over the interval [mm]
         sr_in,       // frozen fraction of precip [-]
+        mp_rainnc,   // total non-convective precip this interval [mm] (WRF MP_RAINNC)
+        mp_snow,     // snow (+ice) subset of mp_rainnc [mm] (WRF MP_SNOW)
+        mp_graup,    // graupel subset of mp_rainnc [mm] (WRF MP_GRAUP)
         NumComps
     };
 }

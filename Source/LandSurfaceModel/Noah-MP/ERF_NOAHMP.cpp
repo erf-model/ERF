@@ -379,7 +379,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
             // RAINBL = accumulated precip [mm] this land-call interval (WRF convention;
             // Noah-MP divides by DTBL -> mm/s). rain_accum is on the surface slab kklo.
-            Real drain = zero, sr = zero;
+            Real drain = zero, sr = zero, dsnow = zero, dgraup = zero;
             if (hp) {
                 drain = amrex::max(zero, rain_now(i,j,kklo) - rain_prv(i,j,kklo));
                 // Physical guard: precip accumulated over one land interval cannot
@@ -387,13 +387,22 @@ NOAHMP::Advance_With_State (const int& lev,
                 // any corrupt prev-snapshot delta (belt-and-suspenders with the
                 // zero-init above). 500 mm/interval is far above any real 10-min rate.
                 drain = amrex::min(drain, Real(500.0));
-                Real dfroz = zero;
-                if (has_snow)  { dfroz += amrex::max(zero, snow_now (i,j,kklo) - snow_prv (i,j,kklo)); }
-                if (has_graup) { dfroz += amrex::max(zero, graup_now(i,j,kklo) - graup_prv(i,j,kklo)); }
+                // Frozen sub-components. rain_accum(=precrt) is the TOTAL surface precip
+                // and snow_accum(=snowprt: ice+snow), graup_accum(=grplprt) are SUBSETS,
+                // exactly the WRF MP_RAINNC / MP_SNOW / MP_GRAUP convention
+                // (drivers/wrf/NoahmpWRFmainMod.F90:563-568).
+                if (has_snow)  { dsnow  = amrex::max(zero, snow_now (i,j,kklo) - snow_prv (i,j,kklo)); }
+                if (has_graup) { dgraup = amrex::max(zero, graup_now(i,j,kklo) - graup_prv(i,j,kklo)); }
+                Real dfroz = dsnow + dgraup;
                 sr = (drain > zero) ? amrex::min(Real(1.0), dfroz/drain) : zero;
             }
-            noah_input_arr(i,j,0,NoahmpInputComp::rainbl) = drain;
-            noah_input_arr(i,j,0,NoahmpInputComp::sr_in)  = sr;
+            noah_input_arr(i,j,0,NoahmpInputComp::rainbl)    = drain;
+            noah_input_arr(i,j,0,NoahmpInputComp::sr_in)     = sr;
+            // WRF-faithful precip breakdown fed straight to NoahMP's MP_* forcing so the
+            // rain/snow partition (opt_snf=4) matches WRF; opt_snf=1 ignores MP_*.
+            noah_input_arr(i,j,0,NoahmpInputComp::mp_rainnc) = drain;
+            noah_input_arr(i,j,0,NoahmpInputComp::mp_snow)   = dsnow;
+            noah_input_arr(i,j,0,NoahmpInputComp::mp_graup)  = dgraup;
         });
 
         // Synchronize to ensure GPU kernel is complete before host access
@@ -412,6 +421,9 @@ NOAHMP::Advance_With_State (const int& lev,
             noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
             noahmpio->RAINBL(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);  // [mm]
             noahmpio->SR(i,j)        = noah_input_arr(i,j,0,NoahmpInputComp::sr_in);   // [-]
+            noahmpio->MP_RAINNC(i,j) = noah_input_arr(i,j,0,NoahmpInputComp::mp_rainnc); // [mm]
+            noahmpio->MP_SNOW(i,j)   = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);   // [mm]
+            noahmpio->MP_GRAUP(i,j)  = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);  // [mm]
         });
 
         // Call the noahmpio driver code. This runs the land model forcing for
