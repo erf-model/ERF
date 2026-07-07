@@ -260,7 +260,8 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
                                     const std::string& method,
                                     amrex::Real h_fuel_Jkg,
                                     amrex::Real M_f,
-                                    amrex::Real T_amb)
+                                    amrex::Real T_amb,
+                                    bool fire_debug = false)
 {
     using namespace amrex;
 
@@ -297,6 +298,14 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
 
             T_flame_arr(i, j, k) = T_flame;
         });
+    }
+
+    if (fire_debug) {
+        amrex::Real T_max = fire_flame_temp.max(0);
+        amrex::Real T_min_nonzero = 0.0;  // informational only
+        amrex::Print() << "[FIRE FLAME TEMP] method=" << method
+                       << "  T_flame_max=" << T_max << " K"
+                       << "  T_amb=" << T_amb << " K\n";
     }
 }
 
@@ -358,7 +367,8 @@ inline void fill_flame_tilt_angle(
     const amrex::MultiFab& fireline_intensity,
     const amrex::MultiFab& fire_wind_eff,
     amrex::Real rho_air,
-    amrex::Real T_amb)
+    amrex::Real T_amb,
+    bool fire_debug = false)
 {
     using namespace amrex;
 
@@ -377,6 +387,13 @@ inline void fill_flame_tilt_angle(
                 rho_air,
                 T_amb);
         });
+    }
+
+    if (fire_debug) {
+        amrex::Real tilt_max = fire_flame_tilt.max(0);
+        amrex::Real tilt_mean = fire_flame_tilt.sum(0) / fire_flame_tilt.boxArray().numPts();
+        amrex::Print() << "[FIRE FLAME TILT] tilt_max=" << tilt_max << " deg"
+                      << "  tilt_mean=" << tilt_mean << " deg\n";
     }
 }
 

@@ -218,7 +218,8 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                         int                               step,
                         const amrex::MultiFab*            fuel_load,
                         const std::string*                fuel_system,
-                        int                               fuel_model_id = 1)
+                        int                               fuel_model_id = 1,
+                        bool                              fire_debug = false)
 {
     using namespace amrex;
 
@@ -420,8 +421,10 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                 Real ccy = prob_lo[1] + (j + 0.5) * dx[1];
                 Real d   = std::sqrt((ccx - lx) * (ccx - lx) + (ccy - ly) * (ccy - ly));
                 if (d <= sp.spot_radius) {
-                    // SDF stamp: phi = min(phi, d - spot_radius)
-                    phi_arr(i, j, 0, 0) = std::min(phi_arr(i, j, 0, 0), d - sp.spot_radius);
+                    // Normalize SDF by spot_radius to match the [-1, 1] convention used
+                    // throughout the level-set (same normalization as initialize_ignition).
+                    amrex::Real sdf_val = (d - sp.spot_radius) / sp.spot_radius;  // in [-1, 0]
+                    phi_arr(i, j, 0, 0) = std::min(phi_arr(i, j, 0, 0), sdf_val);
                     alb_arr(i, j, 0, 3) = 1.0;  // active spot flag
                 }
 
@@ -454,7 +457,26 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
         }
     }
 
+    // Clamp phi to [-1, 1] after all spotting stamps
+    for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
+        auto p = phi.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (const amrex::IntVect& iv) noexcept {
+            p(iv) = amrex::max(-1.0_rt, amrex::min(p(iv), 1.0_rt));
+        });
+    }
+
     phi.FillBoundary(geom.periodicity());
+
+    if (fire_debug) {
+        int n_launched = static_cast<int>(landings.size());
+        amrex::Real max_dist = 0.0;
+        for (const auto& ls : landings) { max_dist = std::max(max_dist, ls.dist); }
+        amrex::Print() << "[FIRE SPOTTING] front_cells=" << n_front
+                       << "  launched=" << n_launched
+                       << "  max_landing_dist=" << max_dist << " m"
+                       << "  spot_radius=" << sp.spot_radius << " m"
+                       << "  phi_min_after=" << phi.min(0) << "\n";
+    }
 }
 
 #endif

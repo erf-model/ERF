@@ -263,7 +263,8 @@ inline void update_crown_fire_status(amrex::MultiFab& fire_crown_active,
                                       const amrex::MultiFab& fire_phi,
                                       const amrex::MultiFab& fireline_intensity,
                                       amrex::Real I_B_crit,
-                                      amrex::Real R_crown_ms)
+                                      amrex::Real R_crown_ms,
+                                      bool fire_debug = false)
 {
     using namespace amrex;
 
@@ -291,6 +292,15 @@ inline void update_crown_fire_status(amrex::MultiFab& fire_crown_active,
                 }
             }
         });
+    }
+
+    if (fire_debug) {
+        amrex::Real n_crown = fire_crown_active.sum(0);
+        amrex::Real ros_max = fire_ros.max(0);
+        amrex::Print() << "[FIRE CROWN] active_crown_cells=" << static_cast<long>(n_crown)
+                       << "  I_B_crit=" << I_B_crit << " kW/m"
+                       << "  R_crown=" << R_crown_ms << " m/s"
+                       << "  ros_max_after=" << ros_max << " m/s\n";
     }
 }
 

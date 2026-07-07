@@ -490,12 +490,13 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
     if (fire_flame_temp) {
         fill_flame_temperature(*fire_flame_temp, *fire_fireline_intensity, *fire_phi,
                                m_params.flame_temp_method, h_fuel_Jkg, M_f,
-                               m_params.flame_temp_T_amb);
+                               m_params.flame_temp_T_amb, m_params.fire_debug);
     }
 
     if (fire_flame_tilt) {
         fill_flame_tilt_angle(*fire_flame_tilt, *fire_fireline_intensity, *fire_wind_eff,
-                              m_params.flame_tilt_rho_air, m_params.flame_tilt_T_amb);
+                              m_params.flame_tilt_rho_air, m_params.flame_tilt_T_amb,
+                              m_params.fire_debug);
     }
 }
 
