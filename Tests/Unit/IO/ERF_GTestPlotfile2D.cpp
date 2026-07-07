@@ -412,53 +412,50 @@ TEST(Plotfile2DSampledLevel, ParsesHeightAGLLevelSet)
 // instead of falling through to a later interpolation failure.
 TEST(Plotfile2DSampledLevel, RejectsUnknownCoordinate)
 {
-    // AMReX initialization can leave helper threads alive, so use the
-    // threadsafe death-test style instead of fork-based death tests.
-    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    const auto error = validate_sampled_coordinate_string("bad_coordinate", "bogus_coordinate");
 
-    add_sampled_level_definition("bad_coordinate",
-                                 "bogus_coordinate",
-                                 {10.0},
-                                 {"theta"});
-
-    EXPECT_DEATH(parse_sampled_level_definition("bad_coordinate", "erf"),
-                 "Unknown sampled-level coordinate");
+    EXPECT_TRUE(contains(error, "Unknown sampled-level coordinate"));
+    EXPECT_TRUE(contains(error, "bogus_coordinate"));
 }
 
 // Motivation: Unsupported units should be rejected at parse time so sampled
 // metadata cannot advertise a unit that the sampler does not canonicalize.
 TEST(Plotfile2DSampledLevel, RejectsUnsupportedUnits)
 {
-    // AMReX initialization can leave helper threads alive, so use the
-    // threadsafe death-test style instead of fork-based death tests.
-    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    SampledLevelDefinition level_set;
+    level_set.name = "bad_units";
+    level_set.coordinate = SampledCoordinate::Pressure;
+    level_set.units = "kPa";
+    level_set.values = {amrex::Real(850.0)};
+    level_set.fields = {"theta"};
+    level_set.interpolation = SampledInterpolation::Linear;
 
-    add_sampled_level_definition("bad_units",
-                                 "pressure",
-                                 {850.0},
-                                 {"theta"},
-                                 "kPa",
-                                 "linear");
+    const auto error = validate_sampled_level_definition(level_set);
 
-    EXPECT_DEATH(parse_sampled_level_definition("bad_units", "erf"),
-                 "unsupported units");
+    EXPECT_TRUE(contains(error, "unsupported units"));
+    EXPECT_TRUE(contains(error, "kPa"));
 }
 
 // Motivation: Isentropic output needs a crossing policy, so it must stay
 // rejected until that policy exists.
 TEST(Plotfile2DSampledLevel, RejectsIsentropicUntilCrossingPolicyExists)
 {
-    // AMReX initialization can leave helper threads alive, so use the
-    // threadsafe death-test style instead of fork-based death tests.
-    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    const auto error =
+        validate_sampled_coordinate_string("bad_isentropic", "isentropic");
 
-    add_sampled_level_definition("bad_isentropic",
-                                 "isentropic",
-                                 {300.0},
-                                 {"theta"});
+    EXPECT_TRUE(contains(error, "crossing policy"));
+    EXPECT_TRUE(contains(error, "bad_isentropic"));
+}
 
-    EXPECT_DEATH(parse_sampled_level_definition("bad_isentropic", "erf"),
-                 "crossing policy");
+// Motivation: Coordinate validation must accept the same public names as the
+// parser, including case-insensitive input.
+TEST(Plotfile2DSampledLevel, ValidCoordinateStringsPassValidation)
+{
+    for (const char* coordinate :
+         {"model_index", "height_msl", "height_agl", "pressure",
+          "MODEL_INDEX", "HEIGHT_MSL", "HEIGHT_AGL", "PRESSURE"}) {
+        EXPECT_EQ(validate_sampled_coordinate_string("valid_coordinate", coordinate), "");
+    }
 }
 
 // Motivation: Derived moisture aliases are out of scope for this sampled

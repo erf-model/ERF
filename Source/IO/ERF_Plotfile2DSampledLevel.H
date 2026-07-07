@@ -80,6 +80,8 @@ const char* sampled_coordinate_default_interpolation (SampledCoordinate coordina
 const char* sampled_interpolation_to_string (SampledInterpolation interpolation) noexcept;
 SampledCoordinate sampled_coordinate_from_string (const std::string& value);
 SampledInterpolation sampled_interpolation_from_string (const std::string& value);
+std::string validate_sampled_coordinate_string (const std::string& level_set_name,
+                                                const std::string& value);
 
 std::string sampled_level_error_prefix (const std::string& level_set_name,
                                        const std::string& parameter_name);
