@@ -44,12 +44,12 @@ struct MYNNPBLH {
         auto const& ng = pblh->nGrowVect();
 
         amrex::MultiFab min_thetav(ba,dm,1,ng);
-        min_thetav.setVal(1.E34);
+        min_thetav.setVal(bogus_large_value);
 
         amrex::MultiFab pblh_tke(ba,dm,1,ng);
-        pblh_tke.setVal(0);
+        pblh_tke.setVal(zero);
 
-        pblh->setVal(0);
+        pblh->setVal(zero);
 
         // Now, loop over columns...
         for (amrex::MFIter mfi(cons,TileNoZ()); mfi.isValid(); ++mfi)

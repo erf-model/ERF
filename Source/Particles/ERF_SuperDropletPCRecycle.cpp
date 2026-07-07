@@ -15,10 +15,12 @@ using namespace SDPCDefn;
 void SuperDropletPC::Recycle ( const int             a_lev,
                                const Vector<MFPtr>&  a_z_phys_nd,
                                const int             a_iter,
-                               const Real            a_dt,
+                               const double                               a_dt,
                                const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
+
+    amrex::ignore_unused(a_iter, a_dt);
 
     const auto num_sd_deactivated = NumSDDeactivated();
     const auto num_sd = NumSuperDroplets();
@@ -31,7 +33,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     if (m_save_inactive) {
 #ifndef ERF_USE_NETCDF
-        const auto& geom = Geom(m_lev);
+        const auto& geom = Geom(a_lev);
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
@@ -100,8 +102,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto init_r = *(m_initializations[init_idx]);
         const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
-        const auto ctx = buildProcessContext(a_lev);
-        const auto dx_h = Geom(m_lev).CellSize();
+        const auto proc_ctx = buildProcessContext(a_lev);
+        const auto dx_h = Geom(a_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
         const Box& dom = Geom(a_lev).Domain();
@@ -127,7 +129,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_min = m_recyc_zmin;
         const auto z_max = m_recyc_zmax;
 
-        forEachParticleTile(a_lev, ctx,
+        forEachParticleTile(a_lev, proc_ctx,
             [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
@@ -251,9 +253,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         amrex::Print() << "Removing inactive particles.\n";
 
-        const auto ctx = buildProcessContext(a_lev);
+        const auto proc_ctx = buildProcessContext(a_lev);
 
-        forEachParticleTile(a_lev, ctx,
+        forEachParticleTile(a_lev, proc_ctx,
             [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& /*ctx*/)

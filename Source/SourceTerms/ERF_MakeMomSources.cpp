@@ -34,8 +34,8 @@ using namespace amrex;
  * @param[in] d_sinesq_stag_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at z-faces
  */
 
-void make_mom_sources (Real time,
-                       Real /*dt*/,
+void make_mom_sources (double time,
+                       double /*dt*/,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
                        const MultiFab* z_phys_cc,
@@ -88,17 +88,17 @@ void make_mom_sources (Real time,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    one Coriolis forcing for (xmom,ymom,zmom)
-    //    two Rayleigh damping for (xmom,ymom,zmom)
-    //    three Constant / height-dependent geostrophic forcing
-    //    Real(4.) Subsidence
-    //    Real(5.) Nudging towards input sounding data
-    //    Real(6.) Numerical diffusion for (xmom,ymom,zmom)
-    //    Real(7.) Sponge
-    //    Real(8.) Forest canopy
-    //    9a. Immersed forcing for terrain
-    //    9b. Immersed forcing for buildings
-    //   Real(10.) Constant mass flux
+    //    1. Coriolis forcing for (xmom,ymom,zmom)
+    //    2. Rayleigh damping for (xmom,ymom,zmom)
+    //    3. Constant / height-dependent geostrophic forcing
+    //    4. Subsidence
+    //    5. Nudging towards input sounding data
+    //    6. Numerical diffusion for (xmom,ymom,zmom)
+    //    7. Sponge
+    //    8. Forest canopy
+    //   9a. Immersed forcing for terrain
+    //   9b. Immersed forcing for buildings
+    //   10. Constant mass flux
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -162,6 +162,9 @@ void make_mom_sources (Real time,
     if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
                          enforce_massflux_x || enforce_massflux_y))
     {
+        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
+
         const int offset = 1;
         const int u_offset = 1;
         const int v_offset = 1;
@@ -320,7 +323,7 @@ void make_mom_sources (Real time,
 
 
         // *****************************************************************************
-        // one Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 1. Add Coriolis forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
             if(solverChoice.init_type == InitType::HindCast) {
@@ -328,44 +331,50 @@ void make_mom_sources (Real time,
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rho_v_loc = fourth * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = fourth * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real v_loc = fourth * (v(i,j+1,k) + v(i,j,k) + v(i-1,j+1,k) + v(i-1,j,k));
+                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i,j-1,k+1) + w(i,j-1,k));
                     Real latitude = latlon_arr(i,j,k,0);
                     Real sphi_loc = std::sin(latitude*PI/Real(180.0));
                     Real cphi_loc = std::cos(latitude*PI/Real(180.0));
-                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                    xmom_src_arr(i, j, k) += coriolis_factor * rho_on_u_face * (v_loc * sphi_loc - w_loc * cphi_loc);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = fourth * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j-1,k) + u(i,j-1,k));
                     Real latitude = latlon_arr(i,j,k,0);
                     Real sphi_loc = std::sin(latitude*PI/Real(180.0));
-                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_on_v_face * u_loc * sphi_loc;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = fourth * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j,k-1) + u(i,j,k-1));
                     Real latitude = latlon_arr(i,j,k,0);
                     Real cphi_loc = std::cos(latitude*PI/Real(180.0));
-                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_on_w_face * u_loc * cphi_loc;
                 });
             }
             else if (var_coriolis && (sinPhi_mf) && (cosPhi_mf)) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rho_v_loc = fourth * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = fourth * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real v_loc = fourth * (v(i,j+1,k) + v(i,j,k) + v(i-1,j+1,k) + v(i-1,j,k));
+                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i-1,j,k+1) + w(i-1,j,k));
                     Real sphi_loc  = myhalf  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
                     Real cphi_loc  = myhalf  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
-                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                    xmom_src_arr(i, j, k) += coriolis_factor * rho_on_u_face * (v_loc * sphi_loc - w_loc * cphi_loc);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = fourth * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j-1,k) + u(i,j-1,k));
                     Real sphi_loc  = myhalf  * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0));
-                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_on_v_face * u_loc * sphi_loc;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    Real rho_u_loc = fourth * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_arr(i,j,0);
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j,k-1) + u(i,j,k-1));
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_on_w_face * u_loc * cphi_arr(i,j,0);
                 });
             } else {
                 if (solverChoice.terrain_type == TerrainType::EB) {
@@ -373,60 +382,66 @@ void make_mom_sources (Real time,
                     Array4<const Real> v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
                     Array4<const Real> w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
                     ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        Real rho_v_loc = 0.0;
-                        Real rho_w_loc = 0.0;
+                        Real v_loc = 0.0;
+                        Real w_loc = 0.0;
                         Real v_vol = v_volfrac(i,j+1,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i-1,j,k);
                         Real w_vol = w_volfrac(i,j,k+1) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i-1,j,k);
+                        Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                         if (v_vol > 0.0) {
-                            rho_v_loc = ( v_volfrac(i,j+1,k) * rho_v(i,j+1,k) + v_volfrac(i,j,k) * rho_v(i,j,k)
-                                        + v_volfrac(i-1,j+1,k) * rho_v(i-1,j+1,k) + v_volfrac(i-1,j,k) * rho_v(i-1,j,k)) / v_vol;
+                            v_loc = ( v_volfrac(i  ,j+1,k) * v(i  ,j+1,k) + v_volfrac(i  ,j,k) * v(i  ,j,k)
+                                    + v_volfrac(i-1,j+1,k) * v(i-1,j+1,k) + v_volfrac(i-1,j,k) * v(i-1,j,k)) / v_vol;
                         }
                         if (w_vol > 0.0) {
-                            rho_w_loc = ( w_volfrac(i,j,k+1) * rho_w(i,j,k+1) + w_volfrac(i,j,k) * rho_w(i,j,k)
-                                        + w_volfrac(i-1,j,k+1) * rho_w(i-1,j,k+1) + w_volfrac(i-1,j,k) * rho_w(i-1,j,k)) / w_vol;
+                            w_loc = ( w_volfrac(i  ,j,k+1) * w(i  ,j,k+1) + w_volfrac(i  ,j,k) * w(i  ,j,k)
+                                    + w_volfrac(i-1,j,k+1) * w(i-1,j,k+1) + w_volfrac(i-1,j,k) * w(i-1,j,k)) / w_vol;
                         }
-                        xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                        xmom_src_arr(i, j, k) += coriolis_factor * rho_on_u_face * (v_loc * sinphi - w_loc * cosphi);
                     });
                     ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        Real rho_u_loc = 0.0;
+                        Real u_loc = 0.0;
                         Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i,j-1,k);
+                        Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                         if (u_vol > 0.0) {
-                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
-                                        + u_volfrac(i+1,j-1,k) * rho_u(i+1,j-1,k) + u_volfrac(i,j-1,k) * rho_u(i,j-1,k)) / u_vol;
+                            u_loc = ( u_volfrac(i+1,j  ,k) * u(i+1,j  ,k) + u_volfrac(i,j  ,k) * u(i,j  ,k)
+                                    + u_volfrac(i+1,j-1,k) * u(i+1,j-1,k) + u_volfrac(i,j-1,k) * u(i,j-1,k)) / u_vol;
                         }
-                        ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
+                        ymom_src_arr(i, j, k) += -coriolis_factor * rho_on_v_face * u_loc * sinphi;
                     });
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        Real rho_u_loc = 0.0;
+                        Real u_loc = 0.0;
                         Real u_vol = u_volfrac(i+1,j,k) + u_volfrac(i,j,k) + u_volfrac(i+1,j,k-1) + u_volfrac(i,j,k-1);
+                        Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                         if (u_vol > 0.0) {
-                            rho_u_loc = ( u_volfrac(i+1,j,k) * rho_u(i+1,j,k) + u_volfrac(i,j,k) * rho_u(i,j,k)
-                                        + u_volfrac(i+1,j,k-1) * rho_u(i+1,j,k-1) + u_volfrac(i,j,k-1) * rho_u(i,j,k-1)) / u_vol;
+                            u_loc = ( u_volfrac(i+1,j,k  ) * u(i+1,j,k  ) + u_volfrac(i,j,k)   * u(i,j,k  )
+                                    + u_volfrac(i+1,j,k-1) * u(i+1,j,k-1) + u_volfrac(i,j,k-1) * u(i,j,k-1)) / u_vol;
                         }
-                        zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
+                        zmom_src_arr(i, j, k) += coriolis_factor * rho_on_w_face * u_loc * cosphi;
                     });
                 } else {
                     ParallelFor(tbx, tby, tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                        Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
-                        xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                        Real v_loc = fourth * (v(i,j+1,k) + v(i,j,k) + v(i-1,j+1,k) + v(i-1,j,k));
+                        Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i-1,j,k+1) + w(i-1,j,k));
+                        Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                        xmom_src_arr(i, j, k) += rho_on_u_face * ( coriolis_factor * (v_loc * sinphi - w_loc * cosphi) );
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                        ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
+                        Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                        Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j-1,k) + u(i,j-1,k));
+                        ymom_src_arr(i, j, k) += rho_on_v_face * ( -coriolis_factor * u_loc * sinphi );
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                        zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
+                        Real u_loc = fourth * (u(i+1,j,k) + u(i,j,k) + u(i+1,j,k-1) + u(i,j,k-1));
+                        Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                        zmom_src_arr(i, j, k) += rho_on_w_face * ( coriolis_factor * u_loc * cosphi );
                     });
                 }
             } // var_coriolis
         } // use_coriolis
 
         // *****************************************************************************
-        // two Add RAYLEIGH damping
+        // 2. Add RAYLEIGH damping
         // *****************************************************************************
         Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -504,7 +519,7 @@ void make_mom_sources (Real time,
         } // geo_wind_profile
 
         // *****************************************************************************
-        // Real(4.) Add custom SUBSIDENCE terms
+        // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
@@ -578,7 +593,7 @@ void make_mom_sources (Real time,
         }
 
         // *************************************************************************************
-        // Real(5.) Add nudging towards value specified in input sounding
+        // 5. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
@@ -625,7 +640,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // Real(6.) Add NUMERICAL DIFFUSION terms
+        // 6. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
@@ -641,16 +656,16 @@ void make_mom_sources (Real time,
 #endif
 
         // *****************************************************************************
-        // Real(7.) Add SPONGING
+        // 7. Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
-            if (solverChoice.spongeChoice.sponge_type == "input_sponge")
+            if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
             {
                 ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
                                                     z_cc_arr, xmom_src_arr, ymom_src_arr,
                                                     rho_u, rho_v, d_sponge_ptrs_at_lev);
             }
-            else
+            else if (solverChoice.spongeChoice.sponge_type == SpongeType::Standard)
             {
                 ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                         xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
@@ -680,7 +695,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // Real(8.) Add CANOPY source terms
+        // 8. Add CANOPY source terms
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
@@ -773,8 +788,8 @@ void make_mom_sources (Real time,
                     Real psi_m = zero;
                     Real psi_h = zero;
                     Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
+                    Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
+                    Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
                     Real zeta  = Real(1.5) * dx_z / Olen;
 
                     // similarity functions
@@ -825,8 +840,8 @@ void make_mom_sources (Real time,
                     Real psi_m = zero;
                     Real psi_h = zero;
                     Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
+                    Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
+                    Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
                     Real zeta  = Real(1.5) * dx_z / Olen;
 
                     // similarity functions
@@ -932,7 +947,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // Real(10.) Enforce constant mass flux
+        // 10. Enforce constant mass flux
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
             Real tau_inv = one / solverChoice.const_massflux_tau;

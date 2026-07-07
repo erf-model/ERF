@@ -23,6 +23,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SAMUtils.H"
 
 namespace MicVar {
    enum {
@@ -82,7 +83,7 @@ public:
         m_fac_sub  = lsub / sc.c_p;
         m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
-        m_do_cond  = (!sc.use_shoc);
+        m_do_cond  = (!sc.uses_shoc_family());
     }
 
     // init
@@ -143,8 +144,18 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
+    const amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) const
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
+    }
+
     void
     Compute_Coefficients ();
+
+    SAMCoefficientRow
+    CoefficientRowAt (int k) const;
 
     int
     Qmoist_Size () override { return SAM::m_qmoist_size; }
@@ -152,8 +163,22 @@ public:
     int
     Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
 
+    int
+    Qstate_Moist_NumConc_Size () override { return SAM::n_qstate_moist_numconc_size; }
+
     void
-    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
+    {
+        a_idx.clear();
+        a_names.clear();
+
+        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
+    }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -161,7 +186,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& fac_fus,
+                   const amrex::Real& /*fac_fus*/,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -187,7 +212,7 @@ public:
         amrex::Real fff, dfff, dtabs;
         amrex::Real lstar, dlstar;
         amrex::Real lstarw, lstari;
-        amrex::Real delta_qv, delta_qc, delta_qi;
+        amrex::Real delta_qc, delta_qi;
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
@@ -210,39 +235,36 @@ public:
             erf_dtqsatw(tabs, pres, dqsatw);
             erf_dtqsati(tabs, pres, dqsati);
 
+            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+
             if (SAM_moisture_type == 1) {
                 // Cloud ice not permitted (condensation)
                 if(tabs >= tbgmax) {
-                    omn   = one;
                 }
                 // Cloud water not permitted (sublimation)
                 else if(tabs <= tbgmin) {
-                    omn    = zero;
                 }
-                // Mixed cloud phase (condensation & fusion)
+                // Mixed cloud phase (condensation & deposition)
                 else {
-                    lstari = fac_fus;
-                    omn    = an*tabs-bn;
+                    lstari = fac_sub;
                     domn   = an;
                 }
             } else if (SAM_moisture_type == 2) {
-                omn  = one;
                 domn = zero;
             }
 
             // Linear combination of each component
-            qsat   =  omn * qsatw  + (one-omn) * qsati;
-            dqsat  =  omn * dqsatw + (one-omn) * dqsati
-                   + domn *  qsatw -     domn  *  qsati;
+            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
+            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
             lstar  =  omn * lstarw + (one-omn) * lstari;
             dlstar = domn * lstarw -     domn  * lstari;
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
+            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
 
             // Derivative of function (T_new iterated on)
-            dfff  = -one + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
 
             // Update the temperature
             dtabs = -fff/dfff;
@@ -256,12 +278,14 @@ public:
         qsat += dqsat*dtabs;
 
         // Changes in each component
-        delta_qv = qv_array(i,j,k) - qsat;
-        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
-        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (one-omn));
+        const SAMCloudPhaseChange phase_change =
+            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
+                                         qc_array(i,j,k), qi_array(i,j,k), omn);
+        delta_qc = phase_change.delta_qc;
+        delta_qi = phase_change.delta_qi;
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = qsat;
+        qv_array(i,j,k)  = phase_change.qv;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
@@ -271,26 +295,15 @@ public:
         return tabs;
     }
 
-    void
-    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
-                         std::vector<int>& a_idx,
-                         std::vector<std::string>& a_names) const override
-    {
-        a_idx.clear();
-        a_names.clear();
-
-        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
-        a_idx.push_back(0); a_names.push_back("RainAccum");
-        a_idx.push_back(1); a_names.push_back("SnowAccum");
-        a_idx.push_back(2); a_names.push_back("GraupAccum");
-    }
-
 private:
     // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 3;
 
     // Number of qstate variables
     int n_qstate_moist_size = 6;
+
+    // Number of qstate variables that are number concentrations
+    int n_qstate_moist_numconc_size = 0;
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = myhalf;
@@ -300,9 +313,6 @@ private:
 
     // geometry
     amrex::Geometry m_geom;
-
-    // Nudging + set width
-    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

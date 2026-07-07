@@ -4,7 +4,7 @@ using namespace amrex;
 
 void ERF::advance_radiation (int lev,
                              MultiFab& cons,
-                             const Real& dt_advance)
+                             const double& dt_advance)
 {
     if (solverChoice.rad_type != RadiationType::None) {
 #ifdef ERF_USE_NETCDF
@@ -34,7 +34,7 @@ void ERF::advance_radiation (int lev,
         }
 
         // Enter radiation class driver
-        amrex::Real time_for_rad = t_old[lev] + start_time;
+        double time_for_rad = t_old[lev] + start_time;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
                       cons.boxArray(), geom[lev], &(cons),
                       lmask_lev[lev][0].get(), t_surf,

@@ -25,7 +25,7 @@ using namespace amrex;
  * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
  */
 void
-ERF::FillIntermediatePatch (int lev, Real time,
+ERF::FillIntermediatePatch (int lev, double time_d,
                             const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                             const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                             int ng_cons, int ng_vel, bool cons_only,
@@ -33,6 +33,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     Interpolater* mapper;
+
+    Real time = static_cast<Real>(time_d);
 
     PhysBCFunctNoOp null_bc;
 
@@ -117,15 +119,15 @@ ERF::FillIntermediatePatch (int lev, Real time,
         MultiFab mf(mfs_vel[Vars::cons]->boxArray(),mfs_vel[Vars::cons]->DistributionMap(),
                     mfs_vel[Vars::cons]->nComp()   ,mfs_vel[Vars::cons]->nGrowVect());
         //
-        // Set all components to Real(1.789e19), then copy just the density from *mfs_vel[Vars::cons]
+        // Set all components to bogus_large_value, then copy just the density from *mfs_vel[Vars::cons]
         //
-        mf.setVal(1.789e19);
+        mf.setVal(bogus_large_value);
         MultiFab::Copy(mf,*mfs_vel[Vars::cons],Rho_comp,Rho_comp,1,mf.nGrowVect());
 
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
-        Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
-        Vector<Real> ftime    = {time,time};
+        Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
+        Vector<Real> ftime    = {static_cast<Real>(time), static_cast<Real>(time)};
 
         if (interpolation_type == StateInterpType::Perturbational)
         {
@@ -193,7 +195,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                 // Set values in the cells outside the domain boundary so that we can do the Add
                 //     without worrying about uninitialized values outside the domain -- these
                 //     will be filled in the physbcs call
-                mf.setDomainBndry(Real(1.234e20),Rho_comp,1,geom[lev]);
+                mf.setDomainBndry(bogus_large_value,Rho_comp,1,geom[lev]);
 
                 // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
                 MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});
@@ -320,7 +322,14 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
+#ifdef ERF_USE_NETCDF
+    if (solverChoice.use_real_bcs && (lev==0)) {
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        do_fb = false;
+    }
+#endif
+
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],

@@ -15,7 +15,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                       int icomp, int ncomp,
-                                      IntVect const& nghost, const Real time, int /*bccomp*/,
+                                      IntVect const& nghost, const double time, int /*bccomp*/,
                                       bool do_fb, bool do_terrain_adjustment)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
@@ -62,19 +62,19 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 
             Array4<const Real> z_nd_arr;
 
-            if (m_z_phys_nd)
-            {
+            if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomain.contains(cbx2))
-            {
+            if (!gdomain.contains(cbx2)) {
                 Array4<      Real> const& cons_arr = mf.array(mfi);
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                // We send a box with ghost cells in the lateral directions only
-                impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost,time);
+                if (!m_use_real_bcs) {
+                    // We send a box with ghost cells in the lateral directions only
+                    impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost,time);
+                }
 
                 // We send the full FAB box with ghost cells
                 impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
@@ -85,7 +85,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
@@ -134,19 +134,16 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
             Array4<const Real> z_nd_arr;
 
-            if (m_z_phys_nd)
-            {
+            if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomainx.contains(xbx2))
-            {
+            if (!gdomainx.contains(xbx2)) {
                 Array4<      Real> const& dest_arr = mf.array(mfi);
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                if (!gdomainx.contains(xbx1))
-                {
+                if (!gdomainx.contains(xbx1) && !m_use_real_bcs) {
                     impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,time);
                 }
 
@@ -157,7 +154,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
@@ -206,18 +203,18 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
             Array4<const Real> z_nd_arr;
 
-            if (m_z_phys_nd)
-            {
+            if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomainy.contains(ybx2))
-            {
+            if (!gdomainy.contains(ybx2)) {
                 Array4<      Real> const& dest_arr = mf.array(mfi);
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
-                impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
+                if (!m_use_real_bcs) {
+                    impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
+                }
 
                 impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
             }
@@ -227,7 +224,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time,
+                                   IntVect const& nghost, const double time,
                                    const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
@@ -289,22 +286,19 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             const Array4<const Real>& mf_u = m_mapfac_u->const_array(mfi);
             const Array4<const Real>& mf_v = m_mapfac_v->const_array(mfi);
 
-            if (m_z_phys_nd)
-            {
+            if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
             //
             // Recall that gdomainz.smallEnd(2) = 1 not 0!
             //
-            if (!gdomainz.contains(zbx))
-            {
+            if (!gdomainz.contains(zbx)) {
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
                 Array4<      Real> const& velz_arr = mf.array(mfi);
 
-                if (!gdomainz.contains(zbx))
-                {
+                if (!gdomainz.contains(zbx) && !m_use_real_bcs) {
                     impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,
                                             mf_u,mf_v,z_nd_arr,dxInv,m_terrain_type,bccomp_w,time);
                 }
@@ -358,13 +352,11 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
 
             Array4<const Real> z_nd_arr;
 
-            if (m_z_phys_nd)
-            {
+            if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomain.contains(cbx2))
-            {
+            if (!gdomain.contains(cbx2)) {
                 const Array4<Real> base_arr = mf.array(mfi);
 
                 impose_lateral_basestate_bcs(base_arr,cbx1,domain,ncomp,nghost);

@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Flow over Witch of Agnesi hill" 
 
-erf.init_type = Isentropic
+#erf.init_type = Isentropic
 
 prob.custom_terrain_type = "WoA"
 

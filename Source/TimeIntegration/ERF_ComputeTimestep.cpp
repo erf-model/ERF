@@ -8,7 +8,7 @@ using namespace amrex;
  *
  */
 void
-ERF::ComputeDt (int step)
+ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<Real> dt_tmp(finest_level+1);
 
@@ -19,12 +19,12 @@ ERF::ComputeDt (int step)
 
     ParallelDescriptor::ReduceRealMin(&dt_tmp[0], dt_tmp.size());
 
-    Real dt_0 = dt_tmp[0];
+    double dt_0 = static_cast<double>(dt_tmp[0]);
     int n_factor = 1;
     for (int lev = 0; lev <= finest_level; ++lev) {
-        dt_tmp[lev] = amrex::min(dt_tmp[lev], change_max*dt[lev]);
+        dt_tmp[lev] = amrex::min(dt_tmp[lev], static_cast<Real>(change_max*dt[lev]));
         n_factor *= nsubsteps[lev];
-        dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
+        dt_0 = std::min(dt_0, static_cast<double>(n_factor*dt_tmp[lev]));
 
     }
     // Limit level 0 time step if requested
@@ -39,9 +39,9 @@ ERF::ComputeDt (int step)
     // Recall that stop_time is total time, but t_new is elapsed time,
     //     so we must add start_time to t_new
     //
-    const Real eps = Real(1.e-3)*dt_0;
-    if (t_new[0] + dt_0 > (stop_time - start_time) - eps) {
-        dt_0 = (stop_time - start_time) - t_new[0];
+    const double eps = 1.e-3*dt_0;
+    if (cur_time_d + dt_0 > (stop_time - start_time) - eps) {
+        dt_0 = (stop_time - start_time) - cur_time_d;
     }
 
     dt[0] = dt_0;
@@ -56,13 +56,13 @@ ERF::ComputeDt (int step)
  * @param[in] level level of refinement (coarsest level i 0)
  * @param[out] dt_fast_ratio ratio of slow to fast time step
  */
-Real
+double
 ERF::estTimeStep (int level, long& dt_fast_ratio) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
-    Real estdt_comp = Real(1.e20);
-    Real estdt_lowM = Real(1.e20);
+    double estdt_comp = bogus_large_value;
+    double estdt_lowM = bogus_large_value;
 
     // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
     const int nxc = geom[0].Domain().length(0);
@@ -104,7 +104,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                    Array4<Real const> const& u,
                                    Array4<Real const> const& vf) -> Real
         {
-           Real new_comp_dt = -Real(1.e100);
+           Real new_comp_dt = -bogus_large_value;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                if (vf(i,j,k) > zero)
@@ -157,17 +157,21 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        });
 
     } else {
-       estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
+       const MultiFab& detJ = *detJ_cc[level];
+       estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
-                                  Array4<Real const> const& u) -> Real
+                                  Array4<Real const> const& u,
+                                  Array4<Real const> const& dJ) -> Real
        {
-           Real new_comp_dt = -Real(1.e100);
+           Real new_comp_dt = -bogus_large_value;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                {
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
+
+                   Real idz_loc = dxinv[2] / dJ(i,j,k);
 
                    // NOTE: even when moisture is present,
                    //       we only use the partial pressure of the dry air
@@ -175,8 +179,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
-                   // If we are doing implicit acoustic substepping, then the z-direction does not contribute
-                   //    to the computation of the time step
+                   // If we are doing implicit acoustic substepping, then the z-direction is not constrained
+                   //    by the speed of sound for the computation of the time step
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
@@ -187,7 +191,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                        } else {
                            // 3-D
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))  )*idz_loc ),new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
@@ -215,13 +220,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     } // not EB
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
-    estdt_comp = cfl / estdt_comp_inv;
+    // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
+    estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : bogus_large_value;
 
      Real estdt_lowM_inv = ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& u) -> Real
        {
-           Real new_lm_dt = -Real(1.e100);
+           Real new_lm_dt = -bogus_large_value;
            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
            {
                new_lm_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
@@ -242,7 +248,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     Array4<Real const> const& s,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_comp_dt = -Real(1.e100);
+             Real new_comp_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
              {
                  {
@@ -266,7 +272,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& u) -> Real
          {
-             Real new_lowM_dt = -Real(1.e100);
+             Real new_lowM_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_lowM_dt] (int i, int j, int k) noexcept
              {
                  new_lowM_dt = amrex::max((amrex::Math::abs(u(i,j,k,2))) * dzinv, new_lowM_dt);
@@ -314,7 +320,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          } else if (fixed_dt[level] > zero) {
              // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
              auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
-             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/dt_sub_max,Real(4.)) );
+             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/static_cast<double>(dt_sub_max), 4.0) );
          } else {
              // auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
              // dt_fast_ratio = static_cast<long>( std::max(estdt_comp/dt_sub_max,Real(4.)) );
@@ -340,7 +346,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      // Print out some extra diagnostics -- dt calcs are repeated so as to not
      // disrupt the overall code flow...
      if (l_comp_substepping_diag) {
-         Real dt_diag = (fixed_dt[level] > zero) ? fixed_dt[level] : estdt_comp;
+         double dt_diag = (fixed_dt[level] > zero) ? fixed_dt[level] : static_cast<double>(estdt_comp);
          int  ns      = (fixed_mri_dt_ratio > zero) ? fixed_mri_dt_ratio : dt_fast_ratio;
 
          // horizontal acoustic CFL must be < 1 (fully explicit)
@@ -361,11 +367,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (l_anelastic) {
 
             // Make sure that timestep is less than the dt_max
-            estdt_lowM = amrex::min(estdt_lowM, dt_max);
+            estdt_lowM = std::min(estdt_lowM, dt_max);
 
             // On the first timestep enforce dt_max_initial
             if (istep[level] == 0) {
-                return amrex::min(dt_max_initial, estdt_lowM);
+                return std::min(dt_max_initial, estdt_lowM);
             } else {
                 return estdt_lowM;
             }

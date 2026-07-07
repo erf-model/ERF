@@ -80,7 +80,6 @@ ERF::PerformDataAssimilation(int da_iter)
     // Compute the ensemble mean
     MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
 
-
    // Construct perturbation plotfile name
    std::string pltname = "plt_ens_mean";
    WriteSingleLevelPlotfile(pltname,
@@ -89,7 +88,6 @@ ERF::PerformDataAssimilation(int da_iter)
                             geom[0],
                             0.0,   // time
                             0);    // level
-
 
     // Compute the mean of forecast observations yf_bar = Hx_f
     MultiFab mean_H_xf;
@@ -179,8 +177,6 @@ ERF::PerformDataAssimilation(int da_iter)
                             0);    // level
 
     exit(0);
-
-
 
     Matrix T_mat(Nens);
     compute_T_matrix(S_mat, T_mat);

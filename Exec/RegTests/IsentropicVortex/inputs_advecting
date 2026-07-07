@@ -31,9 +31,6 @@ erf.sum_interval    = 1       # timesteps between computing mass
 erf.v               = 1       # verbosity in ERF.cpp
 amr.v               = 1       # verbosity in Amr.cpp
 
-# REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
-
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 100        # number of timesteps between checkpoints
@@ -63,11 +60,11 @@ prob.sigma = 1.0  # Gaussian standard deviation [-]
 #
 # SET max_level to greater than 0 for refinement 
 #
+amr.max_level     = 0       # maximum level number allowed
 erf.coupling_type = TwoWay
 erf.regrid_int    = 2
 
 amr.ref_ratio_vect = 2 2 1 2 2 1
-amr.max_level       = 0       # maximum level number allowed
 
 # USE THESE FOR STATIC REFINEMENT
 #erf.refinement_indicators = box1

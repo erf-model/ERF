@@ -64,7 +64,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       Real dt,
+                       double dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -85,7 +85,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
-                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                       Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -106,8 +106,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
-#ifdef ERF_USE_SHOC
-                       std::unique_ptr<SHOCInterface>& shoc_lev,
+#ifdef ERF_USE_EAMXX_SHOC
+                       SHOCInterface* eamxx_shoc_lev,
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+                       ShocDriver* native_shoc_lev,
 #endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
@@ -144,10 +147,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_need_SmnSmn    = tc.use_keqn;
 
     const Real l_vert_implicit_fac = (solverChoice.implicit_thermal_diffusion) ?
-                                     solverChoice.vert_implicit_fac[nrk] : 0.0;
+                                     solverChoice.vert_implicit_fac[level][nrk] : zero;
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
+    bool l_apply_surface_layer_fluxes_in_diffusion = l_use_SurfLayer;
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
     const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
@@ -192,10 +196,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Populate vertical component of eddyDiffs
-            shoc_lev->set_eddy_diffs();
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // SHOC either supplies host-applied vertical SGS coefficients or
+            // clears them so the host does not re-apply SHOC transport.
+            eamxx_shoc_lev->set_eddy_diffs();
+        }
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            // Native SHOC always owns the scalar fluxes in state_update mode.
+            // When it also owns momentum stresses, we skip the generic
+            // SurfaceLayer call entirely so the host does not re-apply them.
+            native_shoc_lev->set_eddy_diffs();
         }
 #endif
 
@@ -210,43 +225,50 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23
-            shoc_lev->set_diff_stresses();
-        } else if (l_use_SurfLayer) {
-            // Set surface shear stresses, update heat and moisture fluxes
-            // (fluxes will be later applied in the diffusion source update)
-            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                               Hfx1, Hfx2, Hfx3,
-                                               Q1fx1, Q1fx2, Q1fx3,
-                                               &z_phys_nd);
+        bool surface_layer_handled = false;
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // EAMxx SHOC owns the overlapping lower-boundary fluxes here, so
+            // do not fall through to the generic SurfaceLayer path.
+            eamxx_shoc_lev->set_diff_stresses();
+            surface_layer_handled = true;
         }
-#else
-        // This is computed pre step in Advance if we use SHOC
-        if (l_use_SurfLayer) {
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            if (native_shoc_lev->owns_scalar_surface_fluxes()) {
+                l_apply_surface_layer_fluxes_in_diffusion = false;
+            }
+            if (!native_shoc_lev->needs_host_surface_momentum_stresses()) {
+                surface_layer_handled = true;
+            }
+        }
+#endif
+        if (!surface_layer_handled && l_use_SurfLayer) {
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {
-                // Set surface shear stresses, update heat and moisture fluxes
-                // (fluxes will be later applied in the diffusion source update)
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                                Hfx1, Hfx2, Hfx3,
-                                                Q1fx1, Q1fx2, Q1fx3,
-                                                &z_phys_nd);
+                                                   Hfx1, Hfx2, Hfx3,
+                                                   Q1fx1, Q1fx2, Q1fx3,
+                                                   &z_phys_nd);
 
                 //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
                 //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
                 //}
             } else {
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
-                                                   Hfx1, Hfx2, Hfx3_EB,
-                                                   Q1fx1, Q1fx2, Q1fx3,
-                                                   ebfact);
+                                                      Hfx1, Hfx2, Hfx3_EB,
+                                                      Q1fx1, Q1fx2, Q1fx3);
             }
         }
-#endif
+        if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
+            // SHOC-owned scalar fluxes must not be reused by the host
+            // diffusion source, even if the host SurfaceLayer path was also
+            // evaluated for momentum stress ownership.
+            native_shoc_lev->set_diff_stresses();
+        }
     } // l_use_diff
 
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries
@@ -269,6 +291,86 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // physbnd_mask[1+dir].FillBoundary(geom.periodicity());
         }
     }
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    {
+    BL_PROFILE("slow_rhs_making_omega");
+    for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        Box bx  = mfi.tilebox();
+
+        IntVect nGrowVect = (l_use_eb)
+                            ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
+        Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
+
+        const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
+        const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
+        const Array4<      Real>& omega_arr = Omega.array(mfi);
+
+        //
+        // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
+        // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
+        // out of the projection
+        //
+        if (!l_use_terrain_fitted_coords) {
+            ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                omega_arr(i,j,k) = rho_w(i,j,k);
+            });
+
+        } else {
+
+            Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
+            int lo_z_face = domain.smallEnd(2);
+            if (gbxo_lo.smallEnd(2) <= lo_z_face) {
+                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = zero;
+                });
+            }
+            Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+            int hi_z_face = domain.bigEnd(2)+1;
+                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
+                ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+            }
+
+            const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+            const Array4<const Real>& mf_ux     = mapfac[MapFacType::u_x]->const_array(mfi);
+            const Array4<const Real>& mf_vy     = mapfac[MapFacType::v_y]->const_array(mfi);
+
+            if (z_t_mf) { // Note we never do anelastic with moving terrain
+                Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                      Array4<const Real> z_t        = z_t_mf->array(mfi);
+                const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
+                ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
+                    Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                    omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                  rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
+                        rho_at_face * z_t(i,j,k);
+                });
+            } else {
+                Box gbxo_mid = gbxo;
+                if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) {
+                    gbxo_mid.setSmall(2,1);
+                }
+                if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
+                    gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                }
+                ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                  rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv);
+                });
+            }
+        }
+    } // mfi
+    } // OMP
+
+    // We need extra values of Omega in the vertical if grids are decomposed vertically
+    Omega.FillBoundary(geom.periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -343,7 +445,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
-        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -411,66 +512,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
 
         // *****************************************************************************
-        // Contravariant flux field
-        // *****************************************************************************
-        {
-        BL_PROFILE("slow_rhs_making_omega");
-            IntVect nGrowVect = (l_use_eb)
-                                ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
-            Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
-            //
-            // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
-            // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
-            // out of the projection
-            //
-            if (!l_use_terrain_fitted_coords) {
-                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
-
-            } else {
-
-                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
-                int lo_z_face = domain.smallEnd(2);
-                if (gbxo_lo.smallEnd(2) <= lo_z_face) {
-                    ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = zero;
-                    });
-                }
-                Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                int hi_z_face = domain.bigEnd(2)+1;
-                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
-                    ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
-                }
-
-                if (z_t) { // Note we never do anelastic with moving terrain
-                    Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
-                        Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
-                            rho_at_face * z_t(i,j,k);
-                    });
-                } else {
-                    Box gbxo_mid = gbxo;
-                    if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) {
-                        gbxo_mid.setSmall(2,1);
-                    }
-                    if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
-                        gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    }
-                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv);
-                    });
-                }
-            }
-        } // end profile
-
-        // *****************************************************************************
         // Diffusive terms (pre-computed above)
         // *****************************************************************************
         // No terrain diffusion
@@ -494,10 +535,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
 
-        Array4<Real> tau_eb13{}, tau_eb23{};
-        if (l_use_eb && Tau_EB[EBTauType::tau_eb13] && Tau_EB[EBTauType::tau_eb23]) {
-            tau_eb13 = Tau_EB[EBTauType::tau_eb13]->array(mfi);
-            tau_eb23 = Tau_EB[EBTauType::tau_eb23]->array(mfi);
+        // EB surface layer fluxes
+        Array4<Real> u_tau_eb13, u_tau_eb23;
+        Array4<Real> v_tau_eb13, v_tau_eb23;
+        Array4<Real> w_tau_eb13, w_tau_eb23;
+        if (l_use_eb) {
+            EBChoice ebChoice = solverChoice.ebChoice;
+            if (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer) {
+                u_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+                u_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::xface]->array(mfi);
+                v_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::yface]->array(mfi);
+                v_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+                w_tau_eb13 = Tau_EB[EBTauType::tau_eb13][EBGridType::zface]->array(mfi);
+                w_tau_eb23 = Tau_EB[EBTauType::tau_eb23][EBGridType::zface]->array(mfi);
+            }
         }
 
         // Strain magnitude
@@ -628,7 +679,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -639,7 +690,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -649,7 +700,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dx, dxInv,
                                        hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, l_use_SurfLayer);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -659,7 +710,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             }
         }
 
@@ -725,7 +776,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     u, v, w,
                     tau11, tau22, tau33,
                     tau12, tau13, tau23,
-                    tau_eb13, tau_eb23,
+                    u_tau_eb13, u_tau_eb23, v_tau_eb13, v_tau_eb23, w_tau_eb13, w_tau_eb23,
                     dx, dxInv,
                     mf_mx, mf_ux, mf_vx,
                     mf_my, mf_uy, mf_vy,

@@ -1,25 +1,14 @@
 #include "ERF.H"
+#include "ERF_EpochTime.H"
+#include "ERF_NCPlotFile.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_EpochTime.H"
+#include "ERF_Utils.H"
 
 using namespace amrex;
 
 static PhysBCFunctNoOp null_bc_for_fill;
-
-#ifdef ERF_USE_NETCDF
-void
-writeNCPlotFile (int lev, int which, const std::string& dir,
-                 const Vector<const MultiFab*> &mf,
-                 const Vector<std::string> &plot_var_names,
-                 const Vector<int>& level_steps,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_lo,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_hi,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> dx,
-                 const Box& bounding_region,
-                 Real time, Real start_bdy_time);
-#endif
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -82,7 +71,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 }
             } else
             {
-                // For moisture_type SAM and Morrison we have all six variables
+                // For moisture_type SAM, Morrison and WSM6 we have all six variables
                 tmp_plot_names.push_back(cons_names[i]);
             }
         }
@@ -120,7 +109,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
                     if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
                         derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp" &&
+                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp"     &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -133,12 +122,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
-                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
+                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj)             ||
                             (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow qv, qc
-                    if (derived_names[i] != "qrain"  &&
-                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qp" &&
+                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain)     ||
+                            (solverChoice.moisture_type == MoistureType::MoistNoCondensation) ) { // allow qv, qc
+                    if (derived_names[i] != "qrain"  && derived_names[i] != "qi" && derived_names[i] != "qsnow" &&
+                        derived_names[i] != "qgraup" && derived_names[i] != "qp" &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -179,48 +168,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         }
     }
 #endif
-
-    plot_var_names = tmp_plot_names;
-}
-
-void
-ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
-{
-    ParmParse pp(pp_prefix);
-
-    if (pp.contains(pp_plot_var_names.c_str()))
-    {
-        std::string nm;
-
-        int nPltVars = pp.countval(pp_plot_var_names.c_str());
-
-        for (int i = 0; i < nPltVars; i++)
-        {
-            pp.get(pp_plot_var_names.c_str(), nm, i);
-
-            // Add the named variable to our list of plot variables
-            // if it is not already in the list
-            if (!containerHasElement(plot_var_names, nm)) {
-                plot_var_names.push_back(nm);
-            }
-        }
-    } else {
-        //
-        // The default is to add none of the variables to the list
-        //
-        plot_var_names.clear();
-    }
-
-    // Get state variables in the same order as we define them,
-    // since they may be in any order in the input list
-    Vector<std::string> tmp_plot_names;
-
-    // 2D plot variables
-    for (int i = 0; i < derived_names_2d.size(); ++i) {
-        if (containerHasElement(plot_var_names, derived_names_2d[i]) ) {
-            tmp_plot_names.push_back(derived_names_2d[i]);
-        }
-    }
 
     plot_var_names = tmp_plot_names;
 }
@@ -320,11 +267,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     auto dPlotTime0 = amrex::second();
 
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
-    const int ncomp_mf = varnames.size();
+    const int ncomp_mf = static_cast<int>(varnames.size());
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
     if (ncomp_mf == 0) return;
+
+    // Lagrangian microphysics with AMR (TwoWay): bring fine-level moisture down
+    // to coarse cells so plotfiles at level 0 show the fine-deposit cloud.
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
+        && solverChoice.coupling_type == CouplingType::TwoWay
+        && finest_level >= 1) {
+        micro->AverageDownMicroVars(finest_level);
+        for (int flev = finest_level-1; flev >= 0; --flev) {
+            AverageDownMoistStateTo(flev);
+        }
+    }
 
     // We Fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
@@ -400,11 +358,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
-            mf_cc_vel[lev].setVal(-1.e20);
+            mf_cc_vel[lev].setVal(bogus_large_value);
             average_face_to_cellcenter(mf_cc_vel[lev],0,
                                        Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
                                                                 &vars_new[lev][Vars::yvel],
-                                                                &vars_new[lev][Vars::zvel]});
+                                                                &vars_new[lev][Vars::zvel]}, 1);
         } // lev
     } // if (vel or vort)
 
@@ -417,10 +375,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
+            Real new_time = t_new[lev];
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
-            Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ftime    = {new_time,new_time};
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
-            Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ctime    = {new_time,new_time};
 
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
@@ -471,6 +430,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
         MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
         MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+        MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
         MultiFab pressure;
 
@@ -569,11 +529,30 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
 
-        if (solverChoice.moisture_type == MoistureType::Morrison ||
-            solverChoice.moisture_type == MoistureType::SAM) {
-            calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
-            calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
+        if (containerHasElement(plot_var_names, "reflectivity"))
+        {
+            if (solverChoice.moisture_type == MoistureType::Morrison ||
+                solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::SAM) {
+                calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
+            } else {
+                mf[lev].setVal(zero, mf_comp, 1, 0);
+                mf_comp++;
+            }
         }
+
+        if (containerHasElement(plot_var_names, "max_reflectivity"))
+        {
+            if (solverChoice.moisture_type == MoistureType::Morrison ||
+                solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::SAM) {
+                calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
+            } else {
+                mf[lev].setVal(zero, mf_comp, 1, 0);
+                mf_comp++;
+            }
+        }
+
         if (solverChoice.moisture_type != MoistureType::None) {
             calculate_derived("precipitable"   ,  vars_new[lev][Vars::cons], derived::erf_derprecipitable);
         }
@@ -610,6 +589,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "theta_hse"))
         {
             MultiFab::Copy(mf[lev],th_hse,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "qv_hse"))
+        {
+            MultiFab::Copy(mf[lev],qv_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
@@ -650,6 +634,27 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
                 });
             }
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "buoyancy"))
+        {
+            MultiFab     qt(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+            MultiFab      b(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+            MultiFab S_prim(mf[lev].boxArray(), mf[lev].DistributionMap(),
+                             vars_new[lev][Vars::cons].nComp()-1, 1);
+
+            qt.setVal(0.);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            if (solverChoice.moisture_type != MoistureType::None) {
+                make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
+            }
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 0);
+
+            b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
+            make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
+                          get_eb(lev), solverChoice.anelastic[lev]);
+            MultiFab::Copy(mf[lev], b, 0, mf_comp, 1, 0);
             mf_comp ++;
         }
 
@@ -932,7 +937,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,0) / norm;
@@ -950,7 +955,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,1) / norm;
@@ -968,7 +973,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,2) / norm;
@@ -986,13 +991,33 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,3) / norm;
                     });
                 }
                 mf_comp ++;
+            }
+        }
+
+        const MultiFab* eta_src = nullptr;
+        const bool have_native_shoc_diagnostics =
+#ifdef ERF_USE_NATIVE_SHOC
+            solverChoice.turbChoice[lev].uses_native_shoc() &&
+            native_shoc_driver[lev] &&
+            native_shoc_driver[lev]->has_native_diagnostics();
+#else
+            false;
+#endif
+        if (solverChoice.turbChoice[lev].use_kturb) {
+#ifdef ERF_USE_NATIVE_SHOC
+            if (have_native_shoc_diagnostics) {
+                eta_src = &native_shoc_driver[lev]->native_diagnostics();
+            } else
+#endif
+            {
+                eta_src = eddyDiffs_lev[lev].get();
             }
         }
 
@@ -1007,7 +1032,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Box& bx = mfi.tilebox();
                 auto       prim = dmf[mfi].array();
                 auto const cons = cmf[mfi].const_array();
-                auto const diff = (*eddyDiffs_lev[lev])[mfi].const_array();
+                auto const diff = (eta_src) ? eta_src->const_array(mfi) :
+                                              Array4<const Real>{};
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const Real rho = cons(i, j, k, Rho_comp);
@@ -1019,8 +1045,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
+        const MultiFab* shoc_or_host_eddy = nullptr;
+#ifdef ERF_USE_NATIVE_SHOC
+        if (have_native_shoc_diagnostics) {
+            shoc_or_host_eddy = &native_shoc_driver[lev]->native_diagnostics();
+        } else
+#endif
+        {
+            shoc_or_host_eddy = eddyDiffs_lev[lev].get();
+        }
+
         if (containerHasElement(plot_var_names, "Kmv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Mom_v,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Kmh")) {
@@ -1028,7 +1064,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Khv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_v,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Theta_v,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Khh")) {
@@ -1036,8 +1072,113 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Lturb")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Turb_lengthscale,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
+        }
+        auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
+            if (src != nullptr) {
+                MultiFab::Copy(mf[lev], *src, 0, mf_comp, 1, 0);
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp ++;
+        };
+        // Native SHOC pblh is diagnosed in meters AGL and is copied through
+        // unchanged into the plotfile diagnostic field.
+        if (containerHasElement(plot_var_names, "pblh")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->pblh_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_cldfrac")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_cldfrac_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_ql")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_ql_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_ql2")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_ql2_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_cond")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_cond_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wqls_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wqls_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wthv_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wthv_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "w_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->w_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "thl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->thl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "qw_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->qw_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "qwthl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->qwthl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wthl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wthl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wqw_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wqw_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "w3")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->w3_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "brunt")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->brunt_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "isotropy")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->isotropy_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shear_prod")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shear_prod_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "buoy_prod")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->buoy_prod_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "diss_tke")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->diss_tke_diagnostics()
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "walldist")) {
             MultiFab::Copy(mf[lev],*walldist[lev],0,mf_comp,1,0);
@@ -1057,7 +1198,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
-            int n_qstate_moist   = micro->Get_Qstate_Moist_Size();
+            int n_qstate_moist         = micro->Get_Qstate_Moist_Size();
+            int n_qstate_moist_numconc = micro->Get_Qstate_Moist_NumConc_Size();
 
             // Moist density
             if(containerHasElement(plot_var_names, "moist_density"))
@@ -1065,7 +1207,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
                 if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 for (int n_comp(n_start); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
@@ -1115,17 +1257,55 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp += 1;
             }
 
+            if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ni") && (n_qstate_moist >= 8))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ8_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "nr") && (n_qstate_moist >= 9))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ9_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ns") && (n_qstate_moist >= 10))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ10_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ng") && (n_qstate_moist >= 11))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
             // Precipitating + non-precipitating components
             //--------------------------------------------------------------------------
             if(containerHasElement(plot_var_names, "qt"))
             {
                 int n_start = RhoQ1_comp; // qv
-                int n_end   = n_start + n_qstate_moist;
+                int n_end   = n_start + n_qstate_moist - n_qstate_moist_numconc;
                 MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+
                 for (int n_comp(n_start+1); n_comp < n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
+
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
+
                 mf_comp += 1;
             }
 
@@ -1136,7 +1316,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
                 if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
                 for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
@@ -1149,7 +1329,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
             {
                 int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
-                int n_end   = ncomp_cons - 1;
+                int n_end   = ncomp_cons - 1 - n_qstate_moist_numconc;
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
                 for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
@@ -1184,10 +1364,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                  (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
                  (solverChoice.moisture_type == MoistureType::SAM_NoIce) )
             {
-                int offset = (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
@@ -1200,20 +1379,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                       (solverChoice.moisture_type == MoistureType::Morrison) ||
                       (solverChoice.moisture_type == MoistureType::WSM6) )
             {
-                int offset = (solverChoice.moisture_type == MoistureType::Morrison) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "snow_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+1]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+2]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
@@ -1598,7 +1776,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
-             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
+             AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
              int lev   = 0;
              int l_which = 0;
              const Real* p_lo = geom[lev].ProbLo();
@@ -1606,7 +1784,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
              const auto dx    = geom[lev].CellSize();
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                              {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                             geom[lev].Domain(), t_new[0], start_bdy_time);
+                             geom[lev].Domain(), t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -1739,7 +1917,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
-             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
+             AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
              for (int lev = 0; lev <= finest_level; ++lev) {
                  for (int which_box = 0; which_box < num_boxes_at_level[lev]; which_box++) {
                      Box bounding_region = (lev == 0)  ? geom[lev].Domain() : boxes_at_level[lev][which_box];
@@ -1748,7 +1926,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                      const auto dx    = geom[lev].CellSizeArray();
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                                      {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                                     bounding_region, t_new[0], start_bdy_time);
+                                     bounding_region, t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
                  }
              }
 #endif
@@ -1769,7 +1947,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<const MultiFab*>& mf_nd,
                                          const Vector<std::string>& varnames,
                                          const Vector<Geometry>& my_geom,
-                                         Real time,
+                                         double time,
                                          const Vector<int>& level_steps,
                                          const Vector<IntVect>& rr,
                                          const std::string &versionName,
@@ -1856,7 +2034,7 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const Vector<BoxArray> &bArray,
                                             const Vector<std::string> &varnames,
                                             const Vector<Geometry>& my_geom,
-                                            Real my_time,
+                                            double my_time,
                                             const Vector<int>& level_steps,
                                             const Vector<IntVect>& my_ref_ratio,
                                             const std::string &versionName,
@@ -1936,454 +2114,5 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
     std::string mf_nodal_prefix = "Nu_nd";
     for (int level = 0; level <= finest_level; ++level) {
         HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
-    }
-}
-
-void
-ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
-{
-    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
-    const int ncomp_mf = varnames.size();
-
-    if (ncomp_mf == 0) return;
-
-    // Vector of MultiFabs for cell-centered data
-    Vector<MultiFab> mf(finest_level+1);
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        mf[lev].define(ba2d[lev], dmap[lev], ncomp_mf, 0);
-    }
-
-
-    // **********************************************************************************************
-    // (Effectively) 2D arrays
-    // **********************************************************************************************
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
-        if (check_for_nans) {
-            check_for_negative_theta(vars_new[lev][Vars::cons]);
-        }
-
-        int mf_comp = 0;
-
-        // Set all components to zero in case they aren't defined below
-        mf[lev].setVal(0.0);
-
-        // Expose domain khi and klo at each level
-        int klo = geom[lev].Domain().smallEnd(2);
-        int khi = geom[lev].Domain().bigEnd(2);
-
-        if (containerHasElement(plot_var_names, "z_surf")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<const Real>& z_phys_arr = z_phys_nd[lev]->const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i, j, k, mf_comp) = Compute_Z_AtWFace(i, j, 0, z_phys_arr);
-                });
-            }
-            mf_comp++;
-        }
-
-        if (containerHasElement(plot_var_names, "landmask")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<const int>& lmask_arr = lmask_lev[lev][0]->const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i, j, k, mf_comp) = lmask_arr(i, j, 0);
-                });
-            }
-            mf_comp++;
-        }
-
-        if (containerHasElement(plot_var_names, "mapfac")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<Real>& mf_m   = mapfac[lev][MapFacType::m_x]->array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
-                });
-            }
-            mf_comp++;
-        }
-
-        if (containerHasElement(plot_var_names, "lat_m")) {
-            if (lat_m[lev]) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = lat_m[lev]->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = data(i,j,0);
-                    });
-                }
-            }
-            mf_comp++;
-        } // lat_m
-
-        if (containerHasElement(plot_var_names, "lon_m")) {
-            if (lon_m[lev]) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = lon_m[lev]->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = data(i,j,0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(0.0,mf_comp,1,0);
-            }
-
-            mf_comp++;
-
-        } // lon_m
-
-        ///////////////////////////////////////////////////////////////////////
-        // These quantities are diagnosed by the surface layer
-        if (containerHasElement(plot_var_names, "u_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_u_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // ustar
-
-        if (containerHasElement(plot_var_names, "w_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_w_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // wstar
-
-        if (containerHasElement(plot_var_names, "t_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_t_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // tstar
-
-        if (containerHasElement(plot_var_names, "q_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_q_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // qstar
-
-        if (containerHasElement(plot_var_names, "Olen")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_olen(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // Olen
-
-        if (containerHasElement(plot_var_names, "pblh")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_pblh(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // pblh
-
-        if (containerHasElement(plot_var_names, "t_surf")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& tsurf  = m_SurfaceLayer->get_t_surf(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = tsurf(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // tsurf
-
-        if (containerHasElement(plot_var_names, "q_surf")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_q_surf(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // qsurf
-
-        if (containerHasElement(plot_var_names, "z0")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_z0(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // z0
-
-        if (containerHasElement(plot_var_names, "OLR")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (solverChoice.rad_type != RadiationType::None) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& olr    = rad_fluxes[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = olr(i, j, khi, 2);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // OLR
-
-        if (containerHasElement(plot_var_names, "sens_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_hfx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = hfx_arr(i, j, klo);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // sens_flux
-
-        if (containerHasElement(plot_var_names, "laten_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_hfx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = qfx_arr(i, j, klo);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
-            mf_comp++;
-        } // laten_flux
-
-        if (containerHasElement(plot_var_names, "surf_pres")) {
-            bool moist = (solverChoice.moisture_type != MoistureType::None);
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const auto& derdat   = mf[lev].array(mfi);
-                const auto& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    auto rt = cons_arr(i,j,klo,RhoTheta_comp);
-                    auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
-                                      : zero;
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
-                });
-            }
-            mf_comp++;
-        } // surf_pres
-
-        if (containerHasElement(plot_var_names, "integrated_qv")) {
-            MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
-            if (solverChoice.moisture_type != MoistureType::None) {
-                volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);
-            } else {
-                mf_qv_int.setVal(0.);
-            }
-            mf_comp++;
-        }
-    } // lev
-
-    std::string plotfilename;
-    if (which == 1) {
-       plotfilename = Concatenate(plot2d_file_1, istep[0], file_name_digits);
-    } else if (which == 2) {
-       plotfilename = Concatenate(plot2d_file_2, istep[0], file_name_digits);
-    }
-
-    Vector<Geometry> my_geom(finest_level+1);
-
-    Array<int,AMREX_SPACEDIM> is_per; is_per[0] = 0; is_per[1] = 0; is_per[2] = 0;
-    if (geom[0].isPeriodic(0)) { is_per[0] = 1;}
-    if (geom[0].isPeriodic(1)) { is_per[1] = 1;}
-
-    int coord_sys = 0;
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        Box slab = makeSlab(geom[lev].Domain(),2,0);
-        auto const slab_lo = lbound(slab);
-        auto const slab_hi = ubound(slab);
-
-        // Create a new geometry based only on the 2D slab
-        Real dz = geom[lev].CellSize(2);
-        RealBox rb = geom[lev].ProbDomain();
-        rb.setLo(2,  slab_lo.z   *dz);
-        rb.setHi(2, (slab_hi.z+1)*dz);
-        my_geom[lev].define(slab, rb, coord_sys, is_per);
-    }
-
-    if (plotfile_type == PlotFileType::Amrex)
-    {
-        Print() << "Writing 2D native plotfile " << plotfilename << "\n";
-        WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                GetVecOfConstPtrs(mf),
-                                varnames, my_geom, t_new[0], istep, refRatio());
-        writeJobInfo(plotfilename);
-
-#ifdef ERF_USE_NETCDF
-    } else if (plotfile_type == PlotFileType::Netcdf) {
-         int lev   = 0;
-         int l_which = 0;
-         const Real* p_lo = my_geom[lev].ProbLo();
-         const Real* p_hi = my_geom[lev].ProbHi();
-         const auto dx    = my_geom[lev].CellSize();
-         writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
-                         {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
-                         my_geom[lev].Domain(), t_new[0], start_bdy_time);
-#endif
-    } else {
-        // Here we assume the plotfile_type is PlotFileType::None
-        Print() << "Writing no 2D plotfile since plotfile_type is none" << std::endl;
     }
 }

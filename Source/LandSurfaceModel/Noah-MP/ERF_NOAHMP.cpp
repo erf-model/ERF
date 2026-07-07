@@ -1,6 +1,7 @@
 
 #include<iostream>
 #include<string>
+#include<limits>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -9,6 +10,7 @@
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include <NoahmpFatal.H>
 
 using namespace amrex;
 
@@ -17,8 +19,22 @@ void
 NOAHMP::Init (const int& lev,
               const MultiFab& cons_in,
               const Geometry& geom,
-              const Real& dt)
+              const double& dt)
 {
+
+    // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
+    // Init across all levels). Noah-MP carries no MPI/AMReX dependency of its own
+    // and instead calls NoahmpIO_fatal(); routing that through amrex::Abort makes a
+    // fatal error on any rank -- from either the C++ or the Fortran coupling side
+    // -- propagate to all ranks via MPI_Abort, rather than deadlocking peers in
+    // the next collective. See NoahmpFatal.H.
+    static const bool noahmp_fatal_installed = []() {
+        NoahmpIO_set_fatal_handler([](const char* msg){
+            amrex::Abort(msg ? msg : "Noah-MP fatal error");
+        });
+        return true;
+    }();
+    amrex::ignore_unused(noahmp_fatal_installed);
 
     m_dt   = dt;
     m_geom = geom;
@@ -106,8 +122,15 @@ NOAHMP::Init (const int& lev,
 
     Print() << "Noah-MP initialization started" << std::endl;
 
-    // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size(), lev);
+    // Size noahmpio_vect to the local blocks (boxes). A rank owning no boxes
+    // leaves it empty and relies on the class-level m_itimestep/m_dtbl instead.
+    if (cons_in.local_size() > 0) {
+        noahmpio_vect.resize(cons_in.local_size(), lev);
+    }
+
+    // Allocate pinned buffer space for all the boxes
+    noahmp_input_tmp.resize(cons_in.local_size());
+    noahmp_output_tmp.resize(cons_in.local_size());
 
     int klo = domain.smallEnd(2);
 
@@ -124,6 +147,10 @@ NOAHMP::Init (const int& lev,
 
         // Make a slab
         bx.makeSlab(2,klo);
+
+        // Allocate pinned buffers for each box
+        noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
+        noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps, The_Pinned_Arena());
 
         // Get reference to the noahmpio object
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
@@ -205,9 +232,23 @@ NOAHMP::Init (const int& lev,
         // Write initial plotfile for land with the tag 0
         Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
         noahmpio->WriteLand(0);
-  }
+    }
 
-  Print() << "Noah-MP initialization completed" << std::endl;
+    // Broadcast DTBL and the initial substep counter to every rank so the firing
+    // decision in Advance_With_State is identical everywhere. Land-free ranks use
+    // sentinels that lose the max-reduction to any real value.
+    m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<double>::lowest()
+                                        : static_cast<Real>(noahmpio_vect[0].DTBL);
+    m_itimestep = noahmpio_vect.empty() ? std::numeric_limits<int>::lowest()
+                                        : noahmpio_vect[0].itimestep;
+    ParallelDescriptor::ReduceRealMax(m_dtbl);
+    ParallelDescriptor::ReduceIntMax(m_itimestep);
+
+    // Guard against a degenerate decomposition in which no rank owns a land box.
+    AMREX_ALWAYS_ASSERT(m_dtbl > 0.0);
+    AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
+
+    Print() << "Noah-MP initialization completed" << std::endl;
 
 };
 
@@ -226,9 +267,18 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
-                            const Real& dt,
+                            const double& elapsed_time,
+                            const double& dt,
                             const int& nstep)
 {
+    // Verify we need to take another LSM step. Use the class-level counter/dtbl
+    // (valid on land-free ranks) so every rank decides identically -- the
+    // FillBoundary at the end of this routine is collective.
+    double NOAH_time = static_cast<double>(m_itimestep-1) * m_dtbl;
+    if (elapsed_time < NOAH_time) { return; }
+
+    // Advance the counter once per firing, in lockstep on every rank.
+    m_itimestep += 1;
 
     Box domain = m_geom.Domain();
 
@@ -281,121 +331,60 @@ NOAHMP::Advance_With_State (const int& lev,
         Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
         Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
 
-        // Create temporary BaseFabs that will be accessible on host
         // Use The_Pinned_Arena() for host-accessible memory that can be used with GPU
-        Box bx2d = makeSlab(bx,2,0);
-        FArrayBox tmp_u_phy(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_v_phy(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_t_phy(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_qv_curr(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_p8w(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_swdown(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_glw(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_coszen(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_hfx(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_lh(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_tau_ew(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_tau_ns(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_tsk(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_emiss(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_albsfcdir_vis(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_albsfcdir_nir(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_albsfcdif_vis(bx, 1, The_Pinned_Arena());
-        FArrayBox tmp_albsfcdif_nir(bx, 1, The_Pinned_Arena());
-
-        // Get array views
-        auto const& tmp_u_phy_arr   = tmp_u_phy.array();
-        auto const& tmp_v_phy_arr   = tmp_v_phy.array();
-        auto const& tmp_t_phy_arr   = tmp_t_phy.array();
-        auto const& tmp_qv_curr_arr = tmp_qv_curr.array();
-        auto const& tmp_p8w_arr     = tmp_p8w.array();
-        auto const& tmp_swdown_arr  = tmp_swdown.array();
-        auto const& tmp_glw_arr     = tmp_glw.array();
-        auto const& tmp_coszen_arr  = tmp_coszen.array();
+        Array4<Real> noah_input_arr  =  noahmp_input_tmp[idb]->array();
+        Array4<Real> noah_output_arr =  noahmp_output_tmp[idb]->array();
 
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real qv                = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
-            tmp_u_phy_arr(i,j,0)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j  ,k));
-            tmp_v_phy_arr(i,j,0)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
-            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
-            tmp_qv_curr_arr(i,j,0) = qv;
-            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
-            tmp_swdown_arr(i,j,0)  = SWDOWN(i,j,0);
-            tmp_glw_arr(i,j,0)     = GLW(i,j,0);
-            tmp_coszen_arr(i,j,0)  = COSZEN(i,j,0);
+            Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
+            noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
+            noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+            noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
+            noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
+            noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
+            noah_input_arr(i,j,0,NoahmpInputComp::swdown)  = SWDOWN(i,j,0);
+            noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
+            noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
         });
 
         // Synchronize to ensure GPU kernel is complete before host access
         Gpu::streamSynchronize();
 
         // Now on the host, copy data to NoahmpIO arrays
-        // Use LoopOnCpu for CPU-side parallelization
-        const auto& h_u_arr      = tmp_u_phy.const_array();
-        const auto& h_v_arr      = tmp_v_phy.const_array();
-        const auto& h_t_arr      = tmp_t_phy.const_array();
-        const auto& h_qv_arr     = tmp_qv_curr.const_array();
-        const auto& h_p8w_arr    = tmp_p8w.const_array();
-        const auto& h_swdown_arr = tmp_swdown.const_array();
-        const auto& h_glw_arr    = tmp_glw.const_array();
-        const auto& h_coszen_arr = tmp_coszen.const_array();
-
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            noahmpio->U_PHY(i,1,j)   = h_u_arr(i,j,0);
-            noahmpio->V_PHY(i,1,j)   = h_v_arr(i,j,0);
-            noahmpio->T_PHY(i,1,j)   = h_t_arr(i,j,0);
-            noahmpio->QV_CURR(i,1,j) = h_qv_arr(i,j,0);
-            noahmpio->P8W(i,1,j)     = h_p8w_arr(i,j,0);
-            noahmpio->SWDOWN(i,j)    = h_swdown_arr(i,j,0);
-            noahmpio->GLW(i,j)       = h_glw_arr(i,j,0);
-            noahmpio->COSZEN(i,j)    = h_coszen_arr(i,j,0);
+            noahmpio->U_PHY(i,1,j)   = noah_input_arr(i,j,0,NoahmpInputComp::u_phy);
+            noahmpio->V_PHY(i,1,j)   = noah_input_arr(i,j,0,NoahmpInputComp::v_phy);
+            noahmpio->T_PHY(i,1,j)   = noah_input_arr(i,j,0,NoahmpInputComp::t_phy);
+            noahmpio->QV_CURR(i,1,j) = noah_input_arr(i,j,0,NoahmpInputComp::qv_curr);
+            noahmpio->P8W(i,1,j)     = noah_input_arr(i,j,0,NoahmpInputComp::p8w);
+            noahmpio->SWDOWN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::swdown);
+            noahmpio->GLW(i,j)       = noah_input_arr(i,j,0,NoahmpInputComp::glw);
+            noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
         });
 
         // Call the noahmpio driver code. This runs the land model forcing for
         // each object in noahmpio_vect that represent a block in the domain.
-        noahmpio->itimestep = nstep+1;
+        // Mirror the authoritative counter into each block.
+        noahmpio->itimestep = m_itimestep;
         noahmpio->DriverMain();
 
         // Copy results from NoahmpIO back to temporary arrays
-        auto h_hfx_arr           = tmp_hfx.array();
-        auto h_lh_arr            = tmp_lh.array();
-        auto h_tau_ew_arr        = tmp_tau_ew.array();
-        auto h_tau_ns_arr        = tmp_tau_ns.array();
-        auto h_tsk_arr           = tmp_tsk.array();
-        auto h_emiss_arr         = tmp_emiss.array();
-        auto h_albsfcdir_vis_arr = tmp_albsfcdir_vis.array();
-        auto h_albsfcdir_nir_arr = tmp_albsfcdir_nir.array();
-        auto h_albsfcdif_vis_arr = tmp_albsfcdif_vis.array();
-        auto h_albsfcdif_nir_arr = tmp_albsfcdif_nir.array();
-
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            h_hfx_arr(i,j,0)           = noahmpio->HFX(i,j);
-            h_lh_arr(i,j,0)            = noahmpio->LH(i,j);
-            h_tau_ew_arr(i,j,0)        = noahmpio->TAU_EW(i,j);
-            h_tau_ns_arr(i,j,0)        = noahmpio->TAU_NS(i,j);
-            h_tsk_arr(i,j,0)           = noahmpio->TSK(i,j);
-            h_emiss_arr(i,j,0)         = noahmpio->EMISS(i,j);
-            h_albsfcdir_vis_arr(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
-            h_albsfcdir_nir_arr(i,j,0) = noahmpio->ALBSFCDIRXY(i,2,j);
-            h_albsfcdif_vis_arr(i,j,0) = noahmpio->ALBSFCDIFXY(i,1,j);
-            h_albsfcdif_nir_arr(i,j,0) = noahmpio->ALBSFCDIFXY(i,2,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::hfx)           = noahmpio->HFX(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::lh)            = noahmpio->LH(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::tau_ew)        = noahmpio->TAU_EW(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::tau_ns)        = noahmpio->TAU_NS(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::tsk)           = noahmpio->TSK(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::emiss)         = noahmpio->EMISS(i,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdir_vis) = noahmpio->ALBSFCDIRXY(i,1,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdir_nir) = noahmpio->ALBSFCDIRXY(i,2,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdif_vis) = noahmpio->ALBSFCDIFXY(i,1,j);
+            noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdif_nir) = noahmpio->ALBSFCDIFXY(i,2,j);
         });
-
-        // Copy results back to output arrays
-        auto const& tmp_hfx_arr           = tmp_hfx.array();
-        auto const& tmp_lh_arr            = tmp_lh.array();
-        auto const& tmp_tau_ew_arr        = tmp_tau_ew.array();
-        auto const& tmp_tau_ns_arr        = tmp_tau_ns.array();
-        auto const& tmp_tsk_arr           = tmp_tsk.array();
-        auto const& tmp_emiss_arr         = tmp_emiss.array();
-        auto const& tmp_albsfcdir_vis_arr = tmp_albsfcdir_vis.array();
-        auto const& tmp_albsfcdir_nir_arr = tmp_albsfcdir_nir.array();
-        auto const& tmp_albsfcdif_vis_arr = tmp_albsfcdif_vis.array();
-        auto const& tmp_albsfcdif_nir_arr = tmp_albsfcdif_nir.array();
-
 
         // Copy forcing data from Noahmp to ERF
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -404,23 +393,35 @@ NOAHMP::Advance_With_State (const int& lev,
             int ii = std::min(std::max(i,i_lo),i_hi);
             int jj = std::min(std::max(j,j_lo),j_hi);
 
-            // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,k)    = tmp_hfx_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,k)    = tmp_lh_arr(ii,jj,0)/(CONS(ii,jj,k,Rho_comp)*L_v);
-
-            // NOTE: The following fluxes are nodal in xz/yz.
-            //       The 2D MFs have 1 ghost cell so we can average these
-            //       when using them in the surface layer class.
-            tau13_arr(i,j,k)  = tmp_tau_ew_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
-            tau23_arr(i,j,k)  = tmp_tau_ns_arr(ii,jj,0)/CONS(ii,jj,k,Rho_comp);
+            // SurfaceLayer fluxes at CC.
+            // Noah-MP returns the -9999 fill value for cells it does NOT process
+            // (sea-ice / open-water points, which still have LANDMASK=1). Applying
+            // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
+            // lowest cell to ~200 K. Detect the fill and instead write the
+            // lsm_flux_undefined sentinel; the surface layer then falls back to
+            // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
+            // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
+            //       so the surface layer can average them.
+            Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
+            if (hfx_lsm > Real(-9990.0)) {
+                t_flux_arr(i,j,k) = hfx_lsm/(CONS(ii,jj,k,Rho_comp)*Cp_d);
+                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
+                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
+                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+            } else {
+                t_flux_arr(i,j,k) = lsm_flux_undefined;
+                q_flux_arr(i,j,k) = lsm_flux_undefined;
+                tau13_arr(i,j,k)  = lsm_flux_undefined;
+                tau23_arr(i,j,k)  = lsm_flux_undefined;
+            }
 
             // RRTMGP variables
-            TSK(i,j,0)           = tmp_tsk_arr(ii,jj,0);
-            EMISS(i,j,0)         = tmp_emiss_arr(ii,jj,0);
-            ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(ii,jj,0);
-            ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(ii,jj,0);
-            ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(ii,jj,0);
-            ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(ii,jj,0);
+            TSK(i,j,0)           = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);
+            EMISS(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::emiss);
+            ALBSFCDIR_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_vis);
+            ALBSFCDIR_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_nir);
+            ALBSFCDIF_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_vis);
+            ALBSFCDIF_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_nir);
         });
     }
 

@@ -8,11 +8,11 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
-                                    const Real dtau,
-                                    const Real slow_dt,
+                                    const double dtau,
+                                    const double slow_dt,
                                     const Real inv_fac,
-                                    const Real old_substep_time,
-                                    const Real new_substep_time)
+                                    const double old_substep_time,
+                                    const double new_substep_time)
 {
         BL_PROFILE("acoustic_substepping_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
@@ -140,7 +140,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
@@ -152,7 +152,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           fine_geom, solverChoice.gravity,
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
-                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else {
@@ -163,14 +163,14 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
                            dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
         }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[nrk] > zero) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero) && !solverChoice.implicit_before_substep &&
              (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);

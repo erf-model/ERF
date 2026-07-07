@@ -1,1 +1,7 @@
 This is the Barbados Oceanographic and Meteorological Experiment (BOMEX) simulation as described in Siebesma et. al (2003) https://doi.org/10.1175/1520-0469(2003)60<1201:ALESIS>2.0.CO;2
+
+The current inputs file, "inputs_bomex", uses the compressible formulation of the equations
+with the SAM moisture model and the Smagorinsky LES model.
+
+The initial state is defined using the values read from the file "input_sounding" with additional
+perturbations as defined by prob_type = BOMEX.

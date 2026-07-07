@@ -6,7 +6,7 @@ using namespace amrex;
 
 void
 SimpleAD::advance (const Geometry& geom,
-                   const Real& dt_advance,
+                   const double& dt_advance,
                    MultiFab& cons_in,
                    MultiFab& mf_vars_simpleAD,
                    MultiFab& U_old,
@@ -14,7 +14,7 @@ SimpleAD::advance (const Geometry& geom,
                    MultiFab& W_old,
                    const MultiFab& mf_Nturb,
                    const MultiFab& mf_SMark,
-                   const Real& time)
+                   const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
@@ -25,13 +25,13 @@ SimpleAD::advance (const Geometry& geom,
 }
 
 void
-SimpleAD::compute_power_output (const Real& time)
+SimpleAD::compute_power_output (const double& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-     const int n_spec_table = wind_speed.size();
+     const int n_spec_table = static_cast<int>(wind_speed.size());
   // Compute power based on the look-up table
 
     if (ParallelDescriptor::IOProcessor()){
@@ -42,8 +42,8 @@ SimpleAD::compute_power_output (const Real& time)
             Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
         }
         Real total_power = zero;
-        for(int it=0; it<xloc.size(); it++){
-            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+        for(int it=0; it<static_cast<int>(xloc.size()); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + Real(1e-10));
             Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
             total_power = total_power + turb_power;
             //printf("avg vel and power is %d %0.15g, %0.15g\n", it, avg_vel, turb_power);
@@ -54,7 +54,7 @@ SimpleAD::compute_power_output (const Real& time)
 }
 
 void
-SimpleAD::update (const Real& dt_advance,
+SimpleAD::update (const double& dt_advance,
                   MultiFab& cons_in,
                   MultiFab& U_old, MultiFab& V_old,
                   const MultiFab& mf_vars_simpleAD)
@@ -132,16 +132,16 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
 
     // Reduce the data on every processor
     amrex::ParallelAllReduce::Sum(freestream_velocity.data(),
-                                  freestream_velocity.size(),
+                                  static_cast<int>(freestream_velocity.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
     amrex::ParallelAllReduce::Sum(freestream_phi.data(),
-                                  freestream_phi.size(),
+                                  static_cast<int>(freestream_phi.size()),
                                   amrex::ParallelContext::CommunicatorAll());
 
 
    amrex::ParallelAllReduce::Sum(disk_cell_count.data(),
-                                 disk_cell_count.size(),
+                                 static_cast<int>(disk_cell_count.size()),
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
@@ -186,7 +186,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
       // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
       mf_vars_simpleAD.setVal(0.0);
 
-      long unsigned int nturbs = xloc.size();
+      long unsigned int nturbs = static_cast<long unsigned int>(xloc.size());
 
      Gpu::DeviceVector<Real> d_freestream_velocity(nturbs);
      Gpu::DeviceVector<Real> d_freestream_phi(nturbs);
@@ -213,7 +213,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
     const Real* wind_speed_d     = d_wind_speed.dataPtr();
     const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
-    const int n_spec_table = d_wind_speed.size();
+    const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -233,8 +233,8 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             int it = static_cast<int>(SMark_array(ii,jj,kk,1));
 
               if(it != -1) {
-                Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
-                Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
+                Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + Real(1e-10));
+                Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + Real(1e-10));
 
                 Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, avg_vel, n_spec_table);
                 Real a;

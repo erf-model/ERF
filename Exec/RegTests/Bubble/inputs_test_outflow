@@ -3,7 +3,7 @@ erf.prob_name = "Bubble"
 
 erf.init_type = MoistBaseState
 
-max_step  = 2000
+#max_step  = 2000
 max_step  = 20
 stop_time = 3600.0
 
@@ -61,7 +61,7 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd"
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
-erf.moisture_model  = "Kessler_NoRain"
+#erf.moisture_model  = "Kessler_NoRain"
 erf.moisture_model  = "Kessler"
 erf.buoyancy_type   = 1
 

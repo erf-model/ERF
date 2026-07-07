@@ -90,11 +90,11 @@ public:
 
     // Run the implementation
     void
-    run_impl (const Real dt);
+    run_impl (const double dt);
 
     // Finalize the implementation
     void
-    finalize_impl (const Real dt);
+    finalize_impl (const double dt);
 
     // Allocate buffer space
     void
@@ -110,7 +110,7 @@ public:
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf (const Real dt);
+    kokkos_buffers_to_mf (const double dt);
 
     // The name of the subcomponent
     std::string

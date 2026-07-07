@@ -85,7 +85,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
 
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
-                                  Real  a_dt,
+                                  double                               a_dt,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_temperature )
 {
@@ -95,7 +95,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
 #endif
 
     BL_PROFILE("SuperDropletPC::Coalescence()");
-    AMREX_ASSERT( a_lev == m_lev );
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
@@ -107,11 +106,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
+
+    // Scale bin size by refinement ratio so each level's bins span the same
+    // physical volume as level 0 (same MC pair-density per bin)
+    IntVect bin_size = m_coalescence_bin_size;
+    for (int k = 0; k < a_lev; k++) {
+        bin_size *= m_gdb->refRatio(k);
+    }
+
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
-        = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[1])
-                 * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
+        = one / (  static_cast<ParticleReal>(bin_size[0])
+                 * static_cast<ParticleReal>(bin_size[1])
+                 * static_cast<ParticleReal>(bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
     Real num_collisions = 0;
@@ -120,9 +127,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
     auto kernel_choice = m_coalescence_kernel;
     auto include_brownian_coalescence = m_include_brownian_coalescence;
 
-    Real mcshuffle_wtime_sec = zero;
-    Real mcpairing_wtime_sec = zero;
-    Real coalescence_wtime_sec = zero;
+    double mcshuffle_wtime_sec = 0.0;
+    double mcpairing_wtime_sec = 0.0;
+    double coalescence_wtime_sec = 0.0;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
@@ -200,8 +207,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
-        int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
-        auto binner = GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box};
+        int ntiles = numTilesInBox(box, true, bin_size);
+        auto binner = GetParticleBin{plo, dxi, domain, bin_size, box};
         DenseBins<ParticleType> bins;
         bins.build( np, pstruct_ptr, ntiles, binner);
         AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
@@ -289,11 +296,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        Gpu::Buffer<Real> particle_collisions({0});
+        Gpu::Buffer<ParticleReal> particle_collisions({0});
         auto particle_collisions_ptr = particle_collisions.data();
 
         Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
-        Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
+        Gpu::DeviceVector<ParticleReal> coal_rate, coal_rmndr;
         num_particles_bin.resize(np);
         coal_partner_idx.resize(np);
         flag_prey.resize(np);
@@ -457,7 +464,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto scaling_factor = myhalf*ns*(ns-1)/std::floor(myhalf*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
-            auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
+            auto gamma = coalescence_rate ( rnd_eng, static_cast<Real>(scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
                 coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
@@ -471,7 +478,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         } );
         Gpu::synchronize();
-        num_collisions = *(particle_collisions.copyToHost());
+        num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -509,7 +516,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
                    -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / Real(1000000.0);
+    double total_wtime_sec = static_cast<double>(total_wtime) / 1000000.0;
 
     ParallelDescriptor::ReduceRealMax( &mcshuffle_wtime_sec,
                                        1,
@@ -524,7 +531,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
 #else
-    Real total_wtime_sec = zero;
+    double total_wtime_sec = 0.0;
 #endif
 
     Print() << "SuperDropletPC(" << m_name << "): "
@@ -538,4 +545,3 @@ void SuperDropletPC::Coalescence( int   a_lev,
 }
 
 #endif
-

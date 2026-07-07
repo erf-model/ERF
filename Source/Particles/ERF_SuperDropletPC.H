@@ -21,14 +21,14 @@ class SuperDropletPC : public ERFPC
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
                           const std::vector<Species::Name>& a_species_mat,
                           const std::vector<Species::Name>& a_aerosol_mat,
-                          const amrex::Real a_dt,
+                          const double a_dt,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
             define( a_species_mat,
                     a_aerosol_mat,
-                    a_gdb->ParticleBoxArray(m_lev),
-                    a_gdb->ParticleDistributionMap(m_lev),
+                    a_gdb->ParticleBoxArray(0),
+                    a_gdb->ParticleDistributionMap(0),
                     a_dt );
         }
 
@@ -38,7 +38,7 @@ class SuperDropletPC : public ERFPC
                           const amrex::BoxArray& a_ba,
                           const std::vector<Species::Name>& a_species_mat,
                           const std::vector<Species::Name>& a_aerosol_mat,
-                          const amrex::Real a_dt,
+                          const double a_dt,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
@@ -153,24 +153,28 @@ class SuperDropletPC : public ERFPC
                                      const amrex::MultiFab&,
                                      const int ) const override;
 
-        /*! \brief Initialize super-droplets in domain */
-        virtual void InitializeParticles (const amrex::Real, const MFPtr& a_ptr) override;
+        /*! \brief Initialize super-droplets in domain at AMR level a_lev */
+        void InitializeParticles (const int a_lev, const double a_t, const MFPtr& a_ptr);
+
+        using ERFPC::InitializeParticles;
 
         /*! \brief Inject super-droplets in domain */
-        virtual void InjectParticles (const amrex::Real, const MFPtr& a_ptr, const amrex::Real);
+        virtual void InjectParticles (const double, const MFPtr& a_ptr, const double);
 
         /*! \brief add particles for a given set of initialization parameters */
-        void addParticles ( const MFPtr&, const SDInitProperties& );
+        void addParticles ( int a_lev, const MFPtr&, const SDInitProperties& );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
-        void setNumSDBoxDistribution( amrex::iMultiFab&,
+        void setNumSDBoxDistribution( int a_lev,
+                                      amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
                                       const amrex::RealBox&,
                                       const bool );
 
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
-        void setNumSDBubbleDistribution( amrex::iMultiFab&,
+        void setNumSDBubbleDistribution( int a_lev,
+                                      amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
                                       const amrex::RealBox&,
@@ -188,7 +192,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
-                                       amrex::Real,
+                                       double,
                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                        const amrex::Vector<MFPtr>& ) override
         {
@@ -197,8 +201,8 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int a_lev,
-                                         amrex::Real a_time,
-                                         amrex::Real a_dt,
+                                         double a_time,
+                                         double a_dt,
                                          const amrex::MultiFab* const a_flow_vel,
                                          const amrex::MultiFab& a_density,
                                          const amrex::MultiFab& a_pressure,
@@ -209,7 +213,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int a_lev,
-                                    amrex::Real a_dt,
+                                    double a_dt,
                                     const Species::Name& a_vap_name,
                                     const amrex::MultiFab& a_temperature,
                                     const amrex::MultiFab& a_pressure,
@@ -220,7 +224,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int a_lev,
-                                    amrex::Real a_dt,
+                                    double a_dt,
                                     const amrex::MultiFab& a_pressure,
                                     const amrex::MultiFab& a_temperature);
 
@@ -228,7 +232,7 @@ class SuperDropletPC : public ERFPC
         virtual void Recycle ( const int a_lev,
                                const amrex::Vector<MFPtr>& a_z_phys_nd,
                                const int a_iter,
-                               const amrex::Real a_dt,
+                               const double a_dt,
                                const bool a_recycle);
 
         /*! \brief Return the number of super-droplets
@@ -245,57 +249,57 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (int, amrex::Real, bool);
+        virtual void Diagnostics (int, int, double, bool);
         /*! \brief Compute mass density distribution */
-        virtual void ComputeDistributions (  int,
+        virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,
                                              amrex::ParticleReal );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         /*! \brief Compute binned size distributions */
-        virtual void ComputeBinnedDistributions ( int );
+        virtual void ComputeBinnedDistributions ( int, int );
         /*! \brief Compute cell-wise binned size distributions */
-        virtual void ComputeBinnedDistributionsCell ( int, amrex::Real );
+        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real );
 #endif
 
         /*! \brief Compute the SD number density on a mesh */
-        virtual void SDNumberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int a_comp=0 ) const;
+        virtual void SDNumberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle number density on a mesh */
-        virtual void numberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int a_comp=0 ) const;
+        virtual void numberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int a_comp=0 ) const;
+        virtual void massDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int& a_lev, const int& a_comp=0 ) const override;
         /*! \brief Compute the mass flux component on a mesh */
-        virtual void massFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int, const int a_comp=0 ) const;
+        virtual void massFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the species mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab&,
                                           const amrex::MultiFab& a_z_phys_nd,
+                                          int a_lev,
                                           int,
                                           const int a_comp = 0) const;
 
         /*! \brief Compute the cloud/rain mass density on a mesh */
         virtual void cloudRainDensity ( amrex::MultiFab&,
                                         const amrex::MultiFab& a_z_phys_nd,
+                                        int a_lev,
                                         amrex::Real,
                                         amrex::Real,
                                         const int a_comp = 0) const;
 
         /*! \brief Compute the species mass flux component on a mesh */
-        virtual void speciesMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int, const int, const int a_comp=0 ) const;
+        virtual void speciesMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the aerosol mass density on a mesh */
-        virtual void aerosolMassDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
-        virtual void aerosolMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int, const int, const int a_comp=0 ) const;
+        virtual void aerosolMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the particle effective radius on a mesh */
-        virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, const int a_comp=0 ) const;
+        virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
     protected:
-
-        const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
 
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
@@ -530,7 +534,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief read inputs from file */
-        virtual void readInputs (const amrex::Real);
+        virtual void readInputs (const double);
 
         /*! \brief Particle initialization - null (no particles are initialized) */
         void initializeParticlesNull (const MFPtr&) { }
@@ -542,13 +546,10 @@ class SuperDropletPC : public ERFPC
                       const std::vector<Species::Name>&,
                       const amrex::BoxArray&,
                       const amrex::DistributionMapping&,
-                      const amrex::Real );
+                      const double );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
-
-        /* do not use */
-        using ERFPC::massDensity;
 
 };
 

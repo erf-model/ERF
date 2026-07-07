@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <limits>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -50,6 +51,37 @@ namespace LsmFlux_NOAHMP {
   };
 }
 
+
+namespace NoahmpInputComp {
+    enum {
+        u_phy = 0,
+        v_phy,
+        t_phy,
+        qv_curr,
+        p8w,
+        swdown,
+        glw,
+        coszen,
+        NumComps
+    };
+}
+
+namespace NoahmpOutputComp {
+    enum {
+        hfx = 0,
+        lh,
+        tau_ew,
+        tau_ns,
+        tsk,
+        emiss,
+        albsfcdir_vis,
+        albsfcdir_nir,
+        albsfcdif_vis,
+        albsfcdif_nir,
+        NumComps
+    };
+}
+
 class NOAHMP : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -73,7 +105,7 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override;
+          const double& dt) override;
 
     // Wrapper to do all the updating
     void
@@ -83,7 +115,8 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
-                        const amrex::Real& dt,
+                        const double& elapsed_time,
+                        const double& dt,
                         const int& nstep) override;
 
     void
@@ -165,6 +198,44 @@ public:
         return varIdx;
     }
 
+    // Checkpoint/restore the NoahMP substep counter. Uses the class member
+    // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on
+    // land-free ranks).
+    int
+    Get_LSM_Step () const override
+    {
+        return m_itimestep;
+    }
+
+    void
+    Set_LSM_Step (int step) override
+    {
+        m_itimestep = step;
+        for (auto& noahmpio : noahmpio_vect) {
+            noahmpio.itimestep = step;
+        }
+    }
+
+    // Write/read the full NoahMP prognostic state (soil, snow incl. layers,
+    // canopy, aquifer, albedo history, ...) to/from a NetCDF restart directory
+    // so a restart reproduces a cold-start trajectory bitwise (issue #3255).
+    // Each local block writes its tile into the global-domain file collectively.
+    void
+    Write_Lsm_Restart (const std::string& dir) const override
+    {
+        for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
+            const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
+        }
+    }
+
+    void
+    Read_Lsm_Restart (const std::string& dir) override
+    {
+        for (NoahmpIO_type& noahmpio : noahmpio_vect) {
+            noahmpio.ReadRestart(dir);
+        }
+    }
+
 private:
     // number of lsm data variables
     int m_lsm_data_size = LsmData_NOAHMP::NumVars;
@@ -191,7 +262,16 @@ private:
     amrex::Geometry m_lsm_geom;
 
     // timestep
-    amrex::Real m_dt;
+    double m_dt;
+
+    // Authoritative NoahMP substep counter, kept on the class so the firing
+    // decision in Advance_With_State is identical on every rank (including
+    // land-free ranks, whose noahmpio_vect is empty).
+    int m_itimestep = 0;
+
+    // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
+    // decision is well-defined on land-free ranks too.
+    double m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;
@@ -210,6 +290,10 @@ private:
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;
+
+    // Pinned memory buffers for host/device coupling to Noah-MP
+    amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_input_tmp;
+    amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_output_tmp;
 
     // Plot frequency
     int m_plot_int_1 = -1;

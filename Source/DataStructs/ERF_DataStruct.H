@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -82,7 +82,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAHMP
+    SLM, MM5, NOAHMP, OceanSurf, None
 );
 
 AMREX_ENUM(RadiationType,
@@ -110,14 +110,25 @@ struct MoistureComponentIndices {
     int qr = -1;  // Rain
     int qs = -1;  // Snow
     int qg = -1;  // Graupel
+    int nc = -1;  // number concentration for cloud liquid water
+    int ni = -1;  // number concentration for cloud ice
+    int nr = -1;  // number concentration for rain
+    int ns = -1;  // number concentration for snow
+    int ng = -1;  // number concentration for graupel
 
     // Constructor for easy initialization
     MoistureComponentIndices (int qv_comp, int qc_comp,
                               int qi_comp=-1,
                               int qr_comp=-1,
                               int qs_comp=-1,
-                              int qg_comp=-1)
-        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp) {}
+                              int qg_comp=-1,
+                              int nc_comp=-1,
+                              int ni_comp=-1,
+                              int nr_comp=-1,
+                              int ns_comp=-1,
+                              int ng_comp=-1)
+        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
+                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp) {}
 
     // Default constructor
     MoistureComponentIndices() = default;
@@ -151,15 +162,33 @@ struct SolverChoice {
         pp.query("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
+        // For the lateral pressure gradient to be used in the momentum equation, should we
+        // take the x- and y-derivatives of the perturbational pressure or the full pressure?
+        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
             amrex::Error("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
+
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if ( (moisture_type == MoistureType::Morrison) ||
-             (moisture_type == MoistureType::WSM6) ||
-             (moisture_type == MoistureType::SAM) ) {
+        if (moisture_type == MoistureType::Morrison) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp,  // graupel
+                RhoQ7_comp,  // number concentration of cloud water
+                RhoQ8_comp,  // number concentration of cloud ice
+                RhoQ9_comp,  // number concentration of rain
+                RhoQ10_comp,  // number concentration of snow
+                RhoQ11_comp  // number concentration of graupel
+            );
+        } else if ( (moisture_type == MoistureType::WSM6) ||
+                    (moisture_type == MoistureType::SAM) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
@@ -177,8 +206,9 @@ struct SolverChoice {
                 RhoQ4_comp   // rain
             );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain) ||
-                    (moisture_type == MoistureType::SatAdj) ) {
+                    (moisture_type == MoistureType::Kessler_NoRain)     ||
+                    (moisture_type == MoistureType::SatAdj)             ||
+                    (moisture_type == MoistureType::MoistNoCondensation) ) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp   // cloud water
@@ -231,6 +261,17 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        read_int_string(max_level, "is_land", is_land, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (is_land[lev] == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land[lev] == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                amrex::Error("is_land should be 0 or 1");
+            }
+        }
 
         // What type of radiation model to use
         rad_type = RadiationType::None; // Default
@@ -316,15 +357,6 @@ struct SolverChoice {
             amrex::Error("Please add a string for init_type to your inputs file or command line");
         }
 
-        if (use_real_bcs) {
-            pp.query("upwind_real_bcs",upwind_real_bcs);
-        }
-
-        // Check for rebalancing with wrfinput
-        if (init_type == InitType::WRFInput) {
-            pp.query("rebalance_wrfinput",rebalance_wrfinput);
-        }
-
         // How to interpret input_sounding
         if (init_type == InitType::Input_Sounding) {
             pp.query_enum_case_insensitive("sounding_type",sounding_type);
@@ -333,6 +365,14 @@ struct SolverChoice {
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
+        }
+
+        if ( (moisture_type == MoistureType::SAM                ||
+              moisture_type == MoistureType::SAM_NoIce          ||
+              moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
+             (mesh_type == MeshType::VariableDz) )
+        {
+            amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
@@ -369,6 +409,9 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Rebalance wrf state?
+        pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
         gravity = use_gravity? CONST_GRAV: zero;
@@ -392,12 +435,6 @@ struct SolverChoice {
             }
         }
 
-        // *******************************************************************************
-
-        if (!upwind_real_bcs && anelastic[0]) {
-            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
-            upwind_real_bcs = true;
-        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -432,7 +469,10 @@ struct SolverChoice {
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
-
+#ifdef AMREX_USE_FLOAT
+        poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
+        poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
+#endif
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0)
             {
@@ -459,13 +499,18 @@ struct SolverChoice {
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
+
         pp.query("if_surf_heating_rate", if_surf_heating_rate);
+
+        // Modify rate to be in units of K / s rather than K / hr
+        if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
+
         pp.query("if_Olen", if_Olen_in);
         pp.query("if_use_most",if_use_most);
 
-        if ((if_init_surf_temp > zero && if_surf_temp_flux != 1e-8) ||
-            (if_init_surf_temp > zero && if_Olen_in != 1e-8) ||
-            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
+            (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
+            (if_Olen_in != amrex::Real(1e-8) && if_surf_temp_flux != amrex::Real(1e-8)))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
         }
@@ -475,12 +520,12 @@ struct SolverChoice {
             amrex::Error("MOST wall-model with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_surf_temp_flux != 1e-8 && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_surf_temp_flux != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying surf_temp_flux with immersed forcing for buildings is not currently supported");
         }
 
-        if (if_Olen_in != 1e-8  && buildings_type == BuildingsType::ImmersedForcing)
+        if (if_Olen_in != amrex::Real(1e-8) && buildings_type == BuildingsType::ImmersedForcing)
         {
             amrex::Error("Specifying Olen with immersed forcing for buildings is not currently supported");
         }
@@ -553,7 +598,7 @@ struct SolverChoice {
         if (use_num_diff) {
             amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
                 << num_diff_coeff << std::endl;
-            num_diff_coeff *= std::pow(two,-6);
+            num_diff_coeff *= amrex::Math::powi<-6>(two);
         }
 
             advChoice.init_params(pp_prefix);
@@ -565,6 +610,14 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
+        }
+
+        vert_implicit_fac.resize(max_level+1);
+        for (int lev = 0; lev <= max_level; lev++) {
+            vert_implicit_fac[lev].resize(3);
+            vert_implicit_fac[lev][0] = one;
+            vert_implicit_fac[lev][1] = one;
+            vert_implicit_fac[lev][2] = zero;
         }
 
         // YSU PBL: use consistent coriolis frequency
@@ -597,64 +650,126 @@ struct SolverChoice {
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
 
+        // Which approach to nudging the moist variables in the boundary region?
+        pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+
         // Are me transporting the scalar component?
         pp.query("transport_scalar",transport_scalar);
 
-        // Are we using SHOC? (test on compilation done in turb struct)
-        if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (turbChoice[lev].uses_eamxx_shoc()) {
+                use_eamxx_shoc = true;
+            }
+            if (turbChoice[lev].uses_native_shoc()) {
+                use_native_shoc = true;
+            }
+        }
 
-        // Implicit vertical diffusion (not available with Shoc)
-        if (!use_shoc) {
+        // Implicit vertical diffusion (not available with SHOC family)
+        if (uses_shoc_family()) {
+            amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC family PBL scheme." << std::endl;
+            for (int lev = 0; lev <= max_level; lev++) {
+               vert_implicit_fac[lev][0] = zero;
+               vert_implicit_fac[lev][1] = zero;
+               vert_implicit_fac[lev][2] = zero;
+            }
+        } else {
             // This controls the time-centering of the vertical differences in the diffusive term
-             bool do_vert_implicit = false;
-             if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
-                 // set to default here
-                 vert_implicit_fac[0] = one;
-                 vert_implicit_fac[1] = one;
-                 vert_implicit_fac[2] = zero;
-             }
+            bool do_vert_implicit = true;
+            pp.query("vert_implicit", do_vert_implicit);
 
-             // This may be one value for all RK stages or a different value in each stage
-             int n_impfac = pp.countval("vert_implicit_fac");
-             AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
-             if (n_impfac > 0 && do_vert_implicit) {
-                 amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
-             }
+            if (!do_vert_implicit) {
+                for (int lev = 0; lev <= max_level; lev++) {
+                   amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag at level " << lev << std::endl;
+                   vert_implicit_fac[lev][0] = zero;
+                   vert_implicit_fac[lev][1] = zero;
+                   vert_implicit_fac[lev][2] = zero;
+                }
+            } else {
 
-             if (n_impfac == 1) {
-                 amrex::Real fac_in;
-                 pp.get("vert_implicit_fac", fac_in);
-                 for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
-             } else if (n_impfac == 3) {
-                 pp.getarr("vert_implicit_fac", vert_implicit_fac);
-             }
+                for (int lev = 0; lev <= max_level; lev++) {
+                   if (anelastic[lev]) {
+                       amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev << std::endl;
+                       vert_implicit_fac[lev][0] = zero;
+                       vert_implicit_fac[lev][1] = zero;
+                       vert_implicit_fac[lev][2] = zero;
+                    }
+                }
 
-             // If true (default), include implicit contributions to vertical
-             // thermal diffusion
-             pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+                // This may be one value for all RK stages or a different value in each stage
+                int n_impfac = pp.countval("vert_implicit_fac");
+                AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+                if (n_impfac > 0 && do_vert_implicit) {
+                    amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
+                }
 
-             // If true (default), include implicit contributions to vertical
-             // moisture diffusion
-             pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
+                if (n_impfac == 1) {
+                    amrex::Real fac_in;
+                    pp.get("vert_implicit_fac", fac_in);
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        for (int i=0; i<3; ++i) {
+                            vert_implicit_fac[lev][i] = fac_in;
+                        }
+                    }
+                } else if (n_impfac == 3) {
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        pp.getarr("vert_implicit_fac", vert_implicit_fac[lev]);
+                    }
+                }
 
-             // If true (default), include implicit contributions in tau13, tau23,
-             // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-             pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+                // If true (default), include implicit contributions to vertical
+                // thermal diffusion
+                pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
-             if (!implicit_thermal_diffusion &&
-                 !implicit_moisture_diffusion &&
-                 !implicit_momentum_diffusion) {
-                 amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
-                 vert_implicit_fac[0] = zero;
-                 vert_implicit_fac[1] = zero;
-                 vert_implicit_fac[2] = zero;
-             }
+                // If true (default), include implicit contributions to vertical
+                // moisture diffusion
+                pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
 
-             // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
-             // The default is true (i.e. that it happens before the acoustic substepping).
-             pp.query("implicit_before_substep", implicit_before_substep);
-         }
+                // If true (default), include implicit contributions to vertical
+                // KE diffusion
+                pp.query("implicit_ke_diffusion", implicit_ke_diffusion);
+
+                // If true (default), include implicit contributions in tau13, tau23,
+                // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
+                pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+                // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+                //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
+                // The default is true (i.e. that it happens before the acoustic substepping).
+                pp.query("implicit_before_substep", implicit_before_substep);
+                for (int lev = 0; lev <= max_level; lev++) {
+                    if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
+                        amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
+                        implicit_before_substep = true;
+                    }
+                }
+
+                // Do not allow implicit vertical diff with EB
+
+                if (terrain_type == TerrainType::EB) {
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        if (do_vert_implicit) {
+                            amrex::Print() << "Implicit diffusion is not supported with EB; turning off at level " << lev << "\n";
+                            vert_implicit_fac[lev][0] = zero;
+                            vert_implicit_fac[lev][1] = zero;
+                            vert_implicit_fac[lev][2] = zero;
+                        }
+                    }
+                }
+
+                if (!implicit_thermal_diffusion  &&
+                    !implicit_moisture_diffusion &&
+                    !implicit_ke_diffusion       &&
+                    !implicit_momentum_diffusion) {
+                    amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are all turned off; turning off vertical implicit solve." << std::endl;
+                    for (int lev = 0; lev <= max_level; lev++) {
+                        vert_implicit_fac[lev][0] = zero;
+                        vert_implicit_fac[lev][1] = zero;
+                        vert_implicit_fac[lev][2] = zero;
+                    }
+                }
+            } // do_vert_implicit
+        } // uses_shoc_family
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -746,7 +861,7 @@ struct SolverChoice {
         if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
             pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
-            if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
+            if(hurricane_eye_latitude == amrex::Real(-1e10) or hurricane_eye_longitude == amrex::Real(-1e10)) {
                 amrex::Error("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
                               " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
@@ -858,14 +973,17 @@ struct SolverChoice {
             l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
         }
         bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
-        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
-                                vert_implicit_fac[1] > 0 ||
-                                vert_implicit_fac[2] > 0);
-        if (l_implicit_diff && !l_use_diff) {
-            amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
-            vert_implicit_fac[0] = 0;
-            vert_implicit_fac[1] = 0;
-            vert_implicit_fac[2] = 0;
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            bool l_implicit_diff = (vert_implicit_fac[lev][0] > zero ||
+                                    vert_implicit_fac[lev][1] > zero ||
+                                    vert_implicit_fac[lev][2] > zero);
+            if (l_implicit_diff && !l_use_diff) {
+                amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve at level " << lev << std::endl;
+                vert_implicit_fac[lev][0] = zero;
+                vert_implicit_fac[lev][1] = zero;
+                vert_implicit_fac[lev][2] = zero;
+            }
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
@@ -892,20 +1010,23 @@ struct SolverChoice {
            }
         }
 
-        amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
-                                                           << vert_implicit_fac[1] << " "
-                                                           << vert_implicit_fac[2];
-        if (vert_implicit_fac[0] > 0 ||
-            vert_implicit_fac[0] > 1 ||
-            vert_implicit_fac[0] > 2)
-        {
-            amrex::Print() << " (theta="    << implicit_thermal_diffusion
-                           << ", moisture=" << implicit_moisture_diffusion
-                           << ", momenta="  << implicit_momentum_diffusion;
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "vert_implicit_fac at level  : " << lev << " " << vert_implicit_fac[lev][0] << " "
+                                                                             << vert_implicit_fac[lev][1] << " "
+                                                                             << vert_implicit_fac[lev][2];
+            if (vert_implicit_fac[lev][0] > zero ||
+                vert_implicit_fac[lev][1] > zero ||
+                vert_implicit_fac[lev][2] > zero)
+            {
+                amrex::Print() << " (theta = " << implicit_thermal_diffusion
+                               << ", moisture = " << implicit_moisture_diffusion
+                               << ", tke = " << implicit_ke_diffusion
+                               << ", momenta = " << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
-            amrex::Print() << ", including w";
+                amrex::Print() << ", including w";
 #endif
-            amrex::Print() << ")";
+                amrex::Print() << ")";
+            }
         }
         amrex::Print() << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
@@ -1011,21 +1132,22 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
-        amrex::Real rot_time_period = amrex::Real(86400.0);
+        double rot_time_period = 86400.0;
         pp.query("rotational_time_period", rot_time_period);
 
-        coriolis_factor = two * two * PI / rot_time_period;
-
-        amrex::Real latitude = amrex::Real(90.0);
-        pp.query("latitude", latitude);
+        coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
         pp.query("coriolis_3d", coriolis_3d);
 
         // Convert to radians
-        latitude *= (PI/amrex::Real(180.));
-        sinphi = std::sin(latitude);
+        amrex::Real latitude_for_coriolis = amrex::Real(90.0);
+        pp.query("latitude", latitude_for_coriolis);
+        latitude_for_coriolis *= (PI/amrex::Real(180.));
+        sinphi = std::sin(latitude_for_coriolis);
+
+        // Note: cosphi defaults to 0
         if (coriolis_3d) {
-            cosphi = std::cos(latitude);
+            cosphi = std::cos(latitude_for_coriolis);
         }
 
         amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
@@ -1086,9 +1208,6 @@ struct SolverChoice {
     bool use_real_bcs = false;
 
     inline static
-    bool upwind_real_bcs = false;
-
-    inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
     static
@@ -1111,6 +1230,7 @@ struct SolverChoice {
     amrex::Vector<int> fixed_density;
     amrex::Vector<int> project_initial_velocity;
     amrex::Vector<int> buoyancy_type;
+    amrex::Vector<int> is_land;
 
     // do some extra CFL diagnostics for compressible with substepping
     bool substepping_diag = false;
@@ -1123,20 +1243,29 @@ struct SolverChoice {
     // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
     // 1: fully implicit
-    amrex::Vector<amrex::Real> vert_implicit_fac = {zero, zero, zero}; // one value per RK stage
+    amrex::Vector<amrex::Vector<amrex::Real>> vert_implicit_fac; // one value per RK stage
+
     // if any vert_implicit_fac > 0, then the following apply:
     bool implicit_thermal_diffusion  = true;
     bool implicit_moisture_diffusion = true;
+    bool implicit_ke_diffusion       = true;
     bool implicit_momentum_diffusion = true;
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-8;
-    amrex::Real poisson_reltol      = 1e-8;
+#ifdef AMREX_USE_FLOAT
+    amrex::Real poisson_abstol      = amrex::Real(1e-6);
+    amrex::Real poisson_reltol      = amrex::Real(1e-6);
+#else
+    amrex::Real poisson_abstol      = amrex::Real(1e-8);
+    amrex::Real poisson_reltol      = amrex::Real(1e-8);
+#endif
 
     bool        test_mapfactor         = false;
 
     int         gradp_type             = 0;
+
+    bool        use_pert_pres_gradient = true;
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
@@ -1154,14 +1283,17 @@ struct SolverChoice {
     amrex::Real if_Cd_momentum        = amrex::Real(10.0);
     // immersed forcing MOST parameters.
     amrex::Real if_z0                 = amrex::Real(0.1);   // [m]
-    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
-    amrex::Real if_init_surf_temp     = zero;   // [K]
-    amrex::Real if_surf_heating_rate  = zero;   // [K/hr]
-    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    amrex::Real if_surf_temp_flux     = amrex::Real(1e-8);  // [K m/s]
+    amrex::Real if_init_surf_temp     = zero;               // [K]
+    amrex::Real if_surf_heating_rate  = zero;               // [K/hr]
+    amrex::Real if_Olen_in            = amrex::Real(1e-8);  // [m]
     bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
-    bool        use_lagged_delta_rt    = true;
+    bool        use_lagged_delta_rt   = true;
+
+    // Flag to rebalance state from wrf input
+    bool        rebalance_wrf_input   = true;
 
     // Constants
     amrex::Real gravity;
@@ -1197,7 +1329,8 @@ struct SolverChoice {
     bool use_rotate_surface_flux = false;
 
     // Should we use SHOC?
-    bool use_shoc = false;
+    bool use_eamxx_shoc = false;
+    bool use_native_shoc = false;
 
     // Transport the passive scalar?
     bool transport_scalar = true;
@@ -1223,6 +1356,16 @@ struct SolverChoice {
         return pert_type[lev] == PerturbationType::Source;
     }
 
+    bool uses_shoc_family () const noexcept
+    {
+        return use_eamxx_shoc || use_native_shoc;
+    }
+
+    bool pbl_suppresses_microphysics_condensation () const noexcept
+    {
+        return uses_shoc_family();
+    }
+
     bool any_perturbation () const
     {
         for (const auto& type : pert_type) {
@@ -1241,9 +1384,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{zero};
-
-    // Rebalance wrfinput
-    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;
@@ -1270,12 +1410,15 @@ struct SolverChoice {
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -one;
-    amrex::Real turb_disk_angle = -one;
+    amrex::Real turb_disk_angle  = -one;
     amrex::Real windfarm_x_shift = -one;
     amrex::Real windfarm_y_shift = -one;
 
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
+
+    // Which approach to nudging the moist variables in the boundary region?
+    int bdy_moist_nudge_type = 0;
 
     // Use forest canopy model?
     bool do_forest_drag {false};
@@ -1284,8 +1427,8 @@ struct SolverChoice {
     amrex::Real const_massflux_u = zero;
     amrex::Real const_massflux_v = zero;
     amrex::Real const_massflux_tau = one;
-    amrex::Real const_massflux_layer_lo = -1e34;
-    amrex::Real const_massflux_layer_hi =  1e34;
+    amrex::Real const_massflux_layer_lo = amrex::Real(-bogus_large_value);
+    amrex::Real const_massflux_layer_hi = amrex::Real( bogus_large_value);
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 

@@ -4,30 +4,21 @@
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
-                                 const Real old_step_time,
-                                 const Real old_stage_time,
-                                 const Real new_stage_time,
+                                 const double old_step_time,
+                                 const double old_stage_time,
+                                 const double new_stage_time,
                                  const int nrk)
     {
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         if (verbose) amrex::Print() << "Time integration of scalars at level " << level
                                     << std::setprecision(timeprecision)
                                     << " from " << old_step_time << " to " << new_stage_time
                                     << " with dt = " << slow_dt
                                     << " using RHS created at " << old_stage_time << std::endl;
-
-#if defined(ERF_USE_NETCDF)
-        bool moist_set_rhs = false;
-        if ( solverChoice.use_real_bcs && (level==0) &&
-             (solverChoice.moisture_type != MoistureType::None) )
-        {
-            moist_set_rhs = true;
-        }
-#endif
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -56,15 +47,11 @@
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
-#if defined(ERF_USE_NETCDF)
-                          moist_set_rhs,
-                          start_time+old_stage_time,
-                          start_bdy_time, final_bdy_time, bdy_time_interval,
-                          real_width,
-                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#ifdef ERF_USE_EAMXX_SHOC
+                          eamxx_shoc_interface[level].get(),
 #endif
-#ifdef ERF_USE_SHOC
-                          shoc_interface[level],
+#ifdef ERF_USE_NATIVE_SHOC
+                          native_shoc_driver[level].get(),
 #endif
                           fr_as_crse, fr_as_fine,
                           m_r2d);
@@ -107,7 +94,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(amrex::Real(1.234e10), 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(bogus_large_value, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 

@@ -35,7 +35,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_saturation_pressure (const Real T_b)
 {
-    return erf_esatw(T_b)*100.0;
+    return erf_esatw(T_b)*Real(100.0);
 }
 
 AMREX_FORCE_INLINE
@@ -60,10 +60,10 @@ AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
     Real T_dp, gamma, T;
-    T = T_b - 273.15;
+    T = T_b - Real(273.15);
 
-    Real b = 18.678, c = 257.14, d = 234.5;
-    gamma = log(RH*exp((b - T/d)*T/(c + T)));
+    Real b = Real(18.678), c = Real(257.14), d = Real(234.5);
+    gamma = std::log(RH*std::exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
 
@@ -154,7 +154,7 @@ Problem::init_custom_pert (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << "is not known, no state perturbations added. \n";
+                << "does not add any state perturbations. \n";
     }
 
     amrex::Gpu::streamSynchronize();
@@ -222,7 +222,7 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name_ci == "moving terrain") {
 #include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
     }
-    if (my_prob_name_ci == "bubble") {
+    else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if  (my_prob_name_ci == "bomex") {
@@ -249,21 +249,21 @@ Problem::init_custom_pert_vels (
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
-                << "is not known, no velocity perturbations added. \n";
+                << "does not add any velocity perturbations. \n";
     }
 
     amrex::Gpu::streamSynchronize();
 }
 
 void
-Problem::update_rhotheta_sources (const Real& time,
+Problem::update_rhotheta_sources (const double& time,
                                   amrex::MultiFab* src,
                                   const Geometry& geom,
                                   std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (src->empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
+    const int khi = geom.Domain().bigEnd()[2];
 
     // If the z coordinate varies in time and or space, then the the height
     // needs to be calculated at each time step. Here, we assume that only
@@ -286,6 +286,8 @@ Problem::update_rhotheta_sources (const Real& time,
 
     if (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateRhoThetaSources_Bomex.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
+#include "Prob/ERF_UpdateRhoThetaSources_Constant.H"
     } else if (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateRhoThetaSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -296,7 +298,7 @@ Problem::update_rhotheta_sources (const Real& time,
 }
 
 void
-Problem::update_rhoqt_sources (const Real& time,
+Problem::update_rhoqt_sources (const double& time,
                                amrex::MultiFab* qsrc,
                                const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_cc)
@@ -339,7 +341,7 @@ Problem::update_rhoqt_sources (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& time,
+Problem::update_w_subsidence (const double& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& state,
@@ -374,7 +376,7 @@ Problem::update_w_subsidence (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_geostrophic_profile (const Real& /*time*/,
+Problem::update_geostrophic_profile (const double& /*time*/,
                                      Vector<Real>& u_geos,
                                      Gpu::DeviceVector<Real>& d_u_geos,
                                      Vector<Real>& v_geos,

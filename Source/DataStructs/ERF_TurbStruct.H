@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -24,13 +24,21 @@ query_one_or_per_level (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query(query_string, query_var);
-  } else if (count == maxlev + 1) {
+  } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
-      ": if specified, specify once total or once for each level");
+      ": if specified, specify once total or at least once for each level");
     return 0; // avoid compiler warning
   }
 }
@@ -48,10 +56,18 @@ query_one_or_per_level_enum_case_insensitive (
   if (count == 0) {
     return 0; // nothing to do
   } else if (count == 1) {
+    // In this case, we assume the same value is used at every level
     return pp.query_enum_case_insensitive(query_string, query_var);
   } else if (count >= maxlev + 1) {
+    // In this case, there may be more values than levels so we
+    // will just read the number of values we need and ignore the
+    // extra levels
     return pp.query_enum_case_insensitive(query_string, query_var, lev);
   } else {
+    // In this case, there is more than one value AND there
+    // are more levels than values; as an example, if max_level = 2
+    // but count = 2 so we have three levels but only two values --
+    // it is not clear how to interpret this so we abort
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
       ": if specified, specify once total or at least once for each level");
@@ -86,7 +102,15 @@ public:
     }
 
     // Which PBL Closure
-    query_one_or_per_level(pp, "pbl_type", pbl_type, lev, max_level);
+    query_one_or_per_level_enum_case_insensitive(pp, "pbl_type", pbl_type, lev, max_level);
+    if (pbl_type == PBLType::SHOC) {
+      static bool warned_legacy_shoc = false;
+      if (!warned_legacy_shoc) {
+        amrex::Warning("erf.pbl_type = SHOC is deprecated; use erf.pbl_type = EAMXX_SHOC");
+        warned_legacy_shoc = true;
+      }
+      pbl_type = PBLType::EAMXX_SHOC;
+    }
 
     // Do some more stuff for PBL Modeling
     if (pbl_type != PBLType::None) {
@@ -154,15 +178,26 @@ public:
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
-      } else if (pbl_type == PBLType::SHOC) {
-#ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+      }
+
+      if (uses_eamxx_shoc()) {
+#ifndef ERF_USE_EAMXX_SHOC
+          amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
 #endif
+      }
+
+      if (uses_native_shoc()) {
+#ifndef ERF_USE_NATIVE_SHOC
+          amrex::Abort("PBLType::NATIVE_SHOC requested, but ERF was not built with native SHOC enabled");
+#endif
+      }
+
+      if (pbl_requires_surface_layer()) {
           std::string zlo_bc = "none";
           amrex::ParmParse pp_bc("zlo");
           pp_bc.get("type",zlo_bc);
           if (amrex::toLower(zlo_bc) != "surface_layer") {
-               amrex::Abort("You must use the surface_layer BC at zlo with SHOC.");
+               amrex::Abort("You must use the surface_layer BC at zlo with the selected PBL.");
           }
       }
     }
@@ -178,6 +213,10 @@ public:
         // Apply numerical diffusion to QKE/TKE?
         query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
+
+    // There is a default value of 1e-6 but the user can override the value here,
+    //   and in addition can add perturbational values.  and in addition can add perturbational values.
+    pp.query("tke_min",tke_min);
 
     // LES constants...
     query_one_or_per_level(pp, "Cs", Cs, lev, max_level);
@@ -233,7 +272,7 @@ public:
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
        (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
-       (pbl_type == PBLType::MYNNEDMF)  || (pbl_type == PBLType::SHOC));
+       (pbl_type == PBLType::MYNNEDMF)  || uses_shoc_family());
 
     if (use_tke) {
         query_one_or_per_level(pp, "init_tke_from_ustar", init_tke_from_ustar, lev, max_level);
@@ -254,13 +293,9 @@ public:
   void check_params (amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
   {
       // BC compatibility
-      if ( ( (pbl_type == PBLType::MYNN25)   ||
-             (pbl_type == PBLType::MYNNEDMF) ||
-             (pbl_type == PBLType::YSU) ||
-             (pbl_type == PBLType::MRF)
-                 ) &&
+      if (pbl_requires_surface_layer() &&
           phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::surface_layer ) {
-          amrex::Abort("MYNN2.5/MYNNEDMF/YSU/MRF PBL Model requires MOST at lower boundary");
+          amrex::Abort("The selected PBL model requires MOST at lower boundary");
       }
       if ( (les_type == LESType::Deardorff) && (Ce_wall > 0) &&
            (phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::surface_layer) &&
@@ -305,6 +340,10 @@ public:
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::EAMXX_SHOC) {
+      amrex::Print() << "    Using EAMxx SHOC PBL model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::NATIVE_SHOC) {
+      amrex::Print() << "    Using native SHOC PBL model at level " << lev << std::endl;
     } else {
       amrex::Error("Unknown turbulence model");
     }
@@ -389,7 +428,7 @@ public:
   }
 
   // LES model
-  LESType les_type;
+  LESType les_type = LESType::None;
 
   // Turbulent Prandtl number
   amrex::Real Pr_t = one / three;
@@ -431,12 +470,41 @@ public:
   amrex::Real Ri_crit = fourth;
 
   // RANS type
-  RANSType rans_type;
+  RANSType rans_type = RANSType::None;
 
   bool dirichlet_k = false;
 
   // PBL model
-  PBLType pbl_type;
+  PBLType pbl_type = PBLType::None;
+
+  bool uses_eamxx_shoc () const noexcept
+  {
+      return pbl_type == PBLType::EAMXX_SHOC;
+  }
+
+  bool uses_native_shoc () const noexcept
+  {
+      return pbl_type == PBLType::NATIVE_SHOC;
+  }
+
+  bool uses_shoc_family () const noexcept
+  {
+      return uses_eamxx_shoc() || uses_native_shoc();
+  }
+
+  bool pbl_requires_surface_layer () const noexcept
+  {
+      return (pbl_type == PBLType::MYNN25)   ||
+             (pbl_type == PBLType::MYNNEDMF) ||
+             (pbl_type == PBLType::YSU)      ||
+             (pbl_type == PBLType::MRF)       ||
+             uses_shoc_family();
+  }
+
+  bool pbl_suppresses_microphysics_condensation () const noexcept
+  {
+      return uses_shoc_family();
+  }
 
   MYNNLevel25 pbl_mynn;
   MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime
@@ -454,6 +522,9 @@ public:
   // function of the friction velocity calculated by the surface layer scheme
   // (e.g., as done in MYNN-EDMF)
   bool init_tke_from_ustar = false;
+
+  // This is the value of tke_min in WRF 4.5
+  amrex::Real tke_min = amrex::Real(1.e-6);
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above

@@ -122,19 +122,34 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+set(_erf_enable_unit_tests_default OFF)
+if(ERF_ENABLE_TESTS AND NOT ERF_ENABLE_REGRESSION_TESTS_ONLY)
+  set(_erf_enable_unit_tests_default ON)
+endif()
+option(ERF_ENABLE_UNIT_TESTS "Enable gtest-based unit tests" ${_erf_enable_unit_tests_default})
+if(ERF_ENABLE_REGRESSION_TESTS_ONLY)
+  set(ERF_ENABLE_UNIT_TESTS OFF CACHE BOOL "Enable gtest-based unit tests" FORCE)
+endif()
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
+set(ERF_PARTICLES_PRECISION "${ERF_PRECISION}" CACHE STRING "Particle floating point precision SINGLE or DOUBLE")
 
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
   message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
 endif()
-option(ERF_ENABLE_SHOC "Enable SHOC" OFF)
+set(ERF_ENABLE_NATIVE_SHOC ON CACHE BOOL "Deprecated; native SHOC is always built" FORCE)
+option(ERF_ENABLE_EAMXX_SHOC "Build EAMxx SHOC parameterization" OFF)
+option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
+if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
+  message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
+  set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
+endif()
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
@@ -150,6 +165,10 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
+
+if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WSM6_FORT requires ERF_PRECISION=DOUBLE because the WSM6 Fortran bridge is double-precision only")
+endif()
 
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
@@ -225,8 +244,21 @@ else()
       endif()
     else()
       set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
+      if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_amrex_mesh_precision_component "SINGLE")
+      else()
+        set(_amrex_mesh_precision_component "DOUBLE")
+      endif()
+      if(ERF_PARTICLES_PRECISION STREQUAL "SINGLE")
+        set(_amrex_particle_precision_component "PSINGLE")
+      else()
+        set(_amrex_particle_precision_component "PDOUBLE")
+      endif()
       list(APPEND AMREX_COMPONENTS
-        "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
+        "3D" "PIC" "PARTICLES"
+        "${_amrex_particle_precision_component}"
+        "${_amrex_mesh_precision_component}"
+        "LSOLVERS")
       if (ERF_ENABLE_MPI)
         list(APPEND AMREX_COMPONENTS "MPI")
       endif()
@@ -300,7 +332,7 @@ list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 ########################## EKAT ##################################
 
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
   set(ERF_ENABLE_EKAT ON)
 else()
   set(ERF_ENABLE_EKAT OFF)
@@ -537,6 +569,10 @@ if(ERF_ENABLE_NOAHMP)
      message(VERBOSE "Noah-MP source: ${NOAHMP_HOME}")
      message(VERBOSE "Noah-MP binary: ${NOAHMP_BIN}")
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
+
+     if(ERF_PRECISION STREQUAL "DOUBLE")
+        target_compile_definitions(noahmp PUBLIC DOUBLE_PREC)
+     endif()
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
@@ -584,7 +620,7 @@ endif()
 
 ########################### SHOC #################################
 
-if(ERF_ENABLE_SHOC)
+if(ERF_ENABLE_EAMXX_SHOC)
   list(APPEND CMAKE_MESSAGE_CONTEXT "SHOC")
 
   message(STATUS "Configuring SHOC")
@@ -597,7 +633,7 @@ if(ERF_ENABLE_SHOC)
   message(VERBOSE "SHOC source files will be compiled directly")
 
   # E3SM Cloned Check
-  if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+  if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
     set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
@@ -615,7 +651,7 @@ if(ERF_ENABLE_SHOC)
             "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
-            "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
+            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
     endif()
   else()
     message(DEBUG "EKAT physics not enabled, skipping E3SM check")
@@ -641,7 +677,7 @@ include(${PROJECT_SOURCE_DIR}/CMake/SetRpath.cmake)
 #Build erf executables and intermediate object library and link to amrex library
 add_subdirectory(Exec)
 
-if(ERF_ENABLE_TESTS)
+if(ERF_ENABLE_TESTS OR ERF_ENABLE_UNIT_TESTS)
   message(STATUS "Configuring tests")
   include(CTest)
   add_subdirectory(Tests)

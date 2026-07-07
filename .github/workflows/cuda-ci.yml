@@ -18,21 +18,28 @@ concurrency:
 jobs:
   cuda-build:
     runs-on: ubuntu-22.04
-    name: CUDA v${{matrix.cuda_ver}} - Particles ${{matrix.particles}}
+    name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
       matrix:
         cuda_pkg: [12-2]
         particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
+        mesh_precision: [DOUBLE, SINGLE]
+        exclude:
+          - particles: OFF
+            particles_precision: SINGLE
+          - mesh_precision: SINGLE
+            particles: OFF
         include:
           - cuda_ver: "12.2"
             cuda_pkg: 12-2
             cuda_arch: "8.0"
     steps:
       - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.6.0
+        uses: styfle/cancel-workflow-action@0.13.1
         with:
           access_token: ${{github.token}}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Free up disk space
@@ -42,7 +49,7 @@ jobs:
       - name: Install CCache
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
       - name: Set Up Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
@@ -71,7 +78,10 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
-            -DERF_ENABLE_REGRESSION_TESTS_ONLY:BOOL=ON .
+            -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
+            -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+            -DERF_TEST_NRANKS:STRING=2 \
+            -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
           cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
@@ -82,7 +92,7 @@ jobs:
       - name: Report
         run: |
           grep -Ei "warning:|error:" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
-            | grep -Ev "Submodules/amrex" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+            | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
             | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
           cat ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
           export return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt | awk '{print $2}')

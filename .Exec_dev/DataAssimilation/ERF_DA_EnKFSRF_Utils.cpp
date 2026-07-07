@@ -454,7 +454,6 @@ compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
     ParallelDescriptor::ReduceRealSum(r);
 
     return r;
-
 }
 
 void

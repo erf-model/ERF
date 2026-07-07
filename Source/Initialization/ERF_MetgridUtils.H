@@ -13,7 +13,7 @@ read_from_metgrid (int lev,
                    const amrex::Box& domain,
                    const std::string& fname,
                    std::string& NC_dateTime,
-                   amrex::Real& NC_epochTime,
+                   double& NC_epochTime,
                    int& flag_psfc,
                    int& flag_msf,
                    int& flag_sst,
@@ -101,12 +101,13 @@ init_base_state_from_metgrid (const bool use_moisture,
                               const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
                               const int& flag_psfc,
-                              amrex::FArrayBox& state,
+                              amrex::FArrayBox& state_fab,
                               amrex::FArrayBox& r_hse_fab,
                               amrex::FArrayBox& p_hse_fab,
                               amrex::FArrayBox& pi_hse_fab,
                               amrex::FArrayBox& th_hse_fab,
                               amrex::FArrayBox& qv_hse_fab,
+                              amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab);
 
@@ -450,7 +451,7 @@ void
 calc_p_isothermal (const amrex::Real& z,
                    amrex::Real& p)
 {
-    p = p_0*exp(-CONST_GRAV*z/(amrex::Real(290.0)*R_d));
+    p = p_0*std::exp(-CONST_GRAV*z/(amrex::Real(290.0)*R_d));
 }
 
 AMREX_FORCE_INLINE
@@ -939,10 +940,10 @@ rh_to_mxrat (int i,
     amrex::Real svpt0 = amrex::Real(273.15);
     // WRF's method when model_config_rec%rh2qv_wrt_liquid=.true. (default behavior)
     if (temp(i,j,k) != zero) {
-        amrex::Real es=amrex::Real(0.01)*rhum(i,j,k)*svp1*amrex::Real(10.0)*exp(svp2*(temp(i,j,k)-svpt0)/(temp(i,j,k)-svp3));
+        amrex::Real es=amrex::Real(0.01)*rhum(i,j,k)*svp1*amrex::Real(10.0)*std::exp(svp2*(temp(i,j,k)-svpt0)/(temp(i,j,k)-svp3));
         if (es >= pres(i,j,k)/amrex::Real(100.0)) {
             // vapor pressure exceeds total pressure
-            mxrat(i,j,k,src_indx) = std::pow(amrex::Real(10.0), -6);
+            mxrat(i,j,k,src_indx) = amrex::Math::powi<-6>(amrex::Real(10.0));
         }
         else {
             mxrat(i,j,k,src_indx) = amrex::max(eps*es/(pres(i,j,k)/amrex::Real(100.0)-es), amrex::Real(1.0e-6));

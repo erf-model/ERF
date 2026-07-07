@@ -145,7 +145,7 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
                                                  cell_data(i,j,k,RhoTheta_comp), qv);
 
         // Phase-weighted effective latent heat
-        amrex::Real liquid_fraction = qc_liquid / (total_condensate + 1e-12);
+        amrex::Real liquid_fraction = qc_liquid / (total_condensate + amrex::Real(1e-12));
         amrex::Real ice_fraction = one - liquid_fraction;
         amrex::Real L_eff = liquid_fraction * L_v + ice_fraction * (L_v + lat_ice);
 

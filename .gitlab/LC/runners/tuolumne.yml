@@ -30,6 +30,9 @@ stages:
   tags:
     - shell
     - tuolumne
+  variables:
+    # Limit build parallelism for matrix jobs
+    CMAKE_BUILD_PARALLEL_LEVEL: 16
 
 .job_on_tuolumne:
   extends: .on_tuolumne
@@ -47,7 +50,7 @@ stages:
     - export AMD_LOG_LEVEL=2
     - export MPICH_GPU_SUPPORT_ENABLED=1
     - export HSA_XNACK=1
-    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv -o pmi=off ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
@@ -74,7 +77,7 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 60
+    ALLOC_TIME: 90
   extends: .on_tuolumne
   stage: allocate-resources
   script:

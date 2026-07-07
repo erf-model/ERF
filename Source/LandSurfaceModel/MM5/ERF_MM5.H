@@ -22,7 +22,7 @@ namespace LsmVar_MM5 {
   };
 }
 
-/* See Chen & Dudhia (2001) https://doi.org/amrex::Real(10.1175)/1520-0493(2001)129<0569:CAALSH>two.CO;2 */
+/* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
 class MM5 : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -48,11 +48,11 @@ public:
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override;
+          const double& dt) override;
 
     // Wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const double& dt) override
     {
         m_dt = dt;
         this->ComputeFluxes();
@@ -124,7 +124,7 @@ private:
     amrex::Geometry m_lsm_geom;
 
     // timestep
-    amrex::Real m_dt;
+    double m_dt;
 
     // domain klo-1 or lsm khi
     int khi_lsm;

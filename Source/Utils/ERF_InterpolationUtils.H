@@ -17,21 +17,7 @@ namespace ERF {
 namespace Interpolation {
 
 /**
- * @brief Helper function to interpolate multiple field values at a particle position
- *
- * This function interpolates values from multiple field arrays at a particle's position
- * using the cloud-in-cell (CIC) interpolation method. It supports both periodic and
- * non-periodic z-boundaries.
- *
- * @tparam ParticleType The type of particle
- * @param p The particle
- * @param plo The domain lower bounds
- * @param dxi The inverse of cell spacing
- * @param field_arrays Array of field arrays to interpolate from
- * @param result_values Output array to store interpolated values
- * @param num_fields Number of fields to interpolate
- * @param is_periodic_z Whether the z-boundary is periodic
- * @param zheight Height field array (only used for non-periodic z-boundary)
+ * @brief Interpolate multiple field values at a particle position using CIC.
  */
 template <typename ParticleType>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -41,11 +27,8 @@ void interpolateFields(
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
     const amrex::Array4<const amrex::Real>* field_arrays,
     amrex::ParticleReal* result_values,
-    int num_fields,
-    int is_periodic_z = 1,
-    const amrex::Array4<amrex::Real>* zheight = nullptr
+    int num_fields
 ) {
-    amrex::ignore_unused(is_periodic_z, zheight);
     for (int i = 0; i < num_fields; ++i) {
         cic_interpolate(p, plo, dxi, field_arrays[i], &result_values[i], 1);
     }

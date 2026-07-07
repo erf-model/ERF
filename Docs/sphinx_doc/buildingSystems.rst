@@ -89,7 +89,7 @@ Build Steps
 
 **1. Clone Repository and Populate Dependencies**
 
-See :ref:`Submodules` for more details. All dependencies except SHOC and P3 are provided as git submodules:
+See :ref:`Submodules` for more details. All dependencies except EAMxx SHOC and P3 are provided as git submodules:
 
 .. code-block:: bash
 
@@ -112,9 +112,9 @@ The GNU Make system uses the AMReX submodule path by default. To use an external
    # Or for tcsh
    setenv AMREX_HOME /path/to/external/amrex
 
-**2. Setup for SHOC or P3 (Optional)**
+**2. Setup for EAMxx SHOC or P3 (Optional)**
 
-If building with SHOC or P3, run the setup scripts:
+If building with EAMxx SHOC or P3, run the setup scripts:
 
 .. code-block:: bash
 
@@ -122,7 +122,8 @@ If building with SHOC or P3, run the setup scripts:
    source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
    source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
-Then set ``USE_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile (step 4).
+Native SHOC is always built in tree and selected at runtime with ``erf.pbl_type = NATIVE_SHOC``.
+Set ``USE_EAMXX_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile (step 4) if you need those optional packages.
 
 **3. Navigate to GNU Make Build Directory**
 
@@ -194,8 +195,12 @@ Set build variables in the ``GNUmakefile``:
         - Enables RRTMGP radiation model (sets ``USE_KOKKOS=TRUE``, ``USE_NETCDF=TRUE``)
         - FALSE
         - TRUE/FALSE
-      * - ``USE_SHOC``
-        - Enables SHOC turbulence model (sets ``USE_KOKKOS=TRUE``)
+      * - Native SHOC
+        - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
+        - Always built
+        - N/A
+      * - ``USE_EAMXX_SHOC``
+        - Enables optional EAMxx SHOC turbulence model (sets ``USE_KOKKOS=TRUE``)
         - FALSE
         - TRUE/FALSE
       * - ``USE_P3``
@@ -375,16 +380,17 @@ Clone with submodules:
    # Or populate submodules in existing clone
    git submodule update --init --recursive
 
-**2. Setup for SHOC or P3 (Optional)**
+**2. Setup for EAMxx SHOC or P3 (Optional)**
 
-If building with SHOC or P3:
+If building with EAMxx SHOC or P3:
 
 .. code-block:: bash
 
    export ERF_DIR=/path/to/ERF
    source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
 
-Then configure with ``-DERF_ENABLE_SHOC=TRUE`` and/or ``-DERF_ENABLE_P3=TRUE`` (step 4).
+Native SHOC is always built in tree; select it at runtime with ``erf.pbl_type = NATIVE_SHOC``.
+Configure with ``-DERF_ENABLE_EAMXX_SHOC=ON`` and/or ``-DERF_ENABLE_P3=ON`` (step 4) if you need those optional packages.
 
 **3. Choose Build Workflow**
 
@@ -548,6 +554,14 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables support for Lagrangian particles
      - OFF
      - ON/OFF
+   * - ``ERF_PRECISION``
+     - Floating-point precision for mesh data
+     - DOUBLE
+     - SINGLE/DOUBLE
+   * - ``ERF_PARTICLES_PRECISION``
+     - Floating-point precision for particle data; defaults to ``ERF_PRECISION``
+     - DOUBLE
+     - SINGLE/DOUBLE
    * - ``ERF_ENABLE_MULTIBLOCK``
      - Enables multiblock capability
      - OFF
@@ -560,8 +574,12 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables RRTMGP radiation model (requires ``ERF_ENABLE_NETCDF=ON``, ``ERF_ENABLE_MPI=ON``)
      - OFF
      - ON/OFF
-   * - ``ERF_ENABLE_SHOC``
-     - Enables SHOC turbulence model (requires ``ERF_ENABLE_MPI=ON``)
+      * - Native SHOC
+        - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
+        - Always built
+        - N/A
+   * - ``ERF_ENABLE_EAMXX_SHOC``
+     - Enables optional EAMxx SHOC turbulence model (requires ``ERF_ENABLE_MPI=ON`` and EKAT/Kokkos/EAMxx dependencies)
      - OFF
      - ON/OFF
    * - ``ERF_ENABLE_P3``
@@ -604,7 +622,12 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Requires ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
      - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
 
-   * ``ERF_ENABLE_SHOC`` - SHOC turbulence and cloud macrophysics
+   * Native SHOC - Native SHOC turbulence and cloud macrophysics
+
+     - Always built
+     - Selected at runtime with ``erf.pbl_type = NATIVE_SHOC``
+
+   * ``ERF_ENABLE_EAMXX_SHOC`` - Optional EAMxx SHOC turbulence and cloud macrophysics
 
      - Requires ``ERF_ENABLE_MPI=ON``
      - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
@@ -628,7 +651,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    * ``ERF_ENABLE_SYCL`` - Intel GPUs
 
    .. note::
-      Kokkos-based physics packages (RRTMGP, SHOC, P3) support all three GPU backends through EKAT's Kokkos integration.
+      Kokkos-based physics packages (RRTMGP, EAMxx SHOC, P3) support all three GPU backends through EKAT's Kokkos integration.
 
 .. dropdown:: Logging Options (CMake 3.25+)
    :icon: bug

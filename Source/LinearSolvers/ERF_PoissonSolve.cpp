@@ -28,7 +28,7 @@ solve_with_EB_mlmg (int lev,
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level zero
  */
-void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
+void ERF::project_initial_velocity (int lev, double time, double l_dt)
 {
     BL_PROFILE("ERF::project_initial_velocity()");
     // Impose FillBoundary on density since we use it in the conversion of velocity to momentum
@@ -99,7 +99,7 @@ void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
  */
-void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, double l_time, double l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
     //
@@ -160,14 +160,14 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
         }
 
         VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
-                            vars_new[lev][Vars::yvel], IntVect{0},
-                            vars_new[lev][Vars::zvel], IntVect{0},
-                            vars_new[lev][Vars::cons],
-                            mom_mf[IntVars::xmom],
-                            mom_mf[IntVars::ymom],
-                            mom_mf[IntVars::zmom],
-                            Geom(lev).Domain(),
-                            domain_bcs_type, c_vfrac);
+                           vars_new[lev][Vars::yvel], IntVect{0},
+                           vars_new[lev][Vars::zvel], IntVect{0},
+                           vars_new[lev][Vars::cons],
+                           mom_mf[IntVars::xmom],
+                           mom_mf[IntVars::ymom],
+                           mom_mf[IntVars::zmom],
+                           Geom(lev).Domain(),
+                           domain_bcs_type, c_vfrac);
     }
 
     // If !fixed_density, we must convert (rho u) which came in
@@ -558,7 +558,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
         // ****************************************************************************
         if (rhsnorm <= solverChoice.poisson_abstol) return;
 
-        Real start_step = static_cast<Real>(ParallelDescriptor::second());
+        double start_step = ParallelDescriptor::second();
 
         if (mg_verbose > 0) {
             amrex::Print() << " Solving in subdomain " << isub << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
@@ -615,7 +615,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
 #ifdef ERF_USE_FFT
-                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+                solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
         } // No terrain or grid stretching
@@ -633,7 +633,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
                 if (!use_fft) {
                     amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
                 }
-                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+                solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
             }
 #endif
         } // grid stretching
@@ -690,7 +690,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
         // ****************************************************************************
         // Print time in solve
         // ****************************************************************************
-        Real end_step = static_cast<Real>(ParallelDescriptor::second());
+        double end_step = ParallelDescriptor::second();
         if (mg_verbose > 0) {
             amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
         }
@@ -703,7 +703,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
     //      are disjoint regions
     // ****************************************************************************
     if (solverChoice.terrain_type == TerrainType::EB) {
-        Real start_step_eb = static_cast<Real>(ParallelDescriptor::second());
+        double start_step_eb = ParallelDescriptor::second();
         solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub,
                            *(get_eb(lev).get_const_factory()),
                            *(get_eb(lev).get_u_const_factory()),
@@ -711,7 +711,7 @@ void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mo
                            *(get_eb(lev).get_w_const_factory()),
                            geom[lev], ref_ratio, domain_bc_type,
                            mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
-        Real end_step_eb = static_cast<Real>(ParallelDescriptor::second());
+        double end_step_eb = ParallelDescriptor::second();
         if (mg_verbose > 0) {
             amrex::Print() << "Time in solve " << end_step_eb - start_step_eb << std::endl;
         }

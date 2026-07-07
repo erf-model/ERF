@@ -1,8 +1,7 @@
 #include <ERF.H>
+#include <ERF_InputsName.H>
 #include <ERF_EpochTime.H>
 #include <AMReX_buildInfo.H>
-
-extern std::string inputs_name;
 
 using namespace amrex;
 

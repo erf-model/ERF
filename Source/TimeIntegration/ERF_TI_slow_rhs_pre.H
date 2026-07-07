@@ -6,9 +6,9 @@
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                const Real old_step_time,
-                                const Real old_stage_time,
-                                const Real new_stage_time,
+                                const double old_step_time,
+                                const double old_stage_time,
+                                const double new_stage_time,
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
@@ -20,7 +20,8 @@
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
-            cons_to_prim(S_data[IntVars::cons], ng_cons);
+            cons_to_prim(S_data[IntVars::cons], S_prim, ng_cons);
+            make_pi_stage(S_data[IntVars::cons]);
         }
 
         if (verbose) Print() << std::setprecision(timeprecision)
@@ -28,7 +29,7 @@
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -63,7 +64,8 @@
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
         if (solverChoice.moisture_type != MoistureType::None) {
-            make_qt(S_data[IntVars::cons], qt);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            make_qt(S_data[IntVars::cons], qt, n_qstate_into_total);
         }
 
         MultiFab p0_to_use, base_to_use;
@@ -111,6 +113,30 @@
                      input_sounding_data, turbPert, true);
 
         // *****************************************************************************
+        // Add nudging terms on moist variables if we have a non-zero relaxation region
+        // *****************************************************************************
+#if defined(ERF_USE_NETCDF)
+        if ( solverChoice.use_real_bcs && (level==0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
+        {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
+            Real l_rdOcp    = solverChoice.rdOcp;
+            Real l_c_p      = solverChoice.c_p;
+            int moist_nudge_type = solverChoice.bdy_moist_nudge_type;
+            int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            AMREX_ALWAYS_ASSERT( (solverChoice.bdy_moist_nudge_type != 2) ||
+                                 (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
+                                  solverChoice.moisture_type != MoistureType::SAM_NoIce) );
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
+                                    start_time+old_stage_time,
+                                    start_bdy_time, final_bdy_time, bdy_time_interval,
+                                    bdy_factor, real_width, geom[level],
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    m_r2d, l_c_p, l_rdOcp, moist_nudge_type);
+        }
+#endif
+
+        // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
@@ -121,8 +147,9 @@
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
+        int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      micro->Get_Qstate_Moist_Size(), get_eb(level), solverChoice.anelastic[level]);
+                      num_q, get_eb(level), solverChoice.anelastic[level]);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
@@ -163,12 +190,15 @@
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
-#ifdef ERF_USE_SHOC
-                         shoc_interface[level],
+#ifdef ERF_USE_EAMXX_SHOC
+                         eamxx_shoc_interface[level].get(),
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+                         native_shoc_driver[level].get(),
 #endif
                          fr_as_crse, fr_as_fine);
 
-        if ((solverChoice.vert_implicit_fac[nrk] > zero) && solverChoice.implicit_before_substep) {
+        if ((solverChoice.vert_implicit_fac[level][nrk] > zero) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
@@ -223,9 +253,15 @@
             }
         }
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            shoc_interface[level]->add_fast_tend(S_rhs);
+#ifdef ERF_USE_EAMXX_SHOC
+        if (solverChoice.turbChoice[level].uses_eamxx_shoc() && eamxx_shoc_interface[level]) {
+            eamxx_shoc_interface[level]->add_fast_tend(S_rhs);
+        }
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
+            // Native SHOC applies its increment directly to state; ERF no
+            // longer adds a separate fast RHS contribution.
         }
 #endif
 
@@ -256,7 +292,7 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
-            Real dt_base  = (new_stage_time - old_step_time);
+            double dt_base = new_stage_time - old_step_time;
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -325,20 +361,21 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
-                Real total_time = start_time + old_stage_time;
+                double total_time = start_time + old_stage_time;
+                Real l_rdOcp    = solverChoice.rdOcp;
+                Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d);
+                                                   m_r2d, l_c_p, l_rdOcp);
             }
         }
 #endif

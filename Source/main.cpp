@@ -5,6 +5,7 @@
 #include <AMReX_ParallelDescriptor.H>
 
 #include "ERF.H"
+#include "ERF_InputsName.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -59,7 +60,7 @@ auto finalize_mpi_and_return = [](int code) {
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING
     amrex::MPMD::Finalize();
-+#else
+#else
     MPI_Finalize();
 #endif
 #endif
@@ -127,6 +128,7 @@ return code;
 #else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
+    CheckForDuplicateInputs(argv[1]);
 
 #ifdef ERF_USE_KOKKOS
     // Initialize kokkos
@@ -145,7 +147,7 @@ return code;
     BL_PROFILE_VAR("main()", pmain);
 
     // wallclock time
-    const Real strt_total = amrex::second();
+    const double strt_total = amrex::second();
 
     {
         // constructor - reads in parameters from inputs file
@@ -159,7 +161,7 @@ return code;
         erf.Evolve();
 
         // wallclock time
-        Real end_total = amrex::second() - strt_total;
+        double end_total = amrex::second() - strt_total;
 
         // print wallclock time
         ParallelDescriptor::ReduceRealMax(end_total ,ParallelDescriptor::IOProcessorNumber());

@@ -60,13 +60,14 @@ void erf_substep_NS (int step, int nrk,
                      const Geometry geom,
                      const Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const Real dtau, const Real beta_s,
+                     const double dtau, const Real beta_s,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
                      bool l_reflux,
+                     bool l_real_bc,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef)
 {
@@ -75,6 +76,15 @@ void erf_substep_NS (int step, int nrk,
     //
 
     BL_PROFILE_REGION("erf_substep_S()");
+
+    const Box& domain = geom.Domain();
+    auto const domlo = lbound(domain);
+    auto const domhi = ubound(domain);
+
+    int ilo = domlo.x;
+    int ihi = domhi.x + 1;
+    int jlo = domlo.y;
+    int jhi = domhi.y + 1;
 
     Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
@@ -237,7 +247,8 @@ void erf_substep_NS (int step, int nrk,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real gpx = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
+                Real gpx = (l_real_bc && (level==0) && (i==ilo || i==ihi)) ? Real(0.) :
+                  (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
                 gpx *= mf_ux(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
@@ -256,7 +267,8 @@ void erf_substep_NS (int step, int nrk,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real gpy = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
+                Real gpy = (l_real_bc && (level==0) && (j==jlo || j==jhi)) ? Real(0.) :
+                  (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
                 gpy *= mf_vy(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
@@ -420,10 +432,9 @@ void erf_substep_NS (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            Real dz_inv = one / dz_ptr[k];
-            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
-                                          -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
-                                          -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
+            R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
+                                 +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
+                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
 
             // line 1
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));

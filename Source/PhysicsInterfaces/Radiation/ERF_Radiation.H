@@ -54,6 +54,10 @@ public:
     // Destructor
     ~Radiation ()
     {
+        // Release k-distribution data and memory pool
+        if (rrtmgp::initialized) {
+            rrtmgp::rrtmgp_finalize();
+        }
         // Note that Kokkos is now finalized in main.cpp
     }
 
@@ -83,14 +87,16 @@ public:
             m_col_offsets[mfi.index()] = m_ncol;
             m_ncol += nx * ny;
         }
+
+        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk);
     };
 
     virtual
     void
     Run (int& level,
          int& step,
-         amrex::Real& time,
-         const amrex::Real& dt,
+         double& time,
+         const double& dt,
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
@@ -115,8 +121,8 @@ public:
     void
     set_grids (int& level,
                int& step,
-               amrex::Real& time,
-               const amrex::Real& dt,
+               double& time,
+               const double& dt,
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
@@ -200,7 +206,7 @@ public:
     // Write datalog
     virtual
     void
-    WriteDataLog (const amrex::Real &time) override;
+    WriteDataLog (const double &time) override;
 
 private:
 
@@ -214,10 +220,10 @@ private:
     int m_step;
 
     // Current time
-    amrex::Real m_time;
+    double m_time;
 
     // Timestep at given level
-    amrex::Real m_dt;
+    double m_dt;
 
     // Geometry at given level
     amrex::Geometry m_geom;
@@ -322,8 +328,11 @@ private:
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
 
-    // Whether we use aerosol forcing in radiation
-    bool m_do_aerosol_rad = true;
+    // Whether we use aerosol forcing in radiation.
+    // Aerosol plumbing is currently not implemented; this hook is retained so a
+    // future aerosol scheme can wire in without reintroducing the parameter.
+    // Setting it true today triggers an abort in the Radiation constructor.
+    bool m_do_aerosol_rad = false;
 
     // Whether we do extra aerosol forcing calls
     bool m_extra_clnsky_diag    = false;
@@ -362,6 +371,12 @@ private:
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
+
+    // Number of columns to process per RRTMGP chunk (controls peak memory)
+    int m_ncol_chunk = 1024;
+
+    // Number of vars for s_mem allocation
+    int m_rad_nvar = 12;
 
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;
@@ -442,21 +457,16 @@ private:
     real2d_k sfc_alb_dir;
     real2d_k sfc_alb_dif;
 
-    // 2d size (ncol, nlwbands)
-    real2d_k emis_sfc;
-
+    // Aerosol optical properties. Dormant scaffolding kept so a future aerosol
+    // coupling (e.g. SPA, prescribed aerosol climatology) can populate these
+    // without re-adding members. Only allocated when m_do_aerosol_rad is true,
+    // which currently aborts in the constructor; when aerosol coupling is
+    // wired in, remove the abort and pass these into rrtmgp_main.
+    //
     // 3d size (ncol, nlay, n[sw,lw]bands)
     real3d_k aero_tau_sw;
     real3d_k aero_ssa_sw;
     real3d_k aero_g_sw;
     real3d_k aero_tau_lw;
-
-    // 3d size (ncol, nlay, n[sw,lw]bnds)
-    real3d_k cld_tau_sw_bnd;
-    real3d_k cld_tau_lw_bnd;
-
-    // 3d size (ncol, nlay, n[sw,lw]gpts)
-    real3d_k cld_tau_sw_gpt;
-    real3d_k cld_tau_lw_gpt;
 };
 #endif
