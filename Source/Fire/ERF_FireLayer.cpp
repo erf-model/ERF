@@ -373,7 +373,7 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
 
 void FireLayer::update_atm_flux_buffer(const amrex::Geometry& geom_atm)
 {
-    if (!m_params.one_way_coupling) { return; }
+    if (!m_params.injects_flux()) { return; }
     if (!fire_heat_flux || !m_Q_atm_prev) { return; }
 
     coarsen_fire_flux_to_atm(*m_Q_atm_prev, *fire_heat_flux,
@@ -410,7 +410,7 @@ void FireLayer::apply_fire_coupling_to_cc_source(
     const amrex::Geometry& geom_atm,
     bool has_moisture)
 {
-    if (!m_params.one_way_coupling) { return; }
+    if (!m_params.injects_flux()) { return; }
     if (!m_Q_atm_prev) { return; }
     if (m_params.fire_atm_feedback <= 0.0_rt) { return; }
 

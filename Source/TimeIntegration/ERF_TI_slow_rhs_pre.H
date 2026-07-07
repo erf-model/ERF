@@ -122,7 +122,9 @@
         // across all RK stages and must be added here to survive the integrator.
         // *****************************************************************************
 #ifdef ERF_ENABLE_FIRE
-        if (level == 0 && m_fire_layer && m_fire_layer->get_Q_atm_prev()) {
+        if (level == 0 && m_fire_layer
+            && m_fire_layer->get_params().injects_flux()
+            && m_fire_layer->get_Q_atm_prev()) {
             bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
             m_fire_layer->apply_fire_coupling_to_cc_source(
                 cc_src,

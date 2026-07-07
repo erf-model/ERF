@@ -417,33 +417,46 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 #ifdef ERF_ENABLE_FIRE
     // Advance fire simulation at level 0
     if (lev == 0 && m_fire_layer) {
-       // Extract atmospheric state at k=0 for fuel moisture update
-       // Temperature and RH are on 2D atmospheric grid (coarse compared to fire grid)
-        
-       // Allocate 2D T_atm_k0 and fill from Theta_prim at k=0
-       MultiFab T_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
-       for (MFIter mfi(T_atm_k0); mfi.isValid(); ++mfi) {
-           Array4<Real> t2d = T_atm_k0.array(mfi);
-           Array4<const Real> t3d = Theta_prim[lev]->const_array(mfi);
-           amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-               t2d(iv[0], iv[1], 0) = t3d(iv[0], iv[1], 0);
-           });
-       }
-        
-       // Allocate 2D RH_atm_k0 and compute from conserved state
-       MultiFab RH_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
-       compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
-        
-       m_fire_layer->advance(time,
-                             dt_lev,
-                             *m_SurfaceLayer,
-                             vars_old[lev][Vars::xvel],
-                             vars_old[lev][Vars::yvel],
-                             *z_phys_cc[lev],
-                             T_atm_k0, RH_atm_k0);
-        
-       // Phase 6: Store current fire fluxes for injection in the next timestep.
-       m_fire_layer->update_atm_flux_buffer(Geom(lev));
+
+        // T and RH at k=0 for fuel moisture update, derived from pre-dycore state.
+        // This is used in both lagged and synchronous modes: the moisture ODE
+        // uses time-averaged T, and the change in T from fire heating within
+        // one atmospheric step is small relative to the moisture time lag.
+        MultiFab T_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
+        for (MFIter mfi(T_atm_k0); mfi.isValid(); ++mfi) {
+            Array4<Real> t2d = T_atm_k0.array(mfi);
+            Array4<const Real> t3d = Theta_prim[lev]->const_array(mfi);
+            amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+                t2d(iv[0], iv[1], 0) = t3d(iv[0], iv[1], 0);
+            });
+        }
+        MultiFab RH_atm_k0(ba2d[lev], S_old.DistributionMap(), 1, 0);
+        compute_rh_from_conservative(RH_atm_k0, S_old, Geom(lev));
+
+        // In passive and lagged modes, fire uses pre-dycore wind (vars_old).
+        // In synchronous mode, fire uses post-dycore wind (vars_new) so that
+        // the fire spread rate at step n+1 reflects the atmospheric momentum
+        // response to fire heating from step n.
+        if (m_fire_layer->get_params().is_synchronous()) {
+            m_fire_layer->advance(time, dt_lev, *m_SurfaceLayer,
+                                  vars_new[lev][Vars::xvel],
+                                  vars_new[lev][Vars::yvel],
+                                  *z_phys_cc[lev],
+                                  T_atm_k0, RH_atm_k0);
+        } else {
+            // Passive and lagged modes both use pre-dycore wind.
+            m_fire_layer->advance(time, dt_lev, *m_SurfaceLayer,
+                                  vars_old[lev][Vars::xvel],
+                                  vars_old[lev][Vars::yvel],
+                                  *z_phys_cc[lev],
+                                  T_atm_k0, RH_atm_k0);
+        }
+
+        // Store current fire flux for injection at the next timestep via
+        // the RK source term in ERF_TI_slow_rhs_pre.H. This applies in
+        // both lagged and synchronous modes. In passive mode the buffer is
+        // set to zero inside update_atm_flux_buffer() via the injects_flux() guard.
+        m_fire_layer->update_atm_flux_buffer(Geom(lev));
     }
 #endif
 }

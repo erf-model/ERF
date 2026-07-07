@@ -67,7 +67,13 @@ struct FireParams
     // Phase 6: fire-atmosphere coupling parameters
     amrex::Real       heat_flux_alfg          = 45.0;  ///< e-folding height for sensible heat distribution [m]
     amrex::Real       fire_atm_feedback       = 1.0;   ///< multiplier on fire flux (0 = one-way, 1 = full)
-    bool              one_way_coupling        = true;  ///< inject fire heat into atmospheric cc_source
+    // Coupling mode between fire and atmosphere.
+    //   "passive"      — fire heat computed but not injected into atmosphere
+    //   "lagged"       — lagged coupling: fire heat from step n enters atmosphere
+    //                    at step n+1 via RK source term (default, Phase 6 behaviour)
+    //   "synchronous"  — synchronous coupling: fire advances using post-dycore wind
+    //                    (vars_new), fire heat still enters atmosphere at step n+1
+    std::string       coupling_type           = "lagged";
     bool              inject_latent           = true;  ///< inject latent heat alongside sensible (WRF-Fire parity)
 
     /**
@@ -131,9 +137,15 @@ struct FireParams
        // Phase 6: fire-atmosphere coupling parameters
        pp.query("heat_flux_alfg", heat_flux_alfg);
        pp.query("fire_atm_feedback", fire_atm_feedback);
-       pp.query("one_way_coupling", one_way_coupling);
+       pp.query("coupling_type", coupling_type);
        pp.query("inject_latent", inject_latent);
     }
+
+    // Convenience accessors for coupling mode
+    bool is_passive()     const { return coupling_type == "passive"; }
+    bool is_lagged()      const { return coupling_type == "lagged"; }
+    bool is_synchronous() const { return coupling_type == "synchronous"; }
+    bool injects_flux()   const { return is_lagged() || is_synchronous(); }
 };
 
 #endif

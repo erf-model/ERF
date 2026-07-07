@@ -244,6 +244,12 @@ public:
         const amrex::Geometry& geom_atm,
         bool has_moisture);
 
+    /**
+     * @brief Get the fire parameters for access to coupling type and other settings.
+     * @return Const reference to the FireParams.
+     */
+    const FireParams& get_params() const { return m_params; }
+
 private:
 
     FireGrid                                 m_fg;
