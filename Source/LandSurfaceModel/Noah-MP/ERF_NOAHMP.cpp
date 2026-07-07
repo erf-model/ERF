@@ -23,7 +23,7 @@ NOAHMP::Init (const int& lev,
               Vector<BCRec>& domain_bcs_type,
               IntVect& refRatio,
               const Real& dt,
-              Vector<Vector<std::string>> nc_init_file)
+              Vector<Vector<std::string>>& nc_init_file)
 {
     // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
     // Init across all levels). Noah-MP carries no MPI/AMReX dependency of its own
