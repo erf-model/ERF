@@ -37,8 +37,8 @@ Apply_H(const amrex::MultiFab& x_mf,
         {
             amrex::Real rho = x(i,j,k,0);
 
-            y(i,j,k,0) = x(i,j,k,1) / rho; // u velocity
-            y(i,j,k,1) = x(i,j,k,2) / rho; // v velocity
+            y(i,j,k,0) = x(i,j,k,2); // u velocity
+            y(i,j,k,1) = x(i,j,k,3); // v velocity
         });
     }
 }
@@ -48,7 +48,7 @@ read_in_observations(const int& da_iter,
                      const Vector<std::string>& varnames,
                      MultiFab& y_obs)
 {
-    const std::string obs_dir = "observations";
+    const std::string obs_dir = "Observations";
 
     // Collect all files/directories
     std::vector<std::string> obs_files;
