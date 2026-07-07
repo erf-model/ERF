@@ -412,6 +412,10 @@ TEST(Plotfile2DSampledLevel, ParsesHeightAGLLevelSet)
 // instead of falling through to a later interpolation failure.
 TEST(Plotfile2DSampledLevel, RejectsUnknownCoordinate)
 {
+    // AMReX initialization can leave helper threads alive, so use the
+    // threadsafe death-test style instead of fork-based death tests.
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+
     add_sampled_level_definition("bad_coordinate",
                                  "bogus_coordinate",
                                  {10.0},
@@ -425,6 +429,10 @@ TEST(Plotfile2DSampledLevel, RejectsUnknownCoordinate)
 // metadata cannot advertise a unit that the sampler does not canonicalize.
 TEST(Plotfile2DSampledLevel, RejectsUnsupportedUnits)
 {
+    // AMReX initialization can leave helper threads alive, so use the
+    // threadsafe death-test style instead of fork-based death tests.
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+
     add_sampled_level_definition("bad_units",
                                  "pressure",
                                  {850.0},
@@ -440,6 +448,10 @@ TEST(Plotfile2DSampledLevel, RejectsUnsupportedUnits)
 // rejected until that policy exists.
 TEST(Plotfile2DSampledLevel, RejectsIsentropicUntilCrossingPolicyExists)
 {
+    // AMReX initialization can leave helper threads alive, so use the
+    // threadsafe death-test style instead of fork-based death tests.
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+
     add_sampled_level_definition("bad_isentropic",
                                  "isentropic",
                                  {300.0},
