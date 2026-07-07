@@ -44,7 +44,7 @@ public:
     void Define(SolverChoice& sc) override
     {
         m_axis = sc.ave_plane;
-        m_do_cond = (!sc.use_shoc_family() && !sc.macrophysics_acoustic_coupling);
+        m_do_cond = (!sc.uses_shoc_family() && !sc.macrophysics_acoustic_coupling);
     }
 
     // WSM6 module parameter constants (Fortran: parameter, private)
