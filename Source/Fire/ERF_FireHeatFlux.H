@@ -173,27 +173,34 @@ amrex::Real deplete_fuel_load(
 /**
  * @brief Fill fire_heat_flux and deplete fire_fuel_load for one atmospheric timestep.
  *
- * For each burned cell (phi < 0):
- *   Q    = fuel_load * h_fuel / tau_res          [W/m²]
- *   w_new = fuel_load * exp(-dt_atm / tau_res)   [kg/m²]
+ * For each burned cell (phi < 0), the per-cell residence time is computed as:
+ *   tau_cell = max(dx_fire / ros_cell, tau_sav_floor)
+ * where ros_cell is the local ROS from fire_ros (floored at 1e-6 m/s to avoid
+ * division by zero). This avoids the global-max-ROS bug where one boundary
+ * artifact cell (with spuriously high ROS) would set tau for all burned cells.
  *
- * tau_res_s is the cell-crossing residence time (dx/ROS), computed by
- * the caller (FireLayer::compute_heat_flux_and_diagnostics) and passed in.
+ *   Q    = fuel_load * h_fuel / tau_cell          [W/m²]
+ *   w_new = fuel_load * exp(-dt_atm / tau_cell)   [kg/m²]
+ *
  * dt_fire_s should be the full atmospheric dt, not the CFL substep.
  *
  * @param[out] fire_heat_flux     Heat flux [W/m²]
  * @param[in,out] fire_fuel_load  Fuel load [kg/m²], modified in-place
  * @param[in] fire_phi            Level-set field
+ * @param[in] fire_ros            Rate-of-spread field [m/s]
  * @param[in] fp                  Fuel model parameters (Rothermel units)
- * @param[in] tau_res_s           Cell residence time [s]  (= dx/ROS)
+ * @param[in] dx_fire             Fire grid cell size [m]
+ * @param[in] tau_sav_floor       SAV-based residence time floor [s]
  * @param[in] dt_fire_s           Atmospheric timestep [s]
  */
 inline void fill_fire_heat_flux(
     amrex::MultiFab& fire_heat_flux,
     amrex::MultiFab& fire_fuel_load,
     const amrex::MultiFab& fire_phi,
+    const amrex::MultiFab& fire_ros,
     const FuelModelParams& fp,
-    amrex::Real tau_res_s,
+    amrex::Real dx_fire,
+    amrex::Real tau_sav_floor,
     amrex::Real dt_fire_s)
 {
     using namespace amrex;
@@ -205,6 +212,7 @@ inline void fill_fire_heat_flux(
         const Box& bx = mfi.validbox();
 
         auto const phi_arr  = fire_phi.const_array(mfi);
+        auto const ros_arr  = fire_ros.const_array(mfi);
         auto Q_arr          = fire_heat_flux.array(mfi);
         auto fuel_arr       = fire_fuel_load.array(mfi);
 
@@ -214,8 +222,12 @@ inline void fill_fire_heat_flux(
             Real phi_val = phi_arr(i, j, k);
             Real w_cur   = fuel_arr(i, j, k);
 
-            Q_arr(i, j, k)    = compute_heat_flux_cell(phi_val, w_cur, h_fuel_J_per_kg, tau_res_s);
-            fuel_arr(i, j, k) = deplete_fuel_load(phi_val, w_cur, tau_res_s, dt_fire_s);
+            // Per-cell residence time: floor ROS at 1e-6 m/s to avoid divide-by-zero
+            Real ros_cell  = amrex::max(ros_arr(i, j, k), 1.0e-6_rt);
+            Real tau_cell  = amrex::max(dx_fire / ros_cell, tau_sav_floor);
+
+            Q_arr(i, j, k)    = compute_heat_flux_cell(phi_val, w_cur, h_fuel_J_per_kg, tau_cell);
+            fuel_arr(i, j, k) = deplete_fuel_load(phi_val, w_cur, tau_cell, dt_fire_s);
         });
     }
 }

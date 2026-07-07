@@ -138,12 +138,12 @@ bool read_terrain_onto_fire_grid(
 
             // Find surrounding terrain grid points via binary search or linear scan
             // For efficiency, use a linear scan (could optimize with binary search)
-            int ix_lo = 0;
-            int iy_lo = 0;
+            int ix_lo = nx_terrain - 2;  // safe fallback for x == x_max
+            int iy_lo = ny_terrain - 2;  // safe fallback for y == y_max
 
             // Find x index
             for (int ix = 0; ix < nx_terrain - 1; ++ix) {
-                if (x_ptr[ix] <= x && x < x_ptr[ix + 1]) {
+                if (x_ptr[ix] <= x && x <= x_ptr[ix + 1]) {
                     ix_lo = ix;
                     break;
                 }
@@ -151,7 +151,7 @@ bool read_terrain_onto_fire_grid(
 
             // Find y index
             for (int iy = 0; iy < ny_terrain - 1; ++iy) {
-                if (y_ptr[iy] <= y && y < y_ptr[iy + 1]) {
+                if (y_ptr[iy] <= y && y <= y_ptr[iy + 1]) {
                     iy_lo = iy;
                     break;
                 }

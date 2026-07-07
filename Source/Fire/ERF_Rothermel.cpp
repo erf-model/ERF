@@ -277,6 +277,10 @@ Real rothermel_ros_cell(
     // Slope magnitude and squared tangent (for Rothermel Eq. 51)
     Real tan_slope_sq = sx*sx + sy*sy;
 
+    // Cap at tan²(80°) ≈ 32.16; steeper than any realistic or surveyed terrain.
+    // Prevents corrupted boundary slopes from producing unphysical ROS.
+    tan_slope_sq = amrex::min(tan_slope_sq, 32.0_rt);
+
     // Slope factor (Rothermel Eq. 51): φ_s = 5.275 * β^(-0.3) * tan²(φ)
     Real phi_s = rc.phi_s_const * tan_slope_sq;
 

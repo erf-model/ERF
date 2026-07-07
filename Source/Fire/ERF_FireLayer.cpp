@@ -360,29 +360,25 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
         ? (fp.w_d1*fp.sigma_d1 + fp.w_d10*FIRE_SIGMA_D10 + fp.w_d100*FIRE_SIGMA_D100) / dead_load
         : fp.sigma_d1;
 
-    Real tau_res_s;
+    // SAV-based residence time used as a floor on per-cell tau (= dx/ROS).
+    // If the user has overridden tau_residence_s, use that as both floor and cap.
+    Real tau_sav = compute_residence_time_s(sigma_agg, fp.rho_p);
+    Real tau_sav_floor;
     if (m_params.tau_residence_s > 0.0_rt) {
-        tau_res_s = m_params.tau_residence_s;
+        tau_sav_floor = m_params.tau_residence_s;
     } else {
-        Real max_ros = fire_ros->max(0);
-        if (max_ros > 1.0e-10_rt) {
-            Real dx_fire = m_fg.geom.CellSize(0);
-            tau_res_s = dx_fire / max_ros;
-        } else {
-            tau_res_s = compute_residence_time_s(sigma_agg, fp.rho_p);
-        }
-        Real tau_sav = compute_residence_time_s(sigma_agg, fp.rho_p);
-        tau_res_s = amrex::max(tau_res_s, tau_sav);
+        tau_sav_floor = tau_sav;
     }
 
     if (m_params.fire_debug) {
-        amrex::Print() << "[FIRE DEBUG] tau_res_s=" << tau_res_s
+        amrex::Print() << "[FIRE DEBUG] tau_sav=" << tau_sav
                        << " s  (dx_fire=" << m_fg.geom.CellSize(0)
                        << " m, max_ROS=" << fire_ros->max(0) << " m/s)" << std::endl;
     }
 
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
-                        *fire_phi, fp, tau_res_s, dt_fire_s);
+                        *fire_phi, *fire_ros, fp,
+                        m_fg.geom.CellSize(0), tau_sav_floor, dt_fire_s);
 
     Real h_kJ_per_kg = fp.heat_content * 2.326_rt;
     fill_fire_diagnostics(*fire_fireline_intensity, *fire_flame_length,
