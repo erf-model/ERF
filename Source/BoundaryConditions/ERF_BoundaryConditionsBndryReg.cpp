@@ -10,7 +10,7 @@ using namespace amrex;
  */
 
 void
-ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
+ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const double time)
 {
     //
     // We now assume that if we read in on one face, we read in on all faces

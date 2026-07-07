@@ -31,7 +31,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const Box& domain,
                           const int level,
                           const int n,
-                          const Real dt,
+                          const double dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const Array4<const Real>& z_nd,
@@ -244,7 +244,7 @@ void
 ImplicitDiffForMomLU_T (const Box& bx,
                         const Box& /*domain*/,
                         const int level,
-                        const Real dt,
+                        const double dt,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -518,7 +518,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
         const Box&, \
         const Box&, \
         const int, \
-        const Real, \
+        const double, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
         const Array4<const Real>&, \

@@ -4,15 +4,15 @@
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
-                                 const Real old_step_time,
-                                 const Real old_stage_time,
-                                 const Real new_stage_time,
+                                 const double old_step_time,
+                                 const double old_stage_time,
+                                 const double new_stage_time,
                                  const int nrk)
     {
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         if (verbose) amrex::Print() << "Time integration of scalars at level " << level
                                     << std::setprecision(timeprecision)

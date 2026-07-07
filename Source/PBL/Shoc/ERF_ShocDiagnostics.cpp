@@ -7,7 +7,7 @@ ShocDiagnostics::diagnose_pre_implicit (ShocColumnData& col,
                                         const ShocRuntimeOptions& opts,
                                         amrex::Real dx,
                                         amrex::Real dy,
-                                        amrex::Real dt)
+                                        double dt)
 {
     {
         BL_PROFILE("SHOC::advance::structure");
@@ -24,7 +24,7 @@ ShocDiagnostics::diagnose_pre_implicit (ShocColumnData& col,
 void
 ShocDiagnostics::diagnose_post_implicit (ShocColumnData& col,
                                          const ShocRuntimeOptions& opts,
-                                         amrex::Real dt)
+                                         double dt)
 {
     {
         BL_PROFILE("SHOC::advance::moments");

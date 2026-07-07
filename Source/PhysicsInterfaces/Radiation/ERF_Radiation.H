@@ -95,8 +95,8 @@ public:
     void
     Run (int& level,
          int& step,
-         amrex::Real& time,
-         const amrex::Real& dt,
+         double& time,
+         const double& dt,
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
@@ -121,8 +121,8 @@ public:
     void
     set_grids (int& level,
                int& step,
-               amrex::Real& time,
-               const amrex::Real& dt,
+               double& time,
+               const double& dt,
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
@@ -206,7 +206,7 @@ public:
     // Write datalog
     virtual
     void
-    WriteDataLog (const amrex::Real &time) override;
+    WriteDataLog (const double &time) override;
 
 private:
 
@@ -220,10 +220,10 @@ private:
     int m_step;
 
     // Current time
-    amrex::Real m_time;
+    double m_time;
 
     // Timestep at given level
-    amrex::Real m_dt;
+    double m_dt;
 
     // Geometry at given level
     amrex::Geometry m_geom;

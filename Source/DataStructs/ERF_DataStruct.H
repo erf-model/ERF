@@ -1132,10 +1132,10 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
-        amrex::Real rot_time_period = amrex::Real(86400.0);
+        double rot_time_period = 86400.0;
         pp.query("rotational_time_period", rot_time_period);
 
-        coriolis_factor = two * two * PI / rot_time_period;
+        coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
         pp.query("coriolis_3d", coriolis_3d);
 

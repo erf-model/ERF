@@ -25,7 +25,7 @@ public:
     void BuildMask (amrex::BoxArray const& fba, int nghost, int nghost_set);
 
     void RegisterCoarseData (amrex::Vector<amrex::MultiFab const*> const& crse_data,
-                             amrex::Vector<amrex::Real> const& crse_time);
+                             amrex::Vector<double> const& crse_time);
 
     void InterpFace (amrex::MultiFab& fine,
                      amrex::MultiFab const& crse,
@@ -43,15 +43,15 @@ public:
     amrex::iMultiFab* GetMask () { return m_cf_mask.get(); }
 
     template <typename BC>
-    void FillSet (amrex::MultiFab& mf, amrex::Real time,
+    void FillSet (amrex::MultiFab& mf, double time,
                   BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
 
     template <typename BC>
-    void FillRelax (amrex::MultiFab& mf, amrex::Real time,
+    void FillRelax (amrex::MultiFab& mf, double time,
                     BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
 
     template <typename BC>
-    void Fill (amrex::MultiFab& mf, amrex::Real time,
+    void Fill (amrex::MultiFab& mf, double time,
                BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val);
 
 private:
@@ -70,8 +70,8 @@ private:
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_old;
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_new;
     std::unique_ptr<amrex::iMultiFab> m_cf_mask;
-    amrex::Vector<amrex::Real> m_crse_times;
-    amrex::Real m_dt_crse;
+    amrex::Vector<double> m_crse_times;
+    double m_dt_crse;
     int m_set_mask{2};
     int m_relax_mask{1};
 };
@@ -86,7 +86,7 @@ private:
  */
 template <typename BC>
 void
-ERFFillPatcher::FillSet (amrex::MultiFab& mf, amrex::Real time,
+ERFFillPatcher::FillSet (amrex::MultiFab& mf, double time,
                          BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
 {
     Fill(mf,time,cbc,bcs,m_set_mask);
@@ -102,7 +102,7 @@ ERFFillPatcher::FillSet (amrex::MultiFab& mf, amrex::Real time,
  */
 template <typename BC>
 void
-ERFFillPatcher::FillRelax (amrex::MultiFab& mf, amrex::Real time,
+ERFFillPatcher::FillRelax (amrex::MultiFab& mf, double time,
                            BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
 {
     Fill(mf,time,cbc,bcs,m_relax_mask);
@@ -119,10 +119,10 @@ ERFFillPatcher::FillRelax (amrex::MultiFab& mf, amrex::Real time,
  */
 template <typename BC>
 void
-ERFFillPatcher::Fill (amrex::MultiFab& mf, amrex::Real time,
+ERFFillPatcher::Fill (amrex::MultiFab& mf, double time,
                       BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val)
 {
-    constexpr amrex::Real eps = std::numeric_limits<float>::epsilon();
+    constexpr double eps = std::numeric_limits<float>::epsilon();
 
     AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
 
@@ -130,7 +130,7 @@ ERFFillPatcher::Fill (amrex::MultiFab& mf, amrex::Real time,
     amrex::Real fac_new = amrex::Real(0.0);
     amrex::Real fac_old = amrex::Real(1.0);
     if (amrex::Math::abs(m_dt_crse) > eps) {
-        fac_new = (time - m_crse_times[0]) / m_dt_crse;
+        fac_new = static_cast<amrex::Real>((time - m_crse_times[0]) / m_dt_crse);
         fac_old = amrex::Real(1.0) - fac_new;
     }
 

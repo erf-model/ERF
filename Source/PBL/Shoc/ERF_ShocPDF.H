@@ -8,7 +8,7 @@ class ShocPDF
 public:
     static void diagnose_pdf (ShocColumnData& col,
                               const ShocRuntimeOptions& opts,
-                              amrex::Real dt);
+                              double dt);
 };
 
 #endif

@@ -93,7 +93,7 @@ ERF::compute_shoc_tendencies (int lev,
                               MultiFab* qfx3,
                               MultiFab* eddyDiffs,
                               MultiFab* z_phys_nd,
-                              const Real& dt_advance)
+                              const double& dt_advance)
 {
     Print() << "Advancing SHOC at level: " << lev << " ...";
 
@@ -514,7 +514,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
 
 void
-SHOCInterface::kokkos_buffers_to_mf (const Real dt)
+SHOCInterface::kokkos_buffers_to_mf (const double dt)
 {
     //
     // Expose for device capture
@@ -1018,7 +1018,7 @@ SHOCInterface::initialize_impl ()
 
 
 void
-SHOCInterface::run_impl (const Real dt)
+SHOCInterface::run_impl (const double dt)
 {
     using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
 
@@ -1088,7 +1088,7 @@ SHOCInterface::run_impl (const Real dt)
 
 
 void
-SHOCInterface::finalize_impl (const Real dt)
+SHOCInterface::finalize_impl (const double dt)
 {
     // Do nothing (per SHOCMacrophysics::finalize_impl())
 

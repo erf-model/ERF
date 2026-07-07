@@ -18,7 +18,7 @@ using namespace amrex;
  * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
  */
 void
-ERF::FillCoarsePatch (int lev, Real time)
+ERF::FillCoarsePatch (int lev, double time)
 {
     BL_PROFILE_VAR("FillCoarsePatch()",FillCoarsePatch);
     AMREX_ASSERT(lev > 0);

@@ -43,9 +43,9 @@ public:
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
-                         amrex::Real start_low_time,
-                         amrex::Real final_low_time,
-                         amrex::Real low_time_interval = zero,
+                         double start_low_time,
+                         double final_low_time,
+                         double low_time_interval = 0.0,
                          const amrex::Vector<const eb_*>& eb_vec = {})
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
@@ -505,8 +505,8 @@ public:
 
   void
   update_fluxes (const int& lev,
-                 const amrex::Real& elapsed_time,
-                 const amrex::Real& elapsed_time_since_start_low,
+                 const double& elapsed_time,
+                 const double& elapsed_time_since_start_low,
                  amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                  const std::unique_ptr<amrex::MultiFab>& walldist,
@@ -574,7 +574,7 @@ public:
                                           amrex::MultiFab& cons_in);
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
-                                    const amrex::Real& time);
+                                    const double& time);
 
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
@@ -598,7 +598,7 @@ public:
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
 
-  void update_surf_temp (const amrex::Real& time)
+  void update_surf_temp (const double& time)
   {
       if (m_has_ocean_lsm_tsurf) {
           return;
@@ -725,9 +725,9 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_low_time;
-  amrex::Real m_final_low_time;
-  amrex::Real m_low_time_interval;
+  double m_start_low_time;
+  double m_final_low_time;
+  double m_low_time_interval;
 
   bool m_include_wstar = false;
   amrex::Real z0_const{amrex::Real(0.1)};

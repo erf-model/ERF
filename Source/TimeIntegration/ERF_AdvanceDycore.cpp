@@ -44,7 +44,7 @@ void ERF::advance_dycore (int level,
                           MultiFab& ymom_src, MultiFab& zmom_src,
                           MultiFab& buoyancy,
                           const Geometry fine_geom,
-                          const Real dt_advance, const Real old_time)
+                          const double dt_advance, const double old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 

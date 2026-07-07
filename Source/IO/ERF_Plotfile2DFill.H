@@ -17,9 +17,10 @@
 //   - Do not encode runtime source selection here.
 //   - Do not use this layer as a registry for all future diagnostics.
 //
-// Column reductions, such as integrated_qv and future LWP/IWP diagnostics, need
-// separate helpers because they reduce over k rather than copying one k level.
-// Future pressure-surface diagnostics need interpolation-specific helpers.
+// Column reductions, such as integrated_qv and scheme-aware condensed
+// water-path diagnostics, need separate helpers because they reduce over k
+// rather than copying one k level. Future pressure-surface diagnostics need
+// interpolation-specific helpers.
 
 namespace plotfile2d
 {

@@ -6,9 +6,9 @@
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                const Real old_step_time,
-                                const Real old_stage_time,
-                                const Real new_stage_time,
+                                const double old_step_time,
+                                const double old_stage_time,
+                                const double new_stage_time,
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
@@ -29,7 +29,7 @@
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -292,7 +292,7 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
-            Real dt_base  = (new_stage_time - old_step_time);
+            double dt_base = new_stage_time - old_step_time;
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -366,7 +366,7 @@
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
-                Real total_time = start_time + old_stage_time;
+                double total_time = start_time + old_stage_time;
                 Real l_rdOcp    = solverChoice.rdOcp;
                 Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,

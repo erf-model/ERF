@@ -64,7 +64,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       Real dt,
+                       double dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
