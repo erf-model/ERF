@@ -97,7 +97,7 @@ erf.fire.write_fire_stats_csv = true
 erf.fire.fire_stats_csv_file = "fire_stats_phase6.csv"
 
 # Phase 6: fire-atmosphere coupling parameters
-erf.fire.one_way_coupling = true
+erf.fire.coupling_type = "lagged"
 erf.fire.heat_flux_alfg = 45.0
 erf.fire.fire_atm_feedback = 1.0
 erf.fire.inject_latent = true
