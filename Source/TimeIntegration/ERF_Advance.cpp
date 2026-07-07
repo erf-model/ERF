@@ -438,13 +438,31 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         // the fire spread rate at step n+1 reflects the atmospheric momentum
         // response to fire heating from step n.
         if (m_fire_layer->get_params().is_synchronous()) {
+            if (m_fire_layer->get_params().fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] Fire advance using SYNCHRONOUS coupling with POST-dycore wind at t="
+                               << time << ", dt=" << dt_lev << std::endl;
+            }
             m_fire_layer->advance(time, dt_lev, *m_SurfaceLayer,
                                   vars_new[lev][Vars::xvel],
                                   vars_new[lev][Vars::yvel],
                                   *z_phys_cc[lev],
                                   T_atm_k0, RH_atm_k0);
+        } else if (m_fire_layer->get_params().is_lagged()) {
+            if (m_fire_layer->get_params().fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] Fire advance using LAGGED coupling with PRE-dycore wind at t="
+                               << time << ", dt=" << dt_lev << std::endl;
+            }
+            m_fire_layer->advance(time, dt_lev, *m_SurfaceLayer,
+                                  vars_old[lev][Vars::xvel],
+                                  vars_old[lev][Vars::yvel],
+                                  *z_phys_cc[lev],
+                                  T_atm_k0, RH_atm_k0);
         } else {
-            // Passive and lagged modes both use pre-dycore wind.
+            // Passive mode
+            if (m_fire_layer->get_params().fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] Fire advance using PASSIVE coupling with PRE-dycore wind at t="
+                               << time << ", dt=" << dt_lev << std::endl;
+            }
             m_fire_layer->advance(time, dt_lev, *m_SurfaceLayer,
                                   vars_old[lev][Vars::xvel],
                                   vars_old[lev][Vars::yvel],

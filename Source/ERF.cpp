@@ -1833,6 +1833,10 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
         m_fire_layer = std::make_unique<FireLayer>();
         amrex::Print() << "[FIRE] Fire module enabled (grid_ratio="
                        << m_fire_params.grid_ratio << ")\n";
+        if (m_fire_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Fire debug mode enabled. Coupling type: "
+                           << m_fire_params.coupling_type << std::endl;
+        }
     }
 #endif
 }
