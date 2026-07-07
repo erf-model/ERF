@@ -330,7 +330,6 @@ amrex::Real compute_flame_tilt_angle_deg(
 
     constexpr amrex::Real g       = 9.81;
     constexpr amrex::Real PI      = 3.14159265358979323846;
-    constexpr amrex::Real sigma   = 5.67e-8;
     constexpr amrex::Real Cp_air  = 1005.0;
 
     amrex::Real wind_speed = std::sqrt(wind_u * wind_u + wind_v * wind_v);
@@ -338,16 +337,9 @@ amrex::Real compute_flame_tilt_angle_deg(
         return 0.0;
     }
 
-    amrex::Real flame_length = compute_flame_length_m(I_B_kWm);
-    amrex::Real T_flame = compute_flame_temp_byram(I_B_kWm, T_amb);
-    amrex::Real q_rad = sigma * (std::pow(T_flame, 4.0) - std::pow(T_amb, 4.0));
-    q_rad = amrex::max(q_rad, 0.0);
-
-    if (flame_length <= 0.0 || q_rad <= 0.0) {
-        return 0.0;
-    }
-
-    amrex::Real buoyancy = std::sqrt(g * q_rad * flame_length / (rho_air * Cp_air * T_amb));
+    // Byram convective plume velocity scale
+    amrex::Real I_B_Wm = I_B_kWm * 1000.0;
+    amrex::Real buoyancy = std::cbrt(g * I_B_Wm / (rho_air * Cp_air * T_amb));
     if (buoyancy <= 0.0) {
         return 90.0;
     }

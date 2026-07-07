@@ -219,7 +219,9 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                         const amrex::MultiFab*            fuel_load,
                         const std::string*                fuel_system,
                         int                               fuel_model_id = 1,
-                        bool                              fire_debug = false)
+                        bool                              fire_debug = false,
+                        amrex::MultiFab*                  fire_fuel_load_ptr = nullptr,
+                        amrex::Real                       fuel_load_initial_kg_m2 = 0.0_rt)
 {
     using namespace amrex;
 
@@ -297,13 +299,12 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
     };
 
     std::vector<FrontCell> front_cells;
-    constexpr Real phi_thresh = 0.1;
     for (int j = 0; j < ny; ++j) {
         for (int i = 0; i < nx; ++i) {
             int idx  = j * nx + i;
             Real pv  = h_phi[idx];
             Real rsp = h_ros[idx];
-            if (pv <= phi_thresh && rsp > 0.0) {
+            if (pv < 0.0 && rsp > 0.0) {
                 Real I_B = albini_byram_intensity(rsp, fp, rc);
                 Real H_z = albini_lofting_height(I_B, sp.I_B_min);
                 if (H_z > 0.0) {
@@ -415,6 +416,7 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
             const Box& bx  = mfi.validbox();
             auto phi_arr   = phi.array(mfi);
             auto alb_arr   = albini_data.array(mfi);
+            auto fuel_arr  = fire_fuel_load_ptr ? fire_fuel_load_ptr->array(mfi) : phi.array(mfi);  // dummy if nullptr
 
             LoopOnCpu(bx, [&](int i, int j, int /*k*/) {
                 Real ccx = prob_lo[0] + (i + 0.5) * dx[0];
@@ -426,6 +428,12 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                     amrex::Real sdf_val = (d - sp.spot_radius) / sp.spot_radius;  // in [-1, 0]
                     phi_arr(i, j, 0, 0) = std::min(phi_arr(i, j, 0, 0), sdf_val);
                     alb_arr(i, j, 0, 3) = 1.0;  // active spot flag
+                    
+                    // Initialize fuel load at newly-ignited spot to a small fraction
+                    // to represent early burning stage before steady state
+                    if (fire_fuel_load_ptr != nullptr && fuel_load_initial_kg_m2 > 0.0_rt) {
+                        fuel_arr(i, j, 0, 0) = amrex::min(fuel_arr(i, j, 0, 0), 0.05_rt * fuel_load_initial_kg_m2);
+                    }
                 }
 
                 // Source cell diagnostics
