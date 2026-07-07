@@ -45,17 +45,35 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     int ncomp = fire_plotfile_ncomp();
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
+    
+    // Component 0: fire_phi
     MultiFab::Copy(mf, *fire_layer.get_levelset(), 0, 0, 1, 0);
+    // Component 1: fire_ros
     MultiFab::Copy(mf, *fire_layer.get_ros(),      0, 1, 1, 0);
+    // Components 2-3: fire_wind_eff (u, v)
     MultiFab::Copy(mf, *fire_layer.get_wind_eff(), 0, 2, 2, 0);
+    // Components 4-5: fire_wind_ref (u, v)
     MultiFab::Copy(mf, *fire_layer.get_wind_ref(), 0, 4, 2, 0);
-    MultiFab::Copy(mf, *fire_layer.get_slopes(),   0, 6, 2, 0);
-    MultiFab::Copy(mf, *fire_layer.get_fuel_mc(),  0, 8, 3, 0);
-    // Phase 5: new plotfile fields
-    MultiFab::Copy(mf, *fire_layer.get_heat_flux(), 0, 11, 1, 0);
-    MultiFab::Copy(mf, *fire_layer.get_fuel_load(), 0, 12, 1, 0);
-    MultiFab::Copy(mf, *fire_layer.get_fireline_intensity(), 0, 13, 1, 0);
-    MultiFab::Copy(mf, *fire_layer.get_flame_length(), 0, 14, 1, 0);
+    // Component 6: fire_wind_extract_z
+    MultiFab::Copy(mf, *fire_layer.get_wind_extract_z(), 0, 6, 1, 0);
+    // Components 7-8: fire_slopes (dz/dx, dz/dy)
+    MultiFab::Copy(mf, *fire_layer.get_slopes(),   0, 7, 2, 0);
+    // Components 9-11: fire_fuel_mc (M_1hr, M_10hr, M_100hr)
+    MultiFab::Copy(mf, *fire_layer.get_fuel_mc(),  0, 9, 3, 0);
+    // Component 12: fire_surface_temp_K
+    MultiFab::Copy(mf, *fire_layer.get_surface_temp(), 0, 12, 1, 0);
+    // Component 13: fire_surface_rh
+    MultiFab::Copy(mf, *fire_layer.get_surface_rh(), 0, 13, 1, 0);
+    // Component 14: fire_heat_flux
+    MultiFab::Copy(mf, *fire_layer.get_heat_flux(), 0, 14, 1, 0);
+    // Component 15: fire_fuel_load
+    MultiFab::Copy(mf, *fire_layer.get_fuel_load(), 0, 15, 1, 0);
+    // Component 16: fire_fireline_intensity
+    MultiFab::Copy(mf, *fire_layer.get_fireline_intensity(), 0, 16, 1, 0);
+    // Component 17: fire_flame_length
+    MultiFab::Copy(mf, *fire_layer.get_flame_length(), 0, 17, 1, 0);
+    // Component 18: fire_arrival_time
+    MultiFab::Copy(mf, *fire_layer.get_arrival_time(), 0, 18, 1, 0);
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
@@ -83,7 +101,7 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
         const std::string header_path = plotfilename + "/Header";
         std::ofstream hfile;
         hfile.open(header_path.c_str(),
-                   std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
+                  std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
         if (!hfile.good()) { FileOpenFailed(header_path); }
 
         // Use AMReX's canonical header writer — guarantees ParaView compatibility
@@ -94,7 +112,7 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
         Vector<IntVect>     rr       = {};   // no refinement — single level
 
         WriteGenericPlotfileHeader(hfile, 1, ba_vec, var_vec,
-                                   geom_vec, time, steps, rr);
+                                  geom_vec, time, steps, rr);
         hfile << "Level_0/Cell\n";  // MultiFab path at Level 0
         if (!hfile.good()) { FileOpenFailed(header_path); }
 
