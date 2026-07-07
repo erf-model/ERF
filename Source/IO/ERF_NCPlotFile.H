@@ -24,8 +24,8 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                  amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_hi,
                  amrex::Array<amrex::Real,AMREX_SPACEDIM> dx_in,
                  const amrex::Box& subdomain,
-                 const amrex::Real time,
-                 const amrex::Real start_bdy_time,
+                 const double& time,
+                 const double& start_bdy_time,
                  const SolverChoice& solverChoice,
                  const amrex::Vector<amrex::Real>& zlevels_stag);
 #endif

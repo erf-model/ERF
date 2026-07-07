@@ -8,7 +8,7 @@
 struct TimeInterpolatedData {
     TimeInterpolatedData() = default;
 
-    TimeInterpolatedData(amrex::Real time) : m_time(time) {}
+    TimeInterpolatedData(double time) : m_time(time) {}
 
     ~TimeInterpolatedData() {
         clear();
@@ -31,11 +31,11 @@ struct TimeInterpolatedData {
     // Delete the copy assignment operator
     TimeInterpolatedData& operator=(const TimeInterpolatedData& other) = delete;
 
-    void set_time(amrex::Real time) {
+    void set_time(double time) {
         m_time = time;
     }
 
-    [[nodiscard]] amrex::Real get_time() const { return m_time; }
+    [[nodiscard]] double get_time() const { return m_time; }
 
     void add_var(amrex::MultiFab* var_data, int own_data) {
         m_data.push_back(var_data);
@@ -60,13 +60,13 @@ struct TimeInterpolatedData {
         // clear internal memory
         m_data.clear();
         m_owns_data.clear();
-        m_time = zero;
+        m_time = 0.0;
     }
 
 private:
     amrex::Vector<amrex::MultiFab*> m_data;
     amrex::Vector<int> m_owns_data;
-    amrex::Real m_time;
+    double m_time;
 };
 
 #endif

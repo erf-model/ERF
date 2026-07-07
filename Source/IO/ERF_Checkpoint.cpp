@@ -564,7 +564,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            dt[i++] = static_cast<Real>(std::stod(word));
+            dt[i++] = std::stod(word);
         }
     }
 
@@ -574,7 +574,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            t_new[i++] = static_cast<Real>(std::stod(word));
+            t_new[i++] = std::stod(word);
         }
     }
 
@@ -1149,7 +1149,7 @@ ERF::ReadCheckpointFile ()
             Print() << "Restart: Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
             int ntimes_erfbdy;
-            Vector<Real> bdy_times;
+            Vector<double> bdy_times;
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
@@ -1162,7 +1162,7 @@ ERF::ReadCheckpointFile ()
             bdy_data_yhi.resize(ntimes_erfbdy);
 
             // Determine which times we need based on current simulation time.
-            Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
             int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
             int n_time_new = n_time_old + 1;
 

@@ -28,11 +28,11 @@ using namespace amrex;
 void add_moist_nudging_terms (const MultiFab& S_data,
                                     MultiFab & source,
                               const int n_qstate,
-                              const Real& dt,
-                              const Real& time,
-                              const Real& start_bdy_time,
-                              const Real& final_bdy_time,
-                              const Real& bdy_time_interval,
+                              const double& dt,
+                              const double& time,
+                              const double& start_bdy_time,
+                              const double& final_bdy_time,
+                              const double& bdy_time_interval,
                               const Real& nudge_factor,
                               const int width,
                               const Geometry& geom,
@@ -104,7 +104,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     auto ProbLo = geom.ProbLoArray();
 
     // Time interpolation
-    Real dT = bdy_time_interval;
+    double dT = bdy_time_interval;
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -113,7 +113,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+    double alpha  = ((time-start_bdy_time) - n_time * dT) / dT;
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {

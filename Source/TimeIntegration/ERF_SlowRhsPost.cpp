@@ -46,7 +46,7 @@ using namespace amrex;
 
 void erf_slow_rhs_post (int level, int finest_level,
                         int nrk,
-                        Real dt,
+                        double dt,
                         int n_qstate,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,

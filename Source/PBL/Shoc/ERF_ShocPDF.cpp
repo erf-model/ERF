@@ -275,7 +275,7 @@ namespace
 void
 ShocPDF::diagnose_pdf (ShocColumnData& col,
                        const ShocRuntimeOptions& opts,
-                       Real dt)
+                       double dt)
 {
     // Interim native-SHOC contract: this PDF remains liquid-cloud
     // macrophysics. It may carry pre-existing ice through the thermodynamic
@@ -394,9 +394,10 @@ ShocPDF::diagnose_pdf (ShocColumnData& col,
                                                      p_mid(ic,k,0), wqls);
 
             if (opts.extra_shoc_diags) {
+                const Real real_dt = dt;
                 const Real ql_change = ql - old_ql;
-                shoc_cond(ic,k,0) = amrex::max(0.0_rt, ql_change / amrex::max(dt, 1.0e-12_rt));
-                shoc_evap(ic,k,0) = amrex::max(0.0_rt, -ql_change / amrex::max(dt, 1.0e-12_rt));
+                shoc_cond(ic,k,0) = amrex::max(0.0_rt, ql_change / amrex::max(real_dt, 1.0e-12_rt));
+                shoc_evap(ic,k,0) = amrex::max(0.0_rt, -ql_change / amrex::max(real_dt, 1.0e-12_rt));
             } else {
                 shoc_cond(ic,k,0) = 0.0_rt;
                 shoc_evap(ic,k,0) = 0.0_rt;

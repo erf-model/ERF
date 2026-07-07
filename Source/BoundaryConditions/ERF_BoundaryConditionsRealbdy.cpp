@@ -13,7 +13,7 @@ using namespace amrex;
 
 void
 ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
-                        const Real time,
+                        const double time,
                         bool cons_only,
                         int icomp_cons,
                         int ncomp_cons,
@@ -27,13 +27,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ngvect_vels[2] = 0;
 
     // Time interpolation
-    Real dT = bdy_time_interval;
+    double dT = bdy_time_interval;
 
-    Real time_tot = time + start_time;
-    Real time_since_start_bdy = time_tot - start_bdy_time;
+    double time_tot = time + start_time;
+    double time_since_start_bdy = time_tot - start_bdy_time;
     int n_time    = static_cast<int>( time_since_start_bdy /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = (time_since_start_bdy - n_time * dT) / dT;
+    double alpha  = (time_since_start_bdy - n_time * dT) / dT;
 
     // Do not over run the last bdy file
     if (time_tot >= final_bdy_time) {

@@ -33,7 +33,7 @@ public:
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override
+          const double& dt) override
     {
         m_dt = dt;
         m_lsm_geom = geom;
@@ -68,7 +68,7 @@ public:
     }
 
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const double& dt) override
     {
         // OceanSurf currently does not evolve internal state here; keep the
         // latest timestep for bookkeeping so this stays aligned with other LSMs.
@@ -149,7 +149,7 @@ private:
     amrex::Vector<std::string> LsmVarName;
     amrex::Vector<FabPtr> lsm_fab_data;
     amrex::Geometry m_lsm_geom;
-    amrex::Real m_dt{0.0};
+    double m_dt{0.0};
     int khi_lsm{0};
     amrex::Real m_default_tsurf{amrex::Real(300.0)};
     const amrex::Vector<amrex::MultiFab*>* m_ocean_state = nullptr;

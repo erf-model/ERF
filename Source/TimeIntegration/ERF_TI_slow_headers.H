@@ -48,7 +48,7 @@ void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFa
  *
  */
 void erf_slow_rhs_pre (int level, int finest_level, int nrk,
-                      amrex::Real dt,
+                      double dt,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_old,
                       amrex::Vector<amrex::MultiFab>& S_data,
@@ -110,7 +110,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
  *
  */
 void erf_slow_rhs_post (int level, int finest_level, int nrk,
-                       amrex::Real dt,
+                       double dt,
                        int n_qstate,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,

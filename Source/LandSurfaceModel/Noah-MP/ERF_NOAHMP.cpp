@@ -19,7 +19,7 @@ void
 NOAHMP::Init (const int& lev,
               const MultiFab& cons_in,
               const Geometry& geom,
-              const Real& dt)
+              const double& dt)
 {
 
     // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
@@ -237,7 +237,7 @@ NOAHMP::Init (const int& lev,
     // Broadcast DTBL and the initial substep counter to every rank so the firing
     // decision in Advance_With_State is identical everywhere. Land-free ranks use
     // sentinels that lose the max-reduction to any real value.
-    m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<Real>::lowest()
+    m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<double>::lowest()
                                         : static_cast<Real>(noahmpio_vect[0].DTBL);
     m_itimestep = noahmpio_vect.empty() ? std::numeric_limits<int>::lowest()
                                         : noahmpio_vect[0].itimestep;
@@ -245,7 +245,7 @@ NOAHMP::Init (const int& lev,
     ParallelDescriptor::ReduceIntMax(m_itimestep);
 
     // Guard against a degenerate decomposition in which no rank owns a land box.
-    AMREX_ALWAYS_ASSERT(m_dtbl > Real(0.0));
+    AMREX_ALWAYS_ASSERT(m_dtbl > 0.0);
     AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
 
     Print() << "Noah-MP initialization completed" << std::endl;
@@ -267,14 +267,14 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
-                            const Real& elapsed_time,
-                            const Real& dt,
+                            const double& elapsed_time,
+                            const double& dt,
                             const int& nstep)
 {
     // Verify we need to take another LSM step. Use the class-level counter/dtbl
     // (valid on land-free ranks) so every rank decides identically -- the
     // FillBoundary at the end of this routine is collective.
-    Real NOAH_time = static_cast<Real>(m_itimestep-1) * m_dtbl;
+    double NOAH_time = static_cast<double>(m_itimestep-1) * m_dtbl;
     if (elapsed_time < NOAH_time) { return; }
 
     // Advance the counter once per firing, in lockstep on every rank.

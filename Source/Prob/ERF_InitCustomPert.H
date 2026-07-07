@@ -41,7 +41,7 @@ erf_vortex_Gaussian(
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
 amrex::Real
-Problem::compute_terrain_velocity (const amrex::Real time)
+Problem::compute_terrain_velocity (const double time)
 {
     amrex::Real U = amrex::Real(10.0);
     amrex::Real omega = two*M_PI*amrex::Real(1000.0);

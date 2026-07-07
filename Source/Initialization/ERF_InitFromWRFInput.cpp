@@ -91,10 +91,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& TLP_STRAT,
                                const Real& P_STRAT);
 
-Real
+double
 read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -111,7 +111,7 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  wrfinput datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -1104,7 +1104,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             // Read metadata and times from erfbdy.
             int ntimes_erfbdy;
-            Vector<Real> bdy_times;
+            Vector<double> bdy_times;
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
@@ -1142,7 +1142,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                        start_bdy_time, final_bdy_time);
 
             int ntimes_total = bdy_data_xlo.size();
-            Vector<Real> bdy_times(ntimes_total);
+            Vector<double> bdy_times(ntimes_total);
 
             // Initialize erfbdy file.
             if (write_erfbdy) {

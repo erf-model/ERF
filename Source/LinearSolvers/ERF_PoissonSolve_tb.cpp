@@ -19,7 +19,7 @@ projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
+void ERF::project_velocity_tb (int lev, double l_dt, Vector<MultiFab>& vmf)
 {
     BL_PROFILE("ERF::project_velocity_tb()");
     AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);

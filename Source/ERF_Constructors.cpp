@@ -226,7 +226,7 @@ ERF::ERF_shared ()
 
     t_new.resize(nlevs_max, zero);
     t_old.resize(nlevs_max, -bogus_large_value);
-    dt.resize(nlevs_max, std::min(bogus_large_value,dt_max_initial));
+    dt.resize(nlevs_max, std::min(static_cast<double>(bogus_large_value),dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
@@ -443,7 +443,7 @@ ERF::ERF_shared ()
         if (geometry == "terrain") {
             Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-            Real dummy_time = zero;
+            double dummy_time = 0.0;
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
@@ -500,7 +500,7 @@ ERF::ERF_shared ()
         constexpr int ngrow_for_eb = 4;
         Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
         FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
-        Real dummy_time = zero;
+        double dummy_time = 0.0;
         prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
         TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
         auto gshop = EB2::makeShop(implicit_fun);
@@ -517,4 +517,3 @@ ERF::ERF_shared ()
 }
 
 ERF::~ERF () = default;
-

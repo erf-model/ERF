@@ -8,7 +8,7 @@ using namespace amrex;
 
 void InitERFBdyFile(const std::string& bdy_file_name,
                     int ntimes,
-                    const Vector<Real>& bdy_times,
+                    const Vector<double>& bdy_times,
                     const Box& domain,
                     int nvars,
                     int real_width)

@@ -21,7 +21,7 @@
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
  */
 void
-ComputeDiffusivityMYJ (amrex::Real dt,
+ComputeDiffusivityMYJ (double dt,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        amrex::MultiFab& cons_in,
